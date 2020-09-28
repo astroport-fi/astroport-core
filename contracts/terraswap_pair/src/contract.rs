@@ -14,7 +14,9 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse};
 use integer_sqrt::IntegerSquareRoot;
-use terraswap::{load_supply, Asset, AssetInfo, InitHook, PairConfigRaw, PairInitMsg, TokenInitMsg};
+use terraswap::{
+    load_supply, Asset, AssetInfo, InitHook, PairConfigRaw, PairInitMsg, TokenInitMsg,
+};
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -310,28 +312,14 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
         // Initial share = collateral amount
         Uint128((deposits[0].u128() * deposits[1].u128()).integer_sqrt())
     } else {
-        let exchange_rate_0_to_1 = Decimal::from_ratio(pools[1].amount, pools[0].amount);
-        let exchange_rate_1_to_0 = Decimal::from_ratio(pools[0].amount, pools[1].amount);
-        let asset_0_value_in_1 = deposits[0] * exchange_rate_0_to_1;
-
-        // Calculate deposit value
-        let value = if asset_0_value_in_1 > deposits[1] {
-            // If deposit value of token 0 is bigger than deposit value of token 1,
-            // it uses deposit value of token 1 to compute deposit value.
-            // sqrt(deposit_1 * exchange_rate_1_to_0 * deposit_1)
-            Uint128(
-                ((deposits[1] * exchange_rate_1_to_0).u128() * deposits[1].u128()).integer_sqrt(),
-            )
-        } else {
-            // Else it uses deposit value of token 0 to compute deposit value.
-            // sqrt(deposit_0 * exchange_rate_0_to_1 * deposit_0)
-            Uint128((asset_0_value_in_1.u128() * deposits[0].u128()).integer_sqrt())
-        };
-
-        // share = value * (total_share / sqrt(pool_0 * pool_1))
-        value.multiply_ratio(
-            total_share,
-            Uint128((pools[0].amount.u128() * pools[1].amount.u128()).integer_sqrt()),
+        // min(1, 2)
+        // 1. sqrt(deposit_0 * exchange_rate_0_to_1 * deposit_0) * (total_share / sqrt(pool_0 * pool_1))
+        // == deposit_0 * total_share / pool_0
+        // 2. sqrt(deposit_1 * exchange_rate_1_to_0 * deposit_1) * (total_share / sqrt(pool_1 * pool_1)) 
+        // == deposit_1 * total_share / pool_1
+        std::cmp::min(
+            deposits[0].multiply_ratio(total_share, pools[0].amount),
+            deposits[1].multiply_ratio(total_share, pools[1].amount),
         )
     };
 
