@@ -1,0 +1,14 @@
+[workspace]
+members = ["packages/*", "contracts/*"]
+
+[profile.release.package.terraswap]
+opt-level = 3
+debug = false
+debug-assertions = false
+codegen-units = 1
+incremental = false
+
+[profile.release]
+rpath = false
+lto = true
+overflow-checks = true

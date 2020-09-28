@@ -1,0 +1,31 @@
+[package]
+name = "terraswap"
+version = "0.1.0"
+authors = ["Terraform Labs, PTE."]
+edition = "2018"
+description = "Common helpers for other terraswap specs"
+license = "Apache-2.0"
+repository = "https://github.com/terraswap/terraswap"
+homepage = "https://terra.money"
+documentation = "https://docs.terra.money"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["cranelift"]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces", "cosmwasm-vm/backtraces"]
+cranelift = ["cosmwasm-vm/default-cranelift"]
+singlepass = ["cosmwasm-vm/default-singlepass"]
+
+[dependencies]
+cw20 = { version = "0.2" }
+cosmwasm-storage = { version = "0.10.1" }
+terra-cosmwasm = { version = "1.2.2" }
+cosmwasm-std = { version = "0.10.1" }
+schemars = "0.7"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+
+[dev-dependencies]
+cosmwasm-vm = { version = "0.10.1", default-features = false }
