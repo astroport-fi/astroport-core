@@ -89,6 +89,16 @@
               },
               "maxItems": 2,
               "minItems": 2
+            },
+            "slippage_tolerance": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Decimal"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         }

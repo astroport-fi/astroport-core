@@ -50,27 +50,56 @@ When providing liquidity from a smart contract, the most important thing to keep
 
 > Note before executing the `provide_liqudity` operation, a user must allow the contract to use the liquidity amount of asset in the token contract.
 
+#### Slipage Tolerance
+If a user specify the slipage tolerance at provide liquidity msg, the contract restricts the operation when the exchange rate is dropped more than the tolerance.
 
-Request Format
+So, at a 1% tolerance level, if a user sends a transaction with 200 UST and 1 ASSET, amountUSTMin should be set to e.g. 198 UST, and amountASSETMin should be set to .99 ASSET. This means that, at worst, liquidity will be added at a rate between 198 ASSET/1 UST and 202.02 UST/1 ASSET (200 UST/.99 ASSET).
+
+#### Request Format
 * Provide Liquidity
-  
+    1. Without Slippage Tolerance
     ```json
     { 
         "provide_liquidity": { 
-            "coins": [{
-                "denom": "APPL", 
-                "amount": "1000000"
+            "assets": [{
+                "token": {
+                    "contract_addr": "terra~~",
+                },
+                "amount": "1000000",
+            }, {
+                "native_token": {
+                    "denom": "uusd",
+                },
+                "amount": "1000000",
             }]
-        } 
+        },
     }
     ```
-* Withdraw Liquidity
-  
+
+    2. With Slippage Tolerance
     ```json
     { 
-        "withdraw_liquidity": { 
-            "amount": "1000000" 
-        } 
+        "provide_liquidity": { 
+            "assets": [{
+                "token": {
+                    "contract_addr": "terra~~",
+                },
+                "amount": "1000000",
+            }, {
+                "native_token": {
+                    "denom": "uusd",
+                },
+                "amount": "1000000",
+            }]
+        },
+        "slippage_tolerance": "0.01",
+    }
+    ```
+* Withdraw Liquidity (must be sent to liquidity token contract)
+    
+    ```json
+    { 
+        "withdraw_liquidity": { } 
     }
     ```
 

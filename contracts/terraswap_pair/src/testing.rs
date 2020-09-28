@@ -254,6 +254,7 @@ fn provide_liquidity() {
                 amount: Uint128::from(100u128),
             },
         ],
+        slippage_tolerance: None,
     };
 
     let env = mock_env(
@@ -328,6 +329,7 @@ fn provide_liquidity() {
                 amount: Uint128::from(200u128),
             },
         ],
+        slippage_tolerance: None,
     };
 
     let env = mock_env_with_block_time(
@@ -369,28 +371,6 @@ fn provide_liquidity() {
         })
     );
 
-    // current liquidity is 2:3; lets put more to make it 1:1
-    // then no liquidity tokens will be issued
-    let msg = HandleMsg::ProvideLiquidity {
-        assets: [
-            Asset {
-                info: AssetInfo::Token {
-                    contract_addr: HumanAddr::from("asset0000".to_string()),
-                },
-                amount: Uint128::from(100u128),
-            },
-            Asset {
-                info: AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-                amount: Uint128::from(0u128),
-            },
-        ],
-    };
-
-    let env = mock_env_with_block_time("addr0001", &[], 1000);
-    let _res = handle(&mut deps, env, msg).unwrap();
-
     // check wrong argument
     let msg = HandleMsg::ProvideLiquidity {
         assets: [
@@ -407,6 +387,7 @@ fn provide_liquidity() {
                 amount: Uint128::from(50u128),
             },
         ],
+        slippage_tolerance: None,
     };
 
     let env = mock_env(
@@ -424,6 +405,181 @@ fn provide_liquidity() {
         ),
         _ => panic!("Must return generic error"),
     }
+
+    // initialize token balance to 1:1
+    deps.querier.with_balance(&[(
+        &HumanAddr::from(MOCK_CONTRACT_ADDR),
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128(100 + 100 /* user deposit must be pre-applied */),
+        }],
+    )]);
+
+    deps.querier.with_token_balances(&[
+        (
+            &HumanAddr::from("liquidity0000"),
+            &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &Uint128(100))],
+        ),
+        (
+            &HumanAddr::from("asset0000"),
+            &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &Uint128(100))],
+        ),
+    ]);
+
+    // failed because the price is under slippage_tolerance
+    let msg = HandleMsg::ProvideLiquidity {
+        assets: [
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: HumanAddr::from("asset0000".to_string()),
+                },
+                amount: Uint128::from(98u128),
+            },
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: Uint128::from(100u128),
+            },
+        ],
+        slippage_tolerance: Some(Decimal::percent(1)),
+    };
+
+    let env = mock_env_with_block_time(
+        "addr0001",
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(100u128),
+        }],
+        1000,
+    );
+    let res = handle(&mut deps, env, msg).unwrap_err();
+    match res {
+        StdError::GenericErr { msg, .. } => {
+            assert_eq!(msg, "Operation exceeds max splippage tolerance")
+        }
+        _ => panic!("DO NOT ENTER HERE"),
+    }
+
+    // initialize token balance to 1:1
+    deps.querier.with_balance(&[(
+        &HumanAddr::from(MOCK_CONTRACT_ADDR),
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128(100 + 98 /* user deposit must be pre-applied */),
+        }],
+    )]);
+
+    // failed because the price is under slippage_tolerance
+    let msg = HandleMsg::ProvideLiquidity {
+        assets: [
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: HumanAddr::from("asset0000".to_string()),
+                },
+                amount: Uint128::from(100u128),
+            },
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: Uint128::from(98u128),
+            },
+        ],
+        slippage_tolerance: Some(Decimal::percent(1)),
+    };
+
+    let env = mock_env_with_block_time(
+        "addr0001",
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(98u128),
+        }],
+        1000,
+    );
+    let res = handle(&mut deps, env, msg).unwrap_err();
+    match res {
+        StdError::GenericErr { msg, .. } => {
+            assert_eq!(msg, "Operation exceeds max splippage tolerance")
+        }
+        _ => panic!("DO NOT ENTER HERE"),
+    }
+
+    // initialize token balance to 1:1
+    deps.querier.with_balance(&[(
+        &HumanAddr::from(MOCK_CONTRACT_ADDR),
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128(100 + 100 /* user deposit must be pre-applied */),
+        }],
+    )]);
+
+    // successfully provides
+    let msg = HandleMsg::ProvideLiquidity {
+        assets: [
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: HumanAddr::from("asset0000".to_string()),
+                },
+                amount: Uint128::from(99u128),
+            },
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: Uint128::from(100u128),
+            },
+        ],
+        slippage_tolerance: Some(Decimal::percent(1)),
+    };
+
+    let env = mock_env_with_block_time(
+        "addr0001",
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(100u128),
+        }],
+        1000,
+    );
+    let _res = handle(&mut deps, env, msg).unwrap();
+
+    // initialize token balance to 1:1
+    deps.querier.with_balance(&[(
+        &HumanAddr::from(MOCK_CONTRACT_ADDR),
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128(100 + 99 /* user deposit must be pre-applied */),
+        }],
+    )]);
+
+    // successfully provides
+    let msg = HandleMsg::ProvideLiquidity {
+        assets: [
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: HumanAddr::from("asset0000".to_string()),
+                },
+                amount: Uint128::from(100u128),
+            },
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: Uint128::from(99u128),
+            },
+        ],
+        slippage_tolerance: Some(Decimal::percent(1)),
+    };
+
+    let env = mock_env_with_block_time(
+        "addr0001",
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(99u128),
+        }],
+        1000,
+    );
+    let _res = handle(&mut deps, env, msg).unwrap();
 }
 
 #[test]

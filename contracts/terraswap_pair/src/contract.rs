@@ -1,4 +1,4 @@
-use crate::math::{decimal_subtraction, reverse_decimal};
+use crate::math::{decimal_multiplication, decimal_subtraction, reverse_decimal};
 use crate::msg::{
     ConfigAssetResponse, ConfigGeneralResponse, ConfigSwapResponse, Cw20HookMsg, HandleMsg,
     MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse, SimulationResponse,
@@ -105,7 +105,10 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             owner_commission,
         } => try_update_config(deps, env, owner, lp_commission, owner_commission),
         HandleMsg::PostInitialize {} => try_post_initialize(deps, env),
-        HandleMsg::ProvideLiquidity { assets } => try_provide_liquidity(deps, env, assets),
+        HandleMsg::ProvideLiquidity {
+            assets,
+            slippage_tolerance,
+        } => try_provide_liquidity(deps, env, assets, slippage_tolerance),
         HandleMsg::Swap {
             offer_asset,
             max_spread,
@@ -261,6 +264,7 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     assets: [Asset; 2],
+    slippage_tolerance: Option<Decimal>,
 ) -> HandleResult {
     for asset in assets.iter() {
         asset.assert_sent_native_token_balance(&env)?;
@@ -285,7 +289,7 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
     let mut i = 0;
     let mut messages: Vec<CosmosMsg> = vec![];
     for pool in pools.iter_mut() {
-        // If the pool is token contract, then we need to send transfer from tx to receive funds
+        // If the pool is token contract, then we need to execute TransferFrom msg to receive funds
         if let AssetInfo::Token { contract_addr, .. } = &pool.info {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.clone(),
@@ -305,8 +309,10 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
         i += 1;
     }
 
-    let liquidity_token = deps.api.human_address(&config_general.liquidity_token)?;
+    // assert slippage tolerance
+    assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
 
+    let liquidity_token = deps.api.human_address(&config_general.liquidity_token)?;
     let total_share = load_supply(&deps, &liquidity_token)?;
     let share = if total_share == Uint128::zero() {
         // Initial share = collateral amount
@@ -315,7 +321,7 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
         // min(1, 2)
         // 1. sqrt(deposit_0 * exchange_rate_0_to_1 * deposit_0) * (total_share / sqrt(pool_0 * pool_1))
         // == deposit_0 * total_share / pool_0
-        // 2. sqrt(deposit_1 * exchange_rate_1_to_0 * deposit_1) * (total_share / sqrt(pool_1 * pool_1)) 
+        // 2. sqrt(deposit_1 * exchange_rate_1_to_0 * deposit_1) * (total_share / sqrt(pool_1 * pool_1))
         // == deposit_1 * total_share / pool_1
         std::cmp::min(
             deposits[0].multiply_ratio(total_share, pools[0].amount),
@@ -726,6 +732,33 @@ fn assert_max_spread(
     if let Some(max_spread) = max_spread {
         if Decimal::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
             return Err(StdError::generic_err("Operation exceeds max spread limit"));
+        }
+    }
+
+    Ok(())
+}
+
+fn assert_slippage_tolerance(
+    slippage_tolerance: &Option<Decimal>,
+    deposits: &[Uint128; 2],
+    pools: &[Asset; 2],
+) -> StdResult<()> {
+    if let Some(slippage_tolerance) = *slippage_tolerance {
+        let one_minus_slippage_tolerance = decimal_subtraction(Decimal::one(), slippage_tolerance)?;
+
+        // Ensure each prices are not dropped as much as slippage tolerance rate
+        if decimal_multiplication(
+            Decimal::from_ratio(deposits[0], deposits[1]),
+            one_minus_slippage_tolerance,
+        ) > Decimal::from_ratio(pools[0].amount, pools[1].amount)
+            || decimal_multiplication(
+                Decimal::from_ratio(deposits[1], deposits[0]),
+                one_minus_slippage_tolerance,
+            ) > Decimal::from_ratio(pools[1].amount, pools[0].amount)
+        {
+            return Err(StdError::generic_err(
+                "Operation exceeds max splippage tolerance",
+            ));
         }
     }
 
