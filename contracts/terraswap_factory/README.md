@@ -1,4 +1,4 @@
-# TerraSwap Factory Contract
+# Terraswap Factory Contract
 The factory contract can perform creation of terraswap pair contract and also be used as directory contract for all pairs.
 
 ## Handlers

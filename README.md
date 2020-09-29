@@ -1,4 +1,4 @@
-# TerraSwap
+# Terraswap
 
 It is Uniswap clone project.
 

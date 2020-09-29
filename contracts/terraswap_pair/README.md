@@ -1,4 +1,4 @@
-# TerraSwap Pair Contract
+# Terraswap Pair Contract
 
 ## Handlers
 ### Initialize

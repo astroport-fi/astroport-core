@@ -35,8 +35,8 @@ pub struct WasmMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
-    terraswap_factory_querier: TerraSwapFactoryQuerier,
-    terraswap_pair_querier: TerraSwapPairQuerier,
+    terraswap_factory_querier: TerraswapFactoryQuerier,
+    terraswap_pair_querier: TerraswapPairQuerier,
     canonical_length: usize,
 }
 
@@ -94,13 +94,13 @@ pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint1
 }
 
 #[derive(Clone, Default)]
-pub struct TerraSwapFactoryQuerier {
+pub struct TerraswapFactoryQuerier {
     pairs: HashMap<String, HumanAddr>,
 }
 
-impl TerraSwapFactoryQuerier {
+impl TerraswapFactoryQuerier {
     pub fn new(pairs: &[(&String, &HumanAddr)]) -> Self {
-        TerraSwapFactoryQuerier {
+        TerraswapFactoryQuerier {
             pairs: pairs_to_map(pairs),
         }
     }
@@ -115,13 +115,13 @@ pub(crate) fn pairs_to_map(pairs: &[(&String, &HumanAddr)]) -> HashMap<String, H
 }
 
 #[derive(Clone, Default)]
-pub struct TerraSwapPairQuerier {
+pub struct TerraswapPairQuerier {
     liquidity_tokens: HashMap<HumanAddr, HumanAddr>,
 }
 
-impl TerraSwapPairQuerier {
+impl TerraswapPairQuerier {
     pub fn new(liquidity_tokens: &[(&HumanAddr, &HumanAddr)]) -> Self {
-        TerraSwapPairQuerier {
+        TerraswapPairQuerier {
             liquidity_tokens: liquidity_tokens_to_map(liquidity_tokens),
         }
     }
@@ -332,8 +332,8 @@ impl WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
             tax_querier: TaxQuerier::default(),
-            terraswap_pair_querier: TerraSwapPairQuerier::default(),
-            terraswap_factory_querier: TerraSwapFactoryQuerier::default(),
+            terraswap_pair_querier: TerraswapPairQuerier::default(),
+            terraswap_factory_querier: TerraswapFactoryQuerier::default(),
             canonical_length,
         }
     }
@@ -350,12 +350,12 @@ impl WasmMockQuerier {
 
     // configure the terraswap pair
     pub fn with_terraswap_pairs(&mut self, pairs: &[(&String, &HumanAddr)]) {
-        self.terraswap_factory_querier = TerraSwapFactoryQuerier::new(pairs);
+        self.terraswap_factory_querier = TerraswapFactoryQuerier::new(pairs);
     }
 
     // configure the lp token mock querier
     pub fn with_terraswap_pair_lp_token(&mut self, liquidity_tokens: &[(&HumanAddr, &HumanAddr)]) {
-        self.terraswap_pair_querier = TerraSwapPairQuerier::new(liquidity_tokens);
+        self.terraswap_pair_querier = TerraswapPairQuerier::new(liquidity_tokens);
     }
 
     // pub fn with_balance(&mut self, balances: &[(&HumanAddr, &[Coin])]) {
