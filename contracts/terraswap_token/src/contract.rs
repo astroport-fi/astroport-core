@@ -3,7 +3,7 @@ use cosmwasm_std::{
     MigrateResponse, MigrateResult, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
-use cw20::{Cw20CoinHuman, BalanceResponse, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
+use cw20::{BalanceResponse, Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 
 use crate::allowances::{
     handle_burn_from, handle_decrease_allowance, handle_increase_allowance, handle_send_from,
@@ -132,7 +132,12 @@ pub fn handle_transfer<S: Storage, A: Api, Q: Querier>(
 
     let mut accounts = balances(&mut deps.storage);
     accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
-        balance.unwrap_or_default() - amount
+        let balance = balance.unwrap_or_default();
+        if balance < amount {
+            return Err(StdError::generic_err("Cannot transfer more than balance"));
+        }
+
+        balance - amount
     })?;
     accounts.update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
         Ok(balance.unwrap_or_default() + amount)
@@ -161,7 +166,12 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     // lower balance
     let mut accounts = balances(&mut deps.storage);
     accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
-        balance.unwrap_or_default() - amount
+        let balance = balance.unwrap_or_default();
+        if balance < amount {
+            return Err(StdError::generic_err("Cannot burn more than balance"));
+        }
+
+        balance - amount
     })?;
     // reduce total_supply
     token_info(&mut deps.storage).update(|mut info| {
@@ -243,7 +253,12 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     // move the tokens to the contract
     let mut accounts = balances(&mut deps.storage);
     accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
-        balance.unwrap_or_default() - amount
+        let balance = balance.unwrap_or_default();
+        if balance < amount {
+            return Err(StdError::generic_err("Cannot send more than balance"));
+        }
+
+        balance - amount
     })?;
     accounts.update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
         Ok(balance.unwrap_or_default() + amount)
@@ -691,7 +706,7 @@ mod tests {
         };
         let res = handle(&mut deps, env, msg);
         match res.unwrap_err() {
-            StdError::Underflow { .. } => {}
+            StdError::GenericErr { msg, .. } => assert_eq!(msg, "Cannot transfer more than balance"),
             e => panic!("Unexpected error: {}", e),
         }
 
@@ -703,7 +718,7 @@ mod tests {
         };
         let res = handle(&mut deps, env, msg);
         match res.unwrap_err() {
-            StdError::Underflow { .. } => {}
+            StdError::GenericErr { msg, .. } => assert_eq!(msg, "Cannot transfer more than balance"),
             e => panic!("Unexpected error: {}", e),
         }
 
@@ -737,7 +752,7 @@ mod tests {
         let msg = HandleMsg::Burn { amount: too_much };
         let res = handle(&mut deps, env, msg);
         match res.unwrap_err() {
-            StdError::Underflow { .. } => {}
+            StdError::GenericErr { msg, .. } => assert_eq!(msg, "Cannot burn more than balance"),
             e => panic!("Unexpected error: {}", e),
         }
         assert_eq!(query_token_info(&deps).unwrap().total_supply, amount1);
@@ -774,7 +789,7 @@ mod tests {
         };
         let res = handle(&mut deps, env, msg);
         match res.unwrap_err() {
-            StdError::Underflow { .. } => {}
+            StdError::GenericErr { msg, .. } => assert_eq!(msg, "Cannot send more than balance"),
             e => panic!("Unexpected error: {}", e),
         }
 

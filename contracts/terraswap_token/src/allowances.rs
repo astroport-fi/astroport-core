@@ -129,7 +129,12 @@ pub fn handle_transfer_from<S: Storage, A: Api, Q: Querier>(
 
     let mut accounts = balances(&mut deps.storage);
     accounts.update(owner_raw.as_slice(), |balance: Option<Uint128>| {
-        balance.unwrap_or_default() - amount
+        let balance = balance.unwrap_or_default();
+        if balance < amount {
+            return Err(StdError::generic_err("Cannot transfer more than balance"));
+        }
+
+        balance - amount
     })?;
     accounts.update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
         Ok(balance.unwrap_or_default() + amount)
