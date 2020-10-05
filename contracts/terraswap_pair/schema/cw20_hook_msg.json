@@ -12,7 +12,7 @@
         "swap": {
           "type": "object",
           "properties": {
-            "believe_price": {
+            "belief_price": {
               "anyOf": [
                 {
                   "$ref": "#/definitions/Decimal"

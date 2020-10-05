@@ -759,7 +759,7 @@ fn try_native_to_token() {
             },
             amount: offer_amount,
         },
-        believe_price: None,
+        belief_price: None,
         max_spread: None,
     };
     let env = mock_env_with_block_time(
@@ -948,7 +948,7 @@ fn try_token_to_native() {
             },
             amount: offer_amount,
         },
-        believe_price: None,
+        belief_price: None,
         max_spread: None,
     };
     let env = mock_env_with_block_time("addr0000", &[], 1000);
@@ -964,7 +964,7 @@ fn try_token_to_native() {
         amount: offer_amount,
         msg: Some(
             to_binary(&Cw20HookMsg::Swap {
-                believe_price: None,
+                belief_price: None,
                 max_spread: None,
             })
             .unwrap(),
@@ -1099,7 +1099,7 @@ fn try_token_to_native() {
         amount: offer_amount,
         msg: Some(
             to_binary(&Cw20HookMsg::Swap {
-                believe_price: None,
+                belief_price: None,
                 max_spread: None,
             })
             .unwrap(),

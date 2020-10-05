@@ -117,7 +117,7 @@
             "offer_asset"
           ],
           "properties": {
-            "believe_price": {
+            "belief_price": {
               "anyOf": [
                 {
                   "$ref": "#/definitions/Decimal"
