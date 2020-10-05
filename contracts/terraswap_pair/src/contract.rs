@@ -111,7 +111,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         } => try_provide_liquidity(deps, env, assets, slippage_tolerance),
         HandleMsg::Swap {
             offer_asset,
-            believe_price,
+            belief_price,
             max_spread,
         } => {
             if !offer_asset.is_native_token() {
@@ -123,7 +123,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
                 env.clone(),
                 env.message.sender,
                 offer_asset,
-                believe_price,
+                belief_price,
                 max_spread,
             )
         }
@@ -139,7 +139,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
     if let Some(msg) = cw20_msg.msg {
         match from_binary(&msg)? {
             Cw20HookMsg::Swap {
-                believe_price,
+                belief_price,
                 max_spread,
             } => {
                 // only asset contract can execute this message
@@ -166,7 +166,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                         info: AssetInfo::Token { contract_addr },
                         amount: cw20_msg.amount,
                     },
-                    believe_price,
+                    belief_price,
                     max_spread,
                 )
             }
@@ -414,7 +414,7 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
     env: Env,
     sender: HumanAddr,
     offer_asset: Asset,
-    believe_price: Option<Decimal>,
+    belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
 ) -> HandleResult {
     offer_asset.assert_sent_native_token_balance(&env)?;
@@ -456,7 +456,7 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
 
     // check max spread limit if exist
     assert_max_spread(
-        believe_price,
+        belief_price,
         max_spread,
         offer_amount,
         return_amount + lp_commission + owner_commission,
@@ -737,13 +737,13 @@ fn compute_offer_amount(
 }
 
 pub fn assert_max_spread(
-    believe_price: Option<Decimal>,
+    belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
     offer_amount: Uint128,
     return_amount: Uint128,
 ) -> StdResult<()> {
-    if let (Some(max_spread), Some(believe_price)) = (max_spread, believe_price) {
-        let expected_return = offer_amount * reverse_decimal(believe_price);
+    if let (Some(max_spread), Some(belief_price)) = (max_spread, belief_price) {
+        let expected_return = offer_amount * reverse_decimal(belief_price);
         println!("SIBONG {}", expected_return);
         if return_amount < expected_return
             && Decimal::from_ratio((expected_return - return_amount).unwrap(), expected_return)
