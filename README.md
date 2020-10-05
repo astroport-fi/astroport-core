@@ -1,6 +1,12 @@
-# Terraswap
+# TerraSwap
 
-It is Uniswap clone project.
+## Contracts
+
+| Name                                               | Description                                  |
+| -------------------------------------------------- | -------------------------------------------- |
+| [`terraswap_factory`](contracts/terraswap_factory) |                                              |
+| [`terraswap_pair`](contracts/terraswap_pair)       |                                              |
+| [`terraswap_token`](contracts/terraswap_token)     | CW20 (ERC20 equivalent) token implementation |
 
 ## Running this contract
 
@@ -14,6 +20,7 @@ cargo integration-test
 ```
 
 Once you are happy with the content, you can compile it to wasm on each contracts directory via:
+
 ```
 RUSTFLAGS='-C link-arg=-s' cargo wasm
 cp ../../target/wasm32-unknown-unknown/release/cw1_subkeys.wasm .

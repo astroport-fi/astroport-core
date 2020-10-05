@@ -1,10 +1,12 @@
-# Terraswap Pair Contract
+# TerraSwap Pair
 
 ## Handlers
-### Initialize
-This is mainly used from terraswap factory contract to create new terraswap pair. It initialize all swap created parameters which can be updated later with owner key. 
 
-It creates liquidity token contract as init response, and execute init hook to register created liquidity token contract to self. 
+### Initialize
+
+This is mainly used from terraswap factory contract to create new terraswap pair. It initialize all swap created parameters which can be updated later with owner key.
+
+It creates liquidity token contract as init response, and execute init hook to register created liquidity token contract to self.
 
 ```rust
 {
@@ -26,12 +28,12 @@ It creates liquidity token contract as init response, and execute init hook to r
 ```
 
 ### UpdateConfig
-    
+
 The market contract owner can update commission configuration with `update_config` msg.
 
 ```json
 {
-    "update_config": 
+    "update_config":
     {
         "owner": Option<HumanAddr>,
         "lp_commission": Option<Decimal>,
@@ -42,7 +44,7 @@ The market contract owner can update commission configuration with `update_confi
 
 ### Liquidity Provider
 
-The contract has two types of pool, the one is collateral and the other is asset pool. A user can provide liquidity to each pool by sending `provide_liquidity` msgs and also can withdraw with `withdraw_liquidity` msgs. 
+The contract has two types of pool, the one is collateral and the other is asset pool. A user can provide liquidity to each pool by sending `provide_liquidity` msgs and also can withdraw with `withdraw_liquidity` msgs.
 
 Whenever liquidity is deposited into a pool, special tokens known as liquidity tokens are minted to the provider’s address, in proportion to how much liquidity they contributed to the pool. These tokens are a representation of a liquidity provider’s contribution to a pool. Whenever a trade occurs, the `lp_commission%` of fee is distributed pro-rata to all LPs in the pool at the moment of the trade. To receive the underlying liquidity back, plus commission fees that were accrued while their liquidity was locked, LPs must burn their liquidity tokens.
 
@@ -51,96 +53,108 @@ When providing liquidity from a smart contract, the most important thing to keep
 > Note before executing the `provide_liqudity` operation, a user must allow the contract to use the liquidity amount of asset in the token contract.
 
 #### Slipage Tolerance
+
 If a user specify the slipage tolerance at provide liquidity msg, the contract restricts the operation when the exchange rate is dropped more than the tolerance.
 
 So, at a 1% tolerance level, if a user sends a transaction with 200 UST and 1 ASSET, amountUSTMin should be set to e.g. 198 UST, and amountASSETMin should be set to .99 ASSET. This means that, at worst, liquidity will be added at a rate between 198 ASSET/1 UST and 202.02 UST/1 ASSET (200 UST/.99 ASSET).
 
 #### Request Format
-* Provide Liquidity
-    1. Without Slippage Tolerance
-    ```json
-    { 
-        "provide_liquidity": { 
-            "assets": [{
-                "token": {
-                    "contract_addr": "terra~~",
-                },
-                "amount": "1000000",
-            }, {
-                "native_token": {
-                    "denom": "uusd",
-                },
-                "amount": "1000000",
-            }]
-        },
-    }
-    ```
 
-    2. With Slippage Tolerance
-    ```json
-    { 
-        "provide_liquidity": { 
-            "assets": [{
-                "token": {
-                    "contract_addr": "terra~~",
-                },
-                "amount": "1000000",
-            }, {
-                "native_token": {
-                    "denom": "uusd",
-                },
-                "amount": "1000000",
-            }]
+- Provide Liquidity
+
+  1. Without Slippage Tolerance
+
+  ```json
+  {
+    "provide_liquidity": {
+      "assets": [
+        {
+          "token": {
+            "contract_addr": "terra~~"
+          },
+          "amount": "1000000"
         },
-        "slippage_tolerance": "0.01",
+        {
+          "native_token": {
+            "denom": "uusd"
+          },
+          "amount": "1000000"
+        }
+      ]
     }
-    ```
-* Withdraw Liquidity (must be sent to liquidity token contract)
-    
-    ```json
-    { 
-        "withdraw_liquidity": { } 
-    }
-    ```
+  }
+  ```
+
+  2. With Slippage Tolerance
+
+  ```json
+  {
+    "provide_liquidity": {
+      "assets": [
+        {
+          "token": {
+            "contract_addr": "terra~~"
+          },
+          "amount": "1000000"
+        },
+        {
+          "native_token": {
+            "denom": "uusd"
+          },
+          "amount": "1000000"
+        }
+      ]
+    },
+    "slippage_tolerance": "0.01"
+  }
+  ```
+
+- Withdraw Liquidity (must be sent to liquidity token contract)
+  ```json
+  {
+    "withdraw_liquidity": {}
+  }
+  ```
 
 ### Swap
 
 Any user can swap an asset by sending `swap` or invoking `send` msg to token contract with `swap` hook message.
 
-* Native Token => Token
-  
-    ```json
-    { 
-        "swap ": { 
-            "offer_asset": {
-                "info": {
-                    "native_token": {
-                        "denom": String 
-                    }
-                }, 
-                "amount": Uint128
-            }, 
-            "max_spread": Option<Decimal> 
-        } 
-    }
-    ```
+- Native Token => Token
 
-* Token => Native Token
+  ```json
+  {
+      "swap ": {
+          "offer_asset": {
+              "info": {
+                  "native_token": {
+                      "denom": String
+                  }
+              },
+              "amount": Uint128
+          },
+          "max_spread": Option<Decimal>
+      }
+  }
+  ```
 
-    **Must be sent to token contract**
-    ```json
-    { 
-        "send": {
-            "contract": HumanAddr, 
-            "amount": Uint128, 
-            "msg": Binary({
-                "swap": {
-                    "max_spread": Option<Decimal>
-                }
-            })
-        }
-    }
-    ```
+- Token => Native Token
+
+  **Must be sent to token contract**
+
+  ```json
+  {
+      "send": {
+          "contract": HumanAddr,
+          "amount": Uint128,
+          "msg": Binary({
+              "swap": {
+                  "max_spread": Option<Decimal>
+              }
+          })
+      }
+  }
+  ```
 
 #### Swap Spread
 
@@ -167,6 +181,7 @@ let return_amount: Uint128 =
 ```
 
 #### Commission
+
 The `lp_commission` remains in the swap pool, causing a permanent increase in the constant product K. The value of this permanently increased pool goes to all LPs.
 
 The `owner_commssion` is transferred to pre-defined commission collector address.
