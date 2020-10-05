@@ -25,6 +25,7 @@ pub enum HandleMsg {
     /// Swap an offer asset to the other
     Swap {
         offer_asset: Asset,
+        believe_price: Option<Decimal>,
         max_spread: Option<Decimal>,
     },
 }
@@ -34,6 +35,7 @@ pub enum HandleMsg {
 pub enum Cw20HookMsg {
     /// Sell a given amount of asset
     Swap {
+        believe_price: Option<Decimal>,
         max_spread: Option<Decimal>,
     },
     WithdrawLiquidity {},

@@ -1,6 +1,6 @@
 use crate::contract::{
-    handle, init, query_config_asset, query_config_general, query_config_swap, query_pool,
-    query_reverse_simulation, query_simulation,
+    assert_max_spread, handle, init, query_config_asset, query_config_general, query_config_swap,
+    query_pool, query_reverse_simulation, query_simulation,
 };
 use crate::math::{decimal_multiplication, reverse_decimal};
 use crate::mock_querier::mock_dependencies;
@@ -759,6 +759,7 @@ fn try_native_to_token() {
             },
             amount: offer_amount,
         },
+        believe_price: None,
         max_spread: None,
     };
     let env = mock_env_with_block_time(
@@ -947,6 +948,7 @@ fn try_token_to_native() {
             },
             amount: offer_amount,
         },
+        believe_price: None,
         max_spread: None,
     };
     let env = mock_env_with_block_time("addr0000", &[], 1000);
@@ -960,7 +962,13 @@ fn try_token_to_native() {
     let msg = HandleMsg::Receive(Cw20ReceiveMsg {
         sender: HumanAddr::from("addr0000"),
         amount: offer_amount,
-        msg: Some(to_binary(&Cw20HookMsg::Swap { max_spread: None }).unwrap()),
+        msg: Some(
+            to_binary(&Cw20HookMsg::Swap {
+                believe_price: None,
+                max_spread: None,
+            })
+            .unwrap(),
+        ),
     });
     let env = mock_env_with_block_time("asset0000", &[], 1000);
 
@@ -1089,7 +1097,13 @@ fn try_token_to_native() {
     let msg = HandleMsg::Receive(Cw20ReceiveMsg {
         sender: HumanAddr::from("addr0000"),
         amount: offer_amount,
-        msg: Some(to_binary(&Cw20HookMsg::Swap { max_spread: None }).unwrap()),
+        msg: Some(
+            to_binary(&Cw20HookMsg::Swap {
+                believe_price: None,
+                max_spread: None,
+            })
+            .unwrap(),
+        ),
     });
     let env = mock_env_with_block_time("liquidtity0000", &[], 1000);
     let res = handle(&mut deps, env, msg).unwrap_err();
@@ -1097,6 +1111,25 @@ fn try_token_to_native() {
         StdError::Unauthorized { .. } => (),
         _ => panic!("DO NOT ENTER HERE"),
     }
+}
+
+#[test]
+fn test_max_spread() {
+    assert_max_spread(
+        Some(Decimal::from_ratio(1200u128, 1u128)),
+        Some(Decimal::percent(1)),
+        Uint128::from(1200000000u128),
+        Uint128::from(989999u128),
+    )
+    .unwrap_err();
+
+    assert_max_spread(
+        Some(Decimal::from_ratio(1200u128, 1u128)),
+        Some(Decimal::percent(1)),
+        Uint128::from(1200000000u128),
+        Uint128::from(990000u128),
+    )
+    .unwrap();
 }
 
 #[test]

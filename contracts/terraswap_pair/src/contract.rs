@@ -111,6 +111,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         } => try_provide_liquidity(deps, env, assets, slippage_tolerance),
         HandleMsg::Swap {
             offer_asset,
+            believe_price,
             max_spread,
         } => {
             if !offer_asset.is_native_token() {
@@ -122,6 +123,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
                 env.clone(),
                 env.message.sender,
                 offer_asset,
+                believe_price,
                 max_spread,
             )
         }
@@ -136,7 +138,10 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
     let contract_addr = env.message.sender.clone();
     if let Some(msg) = cw20_msg.msg {
         match from_binary(&msg)? {
-            Cw20HookMsg::Swap { max_spread } => {
+            Cw20HookMsg::Swap {
+                believe_price,
+                max_spread,
+            } => {
                 // only asset contract can execute this message
                 let mut authorized: bool = false;
                 let config_asset: ConfigAsset = read_config_asset(&deps.storage)?;
@@ -161,6 +166,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                         info: AssetInfo::Token { contract_addr },
                         amount: cw20_msg.amount,
                     },
+                    believe_price,
                     max_spread,
                 )
             }
@@ -408,6 +414,7 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
     env: Env,
     sender: HumanAddr,
     offer_asset: Asset,
+    believe_price: Option<Decimal>,
     max_spread: Option<Decimal>,
 ) -> HandleResult {
     offer_asset.assert_sent_native_token_balance(&env)?;
@@ -448,7 +455,12 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
     )?;
 
     // check max spread limit if exist
-    assert_max_spread(max_spread, return_amount, spread_amount)?;
+    assert_max_spread(
+        believe_price,
+        max_spread,
+        offer_amount,
+        return_amount + lp_commission + owner_commission,
+    )?;
 
     // compute tax
     let return_asset = Asset {
@@ -724,13 +736,19 @@ fn compute_offer_amount(
     Ok((offer_amount, spread_amount, lp_commission, owner_commission))
 }
 
-fn assert_max_spread(
+pub fn assert_max_spread(
+    believe_price: Option<Decimal>,
     max_spread: Option<Decimal>,
+    offer_amount: Uint128,
     return_amount: Uint128,
-    spread_amount: Uint128,
 ) -> StdResult<()> {
-    if let Some(max_spread) = max_spread {
-        if Decimal::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
+    if let (Some(max_spread), Some(believe_price)) = (max_spread, believe_price) {
+        let expected_return = offer_amount * reverse_decimal(believe_price);
+        println!("SIBONG {}", expected_return);
+        if return_amount < expected_return
+            && Decimal::from_ratio((expected_return - return_amount).unwrap(), expected_return)
+                > max_spread
+        {
             return Err(StdError::generic_err("Operation exceeds max spread limit"));
         }
     }

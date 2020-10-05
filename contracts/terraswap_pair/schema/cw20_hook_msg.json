@@ -12,6 +12,16 @@
         "swap": {
           "type": "object",
           "properties": {
+            "believe_price": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Decimal"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "max_spread": {
               "anyOf": [
                 {
