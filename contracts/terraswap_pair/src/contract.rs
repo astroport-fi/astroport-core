@@ -744,7 +744,6 @@ pub fn assert_max_spread(
 ) -> StdResult<()> {
     if let (Some(max_spread), Some(belief_price)) = (max_spread, belief_price) {
         let expected_return = offer_amount * reverse_decimal(belief_price);
-        println!("SIBONG {}", expected_return);
         if return_amount < expected_return
             && Decimal::from_ratio((expected_return - return_amount).unwrap(), expected_return)
                 > max_spread
