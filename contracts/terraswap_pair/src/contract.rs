@@ -495,10 +495,8 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
             log("return_amount", return_amount.to_string()),
             log("tax_amount", tax_amount.to_string()),
             log("spread_amount", spread_amount.to_string()),
-            log(
-                "commission_amount",
-                &(lp_commission + owner_commission).to_string(),
-            ),
+            log("lp_commission_amount", lp_commission.to_string()),
+            log("owner_commission_amount", owner_commission.to_string()),
         ],
         data: None,
     })

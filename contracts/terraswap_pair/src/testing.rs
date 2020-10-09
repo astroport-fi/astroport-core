@@ -849,7 +849,11 @@ fn try_native_to_token() {
             log("return_amount", expected_return_amount.to_string()),
             log("tax_amount", expected_tax_amount.to_string()),
             log("spread_amount", expected_spread_amount.to_string()),
-            log("commission_amount", expected_commission_amount.to_string()),
+            log("lp_commission_amount", expected_lp_commission.to_string()),
+            log(
+                "owner_commission_amount",
+                expected_owner_commission.to_string()
+            ),
         ]
     );
 
@@ -1065,7 +1069,11 @@ fn try_token_to_native() {
             log("return_amount", expected_return_amount.to_string()),
             log("tax_amount", expected_tax_amount.to_string()),
             log("spread_amount", expected_spread_amount.to_string()),
-            log("commission_amount", expected_commission_amount.to_string()),
+            log("lp_commission_amount", expected_lp_commission.to_string()),
+            log(
+                "owner_commission_amount",
+                expected_owner_commission.to_string()
+            ),
         ]
     );
 
