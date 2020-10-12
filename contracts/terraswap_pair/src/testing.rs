@@ -1128,6 +1128,7 @@ fn test_max_spread() {
         Some(Decimal::percent(1)),
         Uint128::from(1200000000u128),
         Uint128::from(989999u128),
+        Uint128::zero(),
     )
     .unwrap_err();
 
@@ -1136,6 +1137,25 @@ fn test_max_spread() {
         Some(Decimal::percent(1)),
         Uint128::from(1200000000u128),
         Uint128::from(990000u128),
+        Uint128::zero(),
+    )
+    .unwrap();
+
+    assert_max_spread(
+        None,
+        Some(Decimal::percent(1)),
+        Uint128::zero(),
+        Uint128::from(989999u128),
+        Uint128::from(10001u128),
+    )
+    .unwrap_err();
+
+    assert_max_spread(
+        None,
+        Some(Decimal::percent(1)),
+        Uint128::zero(),
+        Uint128::from(990000u128),
+        Uint128::from(10000u128),
     )
     .unwrap();
 }

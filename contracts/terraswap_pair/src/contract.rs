@@ -460,6 +460,7 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
         max_spread,
         offer_amount,
         return_amount + lp_commission + owner_commission,
+        spread_amount,
     )?;
 
     // compute tax
@@ -691,8 +692,9 @@ fn compute_swap(
     let return_amount = (ask_pool - cp.multiply_ratio(1u128, offer_pool + offer_amount))?;
 
     // calculate spread & commission
-    let spread_amount: Uint128 =
-        (offer_amount * Decimal::from_ratio(ask_pool, offer_pool) - return_amount)?;
+    let spread_amount: Uint128 = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool)
+        - return_amount)
+        .unwrap_or_else(|_| Uint128::zero());
     let lp_commission: Uint128 = return_amount * config.lp_commission;
     let owner_commission: Uint128 = return_amount * config.owner_commission;
 
@@ -727,25 +729,35 @@ fn compute_offer_amount(
     ) - offer_pool)?;
 
     let before_commission_deduction = ask_amount * reverse_decimal(one_minus_commission);
-    let spread_amount =
-        (offer_amount * Decimal::from_ratio(ask_pool, offer_pool) - before_commission_deduction)?;
+    let spread_amount = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool)
+        - before_commission_deduction)
+        .unwrap_or_else(|_| Uint128::zero());
     let lp_commission = before_commission_deduction * config.lp_commission;
     let owner_commission = before_commission_deduction * config.owner_commission;
     Ok((offer_amount, spread_amount, lp_commission, owner_commission))
 }
-
+ 
+/// If `belief_price` and `max_spread` both are given, 
+/// we compute new spread else we just use terraswap 
+/// spread to check `max_spread`
 pub fn assert_max_spread(
     belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
     offer_amount: Uint128,
     return_amount: Uint128,
+    spread_amount: Uint128,
 ) -> StdResult<()> {
     if let (Some(max_spread), Some(belief_price)) = (max_spread, belief_price) {
         let expected_return = offer_amount * reverse_decimal(belief_price);
+        let spread_amount = (expected_return - return_amount).unwrap_or_else(|_| Uint128::zero());
+
         if return_amount < expected_return
-            && Decimal::from_ratio((expected_return - return_amount).unwrap(), expected_return)
-                > max_spread
+            && Decimal::from_ratio(spread_amount, expected_return) > max_spread
         {
+            return Err(StdError::generic_err("Operation exceeds max spread limit"));
+        }
+    } else if let Some(max_spread) = max_spread {
+        if Decimal::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
             return Err(StdError::generic_err("Operation exceeds max spread limit"));
         }
     }
