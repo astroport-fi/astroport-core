@@ -38,6 +38,11 @@ pub enum HandleMsg {
     },
     /// Register is invoked from created pair contract after initialzation
     Register { asset_infos: [AssetInfo; 2] },
+    /// MigrateAsset migrate pair infos to new pair infos
+    MigrateAsset {
+        from_asset_infos: [AssetInfo; 2],
+        to_asset_infos: [AssetInfo; 2],
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

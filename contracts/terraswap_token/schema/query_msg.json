@@ -139,6 +139,18 @@
           }
         }
       }
+    },
+    {
+      "description": "Only with \"migration\" extension Returns migration target contract address with conversion rate. Return type: TokenMigrationResponse",
+      "type": "object",
+      "required": [
+        "migration"
+      ],
+      "properties": {
+        "migration": {
+          "type": "object"
+        }
+      }
     }
   ],
   "definitions": {

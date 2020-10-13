@@ -224,7 +224,7 @@ fn query_terraswap_pair_contract() {
 
     deps.querier.with_terraswap_pairs(&[(
         &"asset0000\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}uusd".to_string(),
-        &HumanAddr::from("pair0000"),
+        (&HumanAddr::from("owner0000"), &HumanAddr::from("pair0000")),
     )]);
 
     let pair_contract = load_pair_contract(
@@ -247,8 +247,10 @@ fn query_terraswap_pair_contract() {
 #[test]
 fn query_terraswap_lp_token() {
     let mut deps = mock_dependencies(20, &[]);
-    deps.querier
-        .with_terraswap_pair_lp_token(&[(&HumanAddr::from("pair0000"), &HumanAddr::from("LP0000"))]);
+    deps.querier.with_terraswap_pair_lp_token(&[(
+        &HumanAddr::from("pair0000"),
+        &HumanAddr::from("LP0000"),
+    )]);
 
     let liquidity_token = load_liquidity_token(&deps, &HumanAddr::from("pair0000")).unwrap();
     assert_eq!(liquidity_token, HumanAddr::from("LP0000"));

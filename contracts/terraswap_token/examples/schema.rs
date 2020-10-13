@@ -7,7 +7,7 @@ use cw20::{
     AllAccountsResponse, AllAllowancesResponse, AllowanceResponse, BalanceResponse,
     TokenInfoResponse,
 };
-use terraswap::TokenInitMsg;
+use terraswap::{TokenInitMsg, TokenCw20HookMsg, TokenMigrationResponse};
 use terraswap_token::msg::{HandleMsg, MigrateMsg, QueryMsg};
 
 fn main() {
@@ -17,12 +17,14 @@ fn main() {
     remove_schemas(&out_dir).unwrap();
 
     export_schema(&schema_for!(TokenInitMsg), &out_dir);
+    export_schema(&schema_for!(TokenCw20HookMsg), &out_dir);
     export_schema(&schema_for!(HandleMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(MigrateMsg), &out_dir);
     export_schema(&schema_for!(AllowanceResponse), &out_dir);
     export_schema(&schema_for!(BalanceResponse), &out_dir);
     export_schema(&schema_for!(TokenInfoResponse), &out_dir);
+    export_schema(&schema_for!(TokenMigrationResponse), &out_dir);
     export_schema(&schema_for!(AllAllowancesResponse), &out_dir);
     export_schema(&schema_for!(AllAccountsResponse), &out_dir);
 }

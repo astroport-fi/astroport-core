@@ -139,6 +139,40 @@
           }
         }
       }
+    },
+    {
+      "description": "MigrateAsset migrate pair infos to new pair infos",
+      "type": "object",
+      "required": [
+        "migrate_asset"
+      ],
+      "properties": {
+        "migrate_asset": {
+          "type": "object",
+          "required": [
+            "from_asset_infos",
+            "to_asset_infos"
+          ],
+          "properties": {
+            "from_asset_infos": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/AssetInfo"
+              },
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "to_asset_infos": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/AssetInfo"
+              },
+              "maxItems": 2,
+              "minItems": 2
+            }
+          }
+        }
+      }
     }
   ],
   "definitions": {

@@ -95,21 +95,26 @@ pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint1
 
 #[derive(Clone, Default)]
 pub struct TerraswapFactoryQuerier {
-    pairs: HashMap<String, HumanAddr>,
+    pairs: HashMap<String, (HumanAddr, HumanAddr)>,
 }
 
 impl TerraswapFactoryQuerier {
-    pub fn new(pairs: &[(&String, &HumanAddr)]) -> Self {
+    pub fn new(pairs: &[(&String, (&HumanAddr, &HumanAddr))]) -> Self {
         TerraswapFactoryQuerier {
             pairs: pairs_to_map(pairs),
         }
     }
 }
 
-pub(crate) fn pairs_to_map(pairs: &[(&String, &HumanAddr)]) -> HashMap<String, HumanAddr> {
-    let mut pairs_map: HashMap<String, HumanAddr> = HashMap::new();
+pub(crate) fn pairs_to_map(
+    pairs: &[(&String, (&HumanAddr, &HumanAddr))],
+) -> HashMap<String, (HumanAddr, HumanAddr)> {
+    let mut pairs_map: HashMap<String, (HumanAddr, HumanAddr)> = HashMap::new();
     for (key, pair) in pairs.iter() {
-        pairs_map.insert(key.to_string(), HumanAddr::from(pair));
+        pairs_map.insert(
+            key.to_string(),
+            (HumanAddr::from(pair.0), HumanAddr::from(pair.1)),
+        );
     }
     pairs_map
 }
@@ -246,7 +251,8 @@ impl WasmMockQuerier {
                     let api: MockApi = MockApi::new(self.canonical_length);
                     Ok(to_binary(
                         &to_binary(&PairInfoRaw {
-                            contract_addr: api.canonical_address(&pair_contract).unwrap(),
+                            owner: api.canonical_address(&pair_contract.0).unwrap(),
+                            contract_addr: api.canonical_address(&pair_contract.1).unwrap(),
                             asset_infos: [
                                 AssetInfoRaw::NativeToken {
                                     denom: "uusd".to_string(),
@@ -349,7 +355,7 @@ impl WasmMockQuerier {
     }
 
     // configure the terraswap pair
-    pub fn with_terraswap_pairs(&mut self, pairs: &[(&String, &HumanAddr)]) {
+    pub fn with_terraswap_pairs(&mut self, pairs: &[(&String, (&HumanAddr, &HumanAddr))]) {
         self.terraswap_factory_querier = TerraswapFactoryQuerier::new(pairs);
     }
 

@@ -27,7 +27,7 @@ use cosmwasm_vm::testing::{
 };
 use cosmwasm_vm::Instance;
 
-use terraswap::{AssetInfo, InitHook, PairInitMsg, PairInfo};
+use terraswap::{AssetInfo, InitHook, PairInfo, PairInitMsg};
 use terraswap_factory::msg::{ConfigResponse, HandleMsg, InitMsg, QueryMsg};
 
 // This line will test the output of cargo wasm
@@ -255,6 +255,7 @@ fn register() {
     assert_eq!(
         pair_res,
         PairInfo {
+            owner: HumanAddr::from("owner0000"),
             contract_addr: HumanAddr::from("pair0000"),
             asset_infos,
         }

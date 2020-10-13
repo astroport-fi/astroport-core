@@ -17,6 +17,10 @@ pub enum HandleMsg {
         lp_commission: Option<Decimal>,
         owner_commission: Option<Decimal>,
     },
+    MigrateAsset {
+        from_asset: AssetInfo,
+        to_asset: AssetInfo,
+    },
     /// ProvideLiquidity a user provides pool liquidity
     ProvideLiquidity {
         assets: [Asset; 2],
