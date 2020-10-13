@@ -279,12 +279,14 @@ impl AssetInfoRaw {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairInfo {
+    pub owner: HumanAddr,
     pub contract_addr: HumanAddr,
     pub asset_infos: [AssetInfo; 2],
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairInfoRaw {
+    pub owner: CanonicalAddr,
     pub contract_addr: CanonicalAddr,
     pub asset_infos: [AssetInfoRaw; 2],
 }
@@ -295,6 +297,7 @@ impl PairInfoRaw {
         deps: &Extern<S, A, Q>,
     ) -> StdResult<PairInfo> {
         Ok(PairInfo {
+            owner: deps.api.human_address(&self.owner)?,
             contract_addr: deps.api.human_address(&self.contract_addr)?,
             asset_infos: [
                 self.asset_infos[0].to_normal(&deps)?,

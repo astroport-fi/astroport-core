@@ -1,11 +1,13 @@
 use cosmwasm_std::{Binary, HumanAddr, Uint128};
-use cw20::Expiration;
+use cw20::{Cw20ReceiveMsg, Expiration};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
+    /// Receive is a cw20 Send standard msg receiver to receive token transfer event
+    Receive(Cw20ReceiveMsg),
     /// Transfer is a base message to move tokens to another account without triggering actions
     Transfer {
         recipient: HumanAddr,
@@ -96,6 +98,10 @@ pub enum QueryMsg {
         start_after: Option<HumanAddr>,
         limit: Option<u32>,
     },
+    /// Only with "migration" extension
+    /// Returns migration target contract address with conversion rate.
+    /// Return type: TokenMigrationResponse
+    Migration {},
 }
 
 /// We currently take no arguments for migrations

@@ -14,7 +14,7 @@ use cosmwasm_std::{
     StdError, Uint128, WasmMsg,
 };
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse};
-use terraswap::{Asset, AssetInfo, InitHook, PairInitMsg, TokenInitMsg};
+use terraswap::{Asset, AssetInfo, InitHook, PairInitMsg, TokenCw20HookMsg, TokenInitMsg};
 
 #[test]
 fn proper_initialization() {
@@ -71,6 +71,7 @@ fn proper_initialization() {
                         msg: to_binary(&HandleMsg::PostInitialize {}).unwrap(),
                         contract_addr: HumanAddr::from(MOCK_CONTRACT_ADDR),
                     }),
+                    migration: None,
                 })
                 .unwrap(),
                 send: vec![],
@@ -195,6 +196,121 @@ fn update_config() {
         Err(StdError::Unauthorized { .. }) => {}
         _ => panic!("Must return unauthorized error"),
     }
+}
+
+#[test]
+fn migrate_asset() {
+    let mut deps = mock_dependencies(
+        20,
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128(200u128),
+        }],
+    );
+
+    deps.querier.with_token_balances(&[(
+        &HumanAddr::from("asset0000"),
+        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &Uint128(1000000))],
+    )]);
+
+    let msg = PairInitMsg {
+        owner: HumanAddr("addr0000".to_string()),
+        commission_collector: HumanAddr("collector0000".to_string()),
+        lp_commission: Decimal::permille(3),
+        owner_commission: Decimal::permille(1),
+        asset_infos: [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::Token {
+                contract_addr: HumanAddr::from("asset0000"),
+            },
+        ],
+        token_code_id: 10u64,
+        init_hook: None,
+    };
+
+    let env = mock_env("addr0000", &[]);
+    // we can just call .unwrap() to assert this was a success
+    let _res = init(&mut deps, env, msg).unwrap();
+
+    // post initalize
+    let msg = HandleMsg::PostInitialize {};
+    let env = mock_env("liquidity0000", &[]);
+    let _res = handle(&mut deps, env, msg).unwrap();
+
+    // failed to migrate native asset
+    let msg = HandleMsg::MigrateAsset {
+        from_asset: AssetInfo::NativeToken {
+            denom: "uusd".to_string(),
+        },
+        to_asset: AssetInfo::Token {
+            contract_addr: HumanAddr::from("asset0001"),
+        },
+    };
+
+    let env = mock_env("addr0000", &[]);
+    let res = handle(&mut deps, env, msg);
+    match res {
+        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "Cannot migrate native token"),
+        _ => panic!("DO NOT ENTER HERE"),
+    }
+
+    // failed to migrate wrong asset
+    let msg = HandleMsg::MigrateAsset {
+        from_asset: AssetInfo::Token {
+            contract_addr: HumanAddr::from("asset0001"),
+        },
+        to_asset: AssetInfo::Token {
+            contract_addr: HumanAddr::from("asset0002"),
+        },
+    };
+
+    let env = mock_env("addr0000", &[]);
+    let res = handle(&mut deps, env, msg);
+    match res {
+        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "Wrong from_asset info"),
+        _ => panic!("DO NOT ENTER HERE"),
+    }
+
+    // migrate asset
+    let msg = HandleMsg::MigrateAsset {
+        from_asset: AssetInfo::Token {
+            contract_addr: HumanAddr::from("asset0000"),
+        },
+        to_asset: AssetInfo::Token {
+            contract_addr: HumanAddr::from("asset0001"),
+        },
+    };
+
+    let env = mock_env("addr0000", &[]);
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(
+        res.messages,
+        vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: HumanAddr::from("asset0000"),
+            msg: to_binary(&Cw20HandleMsg::Send {
+                contract: HumanAddr::from("asset0001"),
+                amount: Uint128::from(1000000u128),
+                msg: Some(to_binary(&TokenCw20HookMsg::Migrate {}).unwrap()),
+            })
+            .unwrap(),
+            send: vec![],
+        })]
+    );
+
+    let config_asset = query_config_asset(&deps).unwrap();
+    assert_eq!(
+        config_asset.infos,
+        [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::Token {
+                contract_addr: HumanAddr::from("asset0001"),
+            }
+        ]
+    )
 }
 
 #[test]

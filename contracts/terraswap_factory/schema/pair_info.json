@@ -4,7 +4,8 @@
   "type": "object",
   "required": [
     "asset_infos",
-    "contract_addr"
+    "contract_addr",
+    "owner"
   ],
   "properties": {
     "asset_infos": {
@@ -16,6 +17,9 @@
       "minItems": 2
     },
     "contract_addr": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "owner": {
       "$ref": "#/definitions/HumanAddr"
     }
   },

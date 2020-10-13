@@ -7,7 +7,7 @@ use crate::msg::{ConfigResponse, HandleMsg, InitMsg, QueryMsg};
 use crate::state::read_pair;
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, MOCK_CONTRACT_ADDR};
-use terraswap::{AssetInfo, InitHook, PairInfo, PairInfoRaw, PairInitMsg};
+use terraswap::{AssetInfo, InitHook, PairInfo, PairInitMsg};
 
 #[test]
 fn proper_initialization() {
@@ -188,13 +188,7 @@ fn create_pair() {
     ];
     let pair_info = read_pair(&deps.storage, &raw_infos).unwrap();
 
-    assert_eq!(
-        pair_info,
-        PairInfoRaw {
-            contract_addr: CanonicalAddr::default(),
-            asset_infos: raw_infos,
-        }
-    );
+    assert_eq!(pair_info.contract_addr, CanonicalAddr::default(),);
 }
 
 #[test]
@@ -250,6 +244,7 @@ fn register() {
     assert_eq!(
         pair_res,
         PairInfo {
+            owner: HumanAddr::from("owner0000"),
             contract_addr: HumanAddr::from("pair0000"),
             asset_infos: asset_infos.clone(),
         }
@@ -265,4 +260,94 @@ fn register() {
         StdError::GenericErr { msg, .. } => assert_eq!(msg, "Pair was already registered"),
         _ => panic!("DO NOT ENTER HERE"),
     }
+}
+
+#[test]
+fn udpate_pair() {
+    let mut deps = mock_dependencies(20, &[]);
+
+    let msg = InitMsg {
+        pair_code_id: 321u64,
+        token_code_id: 123u64,
+        init_hook: None,
+    };
+
+    let env = mock_env("addr0000", &[]);
+    let _res = init(&mut deps, env, msg).unwrap();
+
+    let asset_infos = [
+        AssetInfo::Token {
+            contract_addr: HumanAddr::from("asset0000"),
+        },
+        AssetInfo::Token {
+            contract_addr: HumanAddr::from("asset0001"),
+        },
+    ];
+
+    let msg = HandleMsg::CreatePair {
+        pair_owner: HumanAddr::from("owner0000"),
+        commission_collector: HumanAddr::from("collector0000"),
+        lp_commission: Decimal::percent(1),
+        owner_commission: Decimal::percent(1),
+        asset_infos: asset_infos.clone(),
+        init_hook: None,
+    };
+
+    let env = mock_env("addr0000", &[]);
+    let _res = handle(&mut deps, env, msg).unwrap();
+
+    let msg = HandleMsg::Register {
+        asset_infos: asset_infos.clone(),
+    };
+
+    let env = mock_env("pair0000", &[]);
+    let _res = handle(&mut deps, env, msg).unwrap();
+
+    let new_asset_infos = [
+        AssetInfo::Token {
+            contract_addr: HumanAddr::from("asset0000"),
+        },
+        AssetInfo::Token {
+            contract_addr: HumanAddr::from("asset0002"),
+        },
+    ];
+
+    let msg = HandleMsg::MigrateAsset {
+        from_asset_infos: asset_infos.clone(),
+        to_asset_infos: new_asset_infos.clone(),
+    };
+    let env = mock_env("addr0000", &[]);
+    let res = handle(&mut deps, env, msg.clone());
+    match res {
+        Err(StdError::Unauthorized { .. }) => {}
+        _ => panic!("DO NOT ENTER HERE"),
+    }
+
+    let env = mock_env("owner0000", &[]);
+    let _res = handle(&mut deps, env, msg).unwrap();
+    query(
+        &deps,
+        QueryMsg::Pair {
+            asset_infos: asset_infos.clone(),
+        },
+    )
+    .unwrap_err();
+
+    let query_res = query(
+        &deps,
+        QueryMsg::Pair {
+            asset_infos: new_asset_infos.clone(),
+        },
+    )
+    .unwrap();
+
+    let pair_res: PairInfo = from_binary(&query_res).unwrap();
+    assert_eq!(
+        pair_res,
+        PairInfo {
+            owner: HumanAddr::from("owner0000"),
+            contract_addr: HumanAddr::from("pair0000"),
+            asset_infos: new_asset_infos.clone(),
+        }
+    );
 }
