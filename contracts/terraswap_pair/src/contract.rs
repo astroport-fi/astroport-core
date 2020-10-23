@@ -15,8 +15,7 @@ use cosmwasm_std::{
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse};
 use integer_sqrt::IntegerSquareRoot;
 use terraswap::{
-    load_supply, Asset, AssetInfo, InitHook, PairConfigRaw, PairInitMsg, TokenCw20HookMsg,
-    TokenInitMsg,
+    load_supply, Asset, AssetInfo, InitHook, PairConfigRaw, PairInitMsg, TokenInitMsg,
 };
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -107,10 +106,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             lp_commission,
             owner_commission,
         } => try_update_config(deps, env, owner, lp_commission, owner_commission),
-        HandleMsg::MigrateAsset {
-            from_asset,
-            to_asset,
-        } => try_migrate_asset(deps, env, from_asset, to_asset),
         HandleMsg::ProvideLiquidity {
             assets,
             slippage_tolerance,
@@ -267,67 +262,6 @@ pub fn try_update_config<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![],
         log: vec![log("action", "update_config")],
-        data: None,
-    })
-}
-
-pub fn try_migrate_asset<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    from_asset: AssetInfo,
-    to_asset: AssetInfo,
-) -> HandleResult {
-    let config_genernal = read_config_general(&deps.storage)?;
-    if config_genernal.owner != deps.api.canonical_address(&env.message.sender)? {
-        return Err(StdError::unauthorized());
-    }
-
-    if from_asset.is_native_token() || to_asset.is_native_token() {
-        return Err(StdError::generic_err("Cannot migrate native token"));
-    }
-
-    let config_asset: ConfigAsset = read_config_asset(&deps.storage)?;
-    let from_asset_raw = from_asset.to_raw(&deps)?;
-
-    let left_asset = if config_asset.assets[0].equal(&from_asset_raw) {
-        config_asset.assets[1].clone()
-    } else if config_asset.assets[1].equal(&from_asset_raw) {
-        config_asset.assets[0].clone()
-    } else {
-        return Err(StdError::generic_err("Wrong from_asset info"));
-    };
-
-    // load pool balance
-    let pool_balance = from_asset.load_pool(&deps, &env.contract.address)?;
-
-    // update config asset
-    let config_asset: &ConfigAsset = &ConfigAsset {
-        assets: [left_asset, to_asset.to_raw(&deps)?],
-    };
-    store_config_asset(&mut deps.storage, &config_asset)?;
-
-    // execute migrate msg to token contract
-    let from_addr = match from_asset {
-        AssetInfo::Token { contract_addr } => contract_addr,
-        _ => panic!("DO NOT ENTER HERE"),
-    };
-
-    let to_addr = match to_asset {
-        AssetInfo::Token { contract_addr } => contract_addr,
-        _ => panic!("DO NOT ENTER HERE"),
-    };
-
-    Ok(HandleResponse {
-        messages: vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: from_addr,
-            msg: to_binary(&Cw20HandleMsg::Send {
-                contract: to_addr,
-                amount: pool_balance,
-                msg: Some(to_binary(&TokenCw20HookMsg::Migrate {})?),
-            })?,
-            send: vec![],
-        })],
-        log: vec![log("action", "migrate_asset")],
         data: None,
     })
 }
