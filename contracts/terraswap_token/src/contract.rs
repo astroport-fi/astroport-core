@@ -1,7 +1,7 @@
 use cosmwasm_std::{
-    log, to_binary, Api, Binary, CosmosMsg, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, InitResponse, MigrateResponse, MigrateResult, Querier, StdError,
-    StdResult, Storage, Uint128, WasmMsg,
+    log, to_binary, Api, Binary, CosmosMsg, Env, Extern, HandleResponse, HandleResult, HumanAddr,
+    InitResponse, MigrateResponse, MigrateResult, Querier, StdError, StdResult, Storage, Uint128,
+    WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
@@ -16,7 +16,7 @@ use crate::msg::{HandleMsg, MigrateMsg, QueryMsg};
 use crate::state::{
     balances, balances_read, token_info, token_info_read, MigrationData, MinterData, TokenInfo,
 };
-use terraswap::{TokenInitMsg};
+use terraswap::TokenInitMsg;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:cw20-base";

@@ -6,7 +6,7 @@ use cosmwasm_std::{
 
 use crate::msg::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, QueryMsg};
 
-use crate::state::{read_config, read_pair, remove_pair, store_config, store_pair, Config};
+use crate::state::{read_config, read_pair, store_config, store_pair, Config};
 use terraswap::{AssetInfo, InitHook, PairInfo, PairInfoRaw, PairInitMsg};
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -66,10 +66,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             init_hook,
         ),
         HandleMsg::Register { asset_infos } => try_register(deps, env, asset_infos),
-        HandleMsg::MigrateAsset {
-            from_asset_infos,
-            to_asset_infos,
-        } => try_migrate_asset(deps, env, from_asset_infos, to_asset_infos),
     }
 }
 
@@ -205,48 +201,6 @@ pub fn try_register<S: Storage, A: Api, Q: Querier>(
         log: vec![
             log("action", "register"),
             log("pair_contract_addr", env.message.sender.as_str()),
-        ],
-        data: None,
-    })
-}
-
-/// migarte pair to new asset infos
-pub fn try_migrate_asset<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    from_asset_infos: [AssetInfo; 2],
-    to_asset_infos: [AssetInfo; 2],
-) -> HandleResult {
-    let from_raw_infos = [
-        from_asset_infos[0].to_raw(&deps)?,
-        from_asset_infos[1].to_raw(&deps)?,
-    ];
-    let to_raw_infos = [
-        to_asset_infos[0].to_raw(&deps)?,
-        to_asset_infos[1].to_raw(&deps)?,
-    ];
-    let from_pair_info: PairInfoRaw = read_pair(&deps.storage, &from_raw_infos)?;
-    if from_pair_info.owner != deps.api.canonical_address(&env.message.sender)? {
-        return Err(StdError::unauthorized());
-    }
-
-    remove_pair(&mut deps.storage, &from_raw_infos);
-    store_pair(
-        &mut deps.storage,
-        &PairInfoRaw {
-            asset_infos: to_raw_infos,
-            ..from_pair_info
-        },
-    )?;
-
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![
-            log("action", "migrate_pair"),
-            log(
-                "pair",
-                format!("{}-{}", to_asset_infos[0], to_asset_infos[1]),
-            ),
         ],
         data: None,
     })

@@ -38,14 +38,6 @@ pub fn store_pair<S: Storage>(storage: &mut S, data: &PairInfoRaw) -> StdResult<
     Ok(())
 }
 
-pub fn remove_pair<S: Storage>(storage: &mut S, asset_infos: &[AssetInfoRaw; 2]) {
-    let mut asset_infos = asset_infos.clone().to_vec();
-    asset_infos.sort_by(|a, b| a.as_bytes().cmp(&b.as_bytes()));
-
-    PrefixedStorage::new(PREFIX_PAIR, storage)
-        .remove(&[asset_infos[0].as_bytes(), asset_infos[1].as_bytes()].concat());
-}
-
 pub fn read_pair<S: Storage>(
     storage: &S,
     asset_infos: &[AssetInfoRaw; 2],
