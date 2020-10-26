@@ -11,11 +11,8 @@ use crate::allowances::{
     handle_transfer_from, query_allowance,
 };
 use crate::enumerable::{query_all_accounts, query_all_allowances};
-use crate::migration::{query_migration, receive_cw20};
 use crate::msg::{HandleMsg, MigrateMsg, QueryMsg};
-use crate::state::{
-    balances, balances_read, token_info, token_info_read, MigrationData, MinterData, TokenInfo,
-};
+use crate::state::{balances, balances_read, token_info, token_info_read, MinterData, TokenInfo};
 use terraswap::TokenInitMsg;
 
 // version info for migration info
@@ -47,14 +44,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         None => None,
     };
 
-    let migration = match msg.migration {
-        Some(m) => Some(MigrationData {
-            token: deps.api.canonical_address(&m.token)?,
-            conversion_rate: m.conversion_rate,
-        }),
-        None => None,
-    };
-
     // store token info
     let data = TokenInfo {
         name: msg.name,
@@ -62,7 +51,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         decimals: msg.decimals,
         total_supply,
         mint,
-        migration,
     };
 
     token_info(&mut deps.storage).save(&data)?;
@@ -101,7 +89,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> HandleResult {
     match msg {
-        HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
         HandleMsg::Transfer { recipient, amount } => handle_transfer(deps, env, recipient, amount),
         HandleMsg::Burn { amount } => handle_burn(deps, env, amount),
         HandleMsg::Send {
@@ -321,7 +308,6 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::AllAccounts { start_after, limit } => {
             to_binary(&query_all_accounts(deps, start_after, limit)?)
         }
-        QueryMsg::Migration {} => to_binary(&query_migration(deps)?),
     }
 }
 
@@ -423,7 +409,6 @@ mod tests {
                 amount,
             }],
             mint: mint.clone(),
-            migration: None,
             init_hook: None,
         };
         let env = mock_env(&HumanAddr("creator".to_string()), &[]);
@@ -459,7 +444,6 @@ mod tests {
             }],
             mint: None,
             init_hook: None,
-            migration: None,
         };
         let env = mock_env(&HumanAddr("creator".to_string()), &[]);
         let res = init(&mut deps, env, init_msg).unwrap();
@@ -496,7 +480,6 @@ mod tests {
                 cap: Some(limit),
             }),
             init_hook: None,
-            migration: None,
         };
         let env = mock_env(&HumanAddr("creator".to_string()), &[]);
         let res = init(&mut deps, env, init_msg).unwrap();
@@ -540,7 +523,6 @@ mod tests {
                 cap: Some(limit),
             }),
             init_hook: None,
-            migration: None,
         };
         let env = mock_env(&HumanAddr("creator".to_string()), &[]);
         let res = init(&mut deps, env, init_msg);
@@ -653,7 +635,6 @@ mod tests {
             ],
             mint: None,
             init_hook: None,
-            migration: None,
         };
         let env = mock_env(&HumanAddr("creator".to_string()), &[]);
         let res = init(&mut deps, env, init_msg).unwrap();
