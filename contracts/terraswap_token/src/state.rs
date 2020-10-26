@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, ReadonlyStorage, Storage, Uint128, Decimal};
+use cosmwasm_std::{CanonicalAddr, ReadonlyStorage, Storage, Uint128};
 use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket,
     ReadonlyPrefixedStorage, ReadonlySingleton, Singleton,
@@ -16,13 +16,6 @@ pub struct TokenInfo {
     pub decimals: u8,
     pub total_supply: Uint128,
     pub mint: Option<MinterData>,
-    pub migration: Option<MigrationData>,
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct MigrationData {
-    pub token: CanonicalAddr,
-    pub conversion_rate: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

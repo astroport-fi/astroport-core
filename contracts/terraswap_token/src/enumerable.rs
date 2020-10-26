@@ -94,7 +94,6 @@ mod tests {
             }],
             mint: None,
             init_hook: None,
-            migration: None,
         };
         let env = mock_env(&HumanAddr("creator".to_string()), &[]);
         init(deps, env, init_msg).unwrap();

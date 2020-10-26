@@ -33,13 +33,6 @@ pub struct TokenInitMsg {
     pub initial_balances: Vec<Cw20CoinHuman>,
     pub mint: Option<MinterResponse>,
     pub init_hook: Option<InitHook>,
-    pub migration: Option<TokenMigrationResponse>,
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct TokenMigrationResponse {
-    pub token: HumanAddr,
-    pub conversion_rate: Decimal,
 }
 
 impl TokenInitMsg {
