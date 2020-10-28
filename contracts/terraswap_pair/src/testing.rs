@@ -71,7 +71,6 @@ fn proper_initialization() {
                         msg: to_binary(&HandleMsg::PostInitialize {}).unwrap(),
                         contract_addr: HumanAddr::from(MOCK_CONTRACT_ADDR),
                     }),
-                    migration: None,
                 })
                 .unwrap(),
                 send: vec![],
