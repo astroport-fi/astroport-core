@@ -73,7 +73,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
                 msg: to_binary(&HandleMsg::PostInitialize {})?,
                 contract_addr: env.contract.address,
             }),
-            migration: None,
         })?,
         send: vec![],
         label: None,
