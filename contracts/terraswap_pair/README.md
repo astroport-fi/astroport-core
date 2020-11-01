@@ -69,14 +69,18 @@ So, at a 1% tolerance level, if a user sends a transaction with 200 UST and 1 AS
     "provide_liquidity": {
       "assets": [
         {
-          "token": {
-            "contract_addr": "terra~~"
+          "info": {
+            "token": {
+              "contract_addr": "terra~~"
+            }
           },
           "amount": "1000000"
         },
         {
-          "native_token": {
-            "denom": "uusd"
+          "info": {
+            "native_token": {
+              "denom": "uusd"
+            }
           },
           "amount": "1000000"
         }
@@ -92,14 +96,18 @@ So, at a 1% tolerance level, if a user sends a transaction with 200 UST and 1 AS
     "provide_liquidity": {
       "assets": [
         {
-          "token": {
-            "contract_addr": "terra~~"
+          "info": {
+            "token": {
+              "contract_addr": "terra~~"
+            }
           },
           "amount": "1000000"
         },
         {
-          "native_token": {
-            "denom": "uusd"
+          "info": {
+            "native_token": {
+              "denom": "uusd"
+            }
           },
           "amount": "1000000"
         }
@@ -124,7 +132,7 @@ Any user can swap an asset by sending `swap` or invoking `send` msg to token con
 
   ```json
   {
-      "swap ": {
+      "swap": {
           "offer_asset": {
               "info": {
                   "native_token": {
