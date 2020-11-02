@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Decimal, HumanAddr};
-use terraswap::{AssetInfo, InitHook};
+use terraswap::{AssetInfo, InitHook, PairInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -44,7 +44,13 @@ pub enum HandleMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
-    Pair { asset_infos: [AssetInfo; 2] },
+    Pair {
+        asset_infos: [AssetInfo; 2],
+    },
+    Pairs {
+        start_after: Option<[AssetInfo; 2]>,
+        limit: Option<u32>,
+    },
 }
 
 // We define a custom struct for each query response
@@ -58,3 +64,9 @@ pub struct ConfigResponse {
 /// We currently take no arguments for migrations
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
+
+// We define a custom struct for each query response
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct PairsResponse {
+    pub pairs: Vec<PairInfo>,
+}
