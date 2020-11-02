@@ -3,7 +3,7 @@ use cosmwasm_std::{
 };
 
 use crate::contract::{handle, init, query};
-use crate::msg::{ConfigResponse, HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{ConfigResponse, HandleMsg, InitMsg, PairsResponse, QueryMsg};
 use crate::state::read_pair;
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, MOCK_CONTRACT_ADDR};
@@ -260,4 +260,88 @@ fn register() {
         StdError::GenericErr { msg, .. } => assert_eq!(msg, "Pair was already registered"),
         _ => panic!("DO NOT ENTER HERE"),
     }
+
+    // Store one more item to test query pairs
+    let asset_infos_2 = [
+        AssetInfo::Token {
+            contract_addr: HumanAddr::from("asset0000"),
+        },
+        AssetInfo::Token {
+            contract_addr: HumanAddr::from("asset0002"),
+        },
+    ];
+
+    let msg = HandleMsg::CreatePair {
+        pair_owner: HumanAddr::from("owner0001"),
+        commission_collector: HumanAddr::from("collector0000"),
+        lp_commission: Decimal::percent(1),
+        owner_commission: Decimal::percent(1),
+        asset_infos: asset_infos_2.clone(),
+        init_hook: None,
+    };
+
+    let env = mock_env("addr0000", &[]);
+    let _res = handle(&mut deps, env, msg).unwrap();
+
+    let msg = HandleMsg::Register {
+        asset_infos: asset_infos_2.clone(),
+    };
+
+    let env = mock_env("pair0001", &[]);
+    let _res = handle(&mut deps, env, msg).unwrap();
+
+    let query_msg = QueryMsg::Pairs {
+        start_after: None,
+        limit: None,
+    };
+
+    let res = query(&mut deps, query_msg).unwrap();
+    let pairs_res: PairsResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        pairs_res.pairs,
+        vec![
+            PairInfo {
+                owner: HumanAddr::from("owner0000"),
+                contract_addr: HumanAddr::from("pair0000"),
+                asset_infos: asset_infos.clone(),
+            },
+            PairInfo {
+                owner: HumanAddr::from("owner0001"),
+                contract_addr: HumanAddr::from("pair0001"),
+                asset_infos: asset_infos_2.clone(),
+            }
+        ]
+    );
+
+    let query_msg = QueryMsg::Pairs {
+        start_after: None,
+        limit: Some(1),
+    };
+
+    let res = query(&mut deps, query_msg).unwrap();
+    let pairs_res: PairsResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        pairs_res.pairs,
+        vec![PairInfo {
+            owner: HumanAddr::from("owner0000"),
+            contract_addr: HumanAddr::from("pair0000"),
+            asset_infos: asset_infos.clone(),
+        }]
+    );
+
+    let query_msg = QueryMsg::Pairs {
+        start_after: Some(asset_infos.clone()),
+        limit: None,
+    };
+
+    let res = query(&mut deps, query_msg).unwrap();
+    let pairs_res: PairsResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        pairs_res.pairs,
+        vec![PairInfo {
+            owner: HumanAddr::from("owner0001"),
+            contract_addr: HumanAddr::from("pair0001"),
+            asset_infos: asset_infos_2.clone(),
+        }]
+    );
 }

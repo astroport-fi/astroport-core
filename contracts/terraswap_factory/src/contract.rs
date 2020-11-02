@@ -4,9 +4,9 @@ use cosmwasm_std::{
     StdResult, Storage, WasmMsg,
 };
 
-use crate::msg::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, QueryMsg};
+use crate::msg::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PairsResponse, QueryMsg};
 
-use crate::state::{read_config, read_pair, store_config, store_pair, Config};
+use crate::state::{read_config, read_pair, read_pairs, store_config, store_pair, Config};
 use terraswap::{AssetInfo, InitHook, PairInfo, PairInfoRaw, PairInitMsg};
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -105,6 +105,7 @@ pub fn try_update_config<S: Storage, A: Api, Q: Querier>(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 // Anyone can execute it to create swap pair
 pub fn try_create_pair<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -213,6 +214,9 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::Pair { asset_infos } => to_binary(&query_pair(deps, asset_infos)?),
+        QueryMsg::Pairs { start_after, limit } => {
+            to_binary(&query_pairs(deps, start_after, limit)?)
+        }
     }
 }
 
@@ -240,6 +244,23 @@ pub fn query_pair<S: Storage, A: Api, Q: Querier>(
         contract_addr: deps.api.human_address(&pair_info.contract_addr)?,
         asset_infos,
     };
+
+    Ok(resp)
+}
+
+pub fn query_pairs<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    start_after: Option<[AssetInfo; 2]>,
+    limit: Option<u32>,
+) -> StdResult<PairsResponse> {
+    let start_after = if let Some(start_after) = start_after {
+        Some([start_after[0].to_raw(&deps)?, start_after[1].to_raw(&deps)?])
+    } else {
+        None
+    };
+
+    let pairs: Vec<PairInfo> = read_pairs(&deps, start_after, limit)?;
+    let resp = PairsResponse { pairs };
 
     Ok(resp)
 }
