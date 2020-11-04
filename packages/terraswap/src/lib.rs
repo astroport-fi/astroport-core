@@ -1,11 +1,13 @@
 mod asset;
 mod hook;
 mod init;
+mod msg;
 mod querier;
 
 pub use crate::asset::{Asset, AssetInfo, AssetInfoRaw, AssetRaw, PairInfo, PairInfoRaw};
 pub use crate::hook::{InitHook, TokenCw20HookMsg};
 pub use crate::init::{PairConfigRaw, PairInitMsg, TokenInitMsg};
+pub use crate::msg::{PairCw20HookMsg, PairHandleMsg};
 pub use crate::querier::{
     load_balance, load_liquidity_token, load_pair_contract, load_supply, load_token_balance,
 };
