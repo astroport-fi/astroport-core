@@ -113,6 +113,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             offer_asset,
             belief_price,
             max_spread,
+            to,
         } => {
             if !offer_asset.is_native_token() {
                 return Err(StdError::unauthorized());
@@ -125,6 +126,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
                 offer_asset,
                 belief_price,
                 max_spread,
+                to,
             )
         }
     }
@@ -141,6 +143,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
             Cw20HookMsg::Swap {
                 belief_price,
                 max_spread,
+                to,
             } => {
                 // only asset contract can execute this message
                 let mut authorized: bool = false;
@@ -168,6 +171,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                     },
                     belief_price,
                     max_spread,
+                    to,
                 )
             }
             Cw20HookMsg::WithdrawLiquidity {} => {
@@ -416,6 +420,7 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
     offer_asset: Asset,
     belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
+    to: Option<HumanAddr>,
 ) -> HandleResult {
     offer_asset.assert_sent_native_token_balance(&env)?;
 
@@ -480,7 +485,7 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
     // 2. send inactive commission to collector
     Ok(HandleResponse {
         messages: vec![
-            return_asset.into_msg(&deps, env.contract.address.clone(), sender)?,
+            return_asset.into_msg(&deps, env.contract.address.clone(), to.unwrap_or(sender))?,
             owner_commission_asset.into_msg(
                 deps,
                 env.contract.address,
