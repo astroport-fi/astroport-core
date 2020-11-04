@@ -142,7 +142,8 @@ Any user can swap an asset by sending `swap` or invoking `send` msg to token con
               "amount": Uint128
           },
           "belief_price": Option<Decimal>,
-          "max_spread": Option<Decimal>
+          "max_spread": Option<Decimal>,
+          "to": Option<HumanAddr>
       }
   }
   ```
@@ -159,7 +160,8 @@ Any user can swap an asset by sending `swap` or invoking `send` msg to token con
           "msg": Binary({
               "swap": {
                   "belief_price": Option<Decimal>,
-                  "max_spread": Option<Decimal>
+                  "max_spread": Option<Decimal>,
+                  "to": Option<HumanAddr>
               }
           })
       }
