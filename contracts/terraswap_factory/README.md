@@ -166,7 +166,7 @@ When a user executes `CreatePair` operation, it passes `InitHook` to `Pair` cont
 Once a `Pair` contract invokes it, the sender address is registered as `Pair` contract address for the given asset_infos.
 
 ```json
-{ "register ":
+{ "register":
     "asset_infos": [{
         "token": {
             "contract_addr": "terra1~~",
