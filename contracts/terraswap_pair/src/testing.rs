@@ -1,12 +1,12 @@
 use crate::contract::{
-    assert_max_spread, handle, init, query_config_asset, query_config_general, query_config_swap,
-    query_pool, query_reverse_simulation, query_simulation,
+    assert_max_spread, handle, init, query_pair_info, query_pool, query_reverse_simulation,
+    query_simulation,
 };
 use crate::math::{decimal_multiplication, reverse_decimal};
 use crate::mock_querier::mock_dependencies;
 use crate::msg::{
-    ConfigAssetResponse, ConfigGeneralResponse, ConfigSwapResponse, Cw20HookMsg, HandleMsg,
-    PoolResponse, ReverseSimulationResponse, SimulationResponse,
+    Cw20HookMsg, HandleMsg, PoolResponse, ReverseSimulationResponse,
+    SimulationResponse,
 };
 use cosmwasm_std::testing::{mock_env, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
@@ -14,17 +14,13 @@ use cosmwasm_std::{
     StdError, Uint128, WasmMsg,
 };
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse};
-use terraswap::{Asset, AssetInfo, InitHook, PairInitMsg, TokenInitMsg};
+use terraswap::{Asset, AssetInfo, InitHook, PairInitMsg, TokenInitMsg, PairInfo};
 
 #[test]
 fn proper_initialization() {
     let mut deps = mock_dependencies(20, &[]);
 
-    let mut msg = PairInitMsg {
-        owner: HumanAddr("addr0000".to_string()),
-        commission_collector: HumanAddr("collector0000".to_string()),
-        lp_commission: Decimal::permille(1),
-        owner_commission: Decimal::permille(1),
+    let msg = PairInitMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -40,17 +36,7 @@ fn proper_initialization() {
         }),
     };
 
-    let env = mock_env("addr0000", &[]);
-    let res = init(&mut deps, env, msg.clone()).unwrap_err();
-    match res {
-        StdError::GenericErr { msg, .. } => {
-            assert_eq!(msg, "LP commission cannot be smaller than 0.25%")
-        }
-        _ => panic!("DO NOT ENTER HERE"),
-    }
-
     // we can just call .unwrap() to assert this was a success
-    msg.lp_commission = Decimal::permille(3);
     let env = mock_env("addr0000", &[]);
     let res = init(&mut deps, env, msg).unwrap();
     assert_eq!(
@@ -95,17 +81,10 @@ fn proper_initialization() {
     let _res = handle(&mut deps, env, msg).unwrap_err();
 
     // // it worked, let's query the state
-    let config_general: ConfigGeneralResponse = query_config_general(&deps).unwrap();
-    assert_eq!("addr0000", config_general.owner.as_str());
+    let pair_info: PairInfo = query_pair_info(&deps).unwrap();
+    assert_eq!("liquidity0000", pair_info.liquidity_token.as_str());
     assert_eq!(
-        "collector0000",
-        config_general.commission_collector.as_str()
-    );
-    assert_eq!("liquidity0000", config_general.liquidity_token.as_str());
-
-    let config_asset: ConfigAssetResponse = query_config_asset(&deps).unwrap();
-    assert_eq!(
-        config_asset.infos,
+        pair_info.asset_infos,
         [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -115,86 +94,6 @@ fn proper_initialization() {
             }
         ]
     );
-
-    let config_swap: ConfigSwapResponse = query_config_swap(&deps).unwrap();
-    assert_eq!(Decimal::permille(3), config_swap.lp_commission);
-    assert_eq!(Decimal::permille(1), config_swap.owner_commission);
-}
-
-#[test]
-fn update_config() {
-    let mut deps = mock_dependencies(20, &[]);
-    let msg = PairInitMsg {
-        owner: HumanAddr("addr0000".to_string()),
-        commission_collector: HumanAddr("collector0000".to_string()),
-        lp_commission: Decimal::permille(3),
-        owner_commission: Decimal::permille(1),
-        asset_infos: [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::Token {
-                contract_addr: HumanAddr::from("asset0000"),
-            },
-        ],
-        token_code_id: 10u64,
-        init_hook: None,
-    };
-
-    let env = mock_env("addr0000", &[]);
-
-    // we can just call .unwrap() to assert this was a success
-    let _res = init(&mut deps, env, msg).unwrap();
-
-    // post initalize
-    let msg = HandleMsg::PostInitialize {};
-    let env = mock_env("liquidity0000", &[]);
-    let _res = handle(&mut deps, env, msg).unwrap();
-
-    // update owner
-    let env = mock_env("addr0000", &[]);
-    let msg = HandleMsg::UpdateConfig {
-        owner: Some(HumanAddr("addr0001".to_string())),
-        lp_commission: None,
-        owner_commission: None,
-    };
-
-    let res = handle(&mut deps, env, msg).unwrap();
-    assert_eq!(0, res.messages.len());
-
-    // it worked, let's query the state
-    let config_general: ConfigGeneralResponse = query_config_general(&deps).unwrap();
-    assert_eq!("addr0001", config_general.owner.as_str());
-
-    // update left items
-    let env = mock_env("addr0001", &[]);
-    let msg = HandleMsg::UpdateConfig {
-        owner: None,
-        lp_commission: Some(Decimal::percent(1)),
-        owner_commission: Some(Decimal::percent(2)),
-    };
-
-    let res = handle(&mut deps, env, msg).unwrap();
-    assert_eq!(0, res.messages.len());
-
-    // it worked, let's query the state
-    let config_swap: ConfigSwapResponse = query_config_swap(&deps).unwrap();
-    assert_eq!(Decimal::percent(1), config_swap.lp_commission);
-    assert_eq!(Decimal::percent(2), config_swap.owner_commission);
-
-    // Unauthorzied err
-    let env = mock_env("addr0000", &[]);
-    let msg = HandleMsg::UpdateConfig {
-        owner: None,
-        lp_commission: None,
-        owner_commission: None,
-    };
-
-    let res = handle(&mut deps, env, msg);
-    match res {
-        Err(StdError::Unauthorized { .. }) => {}
-        _ => panic!("Must return unauthorized error"),
-    }
 }
 
 #[test]
@@ -213,10 +112,6 @@ fn provide_liquidity() {
     )]);
 
     let msg = PairInitMsg {
-        owner: HumanAddr("addr0000".to_string()),
-        commission_collector: HumanAddr("collector0000".to_string()),
-        lp_commission: Decimal::permille(3),
-        owner_commission: Decimal::permille(1),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -608,10 +503,6 @@ fn withdraw_liquidity() {
     ]);
 
     let msg = PairInitMsg {
-        owner: HumanAddr("addr0000".to_string()),
-        commission_collector: HumanAddr("collector0000".to_string()),
-        lp_commission: Decimal::permille(3),
-        owner_commission: Decimal::permille(1),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -726,10 +617,6 @@ fn try_native_to_token() {
     ]);
 
     let msg = PairInitMsg {
-        owner: HumanAddr("addr0000".to_string()),
-        commission_collector: HumanAddr("collector0000".to_string()),
-        lp_commission: Decimal::permille(3),
-        owner_commission: Decimal::permille(1),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -774,15 +661,12 @@ fn try_native_to_token() {
 
     let res = handle(&mut deps, env, msg).unwrap();
     let msg_transfer = res.messages.get(0).expect("no message");
-    let msg_commission_transfer = res.messages.get(1).expect("no message");
 
     // current price is 1.5, so expected return without spread is 1000
     // 952.380953 = 20000 - 20000 * 30000 / (30000 + 1500)
     let expected_ret_amount = Uint128(952_380_953u128);
     let expected_spread_amount = (offer_amount * exchange_rate - expected_ret_amount).unwrap();
-    let expected_lp_commission = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.2%
-    let expected_owner_commission = expected_ret_amount.multiply_ratio(1u128, 1000u128); // 0.1%
-    let expected_commission_amount = expected_lp_commission + expected_owner_commission;
+    let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
     let expected_return_amount = (expected_ret_amount - expected_commission_amount).unwrap();
     let expected_tax_amount = Uint128::zero(); // no tax for token
 
@@ -850,11 +734,7 @@ fn try_native_to_token() {
             log("return_amount", expected_return_amount.to_string()),
             log("tax_amount", expected_tax_amount.to_string()),
             log("spread_amount", expected_spread_amount.to_string()),
-            log("lp_commission_amount", expected_lp_commission.to_string()),
-            log(
-                "owner_commission_amount",
-                expected_owner_commission.to_string()
-            ),
+            log("commission_amount", expected_commission_amount.to_string()),
         ]
     );
 
@@ -869,19 +749,6 @@ fn try_native_to_token() {
             send: vec![],
         }),
         msg_transfer,
-    );
-
-    assert_eq!(
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: HumanAddr::from("asset0000"),
-            msg: to_binary(&Cw20HandleMsg::Transfer {
-                recipient: HumanAddr::from("collector0000"),
-                amount: Uint128::from(expected_owner_commission),
-            })
-            .unwrap(),
-            send: vec![],
-        }),
-        msg_commission_transfer,
     );
 }
 
@@ -920,10 +787,6 @@ fn try_token_to_native() {
     ]);
 
     let msg = PairInitMsg {
-        owner: HumanAddr("addr0000".to_string()),
-        commission_collector: HumanAddr("collector0000".to_string()),
-        lp_commission: Decimal::permille(3),
-        owner_commission: Decimal::permille(1),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -981,15 +844,12 @@ fn try_token_to_native() {
 
     let res = handle(&mut deps, env, msg).unwrap();
     let msg_transfer = res.messages.get(0).expect("no message");
-    let msg_commission_transfer = res.messages.get(1).expect("no message");
 
     // current price is 1.5, so expected return without spread is 1000
     // 952.380953 = 20000 - 20000 * 30000 / (30000 + 1500)
     let expected_ret_amount = Uint128(952_380_953u128);
     let expected_spread_amount = (offer_amount * exchange_rate - expected_ret_amount).unwrap();
-    let expected_lp_commission = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
-    let expected_owner_commission = expected_ret_amount.multiply_ratio(1u128, 1000u128); // 0.1%
-    let expected_commission_amount = expected_lp_commission + expected_owner_commission;
+    let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
     let expected_return_amount = (expected_ret_amount - expected_commission_amount).unwrap();
     let expected_tax_amount = std::cmp::min(
         Uint128(1000000u128),
@@ -997,13 +857,6 @@ fn try_token_to_native() {
             - expected_return_amount.multiply_ratio(Uint128(100u128), Uint128(101u128)))
         .unwrap(),
     );
-    let expected_owner_commission_tax_amount = std::cmp::min(
-        Uint128(1000000u128),
-        (expected_owner_commission
-            - expected_owner_commission.multiply_ratio(Uint128(100u128), Uint128(101u128)))
-        .unwrap(),
-    );
-
     // check simulation res
     // return asset token balance as normal
     deps.querier.with_token_balances(&[
@@ -1072,11 +925,7 @@ fn try_token_to_native() {
             log("return_amount", expected_return_amount.to_string()),
             log("tax_amount", expected_tax_amount.to_string()),
             log("spread_amount", expected_spread_amount.to_string()),
-            log("lp_commission_amount", expected_lp_commission.to_string()),
-            log(
-                "owner_commission_amount",
-                expected_owner_commission.to_string()
-            ),
+            log("commission_amount", expected_commission_amount.to_string()),
         ]
     );
 
@@ -1090,18 +939,6 @@ fn try_token_to_native() {
             }],
         }),
         msg_transfer,
-    );
-
-    assert_eq!(
-        &CosmosMsg::Bank(BankMsg::Send {
-            from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-            to_address: HumanAddr::from("collector0000"),
-            amount: vec![Coin {
-                denom: "uusd".to_string(),
-                amount: (expected_owner_commission - expected_owner_commission_tax_amount).unwrap(),
-            }],
-        }),
-        msg_commission_transfer,
     );
 
     // failed due to non asset token contract try to execute sell
@@ -1218,10 +1055,6 @@ fn test_query_pool() {
     ]);
 
     let msg = PairInitMsg {
-        owner: HumanAddr("addr0000".to_string()),
-        commission_collector: HumanAddr("collector0000".to_string()),
-        lp_commission: Decimal::permille(3),
-        owner_commission: Decimal::permille(1),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),

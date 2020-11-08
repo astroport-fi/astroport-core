@@ -17,20 +17,18 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
-use cosmwasm_std::{
-    from_binary, Coin, Decimal, HandleResponse, HandleResult, HumanAddr, InitResponse, StdError,
-};
+use cosmwasm_std::{from_binary, Coin, HandleResponse, HumanAddr, InitResponse};
 use cosmwasm_vm::testing::{
     handle, init, mock_dependencies, mock_env, query, MockApi, MockQuerier, MockStorage,
+    MOCK_CONTRACT_ADDR,
 };
 use cosmwasm_vm::Instance;
-use terraswap::{AssetInfo, PairInitMsg};
-use terraswap_pair::msg::{
-    ConfigAssetResponse, ConfigGeneralResponse, ConfigSwapResponse, HandleMsg, QueryMsg,
-};
+use terraswap::{AssetInfo, PairInfo, PairInitMsg};
+use terraswap_pair::msg::{HandleMsg, QueryMsg};
 
 // This line will test the output of cargo wasm
-static WASM: &[u8] = include_bytes!("../../../target/wasm32-unknown-unknown/release/terraswap_pair.wasm");
+static WASM: &[u8] =
+    include_bytes!("../../../target/wasm32-unknown-unknown/release/terraswap_pair.wasm");
 // You can uncomment this line instead to test productionified build from rust-optimizer
 // static WASM: &[u8] = include_bytes!("../contract.wasm");
 
@@ -52,10 +50,6 @@ fn proper_initialization() {
     let mut deps = mock_instance(WASM, &[]);
 
     let msg = PairInitMsg {
-        owner: HumanAddr("addr0000".to_string()),
-        commission_collector: HumanAddr("collector0000".to_string()),
-        lp_commission: Decimal::permille(3),
-        owner_commission: Decimal::permille(1),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -79,92 +73,20 @@ fn proper_initialization() {
     let _res: HandleResponse = handle(&mut deps, env, msg).unwrap();
 
     // it worked, let's query the state
-    let res = query(&mut deps, QueryMsg::ConfigGeneral {}).unwrap();
-    let config_general: ConfigGeneralResponse = from_binary(&res).unwrap();
-    assert_eq!("addr0000", config_general.owner.as_str());
+    let res = query(&mut deps, QueryMsg::Pair {}).unwrap();
+    let pair_info: PairInfo = from_binary(&res).unwrap();
+    assert_eq!(MOCK_CONTRACT_ADDR, pair_info.contract_addr.as_str());
     assert_eq!(
-        "collector0000",
-        config_general.commission_collector.as_str()
-    );
-    assert_eq!("liquidity0000", config_general.liquidity_token.as_str());
-
-    let res = query(&mut deps, QueryMsg::ConfigAsset {}).unwrap();
-    let config_asset: ConfigAssetResponse = from_binary(&res).unwrap();
-    assert_eq!(
-        config_asset.infos,
         [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
             AssetInfo::Token {
-                contract_addr: HumanAddr::from("asset0000")
-            }
-        ]
-    );
-
-    let res = query(&mut deps, QueryMsg::ConfigSwap {}).unwrap();
-    let config_swap: ConfigSwapResponse = from_binary(&res).unwrap();
-    assert_eq!(Decimal::permille(3), config_swap.lp_commission);
-    assert_eq!(Decimal::permille(1), config_swap.owner_commission);
-}
-
-#[test]
-fn update_config() {
-    let mut deps = mock_instance(WASM, &[]);
-    let msg = PairInitMsg {
-        owner: HumanAddr("addr0000".to_string()),
-        commission_collector: HumanAddr("collector0000".to_string()),
-        lp_commission: Decimal::permille(3),
-        owner_commission: Decimal::permille(1),
-        asset_infos: [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::Token {
                 contract_addr: HumanAddr::from("asset0000"),
             },
         ],
-        token_code_id: 10u64,
-        init_hook: None,
-    };
+        pair_info.asset_infos
+    );
 
-    let env = mock_env("addr0000", &[]);
-
-    // we can just call .unwrap() to assert this was a success
-    let _res: InitResponse = init(&mut deps, env, msg).unwrap();
-
-    // cannot change it after post intialization
-    let msg = HandleMsg::PostInitialize {};
-    let env = mock_env("liquidity0000", &[]);
-    let _res: HandleResponse = handle(&mut deps, env, msg).unwrap();
-
-    // update owner
-    let env = mock_env("addr0000", &[]);
-    let msg = HandleMsg::UpdateConfig {
-        owner: Some(HumanAddr("addr0001".to_string())),
-        lp_commission: None,
-        owner_commission: None,
-    };
-
-    let res: HandleResponse = handle(&mut deps, env, msg).unwrap();
-    assert_eq!(0, res.messages.len());
-
-    // it worked, let's query the state
-    let query_result = query(&mut deps, QueryMsg::ConfigGeneral {}).unwrap();
-    let config_general: ConfigGeneralResponse = from_binary(&query_result).unwrap();
-    assert_eq!("addr0001", config_general.owner.as_str());
-
-    // Unauthorzied err
-    let env = mock_env("addr0000", &[]);
-    let msg = HandleMsg::UpdateConfig {
-        owner: None,
-        lp_commission: Some(Decimal::percent(1)),
-        owner_commission: Some(Decimal::percent(2)),
-    };
-
-    let res: HandleResult = handle(&mut deps, env, msg);
-    match res.unwrap_err() {
-        StdError::Unauthorized { .. } => {}
-        _ => panic!("Must return unauthorized error"),
-    }
+    assert_eq!("liquidity0000", pair_info.liquidity_token.as_str());
 }

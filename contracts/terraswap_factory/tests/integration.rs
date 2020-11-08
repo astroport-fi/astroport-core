@@ -18,7 +18,7 @@
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
 use cosmwasm_std::{
-    from_binary, log, to_binary, Coin, CosmosMsg, Decimal, HandleResponse, HandleResult, HumanAddr,
+    from_binary, log, to_binary, Coin, CosmosMsg, HandleResponse, HandleResult, HumanAddr,
     InitResponse, StdError, WasmMsg,
 };
 use cosmwasm_vm::testing::{
@@ -27,7 +27,7 @@ use cosmwasm_vm::testing::{
 };
 use cosmwasm_vm::Instance;
 
-use terraswap::{AssetInfo, InitHook, PairInfo, PairInitMsg};
+use terraswap::{AssetInfo, InitHook, PairInitMsg};
 use terraswap_factory::msg::{ConfigResponse, HandleMsg, InitMsg, QueryMsg};
 
 // This line will test the output of cargo wasm
@@ -160,10 +160,6 @@ fn create_pair() {
         },
     ];
     let msg = HandleMsg::CreatePair {
-        pair_owner: HumanAddr::from("owner0000"),
-        commission_collector: HumanAddr::from("collector0000"),
-        lp_commission: Decimal::percent(1),
-        owner_commission: Decimal::percent(1),
         asset_infos: asset_infos.clone(),
         init_hook: None,
     };
@@ -181,11 +177,7 @@ fn create_pair() {
         res.messages,
         vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
             msg: to_binary(&PairInitMsg {
-                owner: HumanAddr::from("owner0000"),
-                commission_collector: HumanAddr::from("collector0000"),
                 asset_infos: asset_infos.clone(),
-                lp_commission: Decimal::percent(1),
-                owner_commission: Decimal::percent(1),
                 token_code_id: 123u64,
                 init_hook: Some(InitHook {
                     contract_addr: HumanAddr::from(MOCK_CONTRACT_ADDR),
@@ -200,64 +192,5 @@ fn create_pair() {
             send: vec![],
             label: None,
         })]
-    );
-}
-
-#[test]
-fn register() {
-    let mut deps = mock_instance(WASM, &[]);
-
-    let msg = InitMsg {
-        pair_code_id: 321u64,
-        token_code_id: 123u64,
-        init_hook: None,
-    };
-
-    let env = mock_env("addr0000", &[]);
-    let _res: InitResponse = init(&mut deps, env, msg).unwrap();
-
-    let asset_infos = [
-        AssetInfo::Token {
-            contract_addr: HumanAddr::from("asset0000"),
-        },
-        AssetInfo::Token {
-            contract_addr: HumanAddr::from("asset0001"),
-        },
-    ];
-    let msg = HandleMsg::CreatePair {
-        pair_owner: HumanAddr::from("owner0000"),
-        commission_collector: HumanAddr::from("collector0000"),
-        lp_commission: Decimal::percent(1),
-        owner_commission: Decimal::percent(1),
-        asset_infos: asset_infos.clone(),
-        init_hook: None,
-    };
-
-    let env = mock_env("addr0000", &[]);
-    let _res: HandleResponse = handle(&mut deps, env, msg).unwrap();
-
-    let msg = HandleMsg::Register {
-        asset_infos: asset_infos.clone(),
-    };
-
-    let env = mock_env("pair0000", &[]);
-    let _res: HandleResponse = handle(&mut deps, env, msg).unwrap();
-
-    let query_res = query(
-        &mut deps,
-        QueryMsg::Pair {
-            asset_infos: asset_infos.clone(),
-        },
-    )
-    .unwrap();
-
-    let pair_res: PairInfo = from_binary(&query_res).unwrap();
-    assert_eq!(
-        pair_res,
-        PairInfo {
-            owner: HumanAddr::from("owner0000"),
-            contract_addr: HumanAddr::from("pair0000"),
-            asset_infos,
-        }
     );
 }

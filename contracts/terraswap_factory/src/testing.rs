@@ -1,12 +1,13 @@
 use cosmwasm_std::{
-    from_binary, log, to_binary, CanonicalAddr, CosmosMsg, Decimal, HumanAddr, StdError, WasmMsg,
+    from_binary, log, to_binary, CanonicalAddr, CosmosMsg, HumanAddr, StdError, WasmMsg,
 };
 
 use crate::contract::{handle, init, query};
+use crate::mock_querier::mock_dependencies;
 use crate::msg::{ConfigResponse, HandleMsg, InitMsg, PairsResponse, QueryMsg};
 use crate::state::read_pair;
 
-use cosmwasm_std::testing::{mock_dependencies, mock_env, MOCK_CONTRACT_ADDR};
+use cosmwasm_std::testing::{mock_env, MOCK_CONTRACT_ADDR};
 use terraswap::{AssetInfo, InitHook, PairInfo, PairInitMsg};
 
 #[test]
@@ -120,30 +121,8 @@ fn create_pair() {
             contract_addr: HumanAddr::from("asset0001"),
         },
     ];
-    // check lp commission hard cap
-    let msg = HandleMsg::CreatePair {
-        pair_owner: HumanAddr::from("owner0000"),
-        commission_collector: HumanAddr::from("collector0000"),
-        lp_commission: Decimal::from_ratio(24u64, 10000u64),
-        owner_commission: Decimal::percent(1),
-        asset_infos: asset_infos.clone(),
-        init_hook: None,
-    };
-
-    let env = mock_env("addr0000", &[]);
-    let res = handle(&mut deps, env, msg).unwrap_err();
-    match res {
-        StdError::GenericErr { msg, .. } => {
-            assert_eq!(msg, "LP commission cannot be smaller than 0.25%")
-        }
-        _ => panic!("DO NOT ENTER HERE"),
-    }
 
     let msg = HandleMsg::CreatePair {
-        pair_owner: HumanAddr::from("owner0000"),
-        commission_collector: HumanAddr::from("collector0000"),
-        lp_commission: Decimal::percent(1),
-        owner_commission: Decimal::percent(1),
         asset_infos: asset_infos.clone(),
         init_hook: None,
     };
@@ -161,11 +140,7 @@ fn create_pair() {
         res.messages,
         vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
             msg: to_binary(&PairInitMsg {
-                owner: HumanAddr::from("owner0000"),
-                commission_collector: HumanAddr::from("collector0000"),
                 asset_infos: asset_infos.clone(),
-                lp_commission: Decimal::percent(1),
-                owner_commission: Decimal::percent(1),
                 token_code_id: 123u64,
                 init_hook: Some(InitHook {
                     contract_addr: HumanAddr::from(MOCK_CONTRACT_ADDR),
@@ -214,16 +189,29 @@ fn register() {
     ];
 
     let msg = HandleMsg::CreatePair {
-        pair_owner: HumanAddr::from("owner0000"),
-        commission_collector: HumanAddr::from("collector0000"),
-        lp_commission: Decimal::percent(1),
-        owner_commission: Decimal::percent(1),
         asset_infos: asset_infos.clone(),
         init_hook: None,
     };
 
     let env = mock_env("addr0000", &[]);
     let _res = handle(&mut deps, env, msg).unwrap();
+
+    // register terraswap pair querier
+    deps.querier.with_terraswap_pairs(&[(
+        &HumanAddr::from("pair0000"),
+        &PairInfo {
+            asset_infos: [
+                AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+            ],
+            contract_addr: HumanAddr::from("pair0000"),
+            liquidity_token: HumanAddr::from("liquidity0000"),
+        },
+    )]);
 
     let msg = HandleMsg::Register {
         asset_infos: asset_infos.clone(),
@@ -244,7 +232,7 @@ fn register() {
     assert_eq!(
         pair_res,
         PairInfo {
-            owner: HumanAddr::from("owner0000"),
+            liquidity_token: HumanAddr::from("liquidity0000"),
             contract_addr: HumanAddr::from("pair0000"),
             asset_infos: asset_infos.clone(),
         }
@@ -272,16 +260,29 @@ fn register() {
     ];
 
     let msg = HandleMsg::CreatePair {
-        pair_owner: HumanAddr::from("owner0001"),
-        commission_collector: HumanAddr::from("collector0000"),
-        lp_commission: Decimal::percent(1),
-        owner_commission: Decimal::percent(1),
         asset_infos: asset_infos_2.clone(),
         init_hook: None,
     };
 
     let env = mock_env("addr0000", &[]);
     let _res = handle(&mut deps, env, msg).unwrap();
+
+    // register terraswap pair querier
+    deps.querier.with_terraswap_pairs(&[(
+        &HumanAddr::from("pair0001"),
+        &PairInfo {
+            asset_infos: [
+                AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+            ],
+            contract_addr: HumanAddr::from("pair0001"),
+            liquidity_token: HumanAddr::from("liquidity0001"),
+        },
+    )]);
 
     let msg = HandleMsg::Register {
         asset_infos: asset_infos_2.clone(),
@@ -301,12 +302,12 @@ fn register() {
         pairs_res.pairs,
         vec![
             PairInfo {
-                owner: HumanAddr::from("owner0000"),
+                liquidity_token: HumanAddr::from("liquidity0000"),
                 contract_addr: HumanAddr::from("pair0000"),
                 asset_infos: asset_infos.clone(),
             },
             PairInfo {
-                owner: HumanAddr::from("owner0001"),
+                liquidity_token: HumanAddr::from("liquidity0001"),
                 contract_addr: HumanAddr::from("pair0001"),
                 asset_infos: asset_infos_2.clone(),
             }
@@ -323,7 +324,7 @@ fn register() {
     assert_eq!(
         pairs_res.pairs,
         vec![PairInfo {
-            owner: HumanAddr::from("owner0000"),
+            liquidity_token: HumanAddr::from("liquidity0000"),
             contract_addr: HumanAddr::from("pair0000"),
             asset_infos: asset_infos.clone(),
         }]
@@ -339,7 +340,7 @@ fn register() {
     assert_eq!(
         pairs_res.pairs,
         vec![PairInfo {
-            owner: HumanAddr::from("owner0001"),
+            liquidity_token: HumanAddr::from("liquidity0001"),
             contract_addr: HumanAddr::from("pair0001"),
             asset_infos: asset_infos_2.clone(),
         }]

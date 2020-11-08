@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Decimal, HumanAddr};
+use cosmwasm_std::HumanAddr;
 use terraswap::{AssetInfo, InitHook, PairInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -23,14 +23,6 @@ pub enum HandleMsg {
     },
     /// CreatePair instantiates pair contract
     CreatePair {
-        /// Pair contract owner
-        pair_owner: HumanAddr,
-        /// Inactive commission collector
-        commission_collector: HumanAddr,
-        /// Commission rate for active liquidity provider
-        lp_commission: Decimal,
-        /// Commission rate for owner controlled commission
-        owner_commission: Decimal,
         /// Asset infos
         asset_infos: [AssetInfo; 2],
         /// Init hook for after works
