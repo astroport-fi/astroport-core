@@ -52,11 +52,7 @@
         "create_pair": {
           "type": "object",
           "required": [
-            "asset_infos",
-            "commission_collector",
-            "lp_commission",
-            "owner_commission",
-            "pair_owner"
+            "asset_infos"
           ],
           "properties": {
             "asset_infos": {
@@ -68,14 +64,6 @@
               "maxItems": 2,
               "minItems": 2
             },
-            "commission_collector": {
-              "description": "Inactive commission collector",
-              "allOf": [
-                {
-                  "$ref": "#/definitions/HumanAddr"
-                }
-              ]
-            },
             "init_hook": {
               "description": "Init hook for after works",
               "anyOf": [
@@ -84,30 +72,6 @@
                 },
                 {
                   "type": "null"
-                }
-              ]
-            },
-            "lp_commission": {
-              "description": "Commission rate for active liquidity provider",
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Decimal"
-                }
-              ]
-            },
-            "owner_commission": {
-              "description": "Commission rate for owner controlled commission",
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Decimal"
-                }
-              ]
-            },
-            "pair_owner": {
-              "description": "Pair contract owner",
-              "allOf": [
-                {
-                  "$ref": "#/definitions/HumanAddr"
                 }
               ]
             }
@@ -186,10 +150,6 @@
     },
     "Binary": {
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
-      "type": "string"
-    },
-    "Decimal": {
-      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
       "type": "string"
     },
     "HumanAddr": {
