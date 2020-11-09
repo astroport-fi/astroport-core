@@ -1,12 +1,13 @@
 use cosmwasm_std::{
-    log, to_binary, Api, Binary, CanonicalAddr, CosmosMsg, Decimal, Env, Extern, HandleResponse,
+    log, to_binary, Api, Binary, CanonicalAddr, CosmosMsg, Env, Extern, HandleResponse,
     HandleResult, HumanAddr, InitResponse, MigrateResponse, MigrateResult, Querier, StdError,
     StdResult, Storage, WasmMsg,
 };
 
 use crate::msg::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PairsResponse, QueryMsg};
-
+use crate::querier::load_liquidity_token;
 use crate::state::{read_config, read_pair, read_pairs, store_config, store_pair, Config};
+
 use terraswap::{AssetInfo, InitHook, PairInfo, PairInfoRaw, PairInitMsg};
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -49,22 +50,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             pair_code_id,
         } => try_update_config(deps, env, owner, token_code_id, pair_code_id),
         HandleMsg::CreatePair {
-            pair_owner,
-            commission_collector,
-            lp_commission,
-            owner_commission,
             asset_infos,
             init_hook,
-        } => try_create_pair(
-            deps,
-            env,
-            pair_owner,
-            commission_collector,
-            lp_commission,
-            owner_commission,
-            asset_infos,
-            init_hook,
-        ),
+        } => try_create_pair(deps, env, asset_infos, init_hook),
         HandleMsg::Register { asset_infos } => try_register(deps, env, asset_infos),
     }
 }
@@ -110,10 +98,6 @@ pub fn try_update_config<S: Storage, A: Api, Q: Querier>(
 pub fn try_create_pair<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    pair_owner: HumanAddr,
-    commission_collector: HumanAddr,
-    lp_commission: Decimal,
-    owner_commission: Decimal,
     asset_infos: [AssetInfo; 2],
     init_hook: Option<InitHook>,
 ) -> HandleResult {
@@ -123,17 +107,10 @@ pub fn try_create_pair<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("Pair already exists"));
     }
 
-    // lp commission must be bigger than 0.25%
-    if lp_commission < Decimal::from_ratio(25u64, 10000u64) {
-        return Err(StdError::generic_err(
-            "LP commission cannot be smaller than 0.25%",
-        ));
-    }
-
     store_pair(
         &mut deps.storage,
         &PairInfoRaw {
-            owner: deps.api.canonical_address(&pair_owner)?,
+            liquidity_token: CanonicalAddr::default(),
             contract_addr: CanonicalAddr::default(),
             asset_infos: raw_infos,
         },
@@ -144,11 +121,7 @@ pub fn try_create_pair<S: Storage, A: Api, Q: Querier>(
         send: vec![],
         label: None,
         msg: to_binary(&PairInitMsg {
-            owner: pair_owner,
-            commission_collector,
             asset_infos: asset_infos.clone(),
-            lp_commission,
-            owner_commission,
             token_code_id: config.token_code_id,
             init_hook: Some(InitHook {
                 contract_addr: env.contract.address,
@@ -189,10 +162,13 @@ pub fn try_register<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("Pair was already registered"));
     }
 
+    let pair_contract = env.message.sender;
+    let liquidity_token = load_liquidity_token(&deps, &pair_contract)?;
     store_pair(
         &mut deps.storage,
         &PairInfoRaw {
-            contract_addr: deps.api.canonical_address(&env.message.sender)?,
+            contract_addr: deps.api.canonical_address(&pair_contract)?,
+            liquidity_token: deps.api.canonical_address(&liquidity_token)?,
             ..pair_info
         },
     )?;
@@ -201,7 +177,7 @@ pub fn try_register<S: Storage, A: Api, Q: Querier>(
         messages: vec![],
         log: vec![
             log("action", "register"),
-            log("pair_contract_addr", env.message.sender.as_str()),
+            log("pair_contract_addr", pair_contract),
         ],
         data: None,
     })
@@ -239,13 +215,7 @@ pub fn query_pair<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<PairInfo> {
     let raw_infos = [asset_infos[0].to_raw(&deps)?, asset_infos[1].to_raw(&deps)?];
     let pair_info: PairInfoRaw = read_pair(&deps.storage, &raw_infos)?;
-    let resp = PairInfo {
-        owner: deps.api.human_address(&pair_info.owner)?,
-        contract_addr: deps.api.human_address(&pair_info.contract_addr)?,
-        asset_infos,
-    };
-
-    Ok(resp)
+    pair_info.to_normal(&deps)
 }
 
 pub fn query_pairs<S: Storage, A: Api, Q: Querier>(

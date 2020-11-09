@@ -1,18 +1,26 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "ConfigAssetResponse",
+  "title": "PairInfo",
   "type": "object",
   "required": [
-    "infos"
+    "asset_infos",
+    "contract_addr",
+    "liquidity_token"
   ],
   "properties": {
-    "infos": {
+    "asset_infos": {
       "type": "array",
       "items": {
         "$ref": "#/definitions/AssetInfo"
       },
       "maxItems": 2,
       "minItems": 2
+    },
+    "contract_addr": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "liquidity_token": {
+      "$ref": "#/definitions/HumanAddr"
     }
   },
   "definitions": {

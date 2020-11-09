@@ -64,7 +64,7 @@
       "required": [
         "asset_infos",
         "contract_addr",
-        "owner"
+        "liquidity_token"
       ],
       "properties": {
         "asset_infos": {
@@ -78,7 +78,7 @@
         "contract_addr": {
           "$ref": "#/definitions/HumanAddr"
         },
-        "owner": {
+        "liquidity_token": {
           "$ref": "#/definitions/HumanAddr"
         }
       }

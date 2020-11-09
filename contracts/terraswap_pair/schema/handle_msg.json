@@ -26,73 +26,6 @@
       }
     },
     {
-      "type": "object",
-      "required": [
-        "update_config"
-      ],
-      "properties": {
-        "update_config": {
-          "type": "object",
-          "properties": {
-            "lp_commission": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Decimal"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "owner": {
-              "description": "Later it will be set by gov contract",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/HumanAddr"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "owner_commission": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Decimal"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "migrate_asset"
-      ],
-      "properties": {
-        "migrate_asset": {
-          "type": "object",
-          "required": [
-            "from_asset",
-            "to_asset"
-          ],
-          "properties": {
-            "from_asset": {
-              "$ref": "#/definitions/AssetInfo"
-            },
-            "to_asset": {
-              "$ref": "#/definitions/AssetInfo"
-            }
-          }
-        }
-      }
-    },
-    {
       "description": "ProvideLiquidity a user provides pool liquidity",
       "type": "object",
       "required": [
@@ -162,6 +95,16 @@
             },
             "offer_asset": {
               "$ref": "#/definitions/Asset"
+            },
+            "to": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         }

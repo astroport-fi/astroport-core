@@ -1,61 +1,40 @@
 use crate::math::{decimal_multiplication, decimal_subtraction, reverse_decimal};
 use crate::msg::{
-    ConfigAssetResponse, ConfigGeneralResponse, ConfigSwapResponse, Cw20HookMsg, HandleMsg,
-    MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse, SimulationResponse,
+    Cw20HookMsg, HandleMsg, MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse,
+    SimulationResponse,
 };
-use crate::state::{
-    read_config_asset, read_config_general, read_config_swap, store_config_asset,
-    store_config_general, store_config_swap, ConfigAsset, ConfigSwap,
-};
+use crate::state::{read_pair_info, store_pair_info};
+
 use cosmwasm_std::{
     from_binary, log, to_binary, Api, Binary, CanonicalAddr, Coin, CosmosMsg, Decimal, Env, Extern,
     HandleResponse, HandleResult, HumanAddr, InitResponse, MigrateResponse, MigrateResult, Querier,
     StdError, StdResult, Storage, Uint128, WasmMsg,
 };
+
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse};
 use integer_sqrt::IntegerSquareRoot;
+use std::str::FromStr;
 use terraswap::{
-    load_supply, Asset, AssetInfo, InitHook, PairConfigRaw, PairInitMsg, TokenInitMsg,
+    load_supply, Asset, AssetInfo, InitHook, PairInfo, PairInfoRaw, PairInitMsg, TokenInitMsg,
 };
 
+/// Commission rate == 0.3%
+const COMMISSION_RATE: &str = "0.003";
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     msg: PairInitMsg,
 ) -> StdResult<InitResponse> {
-    if msg.lp_commission > Decimal::one() || msg.owner_commission > Decimal::one() {
-        return Err(StdError::generic_err("rate cannot be bigger than one"));
-    }
-
-    // lp commission must be bigger than 0.25%
-    if msg.lp_commission < Decimal::from_ratio(25u64, 10000u64) {
-        return Err(StdError::generic_err(
-            "LP commission cannot be smaller than 0.25%",
-        ));
-    }
-
-    let config_general = PairConfigRaw {
-        owner: deps.api.canonical_address(&msg.owner)?,
+    let pair_info: &PairInfoRaw = &PairInfoRaw {
         contract_addr: deps.api.canonical_address(&env.contract.address)?,
         liquidity_token: CanonicalAddr::default(),
-        commission_collector: deps.api.canonical_address(&msg.commission_collector)?,
-    };
-
-    let config_swap = ConfigSwap {
-        lp_commission: msg.lp_commission,
-        owner_commission: msg.owner_commission,
-    };
-
-    let config_asset: &ConfigAsset = &ConfigAsset {
-        assets: [
+        asset_infos: [
             msg.asset_infos[0].to_raw(&deps)?,
             msg.asset_infos[1].to_raw(&deps)?,
         ],
     };
 
-    store_config_general(&mut deps.storage, &config_general)?;
-    store_config_swap(&mut deps.storage, &config_swap)?;
-    store_config_asset(&mut deps.storage, &config_asset)?;
+    store_pair_info(&mut deps.storage, &pair_info)?;
 
     // Create LP token
     let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
@@ -100,11 +79,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     match msg {
         HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
         HandleMsg::PostInitialize {} => try_post_initialize(deps, env),
-        HandleMsg::UpdateConfig {
-            owner,
-            lp_commission,
-            owner_commission,
-        } => try_update_config(deps, env, owner, lp_commission, owner_commission),
         HandleMsg::ProvideLiquidity {
             assets,
             slippage_tolerance,
@@ -147,8 +121,8 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
             } => {
                 // only asset contract can execute this message
                 let mut authorized: bool = false;
-                let config_asset: ConfigAsset = read_config_asset(&deps.storage)?;
-                let pools: [Asset; 2] = config_asset.to_pools(deps, &env.contract.address)?;
+                let config: PairInfoRaw = read_pair_info(&deps.storage)?;
+                let pools: [Asset; 2] = config.load_pools(deps, &env.contract.address)?;
                 for pool in pools.iter() {
                     if let AssetInfo::Token { contract_addr, .. } = &pool.info {
                         if contract_addr == &env.message.sender {
@@ -175,10 +149,8 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                 )
             }
             Cw20HookMsg::WithdrawLiquidity {} => {
-                let config_general: PairConfigRaw = read_config_general(&deps.storage)?;
-                if deps.api.canonical_address(&env.message.sender)?
-                    != config_general.liquidity_token
-                {
+                let config: PairInfoRaw = read_pair_info(&deps.storage)?;
+                if deps.api.canonical_address(&env.message.sender)? != config.liquidity_token {
                     return Err(StdError::unauthorized());
                 }
 
@@ -195,76 +167,24 @@ pub fn try_post_initialize<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> HandleResult {
-    let config_general: PairConfigRaw = read_config_general(&deps.storage)?;
+    let config: PairInfoRaw = read_pair_info(&deps.storage)?;
 
     // permission check
-    if config_general.liquidity_token != CanonicalAddr::default() {
+    if config.liquidity_token != CanonicalAddr::default() {
         return Err(StdError::unauthorized());
     }
 
-    store_config_general(
+    store_pair_info(
         &mut deps.storage,
-        &PairConfigRaw {
+        &PairInfoRaw {
             liquidity_token: deps.api.canonical_address(&env.message.sender)?,
-            ..config_general
+            ..config
         },
     )?;
 
     Ok(HandleResponse {
         messages: vec![],
         log: vec![log("liquidity_token_addr", env.message.sender.as_str())],
-        data: None,
-    })
-}
-
-pub fn try_update_config<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    owner: Option<HumanAddr>,
-    lp_commission: Option<Decimal>,
-    owner_commission: Option<Decimal>,
-) -> HandleResult {
-    let mut config_general: PairConfigRaw = read_config_general(&deps.storage)?;
-    let mut config_swap: ConfigSwap = read_config_swap(&deps.storage)?;
-
-    // permission check
-    if deps.api.canonical_address(&env.message.sender)? != config_general.owner {
-        return Err(StdError::unauthorized());
-    }
-
-    if let Some(owner) = owner {
-        config_general.owner = deps.api.canonical_address(&owner)?;
-    }
-
-    if let Some(lp_commission) = lp_commission {
-        if lp_commission > Decimal::one() {
-            return Err(StdError::generic_err("rate cannot be bigger than one"));
-        }
-
-        // lp commission must be bigger than 0.25%
-        if lp_commission < Decimal::from_ratio(25u64, 10000u64) {
-            return Err(StdError::generic_err(
-                "LP commission cannot be smaller than 0.25%",
-            ));
-        }
-
-        config_swap.lp_commission = lp_commission;
-    }
-
-    if let Some(owner_commission) = owner_commission {
-        if owner_commission > Decimal::one() {
-            return Err(StdError::generic_err("rate cannot be bigger than one"));
-        }
-
-        config_swap.owner_commission = owner_commission;
-    }
-
-    store_config_swap(&mut deps.storage, &config_swap)?;
-    store_config_general(&mut deps.storage, &config_general)?;
-
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![log("action", "update_config")],
         data: None,
     })
 }
@@ -280,9 +200,8 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
         asset.assert_sent_native_token_balance(&env)?;
     }
 
-    let config_general: PairConfigRaw = read_config_general(&deps.storage)?;
-    let config_asset: ConfigAsset = read_config_asset(&deps.storage)?;
-    let mut pools: [Asset; 2] = config_asset.to_pools(deps, &env.contract.address)?;
+    let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
+    let mut pools: [Asset; 2] = pair_info.load_pools(deps, &env.contract.address)?;
     let deposits: [Uint128; 2] = [
         assets
             .iter()
@@ -322,7 +241,7 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
     // assert slippage tolerance
     assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
 
-    let liquidity_token = deps.api.human_address(&config_general.liquidity_token)?;
+    let liquidity_token = deps.api.human_address(&pair_info.liquidity_token)?;
     let total_share = load_supply(&deps, &liquidity_token)?;
     let share = if total_share == Uint128::zero() {
         // Initial share = collateral amount
@@ -341,7 +260,7 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
 
     // mint LP token to sender
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: deps.api.human_address(&config_general.liquidity_token)?,
+        contract_addr: deps.api.human_address(&pair_info.liquidity_token)?,
         msg: to_binary(&Cw20HandleMsg::Mint {
             recipient: env.message.sender,
             amount: share,
@@ -365,11 +284,10 @@ pub fn try_withdraw_liquidity<S: Storage, A: Api, Q: Querier>(
     sender: HumanAddr,
     amount: Uint128,
 ) -> HandleResult {
-    let config_general: PairConfigRaw = read_config_general(&deps.storage)?;
-    let config_asset: ConfigAsset = read_config_asset(&deps.storage)?;
-    let liquidity_addr: HumanAddr = deps.api.human_address(&config_general.liquidity_token)?;
+    let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
+    let liquidity_addr: HumanAddr = deps.api.human_address(&pair_info.liquidity_token)?;
 
-    let pools: [Asset; 2] = config_asset.to_pools(&deps, &env.contract.address)?;
+    let pools: [Asset; 2] = pair_info.load_pools(&deps, &env.contract.address)?;
     let total_share: Uint128 = load_supply(&deps, &liquidity_addr)?;
 
     let share_ratio: Decimal = Decimal::from_ratio(amount, total_share);
@@ -395,7 +313,7 @@ pub fn try_withdraw_liquidity<S: Storage, A: Api, Q: Querier>(
                 .into_msg(&deps, env.contract.address, sender)?,
             // burn liquidity token
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: deps.api.human_address(&config_general.liquidity_token)?,
+                contract_addr: deps.api.human_address(&pair_info.liquidity_token)?,
                 msg: to_binary(&Cw20HandleMsg::Burn { amount })?,
                 send: vec![],
             }),
@@ -424,11 +342,9 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
 ) -> HandleResult {
     offer_asset.assert_sent_native_token_balance(&env)?;
 
-    let config_general: PairConfigRaw = read_config_general(&deps.storage)?;
-    let config_asset: ConfigAsset = read_config_asset(&deps.storage)?;
-    let config_swap: ConfigSwap = read_config_swap(&deps.storage)?;
+    let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
 
-    let pools: [Asset; 2] = config_asset.to_pools(&deps, &env.contract.address)?;
+    let pools: [Asset; 2] = pair_info.load_pools(&deps, &env.contract.address)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;
@@ -452,19 +368,15 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
     }
 
     let offer_amount = offer_asset.amount;
-    let (return_amount, spread_amount, lp_commission, owner_commission) = compute_swap(
-        &config_swap,
-        offer_pool.amount,
-        ask_pool.amount,
-        offer_amount,
-    )?;
+    let (return_amount, spread_amount, commission_amount) =
+        compute_swap(offer_pool.amount, ask_pool.amount, offer_amount)?;
 
     // check max spread limit if exist
     assert_max_spread(
         belief_price,
         max_spread,
         offer_amount,
-        return_amount + lp_commission + owner_commission,
+        return_amount + commission_amount,
         spread_amount,
     )?;
 
@@ -474,25 +386,16 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
         amount: return_amount,
     };
 
-    let owner_commission_asset = Asset {
-        info: ask_pool.info.clone(),
-        amount: owner_commission,
-    };
-
     let tax_amount = return_asset.compute_tax(&deps)?;
 
     // 1. send collateral token from the contract to a user
     // 2. send inactive commission to collector
     Ok(HandleResponse {
-        messages: vec![
-            return_asset.into_msg(&deps, env.contract.address.clone(), to.unwrap_or(sender))?,
-            owner_commission_asset.into_msg(
-                deps,
-                env.contract.address,
-                deps.api
-                    .human_address(&config_general.commission_collector)?,
-            )?,
-        ],
+        messages: vec![return_asset.into_msg(
+            &deps,
+            env.contract.address.clone(),
+            to.unwrap_or(sender),
+        )?],
         log: vec![
             log("action", "swap"),
             log("offer_asset", offer_asset.info.to_string()),
@@ -501,8 +404,7 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
             log("return_amount", return_amount.to_string()),
             log("tax_amount", tax_amount.to_string()),
             log("spread_amount", spread_amount.to_string()),
-            log("lp_commission_amount", lp_commission.to_string()),
-            log("owner_commission_amount", owner_commission.to_string()),
+            log("commission_amount", commission_amount.to_string()),
         ],
         data: None,
     })
@@ -513,9 +415,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     msg: QueryMsg,
 ) -> StdResult<Binary> {
     match msg {
-        QueryMsg::ConfigGeneral {} => to_binary(&query_config_general(&deps)?),
-        QueryMsg::ConfigAsset {} => to_binary(&query_config_asset(&deps)?),
-        QueryMsg::ConfigSwap {} => to_binary(&query_config_swap(&deps)?),
+        QueryMsg::Pair {} => to_binary(&query_pair_info(&deps)?),
         QueryMsg::Pool {} => to_binary(&query_pool(&deps)?),
         QueryMsg::Simulation { offer_asset } => to_binary(&query_simulation(&deps, offer_asset)?),
         QueryMsg::ReverseSimulation { ask_asset } => {
@@ -524,71 +424,21 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-pub fn query_config_general<S: Storage, A: Api, Q: Querier>(
+pub fn query_pair_info<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-) -> StdResult<ConfigGeneralResponse> {
-    let state: PairConfigRaw = read_config_general(&deps.storage)?;
-    let resp = ConfigGeneralResponse {
-        owner: deps.api.human_address(&state.owner)?,
-        liquidity_token: deps.api.human_address(&state.liquidity_token)?,
-        commission_collector: deps.api.human_address(&state.commission_collector)?,
-    };
-
-    Ok(resp)
-}
-
-pub fn query_config_asset<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<ConfigAssetResponse> {
-    let config_asset: ConfigAsset = read_config_asset(&deps.storage)?;
-    let resp = ConfigAssetResponse {
-        infos: [
-            config_asset.assets[0].to_normal(&deps)?,
-            config_asset.assets[1].to_normal(&deps)?,
-        ],
-    };
-
-    Ok(resp)
-}
-
-pub fn query_config_swap<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<ConfigSwapResponse> {
-    let state: ConfigSwap = read_config_swap(&deps.storage)?;
-    let resp = ConfigSwapResponse {
-        lp_commission: state.lp_commission,
-        owner_commission: state.owner_commission,
-    };
-
-    Ok(resp)
+) -> StdResult<PairInfo> {
+    let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
+    pair_info.to_normal(&deps)
 }
 
 pub fn query_pool<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
 ) -> StdResult<PoolResponse> {
-    let config_asset: ConfigAsset = read_config_asset(&deps.storage)?;
-    let config_general: PairConfigRaw = read_config_general(&deps.storage)?;
-
-    let mut assets: [Asset; 2] = [
-        Asset {
-            info: config_asset.assets[0].to_normal(&deps)?,
-            amount: Uint128::zero(),
-        },
-        Asset {
-            info: config_asset.assets[1].to_normal(&deps)?,
-            amount: Uint128::zero(),
-        },
-    ];
-
-    let contract_addr = deps.api.human_address(&config_general.contract_addr)?;
-    for asset in assets.iter_mut() {
-        asset.amount = asset.info.load_pool(&deps, &contract_addr)?;
-    }
-
-    let total_share: Uint128 = load_supply(
-        &deps,
-        &deps.api.human_address(&config_general.liquidity_token)?,
-    )?;
+    let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
+    let contract_addr = deps.api.human_address(&pair_info.contract_addr)?;
+    let assets: [Asset; 2] = pair_info.load_pools(&deps, &contract_addr)?;
+    let total_share: Uint128 =
+        load_supply(&deps, &deps.api.human_address(&pair_info.liquidity_token)?)?;
 
     let resp = PoolResponse {
         assets,
@@ -602,12 +452,10 @@ pub fn query_simulation<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     offer_asset: Asset,
 ) -> StdResult<SimulationResponse> {
-    let config_general: PairConfigRaw = read_config_general(&deps.storage)?;
-    let config_swap: ConfigSwap = read_config_swap(&deps.storage)?;
-    let config_asset: ConfigAsset = read_config_asset(&deps.storage)?;
+    let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
 
-    let contract_addr = deps.api.human_address(&config_general.contract_addr)?;
-    let pools: [Asset; 2] = config_asset.to_pools(&deps, &contract_addr)?;
+    let contract_addr = deps.api.human_address(&pair_info.contract_addr)?;
+    let pools: [Asset; 2] = pair_info.load_pools(&deps, &contract_addr)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;
@@ -623,14 +471,8 @@ pub fn query_simulation<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
-    let (return_amount, spread_amount, lp_commission, owner_commission) = compute_swap(
-        &config_swap,
-        offer_pool.amount,
-        ask_pool.amount,
-        offer_asset.amount,
-    )?;
-
-    let commission_amount = lp_commission + owner_commission;
+    let (return_amount, spread_amount, commission_amount) =
+        compute_swap(offer_pool.amount, ask_pool.amount, offer_asset.amount)?;
 
     Ok(SimulationResponse {
         return_amount,
@@ -643,12 +485,10 @@ pub fn query_reverse_simulation<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     ask_asset: Asset,
 ) -> StdResult<ReverseSimulationResponse> {
-    let config_general: PairConfigRaw = read_config_general(&deps.storage)?;
-    let config_swap: ConfigSwap = read_config_swap(&deps.storage)?;
-    let config_asset: ConfigAsset = read_config_asset(&deps.storage)?;
+    let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
 
-    let contract_addr = deps.api.human_address(&config_general.contract_addr)?;
-    let pools: [Asset; 2] = config_asset.to_pools(&deps, &contract_addr)?;
+    let contract_addr = deps.api.human_address(&pair_info.contract_addr)?;
+    let pools: [Asset; 2] = pair_info.load_pools(&deps, &contract_addr)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;
@@ -664,17 +504,13 @@ pub fn query_reverse_simulation<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
-    let (offer_amount, spread_amount, lp_commission, owner_commission) = compute_offer_amount(
-        &config_swap,
-        offer_pool.amount,
-        ask_pool.amount,
-        ask_asset.amount,
-    )?;
+    let (offer_amount, spread_amount, commission_amount) =
+        compute_offer_amount(offer_pool.amount, ask_pool.amount, ask_asset.amount)?;
 
     Ok(ReverseSimulationResponse {
         offer_amount,
         spread_amount,
-        commission_amount: lp_commission + owner_commission,
+        commission_amount,
     })
 }
 
@@ -686,11 +522,10 @@ pub fn amount_of(coins: &[Coin], denom: String) -> Uint128 {
 }
 
 fn compute_swap(
-    config: &ConfigSwap,
     offer_pool: Uint128,
     ask_pool: Uint128,
     offer_amount: Uint128,
-) -> StdResult<(Uint128, Uint128, Uint128, Uint128)> {
+) -> StdResult<(Uint128, Uint128, Uint128)> {
     // offer => ask
     // ask_amount = (ask_pool - cp / (offer_pool + offer_amount)) * (1 - commission_rate)
     let cp = Uint128(offer_pool.u128() * ask_pool.u128());
@@ -700,33 +535,24 @@ fn compute_swap(
     let spread_amount: Uint128 = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool)
         - return_amount)
         .unwrap_or_else(|_| Uint128::zero());
-    let lp_commission: Uint128 = return_amount * config.lp_commission;
-    let owner_commission: Uint128 = return_amount * config.owner_commission;
+    let commission_amount: Uint128 = return_amount * Decimal::from_str(&COMMISSION_RATE).unwrap();
 
     // commission will be absorbed to pool
-    let return_amount: Uint128 = (return_amount - (lp_commission + owner_commission)).unwrap();
+    let return_amount: Uint128 = (return_amount - commission_amount).unwrap();
 
-    Ok((
-        return_amount,
-        spread_amount,
-        lp_commission,
-        owner_commission,
-    ))
+    Ok((return_amount, spread_amount, commission_amount))
 }
 
 fn compute_offer_amount(
-    config: &ConfigSwap,
     offer_pool: Uint128,
     ask_pool: Uint128,
     ask_amount: Uint128,
-) -> StdResult<(Uint128, Uint128, Uint128, Uint128)> {
+) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
     // offer_amount = cp / (ask_pool - ask_amount * (1 - commission_rate)) - offer_pool
     let cp = Uint128(offer_pool.u128() * ask_pool.u128());
-    let one_minus_commission = decimal_subtraction(
-        Decimal::one(),
-        config.lp_commission + config.owner_commission,
-    )?;
+    let one_minus_commission =
+        decimal_subtraction(Decimal::one(), Decimal::from_str(&COMMISSION_RATE).unwrap())?;
 
     let offer_amount: Uint128 = (cp.multiply_ratio(
         1u128,
@@ -737,9 +563,9 @@ fn compute_offer_amount(
     let spread_amount = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool)
         - before_commission_deduction)
         .unwrap_or_else(|_| Uint128::zero());
-    let lp_commission = before_commission_deduction * config.lp_commission;
-    let owner_commission = before_commission_deduction * config.owner_commission;
-    Ok((offer_amount, spread_amount, lp_commission, owner_commission))
+    let commission_amount =
+        before_commission_deduction * Decimal::from_str(&COMMISSION_RATE).unwrap();
+    Ok((offer_amount, spread_amount, commission_amount))
 }
 
 /// If `belief_price` and `max_spread` both are given,
