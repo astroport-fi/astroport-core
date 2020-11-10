@@ -549,7 +549,7 @@ fn compute_offer_amount(
     ask_amount: Uint128,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
-    // offer_amount = cp / (ask_pool - ask_amount * (1 - commission_rate)) - offer_pool
+    // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
     let cp = Uint128(offer_pool.u128() * ask_pool.u128());
     let one_minus_commission =
         decimal_subtraction(Decimal::one(), Decimal::from_str(&COMMISSION_RATE).unwrap())?;
