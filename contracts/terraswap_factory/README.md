@@ -34,10 +34,6 @@ The factory contract can perform creation of terraswap pair contract and also be
 ```json
 {
   "create_pair": {
-    "pair_owner": "terra...",
-    "commission_collector": "terra...",
-    "lp_commission": "123.123",
-    "owner_commission": "123.123",
     "asset_infos": [
       {
         "token": {
@@ -139,10 +135,6 @@ When a user execute `CreatePair` operation, it creates `Pair` contract and `LP(l
 ```json
 {
   "create_pair": {
-    "pair_owner": "terra1~~",
-    "commission_collect": "terra1~~",
-    "lp_commission": "0.0025",
-    "owner_commission": "0.0005",
     "asset_infos": [
       {
         "token": {
