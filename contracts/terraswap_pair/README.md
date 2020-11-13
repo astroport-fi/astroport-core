@@ -10,35 +10,12 @@ It creates liquidity token contract as init response, and execute init hook to r
 
 ```rust
 {
-    /// Contract owner who can update configs
-    pub owner: HumanAddr,
-    /// Inactive commission collector
-    pub commission_collector: HumanAddr,
     /// Asset infos
     pub asset_infos: [AssetInfo; 2],
-    /// Commission rate for active liquidity provider
-    pub lp_commission: Decimal,
-    /// Commission rate for owner controlled commission
-    pub owner_commission: Decimal,
-    /// Token contract code id for initialization
+    /// Token code ID for liqudity token creation
     pub token_code_id: u64,
     /// Hook for post initalization
     pub init_hook: Option<InitHook>,
-}
-```
-
-### UpdateConfig
-
-The market contract owner can update commission configuration with `update_config` msg.
-
-```json
-{
-    "update_config":
-    {
-        "owner": Option<HumanAddr>,
-        "lp_commission": Option<Decimal>,
-        "owner_commission": Option<Decimal>,
-    }
 }
 ```
 
@@ -194,6 +171,5 @@ let return_amount: Uint128 =
 
 #### Commission
 
-The `lp_commission` remains in the swap pool, causing a permanent increase in the constant product K. The value of this permanently increased pool goes to all LPs.
+The `lp_commission` remains in the swap pool, which is fixed to `0.3%`, causing a permanent increase in the constant product K. The value of this permanently increased pool goes to all LPs.
 
-The `owner_commssion` is transferred to pre-defined commission collector address.
