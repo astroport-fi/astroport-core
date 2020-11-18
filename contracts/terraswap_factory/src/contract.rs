@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 
 use crate::msg::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PairsResponse, QueryMsg};
-use crate::querier::load_liquidity_token;
+use crate::querier::query_liquidity_token;
 use crate::state::{read_config, read_pair, read_pairs, store_config, store_pair, Config};
 
 use terraswap::{AssetInfo, InitHook, PairInfo, PairInfoRaw, PairInitMsg};
@@ -163,7 +163,7 @@ pub fn try_register<S: Storage, A: Api, Q: Querier>(
     }
 
     let pair_contract = env.message.sender;
-    let liquidity_token = load_liquidity_token(&deps, &pair_contract)?;
+    let liquidity_token = query_liquidity_token(&deps, &pair_contract)?;
     store_pair(
         &mut deps.storage,
         &PairInfoRaw {

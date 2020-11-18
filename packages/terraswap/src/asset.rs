@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use crate::querier::{load_balance, load_token_balance};
+use crate::querier::{query_balance, query_token_balance};
 use cosmwasm_std::{
     to_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, Decimal, Env, Extern, HumanAddr,
     Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
@@ -166,17 +166,17 @@ impl AssetInfo {
             AssetInfo::Token { .. } => false,
         }
     }
-    pub fn load_pool<S: Storage, A: Api, Q: Querier>(
+    pub fn query_pool<S: Storage, A: Api, Q: Querier>(
         &self,
         deps: &Extern<S, A, Q>,
         pool_addr: &HumanAddr,
     ) -> StdResult<Uint128> {
         match self {
             AssetInfo::Token { contract_addr, .. } => {
-                load_token_balance(deps, &contract_addr, &pool_addr)
+                query_token_balance(deps, &contract_addr, &pool_addr)
             }
             AssetInfo::NativeToken { denom, .. } => {
-                load_balance(deps, pool_addr, denom.to_string())
+                query_balance(deps, pool_addr, denom.to_string())
             }
         }
     }
@@ -306,7 +306,7 @@ impl PairInfoRaw {
         })
     }
 
-    pub fn load_pools<S: Storage, A: Api, Q: Querier>(
+    pub fn query_pools<S: Storage, A: Api, Q: Querier>(
         self: &Self,
         deps: &Extern<S, A, Q>,
         contract_addr: &HumanAddr,
@@ -315,11 +315,11 @@ impl PairInfoRaw {
         let info_1: AssetInfo = self.asset_infos[1].to_normal(deps)?;
         Ok([
             Asset {
-                amount: info_0.load_pool(deps, contract_addr)?,
+                amount: info_0.query_pool(deps, contract_addr)?,
                 info: info_0,
             },
             Asset {
-                amount: info_1.load_pool(deps, contract_addr)?,
+                amount: info_1.query_pool(deps, contract_addr)?,
                 info: info_1,
             },
         ])

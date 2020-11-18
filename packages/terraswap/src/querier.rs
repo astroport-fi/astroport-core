@@ -1,15 +1,14 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use crate::asset::{Asset, AssetInfo, PairInfo};
+use crate::msg::{FactoryQueryMsg, PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
 
-use crate::asset::{AssetInfo, PairInfo};
 use cosmwasm_std::{
-    from_binary, to_binary, Api, BalanceResponse, BankQuery, Binary, Extern, HumanAddr, Querier,
-    QueryRequest, StdResult, Storage, Uint128, WasmQuery,
+    from_binary, to_binary, AllBalanceResponse, Api, BalanceResponse, BankQuery, Binary, Coin,
+    Extern, HumanAddr, Querier, QueryRequest, StdResult, Storage, Uint128, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
 use cw20::TokenInfoResponse;
 
-pub fn load_balance<S: Storage, A: Api, Q: Querier>(
+pub fn query_balance<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     account_addr: &HumanAddr,
     denom: String,
@@ -22,7 +21,20 @@ pub fn load_balance<S: Storage, A: Api, Q: Querier>(
     Ok(balance.amount.amount)
 }
 
-pub fn load_token_balance<S: Storage, A: Api, Q: Querier>(
+pub fn query_all_balances<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    account_addr: &HumanAddr,
+) -> StdResult<Vec<Coin>> {
+    // load price form the oracle
+    let all_balances: AllBalanceResponse =
+        deps.querier
+            .query(&QueryRequest::Bank(BankQuery::AllBalances {
+                address: HumanAddr::from(account_addr),
+            }))?;
+    Ok(all_balances.amount)
+}
+
+pub fn query_token_balance<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     contract_addr: &HumanAddr,
     account_addr: &HumanAddr,
@@ -42,7 +54,7 @@ pub fn load_token_balance<S: Storage, A: Api, Q: Querier>(
     from_binary(&res)
 }
 
-pub fn load_supply<S: Storage, A: Api, Q: Querier>(
+pub fn query_supply<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     contract_addr: &HumanAddr,
 ) -> StdResult<Uint128> {
@@ -63,21 +75,41 @@ fn concat(namespace: &[u8], key: &[u8]) -> Vec<u8> {
     k
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum QueryMsg {
-    Pair { asset_infos: [AssetInfo; 2] },
-}
-
-pub fn load_pair_info<S: Storage, A: Api, Q: Querier>(
+pub fn query_pair_info<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     factory_contract: &HumanAddr,
     asset_infos: &[AssetInfo; 2],
 ) -> StdResult<PairInfo> {
     deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: factory_contract.clone(),
-        msg: to_binary(&QueryMsg::Pair {
+        msg: to_binary(&FactoryQueryMsg::Pair {
             asset_infos: asset_infos.clone(),
+        })?,
+    }))
+}
+
+pub fn simulate<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    pair_contract: &HumanAddr,
+    offer_asset: &Asset,
+) -> StdResult<SimulationResponse> {
+    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: pair_contract.clone(),
+        msg: to_binary(&PairQueryMsg::Simulation {
+            offer_asset: offer_asset.clone(),
+        })?,
+    }))
+}
+
+pub fn reverse_simulate<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    pair_contract: &HumanAddr,
+    ask_asset: &Asset,
+) -> StdResult<ReverseSimulationResponse> {
+    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: pair_contract.clone(),
+        msg: to_binary(&PairQueryMsg::ReverseSimulation {
+            ask_asset: ask_asset.clone(),
         })?,
     }))
 }

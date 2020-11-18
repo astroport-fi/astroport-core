@@ -15,7 +15,7 @@ use cw20::{Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse};
 use integer_sqrt::IntegerSquareRoot;
 use std::str::FromStr;
 use terraswap::{
-    load_supply, Asset, AssetInfo, InitHook, PairInfo, PairInfoRaw, PairInitMsg, TokenInitMsg,
+    query_supply, Asset, AssetInfo, InitHook, PairInfo, PairInfoRaw, PairInitMsg, TokenInitMsg,
 };
 
 /// Commission rate == 0.3%
@@ -122,7 +122,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                 // only asset contract can execute this message
                 let mut authorized: bool = false;
                 let config: PairInfoRaw = read_pair_info(&deps.storage)?;
-                let pools: [Asset; 2] = config.load_pools(deps, &env.contract.address)?;
+                let pools: [Asset; 2] = config.query_pools(deps, &env.contract.address)?;
                 for pool in pools.iter() {
                     if let AssetInfo::Token { contract_addr, .. } = &pool.info {
                         if contract_addr == &env.message.sender {
@@ -201,7 +201,7 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
     }
 
     let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
-    let mut pools: [Asset; 2] = pair_info.load_pools(deps, &env.contract.address)?;
+    let mut pools: [Asset; 2] = pair_info.query_pools(deps, &env.contract.address)?;
     let deposits: [Uint128; 2] = [
         assets
             .iter()
@@ -242,7 +242,7 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
     assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
 
     let liquidity_token = deps.api.human_address(&pair_info.liquidity_token)?;
-    let total_share = load_supply(&deps, &liquidity_token)?;
+    let total_share = query_supply(&deps, &liquidity_token)?;
     let share = if total_share == Uint128::zero() {
         // Initial share = collateral amount
         Uint128((deposits[0].u128() * deposits[1].u128()).integer_sqrt())
@@ -287,8 +287,8 @@ pub fn try_withdraw_liquidity<S: Storage, A: Api, Q: Querier>(
     let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
     let liquidity_addr: HumanAddr = deps.api.human_address(&pair_info.liquidity_token)?;
 
-    let pools: [Asset; 2] = pair_info.load_pools(&deps, &env.contract.address)?;
-    let total_share: Uint128 = load_supply(&deps, &liquidity_addr)?;
+    let pools: [Asset; 2] = pair_info.query_pools(&deps, &env.contract.address)?;
+    let total_share: Uint128 = query_supply(&deps, &liquidity_addr)?;
 
     let share_ratio: Decimal = Decimal::from_ratio(amount, total_share);
     let refund_assets: Vec<Asset> = pools
@@ -344,7 +344,7 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
 
     let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
 
-    let pools: [Asset; 2] = pair_info.load_pools(&deps, &env.contract.address)?;
+    let pools: [Asset; 2] = pair_info.query_pools(&deps, &env.contract.address)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;
@@ -436,9 +436,9 @@ pub fn query_pool<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<PoolResponse> {
     let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
     let contract_addr = deps.api.human_address(&pair_info.contract_addr)?;
-    let assets: [Asset; 2] = pair_info.load_pools(&deps, &contract_addr)?;
+    let assets: [Asset; 2] = pair_info.query_pools(&deps, &contract_addr)?;
     let total_share: Uint128 =
-        load_supply(&deps, &deps.api.human_address(&pair_info.liquidity_token)?)?;
+        query_supply(&deps, &deps.api.human_address(&pair_info.liquidity_token)?)?;
 
     let resp = PoolResponse {
         assets,
@@ -455,7 +455,7 @@ pub fn query_simulation<S: Storage, A: Api, Q: Querier>(
     let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
 
     let contract_addr = deps.api.human_address(&pair_info.contract_addr)?;
-    let pools: [Asset; 2] = pair_info.load_pools(&deps, &contract_addr)?;
+    let pools: [Asset; 2] = pair_info.query_pools(&deps, &contract_addr)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;
@@ -488,7 +488,7 @@ pub fn query_reverse_simulation<S: Storage, A: Api, Q: Querier>(
     let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
 
     let contract_addr = deps.api.human_address(&pair_info.contract_addr)?;
-    let pools: [Asset; 2] = pair_info.load_pools(&deps, &contract_addr)?;
+    let pools: [Asset; 2] = pair_info.query_pools(&deps, &contract_addr)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;

@@ -1,6 +1,9 @@
 use crate::asset::{Asset, AssetInfo, PairInfo};
 use crate::mock_querier::mock_dependencies;
-use crate::querier::{load_balance, load_pair_info, load_supply, load_token_balance};
+use crate::querier::{
+    query_all_balances, query_balance, query_pair_info, query_supply, query_token_balance,
+};
+
 use cosmwasm_std::testing::MOCK_CONTRACT_ADDR;
 use cosmwasm_std::{to_binary, BankMsg, Coin, CosmosMsg, Decimal, HumanAddr, Uint128, WasmMsg};
 use cw20::Cw20HandleMsg;
@@ -16,7 +19,7 @@ fn token_balance_querier() {
 
     assert_eq!(
         Uint128(123u128),
-        load_token_balance(
+        query_token_balance(
             &deps,
             &HumanAddr::from("liquidity0000"),
             &HumanAddr::from(MOCK_CONTRACT_ADDR),
@@ -36,13 +39,44 @@ fn balance_querier() {
     );
 
     assert_eq!(
-        load_balance(
+        query_balance(
             &deps,
             &HumanAddr::from(MOCK_CONTRACT_ADDR),
             "uusd".to_string()
         )
         .unwrap(),
         Uint128(200u128)
+    );
+}
+
+#[test]
+fn all_balances_querier() {
+    let deps = mock_dependencies(
+        20,
+        &[
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128(200u128),
+            },
+            Coin {
+                denom: "ukrw".to_string(),
+                amount: Uint128(300u128),
+            },
+        ],
+    );
+
+    assert_eq!(
+        query_all_balances(&deps, &HumanAddr::from(MOCK_CONTRACT_ADDR),).unwrap(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128(200u128),
+            },
+            Coin {
+                denom: "ukrw".to_string(),
+                amount: Uint128(300u128),
+            }
+        ]
     );
 }
 
@@ -61,7 +95,7 @@ fn supply_querier() {
     )]);
 
     assert_eq!(
-        load_supply(&deps, &HumanAddr::from("liquidity0000")).unwrap(),
+        query_supply(&deps, &HumanAddr::from("liquidity0000")).unwrap(),
         Uint128(492u128)
     )
 }
@@ -113,13 +147,13 @@ fn test_asset_info() {
 
     assert_eq!(
         token_info
-            .load_pool(&deps, &HumanAddr::from(MOCK_CONTRACT_ADDR))
+            .query_pool(&deps, &HumanAddr::from(MOCK_CONTRACT_ADDR))
             .unwrap(),
         Uint128(123u128)
     );
     assert_eq!(
         native_token_info
-            .load_pool(&deps, &HumanAddr::from(MOCK_CONTRACT_ADDR))
+            .query_pool(&deps, &HumanAddr::from(MOCK_CONTRACT_ADDR))
             .unwrap(),
         Uint128(123u128)
     );
@@ -236,7 +270,7 @@ fn query_terraswap_pair_contract() {
         },
     )]);
 
-    let pair_info: PairInfo = load_pair_info(
+    let pair_info: PairInfo = query_pair_info(
         &deps,
         &HumanAddr::from(MOCK_CONTRACT_ADDR),
         &[

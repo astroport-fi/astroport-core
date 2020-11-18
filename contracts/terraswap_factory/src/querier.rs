@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use cosmwasm_storage::to_length_prefixed;
 use terraswap::PairInfoRaw;
 
-pub fn load_liquidity_token<S: Storage, A: Api, Q: Querier>(
+pub fn query_liquidity_token<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     contract_addr: &HumanAddr,
 ) -> StdResult<HumanAddr> {

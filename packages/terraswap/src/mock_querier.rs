@@ -7,7 +7,7 @@ use cosmwasm_storage::to_length_prefixed;
 use std::collections::HashMap;
 
 use crate::asset::PairInfo;
-use crate::querier::QueryMsg;
+use crate::msg::FactoryQueryMsg;
 use cw20::TokenInfoResponse;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
@@ -161,7 +161,7 @@ impl WasmMockQuerier {
                 contract_addr: _,
                 msg,
             }) => match from_binary(&msg).unwrap() {
-                QueryMsg::Pair { asset_infos } => {
+                FactoryQueryMsg::Pair { asset_infos } => {
                     let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
                     match self.terraswap_factory_querier.pairs.get(&key) {
                         Some(v) => Ok(to_binary(&v)),
