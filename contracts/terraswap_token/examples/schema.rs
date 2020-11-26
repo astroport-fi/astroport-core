@@ -7,8 +7,8 @@ use cw20::{
     AllAccountsResponse, AllAllowancesResponse, AllowanceResponse, BalanceResponse,
     TokenInfoResponse,
 };
-use terraswap::{TokenInitMsg, TokenCw20HookMsg};
-use terraswap_token::msg::{HandleMsg, MigrateMsg, QueryMsg};
+use cw20_base::msg::{HandleMsg, MigrateMsg, QueryMsg};
+use terraswap::{TokenCw20HookMsg, TokenInitMsg};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

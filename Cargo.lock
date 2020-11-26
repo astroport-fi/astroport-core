@@ -304,6 +304,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw20-base"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "cosmwasm-std 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cosmwasm-storage 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw0 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw2 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw20 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "schemars 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.116 (registry+https://github.com/rust-lang/crates.io-index)",
+ "snafu 0.6.9 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "digest"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -836,7 +851,7 @@ dependencies = [
 
 [[package]]
 name = "terraswap"
-version = "0.1.1"
+version = "0.1.0"
 dependencies = [
  "cosmwasm-std 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-storage 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -857,7 +872,7 @@ dependencies = [
  "cosmwasm-vm 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemars 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.116 (registry+https://github.com/rust-lang/crates.io-index)",
- "terraswap 0.1.1",
+ "terraswap 0.1.0",
 ]
 
 [[package]]
@@ -873,7 +888,7 @@ dependencies = [
  "schemars 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.116 (registry+https://github.com/rust-lang/crates.io-index)",
  "terra-cosmwasm 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "terraswap 0.1.1",
+ "terraswap 0.1.0",
 ]
 
 [[package]]
@@ -885,10 +900,11 @@ dependencies = [
  "cosmwasm-storage 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw2 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw20 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw20-base 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemars 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.116 (registry+https://github.com/rust-lang/crates.io-index)",
  "snafu 0.6.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "terraswap 0.1.1",
+ "terraswap 0.1.0",
 ]
 
 [[package]]
@@ -1103,6 +1119,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum cw0 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "dd55b1bb0bb419fe065d80d9ac5a4a0512d9fecf08ad9796f8aa29c7dbe63618"
 "checksum cw2 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "2b7d5d7ea75a5eb53bfa4db60112bef22cdb56a8d612b67aab5c70edd2fbf34e"
 "checksum cw20 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "c4e74e78cc957826bb20c21e75244b2a3a7e0e12799f0710e318726406bed37b"
+"checksum cw20-base 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "e33af71eb8e2746fc7843b096fee77451ca96b78bc32b3c88b4bf744048fc07a"
 "checksum digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)" = "f3d0c8c8752312f9713efd397ff63acb9f85585afbf179282e720e7704954dd5"
 "checksum digest 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d3dd60d1080a57a05ab032377049e0591415d2b31afd7028356dbf3cc6dcb066"
 "checksum doc-comment 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
