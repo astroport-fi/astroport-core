@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PairInfo",
+  "type": "object",
+  "required": [
+    "asset_infos",
+    "contract_addr",
+    "liquidity_token"
+  ],
+  "properties": {
+    "asset_infos": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/AssetInfo"
+      },
+      "maxItems": 2,
+      "minItems": 2
+    },
+    "contract_addr": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "liquidity_token": {
+      "$ref": "#/definitions/HumanAddr"
+    }
+  },
+  "definitions": {
+    "AssetInfo": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "token"
+          ],
+          "properties": {
+            "token": {
+              "type": "object",
+              "required": [
+                "contract_addr"
+              ],
+              "properties": {
+                "contract_addr": {
+                  "$ref": "#/definitions/HumanAddr"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "native_token"
+          ],
+          "properties": {
+            "native_token": {
+              "type": "object",
+              "required": [
+                "denom"
+              ],
+              "properties": {
+                "denom": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}

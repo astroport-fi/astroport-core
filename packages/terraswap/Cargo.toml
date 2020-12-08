@@ -12,20 +12,17 @@ documentation = "https://docs.terraswap.io"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["cranelift"]
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces", "cosmwasm-vm/backtraces"]
-cranelift = ["cosmwasm-vm/default-cranelift"]
-singlepass = ["cosmwasm-vm/default-singlepass"]
+backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 cw20 = { version = "0.2" }
 cosmwasm-storage = { version = "0.10.1" }
-terra-cosmwasm = { version = "1.2.2" }
+terra-cosmwasm = { version = "1.2.3" }
 cosmwasm-std = { version = "0.10.1" }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
-cosmwasm-vm = { version = "0.10.1", default-features = false }
+cosmwasm-schema = "0.10.1"
