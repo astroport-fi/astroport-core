@@ -851,7 +851,7 @@ dependencies = [
 
 [[package]]
 name = "terraswap"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "cosmwasm-schema 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-std 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -872,7 +872,7 @@ dependencies = [
  "cosmwasm-vm 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemars 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.116 (registry+https://github.com/rust-lang/crates.io-index)",
- "terraswap 1.0.0",
+ "terraswap 1.0.1",
 ]
 
 [[package]]
@@ -888,7 +888,7 @@ dependencies = [
  "schemars 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.116 (registry+https://github.com/rust-lang/crates.io-index)",
  "terra-cosmwasm 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "terraswap 1.0.0",
+ "terraswap 1.0.1",
 ]
 
 [[package]]
@@ -904,7 +904,7 @@ dependencies = [
  "schemars 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.116 (registry+https://github.com/rust-lang/crates.io-index)",
  "snafu 0.6.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "terraswap 1.0.0",
+ "terraswap 1.0.1",
 ]
 
 [[package]]
