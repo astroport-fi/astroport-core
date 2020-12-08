@@ -1,6 +1,6 @@
 [package]
 name = "terraswap-pair"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"
 description = "A Terraswap pair contract"
@@ -38,7 +38,7 @@ singlepass = ["cosmwasm-vm/default-singlepass"]
 
 [dependencies]
 integer-sqrt = "0.1.5"
-terraswap = { path = "../../packages/terraswap", default-features = false, version = "0.1.0"}
+terraswap = { path = "../../packages/terraswap", default-features = false, version = "1.0.0"}
 cw20 = { version = "0.2" }
 cosmwasm-std = { version = "0.10.1" }
 cosmwasm-storage = { version = "0.10.1" }

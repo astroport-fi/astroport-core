@@ -851,7 +851,7 @@ dependencies = [
 
 [[package]]
 name = "terraswap"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-std 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-storage 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -864,7 +864,7 @@ dependencies = [
 
 [[package]]
 name = "terraswap-factory"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-schema 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-std 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -872,12 +872,12 @@ dependencies = [
  "cosmwasm-vm 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemars 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.116 (registry+https://github.com/rust-lang/crates.io-index)",
- "terraswap 0.1.0",
+ "terraswap 1.0.0",
 ]
 
 [[package]]
 name = "terraswap-pair"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-schema 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-std 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -888,12 +888,12 @@ dependencies = [
  "schemars 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.116 (registry+https://github.com/rust-lang/crates.io-index)",
  "terra-cosmwasm 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "terraswap 0.1.0",
+ "terraswap 1.0.0",
 ]
 
 [[package]]
 name = "terraswap-token"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-schema 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-std 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -904,7 +904,7 @@ dependencies = [
  "schemars 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.116 (registry+https://github.com/rust-lang/crates.io-index)",
  "snafu 0.6.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "terraswap 0.1.0",
+ "terraswap 1.0.0",
 ]
 
 [[package]]

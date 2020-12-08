@@ -1,13 +1,13 @@
 [package]
 name = "terraswap"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"
-description = "Common helpers for other terraswap specs"
+description = "Common terraswap types"
 license = "Apache-2.0"
 repository = "https://github.com/terraswap/terraswap"
-homepage = "https://terra.money"
-documentation = "https://docs.terra.money"
+homepage = "https://terraswap.io"
+documentation = "https://docs.terraswap.io"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
