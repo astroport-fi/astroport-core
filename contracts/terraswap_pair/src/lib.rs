@@ -1,6 +1,5 @@
 pub mod contract;
 pub mod math;
-pub mod msg;
 pub mod state;
 
 #[cfg(test)]

@@ -1,24 +1,13 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::asset::AssetInfo;
 use crate::hook::InitHook;
 use cosmwasm_std::{StdError, StdResult, Uint128};
 use cw20::{Cw20CoinHuman, MinterResponse};
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PairInitMsg {
-    /// Asset infos
-    pub asset_infos: [AssetInfo; 2],
-    /// Token contract code id for initialization
-    pub token_code_id: u64,
-    /// Hook for post initalization
-    pub init_hook: Option<InitHook>,
-}
-
 /// TokenContract InitMsg
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct TokenInitMsg {
+pub struct InitMsg {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
@@ -27,7 +16,7 @@ pub struct TokenInitMsg {
     pub init_hook: Option<InitHook>,
 }
 
-impl TokenInitMsg {
+impl InitMsg {
     pub fn get_cap(&self) -> Option<Uint128> {
         self.mint.as_ref().and_then(|v| v.cap)
     }

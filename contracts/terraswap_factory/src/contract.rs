@@ -4,11 +4,13 @@ use cosmwasm_std::{
     StdResult, Storage, WasmMsg,
 };
 
-use crate::msg::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PairsResponse, QueryMsg};
 use crate::querier::query_liquidity_token;
 use crate::state::{read_config, read_pair, read_pairs, store_config, store_pair, Config};
 
-use terraswap::{AssetInfo, InitHook, PairInfo, PairInfoRaw, PairInitMsg};
+use terraswap::asset::{AssetInfo, PairInfo, PairInfoRaw};
+use terraswap::factory::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PairsResponse, QueryMsg};
+use terraswap::hook::InitHook;
+use terraswap::pair::InitMsg as PairInitMsg;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,

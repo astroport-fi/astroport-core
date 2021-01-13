@@ -4,23 +4,25 @@ use crate::contract::{
 };
 use crate::math::{decimal_multiplication, reverse_decimal};
 use crate::mock_querier::mock_dependencies;
-use crate::msg::{
-    Cw20HookMsg, HandleMsg, PoolResponse, ReverseSimulationResponse,
-    SimulationResponse,
-};
+
 use cosmwasm_std::testing::{mock_env, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     log, to_binary, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, Env, HandleResponse, HumanAddr,
     StdError, Uint128, WasmMsg,
 };
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse};
-use terraswap::{Asset, AssetInfo, InitHook, PairInitMsg, TokenInitMsg, PairInfo};
+use terraswap::asset::{Asset, AssetInfo, PairInfo};
+use terraswap::hook::InitHook;
+use terraswap::pair::{
+    Cw20HookMsg, HandleMsg, InitMsg, PoolResponse, ReverseSimulationResponse, SimulationResponse,
+};
+use terraswap::token::InitMsg as TokenInitMsg;
 
 #[test]
 fn proper_initialization() {
     let mut deps = mock_dependencies(20, &[]);
 
-    let msg = PairInitMsg {
+    let msg = InitMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -111,7 +113,7 @@ fn provide_liquidity() {
         &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &Uint128(0))],
     )]);
 
-    let msg = PairInitMsg {
+    let msg = InitMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -502,7 +504,7 @@ fn withdraw_liquidity() {
         ),
     ]);
 
-    let msg = PairInitMsg {
+    let msg = InitMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -616,7 +618,7 @@ fn try_native_to_token() {
         ),
     ]);
 
-    let msg = PairInitMsg {
+    let msg = InitMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -786,7 +788,7 @@ fn try_token_to_native() {
         ),
     ]);
 
-    let msg = PairInitMsg {
+    let msg = InitMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1054,7 +1056,7 @@ fn test_query_pool() {
         ),
     ]);
 
-    let msg = PairInitMsg {
+    let msg = InitMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),

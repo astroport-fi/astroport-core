@@ -23,8 +23,8 @@ use cosmwasm_vm::testing::{
     MOCK_CONTRACT_ADDR,
 };
 use cosmwasm_vm::Instance;
-use terraswap::{AssetInfo, PairInfo, PairInitMsg};
-use terraswap_pair::msg::{HandleMsg, QueryMsg};
+use terraswap::asset::{AssetInfo, PairInfo};
+use terraswap::pair::{HandleMsg, InitMsg, QueryMsg};
 
 // This line will test the output of cargo wasm
 static WASM: &[u8] =
@@ -49,7 +49,7 @@ pub fn mock_instance(
 fn proper_initialization() {
     let mut deps = mock_instance(WASM, &[]);
 
-    let msg = PairInitMsg {
+    let msg = InitMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),

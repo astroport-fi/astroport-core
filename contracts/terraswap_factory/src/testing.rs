@@ -4,11 +4,14 @@ use cosmwasm_std::{
 
 use crate::contract::{handle, init, query};
 use crate::mock_querier::mock_dependencies;
-use crate::msg::{ConfigResponse, HandleMsg, InitMsg, PairsResponse, QueryMsg};
+
 use crate::state::read_pair;
 
 use cosmwasm_std::testing::{mock_env, MOCK_CONTRACT_ADDR};
-use terraswap::{AssetInfo, InitHook, PairInfo, PairInitMsg};
+use terraswap::asset::{AssetInfo, PairInfo};
+use terraswap::factory::{ConfigResponse, HandleMsg, InitMsg, PairsResponse, QueryMsg};
+use terraswap::hook::InitHook;
+use terraswap::pair::InitMsg as PairInitMsg;
 
 #[test]
 fn proper_initialization() {

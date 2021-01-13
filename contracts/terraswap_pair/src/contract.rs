@@ -1,8 +1,4 @@
 use crate::math::{decimal_multiplication, decimal_subtraction, reverse_decimal};
-use crate::msg::{
-    Cw20HookMsg, HandleMsg, MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse,
-    SimulationResponse,
-};
 use crate::state::{read_pair_info, store_pair_info};
 
 use cosmwasm_std::{
@@ -14,16 +10,21 @@ use cosmwasm_std::{
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse};
 use integer_sqrt::IntegerSquareRoot;
 use std::str::FromStr;
-use terraswap::{
-    query_supply, Asset, AssetInfo, InitHook, PairInfo, PairInfoRaw, PairInitMsg, TokenInitMsg,
+use terraswap::asset::{Asset, AssetInfo, PairInfo, PairInfoRaw};
+use terraswap::hook::InitHook;
+use terraswap::pair::{
+    Cw20HookMsg, HandleMsg, InitMsg, MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse,
+    SimulationResponse,
 };
+use terraswap::querier::query_supply;
+use terraswap::token::InitMsg as TokenInitMsg;
 
 /// Commission rate == 0.3%
 const COMMISSION_RATE: &str = "0.003";
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    msg: PairInitMsg,
+    msg: InitMsg,
 ) -> StdResult<InitResponse> {
     let pair_info: &PairInfoRaw = &PairInfoRaw {
         contract_addr: deps.api.canonical_address(&env.contract.address)?,

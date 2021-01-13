@@ -27,8 +27,10 @@ use cosmwasm_vm::testing::{
 };
 use cosmwasm_vm::Instance;
 
-use terraswap::{AssetInfo, InitHook, PairInitMsg};
-use terraswap_factory::msg::{ConfigResponse, HandleMsg, InitMsg, QueryMsg};
+use terraswap::asset::AssetInfo;
+use terraswap::factory::{ConfigResponse, HandleMsg, InitMsg, QueryMsg};
+use terraswap::hook::InitHook;
+use terraswap::pair::InitMsg as PairInitMsg;
 
 // This line will test the output of cargo wasm
 static WASM: &[u8] =

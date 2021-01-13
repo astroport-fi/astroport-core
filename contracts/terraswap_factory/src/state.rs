@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Api, CanonicalAddr, Extern, Order, Querier, StdError, StdResult, Storage};
 
 use cosmwasm_storage::{Bucket, ReadonlyBucket, ReadonlySingleton, Singleton};
-use terraswap::{AssetInfoRaw, PairInfo, PairInfoRaw};
+use terraswap::asset::{AssetInfoRaw, PairInfo, PairInfoRaw};
 
 static KEY_CONFIG: &[u8] = b"config";
 static PREFIX_PAIR_INFO: &[u8] = b"pair_info";

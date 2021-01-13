@@ -3,7 +3,7 @@ use cosmwasm_std::{
     WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
-use terraswap::PairInfoRaw;
+use terraswap::asset::PairInfoRaw;
 
 pub fn query_liquidity_token<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,

@@ -1,5 +1,6 @@
 use crate::asset::{Asset, AssetInfo, PairInfo};
-use crate::msg::{FactoryQueryMsg, PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
+use crate::factory::QueryMsg as FactoryQueryMsg;
+use crate::pair::{QueryMsg as PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
 
 use cosmwasm_std::{
     from_binary, to_binary, AllBalanceResponse, Api, BalanceResponse, BankQuery, Binary, Coin,

@@ -1,8 +1,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::asset::{AssetInfo, PairInfo};
+use crate::hook::InitHook;
 use cosmwasm_std::HumanAddr;
-use terraswap::{AssetInfo, InitHook, PairInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {

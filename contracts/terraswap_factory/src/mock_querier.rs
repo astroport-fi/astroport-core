@@ -5,8 +5,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_storage::to_length_prefixed;
 use std::collections::HashMap;
-
-use terraswap::{AssetInfoRaw, PairInfo, PairInfoRaw};
+use terraswap::asset::{AssetInfoRaw, PairInfo, PairInfoRaw};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.

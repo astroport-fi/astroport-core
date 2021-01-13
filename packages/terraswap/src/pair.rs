@@ -1,24 +1,28 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{Asset, AssetInfo, InitHook};
+use crate::asset::{Asset, AssetInfo};
+use crate::hook::InitHook;
+
 use cosmwasm_std::{Decimal, HumanAddr, Uint128};
+use cw20::Cw20ReceiveMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum FactoryHandleMsg {
-    /// CreatePair instantiates pair contract
-    CreatePair {
-        /// Asset infos
-        asset_infos: [AssetInfo; 2],
-        /// Init hook for after works
-        init_hook: Option<InitHook>,
-    },
+pub struct InitMsg {
+    /// Asset infos
+    pub asset_infos: [AssetInfo; 2],
+    /// Token contract code id for initialization
+    pub token_code_id: u64,
+    /// Hook for post initalization
+    pub init_hook: Option<InitHook>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum PairHandleMsg {
+pub enum HandleMsg {
+    Receive(Cw20ReceiveMsg),
+    /// Post initize step to allow user to set controlled contract address after creating it
+    PostInitialize {},
     /// ProvideLiquidity a user provides pool liquidity
     ProvideLiquidity {
         assets: [Asset; 2],
@@ -35,7 +39,7 @@ pub enum PairHandleMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum PairCw20HookMsg {
+pub enum Cw20HookMsg {
     /// Sell a given amount of asset
     Swap {
         belief_price: Option<Decimal>,
@@ -47,15 +51,18 @@ pub enum PairCw20HookMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum FactoryQueryMsg {
-    Pair { asset_infos: [AssetInfo; 2] },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum PairQueryMsg {
+pub enum QueryMsg {
+    Pair {},
+    Pool {},
     Simulation { offer_asset: Asset },
     ReverseSimulation { ask_asset: Asset },
+}
+
+// We define a custom struct for each query response
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct PoolResponse {
+    pub assets: [Asset; 2],
+    pub total_share: Uint128,
 }
 
 /// SimulationResponse returns swap simulation response
@@ -73,3 +80,7 @@ pub struct ReverseSimulationResponse {
     pub spread_amount: Uint128,
     pub commission_amount: Uint128,
 }
+
+/// We currently take no arguments for migrations
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

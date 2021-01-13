@@ -1,7 +1,7 @@
 use cosmwasm_std::{StdResult, Storage};
 
 use cosmwasm_storage::{ReadonlySingleton, Singleton};
-use terraswap::PairInfoRaw;
+use terraswap::asset::PairInfoRaw;
 
 static KEY_PAIR_INFO: &[u8] = b"pair_info";
 

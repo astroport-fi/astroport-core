@@ -10,7 +10,7 @@ use cw20_base::contract::{
 use cw20_base::msg::{HandleMsg, MigrateMsg, QueryMsg};
 use cw20_base::state::{token_info, MinterData, TokenInfo};
 
-use terraswap::TokenInitMsg;
+use terraswap::token::InitMsg;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:cw20-base";
@@ -19,7 +19,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
-    msg: TokenInitMsg,
+    msg: InitMsg,
 ) -> StdResult<InitResponse> {
     set_contract_version(&mut deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 

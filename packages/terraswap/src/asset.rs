@@ -307,7 +307,7 @@ impl PairInfoRaw {
     }
 
     pub fn query_pools<S: Storage, A: Api, Q: Querier>(
-        self: &Self,
+        &self,
         deps: &Extern<S, A, Q>,
         contract_addr: &HumanAddr,
     ) -> StdResult<[Asset; 2]> {

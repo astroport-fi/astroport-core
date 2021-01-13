@@ -7,7 +7,7 @@ use cosmwasm_storage::to_length_prefixed;
 use std::collections::HashMap;
 
 use crate::asset::PairInfo;
-use crate::msg::FactoryQueryMsg;
+use crate::factory::QueryMsg as FactoryQueryMsg;
 use cw20::TokenInfoResponse;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
@@ -171,6 +171,7 @@ impl WasmMockQuerier {
                         }),
                     }
                 }
+                _ => panic!("DO NOT ENTER HERE"),
             },
             QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
                 let key: &[u8] = key.as_slice();
