@@ -35,17 +35,21 @@ impl Asset {
     ) -> StdResult<Uint128> {
         let amount = self.amount;
         if let AssetInfo::NativeToken { denom } = &self.info {
-            let terra_querier = TerraQuerier::new(&deps.querier);
-            let tax_rate: Decimal = (terra_querier.query_tax_rate()?).rate;
-            let tax_cap: Uint128 = (terra_querier.query_tax_cap(denom.to_string())?).cap;
-            Ok(std::cmp::min(
-                (amount
-                    - amount.multiply_ratio(
-                        DECIMAL_FRACTION,
-                        DECIMAL_FRACTION * tax_rate + DECIMAL_FRACTION,
-                    ))?,
-                tax_cap,
-            ))
+            if denom == "uluna" {
+                Ok(Uint128::zero())
+            } else {
+                let terra_querier = TerraQuerier::new(&deps.querier);
+                let tax_rate: Decimal = (terra_querier.query_tax_rate()?).rate;
+                let tax_cap: Uint128 = (terra_querier.query_tax_cap(denom.to_string())?).cap;
+                Ok(std::cmp::min(
+                    (amount
+                        - amount.multiply_ratio(
+                            DECIMAL_FRACTION,
+                            DECIMAL_FRACTION * tax_rate + DECIMAL_FRACTION,
+                        ))?,
+                    tax_cap,
+                ))
+            }
         } else {
             Ok(Uint128::zero())
         }
