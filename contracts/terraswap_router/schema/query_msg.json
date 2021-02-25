@@ -1,0 +1,143 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "simulate_swap_operations"
+      ],
+      "properties": {
+        "simulate_swap_operations": {
+          "type": "object",
+          "required": [
+            "offer_amount",
+            "operations"
+          ],
+          "properties": {
+            "offer_amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "operations": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/SwapOperation"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "AssetInfo": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "token"
+          ],
+          "properties": {
+            "token": {
+              "type": "object",
+              "required": [
+                "contract_addr"
+              ],
+              "properties": {
+                "contract_addr": {
+                  "$ref": "#/definitions/HumanAddr"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "native_token"
+          ],
+          "properties": {
+            "native_token": {
+              "type": "object",
+              "required": [
+                "denom"
+              ],
+              "properties": {
+                "denom": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "SwapOperation": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "native_swap"
+          ],
+          "properties": {
+            "native_swap": {
+              "type": "object",
+              "required": [
+                "ask_denom",
+                "offer_denom"
+              ],
+              "properties": {
+                "ask_denom": {
+                  "type": "string"
+                },
+                "offer_denom": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "terra_swap"
+          ],
+          "properties": {
+            "terra_swap": {
+              "type": "object",
+              "required": [
+                "ask_asset_info",
+                "offer_asset_info"
+              ],
+              "properties": {
+                "ask_asset_info": {
+                  "$ref": "#/definitions/AssetInfo"
+                },
+                "offer_asset_info": {
+                  "$ref": "#/definitions/AssetInfo"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}
