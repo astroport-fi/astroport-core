@@ -3,6 +3,7 @@ pub mod factory;
 pub mod hook;
 pub mod pair;
 pub mod querier;
+pub mod router;
 pub mod token;
 
 #[cfg(test)]

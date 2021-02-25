@@ -1,6 +1,6 @@
 [package]
 name = "terraswap-factory"
-version = "1.1.0"
+version = "1.2.0"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"
 description = "A Terraswap factory contract - auto pair contract generator and also directory for all pairs"
