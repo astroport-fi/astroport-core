@@ -174,8 +174,14 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::SimulateSwapOperations {
             offer_amount,
+            block_time,
             operations,
-        } => to_binary(&simulate_swap_operations(deps, offer_amount, operations)?),
+        } => to_binary(&simulate_swap_operations(
+            deps,
+            offer_amount,
+            block_time,
+            operations,
+        )?),
     }
 }
 
@@ -201,12 +207,14 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
 fn simulate_swap_operations<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     offer_amount: Uint128,
+    _block_time: u64,
     operations: Vec<SwapOperation>,
 ) -> StdResult<SimulateSwapOperationsResponse> {
     let config: Config = read_config(&deps.storage)?;
     let terraswap_factory = deps.api.human_address(&config.terraswap_factory)?;
     let terra_querier = TerraQuerier::new(&deps.querier);
 
+    assert_operations(&operations)?;
     let operations_len = operations.len();
     if operations_len == 0 {
         return Err(StdError::generic_err("must provide operations"));

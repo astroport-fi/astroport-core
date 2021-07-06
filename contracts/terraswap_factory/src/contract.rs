@@ -121,7 +121,7 @@ pub fn try_create_pair<S: Storage, A: Api, Q: Querier>(
     let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
         code_id: config.pair_code_id,
         send: vec![],
-        label: None,
+        label: None, //TODO Hooks could be called by third party code, registering other contracts terraswap_pair/src/contract.rs:78
         msg: to_binary(&PairInitMsg {
             asset_infos: asset_infos.clone(),
             token_code_id: config.token_code_id,

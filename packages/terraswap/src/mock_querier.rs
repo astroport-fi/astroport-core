@@ -1,14 +1,13 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Api, CanonicalAddr, Coin, Decimal, Extern, HumanAddr,
+    from_binary, from_slice, to_binary, Api, Coin, Decimal, Extern, HumanAddr,
     Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
 };
-use cosmwasm_storage::to_length_prefixed;
 use std::collections::HashMap;
 
 use crate::asset::PairInfo;
 use crate::factory::QueryMsg as FactoryQueryMsg;
-use cw20::TokenInfoResponse;
+use cw20::{TokenInfoResponse, Cw20QueryMsg, BalanceResponse};
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
@@ -31,11 +30,15 @@ pub fn mock_dependencies(
     }
 }
 
+enum QueryHandler {
+    Default,
+    Cw20,
+}
+
 pub struct WasmMockQuerier {
-    base: MockQuerier<TerraQueryWrapper>,
-    token_querier: TokenQuerier,
-    tax_querier: TaxQuerier,
-    terraswap_factory_querier: TerraswapFactoryQuerier,
+    query_handler: DefaultQueryHandler,
+    cw20_query_handler: CW20QueryHandler,
+    handler: QueryHandler,
     canonical_length: usize,
 }
 
@@ -122,7 +125,7 @@ impl Querier for WasmMockQuerier {
                 return Err(SystemError::InvalidRequest {
                     error: format!("Parsing query request: {}", e),
                     request: bin_request.into(),
-                })
+                });
             }
         };
         self.handle_query(&request)
@@ -131,6 +134,82 @@ impl Querier for WasmMockQuerier {
 
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
+        match self.handler{
+            QueryHandler::Default => self.query_handler.handle(request),
+            QueryHandler::Cw20 => self.cw20_query_handler.handle(request),
+        }
+    }
+}
+
+struct CW20QueryHandler {
+    token_querier: TokenQuerier,
+}
+
+impl CW20QueryHandler {
+    pub fn handle(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
+        match &request {
+            QueryRequest::Wasm(WasmQuery::Smart {
+                                   contract_addr,
+                                   msg,
+                               }) => match from_binary(&msg).unwrap() {
+                Cw20QueryMsg::TokenInfo {} => {
+                    let balances: &HashMap<HumanAddr, Uint128> =
+                        match self.token_querier.balances.get(contract_addr) {
+                            Some(balances) => balances,
+                            None => {
+                                return Err(SystemError::Unknown {});
+                            }
+                        };
+
+                    let mut total_supply = Uint128::zero();
+
+                    for balance in balances {
+                        total_supply += *balance.1;
+                    }
+
+                    Ok(to_binary(&TokenInfoResponse {
+                        name: "mAPPL".to_string(),
+                        symbol: "mAPPL".to_string(),
+                        decimals: 6,
+                        total_supply: total_supply,
+                    })
+                    )
+                }
+                Cw20QueryMsg::Balance { address } => {
+                    let balances: &HashMap<HumanAddr, Uint128> =
+                        match self.token_querier.balances.get(contract_addr) {
+                            Some(balances) => balances,
+                            None => {
+                                return Err(SystemError::Unknown {});
+                            }
+                        };
+
+                    let balance = match balances.get(&address) {
+                        Some(v) => v,
+                        None => {
+                            return Err(SystemError::Unknown {});
+                        }
+                    };
+
+                    Ok(to_binary(&BalanceResponse {
+                        balance: *balance,
+                    }))
+                }
+                _ => panic!("DO NOT ENTER HERE"),
+            },
+            _ => panic!("DO NOT ENTER HERE"),
+        }
+    }
+}
+
+struct DefaultQueryHandler {
+    base: MockQuerier<TerraQueryWrapper>,
+    tax_querier: TaxQuerier,
+    terraswap_factory_querier: TerraswapFactoryQuerier,
+}
+
+impl DefaultQueryHandler {
+    pub fn handle(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
         match &request {
             QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
                 if &TerraRoute::Treasury == route {
@@ -159,7 +238,7 @@ impl WasmMockQuerier {
             }
             QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: _,
-                msg,
+                                   msg
             }) => match from_binary(&msg).unwrap() {
                 FactoryQueryMsg::Pair { asset_infos } => {
                     let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
@@ -248,29 +327,42 @@ impl WasmMockQuerier {
         _api: A,
     ) -> Self {
         WasmMockQuerier {
+            canonical_length,
+            query_handler: DefaultQueryHandler {
             base,
             token_querier: TokenQuerier::default(),
             tax_querier: TaxQuerier::default(),
             terraswap_factory_querier: TerraswapFactoryQuerier::default(),
-            canonical_length,
+            },
+            cw20_query_handler: CW20QueryHandler {
+                token_querier: TokenQuerier::default(),
+            },
+            handler: QueryHandler::Default,
         }
     }
 
     // configure the mint whitelist mock querier
     pub fn with_token_balances(&mut self, balances: &[(&HumanAddr, &[(&HumanAddr, &Uint128)])]) {
-        self.token_querier = TokenQuerier::new(balances);
+        self.cw20_query_handler.token_querier = TokenQuerier::new(balances);
     }
 
     // configure the token owner mock querier
     pub fn with_tax(&mut self, rate: Decimal, caps: &[(&String, &Uint128)]) {
-        self.tax_querier = TaxQuerier::new(rate, caps);
+        self.query_handler.tax_querier = TaxQuerier::new(rate, caps);
     }
 
     // configure the terraswap pair
     pub fn with_terraswap_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
-        self.terraswap_factory_querier = TerraswapFactoryQuerier::new(pairs);
+        self.query_handler.terraswap_factory_querier = TerraswapFactoryQuerier::new(pairs);
     }
 
+    pub fn with_default_query_handler(&mut self) {
+        self.handler = QueryHandler::Default;
+    }
+
+    pub fn with_cw20_query_handler(&mut self) {
+        self.handler = QueryHandler::Cw20;
+    }
     // pub fn with_balance(&mut self, balances: &[(&HumanAddr, &[Coin])]) {
     //     for (addr, balance) in balances {
     //         self.base.update_balance(addr, balance.to_vec());

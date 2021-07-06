@@ -1,12 +1,12 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_slice, to_binary, Api, CanonicalAddr, Coin, Decimal, Extern, HumanAddr, Querier,
-    QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
+    from_binary, from_slice, to_binary, Api, CanonicalAddr, Coin, Decimal, Extern, HumanAddr,
+    Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
 use std::collections::HashMap;
 
-use cw20::TokenInfoResponse;
+use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
@@ -131,6 +131,52 @@ impl WasmMockQuerier {
                     }
                 } else {
                     panic!("DO NOT ENTER HERE")
+                }
+            }
+            //TODO fix raw!!!!!!!!!!!!!!
+            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
+                match from_binary(&msg).unwrap() {
+                    Cw20QueryMsg::TokenInfo {} => {
+                        let balances: &HashMap<HumanAddr, Uint128> =
+                            match self.token_querier.balances.get(contract_addr) {
+                                Some(balances) => balances,
+                                None => {
+                                    return Err(SystemError::Unknown {});
+                                }
+                            };
+
+                        let mut total_supply = Uint128::zero();
+
+                        for balance in balances {
+                            total_supply += *balance.1;
+                        }
+
+                        Ok(to_binary(&TokenInfoResponse {
+                            name: "mAPPL".to_string(),
+                            symbol: "mAPPL".to_string(),
+                            decimals: 6,
+                            total_supply: total_supply,
+                        }))
+                    }
+                    Cw20QueryMsg::Balance { address } => {
+                        let balances: &HashMap<HumanAddr, Uint128> =
+                            match self.token_querier.balances.get(contract_addr) {
+                                Some(balances) => balances,
+                                None => {
+                                    return Err(SystemError::Unknown {});
+                                }
+                            };
+
+                        let balance = match balances.get(&address) {
+                            Some(v) => v,
+                            None => {
+                                return Err(SystemError::Unknown {});
+                            }
+                        };
+
+                        Ok(to_binary(&BalanceResponse { balance: *balance }))
+                    }
+                    _ => panic!("DO NOT ENTER HERE"),
                 }
             }
             QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {

@@ -1077,9 +1077,7 @@ fn test_query_pool() {
     let msg = HandleMsg::PostInitialize {};
     let env = mock_env("liquidity0000", &[]);
     let _res = handle(&mut deps, env, msg).unwrap();
-
     let res: PoolResponse = query_pool(&deps).unwrap();
-
     assert_eq!(
         res.assets,
         [

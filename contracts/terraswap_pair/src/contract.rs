@@ -48,7 +48,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
             mint: Some(MinterResponse {
                 minter: env.contract.address.clone(),
                 cap: None,
-            }),
+            }),//TODO Hooks could be called by third party code, registering other contracts terraswap_factory/src/contract.rs:140
             init_hook: Some(InitHook {
                 msg: to_binary(&HandleMsg::PostInitialize {})?,
                 contract_addr: env.contract.address,
@@ -150,11 +150,6 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                 )
             }
             Cw20HookMsg::WithdrawLiquidity {} => {
-                let config: PairInfoRaw = read_pair_info(&deps.storage)?;
-                if deps.api.canonical_address(&env.message.sender)? != config.liquidity_token {
-                    return Err(StdError::unauthorized());
-                }
-
                 try_withdraw_liquidity(deps, env, cw20_msg.sender, cw20_msg.amount)
             }
         }
@@ -215,6 +210,10 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
             .map(|a| a.amount)
             .expect("Wrong asset info is given"),
     ];
+
+    if deposits[0] == Uint128::zero() || deposits[1] == Uint128::zero(){
+        return Err(StdError::generic_err("event of zero transfer"));
+    }
 
     let mut i = 0;
     let mut messages: Vec<CosmosMsg> = vec![];
@@ -285,7 +284,11 @@ pub fn try_withdraw_liquidity<S: Storage, A: Api, Q: Querier>(
     sender: HumanAddr,
     amount: Uint128,
 ) -> HandleResult {
-    let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
+    let pair_info: PairInfoRaw = read_pair_info(&deps.storage).unwrap();
+
+    if deps.api.canonical_address(&env.message.sender)? != pair_info.liquidity_token {
+        return Err(StdError::unauthorized());
+    }
     let liquidity_addr: HumanAddr = deps.api.human_address(&pair_info.liquidity_token)?;
 
     let pools: [Asset; 2] = pair_info.query_pools(&deps, &env.contract.address)?;
