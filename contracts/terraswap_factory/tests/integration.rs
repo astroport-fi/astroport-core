@@ -17,9 +17,11 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use cosmwasm_std::{
     from_binary, log, to_binary, Coin, CosmosMsg, HandleResponse, HandleResult, HumanAddr,
-    InitResponse, StdError, WasmMsg,
+    InitResponse, StdError, Uint128, WasmMsg,
 };
 use cosmwasm_vm::testing::{
     handle, init, mock_dependencies, mock_env, query, MockApi, MockQuerier, MockStorage,
@@ -27,7 +29,7 @@ use cosmwasm_vm::testing::{
 };
 use cosmwasm_vm::Instance;
 
-use terraswap::asset::AssetInfo;
+use terraswap::asset::{AssetInfo, WeightedAssetInfo};
 use terraswap::factory::{ConfigResponse, HandleMsg, InitMsg, QueryMsg};
 use terraswap::hook::InitHook;
 use terraswap::pair::InitMsg as PairInitMsg;
@@ -140,6 +142,12 @@ fn update_config() {
 
 #[test]
 fn create_pair() {
+    let start_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let end_time = start_time + 1000;
+
     let mut deps = mock_instance(WASM, &[]);
 
     let msg = InitMsg {
@@ -154,16 +162,28 @@ fn create_pair() {
     let _res: InitResponse = init(&mut deps, env, msg).unwrap();
 
     let asset_infos = [
-        AssetInfo::Token {
-            contract_addr: HumanAddr::from("asset0000"),
+        WeightedAssetInfo {
+            info: AssetInfo::Token {
+                contract_addr: HumanAddr::from("asset0000"),
+            },
+            start_weight: Uint128(1),
+            end_weight: Uint128(1),
         },
-        AssetInfo::Token {
-            contract_addr: HumanAddr::from("asset0001"),
+        WeightedAssetInfo {
+            info: AssetInfo::Token {
+                contract_addr: HumanAddr::from("asset0001"),
+            },
+            start_weight: Uint128(1),
+            end_weight: Uint128(1),
         },
     ];
+
     let msg = HandleMsg::CreatePair {
         asset_infos: asset_infos.clone(),
+        start_time,
+        end_time,
         init_hook: None,
+        description: Some(String::from("description")),
     };
 
     let env = mock_env("addr0000", &[]);
@@ -187,7 +207,10 @@ fn create_pair() {
                         asset_infos: asset_infos.clone()
                     })
                     .unwrap(),
-                })
+                }),
+                start_time,
+                end_time,
+                description: Some(String::from("description")),
             })
             .unwrap(),
             code_id: 321u64,

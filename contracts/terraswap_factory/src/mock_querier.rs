@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_storage::to_length_prefixed;
 use std::collections::HashMap;
-use terraswap::asset::{AssetInfoRaw, PairInfo, PairInfoRaw};
+use terraswap::asset::{AssetInfoRaw, PairInfo, PairInfoRaw, WeightedAssetInfoRaw};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -36,22 +36,6 @@ pub struct WasmMockQuerier {
 #[derive(Clone, Default)]
 pub struct TerraswapPairQuerier {
     pairs: HashMap<HumanAddr, PairInfo>,
-}
-
-impl TerraswapPairQuerier {
-    pub fn new(pairs: &[(&HumanAddr, &PairInfo)]) -> Self {
-        TerraswapPairQuerier {
-            pairs: pairs_to_map(pairs),
-        }
-    }
-}
-
-pub(crate) fn pairs_to_map(pairs: &[(&HumanAddr, &PairInfo)]) -> HashMap<HumanAddr, PairInfo> {
-    let mut pairs_map: HashMap<HumanAddr, PairInfo> = HashMap::new();
-    for (key, pair) in pairs.iter() {
-        pairs_map.insert(HumanAddr::from(key), (*pair).clone());
-    }
-    pairs_map
 }
 
 impl Querier for WasmMockQuerier {
@@ -96,14 +80,26 @@ impl WasmMockQuerier {
                             liquidity_token: api
                                 .canonical_address(&pair_info.liquidity_token)
                                 .unwrap(),
+                            start_time: 0,
                             asset_infos: [
-                                AssetInfoRaw::NativeToken {
-                                    denom: "uusd".to_string(),
+                                WeightedAssetInfoRaw {
+                                    info: AssetInfoRaw::NativeToken {
+                                        denom: "uusd".to_string(),
+                                    },
+
+                                    start_weight: Default::default(),
+                                    end_weight: Default::default(),
                                 },
-                                AssetInfoRaw::NativeToken {
-                                    denom: "uusd".to_string(),
+                                WeightedAssetInfoRaw {
+                                    info: AssetInfoRaw::NativeToken {
+                                        denom: "uusd".to_string(),
+                                    },
+                                    start_weight: Default::default(),
+                                    end_weight: Default::default(),
                                 },
                             ],
+                            end_time: 0,
+                            description: Default::default(),
                         })
                         .unwrap(),
                     ))
@@ -124,15 +120,4 @@ impl WasmMockQuerier {
             canonical_length,
         }
     }
-
-    // configure the terraswap pair
-    pub fn with_terraswap_pairs(&mut self, pairs: &[(&HumanAddr, &PairInfo)]) {
-        self.terraswap_pair_querier = TerraswapPairQuerier::new(pairs);
-    }
-
-    // pub fn with_balance(&mut self, balances: &[(&HumanAddr, &[Coin])]) {
-    //     for (addr, balance) in balances {
-    //         self.base.update_balance(addr, balance.to_vec());
-    //     }
-    // }
 }

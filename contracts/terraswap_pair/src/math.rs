@@ -1,4 +1,7 @@
 use cosmwasm_std::{Decimal, StdResult, Uint128};
+use fixed::types::I64F64;
+
+pub type FixedFloat = I64F64;
 
 /////////////////////////////////////////////////////////////
 const DECIMAL_FRACTIONAL: Uint128 = Uint128(1_000_000_000u128);

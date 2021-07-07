@@ -207,7 +207,7 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
 fn simulate_swap_operations<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     offer_amount: Uint128,
-    _block_time: u64,
+    block_time: u64,
     operations: Vec<SwapOperation>,
 ) -> StdResult<SimulateSwapOperationsResponse> {
     let config: Config = read_config(&deps.storage)?;
@@ -273,6 +273,7 @@ fn simulate_swap_operations<S: Storage, A: Api, Q: Querier>(
                                 info: offer_asset_info,
                                 amount: offer_amount,
                             },
+                            block_time,
                         })?,
                     }))?;
 

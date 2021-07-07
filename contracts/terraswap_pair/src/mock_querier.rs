@@ -133,7 +133,6 @@ impl WasmMockQuerier {
                     panic!("DO NOT ENTER HERE")
                 }
             }
-            //TODO fix raw!!!!!!!!!!!!!!
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 match from_binary(&msg).unwrap() {
                     Cw20QueryMsg::TokenInfo {} => {

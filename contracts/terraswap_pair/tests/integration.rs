@@ -17,13 +17,15 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
-use cosmwasm_std::{from_binary, Coin, HandleResponse, HumanAddr, InitResponse};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use cosmwasm_std::{from_binary, Coin, HandleResponse, HumanAddr, InitResponse, Uint128};
 use cosmwasm_vm::testing::{
     handle, init, mock_dependencies, mock_env, query, MockApi, MockQuerier, MockStorage,
     MOCK_CONTRACT_ADDR,
 };
 use cosmwasm_vm::Instance;
-use terraswap::asset::{AssetInfo, PairInfo};
+use terraswap::asset::{AssetInfo, PairInfo, WeightedAssetInfo};
 use terraswap::pair::{HandleMsg, InitMsg, QueryMsg};
 
 // This line will test the output of cargo wasm
@@ -48,18 +50,34 @@ pub fn mock_instance(
 #[test]
 fn proper_initialization() {
     let mut deps = mock_instance(WASM, &[]);
+    let start_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let end_time = start_time + 1000;
 
     let msg = InitMsg {
         asset_infos: [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
+            WeightedAssetInfo {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                start_weight: Uint128(1),
+                end_weight: Uint128(1),
             },
-            AssetInfo::Token {
-                contract_addr: HumanAddr::from("asset0000"),
+            WeightedAssetInfo {
+                info: AssetInfo::Token {
+                    contract_addr: HumanAddr::from("asset0000"),
+                },
+                start_weight: Uint128(1),
+                end_weight: Uint128(1),
             },
         ],
         token_code_id: 10u64,
         init_hook: None,
+        start_time,
+        end_time,
+        description: Some(String::from("description")),
     };
 
     let env = mock_env("addr0000", &[]);
@@ -78,15 +96,23 @@ fn proper_initialization() {
     assert_eq!(MOCK_CONTRACT_ADDR, pair_info.contract_addr.as_str());
     assert_eq!(
         [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
+            WeightedAssetInfo {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                start_weight: Uint128(1),
+                end_weight: Uint128(1),
             },
-            AssetInfo::Token {
-                contract_addr: HumanAddr::from("asset0000"),
-            },
+            WeightedAssetInfo {
+                info: AssetInfo::Token {
+                    contract_addr: HumanAddr::from("asset0000"),
+                },
+                start_weight: Uint128(1),
+                end_weight: Uint128(1),
+            }
         ],
         pair_info.asset_infos
     );
-
     assert_eq!("liquidity0000", pair_info.liquidity_token.as_str());
+    assert_eq!("description", pair_info.description.unwrap());
 }

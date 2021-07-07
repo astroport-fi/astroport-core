@@ -1,4 +1,6 @@
-use crate::asset::{Asset, AssetInfo, PairInfo};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::asset::{Asset, AssetInfo, PairInfo, WeightedAssetInfo};
 use crate::mock_querier::mock_dependencies;
 use crate::querier::{
     query_all_balances, query_balance, query_pair_info, query_supply, query_token_balance,
@@ -164,7 +166,6 @@ fn test_asset_info() {
             .unwrap(),
         Uint128(123u128)
     );
-
 }
 
 #[test]
@@ -261,20 +262,36 @@ fn test_asset() {
 #[test]
 fn query_terraswap_pair_contract() {
     let mut deps = mock_dependencies(20, &[]);
+    let start_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let end_time = start_time + 1000;
 
     deps.querier.with_terraswap_pairs(&[(
         &"asset0000uusd".to_string(),
         &PairInfo {
             asset_infos: [
-                AssetInfo::Token {
-                    contract_addr: HumanAddr::from("asset0000"),
+                WeightedAssetInfo {
+                    info: AssetInfo::Token {
+                        contract_addr: HumanAddr::from("asset0000"),
+                    },
+                    start_weight: Uint128(1),
+                    end_weight: Uint128(1),
                 },
-                AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
+                WeightedAssetInfo {
+                    info: AssetInfo::NativeToken {
+                        denom: "uusd".to_string(),
+                    },
+                    start_weight: Uint128(1),
+                    end_weight: Uint128(1),
                 },
             ],
             contract_addr: HumanAddr::from("pair0000"),
             liquidity_token: HumanAddr::from("liquidity0000"),
+            start_time,
+            end_time,
+            description: None,
         },
     )]);
 
