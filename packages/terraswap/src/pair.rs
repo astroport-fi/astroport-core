@@ -40,7 +40,7 @@ pub enum HandleMsg {
         belief_price: Option<Decimal>,
         max_spread: Option<Decimal>,
         to: Option<HumanAddr>,
-    },
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -87,6 +87,8 @@ pub struct ReverseSimulationResponse {
     pub offer_amount: Uint128,
     pub spread_amount: Uint128,
     pub commission_amount: Uint128,
+    pub ask_weight: String,
+    pub offer_weight: String,
 }
 
 /// We currently take no arguments for migrations

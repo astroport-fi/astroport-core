@@ -148,23 +148,6 @@ impl Asset {
             Ok(())
         }
     }
-
-    pub fn to_raw<S: Storage, A: Api, Q: Querier>(
-        &self,
-        deps: &Extern<S, A, Q>,
-    ) -> StdResult<AssetRaw> {
-        Ok(AssetRaw {
-            info: match &self.info {
-                AssetInfo::NativeToken { denom } => AssetInfoRaw::NativeToken {
-                    denom: denom.to_string(),
-                },
-                AssetInfo::Token { contract_addr } => AssetInfoRaw::Token {
-                    contract_addr: deps.api.canonical_address(&contract_addr)?,
-                },
-            },
-            amount: self.amount,
-        })
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -236,31 +219,6 @@ impl AssetInfo {
                 }
             }
         }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AssetRaw {
-    pub info: AssetInfoRaw,
-    pub amount: Uint128,
-}
-
-impl AssetRaw {
-    pub fn to_normal<S: Storage, A: Api, Q: Querier>(
-        &self,
-        deps: &Extern<S, A, Q>,
-    ) -> StdResult<Asset> {
-        Ok(Asset {
-            info: match &self.info {
-                AssetInfoRaw::NativeToken { denom } => AssetInfo::NativeToken {
-                    denom: denom.to_string(),
-                },
-                AssetInfoRaw::Token { contract_addr } => AssetInfo::Token {
-                    contract_addr: deps.api.human_address(&contract_addr)?,
-                },
-            },
-            amount: self.amount,
-        })
     }
 }
 
@@ -375,6 +333,7 @@ impl PairInfoRaw {
                 self.asset_infos[0].to_normal(&deps)?,
                 self.asset_infos[1].to_normal(&deps)?,
             ],
+
             end_time: self.end_time,
             description: self.description.clone(),
         })

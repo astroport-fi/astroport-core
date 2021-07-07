@@ -22,10 +22,16 @@
         "simulate_swap_operations": {
           "type": "object",
           "required": [
+            "block_time",
             "offer_amount",
             "operations"
           ],
           "properties": {
+            "block_time": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "offer_amount": {
               "$ref": "#/definitions/Uint128"
             },

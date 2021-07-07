@@ -1,6 +1,6 @@
-# TerraSwap
+# TerraSwap LBP
 
-Uniswap-inspired automated market-maker (AMM) protocol powered by Smart Contracts on the [Terra](https://terra.money) blockchain.
+Uniswap-inspired automated market-maker (AMM) protocol powered by Smart Contracts on the [Terra](https://terra.money) blockchain with LBP support.
 
 ## Contracts
 

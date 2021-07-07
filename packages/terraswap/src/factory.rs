@@ -3,7 +3,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{AssetInfo, WeightedAssetInfo, WeightedAssetInfoRaw};
 use crate::hook::InitHook;
-use cosmwasm_std::{Api, CanonicalAddr, Extern, HumanAddr, Querier, StdResult, Storage};
+use cosmwasm_std::{
+    Api, CanonicalAddr, Extern, HumanAddr,
+    Querier, StdResult, Storage,
+};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -33,12 +36,8 @@ pub enum HandleMsg {
         init_hook: Option<InitHook>,
     },
     /// Register is invoked from created pair contract after initialzation
-    Register {
-        asset_infos: [WeightedAssetInfo; 2],
-    },
-    Unregister {
-        asset_infos: [AssetInfo; 2],
-    },
+    Register { asset_infos: [WeightedAssetInfo; 2] },
+    Unregister { asset_infos: [AssetInfo; 2] },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -71,6 +70,7 @@ pub struct MigrateMsg {}
 pub struct PairsResponse {
     pub pairs: Vec<FactoryPairInfo>,
 }
+
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct FactoryPairInfo {

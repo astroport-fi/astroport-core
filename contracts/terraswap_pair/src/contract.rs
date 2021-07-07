@@ -1,4 +1,4 @@
-use crate::math::{decimal_multiplication, decimal_subtraction, reverse_decimal, FixedFloat};
+use crate::math::{decimal_multiplication, decimal_subtraction, reverse_decimal, calc_out_given_in, calc_in_given_out, FixedFloat};
 use crate::state::{read_pair_info, store_pair_info};
 
 use cosmwasm_std::{
@@ -9,7 +9,7 @@ use cosmwasm_std::{
 
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse};
 use integer_sqrt::IntegerSquareRoot;
-use std::ops::{Add, Div, Sub};
+use std::ops::{Mul, Sub, Div, Add};
 use std::str::FromStr;
 use terraswap::asset::{Asset, AssetInfo, PairInfo, PairInfoRaw, WeightedAsset};
 use terraswap::hook::InitHook;
@@ -20,13 +20,36 @@ use terraswap::pair::{
 use terraswap::querier::query_supply;
 use terraswap::token::InitMsg as TokenInitMsg;
 
-/// Commission rate == 0.3%
-const COMMISSION_RATE: &str = "0.003";
+/// Commission rate == 0.15%
+const COMMISSION_RATE: &str = "0.0015";
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
+    // Check LBP parameters
+    if msg.start_time < env.block.time {
+        return Err(StdError::generic_err(
+            "start_time is less then current time",
+        ));
+    }
+
+    if msg.end_time <= msg.start_time {
+        return Err(StdError::generic_err(
+            "end_time is less then or same as start_time",
+        ));
+    }
+
+    for asset in msg.asset_infos.iter() {
+        if asset.start_weight.is_zero() {
+            return Err(StdError::generic_err("start_weight can not be 0"));
+        }
+
+        if asset.end_weight.is_zero() {
+            return Err(StdError::generic_err("end_weight can not be 0"));
+        }
+    }
+
     let pair_info: &PairInfoRaw = &PairInfoRaw {
         contract_addr: deps.api.canonical_address(&env.contract.address)?,
         liquidity_token: CanonicalAddr::default(),
@@ -215,7 +238,7 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
             .expect("Wrong asset info is given"),
     ];
 
-    if deposits[0].is_zero() || deposits[1].is_zero() {
+    if deposits[0].is_zero() || deposits[1].is_zero(){
         return Err(StdError::generic_err("event of zero transfer"));
     }
 
@@ -247,6 +270,7 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
 
     let liquidity_token = deps.api.human_address(&pair_info.liquidity_token)?;
     let total_share = query_supply(&deps, &liquidity_token)?;
+
     let share = if total_share.is_zero() {
         // Initial share = collateral amount
         Uint128((deposits[0].u128() * deposits[1].u128()).integer_sqrt())
@@ -379,9 +403,29 @@ pub fn try_swap<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("Wrong asset info is given"));
     }
 
+    let ask_weight = get_current_weight(
+        ask_pool.start_weight,
+        ask_pool.end_weight,
+        pair_info.start_time,
+        pair_info.end_time,
+        env.block.time,
+    )?;
+    let offer_weight = get_current_weight(
+        offer_pool.start_weight,
+        offer_pool.end_weight,
+        pair_info.start_time,
+        pair_info.end_time,
+        env.block.time,
+    )?;
+
     let offer_amount = offer_asset.amount;
-    let (return_amount, spread_amount, commission_amount) =
-        compute_swap(offer_pool.amount, ask_pool.amount, offer_amount)?;
+    let (return_amount, spread_amount, commission_amount) = compute_swap(
+        offer_pool.amount,
+        offer_weight,
+        ask_pool.amount,
+        ask_weight,
+        offer_amount,
+    )?;
 
     // check max spread limit if exist
     assert_max_spread(
@@ -487,6 +531,7 @@ pub fn query_simulation<S: Storage, A: Api, Q: Querier>(
             "Given offer asset is not blong to pairs",
         ));
     }
+
     let ask_weight = get_current_weight(
         ask_pool.start_weight,
         ask_pool.end_weight,
@@ -503,8 +548,13 @@ pub fn query_simulation<S: Storage, A: Api, Q: Querier>(
         block_time,
     )?;
 
-    let (return_amount, spread_amount, commission_amount) =
-        compute_swap(offer_pool.amount, ask_pool.amount, offer_asset.amount)?;
+    let (return_amount, spread_amount, commission_amount) = compute_swap(
+        offer_pool.amount,
+        offer_weight,
+        ask_pool.amount,
+        ask_weight,
+        offer_asset.amount,
+    )?;
 
     Ok(SimulationResponse {
         return_amount,
@@ -518,7 +568,7 @@ pub fn query_simulation<S: Storage, A: Api, Q: Querier>(
 pub fn query_reverse_simulation<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     ask_asset: Asset,
-    _block_time: u64,
+    block_time: u64,
 ) -> StdResult<ReverseSimulationResponse> {
     let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
 
@@ -539,13 +589,35 @@ pub fn query_reverse_simulation<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
-    let (offer_amount, spread_amount, commission_amount) =
-        compute_offer_amount(offer_pool.amount, ask_pool.amount, ask_asset.amount)?;
+    let ask_weight = get_current_weight(
+        ask_pool.start_weight,
+        ask_pool.end_weight,
+        pair_info.start_time,
+        pair_info.end_time,
+        block_time,
+    )?;
+    let offer_weight = get_current_weight(
+        offer_pool.start_weight,
+        offer_pool.end_weight,
+        pair_info.start_time,
+        pair_info.end_time,
+        block_time,
+    )?;
+
+    let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
+        offer_pool.amount,
+        offer_weight,
+        ask_pool.amount,
+        ask_weight,
+        ask_asset.amount,
+    )?;
 
     Ok(ReverseSimulationResponse {
         offer_amount,
         spread_amount,
         commission_amount,
+        ask_weight: ask_weight.to_string(),
+        offer_weight: offer_weight.to_string(),
     })
 }
 
@@ -556,20 +628,38 @@ pub fn amount_of(coins: &[Coin], denom: String) -> Uint128 {
     }
 }
 
+fn get_ask_by_spot_price(
+    offer_pool: Uint128,
+    offer_weight: FixedFloat,
+    ask_pool: Uint128,
+    ask_weight: FixedFloat,
+    offer_amount: Uint128,
+) -> Uint128{
+    let ratio = FixedFloat::from_num(ask_pool.u128())
+        .mul(&ask_weight)
+        .div(&FixedFloat::from_num(offer_pool.u128())
+            .mul(&offer_weight)
+        )
+        .mul(&FixedFloat::from_num(offer_amount.u128()));
+
+    Uint128(ratio.to_num())
+}
+
 fn compute_swap(
     offer_pool: Uint128,
+    offer_weight: FixedFloat,
     ask_pool: Uint128,
+    ask_weight: FixedFloat,
     offer_amount: Uint128,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // offer => ask
-    // ask_amount = (ask_pool - cp / (offer_pool + offer_amount)) * (1 - commission_rate)
-    let cp = Uint128(offer_pool.u128() * ask_pool.u128());
-    let return_amount = (ask_pool - cp.multiply_ratio(1u128, offer_pool + offer_amount))?;
+    let return_amount = calc_out_given_in(offer_pool, offer_weight, ask_pool, ask_weight, offer_amount);
 
     // calculate spread & commission
-    let spread_amount: Uint128 = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool)
-        - return_amount)
-        .unwrap_or_else(|_| Uint128::zero());
+    let spot_price = get_ask_by_spot_price(offer_pool, offer_weight, ask_pool, ask_weight, offer_amount);
+
+    let spread_amount: Uint128 = (spot_price - return_amount).unwrap_or_else(|_| Uint128::zero());
+
     let commission_amount: Uint128 = return_amount * Decimal::from_str(&COMMISSION_RATE).unwrap();
 
     // commission will be absorbed to pool
@@ -580,26 +670,25 @@ fn compute_swap(
 
 fn compute_offer_amount(
     offer_pool: Uint128,
+    offer_weight: FixedFloat,
     ask_pool: Uint128,
+    ask_weight: FixedFloat,
     ask_amount: Uint128,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
-    // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
-    let cp = Uint128(offer_pool.u128() * ask_pool.u128());
-    let one_minus_commission =
-        decimal_subtraction(Decimal::one(), Decimal::from_str(&COMMISSION_RATE).unwrap())?;
 
-    let offer_amount: Uint128 = (cp.multiply_ratio(
-        1u128,
-        (ask_pool - ask_amount * reverse_decimal(one_minus_commission))?,
-    ) - offer_pool)?;
+    let one_minus_commission = decimal_subtraction(Decimal::one(), Decimal::from_str(&COMMISSION_RATE).unwrap())?;
 
     let before_commission_deduction = ask_amount * reverse_decimal(one_minus_commission);
-    let spread_amount = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool)
-        - before_commission_deduction)
-        .unwrap_or_else(|_| Uint128::zero());
-    let commission_amount =
-        before_commission_deduction * Decimal::from_str(&COMMISSION_RATE).unwrap();
+
+    let offer_amount = calc_in_given_out(offer_pool, offer_weight, ask_pool, ask_weight, before_commission_deduction);
+
+    let spot_price = get_ask_by_spot_price(offer_pool, offer_weight, ask_pool, ask_weight, offer_amount);
+
+    let spread_amount = (spot_price - before_commission_deduction).unwrap_or_else(|_| Uint128::zero());
+
+    let commission_amount = before_commission_deduction * Decimal::from_str(&COMMISSION_RATE).unwrap();
+
     Ok((offer_amount, spread_amount, commission_amount))
 }
 
@@ -657,6 +746,7 @@ fn assert_slippage_tolerance(
 
     Ok(())
 }
+
 /// Uses start_time and end_time parameters, start_weight and end_weight for both assets
 /// and current timestamp to calculate the weight for assets
 fn get_current_weight(
@@ -678,17 +768,13 @@ fn get_current_weight(
     let time_diff = FixedFloat::from_num(end_time - start_time);
 
     if end_weight > start_weight {
-        let ratio = FixedFloat::from_num(
-            (end_weight.u128() - start_weight.u128()) * (block_time - start_time) as u128,
-        )
-        .div(&time_diff);
+        let ratio = FixedFloat::from_num((end_weight.u128() - start_weight.u128()) * (block_time - start_time) as u128)
+            .div(&time_diff);
 
         Ok(start_weight_fixed.add(ratio))
     } else {
-        let ratio = FixedFloat::from_num(
-            (start_weight.u128() - end_weight.u128()) * (block_time - start_time) as u128,
-        )
-        .div(&time_diff);
+        let ratio = FixedFloat::from_num((start_weight.u128() - end_weight.u128()) * (block_time - start_time) as u128)
+            .div(&time_diff);
 
         Ok(start_weight_fixed.sub(ratio))
     }

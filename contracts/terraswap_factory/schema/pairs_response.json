@@ -9,7 +9,7 @@
     "pairs": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/PairInfo"
+        "$ref": "#/definitions/FactoryPairInfo"
       }
     }
   },
@@ -56,21 +56,21 @@
         }
       ]
     },
-    "HumanAddr": {
-      "type": "string"
-    },
-    "PairInfo": {
+    "FactoryPairInfo": {
       "type": "object",
       "required": [
         "asset_infos",
         "contract_addr",
-        "liquidity_token"
+        "end_time",
+        "liquidity_token",
+        "owner",
+        "start_time"
       ],
       "properties": {
         "asset_infos": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/AssetInfo"
+            "$ref": "#/definitions/WeightedAssetInfo"
           },
           "maxItems": 2,
           "minItems": 2
@@ -78,8 +78,46 @@
         "contract_addr": {
           "$ref": "#/definitions/HumanAddr"
         },
+        "end_time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
         "liquidity_token": {
           "$ref": "#/definitions/HumanAddr"
+        },
+        "owner": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "start_time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "Uint128": {
+      "type": "string"
+    },
+    "WeightedAssetInfo": {
+      "type": "object",
+      "required": [
+        "end_weight",
+        "info",
+        "start_weight"
+      ],
+      "properties": {
+        "end_weight": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "info": {
+          "$ref": "#/definitions/AssetInfo"
+        },
+        "start_weight": {
+          "$ref": "#/definitions/Uint128"
         }
       }
     }

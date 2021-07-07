@@ -5,15 +5,10 @@ use cosmwasm_std::{
 };
 
 use crate::querier::query_liquidity_token;
-use crate::state::{
-    read_config, read_pair, read_pairs, remove_pair, store_config, store_pair, Config,
-};
+use crate::state::{read_config, read_pair, read_pairs, store_config, store_pair, Config, remove_pair};
 
 use terraswap::asset::{AssetInfo, WeightedAssetInfo};
-use terraswap::factory::{
-    ConfigResponse, FactoryPairInfo, FactoryPairInfoRaw, HandleMsg, InitMsg, MigrateMsg,
-    PairsResponse, QueryMsg,
-};
+use terraswap::factory::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PairsResponse, QueryMsg, FactoryPairInfo, FactoryPairInfoRaw};
 use terraswap::hook::InitHook;
 use terraswap::pair::InitMsg as PairInitMsg;
 
@@ -58,19 +53,11 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         } => try_update_config(deps, env, owner, token_code_id, pair_code_id),
         HandleMsg::CreatePair {
             asset_infos,
-            init_hook,
-            start_time,
-            end_time,
-            description,
-        } => try_create_pair(
-            deps,
-            env,
-            asset_infos,
             start_time,
             end_time,
             description,
             init_hook,
-        ),
+        } => try_create_pair(deps, env, asset_infos, start_time, end_time, description, init_hook),
         HandleMsg::Register { asset_infos } => try_register(deps, env, asset_infos),
         HandleMsg::Unregister { asset_infos } => try_unregister(deps, env, asset_infos),
     }
@@ -111,6 +98,7 @@ pub fn try_update_config<S: Storage, A: Api, Q: Querier>(
         data: None,
     })
 }
+
 #[allow(clippy::too_many_arguments)]
 // Anyone can execute it to create swap pair
 pub fn try_create_pair<S: Storage, A: Api, Q: Querier>(
@@ -182,6 +170,7 @@ pub fn try_create_pair<S: Storage, A: Api, Q: Querier>(
         data: None,
     })
 }
+
 /// create pair execute this message
 pub fn try_register<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -217,13 +206,17 @@ pub fn try_register<S: Storage, A: Api, Q: Querier>(
         data: None,
     })
 }
+
 /// remove from list of pairs
 pub fn try_unregister<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     asset_infos: [AssetInfo; 2],
 ) -> HandleResult {
-    let raw_infos = [asset_infos[0].to_raw(&deps)?, asset_infos[1].to_raw(&deps)?];
+    let raw_infos = [
+        asset_infos[0].to_raw(&deps)?,
+        asset_infos[1].to_raw(&deps)?,
+    ];
 
     let pair_info: FactoryPairInfoRaw = read_pair(&deps.storage, &raw_infos)?;
 

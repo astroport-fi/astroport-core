@@ -38,6 +38,22 @@ pub struct TerraswapPairQuerier {
     pairs: HashMap<HumanAddr, PairInfo>,
 }
 
+impl TerraswapPairQuerier {
+    pub fn new(pairs: &[(&HumanAddr, &PairInfo)]) -> Self {
+        TerraswapPairQuerier {
+            pairs: pairs_to_map(pairs),
+        }
+    }
+}
+
+pub(crate) fn pairs_to_map(pairs: &[(&HumanAddr, &PairInfo)]) -> HashMap<HumanAddr, PairInfo> {
+    let mut pairs_map: HashMap<HumanAddr, PairInfo> = HashMap::new();
+    for (key, pair) in pairs.iter() {
+        pairs_map.insert(HumanAddr::from(key), (*pair).clone());
+    }
+    pairs_map
+}
+
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
         // MockQuerier doesn't support Custom, so we ignore it completely here
@@ -86,7 +102,6 @@ impl WasmMockQuerier {
                                     info: AssetInfoRaw::NativeToken {
                                         denom: "uusd".to_string(),
                                     },
-
                                     start_weight: Default::default(),
                                     end_weight: Default::default(),
                                 },
@@ -98,6 +113,7 @@ impl WasmMockQuerier {
                                     end_weight: Default::default(),
                                 },
                             ],
+
                             end_time: 0,
                             description: Default::default(),
                         })
@@ -120,4 +136,15 @@ impl WasmMockQuerier {
             canonical_length,
         }
     }
+
+    // configure the terraswap pair
+    pub fn with_terraswap_pairs(&mut self, pairs: &[(&HumanAddr, &PairInfo)]) {
+        self.terraswap_pair_querier = TerraswapPairQuerier::new(pairs);
+    }
+
+    // pub fn with_balance(&mut self, balances: &[(&HumanAddr, &[Coin])]) {
+    //     for (addr, balance) in balances {
+    //         self.base.update_balance(addr, balance.to_vec());
+    //     }
+    // }
 }
