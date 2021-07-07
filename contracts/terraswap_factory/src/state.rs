@@ -4,8 +4,10 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Api, CanonicalAddr, Extern, Order, Querier, StdError, StdResult, Storage};
 
 use cosmwasm_storage::{Bucket, ReadonlyBucket, ReadonlySingleton, Singleton};
-use terraswap::asset::{AssetInfoRaw};
-use terraswap::factory::{FactoryPairInfoRaw, FactoryPairInfo};
+use terraswap::{
+    asset::AssetInfoRaw,
+    factory::{FactoryPairInfo, FactoryPairInfoRaw},
+};
 
 static KEY_CONFIG: &[u8] = b"config";
 static PREFIX_PAIR_INFO: &[u8] = b"pair_info";
@@ -24,7 +26,6 @@ pub fn store_config<S: Storage>(storage: &mut S, data: &Config) -> StdResult<()>
 pub fn read_config<S: Storage>(storage: &S) -> StdResult<Config> {
     ReadonlySingleton::new(storage, KEY_CONFIG).load()
 }
-
 pub fn store_pair<S: Storage>(storage: &mut S, data: &FactoryPairInfoRaw) -> StdResult<()> {
     let mut asset_infos = data.asset_infos.clone().to_vec();
     asset_infos.sort_by(|a, b| a.info.as_bytes().cmp(&b.info.as_bytes()));
@@ -39,7 +40,6 @@ pub fn store_pair<S: Storage>(storage: &mut S, data: &FactoryPairInfoRaw) -> Std
         &data,
     )
 }
-
 pub fn remove_pair<S: Storage>(storage: &mut S, data: &FactoryPairInfoRaw) -> () {
     let mut asset_infos = data.asset_infos.clone().to_vec();
     asset_infos.sort_by(|a, b| a.info.as_bytes().cmp(&b.info.as_bytes()));
@@ -50,7 +50,7 @@ pub fn remove_pair<S: Storage>(storage: &mut S, data: &FactoryPairInfoRaw) -> ()
             asset_infos[0].info.as_bytes(),
             asset_infos[1].info.as_bytes(),
         ]
-        .concat()
+        .concat(),
     )
 }
 

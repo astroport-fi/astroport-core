@@ -17,13 +17,14 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use cosmwasm_std::{from_binary, Coin, HandleResponse, HumanAddr, InitResponse, Uint128};
 use cosmwasm_vm::testing::{
     handle, init, mock_dependencies, mock_env, query, MockApi, MockQuerier, MockStorage,
     MOCK_CONTRACT_ADDR,
 };
 use cosmwasm_vm::Instance;
-use std::time::{SystemTime, UNIX_EPOCH};
 use terraswap::asset::{AssetInfo, PairInfo, WeightedAssetInfo};
 use terraswap::pair::{HandleMsg, InitMsg, QueryMsg};
 
@@ -112,7 +113,6 @@ fn proper_initialization() {
         ],
         pair_info.asset_infos
     );
-
     assert_eq!("liquidity0000", pair_info.liquidity_token.as_str());
     assert_eq!("description", pair_info.description.unwrap());
 }

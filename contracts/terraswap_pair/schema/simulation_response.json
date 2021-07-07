@@ -4,21 +4,13 @@
   "description": "SimulationResponse returns swap simulation response",
   "type": "object",
   "required": [
-    "ask_weight",
     "commission_amount",
-    "offer_weight",
     "return_amount",
     "spread_amount"
   ],
   "properties": {
-    "ask_weight": {
-      "type": "string"
-    },
     "commission_amount": {
       "$ref": "#/definitions/Uint128"
-    },
-    "offer_weight": {
-      "type": "string"
     },
     "return_amount": {
       "$ref": "#/definitions/Uint128"

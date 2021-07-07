@@ -52,30 +52,17 @@
         "create_pair": {
           "type": "object",
           "required": [
-            "asset_infos",
-            "end_time",
-            "start_time"
+            "asset_infos"
           ],
           "properties": {
             "asset_infos": {
               "description": "Asset infos",
               "type": "array",
               "items": {
-                "$ref": "#/definitions/WeightedAssetInfo"
+                "$ref": "#/definitions/AssetInfo"
               },
               "maxItems": 2,
               "minItems": 2
-            },
-            "description": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "end_time": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
             },
             "init_hook": {
               "description": "Init hook for after works",
@@ -87,11 +74,6 @@
                   "type": "null"
                 }
               ]
-            },
-            "start_time": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
             }
           }
         }
@@ -105,30 +87,6 @@
       ],
       "properties": {
         "register": {
-          "type": "object",
-          "required": [
-            "asset_infos"
-          ],
-          "properties": {
-            "asset_infos": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/WeightedAssetInfo"
-              },
-              "maxItems": 2,
-              "minItems": 2
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "unregister"
-      ],
-      "properties": {
-        "unregister": {
           "type": "object",
           "required": [
             "asset_infos"
@@ -209,28 +167,6 @@
         },
         "msg": {
           "$ref": "#/definitions/Binary"
-        }
-      }
-    },
-    "Uint128": {
-      "type": "string"
-    },
-    "WeightedAssetInfo": {
-      "type": "object",
-      "required": [
-        "end_weight",
-        "info",
-        "start_weight"
-      ],
-      "properties": {
-        "end_weight": {
-          "$ref": "#/definitions/Uint128"
-        },
-        "info": {
-          "$ref": "#/definitions/AssetInfo"
-        },
-        "start_weight": {
-          "$ref": "#/definitions/Uint128"
         }
       }
     }

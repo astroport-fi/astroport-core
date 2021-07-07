@@ -1,20 +1,19 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Api, Coin, Decimal, Extern, HumanAddr,
-    Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
+    from_binary, from_slice, to_binary, Api, Coin, Decimal, Extern, HumanAddr, Querier,
+    QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
 };
 //use cosmwasm_storage::to_length_prefixed;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use terra_cosmwasm::{
     SwapResponse, TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute,
 };
 use terraswap::asset::{Asset, AssetInfo, PairInfo, WeightedAssetInfo};
 use terraswap::pair::SimulationResponse;
-use cw20::{Cw20QueryMsg, BalanceResponse, TokenInfoResponse};
-
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -186,14 +185,12 @@ impl WasmMockQuerier {
                     panic!("DO NOT ENTER HERE")
                 }
             }
-            QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr,
-                msg,
-            }) => {
+            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 println!("Contract Address: {}", contract_addr.to_string());
-                if contract_addr.to_string() == "token0000" ||
-                    contract_addr.to_string() == "asset"||
-                    contract_addr.to_string() == "asset0002" {
+                if contract_addr.to_string() == "token0000"
+                    || contract_addr.to_string() == "asset"
+                    || contract_addr.to_string() == "asset0002"
+                {
                     println!("Use Cw20QueryMsg");
                     match from_binary(&msg).unwrap() {
                         Cw20QueryMsg::TokenInfo {} => {
@@ -216,8 +213,7 @@ impl WasmMockQuerier {
                                 symbol: "mAPPL".to_string(),
                                 decimals: 6,
                                 total_supply: total_supply,
-                            })
-                            )
+                            }))
                         }
                         Cw20QueryMsg::Balance { address } => {
                             let balances: &HashMap<HumanAddr, Uint128> =
@@ -235,16 +231,15 @@ impl WasmMockQuerier {
                                 }
                             };
 
-                            Ok(to_binary(&BalanceResponse {
-                                balance: *balance,
-                            }))
+                            Ok(to_binary(&BalanceResponse { balance: *balance }))
                         }
-                        _ => panic!("DO NOT ENTER HERE")
+                        _ => panic!("DO NOT ENTER HERE"),
                     }
                 } else {
                     match from_binary(&msg).unwrap() {
                         QueryMsg::Pair { asset_infos } => {
-                            let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
+                            let key =
+                                asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
                             match self.terraswap_factory_querier.pairs.get(&key) {
                                 Some(v) => Ok(to_binary(&PairInfo {
                                     contract_addr: v.clone(),
@@ -275,26 +270,25 @@ impl WasmMockQuerier {
                                 }),
                             }
                         }
-                        QueryMsg::Simulation { offer_asset } => Ok(to_binary(&SimulationResponse {
-                            return_amount: offer_asset.amount,
-                            commission_amount: Uint128::zero(),
-                            ask_weight: "".to_string(),
-                            spread_amount: Uint128::zero(),
-                            offer_weight: "".to_string()
-                        })),
+                        QueryMsg::Simulation { offer_asset } => {
+                            Ok(to_binary(&SimulationResponse {
+                                return_amount: offer_asset.amount,
+                                commission_amount: Uint128::zero(),
+                                ask_weight: "".to_string(),
+                                spread_amount: Uint128::zero(),
+                                offer_weight: "".to_string(),
+                            }))
+                        }
                     }
                 }
-            },
+            }
             _ => self.base.handle_query(request),
         }
     }
 }
 
 impl WasmMockQuerier {
-    pub fn new<A: Api>(
-        base: MockQuerier<TerraQueryWrapper>,
-        _api: A,
-    ) -> Self {
+    pub fn new<A: Api>(base: MockQuerier<TerraQueryWrapper>, _api: A) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),

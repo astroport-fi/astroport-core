@@ -17,6 +17,8 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use cosmwasm_std::{
     from_binary, log, to_binary, Coin, CosmosMsg, HandleResponse, HandleResult, HumanAddr,
     InitResponse, StdError, Uint128, WasmMsg,
@@ -27,7 +29,6 @@ use cosmwasm_vm::testing::{
 };
 use cosmwasm_vm::Instance;
 
-use std::time::{SystemTime, UNIX_EPOCH};
 use terraswap::asset::{AssetInfo, WeightedAssetInfo};
 use terraswap::factory::{ConfigResponse, HandleMsg, InitMsg, QueryMsg};
 use terraswap::hook::InitHook;
@@ -146,6 +147,7 @@ fn create_pair() {
         .unwrap()
         .as_secs();
     let end_time = start_time + 1000;
+
     let mut deps = mock_instance(WASM, &[]);
 
     let msg = InitMsg {
@@ -206,7 +208,6 @@ fn create_pair() {
                     })
                     .unwrap(),
                 }),
-
                 start_time,
                 end_time,
                 description: Some(String::from("description")),

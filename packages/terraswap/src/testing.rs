@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use crate::asset::{Asset, AssetInfo, PairInfo, WeightedAssetInfo};
 use crate::mock_querier::mock_dependencies;
 use crate::querier::{
@@ -7,7 +9,6 @@ use crate::querier::{
 use cosmwasm_std::testing::MOCK_CONTRACT_ADDR;
 use cosmwasm_std::{to_binary, BankMsg, Coin, CosmosMsg, Decimal, HumanAddr, Uint128, WasmMsg};
 use cw20::Cw20HandleMsg;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn token_balance_querier() {
@@ -165,7 +166,6 @@ fn test_asset_info() {
             .unwrap(),
         Uint128(123u128)
     );
-
 }
 
 #[test]

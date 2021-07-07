@@ -176,7 +176,12 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
             offer_amount,
             block_time,
             operations,
-        } => to_binary(&simulate_swap_operations(deps, offer_amount, block_time, operations)?),
+        } => to_binary(&simulate_swap_operations(
+            deps,
+            offer_amount,
+            block_time,
+            operations,
+        )?),
     }
 }
 
@@ -202,7 +207,7 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
 fn simulate_swap_operations<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     offer_amount: Uint128,
-    block_time:u64,
+    block_time: u64,
     operations: Vec<SwapOperation>,
 ) -> StdResult<SimulateSwapOperationsResponse> {
     let config: Config = read_config(&deps.storage)?;
@@ -210,7 +215,6 @@ fn simulate_swap_operations<S: Storage, A: Api, Q: Querier>(
     let terra_querier = TerraQuerier::new(&deps.querier);
 
     assert_operations(&operations)?;
-
     let operations_len = operations.len();
     if operations_len == 0 {
         return Err(StdError::generic_err("must provide operations"));
@@ -260,6 +264,7 @@ fn simulate_swap_operations<S: Storage, A: Api, Q: Querier>(
                     }
                     _ => {}
                 }
+
                 let mut res: SimulationResponse =
                     deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                         contract_addr: HumanAddr::from(pair_info.contract_addr),
@@ -293,7 +298,6 @@ fn simulate_swap_operations<S: Storage, A: Api, Q: Querier>(
 
 fn assert_operations(operations: &Vec<SwapOperation>) -> StdResult<()> {
     let mut ask_asset_map: HashMap<String, bool> = HashMap::new();
-
     for operation in operations.into_iter() {
         let (offer_asset, ask_asset) = match operation {
             SwapOperation::NativeSwap {
