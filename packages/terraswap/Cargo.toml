@@ -26,3 +26,6 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 cosmwasm-schema = "0.10.1"
+
+[profile.release]
+overflow-checks = true

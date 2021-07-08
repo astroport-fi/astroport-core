@@ -1,20 +1,17 @@
 use cosmwasm_std::{
-    from_binary, Api, Binary, Extern, HumanAddr, Querier, QueryRequest, StdResult, Storage,
-    WasmQuery,
+    to_binary, Api, Extern, HumanAddr, Querier, QueryRequest, StdResult, Storage, WasmQuery,
 };
-use cosmwasm_storage::to_length_prefixed;
-use terraswap::asset::PairInfoRaw;
+use terraswap::asset::PairInfo;
+use terraswap::pair::QueryMsg;
 
 pub fn query_liquidity_token<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     contract_addr: &HumanAddr,
 ) -> StdResult<HumanAddr> {
-    // load price form the oracle
-    let res: Binary = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+    let res: PairInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: contract_addr.clone(),
-        key: Binary::from(to_length_prefixed(b"pair_info")),
+        msg: to_binary(&QueryMsg::Pair {})?,
     }))?;
 
-    let pair_info: PairInfoRaw = from_binary(&res)?;
-    deps.api.human_address(&pair_info.liquidity_token)
+    Ok(res.liquidity_token)
 }

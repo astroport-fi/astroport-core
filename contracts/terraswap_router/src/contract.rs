@@ -207,6 +207,8 @@ fn simulate_swap_operations<S: Storage, A: Api, Q: Querier>(
     let terraswap_factory = deps.api.human_address(&config.terraswap_factory)?;
     let terra_querier = TerraQuerier::new(&deps.querier);
 
+    assert_operations(&operations)?;
+
     let operations_len = operations.len();
     if operations_len == 0 {
         return Err(StdError::generic_err("must provide operations"));
