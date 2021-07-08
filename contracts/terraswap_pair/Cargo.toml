@@ -45,10 +45,6 @@ cosmwasm-storage = { version = "0.10.1" }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 
-[dependencies.fixed]
-git = "https://github.com/encointer/substrate-fixed"
-package = "substrate-fixed"
-
 [dev-dependencies]
 cosmwasm-vm = { version = "0.10.1", default-features = false }
 cosmwasm-schema = "0.10.1"

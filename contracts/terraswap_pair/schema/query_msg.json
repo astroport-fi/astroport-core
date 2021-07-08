@@ -33,15 +33,9 @@
         "simulation": {
           "type": "object",
           "required": [
-            "block_time",
             "offer_asset"
           ],
           "properties": {
-            "block_time": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            },
             "offer_asset": {
               "$ref": "#/definitions/Asset"
             }
@@ -58,17 +52,11 @@
         "reverse_simulation": {
           "type": "object",
           "required": [
-            "ask_asset",
-            "block_time"
+            "ask_asset"
           ],
           "properties": {
             "ask_asset": {
               "$ref": "#/definitions/Asset"
-            },
-            "block_time": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
             }
           }
         }

@@ -6,6 +6,7 @@ use cosmwasm_std::{
     to_binary, AllBalanceResponse, Api, BalanceResponse, BankQuery, Coin, Extern, HumanAddr,
     Querier, QueryRequest, StdResult, Storage, Uint128, WasmQuery,
 };
+
 use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 
 pub fn query_balance<S: Storage, A: Api, Q: Querier>(
@@ -38,7 +39,6 @@ pub fn query_token_balance<S: Storage, A: Api, Q: Querier>(
     account_addr: &HumanAddr,
 ) -> StdResult<Uint128> {
     // load balance form the token contract
-
     let res: Cw20BalanceResponse = deps
         .querier
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -62,6 +62,7 @@ pub fn query_supply<S: Storage, A: Api, Q: Querier>(
         contract_addr: HumanAddr::from(contract_addr),
         msg: to_binary(&Cw20QueryMsg::TokenInfo {})?,
     }))?;
+
     Ok(res.total_supply)
 }
 
@@ -82,13 +83,11 @@ pub fn simulate<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     pair_contract: &HumanAddr,
     offer_asset: &Asset,
-    block_time: u64,
 ) -> StdResult<SimulationResponse> {
     deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: pair_contract.clone(),
         msg: to_binary(&PairQueryMsg::Simulation {
             offer_asset: offer_asset.clone(),
-            block_time,
         })?,
     }))
 }
@@ -97,13 +96,11 @@ pub fn reverse_simulate<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     pair_contract: &HumanAddr,
     ask_asset: &Asset,
-    block_time: u64,
 ) -> StdResult<ReverseSimulationResponse> {
     deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: pair_contract.clone(),
         msg: to_binary(&PairQueryMsg::ReverseSimulation {
             ask_asset: ask_asset.clone(),
-            block_time,
         })?,
     }))
 }

@@ -3,16 +3,16 @@ use cosmwasm_std::{
     from_binary, from_slice, to_binary, Api, Coin, Decimal, Extern, HumanAddr, Querier,
     QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
 };
-//use cosmwasm_storage::to_length_prefixed;
+
+use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use terra_cosmwasm::{
     SwapResponse, TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute,
 };
-use terraswap::asset::{Asset, AssetInfo, PairInfo, WeightedAssetInfo};
+use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::SimulationResponse;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -244,25 +244,14 @@ impl WasmMockQuerier {
                                 Some(v) => Ok(to_binary(&PairInfo {
                                     contract_addr: v.clone(),
                                     liquidity_token: HumanAddr::from("liquidity"),
-                                    start_time: 0,
                                     asset_infos: [
-                                        WeightedAssetInfo {
-                                            info: AssetInfo::NativeToken {
-                                                denom: "uusd".to_string(),
-                                            },
-                                            start_weight: Default::default(),
-                                            end_weight: Default::default(),
+                                        AssetInfo::NativeToken {
+                                            denom: "uusd".to_string(),
                                         },
-                                        WeightedAssetInfo {
-                                            info: AssetInfo::NativeToken {
-                                                denom: "uusd".to_string(),
-                                            },
-                                            start_weight: Default::default(),
-                                            end_weight: Default::default(),
+                                        AssetInfo::NativeToken {
+                                            denom: "uusd".to_string(),
                                         },
                                     ],
-                                    end_time: 0,
-                                    description: None,
                                 })),
                                 None => Err(SystemError::InvalidRequest {
                                     error: "No pair info exists".to_string(),
@@ -274,9 +263,7 @@ impl WasmMockQuerier {
                             Ok(to_binary(&SimulationResponse {
                                 return_amount: offer_asset.amount,
                                 commission_amount: Uint128::zero(),
-                                ask_weight: "".to_string(),
                                 spread_amount: Uint128::zero(),
-                                offer_weight: "".to_string(),
                             }))
                         }
                     }

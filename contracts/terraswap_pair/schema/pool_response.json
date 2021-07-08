@@ -10,7 +10,7 @@
     "assets": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/WeightedAsset"
+        "$ref": "#/definitions/Asset"
       },
       "maxItems": 2,
       "minItems": 2
@@ -20,6 +20,21 @@
     }
   },
   "definitions": {
+    "Asset": {
+      "type": "object",
+      "required": [
+        "amount",
+        "info"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "info": {
+          "$ref": "#/definitions/AssetInfo"
+        }
+      }
+    },
     "AssetInfo": {
       "anyOf": [
         {
@@ -67,29 +82,6 @@
     },
     "Uint128": {
       "type": "string"
-    },
-    "WeightedAsset": {
-      "type": "object",
-      "required": [
-        "amount",
-        "end_weight",
-        "info",
-        "start_weight"
-      ],
-      "properties": {
-        "amount": {
-          "$ref": "#/definitions/Uint128"
-        },
-        "end_weight": {
-          "$ref": "#/definitions/Uint128"
-        },
-        "info": {
-          "$ref": "#/definitions/AssetInfo"
-        },
-        "start_weight": {
-          "$ref": "#/definitions/Uint128"
-        }
-      }
     }
   }
 }

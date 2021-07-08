@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use cosmwasm_std::testing::{mock_env, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, to_binary, Coin, CosmosMsg, Decimal, HumanAddr, StdError, Uint128, WasmMsg,
@@ -14,7 +16,6 @@ use terraswap::router::{
     ConfigResponse, Cw20HookMsg, HandleMsg, InitMsg, QueryMsg, SimulateSwapOperationsResponse,
     SwapOperation,
 };
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn proper_initialization() {
@@ -553,7 +554,6 @@ fn assert_minimum_receive_native_token() {
 #[test]
 fn assert_minimum_receive_token() {
     let mut deps = mock_dependencies(20, &[]);
-
     deps.querier.with_token_balances(&[(
         &HumanAddr::from("token0000"),
         &[(&HumanAddr::from("addr0000"), &Uint128::from(1000000u128))],

@@ -3,6 +3,7 @@ use cosmwasm_std::{
     from_binary, from_slice, to_binary, Api, Coin, Decimal, Extern, HumanAddr, Querier,
     QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
 };
+
 use std::collections::HashMap;
 
 use crate::asset::PairInfo;
@@ -28,7 +29,6 @@ pub fn mock_dependencies(
         querier: custom_querier,
     }
 }
-
 enum QueryHandler {
     Default,
     Cw20,

@@ -207,7 +207,7 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
 fn simulate_swap_operations<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     offer_amount: Uint128,
-    block_time: u64,
+    _block_time: u64,
     operations: Vec<SwapOperation>,
 ) -> StdResult<SimulateSwapOperationsResponse> {
     let config: Config = read_config(&deps.storage)?;
@@ -215,6 +215,7 @@ fn simulate_swap_operations<S: Storage, A: Api, Q: Querier>(
     let terra_querier = TerraQuerier::new(&deps.querier);
 
     assert_operations(&operations)?;
+
     let operations_len = operations.len();
     if operations_len == 0 {
         return Err(StdError::generic_err("must provide operations"));
@@ -273,7 +274,6 @@ fn simulate_swap_operations<S: Storage, A: Api, Q: Querier>(
                                 info: offer_asset_info,
                                 amount: offer_amount,
                             },
-                            block_time,
                         })?,
                     }))?;
 

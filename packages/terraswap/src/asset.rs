@@ -16,43 +16,9 @@ pub struct Asset {
     pub amount: Uint128,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct WeightedAsset {
-    pub info: AssetInfo,
-    pub amount: Uint128,
-    pub start_weight: Uint128,
-    pub end_weight: Uint128,
-}
-
 impl fmt::Display for Asset {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}{}", self.amount, self.info)
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct WeightedAssetInfo {
-    pub info: AssetInfo,
-    pub start_weight: Uint128,
-    pub end_weight: Uint128,
-}
-
-impl fmt::Display for WeightedAssetInfo {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.info)
-    }
-}
-
-impl WeightedAssetInfo {
-    pub fn to_raw<S: Storage, A: Api, Q: Querier>(
-        &self,
-        deps: &Extern<S, A, Q>,
-    ) -> StdResult<WeightedAssetInfoRaw> {
-        Ok(WeightedAssetInfoRaw {
-            info: self.info.to_raw(deps)?,
-            start_weight: self.start_weight,
-            end_weight: self.end_weight,
-        })
     }
 }
 
@@ -265,33 +231,6 @@ impl AssetRaw {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct WeightedAssetInfoRaw {
-    pub info: AssetInfoRaw,
-    pub start_weight: Uint128,
-    pub end_weight: Uint128,
-}
-
-impl WeightedAssetInfoRaw {
-    pub fn to_normal<S: Storage, A: Api, Q: Querier>(
-        &self,
-        deps: &Extern<S, A, Q>,
-    ) -> StdResult<WeightedAssetInfo> {
-        Ok(WeightedAssetInfo {
-            info: match &self.info {
-                AssetInfoRaw::NativeToken { denom } => AssetInfo::NativeToken {
-                    denom: denom.to_string(),
-                },
-                AssetInfoRaw::Token { contract_addr } => AssetInfo::Token {
-                    contract_addr: deps.api.human_address(&contract_addr)?,
-                },
-            },
-            start_weight: self.start_weight,
-            end_weight: self.end_weight,
-        })
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum AssetInfoRaw {
     Token { contract_addr: CanonicalAddr },
     NativeToken { denom: String },
@@ -344,22 +283,16 @@ impl AssetInfoRaw {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairInfo {
-    pub asset_infos: [WeightedAssetInfo; 2],
+    pub asset_infos: [AssetInfo; 2],
     pub contract_addr: HumanAddr,
     pub liquidity_token: HumanAddr,
-    pub start_time: u64,
-    pub end_time: u64,
-    pub description: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairInfoRaw {
-    pub asset_infos: [WeightedAssetInfoRaw; 2],
+    pub asset_infos: [AssetInfoRaw; 2],
     pub contract_addr: CanonicalAddr,
     pub liquidity_token: CanonicalAddr,
-    pub start_time: u64,
-    pub end_time: u64,
-    pub description: Option<String>,
 }
 
 impl PairInfoRaw {
@@ -369,14 +302,11 @@ impl PairInfoRaw {
     ) -> StdResult<PairInfo> {
         Ok(PairInfo {
             liquidity_token: deps.api.human_address(&self.liquidity_token)?,
-            start_time: self.start_time,
             contract_addr: deps.api.human_address(&self.contract_addr)?,
             asset_infos: [
                 self.asset_infos[0].to_normal(&deps)?,
                 self.asset_infos[1].to_normal(&deps)?,
             ],
-            end_time: self.end_time,
-            description: self.description.clone(),
         })
     }
 
@@ -384,21 +314,17 @@ impl PairInfoRaw {
         &self,
         deps: &Extern<S, A, Q>,
         contract_addr: &HumanAddr,
-    ) -> StdResult<[WeightedAsset; 2]> {
-        let info_0: WeightedAssetInfo = self.asset_infos[0].to_normal(deps)?;
-        let info_1: WeightedAssetInfo = self.asset_infos[1].to_normal(deps)?;
+    ) -> StdResult<[Asset; 2]> {
+        let info_0: AssetInfo = self.asset_infos[0].to_normal(deps)?;
+        let info_1: AssetInfo = self.asset_infos[1].to_normal(deps)?;
         Ok([
-            WeightedAsset {
-                amount: info_0.info.query_pool(deps, contract_addr)?,
-                info: info_0.info,
-                start_weight: info_0.start_weight,
-                end_weight: info_0.end_weight,
+            Asset {
+                amount: info_0.query_pool(deps, contract_addr)?,
+                info: info_0,
             },
-            WeightedAsset {
-                amount: info_1.info.query_pool(deps, contract_addr)?,
-                info: info_1.info,
-                start_weight: info_1.start_weight,
-                end_weight: info_1.end_weight,
+            Asset {
+                amount: info_1.query_pool(deps, contract_addr)?,
+                info: info_1,
             },
         ])
     }

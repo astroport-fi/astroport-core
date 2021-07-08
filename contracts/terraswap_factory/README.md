@@ -33,31 +33,20 @@ The factory contract can perform creation of terraswap pair contract and also be
 
 ```json
 {
-   "create_pair":{
-      "asset_infos":[
-         {
-            "info":{
-               "token":{
-                  "contract_address":"terra..."
-               }
-            },
-            "start_weight":20,
-            "end_weight":30
-         },
-         {
-            "info":{
-               "native_token":{
-                  "denom":"uusd"
-               }
-            },
-            "start_weight":30,
-            "end_weight":20
-         }
-      ],
-      "start_time":1623337825,
-      "end_time":1623900000,
-      "description":"this pair description is optional"
-   }
+  "create_pair": {
+    "asset_infos": [
+      {
+        "token": {
+          "contract_address": "terra..."
+        }
+      },
+      {
+        "native_token": {
+          "denom": "uusd"
+        }
+      }
+    ]
+  }
 }
 ```
 
@@ -169,42 +158,15 @@ When a user executes `CreatePair` operation, it passes `InitHook` to `Pair` cont
 Once a `Pair` contract invokes it, the sender address is registered as `Pair` contract address for the given asset_infos.
 
 ```json
-{
-   "register":{
-      "asset_infos":[
-         {
-            "token":{
-               "contract_addr":"terra1~~"
+{ "register":
+    "asset_infos": [{
+        "token": {
+            "contract_addr": "terra1~~",
             }
-         },
-         {
-            "native_token":{
-               "denom":"uusd"
+        }, {
+            "native_token": {
+                "denom": "uusd",
             }
-         }
-      ]
-   }
-}
-```
-
-### Unregister
-
-The pair can be removed from factory using unregister function. Only the creator of pair is allowed to remove it.
-```json
-{
-   "unregister":{
-      "asset_infos":[
-         {
-            "token":{
-               "contract_addr":"terra1~~"
-            }
-         },
-         {
-            "native_token":{
-               "denom":"uusd"
-            }
-         }
-      ]
-   }
+    }],
 }
 ```
