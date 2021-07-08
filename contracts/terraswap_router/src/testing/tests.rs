@@ -1,5 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use cosmwasm_std::testing::{mock_env, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, to_binary, Coin, CosmosMsg, Decimal, HumanAddr, StdError, Uint128, WasmMsg,
@@ -424,7 +422,7 @@ fn query_buy_with_routes() {
     let env = mock_env("addr0000", &[]);
 
     // we can just call .unwrap() to assert this was a success
-    let _res = init(&mut deps, env.clone(), msg).unwrap();
+    let _res = init(&mut deps, env, msg).unwrap();
 
     // set tax rate as 5%
     deps.querier.with_tax(
@@ -435,14 +433,8 @@ fn query_buy_with_routes() {
         ],
     );
 
-    let mut _block_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
     let msg = QueryMsg::SimulateSwapOperations {
         offer_amount: Uint128::from(1000000u128),
-        block_time: _block_time,
         operations: vec![
             SwapOperation::NativeSwap {
                 offer_denom: "uusd".to_string(),
@@ -480,14 +472,8 @@ fn query_buy_with_routes() {
         }
     );
 
-    _block_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
     let msg = QueryMsg::SimulateSwapOperations {
         offer_amount: Uint128::from(1000000u128),
-        block_time: _block_time,
         operations: vec![
             SwapOperation::NativeSwap {
                 offer_denom: "uusd".to_string(),

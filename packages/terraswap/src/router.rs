@@ -78,7 +78,6 @@ pub enum QueryMsg {
     Config {},
     SimulateSwapOperations {
         offer_amount: Uint128,
-        block_time: u64,
         operations: Vec<SwapOperation>,
     },
 }
