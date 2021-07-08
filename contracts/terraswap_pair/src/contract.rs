@@ -150,11 +150,6 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                 )
             }
             Cw20HookMsg::WithdrawLiquidity {} => {
-                let config: PairInfoRaw = read_pair_info(&deps.storage)?;
-                if deps.api.canonical_address(&env.message.sender)? != config.liquidity_token {
-                    return Err(StdError::unauthorized());
-                }
-
                 try_withdraw_liquidity(deps, env, cw20_msg.sender, cw20_msg.amount)
             }
         }
@@ -216,6 +211,10 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
             .expect("Wrong asset info is given"),
     ];
 
+    if deposits[0].is_zero() || deposits[1].is_zero() {
+        return Err(StdError::generic_err("event of zero transfer"));
+    }
+
     let mut i = 0;
     let mut messages: Vec<CosmosMsg> = vec![];
     for pool in pools.iter_mut() {
@@ -244,7 +243,7 @@ pub fn try_provide_liquidity<S: Storage, A: Api, Q: Querier>(
 
     let liquidity_token = deps.api.human_address(&pair_info.liquidity_token)?;
     let total_share = query_supply(&deps, &liquidity_token)?;
-    let share = if total_share == Uint128::zero() {
+    let share = if total_share.is_zero() {
         // Initial share = collateral amount
         Uint128((deposits[0].u128() * deposits[1].u128()).integer_sqrt())
     } else {
@@ -285,7 +284,11 @@ pub fn try_withdraw_liquidity<S: Storage, A: Api, Q: Querier>(
     sender: HumanAddr,
     amount: Uint128,
 ) -> HandleResult {
-    let pair_info: PairInfoRaw = read_pair_info(&deps.storage)?;
+    let pair_info: PairInfoRaw = read_pair_info(&deps.storage).unwrap();
+
+    if deps.api.canonical_address(&env.message.sender)? != pair_info.liquidity_token {
+        return Err(StdError::unauthorized());
+    }
     let liquidity_addr: HumanAddr = deps.api.human_address(&pair_info.liquidity_token)?;
 
     let pools: [Asset; 2] = pair_info.query_pools(&deps, &env.contract.address)?;

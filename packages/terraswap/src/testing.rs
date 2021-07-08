@@ -17,6 +17,7 @@ fn token_balance_querier() {
         &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &Uint128(123u128))],
     )]);
 
+    deps.querier.with_cw20_query_handler();
     assert_eq!(
         Uint128(123u128),
         query_token_balance(
@@ -26,6 +27,7 @@ fn token_balance_querier() {
         )
         .unwrap()
     );
+    deps.querier.with_default_query_handler()
 }
 
 #[test]
@@ -94,6 +96,8 @@ fn supply_querier() {
         ],
     )]);
 
+    deps.querier.with_cw20_query_handler();
+
     assert_eq!(
         query_supply(&deps, &HumanAddr::from("liquidity0000")).unwrap(),
         Uint128(492u128)
@@ -146,13 +150,14 @@ fn test_asset_info() {
     )]);
 
     assert_eq!(
-        token_info
+        native_token_info
             .query_pool(&deps, &HumanAddr::from(MOCK_CONTRACT_ADDR))
             .unwrap(),
         Uint128(123u128)
     );
+    deps.querier.with_cw20_query_handler();
     assert_eq!(
-        native_token_info
+        token_info
             .query_pool(&deps, &HumanAddr::from(MOCK_CONTRACT_ADDR))
             .unwrap(),
         Uint128(123u128)

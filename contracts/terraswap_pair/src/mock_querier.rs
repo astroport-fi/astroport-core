@@ -1,12 +1,11 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_slice, to_binary, Api, CanonicalAddr, Coin, Decimal, Extern, HumanAddr, Querier,
-    QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
+    from_binary, from_slice, to_binary, Api, Coin, Decimal, Extern, HumanAddr,
+    Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
 };
-use cosmwasm_storage::to_length_prefixed;
 use std::collections::HashMap;
 
-use cw20::TokenInfoResponse;
+use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
@@ -33,7 +32,6 @@ pub struct WasmMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
-    canonical_length: usize,
 }
 
 #[derive(Clone, Default)]
@@ -133,70 +131,49 @@ impl WasmMockQuerier {
                     panic!("DO NOT ENTER HERE")
                 }
             }
-            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
-                let key: &[u8] = key.as_slice();
+            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
+                match from_binary(&msg).unwrap() {
+                    Cw20QueryMsg::TokenInfo {} => {
+                        let balances: &HashMap<HumanAddr, Uint128> =
+                            match self.token_querier.balances.get(contract_addr) {
+                                Some(balances) => balances,
+                                None => {
+                                    return Err(SystemError::Unknown {});
+                                }
+                            };
 
-                let balances: &HashMap<HumanAddr, Uint128> =
-                    match self.token_querier.balances.get(contract_addr) {
-                        Some(balances) => balances,
-                        None => {
-                            return Err(SystemError::InvalidRequest {
-                                error: format!(
-                                    "No balance info exists for the contract {}",
-                                    contract_addr
-                                ),
-                                request: key.into(),
-                            })
+                        let mut total_supply = Uint128::zero();
+
+                        for balance in balances {
+                            total_supply += *balance.1;
                         }
-                    };
 
-                let prefix_token_info = to_length_prefixed(b"token_info").to_vec();
-                let prefix_balance = to_length_prefixed(b"balance").to_vec();
-
-                if key.to_vec() == prefix_token_info {
-                    let mut total_supply = Uint128::zero();
-
-                    for balance in balances {
-                        total_supply += *balance.1;
-                    }
-
-                    Ok(to_binary(
-                        &to_binary(&TokenInfoResponse {
+                        Ok(to_binary(&TokenInfoResponse {
                             name: "mAPPL".to_string(),
                             symbol: "mAPPL".to_string(),
                             decimals: 6,
                             total_supply: total_supply,
-                        })
-                        .unwrap(),
-                    ))
-                } else if key[..prefix_balance.len()].to_vec() == prefix_balance {
-                    let key_address: &[u8] = &key[prefix_balance.len()..];
-                    let address_raw: CanonicalAddr = CanonicalAddr::from(key_address);
+                        }))
+                    }
+                    Cw20QueryMsg::Balance { address } => {
+                        let balances: &HashMap<HumanAddr, Uint128> =
+                            match self.token_querier.balances.get(contract_addr) {
+                                Some(balances) => balances,
+                                None => {
+                                    return Err(SystemError::Unknown {});
+                                }
+                            };
 
-                    let api: MockApi = MockApi::new(self.canonical_length);
-                    let address: HumanAddr = match api.human_address(&address_raw) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            return Err(SystemError::InvalidRequest {
-                                error: format!("Parsing query request: {}", e),
-                                request: key.into(),
-                            })
-                        }
-                    };
+                        let balance = match balances.get(&address) {
+                            Some(v) => v,
+                            None => {
+                                return Err(SystemError::Unknown {});
+                            }
+                        };
 
-                    let balance = match balances.get(&address) {
-                        Some(v) => v,
-                        None => {
-                            return Err(SystemError::InvalidRequest {
-                                error: "Balance not found".to_string(),
-                                request: key.into(),
-                            })
-                        }
-                    };
-
-                    Ok(to_binary(&to_binary(&balance).unwrap()))
-                } else {
-                    panic!("DO NOT ENTER HERE")
+                        Ok(to_binary(&BalanceResponse { balance: *balance }))
+                    }
+                    _ => panic!("DO NOT ENTER HERE"),
                 }
             }
             _ => self.base.handle_query(request),
@@ -207,14 +184,13 @@ impl WasmMockQuerier {
 impl WasmMockQuerier {
     pub fn new<A: Api>(
         base: MockQuerier<TerraQueryWrapper>,
-        canonical_length: usize,
+        _canonical_length: usize,
         _api: A,
     ) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
             tax_querier: TaxQuerier::default(),
-            canonical_length,
         }
     }
 

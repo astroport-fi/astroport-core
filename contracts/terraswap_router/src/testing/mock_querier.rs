@@ -1,13 +1,14 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Api, CanonicalAddr, Coin, Decimal, Extern, HumanAddr,
-    Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
+    from_binary, from_slice, to_binary, Api, Binary, Coin, Decimal, Extern, HumanAddr, Querier,
+    QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
 };
-use cosmwasm_storage::to_length_prefixed;
+//use cosmwasm_storage::to_length_prefixed;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use terra_cosmwasm::{
     SwapResponse, TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute,
 };
@@ -31,7 +32,6 @@ pub fn mock_dependencies(
     let custom_querier: WasmMockQuerier = WasmMockQuerier::new(
         MockQuerier::new(&[(&contract_addr, contract_balance)]),
         MockApi::new(canonical_length),
-        canonical_length,
     );
 
     Extern {
@@ -46,7 +46,6 @@ pub struct WasmMockQuerier {
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
     terraswap_factory_querier: TerraswapFactoryQuerier,
-    canonical_length: usize,
 }
 
 #[derive(Clone, Default)]
@@ -186,102 +185,104 @@ impl WasmMockQuerier {
                     panic!("DO NOT ENTER HERE")
                 }
             }
-            QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: _,
-                msg,
-            }) => match from_binary(&msg).unwrap() {
-                QueryMsg::Pair { asset_infos } => {
-                    let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
-                    match self.terraswap_factory_querier.pairs.get(&key) {
-                        Some(v) => Ok(to_binary(&PairInfo {
-                            contract_addr: v.clone(),
-                            liquidity_token: HumanAddr::from("liquidity"),
-                            asset_infos: [
-                                AssetInfo::NativeToken {
-                                    denom: "uusd".to_string(),
-                                },
-                                AssetInfo::NativeToken {
-                                    denom: "uusd".to_string(),
-                                },
-                            ],
-                        })),
-                        None => Err(SystemError::InvalidRequest {
-                            error: "No pair info exists".to_string(),
-                            request: msg.as_slice().into(),
-                        }),
-                    }
-                }
-                QueryMsg::Simulation { offer_asset } => Ok(to_binary(&SimulationResponse {
-                    return_amount: offer_asset.amount,
-                    commission_amount: Uint128::zero(),
-                    spread_amount: Uint128::zero(),
-                })),
-            },
-            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
-                let key: &[u8] = key.as_slice();
-                let prefix_balance = to_length_prefixed(b"balance").to_vec();
-
-                if key[..prefix_balance.len()].to_vec() == prefix_balance {
-                    let balances: &HashMap<HumanAddr, Uint128> =
-                        match self.token_querier.balances.get(contract_addr) {
-                            Some(balances) => balances,
-                            None => {
-                                return Err(SystemError::InvalidRequest {
-                                    error: format!(
-                                        "No balance info exists for the contract {}",
-                                        contract_addr
-                                    ),
-                                    request: key.into(),
-                                })
-                            }
-                        };
-
-                    let key_address: &[u8] = &key[prefix_balance.len()..];
-                    let address_raw: CanonicalAddr = CanonicalAddr::from(key_address);
-
-                    let api: MockApi = MockApi::new(self.canonical_length);
-                    let address: HumanAddr = match api.human_address(&address_raw) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            return Err(SystemError::InvalidRequest {
-                                error: format!("Parsing query request: {}", e),
-                                request: key.into(),
-                            })
-                        }
-                    };
-
-                    let balance = match balances.get(&address) {
-                        Some(v) => v,
-                        None => {
-                            return Err(SystemError::InvalidRequest {
-                                error: "Balance not found".to_string(),
-                                request: key.into(),
-                            })
-                        }
-                    };
-
-                    Ok(to_binary(&to_binary(&balance).unwrap()))
+            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
+                if contract_addr.to_string().starts_with("token")
+                    || contract_addr.to_string().starts_with("asset")
+                {
+                    self.handle_cw20(contract_addr, msg)
                 } else {
-                    panic!("DO NOT ENTER HERE")
+                    self.handle_default(msg)
                 }
             }
             _ => self.base.handle_query(request),
         }
     }
+
+    fn handle_default(&self, msg: &Binary) -> QuerierResult {
+        match from_binary(&msg).unwrap() {
+            QueryMsg::Pair { asset_infos } => {
+                let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
+                match self.terraswap_factory_querier.pairs.get(&key) {
+                    Some(v) => Ok(to_binary(&PairInfo {
+                        contract_addr: v.clone(),
+                        liquidity_token: HumanAddr::from("liquidity"),
+                        asset_infos: [
+                            AssetInfo::NativeToken {
+                                denom: "uusd".to_string(),
+                            },
+                            AssetInfo::NativeToken {
+                                denom: "uusd".to_string(),
+                            },
+                        ],
+                    })),
+                    None => Err(SystemError::InvalidRequest {
+                        error: "No pair info exists".to_string(),
+                        request: msg.as_slice().into(),
+                    }),
+                }
+            }
+            QueryMsg::Simulation { offer_asset } => Ok(to_binary(&SimulationResponse {
+                return_amount: offer_asset.amount,
+                commission_amount: Uint128::zero(),
+                spread_amount: Uint128::zero(),
+            })),
+        }
+    }
+
+    fn handle_cw20(&self, contract_addr: &HumanAddr, msg: &Binary) -> QuerierResult {
+        match from_binary(&msg).unwrap() {
+            Cw20QueryMsg::TokenInfo {} => {
+                let balances: &HashMap<HumanAddr, Uint128> =
+                    match self.token_querier.balances.get(contract_addr) {
+                        Some(balances) => balances,
+                        None => {
+                            return Err(SystemError::Unknown {});
+                        }
+                    };
+
+                let mut total_supply = Uint128::zero();
+
+                for balance in balances {
+                    total_supply += *balance.1;
+                }
+
+                Ok(to_binary(&TokenInfoResponse {
+                    name: "mAPPL".to_string(),
+                    symbol: "mAPPL".to_string(),
+                    decimals: 6,
+                    total_supply: total_supply,
+                }))
+            }
+            Cw20QueryMsg::Balance { address } => {
+                let balances: &HashMap<HumanAddr, Uint128> =
+                    match self.token_querier.balances.get(contract_addr) {
+                        Some(balances) => balances,
+                        None => {
+                            return Err(SystemError::Unknown {});
+                        }
+                    };
+
+                let balance = match balances.get(&address) {
+                    Some(v) => v,
+                    None => {
+                        return Err(SystemError::Unknown {});
+                    }
+                };
+
+                Ok(to_binary(&BalanceResponse { balance: *balance }))
+            }
+            _ => panic!("DO NOT ENTER HERE"),
+        }
+    }
 }
 
 impl WasmMockQuerier {
-    pub fn new<A: Api>(
-        base: MockQuerier<TerraQueryWrapper>,
-        _api: A,
-        canonical_length: usize,
-    ) -> Self {
+    pub fn new<A: Api>(base: MockQuerier<TerraQueryWrapper>, _api: A) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
             tax_querier: TaxQuerier::default(),
             terraswap_factory_querier: TerraswapFactoryQuerier::default(),
-            canonical_length,
         }
     }
 
