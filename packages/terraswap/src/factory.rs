@@ -7,8 +7,8 @@ use cosmwasm_std::HumanAddr;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
-    /// Pair contract code ID, which is used to
-    pub pair_code_id: u64,
+    /// Pair contract code IDs which are allowed for pair creation
+    pub pair_code_ids: Vec<u64>,
     pub token_code_id: u64,
     pub init_hook: Option<InitHook>,
 }
@@ -20,10 +20,12 @@ pub enum HandleMsg {
     UpdateConfig {
         owner: Option<HumanAddr>,
         token_code_id: Option<u64>,
-        pair_code_id: Option<u64>,
+        pair_code_ids: Option<Vec<u64>>,
     },
     /// CreatePair instantiates pair contract
     CreatePair {
+        /// ID of pair contract
+        pair_code_id: u64,
         /// Asset infos
         asset_infos: [AssetInfo; 2],
         /// Init hook for after works
@@ -50,7 +52,7 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub owner: HumanAddr,
-    pub pair_code_id: u64,
+    pub pair_code_ids: Vec<u64>,
     pub token_code_id: u64,
 }
 

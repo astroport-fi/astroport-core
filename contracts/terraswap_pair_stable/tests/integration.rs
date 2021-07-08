@@ -28,7 +28,7 @@ use terraswap::pair::{HandleMsg, InitMsg, QueryMsg};
 
 // This line will test the output of cargo wasm
 static WASM: &[u8] =
-    include_bytes!("../../../target/wasm32-unknown-unknown/release/terraswap_pair.wasm");
+    include_bytes!("../../../target/wasm32-unknown-unknown/release/terraswap_pair_stable.wasm");
 // You can uncomment this line instead to test productionified build from rust-optimizer
 // static WASM: &[u8] = include_bytes!("../contract.wasm");
 

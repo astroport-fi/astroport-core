@@ -13,7 +13,7 @@ pub struct InitMsg {
     pub asset_infos: [AssetInfo; 2],
     /// Token contract code id for initialization
     pub token_code_id: u64,
-    /// Hook for post initalization
+    /// Hook for post initialization
     pub init_hook: Option<InitHook>,
 }
 
