@@ -1,6 +1,11 @@
 use cosmwasm_std::{Decimal, StdResult, Uint128};
 use std::convert::TryFrom;
-use spl_math::uint::U256;
+
+use uint::construct_uint;
+
+construct_uint! {
+    pub struct U256(4);
+}
 
 /////////////////////////////////////////////////////////////
 const DECIMAL_FRACTIONAL: Uint128 = Uint128(1_000_000_000u128);

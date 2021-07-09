@@ -44,7 +44,7 @@ cosmwasm-std = { version = "0.10.1" }
 cosmwasm-storage = { version = "0.10.1" }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-spl-math = { git = "https://github.com/solana-labs/solana-program-library/" }
+uint = "0.8"
 
 [dev-dependencies]
 cosmwasm-vm = { version = "0.10.1", default-features = false }
