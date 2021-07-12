@@ -5,6 +5,7 @@ pub mod pair;
 pub mod querier;
 pub mod router;
 pub mod token;
+pub mod vesting;
 
 #[cfg(test)]
 mod mock_querier;

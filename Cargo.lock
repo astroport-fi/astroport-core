@@ -28,20 +28,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 
 [[package]]
-name = "astroport-bar"
+name = "astroport-staking"
 version = "0.1.0"
 dependencies = [
  "cosmwasm-schema 0.14.1",
  "cosmwasm-std 0.14.1",
  "cosmwasm-storage 0.14.1",
  "cw-storage-plus",
- "cw2 0.6.2",
- "cw20 0.6.2",
- "cw20-base 0.6.2",
+ "cw2",
+ "cw20",
  "schemars 0.8.3",
  "serde",
  "terraswap",
  "thiserror",
+]
+
+[[package]]
+name = "astroport-vesting"
+version = "1.0.0"
+dependencies = [
+ "cosmwasm-schema 0.11.2",
+ "cosmwasm-std 0.10.1",
+ "cosmwasm-storage 0.10.1",
+ "cw20",
+ "schemars 0.7.6",
+ "serde",
+ "terraswap",
 ]
 
 [[package]]
@@ -199,6 +211,16 @@ name = "cosmwasm-schema"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2196586ea197eaa21129d09c84a19e2eb80bdce239eec8e6a4f108cb644c295f"
+dependencies = [
+ "schemars 0.7.6",
+ "serde_json",
+]
+
+[[package]]
+name = "cosmwasm-schema"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddf0a654830d6339549ed247a3bbd87fff2adb083ef5975028ee5d5eaa2ef75e"
 dependencies = [
  "schemars 0.7.6",
  "serde_json",
@@ -459,18 +481,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw0"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "659be0365f0b3ef5cae0139c4226661f0a27a70ea4e6fd1268c0f838a10cfaea"
-dependencies = [
- "cosmwasm-std 0.14.1",
- "schemars 0.8.3",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "cw2"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -483,38 +493,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw2"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02e186f4056304a3f801ed5e192dbe598cc319afad712b6c4baa4e207f30da8a"
-dependencies = [
- "cosmwasm-std 0.14.1",
- "cw-storage-plus",
- "schemars 0.8.3",
- "serde",
-]
-
-[[package]]
 name = "cw20"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4e74e78cc957826bb20c21e75244b2a3a7e0e12799f0710e318726406bed37b"
 dependencies = [
  "cosmwasm-std 0.10.1",
- "cw0 0.2.2",
+ "cw0",
  "schemars 0.7.6",
- "serde",
-]
-
-[[package]]
-name = "cw20"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce188b16a89d26d934a9c389dfabb6ea173400c21b567fc428e8ea4f70e0cdc0"
-dependencies = [
- "cosmwasm-std 0.14.1",
- "cw0 0.6.2",
- "schemars 0.8.3",
  "serde",
 ]
 
@@ -526,28 +512,12 @@ checksum = "e33af71eb8e2746fc7843b096fee77451ca96b78bc32b3c88b4bf744048fc07a"
 dependencies = [
  "cosmwasm-std 0.10.1",
  "cosmwasm-storage 0.10.1",
- "cw0 0.2.2",
- "cw2 0.2.2",
- "cw20 0.2.2",
+ "cw0",
+ "cw2",
+ "cw20",
  "schemars 0.7.6",
  "serde",
  "snafu",
-]
-
-[[package]]
-name = "cw20-base"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89c663e3756b7e132f8d3f9d98da78a005f14b7271f53ff660b5d4998a423dc7"
-dependencies = [
- "cosmwasm-std 0.14.1",
- "cw-storage-plus",
- "cw0 0.6.2",
- "cw2 0.6.2",
- "cw20 0.6.2",
- "schemars 0.8.3",
- "serde",
- "thiserror",
 ]
 
 [[package]]
@@ -1347,7 +1317,7 @@ dependencies = [
  "cosmwasm-schema 0.10.1",
  "cosmwasm-std 0.10.1",
  "cosmwasm-storage 0.10.1",
- "cw20 0.2.2",
+ "cw20",
  "schemars 0.7.6",
  "serde",
  "terra-cosmwasm",
@@ -1374,7 +1344,7 @@ dependencies = [
  "cosmwasm-std 0.10.1",
  "cosmwasm-storage 0.10.1",
  "cosmwasm-vm",
- "cw20 0.2.2",
+ "cw20",
  "integer-sqrt",
  "schemars 0.7.6",
  "serde",
@@ -1389,7 +1359,7 @@ dependencies = [
  "cosmwasm-schema 0.10.1",
  "cosmwasm-std 0.10.1",
  "cosmwasm-storage 0.10.1",
- "cw20 0.2.2",
+ "cw20",
  "integer-sqrt",
  "schemars 0.7.6",
  "serde",
@@ -1404,9 +1374,9 @@ dependencies = [
  "cosmwasm-schema 0.10.1",
  "cosmwasm-std 0.10.1",
  "cosmwasm-storage 0.10.1",
- "cw2 0.2.2",
- "cw20 0.2.2",
- "cw20-base 0.2.2",
+ "cw2",
+ "cw20",
+ "cw20-base",
  "schemars 0.7.6",
  "serde",
  "snafu",

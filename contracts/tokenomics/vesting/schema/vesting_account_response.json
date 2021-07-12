@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VestingAccountResponse",
+  "type": "object",
+  "required": [
+    "address",
+    "info"
+  ],
+  "properties": {
+    "address": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "info": {
+      "$ref": "#/definitions/VestingInfo"
+    }
+  },
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    },
+    "Uint128": {
+      "type": "string"
+    },
+    "VestingInfo": {
+      "type": "object",
+      "required": [
+        "last_claim_time",
+        "schedules"
+      ],
+      "properties": {
+        "last_claim_time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "schedules": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": [
+              {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              },
+              {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              },
+              {
+                "$ref": "#/definitions/Uint128"
+              }
+            ],
+            "maxItems": 3,
+            "minItems": 3
+          }
+        }
+      }
+    }
+  }
+}
