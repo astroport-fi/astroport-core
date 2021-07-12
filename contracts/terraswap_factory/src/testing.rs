@@ -16,9 +16,10 @@ use terraswap::pair::InitMsg as PairInitMsg;
 #[test]
 fn proper_initialization() {
     let mut deps = mock_dependencies(20, &[]);
+    let pair_code_ids = vec![321u64, 455u64];
 
     let msg = InitMsg {
-        pair_code_id: 321u64,
+        pair_code_ids: pair_code_ids.clone(),
         token_code_id: 123u64,
         init_hook: None,
     };
@@ -31,7 +32,7 @@ fn proper_initialization() {
     let query_res = query(&deps, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(123u64, config_res.token_code_id);
-    assert_eq!(321u64, config_res.pair_code_id);
+    assert_eq!(pair_code_ids, config_res.pair_code_ids);
     assert_eq!(HumanAddr::from("addr0000"), config_res.owner);
 }
 
@@ -40,7 +41,7 @@ fn update_config() {
     let mut deps = mock_dependencies(20, &[]);
 
     let msg = InitMsg {
-        pair_code_id: 321u64,
+        pair_code_ids: vec![321u64],
         token_code_id: 123u64,
         init_hook: None,
     };
@@ -54,7 +55,7 @@ fn update_config() {
     let env = mock_env("addr0000", &[]);
     let msg = HandleMsg::UpdateConfig {
         owner: Some(HumanAddr("addr0001".to_string())),
-        pair_code_id: None,
+        pair_code_ids: None,
         token_code_id: None,
     };
 
@@ -65,14 +66,14 @@ fn update_config() {
     let query_res = query(&deps, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(123u64, config_res.token_code_id);
-    assert_eq!(321u64, config_res.pair_code_id);
+    assert_eq!(vec![321u64], config_res.pair_code_ids);
     assert_eq!(HumanAddr::from("addr0001"), config_res.owner);
 
     // update left items
     let env = mock_env("addr0001", &[]);
     let msg = HandleMsg::UpdateConfig {
         owner: None,
-        pair_code_id: Some(100u64),
+        pair_code_ids: Some(vec![100u64, 321u64, 500u64]),
         token_code_id: Some(200u64),
     };
 
@@ -83,14 +84,14 @@ fn update_config() {
     let query_res = query(&deps, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(200u64, config_res.token_code_id);
-    assert_eq!(100u64, config_res.pair_code_id);
+    assert_eq!(vec![100u64, 321u64, 500u64], config_res.pair_code_ids);
     assert_eq!(HumanAddr::from("addr0001"), config_res.owner);
 
     // Unauthorzied err
     let env = mock_env("addr0000", &[]);
     let msg = HandleMsg::UpdateConfig {
         owner: None,
-        pair_code_id: None,
+        pair_code_ids: None,
         token_code_id: None,
     };
 
@@ -106,7 +107,7 @@ fn create_pair() {
     let mut deps = mock_dependencies(20, &[]);
 
     let msg = InitMsg {
-        pair_code_id: 321u64,
+        pair_code_ids: vec![321u64],
         token_code_id: 123u64,
         init_hook: None,
     };
@@ -125,12 +126,31 @@ fn create_pair() {
         },
     ];
 
+    let env = mock_env("addr0000", &[]);
+
+    // Check creating pair using non-whitelisted pair ID
     let msg = HandleMsg::CreatePair {
+        pair_code_id: 100u64,
         asset_infos: asset_infos.clone(),
         init_hook: None,
     };
 
-    let env = mock_env("addr0000", &[]);
+    let res = handle(&mut deps, env.clone(), msg).unwrap_err();
+    match res {
+        StdError::GenericErr { msg, .. } => assert_eq!(
+            msg,
+            "Pair code id is not allowed".to_string()
+        ),
+        _ => panic!("Must return generic error"),
+    }
+
+
+    let msg = HandleMsg::CreatePair {
+        pair_code_id: 321u64,
+        asset_infos: asset_infos.clone(),
+        init_hook: None,
+    };
+
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(
         res.log,
@@ -172,9 +192,10 @@ fn create_pair() {
 #[test]
 fn register() {
     let mut deps = mock_dependencies(20, &[]);
+    let pair_code_id = 321u64;
 
     let msg = InitMsg {
-        pair_code_id: 321u64,
+        pair_code_ids: vec![pair_code_id],
         token_code_id: 123u64,
         init_hook: None,
     };
@@ -192,6 +213,7 @@ fn register() {
     ];
 
     let msg = HandleMsg::CreatePair {
+        pair_code_id,
         asset_infos: asset_infos.clone(),
         init_hook: None,
     };
@@ -263,6 +285,7 @@ fn register() {
     ];
 
     let msg = HandleMsg::CreatePair {
+        pair_code_id,
         asset_infos: asset_infos_2.clone(),
         init_hook: None,
     };
