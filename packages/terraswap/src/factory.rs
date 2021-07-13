@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{AssetInfo, PairInfo};
 use crate::hook::InitHook;
-use cosmwasm_std::HumanAddr;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -18,7 +17,7 @@ pub struct InitMsg {
 pub enum HandleMsg {
     /// UpdateConfig update relevant code IDs
     UpdateConfig {
-        owner: Option<HumanAddr>,
+        owner: Option<String>,
         token_code_id: Option<u64>,
         pair_code_id: Option<u64>,
     },
@@ -49,7 +48,7 @@ pub enum QueryMsg {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub owner: HumanAddr,
+    pub owner: String,
     pub pair_code_id: u64,
     pub token_code_id: u64,
 }

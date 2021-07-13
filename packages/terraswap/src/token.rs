@@ -3,20 +3,20 @@ use serde::{Deserialize, Serialize};
 
 use crate::hook::InitHook;
 use cosmwasm_std::{StdError, StdResult, Uint128};
-use cw20::{Cw20CoinHuman, MinterResponse};
+use cw20::{Cw20Coin, MinterResponse};
 
 /// TokenContract InitMsg
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
-    pub initial_balances: Vec<Cw20CoinHuman>,
+    pub initial_balances: Vec<Cw20Coin>,
     pub mint: Option<MinterResponse>,
     pub init_hook: Option<InitHook>,
 }
 
-impl InitMsg {
+impl InstantiateMsg {
     pub fn get_cap(&self) -> Option<Uint128> {
         self.mint.as_ref().and_then(|v| v.cap)
     }
