@@ -9,7 +9,7 @@
   ],
   "properties": {
     "owner": {
-      "$ref": "#/definitions/HumanAddr"
+      "type": "string"
     },
     "pair_code_id": {
       "type": "integer",
@@ -20,11 +20,6 @@
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
-    }
-  },
-  "definitions": {
-    "HumanAddr": {
-      "type": "string"
     }
   }
 }

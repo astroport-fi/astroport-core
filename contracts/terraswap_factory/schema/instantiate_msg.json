@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "InitMsg",
+  "title": "InstantiateMsg",
   "type": "object",
   "required": [
     "pair_code_id",
@@ -34,9 +34,6 @@
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
     },
-    "HumanAddr": {
-      "type": "string"
-    },
     "InitHook": {
       "type": "object",
       "required": [
@@ -45,7 +42,7 @@
       ],
       "properties": {
         "contract_addr": {
-          "$ref": "#/definitions/HumanAddr"
+          "type": "string"
         },
         "msg": {
           "$ref": "#/definitions/Binary"
