@@ -65,7 +65,7 @@ fn proper_initialization() {
     let mut deps = mock_instance(WASM, &[]);
 
     let msg = InstantiateMsg {
-        pair_code_id: 321u64,
+        pair_code_ids: vec![321u64],
         token_code_id: 123u64,
         init_hook: None,
     };
@@ -87,7 +87,7 @@ fn proper_initialization() {
 fn update_config() {
     let mut deps = mock_instance(WASM, &[]);
     let msg = InstantiateMsg {
-        pair_code_id: 321u64,
+        pair_code_ids: vec![321u64],
         token_code_id: 123u64,
         init_hook: None,
     };
@@ -103,7 +103,7 @@ fn update_config() {
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
         owner: Some(String::from("addr0001")),
-        pair_code_id: None,
+        pair_code_ids: None,
         token_code_id: None,
     };
 
@@ -122,7 +122,7 @@ fn update_config() {
     let info = mock_info("addr0001", &[]);
     let msg = ExecuteMsg::UpdateConfig {
         owner: None,
-        pair_code_id: Some(100u64),
+        pair_code_ids: Some(vec![100u64]),
         token_code_id: Some(200u64),
     };
 
@@ -141,7 +141,7 @@ fn update_config() {
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
         owner: None,
-        pair_code_id: None,
+        pair_code_ids: None,
         token_code_id: None,
     };
 
@@ -159,7 +159,7 @@ fn create_pair() {
     let mut deps = mock_instance(WASM, &[]);
 
     let msg = InstantiateMsg {
-        pair_code_id: 321u64,
+        pair_code_ids: vec![321u64],
         token_code_id: 123u64,
         init_hook: None,
     };
@@ -179,6 +179,7 @@ fn create_pair() {
         },
     ];
     let msg = ExecuteMsg::CreatePair {
+        pair_code_id: 321u64,
         asset_infos: asset_infos.clone(),
         init_hook: None,
     };

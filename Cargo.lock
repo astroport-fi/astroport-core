@@ -1307,6 +1307,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "terraswap-pair-stable"
+version = "1.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cosmwasm-vm",
+ "cw20",
+ "integer-sqrt",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "terraswap",
+ "thiserror",
+]
+
+[[package]]
 name = "terraswap-router"
 version = "0.0.0"
 dependencies = [

@@ -23,7 +23,7 @@ pub fn instantiate(
     let config = Config {
         owner: deps.api.addr_canonicalize(&info.sender.as_str())?,
         token_code_id: msg.token_code_id,
-        pair_code_id: msg.pair_code_id,
+        pair_code_ids: msg.pair_code_ids,
     };
 
     store_config(deps.storage, &config)?;
@@ -51,12 +51,13 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::UpdateConfig {
             owner,
             token_code_id,
-            pair_code_id,
-        } => execute_update_config(deps, env, info, owner, token_code_id, pair_code_id),
+            pair_code_ids,
+        } => execute_update_config(deps, env, info, owner, token_code_id, pair_code_ids),
         ExecuteMsg::CreatePair {
+            pair_code_id,
             asset_infos,
             init_hook,
-        } => execute_create_pair(deps, env, asset_infos, init_hook),
+        } => execute_create_pair(deps, env, pair_code_id, asset_infos, init_hook),
         ExecuteMsg::Register { asset_infos } => try_register(deps, env, info, asset_infos),
     }
 }
@@ -68,7 +69,7 @@ pub fn execute_update_config(
     info: MessageInfo,
     owner: Option<String>,
     token_code_id: Option<u64>,
-    pair_code_id: Option<u64>,
+    pair_code_ids: Option<Vec<u64>>,
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;
 
@@ -85,8 +86,8 @@ pub fn execute_update_config(
         config.token_code_id = token_code_id;
     }
 
-    if let Some(pair_code_id) = pair_code_id {
-        config.pair_code_id = pair_code_id;
+    if let Some(pair_code_ids) = pair_code_ids {
+        config.pair_code_ids = pair_code_ids;
     }
 
     store_config(deps.storage, &config)?;
@@ -104,6 +105,7 @@ pub fn execute_update_config(
 pub fn execute_create_pair(
     deps: DepsMut,
     env: Env,
+    pair_code_id: u64,
     asset_infos: [AssetInfo; 2],
     init_hook: Option<InitHook>,
 ) -> StdResult<Response> {
@@ -116,6 +118,11 @@ pub fn execute_create_pair(
         return Err(StdError::generic_err("Pair already exists"));
     }
 
+    // Check if pair ID is whitelisted
+    if !config.pair_code_ids.contains(&pair_code_id) {
+        return Err(StdError::generic_err("Pair code id is not allowed"));
+    }
+
     store_pair(
         deps.storage,
         &PairInfoRaw {
@@ -126,7 +133,7 @@ pub fn execute_create_pair(
     )?;
 
     let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
-        code_id: config.pair_code_id,
+        code_id: pair_code_id,
         send: vec![],
         admin: None,
         label: String::new(),
@@ -215,7 +222,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let resp = ConfigResponse {
         owner: deps.api.addr_humanize(&state.owner)?.to_string(),
         token_code_id: state.token_code_id,
-        pair_code_id: state.pair_code_id,
+        pair_code_ids: state.pair_code_ids,
     };
 
     Ok(resp)
