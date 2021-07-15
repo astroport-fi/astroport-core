@@ -1,29 +1,33 @@
 use cosmwasm_std::{
-    log, to_binary, Api, Binary, CanonicalAddr, CosmosMsg, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, InitResponse, MigrateResponse, MigrateResult, Querier, StdError,
-    StdResult, Storage, WasmMsg,
+    attr, entry_point, to_binary, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, WasmMsg,
 };
 
+use crate::error::ContractError;
 use crate::querier::query_liquidity_token;
 use crate::state::{read_config, read_pair, read_pairs, store_config, store_pair, Config};
 
 use terraswap::asset::{AssetInfo, PairInfo, PairInfoRaw};
-use terraswap::factory::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PairsResponse, QueryMsg};
+use terraswap::factory::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, PairsResponse, QueryMsg,
+};
 use terraswap::hook::InitHook;
-use terraswap::pair::InitMsg as PairInitMsg;
+use terraswap::pair::InstantiateMsg as PairInstantiateMsg;
 
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    msg: InitMsg,
-) -> StdResult<InitResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
     let config = Config {
-        owner: deps.api.canonical_address(&env.message.sender)?,
+        owner: deps.api.addr_canonicalize(&info.sender.as_str())?,
         token_code_id: msg.token_code_id,
         pair_code_ids: msg.pair_code_ids,
     };
 
-    store_config(&mut deps.storage, &config)?;
+    store_config(deps.storage, &config)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
     if let Some(hook) = msg.init_hook {
@@ -34,49 +38,54 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         }));
     }
 
-    Ok(InitResponse {
+    Ok(Response {
+        submessages: vec![],
         messages,
-        log: vec![],
+        attributes: vec![],
+        data: None,
     })
 }
 
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    deps: DepsMut,
     env: Env,
-    msg: HandleMsg,
-) -> HandleResult {
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::UpdateConfig {
+        ExecuteMsg::UpdateConfig {
             owner,
             token_code_id,
             pair_code_ids,
-        } => try_update_config(deps, env, owner, token_code_id, pair_code_ids),
-        HandleMsg::CreatePair {
+        } => execute_update_config(deps, env, info, owner, token_code_id, pair_code_ids),
+        ExecuteMsg::CreatePair {
             pair_code_id,
             asset_infos,
             init_hook,
-        } => try_create_pair(deps, env, pair_code_id, asset_infos, init_hook),
-        HandleMsg::Register { asset_infos } => try_register(deps, env, asset_infos),
+        } => execute_create_pair(deps, env, pair_code_id, asset_infos, init_hook),
+        ExecuteMsg::Register { asset_infos } => register(deps, env, info, asset_infos),
     }
 }
 
 // Only owner can execute it
-pub fn try_update_config<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    owner: Option<HumanAddr>,
+pub fn execute_update_config(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    owner: Option<String>,
     token_code_id: Option<u64>,
     pair_code_ids: Option<Vec<u64>>,
-) -> HandleResult {
-    let mut config: Config = read_config(&deps.storage)?;
+) -> Result<Response, ContractError> {
+    let mut config: Config = read_config(deps.storage)?;
 
     // permission check
-    if deps.api.canonical_address(&env.message.sender)? != config.owner {
-        return Err(StdError::unauthorized());
+    if deps.api.addr_canonicalize(&info.sender.as_str())? != config.owner {
+        return Err(ContractError::Unauthorized {});
     }
 
     if let Some(owner) = owner {
-        config.owner = deps.api.canonical_address(&owner)?;
+        config.owner = deps.api.addr_canonicalize(&owner)?;
     }
 
     if let Some(token_code_id) = token_code_id {
@@ -87,40 +96,44 @@ pub fn try_update_config<S: Storage, A: Api, Q: Querier>(
         config.pair_code_ids = pair_code_ids;
     }
 
-    store_config(&mut deps.storage, &config)?;
+    store_config(deps.storage, &config)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
+        submessages: vec![],
         messages: vec![],
-        log: vec![log("action", "update_config")],
+        attributes: vec![attr("action", "update_config")],
         data: None,
     })
 }
 
 #[allow(clippy::too_many_arguments)]
 // Anyone can execute it to create swap pair
-pub fn try_create_pair<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_create_pair(
+    deps: DepsMut,
     env: Env,
     pair_code_id: u64,
     asset_infos: [AssetInfo; 2],
     init_hook: Option<InitHook>,
-) -> HandleResult {
-    let config: Config = read_config(&deps.storage)?;
-    let raw_infos = [asset_infos[0].to_raw(&deps)?, asset_infos[1].to_raw(&deps)?];
-    if read_pair(&deps.storage, &raw_infos).is_ok() {
-        return Err(StdError::generic_err("Pair already exists"));
+) -> Result<Response, ContractError> {
+    let config: Config = read_config(deps.storage)?;
+    let raw_infos = [
+        asset_infos[0].to_raw(deps.api)?,
+        asset_infos[1].to_raw(deps.api)?,
+    ];
+    if read_pair(deps.storage, &raw_infos).is_ok() {
+        return Err(StdError::generic_err("Pair already exists").into());
     }
 
     // Check if pair ID is whitelisted
     if !config.pair_code_ids.contains(&pair_code_id) {
-        return Err(StdError::generic_err("Pair code id is not allowed"));
+        return Err(ContractError::PairCodeNotAllowed {});
     }
 
     store_pair(
-        &mut deps.storage,
+        deps.storage,
         &PairInfoRaw {
-            liquidity_token: CanonicalAddr::default(),
-            contract_addr: CanonicalAddr::default(),
+            liquidity_token: CanonicalAddr::from(vec![]),
+            contract_addr: CanonicalAddr::from(vec![]),
             asset_infos: raw_infos,
         },
     )?;
@@ -128,13 +141,14 @@ pub fn try_create_pair<S: Storage, A: Api, Q: Querier>(
     let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
         code_id: pair_code_id,
         send: vec![],
-        label: None,
-        msg: to_binary(&PairInitMsg {
+        admin: None,
+        label: String::new(),
+        msg: to_binary(&PairInstantiateMsg {
             asset_infos: asset_infos.clone(),
             token_code_id: config.token_code_id,
             init_hook: Some(InitHook {
-                contract_addr: env.contract.address,
-                msg: to_binary(&HandleMsg::Register {
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::Register {
                     asset_infos: asset_infos.clone(),
                 })?,
             }),
@@ -149,53 +163,57 @@ pub fn try_create_pair<S: Storage, A: Api, Q: Querier>(
         }));
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
+        submessages: vec![],
         messages,
-        log: vec![
-            log("action", "create_pair"),
-            log("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
+        attributes: vec![
+            attr("action", "create_pair"),
+            attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
         ],
         data: None,
     })
 }
 
 /// create pair execute this message
-pub fn try_register<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
+pub fn register(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
     asset_infos: [AssetInfo; 2],
-) -> HandleResult {
-    let raw_infos = [asset_infos[0].to_raw(&deps)?, asset_infos[1].to_raw(&deps)?];
-    let pair_info: PairInfoRaw = read_pair(&deps.storage, &raw_infos)?;
-    if pair_info.contract_addr != CanonicalAddr::default() {
-        return Err(StdError::generic_err("Pair was already registered"));
+) -> Result<Response, ContractError> {
+    let raw_infos = [
+        asset_infos[0].to_raw(deps.api)?,
+        asset_infos[1].to_raw(deps.api)?,
+    ];
+    let pair_info: PairInfoRaw = read_pair(deps.storage, &raw_infos)?;
+    if pair_info.contract_addr != CanonicalAddr::from(vec![]) {
+        return Err(ContractError::PairWasRegistered {});
     }
 
-    let pair_contract = env.message.sender;
-    let liquidity_token = query_liquidity_token(&deps, &pair_contract)?;
+    let pair_contract = info.sender;
+    let liquidity_token = query_liquidity_token(deps.as_ref(), &pair_contract.to_string())?;
     store_pair(
-        &mut deps.storage,
+        deps.storage,
         &PairInfoRaw {
-            contract_addr: deps.api.canonical_address(&pair_contract)?,
-            liquidity_token: deps.api.canonical_address(&liquidity_token)?,
+            contract_addr: deps.api.addr_canonicalize(&pair_contract.to_string())?,
+            liquidity_token: deps.api.addr_canonicalize(&liquidity_token)?,
             ..pair_info
         },
     )?;
 
-    Ok(HandleResponse {
+    Ok(Response {
+        submessages: vec![],
         messages: vec![],
-        log: vec![
-            log("action", "register"),
-            log("pair_contract_addr", pair_contract),
+        attributes: vec![
+            attr("action", "register"),
+            attr("pair_contract_addr", pair_contract),
         ],
         data: None,
     })
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::Pair { asset_infos } => to_binary(&query_pair(deps, asset_infos)?),
@@ -205,12 +223,10 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-pub fn query_config<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<ConfigResponse> {
-    let state: Config = read_config(&deps.storage)?;
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let state: Config = read_config(deps.storage)?;
     let resp = ConfigResponse {
-        owner: deps.api.human_address(&state.owner)?,
+        owner: deps.api.addr_humanize(&state.owner)?.to_string(),
         token_code_id: state.token_code_id,
         pair_code_ids: state.pair_code_ids,
     };
@@ -218,36 +234,36 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
     Ok(resp)
 }
 
-pub fn query_pair<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    asset_infos: [AssetInfo; 2],
-) -> StdResult<PairInfo> {
-    let raw_infos = [asset_infos[0].to_raw(&deps)?, asset_infos[1].to_raw(&deps)?];
-    let pair_info: PairInfoRaw = read_pair(&deps.storage, &raw_infos)?;
-    pair_info.to_normal(&deps)
+pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
+    let raw_infos = [
+        asset_infos[0].to_raw(deps.api)?,
+        asset_infos[1].to_raw(deps.api)?,
+    ];
+    let pair_info: PairInfoRaw = read_pair(deps.storage, &raw_infos)?;
+    pair_info.to_normal(deps.api)
 }
 
-pub fn query_pairs<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
+pub fn query_pairs(
+    deps: Deps,
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
 ) -> StdResult<PairsResponse> {
     let start_after = if let Some(start_after) = start_after {
-        Some([start_after[0].to_raw(&deps)?, start_after[1].to_raw(&deps)?])
+        Some([
+            start_after[0].to_raw(deps.api)?,
+            start_after[1].to_raw(deps.api)?,
+        ])
     } else {
         None
     };
 
-    let pairs: Vec<PairInfo> = read_pairs(&deps, start_after, limit)?;
+    let pairs: Vec<PairInfo> = read_pairs(deps, start_after, limit)?;
     let resp = PairsResponse { pairs };
 
     Ok(resp)
 }
 
-pub fn migrate<S: Storage, A: Api, Q: Querier>(
-    _deps: &mut Extern<S, A, Q>,
-    _env: Env,
-    _msg: MigrateMsg,
-) -> MigrateResult {
-    Ok(MigrateResponse::default())
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

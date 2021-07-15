@@ -8,7 +8,7 @@
   ],
   "properties": {
     "contract_addr": {
-      "$ref": "#/definitions/HumanAddr"
+      "type": "string"
     },
     "msg": {
       "$ref": "#/definitions/Binary"
@@ -17,9 +17,6 @@
   "definitions": {
     "Binary": {
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
-      "type": "string"
-    },
-    "HumanAddr": {
       "type": "string"
     }
   }

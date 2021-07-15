@@ -25,7 +25,7 @@ pub fn reverse_decimal(decimal: Decimal) -> Decimal {
 
 pub fn decimal_subtraction(a: Decimal, b: Decimal) -> StdResult<Decimal> {
     Ok(Decimal::from_ratio(
-        (a * DECIMAL_FRACTIONAL - b * DECIMAL_FRACTIONAL)?,
+        (a * DECIMAL_FRACTIONAL).checked_sub(b * DECIMAL_FRACTIONAL)?,
         DECIMAL_FRACTIONAL,
     ))
 }
@@ -34,22 +34,13 @@ pub fn decimal_multiplication(a: Decimal, b: Decimal) -> Decimal {
     Decimal::from_ratio(a * DECIMAL_FRACTIONAL * b, DECIMAL_FRACTIONAL)
 }
 
-pub fn calc_amount(
-    balance_in: u128,
-    balance_out: u128,
-    amount_in: u128,
-    amp: u64
-) -> Option<u128> {
+pub fn calc_amount(balance_in: u128, balance_out: u128, amount_in: u128, amp: u64) -> Option<u128> {
     let leverage = amp.checked_mul(u64::from(N_COINS)).unwrap();
     let new_balance_in = balance_in + amount_in;
 
     let d = compute_d(u64::from(leverage), balance_in, balance_out).unwrap();
 
-    let new_balance_out = compute_new_balance_out(
-        leverage,
-        new_balance_in,
-        d,
-    )?;
+    let new_balance_out = compute_new_balance_out(leverage, new_balance_in, d)?;
 
     let amount_swapped = balance_out - new_balance_out;
     Some(amount_swapped)
@@ -59,8 +50,10 @@ pub fn calc_amount(
 /// Equation:
 /// A * sum(x_i) * n**n + D = A * D * n**n + D**(n+1) / (n**n * prod(x_i))
 fn compute_d(leverage: u64, amount_a: u128, amount_b: u128) -> Option<u128> {
-    let amount_a_times_coins = checked_u8_mul(&U256::from(amount_a), N_COINS)?.checked_add(U256::one())?;
-    let amount_b_times_coins = checked_u8_mul(&U256::from(amount_b), N_COINS)?.checked_add(U256::one())?;
+    let amount_a_times_coins =
+        checked_u8_mul(&U256::from(amount_a), N_COINS)?.checked_add(U256::one())?;
+    let amount_b_times_coins =
+        checked_u8_mul(&U256::from(amount_b), N_COINS)?.checked_add(U256::one())?;
     let sum_x = amount_a.checked_add(amount_b)?; // sum(x_i), a.k.a S
     if sum_x == 0 {
         Some(0)
@@ -108,11 +101,7 @@ fn calculate_step(initial_d: &U256, leverage: u64, sum_x: u128, d_product: &U256
 /// Solve for y:
 /// y**2 + y * (sum' - (A*n**n - 1) * D / (A * n**n)) = D ** (n + 1) / (n ** (2 * n) * prod' * A)
 /// y**2 + b*y = c
-fn compute_new_balance_out(
-    leverage: u64,
-    new_source_amount: u128,
-    d_val: u128,
-) -> Option<u128> {
+fn compute_new_balance_out(leverage: u64, new_source_amount: u128, d_val: u128) -> Option<u128> {
     // Upscale to U256
     let leverage: U256 = leverage.into();
     let new_source_amount: U256 = new_source_amount.into();
