@@ -3,7 +3,7 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "pair_code_id",
+    "pair_code_ids",
     "token_code_id"
   ],
   "properties": {
@@ -17,11 +17,14 @@
         }
       ]
     },
-    "pair_code_id": {
-      "description": "Pair contract code ID, which is used to",
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
+    "pair_code_ids": {
+      "description": "Pair contract code IDs which are allowed for pair creation",
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0.0
+      }
     },
     "token_code_id": {
       "type": "integer",

@@ -1,9 +1,10 @@
-use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, CanonicalAddr, CosmosMsg, StdError, WasmMsg,
-};
+use cosmwasm_std::{attr, from_binary, to_binary, Addr, CanonicalAddr, CosmosMsg, WasmMsg};
 
-use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::mock_dependencies;
+use crate::{
+    contract::{execute, instantiate, query},
+    error::ContractError,
+};
 
 use crate::state::read_pair;
 
@@ -100,13 +101,8 @@ fn update_config() {
         token_code_id: None,
     };
 
-    let res = execute(deps.as_mut(), env, info, msg);
-    match res {
-        Err(StdError::GenericErr { msg, .. }) => {
-            assert_eq!(msg, "unauthorized")
-        }
-        _ => panic!("Must return unauthorized error"),
-    }
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
+    assert_eq!(res, ContractError::Unauthorized {})
 }
 
 #[test]
@@ -145,14 +141,7 @@ fn create_pair() {
     };
 
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap_err();
-    match res {
-        StdError::GenericErr { msg, .. } => assert_eq!(
-            msg,
-            "Pair code id is not allowed".to_string()
-        ),
-        _ => panic!("Must return generic error"),
-    }
-
+    assert_eq!(res, ContractError::PairCodeNotAllowed {});
 
     let msg = ExecuteMsg::CreatePair {
         pair_code_id: 321u64,
@@ -284,10 +273,7 @@ fn register() {
     let env = mock_env();
     let info = mock_info("pair0000", &[]);
     let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
-    match res {
-        StdError::GenericErr { msg, .. } => assert_eq!(msg, "Pair was already registered"),
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    assert_eq!(res, ContractError::PairWasRegistered {});
 
     // Store one more item to test query pairs
     let asset_infos_2 = [

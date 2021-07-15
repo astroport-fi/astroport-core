@@ -21,6 +21,7 @@ use cosmwasm_std::testing::mock_info;
 use cosmwasm_std::{
     attr, from_binary, to_binary, Addr, Coin, ContractResult, CosmosMsg, Response, WasmMsg,
 };
+
 use cosmwasm_vm::testing::{
     execute, instantiate, mock_backend_with_balances, mock_env, query, MockApi, MockQuerier,
     MockStorage, MOCK_CONTRACT_ADDR,
@@ -79,7 +80,7 @@ fn proper_initialization() {
     let query_res = query(&mut deps, env, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(123u64, config_res.token_code_id);
-    assert_eq!(321u64, config_res.pair_code_id);
+    assert_eq!(vec![321u64], config_res.pair_code_ids);
     assert_eq!(String::from("addr0000"), config_res.owner);
 }
 
@@ -114,7 +115,7 @@ fn update_config() {
     let query_res = query(&mut deps, env, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(123u64, config_res.token_code_id);
-    assert_eq!(321u64, config_res.pair_code_id);
+    assert_eq!(vec![321u64], config_res.pair_code_ids);
     assert_eq!(String::from("addr0001"), config_res.owner);
 
     // update left items
@@ -133,7 +134,7 @@ fn update_config() {
     let query_res = query(&mut deps, env, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(200u64, config_res.token_code_id);
-    assert_eq!(100u64, config_res.pair_code_id);
+    assert_eq!(vec![100u64], config_res.pair_code_ids);
     assert_eq!(String::from("addr0001"), config_res.owner);
 
     // Unauthorzied err
@@ -146,12 +147,7 @@ fn update_config() {
     };
 
     let res: ContractResult<Response> = execute(&mut deps, env, info, msg);
-    match res {
-        ContractResult::Err(msg) => {
-            assert_eq!(msg, "Generic error: unauthorized")
-        }
-        _ => panic!("Must return unauthorized error"),
-    }
+    assert_eq!(res.unwrap_err(), "Unauthorized");
 }
 
 #[test]

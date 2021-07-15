@@ -132,8 +132,8 @@ impl Querier for WasmMockQuerier {
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
         match self.handler {
-            QueryHandler::Default => self.query_handler.handle(request),
-            QueryHandler::Cw20 => self.cw20_query_handler.handle(request),
+            QueryHandler::Default => self.query_handler.execute(request),
+            QueryHandler::Cw20 => self.cw20_query_handler.execute(request),
         }
     }
 }
@@ -143,7 +143,7 @@ struct CW20QueryHandler {
 }
 
 impl CW20QueryHandler {
-    pub fn handle(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
+    pub fn execute(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
         match &request {
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 match from_binary(&msg).unwrap() {
@@ -205,7 +205,7 @@ struct DefaultQueryHandler {
 }
 
 impl DefaultQueryHandler {
-    pub fn handle(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
+    pub fn execute(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
         match &request {
             QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
                 if &TerraRoute::Treasury == route {

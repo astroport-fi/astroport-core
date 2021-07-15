@@ -3,6 +3,7 @@ use cosmwasm_std::{
     MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 
+use crate::error::ContractError;
 use crate::operations::execute_swap_operation;
 use crate::querier::compute_tax;
 use crate::state::{read_config, store_config, Config};
@@ -41,7 +42,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ExecuteSwapOperations {
@@ -80,7 +81,7 @@ pub fn receive_cw20(
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let sender = deps.api.addr_validate(&cw20_msg.sender)?;
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::ExecuteSwapOperations {
@@ -115,10 +116,10 @@ pub fn execute_swap_operations(
     operations: Vec<SwapOperation>,
     minimum_receive: Option<Uint128>,
     to: Option<Addr>,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let operations_len = operations.len();
     if operations_len == 0 {
-        return Err(StdError::generic_err("must provide operations"));
+        return Err(ContractError::MustProvideOperations {});
     }
 
     // Assert the operations are properly set
@@ -176,32 +177,36 @@ fn assert_minium_receive(
     prev_balance: Uint128,
     minium_receive: Uint128,
     receiver: Addr,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let receiver_balance = asset_info.query_pool(&deps.querier, receiver)?;
     let swap_amount = receiver_balance.checked_sub(prev_balance)?;
 
     if swap_amount < minium_receive {
-        return Err(StdError::generic_err(format!(
-            "assertion failed; minimum receive amount: {}, swap amount: {}",
-            minium_receive, swap_amount
-        )));
+        return Err(ContractError::AssertionMinimumReceive {
+            receive: minium_receive,
+            amount: swap_amount,
+        });
     }
 
     Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::SimulateSwapOperations {
             offer_amount,
             operations,
-        } => to_binary(&simulate_swap_operations(deps, offer_amount, operations)?),
+        } => Ok(to_binary(&simulate_swap_operations(
+            deps,
+            offer_amount,
+            operations,
+        )?)?),
     }
 }
 
-pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
     let state = read_config(deps.storage)?;
     let resp = ConfigResponse {
         terraswap_factory: deps
@@ -222,7 +227,7 @@ fn simulate_swap_operations(
     deps: Deps,
     offer_amount: Uint128,
     operations: Vec<SwapOperation>,
-) -> StdResult<SimulateSwapOperationsResponse> {
+) -> Result<SimulateSwapOperationsResponse, ContractError> {
     let config: Config = read_config(deps.storage)?;
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
     let terra_querier = TerraQuerier::new(&deps.querier);
@@ -231,7 +236,7 @@ fn simulate_swap_operations(
 
     let operations_len = operations.len();
     if operations_len == 0 {
-        return Err(StdError::generic_err("must provide operations"));
+        return Err(ContractError::MustProvideOperations {});
     }
 
     let mut operation_index = 0;
@@ -316,7 +321,7 @@ fn simulate_swap_operations(
     })
 }
 
-fn assert_operations(operations: &Vec<SwapOperation>) -> StdResult<()> {
+fn assert_operations(operations: &Vec<SwapOperation>) -> Result<(), ContractError> {
     let mut ask_asset_map: HashMap<String, bool> = HashMap::new();
     for operation in operations.into_iter() {
         let (offer_asset, ask_asset) = match operation {
@@ -342,9 +347,7 @@ fn assert_operations(operations: &Vec<SwapOperation>) -> StdResult<()> {
     }
 
     if ask_asset_map.keys().len() != 1 {
-        return Err(StdError::generic_err(
-            "invalid operations; multiple output token",
-        ));
+        return Err(StdError::generic_err("invalid operations; multiple output token").into());
     }
 
     Ok(())

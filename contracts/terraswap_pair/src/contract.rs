@@ -241,7 +241,7 @@ pub fn provide_liquidity(
     ];
 
     if deposits[0].is_zero() || deposits[1].is_zero() {
-        return Err(StdError::generic_err("event of zero transfer").into());
+        return Err(ContractError::InvalidZeroAmount {});
     }
 
     let mut i = 0;
@@ -609,7 +609,7 @@ pub fn assert_max_spread(
     offer_amount: Uint128,
     return_amount: Uint128,
     spread_amount: Uint128,
-) -> StdResult<()> {
+) -> Result<(), ContractError> {
     if let (Some(max_spread), Some(belief_price)) = (max_spread, belief_price) {
         let expected_return = offer_amount * reverse_decimal(belief_price);
         let spread_amount = expected_return
@@ -619,11 +619,11 @@ pub fn assert_max_spread(
         if return_amount < expected_return
             && Decimal::from_ratio(spread_amount, expected_return) > max_spread
         {
-            return Err(StdError::generic_err("Operation exceeds max spread limit"));
+            return Err(ContractError::MaxSpreadAssertion {});
         }
     } else if let Some(max_spread) = max_spread {
         if Decimal::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
-            return Err(StdError::generic_err("Operation exceeds max spread limit"));
+            return Err(ContractError::MaxSpreadAssertion {});
         }
     }
 
@@ -634,7 +634,7 @@ fn assert_slippage_tolerance(
     slippage_tolerance: &Option<Decimal>,
     deposits: &[Uint128; 2],
     pools: &[Asset; 2],
-) -> StdResult<()> {
+) -> Result<(), ContractError> {
     if let Some(slippage_tolerance) = *slippage_tolerance {
         let one_minus_slippage_tolerance = decimal_subtraction(Decimal::one(), slippage_tolerance)?;
 
@@ -648,9 +648,7 @@ fn assert_slippage_tolerance(
                 one_minus_slippage_tolerance,
             ) > Decimal::from_ratio(pools[1].amount, pools[0].amount)
         {
-            return Err(StdError::generic_err(
-                "Operation exceeds max splippage tolerance",
-            ));
+            return Err(ContractError::MaxSlippageAssertion {});
         }
     }
 

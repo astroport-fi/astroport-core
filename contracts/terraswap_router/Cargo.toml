@@ -31,6 +31,7 @@ terraswap = { version = "2.1.0", path = "../../packages/terraswap" }
 terra-cosmwasm = "~2.0.0"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.20" }
 
 [dev-dependencies]
 cosmwasm-schema = "0.14.0"

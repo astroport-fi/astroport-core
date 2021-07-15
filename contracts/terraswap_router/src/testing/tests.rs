@@ -1,9 +1,8 @@
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{
-    from_binary, to_binary, Addr, Coin, CosmosMsg, Decimal, StdError, Uint128, WasmMsg,
-};
+use cosmwasm_std::{from_binary, to_binary, Addr, Coin, CosmosMsg, Decimal, Uint128, WasmMsg};
 
 use crate::contract::{execute, instantiate, query};
+use crate::error::ContractError;
 use crate::testing::mock_querier::mock_dependencies;
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -57,11 +56,8 @@ fn execute_swap_operations() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let res = execute(deps.as_mut(), env, info, msg);
-    match res {
-        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "must provide operations"),
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
+    assert_eq!(res, ContractError::MustProvideOperations {});
 
     let msg = ExecuteMsg::ExecuteSwapOperations {
         operations: vec![
@@ -326,11 +322,8 @@ fn execute_swap_operation() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
 
-    let res = execute(deps.as_mut(), env, info, msg.clone());
-    match res {
-        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "unauthorized"),
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    let res = execute(deps.as_mut(), env, info, msg.clone()).unwrap_err();
+    assert_eq!(res, ContractError::Unauthorized {});
 
     let env = mock_env();
     let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
@@ -536,14 +529,14 @@ fn assert_minimum_receive_native_token() {
         minimum_receive: Uint128::from(1000001u128),
         receiver: String::from("addr0000"),
     };
-    let res = execute(deps.as_mut(), env.clone(), info, msg);
-    match res {
-        Err(StdError::GenericErr { msg, .. }) => assert_eq!(
-            msg,
-            "assertion failed; minimum receive amount: 1000001, swap amount: 1000000"
-        ),
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
+    assert_eq!(
+        res,
+        ContractError::AssertionMinimumReceive {
+            receive: Uint128::new(1000001),
+            amount: Uint128::new(1000000),
+        }
+    );
 }
 
 #[test]
@@ -577,12 +570,12 @@ fn assert_minimum_receive_token() {
         minimum_receive: Uint128::from(1000001u128),
         receiver: String::from("addr0000"),
     };
-    let res = execute(deps.as_mut(), env.clone(), info, msg);
-    match res {
-        Err(StdError::GenericErr { msg, .. }) => assert_eq!(
-            msg,
-            "assertion failed; minimum receive amount: 1000001, swap amount: 1000000"
-        ),
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
+    assert_eq!(
+        res,
+        ContractError::AssertionMinimumReceive {
+            receive: Uint128::new(1000001),
+            amount: Uint128::new(1000000),
+        }
+    );
 }

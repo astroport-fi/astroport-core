@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Deps, Order, StdError, StdResult, Storage};
+use cosmwasm_std::{CanonicalAddr, Deps, Order, StdResult, Storage};
 
 use cosmwasm_storage::{Bucket, ReadonlyBucket, ReadonlySingleton, Singleton};
 use terraswap::asset::{AssetInfoRaw, PairInfo, PairInfoRaw};
@@ -42,7 +42,7 @@ pub fn read_pair(storage: &dyn Storage, asset_infos: &[AssetInfoRaw; 2]) -> StdR
     let pair_bucket: ReadonlyBucket<PairInfoRaw> = ReadonlyBucket::new(storage, PREFIX_PAIR_INFO);
     match pair_bucket.load(&[asset_infos[0].as_bytes(), asset_infos[1].as_bytes()].concat()) {
         Ok(v) => Ok(v),
-        Err(_e) => Err(StdError::generic_err("no pair data stored")),
+        Err(e) => Err(e),
     }
 }
 

@@ -3,6 +3,7 @@ use cosmwasm_std::{
     MessageInfo, Response, StdError, StdResult, WasmMsg,
 };
 
+use crate::error::ContractError;
 use crate::querier::query_liquidity_token;
 use crate::state::{read_config, read_pair, read_pairs, store_config, store_pair, Config};
 
@@ -46,7 +47,12 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig {
             owner,
@@ -58,7 +64,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_infos,
             init_hook,
         } => execute_create_pair(deps, env, pair_code_id, asset_infos, init_hook),
-        ExecuteMsg::Register { asset_infos } => try_register(deps, env, info, asset_infos),
+        ExecuteMsg::Register { asset_infos } => register(deps, env, info, asset_infos),
     }
 }
 
@@ -70,12 +76,12 @@ pub fn execute_update_config(
     owner: Option<String>,
     token_code_id: Option<u64>,
     pair_code_ids: Option<Vec<u64>>,
-) -> StdResult<Response> {
+) -> Result<Response, ContractError> {
     let mut config: Config = read_config(deps.storage)?;
 
     // permission check
     if deps.api.addr_canonicalize(&info.sender.as_str())? != config.owner {
-        return Err(StdError::generic_err("unauthorized"));
+        return Err(ContractError::Unauthorized {});
     }
 
     if let Some(owner) = owner {
@@ -108,19 +114,19 @@ pub fn execute_create_pair(
     pair_code_id: u64,
     asset_infos: [AssetInfo; 2],
     init_hook: Option<InitHook>,
-) -> StdResult<Response> {
+) -> Result<Response, ContractError> {
     let config: Config = read_config(deps.storage)?;
     let raw_infos = [
         asset_infos[0].to_raw(deps.api)?,
         asset_infos[1].to_raw(deps.api)?,
     ];
     if read_pair(deps.storage, &raw_infos).is_ok() {
-        return Err(StdError::generic_err("Pair already exists"));
+        return Err(StdError::generic_err("Pair already exists").into());
     }
 
     // Check if pair ID is whitelisted
     if !config.pair_code_ids.contains(&pair_code_id) {
-        return Err(StdError::generic_err("Pair code id is not allowed"));
+        return Err(ContractError::PairCodeNotAllowed {});
     }
 
     store_pair(
@@ -169,19 +175,19 @@ pub fn execute_create_pair(
 }
 
 /// create pair execute this message
-pub fn try_register(
+pub fn register(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     asset_infos: [AssetInfo; 2],
-) -> StdResult<Response> {
+) -> Result<Response, ContractError> {
     let raw_infos = [
         asset_infos[0].to_raw(deps.api)?,
         asset_infos[1].to_raw(deps.api)?,
     ];
     let pair_info: PairInfoRaw = read_pair(deps.storage, &raw_infos)?;
     if pair_info.contract_addr != CanonicalAddr::from(vec![]) {
-        return Err(StdError::generic_err("Pair was already registered"));
+        return Err(ContractError::PairWasRegistered {});
     }
 
     let pair_contract = info.sender;

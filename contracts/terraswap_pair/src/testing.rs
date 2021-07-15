@@ -358,12 +358,7 @@ fn provide_liquidity() {
         }],
     );
     let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
-    match res {
-        ContractError::Std(StdError::GenericErr { msg, .. }) => {
-            assert_eq!(msg, "Operation exceeds max splippage tolerance")
-        }
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    assert_eq!(res, ContractError::MaxSlippageAssertion {});
 
     // initialize token balance to 1:1
     deps.querier.with_balance(&[(
@@ -402,12 +397,7 @@ fn provide_liquidity() {
         }],
     );
     let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
-    match res {
-        ContractError::Std(StdError::GenericErr { msg, .. }) => {
-            assert_eq!(msg, "Operation exceeds max splippage tolerance")
-        }
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    assert_eq!(res, ContractError::MaxSlippageAssertion {});
 
     // initialize token balance to 1:1
     deps.querier.with_balance(&[(
@@ -833,10 +823,7 @@ fn try_token_to_native() {
     let env = mock_env_with_block_time(1000);
     let info = mock_info("addr0000", &[]);
     let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
-    match res {
-        ContractError::Unauthorized { .. } => (),
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    assert_eq!(res, ContractError::Unauthorized {});
 
     // normal sell
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -970,10 +957,7 @@ fn try_token_to_native() {
     let env = mock_env_with_block_time(1000);
     let info = mock_info("liquidtity0000", &[]);
     let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
-    match res {
-        ContractError::Unauthorized { .. } => (),
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    assert_eq!(res, ContractError::Unauthorized {});
 }
 
 #[test]

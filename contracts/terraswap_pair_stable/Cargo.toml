@@ -1,6 +1,6 @@
 [package]
 name = "terraswap-pair-stable"
-version = "1.2.0"
+version = "0.0.0"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"
 description = "A Terraswap pair contract"
@@ -37,4 +37,5 @@ uint = "0.8"
 cosmwasm-vm = { version = "0.14.0", default-features = false }
 cosmwasm-schema = "0.14.0"
 terra-cosmwasm = { version = "~2.0.0" }
+proptest = "1.0.0"
 sim =  { path = "./sim" }

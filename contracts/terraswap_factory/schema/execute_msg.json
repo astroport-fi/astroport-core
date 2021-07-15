@@ -18,13 +18,16 @@
                 "null"
               ]
             },
-            "pair_code_id": {
+            "pair_code_ids": {
               "type": [
-                "integer",
+                "array",
                 "null"
               ],
-              "format": "uint64",
-              "minimum": 0.0
+              "items": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              }
             },
             "token_code_id": {
               "type": [
@@ -49,7 +52,8 @@
         "create_pair": {
           "type": "object",
           "required": [
-            "asset_infos"
+            "asset_infos",
+            "pair_code_id"
           ],
           "properties": {
             "asset_infos": {
@@ -71,6 +75,12 @@
                   "type": "null"
                 }
               ]
+            },
+            "pair_code_id": {
+              "description": "ID of pair contract",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
             }
           }
         }

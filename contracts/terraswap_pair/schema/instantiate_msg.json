@@ -17,7 +17,7 @@
       "minItems": 2
     },
     "init_hook": {
-      "description": "Hook for post initalization",
+      "description": "Hook for post initialization",
       "anyOf": [
         {
           "$ref": "#/definitions/InitHook"

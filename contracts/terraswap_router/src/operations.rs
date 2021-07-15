@@ -1,8 +1,8 @@
 use cosmwasm_std::{
-    to_binary, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
-    WasmMsg,
+    to_binary, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdResult, WasmMsg,
 };
 
+use crate::error::ContractError;
 use crate::querier::compute_tax;
 use crate::state::{read_config, Config};
 
@@ -21,9 +21,9 @@ pub fn execute_swap_operation(
     info: MessageInfo,
     operation: SwapOperation,
     to: Option<String>,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
     if env.contract.address != info.sender {
-        return Err(StdError::generic_err("unauthorized"));
+        return Err(ContractError::Unauthorized {});
     }
 
     let messages: Vec<CosmosMsg<TerraMsgWrapper>> = match operation {
