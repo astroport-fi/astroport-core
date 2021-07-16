@@ -16,7 +16,7 @@ use terraswap::token::InstantiateMsg as TokenInstantiateMsg;
 const CONTRACT_NAME: &str = "astroport-staking";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const TOKEN_NAME: &str = "astroport-staking";
+const TOKEN_NAME: &str = "astroport-staking-token";
 const TOKEN_SYMBOL: &str = "xASTRO";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -60,7 +60,7 @@ pub fn instantiate(
             }),
         })?,
         send: vec![],
-        label: String::from("Astroport Staking"),
+        label: String::from("Astroport Staking Token"),
     }));
 
     Ok(resp)
