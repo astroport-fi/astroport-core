@@ -5,7 +5,7 @@ use crate::hook::InitHook;
 use cosmwasm_std::{StdError, StdResult, Uint128};
 use cw20::{Cw20Coin, MinterResponse};
 
-/// TokenContract InitMsg
+/// TokenContract InstantiateMsg
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InstantiateMsg {
     pub name: String,

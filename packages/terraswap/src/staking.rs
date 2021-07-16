@@ -12,10 +12,6 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     PostInitialize {},
-    Enter {
-        amount: Uint128,
-    },
-    Leave {
-        share: Uint128,
-    },
+    Enter { amount: Uint128 },
+    Leave { share: Uint128 },
 }
