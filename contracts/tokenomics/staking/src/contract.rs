@@ -17,7 +17,7 @@ const CONTRACT_NAME: &str = "astroport-bar";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const TOKEN_NAME: &str = "astroport-bar-token";
-const TOKEN_SYMBOL: &str = "xASTR";
+const TOKEN_SYMBOL: &str = "xASTRO";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
