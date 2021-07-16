@@ -4,27 +4,25 @@
   "type": "object",
   "required": [
     "owner",
-    "pair_code_id",
+    "pair_code_ids",
     "token_code_id"
   ],
   "properties": {
     "owner": {
-      "$ref": "#/definitions/HumanAddr"
+      "type": "string"
     },
-    "pair_code_id": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
+    "pair_code_ids": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0.0
+      }
     },
     "token_code_id": {
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
-    }
-  },
-  "definitions": {
-    "HumanAddr": {
-      "type": "string"
     }
   }
 }

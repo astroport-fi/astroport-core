@@ -13,7 +13,7 @@ pub fn reverse_decimal(decimal: Decimal) -> Decimal {
 
 pub fn decimal_subtraction(a: Decimal, b: Decimal) -> StdResult<Decimal> {
     Ok(Decimal::from_ratio(
-        (a * DECIMAL_FRACTIONAL - b * DECIMAL_FRACTIONAL)?,
+        (a * DECIMAL_FRACTIONAL).checked_sub(b * DECIMAL_FRACTIONAL)?,
         DECIMAL_FRACTIONAL,
     ))
 }

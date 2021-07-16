@@ -1,157 +1,164 @@
-use crate::contract::{handle, init, query};
+use crate::contract::{execute, instantiate, query};
 use terraswap::vesting::{
-    ConfigResponse, HandleMsg, InitMsg, QueryMsg, VestingAccount, VestingAccountResponse,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount, VestingAccountResponse,
     VestingAccountsResponse, VestingInfo, OrderBy
 };
 
-use cosmwasm_std::testing::{mock_dependencies, mock_env};
-use cosmwasm_std::{from_binary, log, to_binary, CosmosMsg, HumanAddr, StdError, Uint128, WasmMsg};
-use cw20::Cw20HandleMsg;
+use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Addr, StdError, Uint128, WasmMsg, Timestamp, attr};
+use cw20::Cw20ExecuteMsg;
+use cosmwasm_std::testing::{mock_dependencies, mock_info, mock_env};
 
 #[test]
 fn proper_initialization() {
-    let mut deps = mock_dependencies(20, &[]);
+    let mut deps = mock_dependencies(&[]);
 
-    let msg = InitMsg {
-        owner: HumanAddr::from("owner"),
-        token_addr: HumanAddr::from("astro_token"),
-        genesis_time: 12345u64,
+    let msg = InstantiateMsg {
+        owner: Addr::unchecked("owner"),
+        token_addr: Addr::unchecked("astro_token"),
+        genesis_time: Timestamp::from_seconds(12345),
     };
 
-    let env = mock_env("addr0000", &vec![]);
-    let _res = init(&mut deps, env, msg).unwrap();
+    let env = mock_env();
+    let info = mock_info("addr0000", &vec![]);
+    let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(
-        from_binary::<ConfigResponse>(&query(&deps, QueryMsg::Config {}).unwrap()).unwrap(),
+        from_binary::<ConfigResponse>(&query(deps.as_ref(), env, QueryMsg::Config {}).unwrap()).unwrap(),
         ConfigResponse {
-            owner: HumanAddr::from("owner"),
-            token_addr: HumanAddr::from("astro_token"),
-            genesis_time: 12345u64,
+            owner: Addr::unchecked("owner"),
+            token_addr: Addr::unchecked("astro_token"),
+            genesis_time: Timestamp::from_seconds(12345),
         }
     );
 }
 
 #[test]
 fn update_config() {
-    let mut deps = mock_dependencies(20, &[]);
+    let mut deps = mock_dependencies(&[]);
 
-    let msg = InitMsg {
-        owner: HumanAddr::from("owner"),
-        token_addr: HumanAddr::from("astro_token"),
-        genesis_time: 12345u64,
+    let msg = InstantiateMsg {
+        owner: Addr::unchecked("owner"),
+        token_addr: Addr::unchecked("astro_token"),
+        genesis_time: Timestamp::from_seconds(12345),
     };
 
-    let env = mock_env("addr0000", &vec![]);
-    let _res = init(&mut deps, env, msg).unwrap();
+    let env = mock_env();
+    let info = mock_info("addr0000", &vec![]);
+    let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    let msg = HandleMsg::UpdateConfig {
-        owner: Some(HumanAddr::from("owner2")),
+    let msg = ExecuteMsg::UpdateConfig {
+        owner: Some(Addr::unchecked("owner2")),
         token_addr: None,
         genesis_time: None,
     };
-    let env = mock_env("owner", &vec![]);
-    let _res = handle(&mut deps, env, msg).unwrap();
+
+    let info = mock_info("owner", &vec![]);
+    let _res = execute(deps.as_mut(), env.clone, info, msg).unwrap();
 
     assert_eq!(
-        from_binary::<ConfigResponse>(&query(&deps, QueryMsg::Config {}).unwrap()).unwrap(),
+        from_binary::<ConfigResponse>(&query(deps.as_ref(), env, QueryMsg::Config {}).unwrap()).unwrap(),
         ConfigResponse {
-            owner: HumanAddr::from("owner2"),
-            token_addr: HumanAddr::from("astro_token"),
-            genesis_time: 12345u64,
+            owner: Addr::unchecked("owner2"),
+            token_addr: Addr::unchecked("astro_token"),
+            genesis_time: Timestamp::from_seconds(12345),
         }
     );
 
-    let msg = HandleMsg::UpdateConfig {
-        owner: Some(HumanAddr::from("owner")),
+    let msg = ExecuteMsg::UpdateConfig {
+        owner: Some(Addr::unchecked("owner")),
         token_addr: None,
         genesis_time: None,
     };
-    let env = mock_env("owner", &vec![]);
-    let res = handle(&mut deps, env, msg);
+
+    let env = mock_env();
+    let info = mock_info("owner", &vec![]);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     match res {
         Err(StdError::Unauthorized { .. }) => {}
         _ => panic!("DO NOT ENTER HERE"),
     }
 
-    let msg = HandleMsg::UpdateConfig {
+    let msg = ExecuteMsg::UpdateConfig {
         owner: None,
-        token_addr: Some(HumanAddr::from("token_addr2")),
-        genesis_time: Some(1u64),
+        token_addr: Some(Addr::unchecked("token_addr2")),
+        genesis_time: Some(Timestamp::from_seconds(1u64)),
     };
-    let env = mock_env("owner2", &vec![]);
-    let _res = handle(&mut deps, env, msg).unwrap();
+    let info = mock_info("owner2", &vec![]);
+    let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(
-        from_binary::<ConfigResponse>(&query(&deps, QueryMsg::Config {}).unwrap()).unwrap(),
+        from_binary::<ConfigResponse>(&query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap()).unwrap(),
         ConfigResponse {
-            owner: HumanAddr::from("owner2"),
-            token_addr: HumanAddr::from("token_addr2"),
-            genesis_time: 1u64,
+            owner: Addr::unchecked("owner2"),
+            token_addr: Addr::unchecked("token_addr2"),
+            genesis_time: Timestamp::from_seconds(1),
         }
     );
 }
 
 #[test]
 fn register_vesting_accounts() {
-    let mut deps = mock_dependencies(20, &[]);
+    let mut deps = mock_dependencies(&[]);
 
-    let msg = InitMsg {
-        owner: HumanAddr::from("owner"),
-        token_addr: HumanAddr::from("astro_token"),
-        genesis_time: 100u64,
+    let msg = InstantiateMsg {
+        owner: Addr::unchecked("owner"),
+        token_addr: Addr::unchecked("astro_token"),
+        genesis_time: Timestamp::from_seconds(100),
     };
 
-    let env = mock_env("addr0000", &vec![]);
-    let _res = init(&mut deps, env, msg).unwrap();
+    let env = mock_env();
+    let info = mock_info("addr0000", &vec![]);
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    let msg = HandleMsg::RegisterVestingAccounts {
+    let msg = ExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![
             VestingAccount {
-                address: HumanAddr::from("addr0000"),
+                address: Addr::unchecked("addr0000"),
                 schedules: vec![
-                    (100u64, 101u64, Uint128::from(100u128)),
-                    (100u64, 110u64, Uint128::from(100u128)),
-                    (100u64, 200u64, Uint128::from(100u128)),
+                    (Timestamp::from_seconds(100), Timestamp::from_seconds(101), Uint128::from(100u128)),
+                    (Timestamp::from_seconds(100), Timestamp::from_seconds(110), Uint128::from(100u128)),
+                    (Timestamp::from_seconds(100), Timestamp::from_seconds(200), Uint128::from(100u128)),
                 ],
             },
             VestingAccount {
-                address: HumanAddr::from("addr0001"),
-                schedules: vec![(100u64, 110u64, Uint128::from(100u128))],
+                address: Addr::unchecked("addr0001"),
+                schedules: vec![(Timestamp::from_seconds(100), Timestamp::from_seconds(110), Uint128::from(100u128))],
             },
             VestingAccount {
-                address: HumanAddr::from("addr0002"),
-                schedules: vec![(100u64, 200u64, Uint128::from(100u128))],
+                address: Addr::unchecked("addr0002"),
+                schedules: vec![(Timestamp::from_seconds(100), Timestamp::from_seconds(200), Uint128::from(100u128))],
             },
         ],
     };
-    let env = mock_env("addr0000", &[]);
-    let res = handle(&mut deps, env, msg.clone());
+    let info = mock_info("addr0000", &[]);
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     match res {
         Err(StdError::Unauthorized { .. }) => {}
         _ => panic!("DO NOT ENTER HERE"),
     }
 
-    let env = mock_env("owner", &[]);
-    let _res = handle(&mut deps, env, msg).unwrap();
+    let info = mock_info("owner", &[]);
+    let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(
         from_binary::<VestingAccountResponse>(
             &query(
-                &deps,
+                deps.as_ref(),
+                env.clone(),
                 QueryMsg::VestingAccount {
-                    address: HumanAddr::from("addr0000"),
+                    address: Addr::unchecked("addr0000"),
                 }
             )
             .unwrap()
         )
         .unwrap(),
         VestingAccountResponse {
-            address: HumanAddr::from("addr0000"),
+            address: Addr::unchecked("addr0000"),
             info: VestingInfo {
-                last_claim_time: 100u64,
+                last_claim_time: Timestamp::from_seconds(100),
                 schedules: vec![
-                    (100u64, 101u64, Uint128::from(100u128)),
-                    (100u64, 110u64, Uint128::from(100u128)),
-                    (100u64, 200u64, Uint128::from(100u128)),
+                    (Timestamp::from_seconds(100), Timestamp::from_seconds(101), Uint128::from(100u128)),
+                    (Timestamp::from_seconds(100), Timestamp::from_seconds(110), Uint128::from(100u128)),
+                    (Timestamp::from_seconds(100), Timestamp::from_seconds(200), Uint128::from(100u128)),
                 ],
             }
         }
@@ -160,7 +167,8 @@ fn register_vesting_accounts() {
     assert_eq!(
         from_binary::<VestingAccountsResponse>(
             &query(
-                &deps,
+                deps.as_ref(),
+                env.clone(),
                 QueryMsg::VestingAccounts {
                     limit: None,
                     start_after: None,
@@ -173,28 +181,28 @@ fn register_vesting_accounts() {
         VestingAccountsResponse {
             vesting_accounts: vec![
                 VestingAccountResponse {
-                    address: HumanAddr::from("addr0000"),
+                    address: Addr::unchecked("addr0000"),
                     info: VestingInfo {
-                        last_claim_time: 100u64,
+                        last_claim_time: Timestamp::from_seconds(100),
                         schedules: vec![
-                            (100u64, 101u64, Uint128::from(100u128)),
-                            (100u64, 110u64, Uint128::from(100u128)),
-                            (100u64, 200u64, Uint128::from(100u128)),
+                            (Timestamp::from_seconds(100), Timestamp::from_seconds(101), Uint128::from(100u128)),
+                            (Timestamp::from_seconds(100), Timestamp::from_seconds(110), Uint128::from(100u128)),
+                            (Timestamp::from_seconds(100), Timestamp::from_seconds(200), Uint128::from(100u128)),
                         ],
                     }
                 },
                 VestingAccountResponse {
-                    address: HumanAddr::from("addr0001"),
+                    address: Addr::unchecked("addr0001"),
                     info: VestingInfo {
-                        last_claim_time: 100u64,
-                        schedules: vec![(100u64, 110u64, Uint128::from(100u128))],
+                        last_claim_time: Timestamp::from_seconds(100),
+                        schedules: vec![(Timestamp::from_seconds(100), Timestamp::from_seconds(110), Uint128::from(100u128))],
                     }
                 },
                 VestingAccountResponse {
-                    address: HumanAddr::from("addr0002"),
+                    address: Addr::unchecked("addr0002"),
                     info: VestingInfo {
-                        last_claim_time: 100u64,
-                        schedules: vec![(100u64, 200u64, Uint128::from(100u128))],
+                        last_claim_time: Timestamp::from_seconds(100),
+                        schedules: vec![(Timestamp::from_seconds(100), Timestamp::from_seconds(200), Uint128::from(100u128))],
                     }
                 }
             ]
@@ -204,63 +212,64 @@ fn register_vesting_accounts() {
 
 #[test]
 fn claim() {
-    let mut deps = mock_dependencies(20, &[]);
+    let mut deps = mock_dependencies(&[]);
 
-    let msg = InitMsg {
-        owner: HumanAddr::from("owner"),
-        token_addr: HumanAddr::from("astro_token"),
-        genesis_time: 100u64,
+    let msg = InstantiateMsg {
+        owner: Addr::unchecked("owner"),
+        token_addr: Addr::unchecked("astro_token"),
+        genesis_time: Timestamp::from_seconds(100),
     };
 
-    let env = mock_env("addr0000", &vec![]);
-    let _res = init(&mut deps, env, msg).unwrap();
+    let mut env = mock_env();
+    let info = mock_info("addr0000", &vec![]);
+    let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    let msg = HandleMsg::RegisterVestingAccounts {
+    let msg = ExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![VestingAccount {
-            address: HumanAddr::from("addr0000"),
+            address: Addr::unchecked("addr0000"),
             schedules: vec![
-                (100u64, 101u64, Uint128::from(100u128)),
-                (100u64, 110u64, Uint128::from(100u128)),
-                (100u64, 200u64, Uint128::from(100u128)),
+                (Timestamp::from_seconds(100), Timestamp::from_seconds(101), Uint128::from(100u128)),
+                (Timestamp::from_seconds(100), Timestamp::from_seconds(110), Uint128::from(100u128)),
+                (Timestamp::from_seconds(100), Timestamp::from_seconds(200), Uint128::from(100u128)),
             ],
         }],
     };
-    let env = mock_env("owner", &[]);
-    let _res = handle(&mut deps, env, msg.clone()).unwrap();
+    let info = mock_info("owner", &[]);
+    let _res = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap();
 
-    let mut env = mock_env("addr0000", &[]);
-    env.block.time = 100;
+    let info = mock_info("addr0000", &[]);
+    env.block.time = Timestamp::from_seconds(100);
 
-    let msg = HandleMsg::Claim {};
-    let res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
+    let msg = ExecuteMsg::Claim {};
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap();
     assert_eq!(
-        res.log,
+        res.attributes,
         vec![
-            log("action", "claim"),
-            log("address", "addr0000"),
-            log("claim_amount", "0"),
-            log("last_claim_time", "100"),
+            attr("action", "claim"),
+            attr("address", "addr0000"),
+            attr("claim_amount", "0"),
+            attr("last_claim_time", "100"),
         ]
     );
     assert_eq!(res.messages, vec![],);
 
-    env.block.time = 101;
-    let res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
+    env.block.time = Timestamp::from_seconds(101);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_eq!(
-        res.log,
+        res.attributes,
         vec![
-            log("action", "claim"),
-            log("address", "addr0000"),
-            log("claim_amount", "111"),
-            log("last_claim_time", "101"),
+            attr("action", "claim"),
+            attr("address", "addr0000"),
+            attr("claim_amount", "111"),
+            attr("last_claim_time", "101"),
         ]
     );
     assert_eq!(
         res.messages,
         vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: HumanAddr::from("astro_token"),
-            msg: to_binary(&Cw20HandleMsg::Transfer {
-                recipient: HumanAddr::from("addr0000"),
+            contract_addr: String::from("astro_token"),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: String::from("addr0000"),
                 amount: Uint128::from(111u128),
             })
             .unwrap(),
@@ -268,23 +277,23 @@ fn claim() {
         })],
     );
 
-    env.block.time = 102;
-    let res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
+    env.block.time = Timestamp::from_seconds(102);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_eq!(
-        res.log,
+        res.attributes,
         vec![
-            log("action", "claim"),
-            log("address", "addr0000"),
-            log("claim_amount", "11"),
-            log("last_claim_time", "102"),
+            attr("action", "claim"),
+            attr("address", "addr0000"),
+            attr("claim_amount", "11"),
+            attr("last_claim_time", "102"),
         ]
     );
     assert_eq!(
         res.messages,
         vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: HumanAddr::from("astro_token"),
-            msg: to_binary(&Cw20HandleMsg::Transfer {
-                recipient: HumanAddr::from("addr0000"),
+            contract_addr: String::from("astro_token"),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: String::from("addr0000"),
                 amount: Uint128::from(11u128),
             })
             .unwrap(),
