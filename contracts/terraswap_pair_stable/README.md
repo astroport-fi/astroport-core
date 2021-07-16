@@ -1,12 +1,15 @@
-# TerraSwap Pair
+# Astroport Stable Pair
 
 ## Handlers
 
 ### Initialize
 
-This is mainly used from terraswap factory contract to create new terraswap pair. It initialize all swap created parameters which can be updated later with owner key.
+The factory may instantiate this contract to create a new stable-invariant pair (adapted from the [Curve Finance whitepaper](https://curve.fi/files/stableswap-paper.pdf)). It initialize all swap created parameters which can be updated later with owner key.
 
 It creates liquidity token contract as init response, and execute init hook to register created liquidity token contract to self.
+
+TODO: Update documentation for Astroport. Terraswap v1 documentation follows.
+---
 
 ```rust
 {

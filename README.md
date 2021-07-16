@@ -1,14 +1,16 @@
-# TerraSwap
+# Astroport
 
 Uniswap-inspired automated market-maker (AMM) protocol powered by Smart Contracts on the [Terra](https://terra.money) blockchain.
 
 ## Contracts
 
-| Name                                               | Description                                  |
-| -------------------------------------------------- | -------------------------------------------- |
-| [`terraswap_factory`](contracts/terraswap_factory) |                                              |
-| [`terraswap_pair`](contracts/terraswap_pair)       |                                              |
-| [`terraswap_token`](contracts/terraswap_token)     | CW20 (ERC20 equivalent) token implementation |
+| Name                                                       | Description                                  |
+| ---------------------------------------------------------- | -------------------------------------------- |
+| [`terraswap_factory`](contracts/terraswap_factory)         |                                              |
+| [`terraswap_pair`](contracts/terraswap_pair)               | Pair with x*y=k curve                        |
+| [`terraswap_pair_stable`](contracts/terraswap_pair_stable) | Pair with stableswap invariant curve         |
+| [`terraswap_token`](contracts/terraswap_token)             | CW20 (ERC20 equivalent) token implementation |
+| [`terraswap_router`](contracts/terraswap_router)           | Multi-hop trade router                       |
 
 ## Running this contract
 
