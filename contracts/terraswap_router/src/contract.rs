@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use crate::error::ContractError;
 use crate::operations::execute_swap_operation;
 use crate::querier::compute_tax;
-use crate::state::{read_config, store_config, Config};
+use crate::state::{Config, CONFIG};
 
 use cw20::Cw20ReceiveMsg;
 use std::collections::HashMap;
@@ -26,7 +26,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
-    store_config(
+    CONFIG.save(
         deps.storage,
         &Config {
             terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
@@ -207,7 +207,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 }
 
 pub fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
-    let state = read_config(deps.storage)?;
+    let state = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
         terraswap_factory: deps
             .api
@@ -228,7 +228,7 @@ fn simulate_swap_operations(
     offer_amount: Uint128,
     operations: Vec<SwapOperation>,
 ) -> Result<SimulateSwapOperationsResponse, ContractError> {
-    let config: Config = read_config(deps.storage)?;
+    let config: Config = CONFIG.load(deps.storage)?;
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
     let terra_querier = TerraQuerier::new(&deps.querier);
 

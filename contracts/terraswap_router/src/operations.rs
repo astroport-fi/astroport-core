@@ -4,7 +4,7 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::querier::compute_tax;
-use crate::state::{read_config, Config};
+use crate::state::{Config, CONFIG};
 
 use cw20::Cw20ExecuteMsg;
 use terra_cosmwasm::{create_swap_msg, create_swap_send_msg, TerraMsgWrapper};
@@ -60,7 +60,7 @@ pub fn execute_swap_operation(
             offer_asset_info,
             ask_asset_info,
         } => {
-            let config: Config = read_config(deps.storage)?;
+            let config: Config = CONFIG.load(deps.storage)?;
             let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
             let pair_info: PairInfo = query_pair_info(
                 &deps.querier,
