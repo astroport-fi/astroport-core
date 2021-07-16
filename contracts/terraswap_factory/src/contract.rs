@@ -5,7 +5,7 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::querier::query_liquidity_token;
-use crate::state::{read_config, read_pair, read_pairs, store_config, store_pair, Config};
+use crate::state::{pair_key, read_pairs, Config, CONFIG, PAIRS};
 
 use terraswap::asset::{AssetInfo, PairInfo, PairInfoRaw};
 use terraswap::factory::{
@@ -22,12 +22,12 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let config = Config {
-        owner: deps.api.addr_canonicalize(&info.sender.as_str())?,
+        owner: deps.api.addr_canonicalize(info.sender.as_str())?,
         token_code_id: msg.token_code_id,
         pair_code_ids: msg.pair_code_ids,
     };
 
-    store_config(deps.storage, &config)?;
+    CONFIG.save(deps.storage, &config)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
     if let Some(hook) = msg.init_hook {
@@ -77,14 +77,17 @@ pub fn execute_update_config(
     token_code_id: Option<u64>,
     pair_code_ids: Option<Vec<u64>>,
 ) -> Result<Response, ContractError> {
-    let mut config: Config = read_config(deps.storage)?;
+    let mut config: Config = CONFIG.load(deps.storage)?;
 
     // permission check
-    if deps.api.addr_canonicalize(&info.sender.as_str())? != config.owner {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
     if let Some(owner) = owner {
+        // validate address format
+        let _ = deps.api.addr_validate(&owner)?;
+
         config.owner = deps.api.addr_canonicalize(&owner)?;
     }
 
@@ -96,7 +99,7 @@ pub fn execute_update_config(
         config.pair_code_ids = pair_code_ids;
     }
 
-    store_config(deps.storage, &config)?;
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response {
         submessages: vec![],
@@ -115,12 +118,17 @@ pub fn execute_create_pair(
     asset_infos: [AssetInfo; 2],
     init_hook: Option<InitHook>,
 ) -> Result<Response, ContractError> {
-    let config: Config = read_config(deps.storage)?;
+    let config: Config = CONFIG.load(deps.storage)?;
     let raw_infos = [
         asset_infos[0].to_raw(deps.api)?,
         asset_infos[1].to_raw(deps.api)?,
     ];
-    if read_pair(deps.storage, &raw_infos).is_ok() {
+
+    if PAIRS
+        .may_load(deps.storage, &pair_key(&raw_infos))
+        .unwrap_or(None)
+        .is_some()
+    {
         return Err(StdError::generic_err("Pair already exists").into());
     }
 
@@ -129,8 +137,9 @@ pub fn execute_create_pair(
         return Err(ContractError::PairCodeNotAllowed {});
     }
 
-    store_pair(
+    PAIRS.save(
         deps.storage,
+        &pair_key(&raw_infos),
         &PairInfoRaw {
             liquidity_token: CanonicalAddr::from(vec![]),
             contract_addr: CanonicalAddr::from(vec![]),
@@ -185,18 +194,19 @@ pub fn register(
         asset_infos[0].to_raw(deps.api)?,
         asset_infos[1].to_raw(deps.api)?,
     ];
-    let pair_info: PairInfoRaw = read_pair(deps.storage, &raw_infos)?;
+    let pair_info: PairInfoRaw = PAIRS.load(deps.storage, &pair_key(&raw_infos))?;
     if pair_info.contract_addr != CanonicalAddr::from(vec![]) {
         return Err(ContractError::PairWasRegistered {});
     }
 
     let pair_contract = info.sender;
-    let liquidity_token = query_liquidity_token(deps.as_ref(), &pair_contract.to_string())?;
-    store_pair(
+    let liquidity_token = query_liquidity_token(deps.as_ref(), pair_contract.clone())?;
+    PAIRS.save(
         deps.storage,
+        &pair_key(&raw_infos),
         &PairInfoRaw {
             contract_addr: deps.api.addr_canonicalize(&pair_contract.to_string())?,
-            liquidity_token: deps.api.addr_canonicalize(&liquidity_token)?,
+            liquidity_token: deps.api.addr_canonicalize(liquidity_token.as_str())?,
             ..pair_info
         },
     )?;
@@ -224,7 +234,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
-    let state: Config = read_config(deps.storage)?;
+    let state: Config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
         owner: deps.api.addr_humanize(&state.owner)?.to_string(),
         token_code_id: state.token_code_id,
@@ -239,7 +249,7 @@ pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo
         asset_infos[0].to_raw(deps.api)?,
         asset_infos[1].to_raw(deps.api)?,
     ];
-    let pair_info: PairInfoRaw = read_pair(deps.storage, &raw_infos)?;
+    let pair_info: PairInfoRaw = PAIRS.load(deps.storage, &pair_key(&raw_infos))?;
     pair_info.to_normal(deps.api)
 }
 
