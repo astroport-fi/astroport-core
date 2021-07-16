@@ -1,22 +1,22 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{HumanAddr, Uint128, Order};
+use cosmwasm_std::{Addr, Uint128, Order, Timestamp};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
-    pub owner: HumanAddr,
-    pub token_addr: HumanAddr,
-    pub genesis_time: u64,
+pub struct InstantiateMsg {
+    pub owner: Addr,
+    pub token_addr: Addr,
+    pub genesis_time: Timestamp,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     UpdateConfig {
-        owner: Option<HumanAddr>,
-        token_addr: Option<HumanAddr>,
-        genesis_time: Option<u64>,
+        owner: Option<Addr>,
+        token_addr: Option<Addr>,
+        genesis_time: Option<Timestamp>,
     },
     RegisterVestingAccounts {
         vesting_accounts: Vec<VestingAccount>,
@@ -27,14 +27,14 @@ pub enum HandleMsg {
 /// CONTRACT: end_time > start_time
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
-    pub address: HumanAddr,
-    pub schedules: Vec<(u64, u64, Uint128)>,
+    pub address: Addr,
+    pub schedules: Vec<(Timestamp, Timestamp, Uint128)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingInfo {
-    pub schedules: Vec<(u64, u64, Uint128)>,
-    pub last_claim_time: u64,
+    pub schedules: Vec<(Timestamp, Timestamp, Uint128)>,
+    pub last_claim_time: Timestamp,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -42,10 +42,10 @@ pub struct VestingInfo {
 pub enum QueryMsg {
     Config {},
     VestingAccount {
-        address: HumanAddr,
+        address: Addr,
     },
     VestingAccounts {
-        start_after: Option<HumanAddr>,
+        start_after: Option<Addr>,
         limit: Option<u32>,
         order_by: Option<OrderBy>,
     },
@@ -54,15 +54,15 @@ pub enum QueryMsg {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub owner: HumanAddr,
-    pub token_addr: HumanAddr,
-    pub genesis_time: u64,
+    pub owner: Addr,
+    pub token_addr: Addr,
+    pub genesis_time: Timestamp,
 }
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccountResponse {
-    pub address: HumanAddr,
+    pub address: Addr,
     pub info: VestingInfo,
 }
 

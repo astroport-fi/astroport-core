@@ -1,6 +1,6 @@
 [package]
 name = "astroport-staking"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"
 
@@ -37,9 +37,9 @@ cw-storage-plus = "0.6.0"
 schemars = "0.8.1"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
-cw2 = "0.2"
-cw20 = "0.2"
-terraswap = { path = "../../../packages/terraswap", default-features = false, version = "1.1.0"}
+cw2 = "0.6"
+cw20 = "0.6"
+terraswap = { path = "../../../packages/terraswap", default-features = false, version = "2.1.0"}
 
 
 [dev-dependencies]

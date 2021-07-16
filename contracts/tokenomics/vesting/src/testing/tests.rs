@@ -4,9 +4,10 @@ use terraswap::vesting::{
     VestingAccountsResponse, VestingInfo, OrderBy
 };
 
-use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Addr, StdError, Uint128, WasmMsg, Timestamp, attr};
+use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Addr, Uint128, WasmMsg, Timestamp, attr};
 use cw20::Cw20ExecuteMsg;
 use cosmwasm_std::testing::{mock_dependencies, mock_info, mock_env};
+use crate::error::ContractError;
 
 #[test]
 fn proper_initialization() {
@@ -53,7 +54,7 @@ fn update_config() {
     };
 
     let info = mock_info("owner", &vec![]);
-    let _res = execute(deps.as_mut(), env.clone, info, msg).unwrap();
+    let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(
         from_binary::<ConfigResponse>(&query(deps.as_ref(), env, QueryMsg::Config {}).unwrap()).unwrap(),
@@ -72,11 +73,8 @@ fn update_config() {
 
     let env = mock_env();
     let info = mock_info("owner", &vec![]);
-    let res = execute(deps.as_mut(), env.clone(), info, msg);
-    match res {
-        Err(StdError::Unauthorized { .. }) => {}
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
+    assert_eq!(res, ContractError::Unauthorized {});
 
     let msg = ExecuteMsg::UpdateConfig {
         owner: None,
@@ -108,7 +106,7 @@ fn register_vesting_accounts() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &vec![]);
-    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     let msg = ExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![
@@ -131,11 +129,8 @@ fn register_vesting_accounts() {
         ],
     };
     let info = mock_info("addr0000", &[]);
-    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
-    match res {
-        Err(StdError::Unauthorized { .. }) => {}
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap_err();
+    assert_eq!(res, ContractError::Unauthorized {});
 
     let info = mock_info("owner", &[]);
     let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -234,6 +229,7 @@ fn claim() {
             ],
         }],
     };
+
     let info = mock_info("owner", &[]);
     let _res = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap();
 
@@ -241,7 +237,7 @@ fn claim() {
     env.block.time = Timestamp::from_seconds(100);
 
     let msg = ExecuteMsg::Claim {};
-    let res = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_eq!(
         res.attributes,
         vec![

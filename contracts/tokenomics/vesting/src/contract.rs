@@ -1,4 +1,4 @@
-use cosmwasm_std::{to_binary, Api, Binary, CosmosMsg, Decimal, Env, Response, Querier, StdError, StdResult, Storage, Uint128, WasmMsg, Addr, attr, Timestamp, DepsMut, Deps, MessageInfo};
+use cosmwasm_std::{to_binary, Binary, CosmosMsg, Decimal, Env, Response, StdResult, Uint128, WasmMsg, Addr, attr, Timestamp, DepsMut, Deps, MessageInfo};
 
 use crate::state::{CONFIG, VESTING_INFO, read_vesting_infos, Config};
 
@@ -117,7 +117,7 @@ pub fn register_vesting_accounts(
 
         VESTING_INFO.save(
             deps.storage,
-            deps.api.addr_canonicalize(vesting_account.address.as_str())?,
+            vesting_account.address.to_string(),
             &VestingInfo {
                 last_claim_time: config.genesis_time,
                 schedules: vesting_account.schedules.clone(),
@@ -141,14 +141,14 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Con
 
     let config: Config = CONFIG.load(deps.storage)?;
 
-    let mut vesting_info: VestingInfo = VESTING_INFO.load(deps.storage, address.clone())?;
+    let mut vesting_info: VestingInfo = VESTING_INFO.load(deps.storage, address.to_string())?;
 
     let claim_amount = compute_claim_amount(current_time, &vesting_info);
     let messages: Vec<CosmosMsg> = if claim_amount.is_zero() {
         vec![]
     } else {
         vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&config.token_addr)?,
+            contract_addr: deps.api.addr_humanize(&config.token_addr)?.to_string(),
             send: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: address.to_string(),
@@ -158,7 +158,7 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Con
     };
 
     vesting_info.last_claim_time = current_time;
-    VESTING_INFO.save(deps.storage, address.clone(), &vesting_info)?;
+    VESTING_INFO.save(deps.storage, address.to_string(), &vesting_info)?;
 
     Ok(Response {
         submessages: vec![],
@@ -167,7 +167,7 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Con
             attr("action", "claim"),
             attr("address", address),
             attr("claim_amount", claim_amount),
-            attr("last_claim_time", current_time),
+            attr("last_claim_time", current_time.seconds()),
         ],
         data: None,
     })
@@ -182,10 +182,10 @@ fn compute_claim_amount(current_time: Timestamp, vesting_info: &VestingInfo) -> 
 
         // min(s.1, current_time) - max(s.0, last_claim_time)
         let passed_time =
-            std::cmp::min(s.1, current_time) - std::cmp::max(s.0, vesting_info.last_claim_time);
+            std::cmp::min(s.1, current_time).seconds() - std::cmp::max(s.0, vesting_info.last_claim_time).seconds();
 
         // prevent zero time_period case
-        let time_period = s.1 - s.0;
+        let time_period = s.1.seconds() - s.0.seconds();
         let release_amount_per_time: Decimal = Decimal::from_ratio(s.2, time_period);
 
         claimable_amount += Uint128(passed_time as u128) * release_amount_per_time;
@@ -222,8 +222,8 @@ pub fn query_config(
 ) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
-        owner: deps.api.human_address(&config.owner)?,
-        token_addr: deps.api.human_address(&config.token_addr)?,
+        owner: deps.api.addr_humanize(&config.owner)?,
+        token_addr: deps.api.addr_humanize(&config.token_addr)?,
         genesis_time: config.genesis_time,
     };
 
@@ -234,7 +234,7 @@ pub fn query_vesting_account(
     deps: Deps,
     address: Addr,
 ) -> StdResult<VestingAccountResponse> {
-    let info: VestingInfo = VESTING_INFO.load(deps.storage, address.clone())?;
+    let info: VestingInfo = VESTING_INFO.load(deps.storage, address.to_string())?;
 
     let resp = VestingAccountResponse { address, info };
 
@@ -250,7 +250,7 @@ pub fn query_vesting_accounts(
     let vesting_infos = if let Some(start_after) = start_after {
         read_vesting_infos(
             deps.clone(),
-            Some(deps.api.canonical_address(&start_after)?),
+            Some(deps.api.addr_canonicalize(start_after.as_str())?),
             limit,
             order_by,
         )?
@@ -262,7 +262,7 @@ pub fn query_vesting_accounts(
         .iter()
         .map(|vesting_account| {
             Ok(VestingAccountResponse {
-                address: deps.api.human_address(&vesting_account.0)?,
+                address: vesting_account.0.clone(),
                 info: vesting_account.1.clone(),
             })
         })
@@ -288,7 +288,7 @@ fn test_assert_vesting_schedules() {
         (Timestamp::from_seconds(100), Timestamp::from_seconds(100), Uint128::from(100u128)),
         (Timestamp::from_seconds(100), Timestamp::from_seconds(110), Uint128::from(100u128)),
         (Timestamp::from_seconds(100), Timestamp::from_seconds(200), Uint128::from(100u128)),
-    ]).unwrap_err()?;
+    ]).unwrap_err();
 
     assert_eq!(res, ContractError::EndTimeError {});
 }
