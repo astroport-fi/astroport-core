@@ -3,7 +3,6 @@ use cosmwasm_std::{
     from_binary, from_slice, to_binary, Addr, Binary, Coin, ContractResult, Decimal, OwnedDeps,
     Querier, QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-//use cosmwasm_storage::to_length_prefixed;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

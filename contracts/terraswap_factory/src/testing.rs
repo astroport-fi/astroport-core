@@ -1,12 +1,11 @@
 use cosmwasm_std::{attr, from_binary, to_binary, Addr, CanonicalAddr, CosmosMsg, WasmMsg};
 
 use crate::mock_querier::mock_dependencies;
+use crate::state::{pair_key, PAIRS};
 use crate::{
     contract::{execute, instantiate, query},
     error::ContractError,
 };
-
-use crate::state::read_pair;
 
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use terraswap::asset::{AssetInfo, PairInfo};
@@ -92,7 +91,7 @@ fn update_config() {
     assert_eq!(vec![100u64, 321u64, 500u64], config_res.pair_code_ids);
     assert_eq!(String::from("addr0001"), config_res.owner);
 
-    // Unauthorzied err
+    // Unauthorized err
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
@@ -183,7 +182,7 @@ fn create_pair() {
         asset_infos[0].to_raw(&deps.api).unwrap(),
         asset_infos[1].to_raw(&deps.api).unwrap(),
     ];
-    let pair_info = read_pair(&deps.storage, &raw_infos).unwrap();
+    let pair_info = PAIRS.load(&deps.storage, &pair_key(&raw_infos)).unwrap();
 
     assert_eq!(pair_info.contract_addr, CanonicalAddr::from(vec![]),);
 }

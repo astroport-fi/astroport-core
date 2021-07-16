@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::math::{calc_amount, decimal_multiplication, decimal_subtraction, reverse_decimal, AMP};
-use crate::state::{read_pair_info, store_pair_info};
+use crate::state::PAIR_INFO;
 
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CanonicalAddr, Coin, CosmosMsg,
@@ -37,7 +37,7 @@ pub fn instantiate(
         ],
     };
 
-    store_pair_info(deps.storage, &pair_info)?;
+    PAIR_INFO.save(deps.storage, &pair_info)?;
 
     // Create LP token
     let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
@@ -136,7 +136,7 @@ pub fn receive_cw20(
         } => {
             // only asset contract can execute this message
             let mut authorized: bool = false;
-            let config: PairInfoRaw = read_pair_info(deps.storage)?;
+            let config: PairInfoRaw = PAIR_INFO.load(deps.storage)?;
             let pools: [Asset; 2] =
                 config.query_pools(&deps.querier, deps.api, env.contract.address.clone())?;
             for pool in pools.iter() {
@@ -187,14 +187,14 @@ pub fn post_initialize(
     _env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    let config: PairInfoRaw = read_pair_info(deps.storage)?;
+    let config: PairInfoRaw = PAIR_INFO.load(deps.storage)?;
 
     // permission check
     if config.liquidity_token != CanonicalAddr::from(vec![]) {
         return Err(ContractError::Unauthorized {});
     }
 
-    store_pair_info(
+    PAIR_INFO.save(
         deps.storage,
         &PairInfoRaw {
             liquidity_token: deps.api.addr_canonicalize(info.sender.as_str())?,
@@ -222,7 +222,7 @@ pub fn provide_liquidity(
         asset.assert_sent_native_token_balance(&info)?;
     }
 
-    let pair_info: PairInfoRaw = read_pair_info(deps.storage)?;
+    let pair_info: PairInfoRaw = PAIR_INFO.load(deps.storage)?;
     let mut pools: [Asset; 2] =
         pair_info.query_pools(&deps.querier, deps.api, env.contract.address.clone())?;
     let deposits: [Uint128; 2] = [
@@ -317,7 +317,7 @@ pub fn withdraw_liquidity(
     sender: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let pair_info: PairInfoRaw = read_pair_info(deps.storage).unwrap();
+    let pair_info: PairInfoRaw = PAIR_INFO.load(deps.storage).unwrap();
 
     if deps.api.addr_canonicalize(&info.sender.as_str())? != pair_info.liquidity_token {
         return Err(ContractError::Unauthorized {});
@@ -380,7 +380,7 @@ pub fn swap(
 ) -> Result<Response, ContractError> {
     offer_asset.assert_sent_native_token_balance(&info)?;
 
-    let pair_info: PairInfoRaw = read_pair_info(deps.storage)?;
+    let pair_info: PairInfoRaw = PAIR_INFO.load(deps.storage)?;
 
     let pools: [Asset; 2] = pair_info.query_pools(&deps.querier, deps.api, env.contract.address)?;
 
@@ -458,12 +458,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub fn query_pair_info(deps: Deps) -> StdResult<PairInfo> {
-    let pair_info: PairInfoRaw = read_pair_info(deps.storage)?;
+    let pair_info: PairInfoRaw = PAIR_INFO.load(deps.storage)?;
     pair_info.to_normal(deps.api)
 }
 
 pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
-    let pair_info: PairInfoRaw = read_pair_info(deps.storage)?;
+    let pair_info: PairInfoRaw = PAIR_INFO.load(deps.storage)?;
     let contract_addr = deps.api.addr_humanize(&pair_info.contract_addr)?;
     let assets: [Asset; 2] = pair_info.query_pools(&deps.querier, deps.api, contract_addr)?;
     let total_share: Uint128 = query_supply(
@@ -480,7 +480,7 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 }
 
 pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationResponse> {
-    let pair_info: PairInfoRaw = read_pair_info(deps.storage)?;
+    let pair_info: PairInfoRaw = PAIR_INFO.load(deps.storage)?;
 
     let contract_addr = deps.api.addr_humanize(&pair_info.contract_addr)?;
     let pools: [Asset; 2] = pair_info.query_pools(&deps.querier, deps.api, contract_addr)?;
@@ -513,7 +513,7 @@ pub fn query_reverse_simulation(
     deps: Deps,
     ask_asset: Asset,
 ) -> StdResult<ReverseSimulationResponse> {
-    let pair_info: PairInfoRaw = read_pair_info(deps.storage)?;
+    let pair_info: PairInfoRaw = PAIR_INFO.load(deps.storage)?;
 
     let contract_addr = deps.api.addr_humanize(&pair_info.contract_addr)?;
     let pools: [Asset; 2] = pair_info.query_pools(&deps.querier, deps.api, contract_addr)?;
