@@ -1,8 +1,11 @@
-# Terraswap Router <!-- omit in toc -->
+# Astroport Router <!-- omit in toc -->
 
-The Router Contract contains the logic to facilitate multi-hop swap operations via native & terraswap.
+The Router Contract contains the logic to facilitate multi-hop swap operations via native & Astroport.
 
-**On-chain swap & Terraswap is supported.**
+**On-chain swap & Astroport is supported.**
+
+TODO: Update for Astroport. Terraswap v1 documentation follows
+---
 
 Columbus-4 Contract:
 - https://finder.terra.money/columbus-4/address/terra19qx5xe6q9ll4w0890ux7lv2p4mf3csd4qvt3ex

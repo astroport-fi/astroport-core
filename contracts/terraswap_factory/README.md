@@ -1,6 +1,11 @@
-# TerraSwap Factory
+# Astroport Factory
 
 The factory contract can perform creation of terraswap pair contract and also be used as directory contract for all pairs.
+Code ID for a pair type can be provided when instantiating a new pair, allowing for different pool mechanisms (e.g. stableswap).
+Available pair types are managed via a whitelist. 
+
+TODO: Update README with new messages (Terraswap v1 messages follow)
+---
 
 ## InitMsg
 
