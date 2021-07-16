@@ -60,7 +60,7 @@ pub fn instantiate(
             }),
         })?,
         send: vec![],
-        label: String::from("Astroport Bar Token"),
+        label: String::from("Astroport Staking"),
     }));
 
     Ok(resp)
