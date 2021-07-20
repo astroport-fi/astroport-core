@@ -7,7 +7,7 @@ use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
-use terraswap::staking::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use terraswap::staking::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use terraswap::hook::InitHook;
 use terraswap::token::InstantiateMsg as TokenInstantiateMsg;
@@ -206,6 +206,9 @@ pub fn get_total_deposit(deps: &DepsMut, env: Env, config: Config) -> StdResult<
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let config = CONFIG.load(deps.storage)?;
     match msg {
-        QueryMsg::ShareToken {} => Ok(to_binary(&config.share_token_addr)?),
+        QueryMsg::Config {} => Ok(to_binary(&ConfigResponse {
+            deposit_token_addr: config.deposit_token_addr,
+            share_token_addr: config.share_token_addr,
+        })?),
     }
 }

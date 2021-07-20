@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, ContractWrapper, SimpleBank};
-use terraswap::staking::{InstantiateMsg as xInstatiateMsg, QueryMsg};
+use terraswap::staking::{ConfigResponse, InstantiateMsg as xInstatiateMsg, QueryMsg};
 use terraswap::token::InstantiateMsg;
 
 const ALICE: &str = "Alice";
@@ -66,18 +66,22 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
         .instantiate_contract(staking_code_id, owner, &msg, &[], String::from("xASTRO"))
         .unwrap();
 
-    let msg = QueryMsg::ShareToken {};
-    let x_astro_token_instance = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: staking_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+    let msg = QueryMsg::Config {};
+    let x_astro_token_instance = from_binary::<ConfigResponse>(
+        &router
+            .query(QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: staking_instance.to_string(),
+                msg: to_binary(&msg).unwrap(),
+            }))
+            .unwrap(),
+    )
+    .unwrap()
+    .share_token_addr;
 
     (
         astro_token_instance,
         staking_instance,
-        from_binary(&x_astro_token_instance).unwrap(),
+        x_astro_token_instance,
     )
 }
 
