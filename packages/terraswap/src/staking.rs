@@ -15,3 +15,8 @@ pub enum ExecuteMsg {
     Enter { amount: Uint128 },
     Leave { share: Uint128 },
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum QueryMsg {
+    ShareToken {},
+}

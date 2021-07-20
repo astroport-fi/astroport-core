@@ -29,6 +29,8 @@ cw2 = "0.6"
 cw20 = "0.6"
 terraswap = { path = "../../../packages/terraswap", default-features = false, version = "2.1.0"}
 
-
 [dev-dependencies]
 cosmwasm-schema = { version = "0.14.0" }
+terraswap = {path = "../../../packages/terraswap"}
+terraswap-token = {path = "../../terraswap_token"}
+cw-multi-test = "0.6.0"

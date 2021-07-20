@@ -23,12 +23,14 @@ version = "1.0.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-multi-test",
  "cw-storage-plus",
  "cw2",
  "cw20",
  "schemars",
  "serde",
  "terraswap",
+ "terraswap-token",
  "thiserror",
 ]
 
@@ -388,6 +390,19 @@ dependencies = [
  "rand_core 0.5.1",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "cw-multi-test"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f218f06e6befa14bcafbe7037514f4e367b399b7b3bc3a8821637bdb78cd9363"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw0",
+ "schemars",
+ "serde",
 ]
 
 [[package]]
