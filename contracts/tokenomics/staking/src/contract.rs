@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    entry_point, to_binary, CanonicalAddr, CosmosMsg, DepsMut, Env, MessageInfo, Response,
+    entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
     StdError, StdResult, Uint128, WasmMsg,
 };
 
@@ -7,7 +7,7 @@ use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
-use terraswap::staking::{ExecuteMsg, InstantiateMsg};
+use terraswap::staking::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use terraswap::hook::InitHook;
 use terraswap::token::InstantiateMsg as TokenInstantiateMsg;
@@ -32,11 +32,8 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            token_code_id: msg.token_code_id,
-            deposit_token_addr: deps
-                .api
-                .addr_canonicalize(&msg.deposit_token_addr.to_string())?,
-            share_token_addr: CanonicalAddr::from(vec![]),
+            deposit_token_addr: msg.deposit_token_addr,
+            share_token_addr: Addr::unchecked(""),
         },
     )?;
 
@@ -88,12 +85,12 @@ pub fn try_post_initialize(
     let mut config: Config = CONFIG.load(deps.storage)?;
 
     // permission check
-    if config.share_token_addr != CanonicalAddr::from(vec![]) {
+    if config.share_token_addr != Addr::unchecked("") {
         return Err(ContractError::Unauthorized {});
     }
 
     // Set token addr
-    config.share_token_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    config.share_token_addr = info.sender;
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -108,8 +105,8 @@ pub fn try_enter(
 ) -> Result<Response, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
 
-    let total_deposit = get_total_deposit(deps, env.clone(), config.clone());
-    let total_shares = get_total_shares(deps, config.clone());
+    let total_deposit = get_total_deposit(deps, env.clone(), config.clone())?;
+    let total_shares = get_total_shares(deps, config.clone())?;
 
     // If no balance exists, mint it 1:1 to the amount put in
     let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
@@ -152,8 +149,8 @@ pub fn try_leave(
 ) -> Result<Response, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
 
-    let total_deposit = get_total_deposit(&deps, env, config.clone());
-    let total_shares = get_total_shares(&deps, config.clone());
+    let total_deposit = get_total_deposit(&deps, env, config.clone())?;
+    let total_shares = get_total_shares(&deps, config.clone())?;
 
     let what = share
         .checked_mul(total_deposit)?
@@ -164,7 +161,10 @@ pub fn try_leave(
     let mut res = Response::new();
     res.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.share_token_addr.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Burn { amount: share })?,
+        msg: to_binary(&Cw20ExecuteMsg::BurnFrom {
+            owner: info.sender.to_string(),
+            amount: share,
+        })?,
         send: vec![],
     }));
 
@@ -180,26 +180,35 @@ pub fn try_leave(
     Ok(res)
 }
 
-pub fn get_total_shares(deps: &DepsMut, config: Config) -> Uint128 {
-    return deps
+pub fn get_total_shares(deps: &DepsMut, config: Config) -> StdResult<Uint128> {
+    return Ok(deps
         .querier
         .query_wasm_smart::<TokenInfoResponse, _, _>(
-            config.share_token_addr.to_string(),
+            &config.share_token_addr,
             &Cw20QueryMsg::TokenInfo {},
-        )
-        .unwrap()
-        .total_supply;
+        )?
+        .total_supply);
 }
 
-pub fn get_total_deposit(deps: &DepsMut, env: Env, config: Config) -> Uint128 {
-    return deps
+pub fn get_total_deposit(deps: &DepsMut, env: Env, config: Config) -> StdResult<Uint128> {
+    return Ok(deps
         .querier
         .query_wasm_smart::<BalanceResponse, _, _>(
-            config.deposit_token_addr.to_string(),
+            &config.deposit_token_addr,
             &Cw20QueryMsg::Balance {
                 address: env.contract.address.to_string(),
             },
-        )
-        .unwrap()
-        .balance;
+        )?
+        .balance);
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    let config = CONFIG.load(deps.storage)?;
+    match msg {
+        QueryMsg::Config {} => Ok(to_binary(&ConfigResponse {
+            deposit_token_addr: config.deposit_token_addr,
+            share_token_addr: config.share_token_addr,
+        })?),
+    }
 }

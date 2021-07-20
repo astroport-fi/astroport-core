@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "InstantiateMsg",
-  "description": "TokenContract InitMsg",
+  "description": "TokenContract InstantiateMsg",
   "type": "object",
   "required": [
     "decimals",

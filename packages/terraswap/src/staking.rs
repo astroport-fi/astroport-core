@@ -15,3 +15,14 @@ pub enum ExecuteMsg {
     Enter { amount: Uint128 },
     Leave { share: Uint128 },
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum QueryMsg {
+    Config {},
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ConfigResponse {
+    pub deposit_token_addr: Addr,
+    pub share_token_addr: Addr,
+}
