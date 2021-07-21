@@ -9,13 +9,11 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128, WasmMsg,
 };
 
-use crate::state::{
-    read_config, store_config, Config, PoolInfo, UserInfo, LP_TOKEN_BALANCES, USER_INFO,
-};
+use crate::state::{Config, PoolInfo, UserInfo, CONFIG, LP_TOKEN_BALANCES, USER_INFO};
 
 use cw20::Cw20ExecuteMsg;
-use std::ops::{Add, Mul, Sub};
 use std::cmp::max;
+use std::ops::{Add, Mul, Sub};
 
 // Bonus muliplier for early xTRS makers.
 const BONUS_MULTIPLIER: u64 = 10;
@@ -39,7 +37,7 @@ pub fn instantiate(
         pool_info: Vec::new(),
         start_block: msg.start_block,
     };
-    store_config(deps.storage).save(&config)?;
+    CONFIG.save(deps.storage, &config)?;
     Ok(Response::default())
 }
 
@@ -80,7 +78,7 @@ pub fn add(
     token: Addr,
     with_update: bool,
 ) -> Result<Response, ContractError> {
-    let mut cfg = read_config(deps.storage).load()?;
+    let mut cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.owner {
         return Err(ContractError::Unauthorized {});
     }
@@ -93,7 +91,7 @@ pub fn add(
             for msg in update_pool_result.messages {
                 response.messages.push(msg);
             }
-            cfg = read_config(deps.storage).load()?;
+            cfg = CONFIG.load(deps.storage)?;
         }
     }
 
@@ -107,7 +105,7 @@ pub fn add(
     };
 
     cfg.pool_info.push(pool_info);
-    store_config(deps.storage).save(&cfg)?;
+    CONFIG.save(deps.storage, &cfg)?;
     Ok(response)
 }
 
@@ -120,7 +118,7 @@ pub fn set(
     alloc_point: u64,
     with_update: bool,
 ) -> Result<Response, ContractError> {
-    let mut cfg = read_config(deps.storage).load()?;
+    let mut cfg = CONFIG.load(deps.storage)?;
     let mut response = Response::default();
 
     if info.sender != cfg.owner {
@@ -133,7 +131,7 @@ pub fn set(
             for msg in update_pool_result.messages {
                 response.messages.push(msg);
             }
-            cfg = read_config(deps.storage).load()?;
+            cfg = CONFIG.load(deps.storage)?;
         }
     }
 
@@ -142,17 +140,17 @@ pub fn set(
         .unwrap()
         .checked_add(alloc_point)
         .unwrap();
-    store_config(deps.storage).save(&cfg)?;
+    CONFIG.save(deps.storage, &cfg)?;
     Ok(response)
 }
 
-// Update reward vairables for all pools.
+// Update reward variables for all pools.
 pub fn mass_update_pool(
     storage: &mut dyn Storage,
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    let cfg = read_config(storage).load()?;
+    let cfg = CONFIG.load(storage)?;
     let length = cfg.pool_info.len();
     let mut response = Response::default();
     for pid in 0..length {
@@ -173,7 +171,7 @@ pub fn update_pool(
     info: MessageInfo,
     pid: usize,
 ) -> Result<Response, ContractError> {
-    let mut cfg = read_config(storage).load()?;
+    let mut cfg = CONFIG.load(storage)?;
     let pool = &mut cfg.pool_info[pid];
     let mut response = Response::default();
 
@@ -187,7 +185,7 @@ pub fn update_pool(
         .unwrap_or(Uint128::zero());
     if lp_supply == Uint128::zero() {
         pool.last_reward_block = env.block.height;
-        store_config(storage).save(&cfg)?;
+        CONFIG.save(storage, &cfg)?;
         return Ok(response);
     }
 
@@ -228,7 +226,7 @@ pub fn update_pool(
         .unwrap();
     pool.acc_per_share = pool.acc_per_share.checked_add(share).unwrap();
     pool.last_reward_block = env.block.height;
-    store_config(storage).save(&cfg)?;
+    CONFIG.save(storage, &cfg)?;
     Ok(response)
 }
 
@@ -267,12 +265,12 @@ pub fn deposit(
             response.messages.push(msg);
         }
     }
-    if !update_result.attributes.is_empty(){
-        for attr in update_result.attributes{
-            response.attributes.push( attr);
+    if !update_result.attributes.is_empty() {
+        for attr in update_result.attributes {
+            response.attributes.push(attr);
         }
     }
-    let mut cfg = read_config(deps.storage).load()?;
+    let mut cfg = CONFIG.load(deps.storage)?;
     let pool = &mut cfg.pool_info[pid];
 
     if user.amount > Uint128::zero() {
@@ -357,12 +355,12 @@ pub fn withdraw(
             response.messages.push(msg);
         }
     }
-    if !update_result.attributes.is_empty(){
-        for attr in update_result.attributes{
-            response.attributes.push( attr);
+    if !update_result.attributes.is_empty() {
+        for attr in update_result.attributes {
+            response.attributes.push(attr);
         }
     }
-    let mut cfg = read_config(deps.storage).load()?;
+    let mut cfg = CONFIG.load(deps.storage)?;
     let pool = &mut cfg.pool_info[pid];
     let pending = user
         .amount
@@ -429,7 +427,7 @@ pub fn emergency_withdraw(
     info: MessageInfo,
     pid: usize,
 ) -> Result<Response, ContractError> {
-    let mut cfg = read_config(deps.storage).load()?;
+    let mut cfg = CONFIG.load(deps.storage)?;
     let pool = &mut cfg.pool_info[pid];
     let user = &mut USER_INFO.load(deps.storage, &info.sender).unwrap()[pid];
     let mut response = Response::default();
@@ -471,12 +469,12 @@ pub fn set_dev(
     info: MessageInfo,
     dev_address: Addr,
 ) -> Result<Response, ContractError> {
-    let mut cfg = read_config(deps.storage).load()?;
+    let mut cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.dev_addr {
         return Err(ContractError::Unauthorized {});
     }
     cfg.dev_addr = dev_address;
-    store_config(deps.storage).save(&cfg)?;
+    CONFIG.save(deps.storage, &cfg)?;
     Ok(Response::default())
 }
 
@@ -484,24 +482,20 @@ pub fn set_dev(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::PoolLength {} => to_binary(&pool_length(deps)?),
-        QueryMsg::PendingToken { pid, user } => {
-            to_binary(&pending_token(deps, env, pid, user)?)
-        }
-        QueryMsg::GetMultiplier { from, to } => {
-            to_binary(&get_multiplier(deps.storage, from, to)?)
-        }
+        QueryMsg::PendingToken { pid, user } => to_binary(&pending_token(deps, env, pid, user)?),
+        QueryMsg::GetMultiplier { from, to } => to_binary(&get_multiplier(deps.storage, from, to)?),
     }
 }
 
 pub fn pool_length(deps: Deps) -> StdResult<PoolLengthResponse> {
-    let cfg = read_config(deps.storage).load()?;
+    let cfg = CONFIG.load(deps.storage)?;
     let _length = cfg.pool_info.len();
     Ok(PoolLengthResponse { length: _length })
 }
 
 // Return reward multiplier over the given _from to _to block.
 fn get_multiplier(storage: &dyn Storage, from: u64, to: u64) -> StdResult<GetMultiplierResponse> {
-    let cfg = read_config(storage).load()?;
+    let cfg = CONFIG.load(storage)?;
     let mut _reward = 0 as u64;
     if to <= cfg.bonus_end_block {
         _reward = to.sub(from).mul(BONUS_MULTIPLIER as u64)
@@ -526,7 +520,7 @@ pub fn pending_token(
     pid: usize,
     user: Addr,
 ) -> StdResult<PendingTokenResponse> {
-    let mut cfg = read_config(deps.storage).load()?;
+    let mut cfg = CONFIG.load(deps.storage)?;
     let pool = &mut cfg.pool_info[pid];
     let user_info = &mut USER_INFO.load(deps.storage, &user)?[pid];
     let acc_per_share = pool.acc_per_share;

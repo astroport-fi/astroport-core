@@ -1,10 +1,7 @@
-use cosmwasm_std::{Addr, Storage, Uint128};
-use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
-use cw_storage_plus::Map;
+use cosmwasm_std::{Addr, Uint128};
+use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-static KEY_CONFIG: &[u8] = b"config";
 
 // Info of each user.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -42,13 +39,6 @@ pub struct Config {
     pub start_block: u64,
 }
 
-pub fn store_config(storage: &mut dyn Storage) -> Singleton<Config> {
-    singleton(storage, KEY_CONFIG)
-}
-
-pub fn read_config(storage: &dyn Storage) -> ReadonlySingleton<Config> {
-    singleton_read(storage, KEY_CONFIG)
-}
-
+pub const CONFIG: Item<Config> = Item::new("config");
 pub const USER_INFO: Map<&Addr, Vec<UserInfo>> = Map::new("user_info");
 pub const LP_TOKEN_BALANCES: Map<(&Addr, &Addr), Uint128> = Map::new("lp_token_balance");
