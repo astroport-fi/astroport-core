@@ -20,24 +20,24 @@ pub enum ExecuteMsg {
         with_update: bool,
     },
     Set {
-        pid: usize,
+        token: Addr,
         alloc_point: u64,
         with_update: bool,
     },
     MassUpdatePool {},
     UpdatePool {
-        pid: usize,
+        token: Addr,
     },
     Deposit {
-        pid: usize,
+        token: Addr,
         amount: Uint128,
     },
     Withdraw {
-        pid: usize,
+        token: Addr,
         amount: Uint128,
     },
     EmergencyWithdraw {
-        pid: usize,
+        token: Addr,
     },
     SetDev {
         dev_address: Addr,
@@ -48,7 +48,7 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     PoolLength {},
-    PendingToken { pid: usize, user: Addr },
+    PendingToken { token: Addr, user: Addr },
     GetMultiplier { from: u64, to: u64 },
 }
 

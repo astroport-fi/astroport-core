@@ -9,7 +9,7 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128, WasmMsg,
 };
 
-use crate::state::{Config, PoolInfo, UserInfo, CONFIG, LP_TOKEN_BALANCES, USER_INFO};
+use crate::state::{Config, PoolInfo, CONFIG, LP_TOKEN_BALANCES, POOL_INFO, USER_INFO};
 
 use cw20::Cw20ExecuteMsg;
 use std::cmp::max;
@@ -34,7 +34,6 @@ pub fn instantiate(
         tokens_per_block: msg.tokens_per_block,
         total_alloc_point: 0,
         owner: info.sender,
-        pool_info: Vec::new(),
         start_block: msg.start_block,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -55,15 +54,15 @@ pub fn execute(
             with_update,
         } => add(deps, env, info, alloc_point, token, with_update),
         ExecuteMsg::Set {
-            pid,
+            token,
             alloc_point,
             with_update,
-        } => set(deps, env, info, pid, alloc_point, with_update),
+        } => set(deps, env, info, token, alloc_point, with_update),
         ExecuteMsg::MassUpdatePool {} => mass_update_pool(deps.storage, env, info),
-        ExecuteMsg::UpdatePool { pid } => update_pool(deps.storage, env, info, pid),
-        ExecuteMsg::Deposit { pid, amount } => deposit(deps, env, info, pid, amount),
-        ExecuteMsg::Withdraw { pid, amount } => withdraw(deps, env, info, pid, amount),
-        ExecuteMsg::EmergencyWithdraw { pid } => emergency_withdraw(deps, env, info, pid),
+        ExecuteMsg::UpdatePool { token } => update_pool(deps.storage, env, info, token),
+        ExecuteMsg::Deposit { token, amount } => deposit(deps, env, info, token, amount),
+        ExecuteMsg::Withdraw { token, amount } => withdraw(deps, env, info, token, amount),
+        ExecuteMsg::EmergencyWithdraw { token } => emergency_withdraw(deps, env, info, token),
         ExecuteMsg::SetDev { dev_address } => set_dev(deps, info, dev_address),
     }
 }
@@ -83,6 +82,10 @@ pub fn add(
         return Err(ContractError::Unauthorized {});
     }
 
+    if POOL_INFO.load(deps.storage, &token).is_ok() {
+        return Err(ContractError::TokenPoolAlreadyExists {});
+    }
+
     let mut response = Response::default();
 
     if with_update {
@@ -98,13 +101,12 @@ pub fn add(
     cfg.total_alloc_point = cfg.total_alloc_point.checked_add(alloc_point).unwrap();
 
     let pool_info = PoolInfo {
-        lp_token: token,
         alloc_point,
         last_reward_block: max(cfg.start_block, env.block.height),
         acc_per_share: Uint128::zero(),
     };
 
-    cfg.pool_info.push(pool_info);
+    POOL_INFO.save(deps.storage, &token, &pool_info)?;
     CONFIG.save(deps.storage, &cfg)?;
     Ok(response)
 }
@@ -114,11 +116,12 @@ pub fn set(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    pid: usize,
+    token: Addr,
     alloc_point: u64,
     with_update: bool,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
+    let pool_info = POOL_INFO.load(deps.storage, &token)?;
     let mut response = Response::default();
 
     if info.sender != cfg.owner {
@@ -136,12 +139,22 @@ pub fn set(
     }
 
     cfg.total_alloc_point
-        .checked_sub(cfg.pool_info[pid].alloc_point)
+        .checked_sub(pool_info.alloc_point)
         .unwrap()
         .checked_add(alloc_point)
         .unwrap();
     CONFIG.save(deps.storage, &cfg)?;
     Ok(response)
+}
+
+// Test that binaries of Addr and String are equal
+// it's used for getting Addr from Map.keys() method via String
+// may be in future CanonicalAddr will implement PrimaryKey or Addr will be got from Vec[u8]
+#[test]
+fn binaries_of_addr_and_string_are_equal() {
+    let a = String::from("addr0001");
+    let b = Addr::unchecked(a.clone());
+    assert_eq!(a.as_bytes().to_vec(), b.as_bytes().to_vec());
 }
 
 // Update reward variables for all pools.
@@ -150,11 +163,14 @@ pub fn mass_update_pool(
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    let cfg = CONFIG.load(storage)?;
-    let length = cfg.pool_info.len();
     let mut response = Response::default();
-    for pid in 0..length {
-        let update_pool_result = update_pool(storage, env.clone(), info.clone(), pid).unwrap();
+    let token_keys: Vec<Addr> = POOL_INFO
+        .keys(storage, None, None, cosmwasm_std::Order::Ascending)
+        .map(|v| Addr::unchecked(String::from_utf8(v).unwrap()))
+        .collect();
+    for token in token_keys {
+        let update_pool_result =
+            update_pool(storage, env.clone(), info.clone(), token.clone()).unwrap();
         if !update_pool_result.messages.is_empty() {
             for msg in update_pool_result.messages {
                 response.messages.push(msg);
@@ -169,10 +185,10 @@ pub fn update_pool(
     storage: &mut dyn Storage,
     env: Env,
     info: MessageInfo,
-    pid: usize,
+    token: Addr,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(storage)?;
-    let pool = &mut cfg.pool_info[pid];
+    let mut pool = POOL_INFO.load(storage, &token)?;
     let mut response = Response::default();
 
     if env.block.height <= pool.last_reward_block {
@@ -181,10 +197,11 @@ pub fn update_pool(
 
     //check local balances lp token
     let lp_supply = LP_TOKEN_BALANCES
-        .load(storage, (&pool.lp_token, &info.sender))
+        .load(storage, (&token, &info.sender))
         .unwrap_or(Uint128::zero());
     if lp_supply == Uint128::zero() {
         pool.last_reward_block = env.block.height;
+        POOL_INFO.save(storage, &token, &pool)?;
         CONFIG.save(storage, &cfg)?;
         return Ok(response);
     }
@@ -226,6 +243,7 @@ pub fn update_pool(
         .unwrap();
     pool.acc_per_share = pool.acc_per_share.checked_add(share).unwrap();
     pool.last_reward_block = env.block.height;
+    POOL_INFO.save(storage, &token, &pool)?;
     CONFIG.save(storage, &cfg)?;
     Ok(response)
 }
@@ -235,31 +253,17 @@ pub fn deposit(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    pid: usize,
+    token: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let mut response = Response::default();
     response.add_attribute("Action", "Deposit");
-    let users_vector = USER_INFO.load(deps.storage, &info.sender);
-    let mut users: Vec<UserInfo>;
-    if users_vector.is_err() {
-        users = Vec::new();
-        let size = pool_length(deps.as_ref()).unwrap().length;
-        let mut pid = 0 as usize;
-        while pid <= size {
-            pid = pid.add(1);
-            users.push(UserInfo {
-                amount: Uint128::zero(),
-                reward_debt: Uint128::zero(),
-            })
-        }
-        USER_INFO.save(deps.storage, &info.sender, &users).unwrap();
-    } else {
-        users = users_vector.unwrap();
-    }
-    let user = &mut users[pid];
+    let user = USER_INFO
+        .load(deps.storage, (&token, &info.sender))
+        .unwrap_or_default();
 
-    let update_result = update_pool(deps.storage, env.clone(), info.clone(), pid).unwrap();
+    let update_result =
+        update_pool(deps.storage, env.clone(), info.clone(), token.clone()).unwrap();
     if !update_result.messages.is_empty() {
         for msg in update_result.messages {
             response.messages.push(msg);
@@ -270,8 +274,8 @@ pub fn deposit(
             response.attributes.push(attr);
         }
     }
-    let mut cfg = CONFIG.load(deps.storage)?;
-    let pool = &mut cfg.pool_info[pid];
+    let cfg = CONFIG.load(deps.storage)?;
+    let pool = POOL_INFO.load(deps.storage, &token)?;
 
     if user.amount > Uint128::zero() {
         let pending = user
@@ -300,7 +304,7 @@ pub fn deposit(
     }
     //call transfer function for lp token from: info.sender to: env.contract.address amount:_amount
     response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: pool.lp_token.to_string(),
+        contract_addr: token.to_string(),
         msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
             owner: info.sender.to_string(),
             recipient: env.contract.address.to_string(),
@@ -312,23 +316,27 @@ pub fn deposit(
     //Change local user balance lp token
     LP_TOKEN_BALANCES.update(
         deps.storage,
-        (&pool.lp_token, &info.sender),
+        (&token, &info.sender),
         |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
     )?;
     //Change user balance
-    USER_INFO.update(deps.storage, &info.sender, |user_info| -> StdResult<_> {
-        let mut val = user_info.unwrap_or_default();
-        val[pid].amount = user.amount.checked_add(amount).unwrap();
-        if pool.acc_per_share > Uint128::zero() {
-            val[pid].reward_debt = val[pid]
-                .amount
-                .checked_mul(pool.acc_per_share)
-                .unwrap()
-                .checked_sub(AMOUNT)
-                .unwrap();
-        }
-        Ok(val)
-    })?;
+    USER_INFO.update(
+        deps.storage,
+        (&token, &info.sender),
+        |user_info| -> StdResult<_> {
+            let mut val = user_info.unwrap_or_default();
+            val.amount = user.amount.checked_add(amount).unwrap();
+            if pool.acc_per_share > Uint128::zero() {
+                val.reward_debt = val
+                    .amount
+                    .checked_mul(pool.acc_per_share)
+                    .unwrap()
+                    .checked_sub(AMOUNT)
+                    .unwrap();
+            }
+            Ok(val)
+        },
+    )?;
     Ok(response)
 }
 
@@ -337,19 +345,20 @@ pub fn withdraw(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    pid: usize,
+    token: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let mut response = Response::default();
     response.add_attribute("Action", "Withdraw");
     let user = &mut USER_INFO
-        .load(deps.storage, &info.sender)
-        .unwrap_or_default()[pid];
+        .load(deps.storage, (&token, &info.sender))
+        .unwrap_or_default();
     if user.amount < amount {
         return Err(ContractError::BalanceTooSmall {});
     }
     //check result update pool
-    let update_result = update_pool(deps.storage, env.clone(), info.clone(), pid).unwrap();
+    let update_result =
+        update_pool(deps.storage, env.clone(), info.clone(), token.clone()).unwrap();
     if !update_result.messages.is_empty() {
         for msg in update_result.messages {
             response.messages.push(msg);
@@ -360,8 +369,8 @@ pub fn withdraw(
             response.attributes.push(attr);
         }
     }
-    let mut cfg = CONFIG.load(deps.storage)?;
-    let pool = &mut cfg.pool_info[pid];
+    let cfg = CONFIG.load(deps.storage)?;
+    let pool = POOL_INFO.load(deps.storage, &token)?;
     let pending = user
         .amount
         .checked_mul(pool.acc_per_share)
@@ -388,7 +397,7 @@ pub fn withdraw(
     }));
     //call to transfer function for lp token
     response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: pool.lp_token.to_string(),
+        contract_addr: token.to_string(),
         msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
             owner: env.contract.address.to_string(),
             recipient: info.sender.to_string(),
@@ -400,23 +409,27 @@ pub fn withdraw(
     //Change user balance lp token
     LP_TOKEN_BALANCES.update(
         deps.storage,
-        (&pool.lp_token, &info.sender),
+        (&token, &info.sender),
         |balance: Option<Uint128>| -> StdResult<_> {
             Ok(balance.unwrap_or_default().checked_sub(amount)?)
         },
     )?;
     //Change user balance
-    USER_INFO.update(deps.storage, &info.sender, |user_info| -> StdResult<_> {
-        let mut val = user_info.unwrap_or_default();
-        val[pid].amount = user.amount.checked_sub(amount).unwrap();
-        val[pid].reward_debt = user
-            .reward_debt
-            .checked_mul(pool.acc_per_share)
-            .unwrap()
-            .checked_div(AMOUNT)
-            .unwrap();
-        Ok(val)
-    })?;
+    USER_INFO.update(
+        deps.storage,
+        (&token, &info.sender),
+        |user_info| -> StdResult<_> {
+            let mut val = user_info.unwrap_or_default();
+            val.amount = user.amount.checked_sub(amount).unwrap();
+            val.reward_debt = user
+                .reward_debt
+                .checked_mul(pool.acc_per_share)
+                .unwrap()
+                .checked_div(AMOUNT)
+                .unwrap();
+            Ok(val)
+        },
+    )?;
     Ok(response)
 }
 
@@ -425,16 +438,16 @@ pub fn emergency_withdraw(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    pid: usize,
+    token: Addr,
 ) -> Result<Response, ContractError> {
-    let mut cfg = CONFIG.load(deps.storage)?;
-    let pool = &mut cfg.pool_info[pid];
-    let user = &mut USER_INFO.load(deps.storage, &info.sender).unwrap()[pid];
+    let user = &mut USER_INFO
+        .load(deps.storage, (&token, &info.sender))
+        .unwrap();
     let mut response = Response::default();
     response.add_attribute("Action", "EmergencyWithdraw");
     //call to transfer function for lp token
     response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: pool.lp_token.to_string(),
+        contract_addr: token.to_string(),
         msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
             owner: env.contract.address.to_string(),
             recipient: info.sender.to_string(),
@@ -445,7 +458,7 @@ pub fn emergency_withdraw(
     //Change user balance lp token
     LP_TOKEN_BALANCES.update(
         deps.storage,
-        (&pool.lp_token, &info.sender),
+        (&token, &info.sender),
         |balance: Option<Uint128>| -> StdResult<_> {
             Ok(balance
                 .unwrap_or_default()
@@ -454,12 +467,16 @@ pub fn emergency_withdraw(
         },
     )?;
     //Change user balance
-    USER_INFO.update(deps.storage, &info.sender, |user_info| -> StdResult<_> {
-        let mut val = user_info.unwrap_or_default();
-        val[pid].amount = Uint128::zero();
-        val[pid].reward_debt = Uint128::zero();
-        Ok(val)
-    })?;
+    USER_INFO.update(
+        deps.storage,
+        (&token, &info.sender),
+        |user_info| -> StdResult<_> {
+            let mut val = user_info.unwrap_or_default();
+            val.amount = Uint128::zero();
+            val.reward_debt = Uint128::zero();
+            Ok(val)
+        },
+    )?;
     Ok(response)
 }
 
@@ -482,14 +499,17 @@ pub fn set_dev(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::PoolLength {} => to_binary(&pool_length(deps)?),
-        QueryMsg::PendingToken { pid, user } => to_binary(&pending_token(deps, env, pid, user)?),
+        QueryMsg::PendingToken { token, user } => {
+            to_binary(&pending_token(deps, env, token, user)?)
+        }
         QueryMsg::GetMultiplier { from, to } => to_binary(&get_multiplier(deps.storage, from, to)?),
     }
 }
 
 pub fn pool_length(deps: Deps) -> StdResult<PoolLengthResponse> {
-    let cfg = CONFIG.load(deps.storage)?;
-    let _length = cfg.pool_info.len();
+    let _length = POOL_INFO
+        .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+        .count();
     Ok(PoolLengthResponse { length: _length })
 }
 
@@ -517,15 +537,15 @@ fn get_multiplier(storage: &dyn Storage, from: u64, to: u64) -> StdResult<GetMul
 pub fn pending_token(
     deps: Deps,
     env: Env,
-    pid: usize,
+    token: Addr,
     user: Addr,
 ) -> StdResult<PendingTokenResponse> {
-    let mut cfg = CONFIG.load(deps.storage)?;
-    let pool = &mut cfg.pool_info[pid];
-    let user_info = &mut USER_INFO.load(deps.storage, &user)?[pid];
+    let cfg = CONFIG.load(deps.storage)?;
+    let pool = POOL_INFO.load(deps.storage, &token)?;
+    let user_info = &mut USER_INFO.load(deps.storage, (&token, &user))?;
     let acc_per_share = pool.acc_per_share;
     let lp_supply = LP_TOKEN_BALANCES
-        .load(deps.storage, (&pool.lp_token, &user))
+        .load(deps.storage, (&token, &user))
         .unwrap_or(Uint128::zero());
     if env.block.height > pool.last_reward_block && lp_supply != Uint128::zero() {
         let multiplier = get_multiplier(deps.storage, pool.last_reward_block, env.block.height)?;

@@ -23,14 +23,12 @@
         "pending_token": {
           "type": "object",
           "required": [
-            "pid",
+            "token",
             "user"
           ],
           "properties": {
-            "pid": {
-              "type": "integer",
-              "format": "uint",
-              "minimum": 0.0
+            "token": {
+              "$ref": "#/definitions/Addr"
             },
             "user": {
               "$ref": "#/definitions/Addr"

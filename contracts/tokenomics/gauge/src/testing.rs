@@ -1,10 +1,12 @@
-use crate::contract::{instantiate, pool_length, add, set, deposit, withdraw, emergency_withdraw};
+use crate::contract::{add, deposit, emergency_withdraw, instantiate, pool_length, set, withdraw};
 use crate::error::ContractError;
 use crate::msg::InstantiateMsg;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{attr, Addr, Api, Deps, DepsMut, Env, MessageInfo, Uint128, CosmosMsg, WasmMsg, to_binary};
-use std::ops::Add;
+use cosmwasm_std::{
+    attr, to_binary, Addr, Api, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Uint128, WasmMsg,
+};
 use cw20::Cw20ExecuteMsg;
+use std::ops::Add;
 
 fn get_length(deps: Deps) -> usize {
     pool_length(deps).unwrap().length
@@ -148,7 +150,7 @@ fn execute_set() {
         env.clone(),
         info.clone(),
         10,
-        lp_token_contract,
+        lp_token_contract.clone(),
         false,
     )
     .unwrap();
@@ -161,7 +163,7 @@ fn execute_set() {
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        0,
+        lp_token_contract.clone(),
         20,
         false,
     );
@@ -170,7 +172,15 @@ fn execute_set() {
         e => panic!("Unexpected error: {:?}", e),
     }
     info.sender = owner;
-    res = set(deps.as_mut(), env.clone(), info.clone(), 0, 20, true).unwrap();
+    res = set(
+        deps.as_mut(),
+        env.clone(),
+        info.clone(),
+        lp_token_contract,
+        20,
+        true,
+    )
+    .unwrap();
     assert_eq!(0, res.messages.len())
 }
 
@@ -210,7 +220,14 @@ fn execute_deposit() {
     pool_length = get_length(deps.as_ref());
     assert_eq!(pool_length, 1);
 
-    res = deposit(deps.as_mut(), env.clone(), info.clone(), 0, Uint128(1000)).unwrap();
+    res = deposit(
+        deps.as_mut(),
+        env.clone(),
+        info.clone(),
+        lp_token_contract.clone(),
+        Uint128(1000),
+    )
+    .unwrap();
     assert_eq!(1, res.messages.len());
     let mut transfer_from_msg = res.messages.get(0).expect("no message");
     assert_eq!(
@@ -218,15 +235,22 @@ fn execute_deposit() {
         &CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: lp_token_contract.clone().to_string(),
             msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner:info.sender.to_string(),
+                owner: info.sender.to_string(),
                 recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
                 amount: Uint128(1000),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
-    res = deposit(deps.as_mut(), env.clone(), info.clone(), 0, Uint128(2000)).unwrap();
+    res = deposit(
+        deps.as_mut(),
+        env.clone(),
+        info.clone(),
+        lp_token_contract.clone(),
+        Uint128(2000),
+    )
+    .unwrap();
     assert_eq!(2, res.messages.len());
 
     let mut transfer_msg = res.messages.get(0).expect("no message");
@@ -236,10 +260,10 @@ fn execute_deposit() {
         &CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: xrts_token_contract.clone().to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient:info.sender.to_string(),
+                recipient: info.sender.to_string(),
                 amount: Uint128::zero(),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
@@ -248,16 +272,23 @@ fn execute_deposit() {
         &CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: lp_token_contract.clone().to_string(),
             msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner:info.sender.to_string(),
+                owner: info.sender.to_string(),
                 recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
                 amount: Uint128(2000),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
     env.block.height = env.block.height.add(50);
-    res = deposit(deps.as_mut(), env.clone(), info.clone(), 0, Uint128(3000)).unwrap();
+    res = deposit(
+        deps.as_mut(),
+        env.clone(),
+        info.clone(),
+        lp_token_contract.clone(),
+        Uint128(3000),
+    )
+    .unwrap();
     assert_eq!(4, res.messages.len());
     let mint_dev_msg = res.messages.get(0).expect("no message");
     let mint_msg = res.messages.get(1).expect("no message");
@@ -274,7 +305,7 @@ fn execute_deposit() {
                 recipient: owner.to_string(),
                 amount: Uint128(5000),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
@@ -286,7 +317,7 @@ fn execute_deposit() {
                 recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
                 amount: Uint128(50000),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
@@ -295,10 +326,10 @@ fn execute_deposit() {
         &CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: xrts_token_contract.clone().to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient:info.sender.to_string(),
+                recipient: info.sender.to_string(),
                 amount: Uint128(49998),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
@@ -307,11 +338,11 @@ fn execute_deposit() {
         &CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: lp_token_contract.clone().to_string(),
             msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner:info.sender.to_string(),
+                owner: info.sender.to_string(),
                 recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
                 amount: Uint128(3000),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
@@ -349,11 +380,25 @@ fn execute_withdraw() {
     )
     .unwrap();
     assert_eq!(0, res.messages.len());
-    res = deposit(deps.as_mut(), env.clone(), info.clone(), 0, Uint128(100u128)).unwrap();
+    res = deposit(
+        deps.as_mut(),
+        env.clone(),
+        info.clone(),
+        lp_token_contract.clone(),
+        Uint128(100u128),
+    )
+    .unwrap();
     assert_eq!(1, res.messages.len());
     assert_eq!(attr("Action", "Deposit"), res.attributes[0]);
 
-    res = withdraw(deps.as_mut(), env.clone(), info.clone(), 0, Uint128(50u128)).unwrap();
+    res = withdraw(
+        deps.as_mut(),
+        env.clone(),
+        info.clone(),
+        lp_token_contract.clone(),
+        Uint128(50u128),
+    )
+    .unwrap();
     assert_eq!(2, res.messages.len());
     let mut transfer_msg = res.messages.get(0).expect("no message");
     let mut transfer_from_msg = res.messages.get(1).expect("no message");
@@ -362,10 +407,10 @@ fn execute_withdraw() {
         &CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: xrts_token_contract.clone().to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient:info.sender.to_string(),
+                recipient: info.sender.to_string(),
                 amount: Uint128::zero(),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
@@ -374,21 +419,28 @@ fn execute_withdraw() {
         &CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: lp_token_contract.clone().to_string(),
             msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner:MOCK_CONTRACT_ADDR.parse().unwrap(),
+                owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
                 recipient: info.sender.to_string(),
                 amount: Uint128(50u128),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
     env.block.height = env.block.height.add(1000);
-    res = withdraw(deps.as_mut(), env.clone(), info.clone(), 0, Uint128(25u128)).unwrap();
+    res = withdraw(
+        deps.as_mut(),
+        env.clone(),
+        info.clone(),
+        lp_token_contract.clone(),
+        Uint128(25u128),
+    )
+    .unwrap();
     assert_eq!(4, res.messages.len());
 
     transfer_msg = res.messages.get(2).expect("no message");
     transfer_from_msg = res.messages.get(3).expect("no message");
-    for i in res.attributes{
+    for i in res.attributes {
         println!("{} {}", i.key, i.value);
     }
     assert_eq!(
@@ -396,10 +448,10 @@ fn execute_withdraw() {
         &CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: xrts_token_contract.clone().to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient:info.sender.to_string(),
+                recipient: info.sender.to_string(),
                 amount: Uint128(100000),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
@@ -412,12 +464,19 @@ fn execute_withdraw() {
                 recipient: info.sender.to_string(),
                 amount: Uint128(25u128),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
     env.block.height = env.block.height.add(1000);
-    res = withdraw(deps.as_mut(), env.clone(), info.clone(), 0, Uint128(25u128)).unwrap();
+    res = withdraw(
+        deps.as_mut(),
+        env.clone(),
+        info.clone(),
+        lp_token_contract.clone(),
+        Uint128(25u128),
+    )
+    .unwrap();
     assert_eq!(4, res.messages.len());
     transfer_msg = res.messages.get(2).expect("no message");
     transfer_from_msg = res.messages.get(3).expect("no message");
@@ -427,10 +486,10 @@ fn execute_withdraw() {
         &CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: xrts_token_contract.clone().to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient:info.sender.to_string(),
+                recipient: info.sender.to_string(),
                 amount: Uint128(60000),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
@@ -443,11 +502,17 @@ fn execute_withdraw() {
                 recipient: info.sender.to_string(),
                 amount: Uint128(25u128),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
-    let wres = withdraw(deps.as_mut(), env.clone(), info.clone(), 0, Uint128(25u128));
+    let wres = withdraw(
+        deps.as_mut(),
+        env.clone(),
+        info.clone(),
+        lp_token_contract,
+        Uint128(25u128),
+    );
     match wres.unwrap_err() {
         ContractError::BalanceTooSmall {} => {}
         e => panic!("Unexpected error: {:?}", e),
@@ -487,10 +552,23 @@ fn execute_emergency_withdraw() {
     )
     .unwrap();
     assert_eq!(0, res.messages.len());
-    res = deposit(deps.as_mut(), env.clone(), info.clone(), 0, Uint128(1122)).unwrap();
+    res = deposit(
+        deps.as_mut(),
+        env.clone(),
+        info.clone(),
+        lp_token_contract.clone(),
+        Uint128(1122),
+    )
+    .unwrap();
     assert_eq!(1, res.messages.len());
     env.block.height = env.block.height.add(1000);
-    res = emergency_withdraw(deps.as_mut(), env.clone(), info.clone(), 0).unwrap();
+    res = emergency_withdraw(
+        deps.as_mut(),
+        env.clone(),
+        info.clone(),
+        lp_token_contract.clone(),
+    )
+    .unwrap();
     assert_eq!(1, res.messages.len());
     // for i in res.attributes{
     //     println!("{} {}", i.key, i.value);
@@ -505,7 +583,7 @@ fn execute_emergency_withdraw() {
                 recipient: info.sender.to_string(),
                 amount: Uint128(1122),
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })
     );
