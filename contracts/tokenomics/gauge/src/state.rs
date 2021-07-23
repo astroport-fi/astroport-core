@@ -41,4 +41,3 @@ pub const POOL_INFO: Map<&Addr, PoolInfo> = Map::new("pool_info");
 
 // first key part is token, second - depositor
 pub const USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
-pub const LP_TOKEN_BALANCES: Map<(&Addr, &Addr), Uint128> = Map::new("lp_token_balance");

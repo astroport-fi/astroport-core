@@ -9,7 +9,7 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128, WasmMsg,
 };
 
-use crate::state::{Config, PoolInfo, CONFIG, LP_TOKEN_BALANCES, POOL_INFO, USER_INFO};
+use crate::state::{Config, PoolInfo, CONFIG, POOL_INFO, USER_INFO};
 
 use cw20::Cw20ExecuteMsg;
 use std::cmp::max;
@@ -196,10 +196,11 @@ pub fn update_pool(
     }
 
     //check local balances lp token
-    let lp_supply = LP_TOKEN_BALANCES
+    let lp_supply = USER_INFO
         .load(storage, (&token, &info.sender))
-        .unwrap_or(Uint128::zero());
-    if lp_supply == Uint128::zero() {
+        .unwrap_or_default()
+        .amount;
+    if lp_supply.is_zero() {
         pool.last_reward_block = env.block.height;
         POOL_INFO.save(storage, &token, &pool)?;
         CONFIG.save(storage, &cfg)?;
@@ -313,12 +314,6 @@ pub fn deposit(
         send: vec![],
     }));
 
-    //Change local user balance lp token
-    LP_TOKEN_BALANCES.update(
-        deps.storage,
-        (&token, &info.sender),
-        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
-    )?;
     //Change user balance
     USER_INFO.update(
         deps.storage,
@@ -406,14 +401,6 @@ pub fn withdraw(
         send: vec![],
     }));
 
-    //Change user balance lp token
-    LP_TOKEN_BALANCES.update(
-        deps.storage,
-        (&token, &info.sender),
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        },
-    )?;
     //Change user balance
     USER_INFO.update(
         deps.storage,
@@ -455,17 +442,7 @@ pub fn emergency_withdraw(
         })?,
         send: vec![],
     }));
-    //Change user balance lp token
-    LP_TOKEN_BALANCES.update(
-        deps.storage,
-        (&token, &info.sender),
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance
-                .unwrap_or_default()
-                .checked_sub(user.amount)
-                .unwrap())
-        },
-    )?;
+
     //Change user balance
     USER_INFO.update(
         deps.storage,
@@ -544,9 +521,10 @@ pub fn pending_token(
     let pool = POOL_INFO.load(deps.storage, &token)?;
     let user_info = &mut USER_INFO.load(deps.storage, (&token, &user))?;
     let acc_per_share = pool.acc_per_share;
-    let lp_supply = LP_TOKEN_BALANCES
+    let lp_supply = USER_INFO
         .load(deps.storage, (&token, &user))
-        .unwrap_or(Uint128::zero());
+        .unwrap_or_default()
+        .amount;
     if env.block.height > pool.last_reward_block && lp_supply != Uint128::zero() {
         let multiplier = get_multiplier(deps.storage, pool.last_reward_block, env.block.height)?;
         let mtpl = Uint128::from(multiplier.reward_multiplier_over);
