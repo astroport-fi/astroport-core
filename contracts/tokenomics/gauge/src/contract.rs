@@ -11,11 +11,11 @@ use cosmwasm_std::{
 
 use crate::state::{Config, PoolInfo, CONFIG, POOL_INFO, USER_INFO};
 
-use cw20::Cw20ExecuteMsg;
+use cw20::{BalanceResponse, Cw20ExecuteMsg};
 use std::cmp::max;
 use std::ops::{Add, Mul, Sub};
 
-// Bonus muliplier for early xTRS makers.
+// Bonus muliplier for early xASTRO makers.
 const BONUS_MULTIPLIER: u64 = 10;
 const AMOUNT: Uint128 = Uint128::new(1000);
 
@@ -27,8 +27,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let config = Config {
-        xtrs_token: msg.token,
-        xtrs_token_balance: Uint128::zero(),
+        x_astro_token: msg.token,
         dev_addr: msg.dev_addr,
         bonus_end_block: msg.bonus_end_block,
         tokens_per_block: msg.tokens_per_block,
@@ -111,7 +110,7 @@ pub fn add(
     Ok(response)
 }
 
-// Update the given pool's xTRS allocation point. Can only be called by the owner.
+// Update the given pool's xASTRO allocation point. Can only be called by the owner.
 pub fn set(
     deps: DepsMut,
     env: Env,
@@ -129,7 +128,7 @@ pub fn set(
     }
 
     if with_update {
-        let update_pool_result = mass_update_pool(deps.storage, env.clone(), info).unwrap();
+        let update_pool_result = mass_update_pool(deps.storage, env, info).unwrap();
         if !update_pool_result.messages.is_empty() {
             for msg in update_pool_result.messages {
                 response.messages.push(msg);
@@ -187,7 +186,7 @@ pub fn update_pool(
     info: MessageInfo,
     token: Addr,
 ) -> Result<Response, ContractError> {
-    let mut cfg = CONFIG.load(storage)?;
+    let cfg = CONFIG.load(storage)?;
     let mut pool = POOL_INFO.load(storage, &token)?;
     let mut response = Response::default();
 
@@ -203,7 +202,6 @@ pub fn update_pool(
     if lp_supply.is_zero() {
         pool.last_reward_block = env.block.height;
         POOL_INFO.save(storage, &token, &pool)?;
-        CONFIG.save(storage, &cfg)?;
         return Ok(response);
     }
 
@@ -216,10 +214,10 @@ pub fn update_pool(
         .checked_div(Uint128::from(cfg.total_alloc_point))
         .unwrap();
 
-    //calls to mint function for contract xTRS token
+    //calls to mint function for contract xASTRO token
     response.add_attribute("Rewards", token_rewards.to_string());
     response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.xtrs_token.to_string(),
+        contract_addr: cfg.x_astro_token.to_string(),
         msg: to_binary(&Cw20ExecuteMsg::Mint {
             recipient: cfg.dev_addr.to_string(),
             amount: token_rewards.checked_div(Uint128(10)).unwrap(),
@@ -228,9 +226,8 @@ pub fn update_pool(
     }));
 
     //TODO if not mint to info.sender.address ???
-    cfg.xtrs_token_balance = cfg.xtrs_token_balance.add(token_rewards);
     response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.xtrs_token.to_string(),
+        contract_addr: cfg.x_astro_token.to_string(),
         msg: to_binary(&Cw20ExecuteMsg::Mint {
             recipient: env.contract.address.to_string(),
             amount: token_rewards,
@@ -245,11 +242,10 @@ pub fn update_pool(
     pool.acc_per_share = pool.acc_per_share.checked_add(share).unwrap();
     pool.last_reward_block = env.block.height;
     POOL_INFO.save(storage, &token, &pool)?;
-    CONFIG.save(storage, &cfg)?;
     Ok(response)
 }
 
-// Deposit LP tokens to MasterChef for xTRS allocation.
+// Deposit LP tokens to MasterChef for xASTRO allocation.
 pub fn deposit(
     deps: DepsMut,
     env: Env,
@@ -287,20 +283,27 @@ pub fn deposit(
             .unwrap()
             .checked_sub(user.reward_debt)
             .unwrap();
-        //call to transfer function for xTRS token to:info.sender amount: safe (pending or xtrs_token_balance)
+
+        let x_astro_balance: BalanceResponse = deps.querier.query_wasm_smart(
+            cfg.x_astro_token.clone(),
+            &cw20::Cw20QueryMsg::Balance {
+                address: env.contract.address.to_string(),
+            },
+        )?;
+        //call to transfer function for xASTRO token to:info.sender amount: safe (pending or x_astro_balance)
         let mut amout = pending;
-        if pending > cfg.xtrs_token_balance {
-            amout = cfg.xtrs_token_balance;
+        if pending > x_astro_balance.balance {
+            amout = x_astro_balance.balance;
         }
         response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.xtrs_token.to_string(),
+            contract_addr: cfg.x_astro_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: info.sender.to_string(),
                 amount: amout,
             })?,
             send: vec![],
         }));
-        response.add_attribute("Action", "xTRSTransfer");
+        response.add_attribute("Action", "xASTROTransfer");
         response.add_attribute("pending", pending.to_string());
     }
     //call transfer function for lp token from: info.sender to: env.contract.address amount:_amount
@@ -375,15 +378,21 @@ pub fn withdraw(
         .checked_sub(user.reward_debt)
         .unwrap();
 
-    //xTRS transfer to info.sender pending;
+    let x_astro_balance: BalanceResponse = deps.querier.query_wasm_smart(
+        cfg.x_astro_token.clone(),
+        &cw20::Cw20QueryMsg::Balance {
+            address: env.contract.address.to_string(),
+        },
+    )?;
+    //xASTRO transfer to info.sender pending;
     let mut pending_rewards = pending;
-    if pending > cfg.xtrs_token_balance {
-        pending_rewards = cfg.xtrs_token_balance;
+    if pending > x_astro_balance.balance {
+        pending_rewards = x_astro_balance.balance;
     }
 
     response.add_attribute("PendingRewards", pending_rewards.to_string());
     response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.xtrs_token.to_string(),
+        contract_addr: cfg.x_astro_token.to_string(),
         msg: to_binary(&Cw20ExecuteMsg::Transfer {
             recipient: info.sender.to_string(),
             amount: pending_rewards,
@@ -493,7 +502,7 @@ pub fn pool_length(deps: Deps) -> StdResult<PoolLengthResponse> {
 // Return reward multiplier over the given _from to _to block.
 fn get_multiplier(storage: &dyn Storage, from: u64, to: u64) -> StdResult<GetMultiplierResponse> {
     let cfg = CONFIG.load(storage)?;
-    let mut _reward = 0 as u64;
+    let mut _reward = 0_u64;
     if to <= cfg.bonus_end_block {
         _reward = to.sub(from).mul(BONUS_MULTIPLIER as u64)
     } else if from >= cfg.bonus_end_block {
@@ -510,7 +519,7 @@ fn get_multiplier(storage: &dyn Storage, from: u64, to: u64) -> StdResult<GetMul
     })
 }
 
-// View function to see pending xTRS on frontend.
+// View function to see pending xASTRO on frontend.
 pub fn pending_token(
     deps: Deps,
     env: Env,
@@ -536,7 +545,7 @@ pub fn pending_token(
             .checked_div(Uint128::from(cfg.total_alloc_point))
             .unwrap();
         acc_per_share
-            .add(Uint128::from(token_rewards.checked_mul(AMOUNT).unwrap()))
+            .add(token_rewards.checked_mul(AMOUNT).unwrap())
             .checked_div(lp_supply)
             .unwrap();
     }
