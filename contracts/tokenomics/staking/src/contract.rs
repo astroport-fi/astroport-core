@@ -181,17 +181,17 @@ pub fn try_leave(
 }
 
 pub fn get_total_shares(deps: &DepsMut, config: Config) -> StdResult<Uint128> {
-    return Ok(deps
+    Ok(deps
         .querier
         .query_wasm_smart::<TokenInfoResponse, _, _>(
             &config.share_token_addr,
             &Cw20QueryMsg::TokenInfo {},
         )?
-        .total_supply);
+        .total_supply)
 }
 
 pub fn get_total_deposit(deps: &DepsMut, env: Env, config: Config) -> StdResult<Uint128> {
-    return Ok(deps
+    Ok(deps
         .querier
         .query_wasm_smart::<BalanceResponse, _, _>(
             &config.deposit_token_addr,
@@ -199,7 +199,7 @@ pub fn get_total_deposit(deps: &DepsMut, env: Env, config: Config) -> StdResult<
                 address: env.contract.address.to_string(),
             },
         )?
-        .balance);
+        .balance)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

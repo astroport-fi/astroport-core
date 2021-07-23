@@ -51,7 +51,7 @@ pub fn execute(
             to,
         } => execute_swap_operations(
             deps,
-            env.clone(),
+            env,
             info.clone(),
             info.sender,
             operations,
@@ -280,12 +280,9 @@ fn simulate_swap_operations(
                 )?;
 
                 // Deduct tax before querying simulation
-                match offer_asset_info.clone() {
-                    AssetInfo::NativeToken { denom } => {
-                        offer_amount =
-                            offer_amount.checked_sub(compute_tax(deps, offer_amount, denom)?)?;
-                    }
-                    _ => {}
+                if let AssetInfo::NativeToken { denom } = offer_asset_info.clone() {
+                    offer_amount =
+                        offer_amount.checked_sub(compute_tax(deps, offer_amount, denom)?)?;
                 }
 
                 let mut res: SimulationResponse =
@@ -300,15 +297,12 @@ fn simulate_swap_operations(
                     }))?;
 
                 // Deduct tax after querying simulation
-                match ask_asset_info.clone() {
-                    AssetInfo::NativeToken { denom } => {
-                        res.return_amount = res.return_amount.checked_sub(compute_tax(
-                            deps,
-                            res.return_amount,
-                            denom,
-                        )?)?;
-                    }
-                    _ => {}
+                if let AssetInfo::NativeToken { denom } = ask_asset_info.clone() {
+                    res.return_amount = res.return_amount.checked_sub(compute_tax(
+                        deps,
+                        res.return_amount,
+                        denom,
+                    )?)?;
                 }
 
                 offer_amount = res.return_amount;
@@ -321,9 +315,9 @@ fn simulate_swap_operations(
     })
 }
 
-fn assert_operations(operations: &Vec<SwapOperation>) -> Result<(), ContractError> {
+fn assert_operations(operations: &[SwapOperation]) -> Result<(), ContractError> {
     let mut ask_asset_map: HashMap<String, bool> = HashMap::new();
-    for operation in operations.into_iter() {
+    for operation in operations.iter() {
         let (offer_asset, ask_asset) = match operation {
             SwapOperation::NativeSwap {
                 offer_denom,
