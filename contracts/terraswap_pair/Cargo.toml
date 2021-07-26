@@ -33,6 +33,6 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }
 
 [dev-dependencies]
-cosmwasm-vm = { version = "0.14.0", default-features = false }
+cosmwasm-vm = { version = "0.14.0", default-features = false, features = ["iterator"] }
 cosmwasm-schema = "0.14.0"
 terra-cosmwasm = { version = "~2.0.0" }
