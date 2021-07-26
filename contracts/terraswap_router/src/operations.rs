@@ -65,12 +65,12 @@ pub fn execute_swap_operation(
             let pair_info: PairInfo = query_pair_info(
                 &deps.querier,
                 terraswap_factory,
-                &[offer_asset_info.clone(), ask_asset_info.clone()],
+                &[offer_asset_info.clone(), ask_asset_info],
             )?;
 
             let amount = match offer_asset_info.clone() {
                 AssetInfo::NativeToken { denom } => {
-                    query_balance(&deps.querier, env.contract.address, denom.to_string())?
+                    query_balance(&deps.querier, env.contract.address, denom)?
                 }
                 AssetInfo::Token { contract_addr } => {
                     query_token_balance(&deps.querier, contract_addr, env.contract.address)?

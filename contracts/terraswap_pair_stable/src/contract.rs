@@ -109,7 +109,7 @@ pub fn execute(
 
             swap(
                 deps,
-                env.clone(),
+                env,
                 info.clone(),
                 info.sender,
                 offer_asset,
@@ -242,9 +242,8 @@ pub fn provide_liquidity(
         return Err(ContractError::InvalidZeroAmount {});
     }
 
-    let mut i = 0;
     let mut messages: Vec<CosmosMsg> = vec![];
-    for pool in pools.iter_mut() {
+    for (i, pool) in pools.iter_mut().enumerate() {
         // If the pool is token contract, then we need to execute TransferFrom msg to receive funds
         if let AssetInfo::Token { contract_addr, .. } = &pool.info {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -261,8 +260,6 @@ pub fn provide_liquidity(
             // To calculated properly we should subtract user deposit from the pool
             pool.amount = pool.amount.checked_sub(deposits[i])?;
         }
-
-        i += 1;
     }
 
     // assert slippage tolerance
@@ -368,6 +365,7 @@ pub fn withdraw_liquidity(
 }
 
 // CONTRACT - a user must do token approval
+#[allow(clippy::too_many_arguments)]
 pub fn swap(
     deps: DepsMut,
     env: Env,

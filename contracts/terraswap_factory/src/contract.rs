@@ -109,7 +109,6 @@ pub fn execute_update_config(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
 // Anyone can execute it to create swap pair
 pub fn execute_create_pair(
     deps: DepsMut,
