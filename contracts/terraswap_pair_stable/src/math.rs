@@ -8,7 +8,7 @@ construct_uint! {
 }
 
 /////////////////////////////////////////////////////////////
-const DECIMAL_FRACTIONAL: Uint128 = Uint128(1_000_000_000u128);
+const DECIMAL_FRACTIONAL: Uint128 = Uint128::new(1_000_000_000u128);
 
 pub const AMP: u64 = 100;
 const N_COINS: u8 = 2;

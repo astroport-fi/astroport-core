@@ -1,4 +1,4 @@
-use cosmwasm_std::{attr, from_binary, to_binary, Addr, CanonicalAddr, CosmosMsg, WasmMsg};
+use cosmwasm_std::{attr, from_binary, to_binary, Addr, CanonicalAddr, ReplyOn, SubMsg, WasmMsg};
 
 use crate::mock_querier::mock_dependencies;
 use crate::state::{pair_key, PAIRS};
@@ -158,24 +158,30 @@ fn create_pair() {
     );
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
-            msg: to_binary(&PairInstantiateMsg {
-                asset_infos: asset_infos.clone(),
-                token_code_id: 123u64,
-                init_hook: Some(InitHook {
-                    contract_addr: String::from(MOCK_CONTRACT_ADDR),
-                    msg: to_binary(&ExecuteMsg::Register {
-                        asset_infos: asset_infos.clone()
+        vec![SubMsg {
+            msg: WasmMsg::Instantiate {
+                msg: to_binary(&PairInstantiateMsg {
+                    asset_infos: asset_infos.clone(),
+                    token_code_id: 123u64,
+                    init_hook: Some(InitHook {
+                        contract_addr: String::from(MOCK_CONTRACT_ADDR),
+                        msg: to_binary(&ExecuteMsg::Register {
+                            asset_infos: asset_infos.clone()
+                        })
+                        .unwrap(),
                     })
-                    .unwrap(),
                 })
-            })
-            .unwrap(),
-            code_id: 321u64,
-            send: vec![],
-            admin: None,
-            label: String::new(),
-        })]
+                .unwrap(),
+                code_id: 321u64,
+                funds: vec![],
+                admin: None,
+                label: String::new(),
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }]
     );
 
     let raw_infos = [

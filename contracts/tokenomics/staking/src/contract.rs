@@ -56,7 +56,7 @@ pub fn instantiate(
                 contract_addr: env.contract.address.to_string(),
             }),
         })?,
-        send: vec![],
+        funds: vec![],
         label: String::from("Astroport Staking Token"),
     }));
 
@@ -125,7 +125,7 @@ pub fn try_enter(
             recipient: info.sender.to_string(),
             amount: mint_amount,
         })?,
-        send: vec![],
+        funds: vec![],
     }));
 
     res.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -135,7 +135,7 @@ pub fn try_enter(
             recipient: env.contract.address.to_string(),
             amount,
         })?,
-        send: vec![],
+        funds: vec![],
     }));
 
     Ok(res)
@@ -165,7 +165,7 @@ pub fn try_leave(
             owner: info.sender.to_string(),
             amount: share,
         })?,
-        send: vec![],
+        funds: vec![],
     }));
 
     res.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -174,7 +174,7 @@ pub fn try_leave(
             recipient: info.sender.to_string(),
             amount: what,
         })?,
-        send: vec![],
+        funds: vec![],
     }));
 
     Ok(res)
