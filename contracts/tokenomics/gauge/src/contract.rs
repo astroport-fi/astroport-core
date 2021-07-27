@@ -136,9 +136,9 @@ pub fn mass_update_pools(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 
     let cfg = CONFIG.load(deps.storage)?;
 
-    for kp in pools {
-        let (messages, pool) =
-            update_pool_rewards(deps.as_ref(), env.clone(), kp.0.clone(), kp.1, cfg.clone())?;
+    for (token, pool) in pools {
+        let (messages, updated_pool) =
+            update_pool_rewards(deps.as_ref(), env.clone(), token.clone(), pool, cfg.clone())?;
 
         if let Some(msgs) = messages {
             for msg in msgs {
@@ -146,8 +146,8 @@ pub fn mass_update_pools(deps: DepsMut, env: Env) -> Result<Response, ContractEr
             }
         }
 
-        if let Some(p) = pool {
-            POOL_INFO.save(deps.storage, &kp.0, &p)?;
+        if let Some(p) = updated_pool {
+            POOL_INFO.save(deps.storage, &token, &p)?;
         }
     }
 
