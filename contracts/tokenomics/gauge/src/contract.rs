@@ -122,23 +122,23 @@ pub fn set(
 pub fn mass_update_pools(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let mut response = Response::default();
 
-    // TODO: use range instead of keys in order not to load pool info
-    // again later in the code
-    let token_keys: Vec<Addr> = POOL_INFO
-        .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-        .map(|v| Addr::unchecked(String::from_utf8(v).unwrap()))
+    let pools: Vec<(Addr, PoolInfo)> = POOL_INFO
+        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+        .filter_map(|v| {
+            v.ok()
+                .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
+        })
         .collect();
 
-    if token_keys.is_empty() {
+    if pools.is_empty() {
         return Ok(response);
     }
 
     let cfg = CONFIG.load(deps.storage)?;
 
-    for token in token_keys {
-        let pool = POOL_INFO.load(deps.storage, &token)?;
+    for kp in pools {
         let (messages, pool) =
-            update_pool_rewards(deps.as_ref(), env.clone(), token.clone(), pool, cfg.clone())?;
+            update_pool_rewards(deps.as_ref(), env.clone(), kp.0.clone(), kp.1, cfg.clone())?;
 
         if let Some(msgs) = messages {
             for msg in msgs {
@@ -147,7 +147,7 @@ pub fn mass_update_pools(deps: DepsMut, env: Env) -> Result<Response, ContractEr
         }
 
         if let Some(p) = pool {
-            POOL_INFO.save(deps.storage, &token, &p)?;
+            POOL_INFO.save(deps.storage, &kp.0, &p)?;
         }
     }
 
