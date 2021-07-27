@@ -6,18 +6,17 @@ use crate::msg::{
 
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
-    StdResult, Storage, Uint128, WasmMsg,
+    StdResult, Uint128, WasmMsg,
 };
 
 use crate::state::{Config, PoolInfo, CONFIG, POOL_INFO, USER_INFO};
 
 use cw20::{BalanceResponse, Cw20ExecuteMsg};
-use std::cmp::max;
-use std::ops::{Add, Mul, Sub};
+use std::cmp::{max, min};
 
-// Bonus muliplier for early xASTRO makers.
+// Bonus multiplier for early xASTRO makers.
 const BONUS_MULTIPLIER: u64 = 10;
-const AMOUNT: Uint128 = Uint128::new(1000);
+const PRECISION_MULTIPLIER: Uint128 = Uint128::new(100_000_000_000);
 
 #[entry_point]
 pub fn instantiate(
@@ -47,18 +46,10 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Add {
-            alloc_point,
-            token,
-            with_update,
-        } => add(deps, env, info, alloc_point, token, with_update),
-        ExecuteMsg::Set {
-            token,
-            alloc_point,
-            with_update,
-        } => set(deps, env, info, token, alloc_point, with_update),
-        ExecuteMsg::MassUpdatePool {} => mass_update_pool(deps.storage, env, info),
-        ExecuteMsg::UpdatePool { token } => update_pool(deps.storage, env, info, token),
+        ExecuteMsg::Add { alloc_point, token } => add(deps, env, info, alloc_point, token),
+        ExecuteMsg::Set { token, alloc_point } => set(deps, env, info, token, alloc_point),
+        ExecuteMsg::MassUpdatePools {} => mass_update_pools(deps, env),
+        ExecuteMsg::UpdatePool { token } => update_pool(deps, env, token),
         ExecuteMsg::Deposit { token, amount } => deposit(deps, env, info, token, amount),
         ExecuteMsg::Withdraw { token, amount } => withdraw(deps, env, info, token, amount),
         ExecuteMsg::EmergencyWithdraw { token } => emergency_withdraw(deps, env, info, token),
@@ -74,7 +65,6 @@ pub fn add(
     info: MessageInfo,
     alloc_point: u64,
     token: Addr,
-    with_update: bool,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.owner {
@@ -85,18 +75,6 @@ pub fn add(
         return Err(ContractError::TokenPoolAlreadyExists {});
     }
 
-    let mut response = Response::default();
-
-    if with_update {
-        let update_pool_result = mass_update_pool(deps.storage, env.clone(), info).unwrap();
-        if !update_pool_result.messages.is_empty() {
-            for msg in update_pool_result.messages {
-                response.messages.push(msg);
-            }
-            cfg = CONFIG.load(deps.storage)?;
-        }
-    }
-
     cfg.total_alloc_point = cfg.total_alloc_point.checked_add(alloc_point).unwrap();
 
     let pool_info = PoolInfo {
@@ -105,144 +83,191 @@ pub fn add(
         acc_per_share: Uint128::zero(),
     };
 
-    POOL_INFO.save(deps.storage, &token, &pool_info)?;
     CONFIG.save(deps.storage, &cfg)?;
-    Ok(response)
+    POOL_INFO.save(deps.storage, &token, &pool_info)?;
+
+    Ok(Response::default())
 }
 
 // Update the given pool's xASTRO allocation point. Can only be called by the owner.
 pub fn set(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     token: Addr,
     alloc_point: u64,
-    with_update: bool,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
-    let pool_info = POOL_INFO.load(deps.storage, &token)?;
-    let mut response = Response::default();
-
     if info.sender != cfg.owner {
         return Err(ContractError::Unauthorized {});
     }
 
-    if with_update {
-        let update_pool_result = mass_update_pool(deps.storage, env, info).unwrap();
-        if !update_pool_result.messages.is_empty() {
-            for msg in update_pool_result.messages {
-                response.messages.push(msg);
-            }
-            cfg = CONFIG.load(deps.storage)?;
-        }
-    }
+    let mut pool_info = POOL_INFO.load(deps.storage, &token)?;
 
-    cfg.total_alloc_point
+    cfg.total_alloc_point = cfg
+        .total_alloc_point
         .checked_sub(pool_info.alloc_point)
         .unwrap()
         .checked_add(alloc_point)
         .unwrap();
-    CONFIG.save(deps.storage, &cfg)?;
-    Ok(response)
-}
+    pool_info.alloc_point = alloc_point;
 
-// Test that binaries of Addr and String are equal
-// it's used for getting Addr from Map.keys() method via String
-// may be in future CanonicalAddr will implement PrimaryKey or Addr will be got from Vec[u8]
-#[test]
-fn binaries_of_addr_and_string_are_equal() {
-    let a = String::from("addr0001");
-    let b = Addr::unchecked(a.clone());
-    assert_eq!(a.as_bytes().to_vec(), b.as_bytes().to_vec());
+    CONFIG.save(deps.storage, &cfg)?;
+    POOL_INFO.save(deps.storage, &token, &pool_info)?;
+
+    Ok(Response::default())
 }
 
 // Update reward variables for all pools.
-pub fn mass_update_pool(
-    storage: &mut dyn Storage,
-    env: Env,
-    info: MessageInfo,
-) -> Result<Response, ContractError> {
+pub fn mass_update_pools(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let mut response = Response::default();
+
+    // TODO: use range instead of keys in order not to load pool info
+    // again later in the code
     let token_keys: Vec<Addr> = POOL_INFO
-        .keys(storage, None, None, cosmwasm_std::Order::Ascending)
+        .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
         .map(|v| Addr::unchecked(String::from_utf8(v).unwrap()))
         .collect();
+
+    if token_keys.is_empty() {
+        return Ok(response);
+    }
+
+    let cfg = CONFIG.load(deps.storage)?;
+
     for token in token_keys {
-        let update_pool_result =
-            update_pool(storage, env.clone(), info.clone(), token.clone()).unwrap();
-        if !update_pool_result.messages.is_empty() {
-            for msg in update_pool_result.messages {
-                response.messages.push(msg);
+        let pool = POOL_INFO.load(deps.storage, &token)?;
+        let (messages, pool) =
+            update_pool_rewards(deps.as_ref(), env.clone(), token.clone(), pool, cfg.clone())?;
+
+        if let Some(msgs) = messages {
+            for msg in msgs {
+                response.messages.push(CosmosMsg::Wasm(msg));
             }
         }
+
+        if let Some(p) = pool {
+            POOL_INFO.save(deps.storage, &token, &p)?;
+        }
     }
+
+    response.add_attribute("Action", "MassUpdatePools");
+
     Ok(response)
 }
 
 // Update reward variables of the given pool to be up-to-date.
-pub fn update_pool(
-    storage: &mut dyn Storage,
-    env: Env,
-    info: MessageInfo,
-    token: Addr,
-) -> Result<Response, ContractError> {
-    let cfg = CONFIG.load(storage)?;
-    let mut pool = POOL_INFO.load(storage, &token)?;
+pub fn update_pool(deps: DepsMut, env: Env, token: Addr) -> Result<Response, ContractError> {
     let mut response = Response::default();
 
-    if env.block.height <= pool.last_reward_block {
-        return Ok(response);
+    let cfg = CONFIG.load(deps.storage)?;
+    let pool = POOL_INFO.load(deps.storage, &token)?;
+
+    let (messages, pool) = update_pool_rewards(deps.as_ref(), env, token.clone(), pool, cfg)?;
+    if let Some(msgs) = messages {
+        for msg in msgs {
+            response.messages.push(CosmosMsg::Wasm(msg));
+        }
     }
 
-    //check local balances lp token
-    let lp_supply = USER_INFO
-        .load(storage, (&token, &info.sender))
-        .unwrap_or_default()
-        .amount;
-    if lp_supply.is_zero() {
-        pool.last_reward_block = env.block.height;
-        POOL_INFO.save(storage, &token, &pool)?;
-        return Ok(response);
+    if let Some(p) = pool {
+        POOL_INFO.save(deps.storage, &token, &p)?;
     }
 
-    let multiplier = get_multiplier(storage, pool.last_reward_block, env.block.height).unwrap();
-    let token_rewards = Uint128::from(multiplier.reward_multiplier_over)
-        .checked_mul(cfg.tokens_per_block)
-        .unwrap()
-        .checked_mul(Uint128::from(pool.alloc_point))
-        .unwrap()
-        .checked_div(Uint128::from(cfg.total_alloc_point))
-        .unwrap();
+    response.add_attribute("Action", "UpdatePool");
 
-    //calls to mint function for contract xASTRO token
-    response.add_attribute("Rewards", token_rewards.to_string());
-    response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.x_astro_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Mint {
-            recipient: cfg.dev_addr.to_string(),
-            amount: token_rewards.checked_div(Uint128(10)).unwrap(),
-        })?,
-        send: vec![],
-    }));
-
-    //TODO if not mint to info.sender.address ???
-    response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.x_astro_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Mint {
-            recipient: env.contract.address.to_string(),
-            amount: token_rewards,
-        })?,
-        send: vec![],
-    }));
-    let share = token_rewards
-        .checked_mul(AMOUNT)
-        .unwrap()
-        .checked_div(lp_supply)
-        .unwrap();
-    pool.acc_per_share = pool.acc_per_share.checked_add(share).unwrap();
-    pool.last_reward_block = env.block.height;
-    POOL_INFO.save(storage, &token, &pool)?;
     Ok(response)
+}
+
+// Update reward variables of the given pool to be up-to-date.
+pub fn update_pool_rewards(
+    deps: Deps,
+    env: Env,
+    token: Addr,
+    pool: PoolInfo,
+    cfg: Config,
+) -> StdResult<(Option<Vec<WasmMsg>>, Option<PoolInfo>)> {
+    if env.block.height <= pool.last_reward_block {
+        return Ok((None, None));
+    }
+
+    let lp_supply: BalanceResponse = deps.querier.query_wasm_smart(
+        token,
+        &cw20::Cw20QueryMsg::Balance {
+            address: env.contract.address.to_string(),
+        },
+    )?;
+
+    if lp_supply.balance.is_zero() {
+        return Ok((None, None));
+    }
+
+    let token_rewards = calculate_rewards(env.clone(), pool.clone(), cfg.clone())?;
+
+    let messages = vec![
+        // mint dev rewards
+        WasmMsg::Execute {
+            contract_addr: cfg.x_astro_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Mint {
+                recipient: cfg.dev_addr.to_string(),
+                amount: token_rewards.checked_div(Uint128(10)).unwrap(),
+            })?,
+            send: vec![],
+        },
+        // mint rewards
+        WasmMsg::Execute {
+            contract_addr: cfg.x_astro_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Mint {
+                recipient: env.contract.address.to_string(),
+                amount: token_rewards,
+            })?,
+            send: vec![],
+        },
+    ];
+
+    let share = token_rewards
+        .checked_mul(PRECISION_MULTIPLIER)
+        .unwrap()
+        .checked_div(lp_supply.balance)
+        .unwrap();
+
+    // update pool info
+    let updated_pool = PoolInfo {
+        alloc_point: pool.alloc_point,
+        last_reward_block: env.block.height,
+        acc_per_share: pool.acc_per_share.checked_add(share).unwrap(),
+    };
+
+    Ok((Some(messages), Some(updated_pool)))
+}
+
+// generates safe trasfer msg: min(amount, x_astro_token amount)
+fn safe_reward_transfer_message(
+    deps: Deps,
+    env: Env,
+    cfg: Config,
+    to: String,
+    amount: Uint128,
+) -> WasmMsg {
+    let x_astro_balance: BalanceResponse = deps
+        .querier
+        .query_wasm_smart(
+            cfg.x_astro_token.clone(),
+            &cw20::Cw20QueryMsg::Balance {
+                address: env.contract.address.to_string(),
+            },
+        )
+        .unwrap();
+
+    WasmMsg::Execute {
+        contract_addr: cfg.x_astro_token.to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: to,
+            amount: min(amount, x_astro_balance.balance),
+        })
+        .unwrap(),
+        send: vec![],
+    }
 }
 
 // Deposit LP tokens to MasterChef for xASTRO allocation.
@@ -255,57 +280,54 @@ pub fn deposit(
 ) -> Result<Response, ContractError> {
     let mut response = Response::default();
     response.add_attribute("Action", "Deposit");
+
     let user = USER_INFO
         .load(deps.storage, (&token, &info.sender))
         .unwrap_or_default();
 
-    let update_result =
-        update_pool(deps.storage, env.clone(), info.clone(), token.clone()).unwrap();
-    if !update_result.messages.is_empty() {
-        for msg in update_result.messages {
-            response.messages.push(msg);
-        }
-    }
-    if !update_result.attributes.is_empty() {
-        for attr in update_result.attributes {
-            response.attributes.push(attr);
-        }
-    }
     let cfg = CONFIG.load(deps.storage)?;
-    let pool = POOL_INFO.load(deps.storage, &token)?;
+    let mut pool = POOL_INFO.load(deps.storage, &token)?;
+
+    let (messages, updated_pool) = update_pool_rewards(
+        deps.as_ref(),
+        env.clone(),
+        token.clone(),
+        pool.clone(),
+        cfg.clone(),
+    )?;
+
+    if let Some(msgs) = messages {
+        for msg in msgs {
+            response.messages.push(CosmosMsg::Wasm(msg));
+        }
+    }
+
+    if let Some(p) = updated_pool {
+        pool = p;
+        POOL_INFO.save(deps.storage, &token, &pool)?;
+    }
 
     if user.amount > Uint128::zero() {
         let pending = user
             .amount
             .checked_mul(pool.acc_per_share)
             .unwrap()
-            .checked_div(AMOUNT)
+            .checked_div(PRECISION_MULTIPLIER)
             .unwrap()
             .checked_sub(user.reward_debt)
             .unwrap();
 
-        let x_astro_balance: BalanceResponse = deps.querier.query_wasm_smart(
-            cfg.x_astro_token.clone(),
-            &cw20::Cw20QueryMsg::Balance {
-                address: env.contract.address.to_string(),
-            },
-        )?;
-        //call to transfer function for xASTRO token to:info.sender amount: safe (pending or x_astro_balance)
-        let mut amout = pending;
-        if pending > x_astro_balance.balance {
-            amout = x_astro_balance.balance;
-        }
-        response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.x_astro_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: info.sender.to_string(),
-                amount: amout,
-            })?,
-            send: vec![],
-        }));
-        response.add_attribute("Action", "xASTROTransfer");
-        response.add_attribute("pending", pending.to_string());
+        response
+            .messages
+            .push(CosmosMsg::Wasm(safe_reward_transfer_message(
+                deps.as_ref(),
+                env.clone(),
+                cfg,
+                info.sender.to_string(),
+                pending,
+            )));
     }
+
     //call transfer function for lp token from: info.sender to: env.contract.address amount:_amount
     response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token.to_string(),
@@ -323,18 +345,19 @@ pub fn deposit(
         (&token, &info.sender),
         |user_info| -> StdResult<_> {
             let mut val = user_info.unwrap_or_default();
-            val.amount = user.amount.checked_add(amount).unwrap();
+            val.amount = val.amount.checked_add(amount)?;
+
             if pool.acc_per_share > Uint128::zero() {
                 val.reward_debt = val
                     .amount
-                    .checked_mul(pool.acc_per_share)
-                    .unwrap()
-                    .checked_sub(AMOUNT)
-                    .unwrap();
+                    .checked_mul(pool.acc_per_share)?
+                    .checked_div(PRECISION_MULTIPLIER)?;
             }
+
             Ok(val)
         },
     )?;
+
     Ok(response)
 }
 
@@ -348,58 +371,72 @@ pub fn withdraw(
 ) -> Result<Response, ContractError> {
     let mut response = Response::default();
     response.add_attribute("Action", "Withdraw");
-    let user = &mut USER_INFO
-        .load(deps.storage, (&token, &info.sender))
-        .unwrap_or_default();
+
+    let user = USER_INFO.load(deps.storage, (&token, &info.sender))?;
+
     if user.amount < amount {
         return Err(ContractError::BalanceTooSmall {});
     }
-    //check result update pool
-    let update_result =
-        update_pool(deps.storage, env.clone(), info.clone(), token.clone()).unwrap();
-    if !update_result.messages.is_empty() {
-        for msg in update_result.messages {
-            response.messages.push(msg);
-        }
-    }
-    if !update_result.attributes.is_empty() {
-        for attr in update_result.attributes {
-            response.attributes.push(attr);
-        }
-    }
+
     let cfg = CONFIG.load(deps.storage)?;
-    let pool = POOL_INFO.load(deps.storage, &token)?;
+    let mut pool = POOL_INFO.load(deps.storage, &token)?;
+
+    let (messages, updated_pool) = update_pool_rewards(
+        deps.as_ref(),
+        env.clone(),
+        token.clone(),
+        pool.clone(),
+        cfg.clone(),
+    )?;
+
+    if let Some(msgs) = messages {
+        for msg in msgs {
+            response.messages.push(CosmosMsg::Wasm(msg));
+        }
+    }
+
+    if let Some(p) = updated_pool {
+        pool = p;
+        POOL_INFO.save(deps.storage, &token, &pool)?;
+    }
+
     let pending = user
         .amount
         .checked_mul(pool.acc_per_share)
         .unwrap()
-        .checked_div(AMOUNT)
+        .checked_div(PRECISION_MULTIPLIER)
         .unwrap()
         .checked_sub(user.reward_debt)
         .unwrap();
 
-    let x_astro_balance: BalanceResponse = deps.querier.query_wasm_smart(
-        cfg.x_astro_token.clone(),
-        &cw20::Cw20QueryMsg::Balance {
-            address: env.contract.address.to_string(),
+    response
+        .messages
+        .push(CosmosMsg::Wasm(safe_reward_transfer_message(
+            deps.as_ref(),
+            env.clone(),
+            cfg,
+            info.sender.to_string(),
+            pending,
+        )));
+
+    // Update user balance
+    USER_INFO.update(
+        deps.storage,
+        (&token, &info.sender),
+        |user_info| -> StdResult<_> {
+            let mut val = user_info.unwrap();
+            val.amount = val.amount.checked_sub(amount).unwrap();
+            val.reward_debt = val
+                .reward_debt
+                .checked_mul(pool.acc_per_share)
+                .unwrap()
+                .checked_div(PRECISION_MULTIPLIER)
+                .unwrap();
+            Ok(val)
         },
     )?;
-    //xASTRO transfer to info.sender pending;
-    let mut pending_rewards = pending;
-    if pending > x_astro_balance.balance {
-        pending_rewards = x_astro_balance.balance;
-    }
 
-    response.add_attribute("PendingRewards", pending_rewards.to_string());
-    response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.x_astro_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: info.sender.to_string(),
-            amount: pending_rewards,
-        })?,
-        send: vec![],
-    }));
-    //call to transfer function for lp token
+    // call to transfer function for lp token
     response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token.to_string(),
         msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
@@ -410,22 +447,6 @@ pub fn withdraw(
         send: vec![],
     }));
 
-    //Change user balance
-    USER_INFO.update(
-        deps.storage,
-        (&token, &info.sender),
-        |user_info| -> StdResult<_> {
-            let mut val = user_info.unwrap_or_default();
-            val.amount = user.amount.checked_sub(amount).unwrap();
-            val.reward_debt = user
-                .reward_debt
-                .checked_mul(pool.acc_per_share)
-                .unwrap()
-                .checked_div(AMOUNT)
-                .unwrap();
-            Ok(val)
-        },
-    )?;
     Ok(response)
 }
 
@@ -436,11 +457,13 @@ pub fn emergency_withdraw(
     info: MessageInfo,
     token: Addr,
 ) -> Result<Response, ContractError> {
-    let user = &mut USER_INFO
+    let user = USER_INFO
         .load(deps.storage, (&token, &info.sender))
         .unwrap();
+
     let mut response = Response::default();
     response.add_attribute("Action", "EmergencyWithdraw");
+
     //call to transfer function for lp token
     response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token.to_string(),
@@ -452,17 +475,9 @@ pub fn emergency_withdraw(
         send: vec![],
     }));
 
-    //Change user balance
-    USER_INFO.update(
-        deps.storage,
-        (&token, &info.sender),
-        |user_info| -> StdResult<_> {
-            let mut val = user_info.unwrap_or_default();
-            val.amount = Uint128::zero();
-            val.reward_debt = Uint128::zero();
-            Ok(val)
-        },
-    )?;
+    // Change user balance
+    USER_INFO.remove(deps.storage, (&token, &info.sender));
+
     Ok(response)
 }
 
@@ -476,8 +491,10 @@ pub fn set_dev(
     if info.sender != cfg.dev_addr {
         return Err(ContractError::Unauthorized {});
     }
+
     cfg.dev_addr = dev_address;
     CONFIG.save(deps.storage, &cfg)?;
+
     Ok(Response::default())
 }
 
@@ -488,7 +505,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::PendingToken { token, user } => {
             to_binary(&pending_token(deps, env, token, user)?)
         }
-        QueryMsg::GetMultiplier { from, to } => to_binary(&get_multiplier(deps.storage, from, to)?),
+        QueryMsg::GetMultiplier { from, to } => {
+            let cfg = CONFIG.load(deps.storage)?;
+            to_binary(&get_multiplier(from, to, cfg.bonus_end_block))
+        }
     }
 }
 
@@ -500,23 +520,27 @@ pub fn pool_length(deps: Deps) -> StdResult<PoolLengthResponse> {
 }
 
 // Return reward multiplier over the given _from to _to block.
-fn get_multiplier(storage: &dyn Storage, from: u64, to: u64) -> StdResult<GetMultiplierResponse> {
-    let cfg = CONFIG.load(storage)?;
-    let mut _reward = 0_u64;
-    if to <= cfg.bonus_end_block {
-        _reward = to.sub(from).mul(BONUS_MULTIPLIER as u64)
-    } else if from >= cfg.bonus_end_block {
-        _reward = to.sub(from);
+fn get_multiplier(from: u64, to: u64, bonus_end_block: u64) -> GetMultiplierResponse {
+    let reward: u64;
+    if to <= bonus_end_block {
+        reward = to
+            .checked_sub(from)
+            .unwrap()
+            .checked_mul(BONUS_MULTIPLIER)
+            .unwrap();
+    } else if from >= bonus_end_block {
+        reward = to.checked_sub(from).unwrap();
     } else {
-        _reward = cfg
-            .bonus_end_block
-            .sub(from)
-            .mul(BONUS_MULTIPLIER)
-            .add(to.sub(cfg.bonus_end_block));
+        reward = bonus_end_block
+            .checked_sub(from)
+            .unwrap()
+            .checked_mul(BONUS_MULTIPLIER)
+            .unwrap()
+            .checked_add(to.checked_sub(bonus_end_block).unwrap())
+            .unwrap();
     }
-    Ok(GetMultiplierResponse {
-        reward_multiplier_over: _reward,
-    })
+
+    GetMultiplierResponse { multiplier: reward }
 }
 
 // View function to see pending xASTRO on frontend.
@@ -535,17 +559,11 @@ pub fn pending_token(
         .unwrap_or_default()
         .amount;
     if env.block.height > pool.last_reward_block && lp_supply != Uint128::zero() {
-        let multiplier = get_multiplier(deps.storage, pool.last_reward_block, env.block.height)?;
-        let mtpl = Uint128::from(multiplier.reward_multiplier_over);
-        let token_rewards = mtpl
-            .checked_mul(cfg.tokens_per_block)
-            .unwrap()
-            .checked_mul(Uint128::from(pool.alloc_point))
-            .unwrap()
-            .checked_div(Uint128::from(cfg.total_alloc_point))
-            .unwrap();
+        let token_rewards = calculate_rewards(env, pool, cfg)?;
+
         acc_per_share
-            .add(token_rewards.checked_mul(AMOUNT).unwrap())
+            .checked_add(token_rewards.checked_mul(PRECISION_MULTIPLIER).unwrap())
+            .unwrap()
             .checked_div(lp_supply)
             .unwrap();
     }
@@ -553,9 +571,24 @@ pub fn pending_token(
         .amount
         .checked_mul(acc_per_share)
         .unwrap()
-        .checked_div(AMOUNT)
+        .checked_div(PRECISION_MULTIPLIER)
         .unwrap()
         .checked_sub(user_info.reward_debt)
         .unwrap();
     Ok(PendingTokenResponse { pending: _pending })
+}
+
+pub fn calculate_rewards(env: Env, pool: PoolInfo, cfg: Config) -> StdResult<Uint128> {
+    let m = get_multiplier(
+        pool.last_reward_block,
+        env.block.height,
+        cfg.bonus_end_block,
+    );
+
+    let r = Uint128::from(m.multiplier)
+        .checked_mul(cfg.tokens_per_block)?
+        .checked_mul(Uint128::from(pool.alloc_point))?
+        .checked_div(Uint128::from(cfg.total_alloc_point))?;
+
+    Ok(r)
 }

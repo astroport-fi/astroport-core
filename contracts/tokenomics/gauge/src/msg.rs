@@ -17,14 +17,12 @@ pub enum ExecuteMsg {
     Add {
         alloc_point: u64,
         token: Addr,
-        with_update: bool,
     },
     Set {
         token: Addr,
         alloc_point: u64,
-        with_update: bool,
     },
-    MassUpdatePool {},
+    MassUpdatePools {},
     UpdatePool {
         token: Addr,
     },
@@ -59,7 +57,7 @@ pub struct PoolLengthResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetMultiplierResponse {
-    pub reward_multiplier_over: u64,
+    pub multiplier: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
