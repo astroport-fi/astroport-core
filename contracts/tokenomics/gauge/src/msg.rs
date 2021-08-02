@@ -17,10 +17,12 @@ pub enum ExecuteMsg {
     Add {
         alloc_point: u64,
         token: Addr,
+        //with_update: bool,
     },
     Set {
         token: Addr,
         alloc_point: u64,
+        //with_update: bool,
     },
     MassUpdatePools {},
     UpdatePool {

@@ -20,17 +20,17 @@ pub struct PoolInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: Addr,
-    // The xASTRO TOKEN!
-    pub x_astro_token: Addr,
+    // The ASTRO TOKEN!
+    pub astro_token: Addr,
     // Dev address.
     pub dev_addr: Addr,
-    // Block number when bonus xASTRO period ends.
+    // Block number when bonus ASTRO period ends.
     pub bonus_end_block: u64,
-    // xASTRO tokens created per block.
+    // ASTRO tokens created per block.
     pub tokens_per_block: Uint128,
     // Total allocation points. Must be the sum of all allocation points in all pools.
     pub total_alloc_point: u64,
-    // The block number when xASTRO mining starts.
+    // The block number when ASTRO mining starts.
     pub start_block: u64,
 }
 

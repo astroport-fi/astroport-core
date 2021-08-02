@@ -1,6 +1,6 @@
 [package]
 name = "astroport-gauge"
-version = "0.0.0"
+version = "0.1.0"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"
 
