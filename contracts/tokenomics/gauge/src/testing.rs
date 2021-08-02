@@ -7,7 +7,7 @@ use cosmwasm_std::{
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg};
 
-use crate::contract::{add, deposit, emergency_withdraw, execute, instantiate, query};
+use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError;
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::msg::{ExecuteMsg, InstantiateMsg, PendingTokenResponse, PoolLengthResponse, QueryMsg};
@@ -45,6 +45,78 @@ fn get_token_balance(deps: Deps, user: Addr, token: Addr) -> Uint128 {
         )
         .unwrap();
     balance.balance
+}
+
+fn execute_messages_token_contract(
+    deps: &mut OwnedDeps<MemoryStorage, MockApi, WasmMockQuerier>,
+    res: Response,
+) {
+    for request in res.messages {
+        match request {
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                                contract_addr,
+                                msg,
+                                send: _,
+                            }) => match from_binary(&msg).unwrap() {
+                Cw20ExecuteMsg::Transfer { recipient, amount } => {
+                    println!(
+                        "Transfer contract address: {}, to {}, amount: {}",
+                        contract_addr,
+                        recipient,
+                        amount.to_string()
+                    );
+                    deps.querier.sub_balance(
+                        Addr::unchecked(MOCK_CONTRACT_ADDR),
+                        Addr::unchecked(contract_addr.clone()),
+                        amount.clone(),
+                    );
+                    deps.querier.add_balance(
+                        Addr::unchecked(recipient),
+                        Addr::unchecked(contract_addr),
+                        amount,
+                    );
+                }
+                Cw20ExecuteMsg::Mint { recipient, amount } => {
+                    println!(
+                        "Mint contract address: {}, to {}, amount: {}",
+                        contract_addr,
+                        recipient,
+                        amount.to_string()
+                    );
+                    deps.querier.add_balance(
+                        Addr::unchecked(recipient),
+                        Addr::unchecked(contract_addr),
+                        amount,
+                    );
+                }
+                Cw20ExecuteMsg::TransferFrom {
+                    owner,
+                    recipient,
+                    amount,
+                } => {
+                    println!(
+                        "TransferFrom contract address: {}, from: {}, to {}, amount: {}",
+                        contract_addr,
+                        owner,
+                        recipient,
+                        amount.to_string()
+                    );
+                    deps.querier.sub_balance(
+                        Addr::unchecked(owner),
+                        Addr::unchecked(contract_addr.clone()),
+                        amount.clone(),
+                    );
+                    deps.querier.add_balance(
+                        Addr::unchecked(recipient),
+                        Addr::unchecked(contract_addr),
+                        amount,
+                    );
+                }
+                _ => panic!("DO NOT ENTER HERE"),
+            },
+            _ => {}
+        }
+    }
 }
 
 #[test]
@@ -111,6 +183,7 @@ fn execute_add() {
     let msg = ExecuteMsg::Add {
         alloc_point: 10,
         token: lp_token_contract.clone(),
+        with_update: false,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -146,6 +219,7 @@ fn execute_add() {
     let msg = ExecuteMsg::Add {
         alloc_point: 20,
         token: lp_token_contract.clone(),
+        with_update: false,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     match res {
@@ -158,6 +232,7 @@ fn execute_add() {
     let msg = ExecuteMsg::Add {
         alloc_point: 20,
         token: lp_token_contract1.clone(),
+        with_update: false,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
     match res {
@@ -235,6 +310,7 @@ fn execute_set() {
     let msg = ExecuteMsg::Add {
         alloc_point: 10,
         token: lp_token_contract.clone(),
+        with_update: false,
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
     let config = CONFIG.load(deps.as_ref().storage).unwrap();
@@ -259,6 +335,7 @@ fn execute_set() {
         ExecuteMsg::Set {
             token: lp_token_contract.clone(),
             alloc_point: 20,
+            with_update: false,
         },
     );
     match wr {
@@ -274,6 +351,7 @@ fn execute_set() {
         ExecuteMsg::Set {
             token: lp_token_contract.clone(),
             alloc_point: 20,
+            with_update: false,
         },
     )
     .unwrap();
@@ -288,6 +366,7 @@ fn execute_set() {
     let msg = ExecuteMsg::Add {
         alloc_point: 100,
         token: Addr::unchecked("come_token"),
+        with_update: false,
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
     let res = execute(
@@ -297,6 +376,7 @@ fn execute_set() {
         ExecuteMsg::Set {
             token: lp_token_contract.clone(),
             alloc_point: 50,
+            with_update: false,
         },
     )
     .unwrap();
@@ -341,6 +421,7 @@ fn execute_deposit() {
         ExecuteMsg::Add {
             alloc_point: 10,
             token: lp_token_contract.clone(),
+            with_update: false,
         },
     )
     .unwrap();
@@ -519,6 +600,7 @@ fn execute_withdraw() {
         ExecuteMsg::Add {
             alloc_point: 10,
             token: lp_token_contract.clone(),
+            with_update: false,
         },
     )
     .unwrap();
@@ -554,7 +636,7 @@ fn execute_withdraw() {
             msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
                 owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
                 recipient: info.sender.to_string(),
-                amount: Uint128(50u128),
+                amount: Uint128(50),
             })
             .unwrap(),
             send: vec![],
@@ -722,35 +804,41 @@ fn execute_emergency_withdraw() {
         env.block.height.add(1000),
     );
 
-    let res = add(
+    let res = execute(
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        10,
-        lp_token_contract.clone(),
-        //false,
+        ExecuteMsg::Add {
+            alloc_point: 10,
+            token: lp_token_contract.clone(),
+            with_update: false,
+        },
     )
     .unwrap();
     assert_eq!(0, res.messages.len());
 
     info.sender = user.clone();
-    let res = deposit(
+    let res = execute(
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        lp_token_contract.clone(),
-        Uint128(1122),
+        ExecuteMsg::Deposit {
+            token: lp_token_contract.clone(),
+            amount: Uint128(1122),
+        },
     )
     .unwrap();
     assert_eq!(1, res.messages.len());
     execute_messages_token_contract(&mut deps, res);
 
     env.block.height = env.block.height.add(1000);
-    let res = emergency_withdraw(
+    let res = execute(
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        lp_token_contract.clone(),
+        ExecuteMsg::EmergencyWithdraw {
+            token: lp_token_contract.clone(),
+        },
     )
     .unwrap();
     assert_eq!(1, res.messages.len());
@@ -815,6 +903,7 @@ fn give_token_after_farming_time() {
         ExecuteMsg::Add {
             alloc_point: 100,
             token: lp_token_contract.clone(),
+            with_update: false,
         },
     )
     .unwrap();
@@ -844,9 +933,7 @@ fn give_token_after_farming_time() {
         },
     )
     .unwrap();
-    // TODO expect this token balance of contract address to equal 0 check it
     assert_eq!(res.messages.len(), 0);
-    //TODO add check token balanceOf
 
     // Block 95
     env.block.height = env.block.height.add(5);
@@ -967,7 +1054,6 @@ fn give_token_after_farming_time() {
         ]
     );
     execute_messages_token_contract(&mut deps, res);
-    // TODO check ??
     // astra token balanceOf contract address equal 5000
     let bal = get_token_balance(deps.as_ref(), owner.clone(), astro_token_contract.clone());
     assert_eq!(bal, Uint128(5000));
@@ -1010,6 +1096,7 @@ fn not_distribute_tokens() {
         ExecuteMsg::Add {
             alloc_point: 100,
             token: lp_token_contract.clone(),
+            with_update: false,
         },
     )
     .unwrap();
@@ -1023,7 +1110,7 @@ fn not_distribute_tokens() {
     )
     .unwrap();
     assert_eq!(res.messages.len(), 0);
-    // TODO astra token totalSupply equal 0
+
     // Block 204
     env.block.height = env.block.height.add(5);
     let res = execute(
@@ -1063,7 +1150,11 @@ fn not_distribute_tokens() {
     execute_messages_token_contract(&mut deps, res);
     // astra token totalSupply equal 0
     // astra token balanceOf contract address equal 0
+    let bal = get_token_balance(deps.as_ref(), user.clone(), astro_token_contract.clone());
+    assert_eq!(bal, Uint128::zero());
     // astra token balanceOf dev address equal 0
+    let bal = get_token_balance(deps.as_ref(), dev.clone(), astro_token_contract.clone());
+    assert_eq!(bal, Uint128::zero());
     // lp token balanceOf equal -10
     let balance = get_token_balance(deps.as_ref(), user.clone(), lp_token_contract.clone());
     assert_eq!(balance, Uint128(990));
@@ -1142,7 +1233,7 @@ fn not_distribute_tokens() {
 fn distribute_tokens() {
     let mut deps = mock_dependencies(&[]);
     let mut info = mock_info("addr0000", &[]);
-    //let owner = Addr::unchecked("addr0000");
+
     let user_one = Addr::unchecked("user0000");
     let user_two = Addr::unchecked("user0001");
     let user_three = Addr::unchecked("user0002");
@@ -1170,23 +1261,18 @@ fn distribute_tokens() {
         env.block.height.add(1000),
     );
     // Add first LP to the pool with allocation 1
-    execute(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        ExecuteMsg::MassUpdatePools {},
-    )
-    .unwrap();
-    let _ = execute(
+    let res = execute(
         deps.as_mut(),
         env.clone(),
         info.clone(),
         ExecuteMsg::Add {
             alloc_point: 100,
             token: lp_token_contract.clone(),
+            with_update: true,
         },
     )
     .unwrap();
+    execute_messages_token_contract(&mut deps, res);
 
     // User_one deposits 10 LPs at block 310
     // Block +310
@@ -1427,77 +1513,7 @@ fn distribute_tokens() {
     assert_eq!(bal, Uint128(1000));
 }
 
-fn execute_messages_token_contract(
-    deps: &mut OwnedDeps<MemoryStorage, MockApi, WasmMockQuerier>,
-    res: Response,
-) {
-    for request in res.messages {
-        match request {
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr,
-                msg,
-                send: _,
-            }) => match from_binary(&msg).unwrap() {
-                Cw20ExecuteMsg::Transfer { recipient, amount } => {
-                    println!(
-                        "Transfer contract address: {}, to {}, amount: {}",
-                        contract_addr,
-                        recipient,
-                        amount.to_string()
-                    );
-                    deps.querier.sub_balance(
-                        Addr::unchecked(MOCK_CONTRACT_ADDR),
-                        Addr::unchecked(contract_addr.clone()),
-                        amount.clone(),
-                    );
-                    deps.querier.add_balance(
-                        Addr::unchecked(recipient),
-                        Addr::unchecked(contract_addr),
-                        amount,
-                    );
-                }
-                Cw20ExecuteMsg::Mint { recipient, amount } => {
-                    println!(
-                        "Mint contract address: {}, to {}, amount: {}",
-                        contract_addr,
-                        recipient,
-                        amount.to_string()
-                    );
-                    deps.querier.add_balance(
-                        Addr::unchecked(recipient),
-                        Addr::unchecked(contract_addr),
-                        amount,
-                    );
-                }
-                Cw20ExecuteMsg::TransferFrom {
-                    owner,
-                    recipient,
-                    amount,
-                } => {
-                    println!(
-                        "TransferFrom contract address: {}, from: {}, to {}, amount: {}",
-                        contract_addr,
-                        owner,
-                        recipient,
-                        amount.to_string()
-                    );
-                    deps.querier.sub_balance(
-                        Addr::unchecked(owner),
-                        Addr::unchecked(contract_addr.clone()),
-                        amount.clone(),
-                    );
-                    deps.querier.add_balance(
-                        Addr::unchecked(recipient),
-                        Addr::unchecked(contract_addr),
-                        amount,
-                    );
-                }
-                _ => panic!("DO NOT ENTER HERE"),
-            },
-            _ => {}
-        }
-    }
-}
+
 
 // should give proper tokens allocation to each pool
 #[test]
@@ -1536,23 +1552,18 @@ fn tokens_allocation_each_pool() {
         env.block.height.add(1000),
     );
     // Add first LP to the pool with allocation 1
-    execute(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        ExecuteMsg::MassUpdatePools {},
-    )
-    .unwrap();
-    let _ = execute(
+    let res = execute(
         deps.as_mut(),
         env.clone(),
         info.clone(),
         ExecuteMsg::Add {
             alloc_point: 10,
             token: lp_token_contract_one.clone(),
+            with_update: true,
         },
     )
     .unwrap();
+    execute_messages_token_contract(&mut deps, res);
 
     // User_one deposits 10 LPs at block 410
     // Block +410
@@ -1574,26 +1585,18 @@ fn tokens_allocation_each_pool() {
     // Block +420
     env.block.height = env.block.height.add(10);
     info.sender = owner.clone();
-    //TODO method add need support MassUpdatePools
     let res = execute(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        ExecuteMsg::MassUpdatePools {},
-    )
-    .unwrap();
-    execute_messages_token_contract(&mut deps, res);
-
-    let _ = execute(
         deps.as_mut(),
         env.clone(),
         info.clone(),
         ExecuteMsg::Add {
             alloc_point: 20,
             token: lp_token_contract_two.clone(),
+            with_update: true,
         },
     )
     .unwrap();
+    execute_messages_token_contract(&mut deps, res);
 
     // User_one should have 10*1000 pending reward
     info.sender = user_one.clone();
@@ -1701,6 +1704,7 @@ fn stop_giving_bonus_tokens() {
         ExecuteMsg::Add {
             alloc_point: 1,
             token: lp_token_contract.clone(),
+            with_update: false,
         },
     )
     .unwrap();

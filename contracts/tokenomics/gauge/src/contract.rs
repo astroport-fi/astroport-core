@@ -46,8 +46,16 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Add { alloc_point, token } => add(deps, env, info, alloc_point, token),
-        ExecuteMsg::Set { token, alloc_point } => set(deps, env, info, token, alloc_point),
+        ExecuteMsg::Add {
+            alloc_point,
+            token,
+            with_update,
+        } => add(deps, env, info, alloc_point, token, with_update),
+        ExecuteMsg::Set {
+            token,
+            alloc_point,
+            with_update,
+        } => set(deps, env, info, token, alloc_point, with_update),
         ExecuteMsg::MassUpdatePools {} => mass_update_pools(deps, env),
         ExecuteMsg::UpdatePool { token } => update_pool(deps, env, token),
         ExecuteMsg::Deposit { token, amount } => deposit(deps, env, info, token, amount),
@@ -65,10 +73,42 @@ pub fn add(
     info: MessageInfo,
     alloc_point: u64,
     token: Addr,
+    with_update: bool,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.owner {
         return Err(ContractError::Unauthorized {});
+    }
+    let mut response = Response::default();
+    if with_update {
+        let pools: Vec<(Addr, PoolInfo)> = POOL_INFO
+            .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+            .filter_map(|v| {
+                v.ok()
+                    .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
+            })
+            .collect();
+
+        if !pools.is_empty() {
+            for (token, pool) in pools {
+                let (_, messages, updated_pool) = update_pool_rewards(
+                    deps.as_ref(),
+                    env.clone(),
+                    token.clone(),
+                    pool,
+                    cfg.clone(),
+                )?;
+
+                if let Some(msgs) = messages {
+                    for msg in msgs {
+                        response.messages.push(CosmosMsg::Wasm(msg));
+                    }
+                }
+                if let Some(p) = updated_pool {
+                    POOL_INFO.save(deps.storage, &token, &p)?;
+                }
+            }
+        }
     }
 
     if POOL_INFO.load(deps.storage, &token).is_ok() {
@@ -86,22 +126,53 @@ pub fn add(
     CONFIG.save(deps.storage, &cfg)?;
     POOL_INFO.save(deps.storage, &token, &pool_info)?;
 
-    Ok(Response::default())
+    Ok(response)
 }
 
 // Update the given pool's ASTRO allocation point. Can only be called by the owner.
 pub fn set(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     token: Addr,
     alloc_point: u64,
+    with_update: bool,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.owner {
         return Err(ContractError::Unauthorized {});
     }
+    let mut response = Response::default();
+    if with_update {
+        let pools: Vec<(Addr, PoolInfo)> = POOL_INFO
+            .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+            .filter_map(|v| {
+                v.ok()
+                    .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
+            })
+            .collect();
 
+        if !pools.is_empty() {
+            for (token, pool) in pools {
+                let (_, messages, updated_pool) = update_pool_rewards(
+                    deps.as_ref(),
+                    env.clone(),
+                    token.clone(),
+                    pool,
+                    cfg.clone(),
+                )?;
+
+                if let Some(msgs) = messages {
+                    for msg in msgs {
+                        response.messages.push(CosmosMsg::Wasm(msg));
+                    }
+                }
+                if let Some(p) = updated_pool {
+                    POOL_INFO.save(deps.storage, &token, &p)?;
+                }
+            }
+        }
+    }
     let mut pool_info = POOL_INFO.load(deps.storage, &token)?;
 
     cfg.total_alloc_point = cfg
@@ -115,7 +186,7 @@ pub fn set(
     CONFIG.save(deps.storage, &cfg)?;
     POOL_INFO.save(deps.storage, &token, &pool_info)?;
 
-    Ok(Response::default())
+    Ok(response)
 }
 
 // Update reward variables for all pools.
@@ -244,14 +315,14 @@ pub fn update_pool_rewards(
     ))
 }
 
-// generates safe trasfer msg: min(amount, astro_token amount)
+// generates safe transfer msg: min(amount, astro_token amount)
 fn safe_reward_transfer_message(
     deps: Deps,
     env: Env,
     cfg: Config,
     to: String,
     amount: Uint128,
-    mint_rewards: Uint128,
+    mint_rewards: Uint128, //need to be taken into account when calculating reward for safe transfer
 ) -> WasmMsg {
     let astro_balance: BalanceResponse = deps
         .querier
@@ -473,10 +544,8 @@ pub fn emergency_withdraw(
         })?,
         send: vec![],
     }));
-
     // Change user balance
     USER_INFO.remove(deps.storage, (&token, &info.sender));
-
     Ok(response)
 }
 
@@ -490,7 +559,6 @@ pub fn set_dev(
     if info.sender != cfg.dev_addr {
         return Err(ContractError::Unauthorized {});
     }
-
     cfg.dev_addr = dev_address;
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -550,7 +618,7 @@ pub fn pending_token(
 ) -> StdResult<PendingTokenResponse> {
     let cfg = CONFIG.load(deps.storage)?;
     let pool = POOL_INFO.load(deps.storage, &token)?;
-    let user_info = &mut USER_INFO.load(deps.storage, (&token, &user))?;
+    let user_info = USER_INFO.load(deps.storage, (&token, &user))?;
     let mut acc_per_share = pool.acc_per_share;
 
     let lp_supply: BalanceResponse = deps.querier.query_wasm_smart(

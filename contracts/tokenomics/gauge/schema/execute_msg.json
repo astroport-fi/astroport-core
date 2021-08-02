@@ -12,7 +12,8 @@
           "type": "object",
           "required": [
             "alloc_point",
-            "token"
+            "token",
+            "with_update"
           ],
           "properties": {
             "alloc_point": {
@@ -22,6 +23,9 @@
             },
             "token": {
               "$ref": "#/definitions/Addr"
+            },
+            "with_update": {
+              "type": "boolean"
             }
           }
         }
@@ -38,7 +42,8 @@
           "type": "object",
           "required": [
             "alloc_point",
-            "token"
+            "token",
+            "with_update"
           ],
           "properties": {
             "alloc_point": {
@@ -48,6 +53,9 @@
             },
             "token": {
               "$ref": "#/definitions/Addr"
+            },
+            "with_update": {
+              "type": "boolean"
             }
           }
         }
