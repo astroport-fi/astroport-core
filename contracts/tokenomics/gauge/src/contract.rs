@@ -79,12 +79,12 @@ pub fn add(
     if info.sender != cfg.owner {
         return Err(ContractError::Unauthorized {});
     }
-    let mut response = Response::default();
-    if with_update {
-        for msg in mass_update_pools(&mut deps, env.clone())?.messages {
-            response.add_message(msg);
-        }
-    }
+
+    let response = if !with_update {
+        Response::default()
+    } else {
+        mass_update_pools(&mut deps, env.clone())?
+    };
 
     if POOL_INFO.load(deps.storage, &token).is_ok() {
         return Err(ContractError::TokenPoolAlreadyExists {});
@@ -117,12 +117,13 @@ pub fn set(
     if info.sender != cfg.owner {
         return Err(ContractError::Unauthorized {});
     }
-    let mut response = Response::default();
-    if with_update {
-        for msg in mass_update_pools(&mut deps, env)?.messages {
-            response.add_message(msg);
-        }
-    }
+
+    let response = if !with_update {
+        Response::default()
+    } else {
+        mass_update_pools(&mut deps, env)?
+    };
+
     let mut pool_info = POOL_INFO.load(deps.storage, &token)?;
 
     cfg.total_alloc_point = cfg
