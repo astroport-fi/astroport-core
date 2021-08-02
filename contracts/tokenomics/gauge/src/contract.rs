@@ -40,7 +40,7 @@ pub fn instantiate(
 
 #[entry_point]
 pub fn execute(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -56,7 +56,7 @@ pub fn execute(
             alloc_point,
             with_update,
         } => set(deps, env, info, token, alloc_point, with_update),
-        ExecuteMsg::MassUpdatePools {} => mass_update_pools(deps, env),
+        ExecuteMsg::MassUpdatePools {} => mass_update_pools(&mut deps, env),
         ExecuteMsg::UpdatePool { token } => update_pool(deps, env, token),
         ExecuteMsg::Deposit { token, amount } => deposit(deps, env, info, token, amount),
         ExecuteMsg::Withdraw { token, amount } => withdraw(deps, env, info, token, amount),
@@ -68,7 +68,7 @@ pub fn execute(
 // Add a new lp to the pool. Can only be called by the owner.
 // XXX DO NOT add the same LP token more than once. Rewards will be messed up if you do.
 pub fn add(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     alloc_point: u64,
@@ -81,33 +81,8 @@ pub fn add(
     }
     let mut response = Response::default();
     if with_update {
-        let pools: Vec<(Addr, PoolInfo)> = POOL_INFO
-            .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-            .filter_map(|v| {
-                v.ok()
-                    .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
-            })
-            .collect();
-
-        if !pools.is_empty() {
-            for (token, pool) in pools {
-                let (_, messages, updated_pool) = update_pool_rewards(
-                    deps.as_ref(),
-                    env.clone(),
-                    token.clone(),
-                    pool,
-                    cfg.clone(),
-                )?;
-
-                if let Some(msgs) = messages {
-                    for msg in msgs {
-                        response.messages.push(CosmosMsg::Wasm(msg));
-                    }
-                }
-                if let Some(p) = updated_pool {
-                    POOL_INFO.save(deps.storage, &token, &p)?;
-                }
-            }
+        for msg in mass_update_pools(&mut deps, env.clone())?.messages {
+            response.add_message(msg);
         }
     }
 
@@ -131,7 +106,7 @@ pub fn add(
 
 // Update the given pool's ASTRO allocation point. Can only be called by the owner.
 pub fn set(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     token: Addr,
@@ -144,33 +119,8 @@ pub fn set(
     }
     let mut response = Response::default();
     if with_update {
-        let pools: Vec<(Addr, PoolInfo)> = POOL_INFO
-            .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-            .filter_map(|v| {
-                v.ok()
-                    .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
-            })
-            .collect();
-
-        if !pools.is_empty() {
-            for (token, pool) in pools {
-                let (_, messages, updated_pool) = update_pool_rewards(
-                    deps.as_ref(),
-                    env.clone(),
-                    token.clone(),
-                    pool,
-                    cfg.clone(),
-                )?;
-
-                if let Some(msgs) = messages {
-                    for msg in msgs {
-                        response.messages.push(CosmosMsg::Wasm(msg));
-                    }
-                }
-                if let Some(p) = updated_pool {
-                    POOL_INFO.save(deps.storage, &token, &p)?;
-                }
-            }
+        for msg in mass_update_pools(&mut deps, env)?.messages {
+            response.add_message(msg);
         }
     }
     let mut pool_info = POOL_INFO.load(deps.storage, &token)?;
@@ -190,7 +140,7 @@ pub fn set(
 }
 
 // Update reward variables for all pools.
-pub fn mass_update_pools(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+pub fn mass_update_pools(deps: &mut DepsMut, env: Env) -> Result<Response, ContractError> {
     let mut response = Response::default();
 
     let pools: Vec<(Addr, PoolInfo)> = POOL_INFO
