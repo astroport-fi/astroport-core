@@ -24,6 +24,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "595d3cfa7a60d4555cb5067b99f07142a08ea778de5cf993f7b75c7d8fabc486"
 
 [[package]]
+name = "astroport-gauge"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw20",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-staking"
 version = "1.0.0"
 dependencies = [
@@ -1745,7 +1758,6 @@ version = "0.0.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test",
  "cw-storage-plus",
  "cw20",
  "integer-sqrt",
@@ -1753,10 +1765,6 @@ dependencies = [
  "serde",
  "terra-cosmwasm",
  "terraswap",
- "terraswap-factory",
- "terraswap-pair",
- "terraswap-pair-stable",
- "terraswap-token",
  "thiserror",
 ]
 
