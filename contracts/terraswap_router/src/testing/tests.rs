@@ -1,5 +1,7 @@
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, to_binary, Addr, Coin, CosmosMsg, Decimal, Uint128, WasmMsg};
+use cosmwasm_std::{
+    from_binary, to_binary, Addr, Coin, Decimal, ReplyOn, SubMsg, Uint128, WasmMsg,
+};
 
 use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError;
@@ -100,79 +102,109 @@ fn execute_swap_operations() {
     assert_eq!(
         res.messages,
         vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: String::from(MOCK_CONTRACT_ADDR),
-                send: vec![],
-                msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
-                    operation: SwapOperation::NativeSwap {
-                        offer_denom: "uusd".to_string(),
-                        ask_denom: "ukrw".to_string(),
-                    },
-                    to: None,
-                })
-                .unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: String::from(MOCK_CONTRACT_ADDR),
-                send: vec![],
-                msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
-                    operation: SwapOperation::TerraSwap {
-                        offer_asset_info: AssetInfo::NativeToken {
-                            denom: "ukrw".to_string(),
+            SubMsg {
+                msg: WasmMsg::Execute {
+                    contract_addr: String::from(MOCK_CONTRACT_ADDR),
+                    funds: vec![],
+                    msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
+                        operation: SwapOperation::NativeSwap {
+                            offer_denom: "uusd".to_string(),
+                            ask_denom: "ukrw".to_string(),
                         },
-                        ask_asset_info: AssetInfo::Token {
-                            contract_addr: Addr::unchecked("asset0001"),
+                        to: None,
+                    })
+                    .unwrap(),
+                }
+                .into(),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            },
+            SubMsg {
+                msg: WasmMsg::Execute {
+                    contract_addr: String::from(MOCK_CONTRACT_ADDR),
+                    funds: vec![],
+                    msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
+                        operation: SwapOperation::TerraSwap {
+                            offer_asset_info: AssetInfo::NativeToken {
+                                denom: "ukrw".to_string(),
+                            },
+                            ask_asset_info: AssetInfo::Token {
+                                contract_addr: Addr::unchecked("asset0001"),
+                            },
                         },
-                    },
-                    to: None,
-                })
-                .unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: String::from(MOCK_CONTRACT_ADDR),
-                send: vec![],
-                msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
-                    operation: SwapOperation::TerraSwap {
-                        offer_asset_info: AssetInfo::Token {
-                            contract_addr: Addr::unchecked("asset0001"),
+                        to: None,
+                    })
+                    .unwrap(),
+                }
+                .into(),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            },
+            SubMsg {
+                msg: WasmMsg::Execute {
+                    contract_addr: String::from(MOCK_CONTRACT_ADDR),
+                    funds: vec![],
+                    msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
+                        operation: SwapOperation::TerraSwap {
+                            offer_asset_info: AssetInfo::Token {
+                                contract_addr: Addr::unchecked("asset0001"),
+                            },
+                            ask_asset_info: AssetInfo::NativeToken {
+                                denom: "uluna".to_string(),
+                            },
                         },
-                        ask_asset_info: AssetInfo::NativeToken {
-                            denom: "uluna".to_string(),
+                        to: None,
+                    })
+                    .unwrap(),
+                }
+                .into(),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            },
+            SubMsg {
+                msg: WasmMsg::Execute {
+                    contract_addr: String::from(MOCK_CONTRACT_ADDR),
+                    funds: vec![],
+                    msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
+                        operation: SwapOperation::TerraSwap {
+                            offer_asset_info: AssetInfo::NativeToken {
+                                denom: "uluna".to_string(),
+                            },
+                            ask_asset_info: AssetInfo::Token {
+                                contract_addr: Addr::unchecked("asset0002"),
+                            },
                         },
-                    },
-                    to: None,
-                })
-                .unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: String::from(MOCK_CONTRACT_ADDR),
-                send: vec![],
-                msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
-                    operation: SwapOperation::TerraSwap {
-                        offer_asset_info: AssetInfo::NativeToken {
-                            denom: "uluna".to_string(),
-                        },
-                        ask_asset_info: AssetInfo::Token {
+                        to: Some(String::from("addr0000")),
+                    })
+                    .unwrap(),
+                }
+                .into(),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            },
+            SubMsg {
+                msg: WasmMsg::Execute {
+                    contract_addr: String::from(MOCK_CONTRACT_ADDR),
+                    funds: vec![],
+                    msg: to_binary(&ExecuteMsg::AssertMinimumReceive {
+                        asset_info: AssetInfo::Token {
                             contract_addr: Addr::unchecked("asset0002"),
                         },
-                    },
-                    to: Some(String::from("addr0000")),
-                })
-                .unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: String::from(MOCK_CONTRACT_ADDR),
-                send: vec![],
-                msg: to_binary(&ExecuteMsg::AssertMinimumReceive {
-                    asset_info: AssetInfo::Token {
-                        contract_addr: Addr::unchecked("asset0002"),
-                    },
-                    prev_balance: Uint128::zero(),
-                    minimum_receive: Uint128::from(1000000u128),
-                    receiver: String::from("addr0000"),
-                })
-                .unwrap(),
-            }),
+                        prev_balance: Uint128::zero(),
+                        minimum_receive: Uint128::from(1000000u128),
+                        receiver: String::from("addr0000"),
+                    })
+                    .unwrap(),
+                }
+                .into(),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            },
         ]
     );
 
@@ -222,66 +254,90 @@ fn execute_swap_operations() {
     assert_eq!(
         res.messages,
         vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: String::from(MOCK_CONTRACT_ADDR),
-                send: vec![],
-                msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
-                    operation: SwapOperation::NativeSwap {
-                        offer_denom: "uusd".to_string(),
-                        ask_denom: "ukrw".to_string(),
-                    },
-                    to: None,
-                })
-                .unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: String::from(MOCK_CONTRACT_ADDR),
-                send: vec![],
-                msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
-                    operation: SwapOperation::TerraSwap {
-                        offer_asset_info: AssetInfo::NativeToken {
-                            denom: "ukrw".to_string(),
+            SubMsg {
+                msg: WasmMsg::Execute {
+                    contract_addr: String::from(MOCK_CONTRACT_ADDR),
+                    funds: vec![],
+                    msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
+                        operation: SwapOperation::NativeSwap {
+                            offer_denom: "uusd".to_string(),
+                            ask_denom: "ukrw".to_string(),
                         },
-                        ask_asset_info: AssetInfo::Token {
-                            contract_addr: Addr::unchecked("asset0001"),
+                        to: None,
+                    })
+                    .unwrap(),
+                }
+                .into(),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            },
+            SubMsg {
+                msg: WasmMsg::Execute {
+                    contract_addr: String::from(MOCK_CONTRACT_ADDR),
+                    funds: vec![],
+                    msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
+                        operation: SwapOperation::TerraSwap {
+                            offer_asset_info: AssetInfo::NativeToken {
+                                denom: "ukrw".to_string(),
+                            },
+                            ask_asset_info: AssetInfo::Token {
+                                contract_addr: Addr::unchecked("asset0001"),
+                            },
                         },
-                    },
-                    to: None,
-                })
-                .unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: String::from(MOCK_CONTRACT_ADDR),
-                send: vec![],
-                msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
-                    operation: SwapOperation::TerraSwap {
-                        offer_asset_info: AssetInfo::Token {
-                            contract_addr: Addr::unchecked("asset0001"),
+                        to: None,
+                    })
+                    .unwrap(),
+                }
+                .into(),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            },
+            SubMsg {
+                msg: WasmMsg::Execute {
+                    contract_addr: String::from(MOCK_CONTRACT_ADDR),
+                    funds: vec![],
+                    msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
+                        operation: SwapOperation::TerraSwap {
+                            offer_asset_info: AssetInfo::Token {
+                                contract_addr: Addr::unchecked("asset0001"),
+                            },
+                            ask_asset_info: AssetInfo::NativeToken {
+                                denom: "uluna".to_string(),
+                            },
                         },
-                        ask_asset_info: AssetInfo::NativeToken {
-                            denom: "uluna".to_string(),
+                        to: None,
+                    })
+                    .unwrap(),
+                }
+                .into(),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            },
+            SubMsg {
+                msg: WasmMsg::Execute {
+                    contract_addr: String::from(MOCK_CONTRACT_ADDR),
+                    funds: vec![],
+                    msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
+                        operation: SwapOperation::TerraSwap {
+                            offer_asset_info: AssetInfo::NativeToken {
+                                denom: "uluna".to_string(),
+                            },
+                            ask_asset_info: AssetInfo::Token {
+                                contract_addr: Addr::unchecked("asset0002"),
+                            },
                         },
-                    },
-                    to: None,
-                })
-                .unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: String::from(MOCK_CONTRACT_ADDR),
-                send: vec![],
-                msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
-                    operation: SwapOperation::TerraSwap {
-                        offer_asset_info: AssetInfo::NativeToken {
-                            denom: "uluna".to_string(),
-                        },
-                        ask_asset_info: AssetInfo::Token {
-                            contract_addr: Addr::unchecked("asset0002"),
-                        },
-                    },
-                    to: Some(String::from("addr0002")),
-                })
-                .unwrap(),
-            })
+                        to: Some(String::from("addr0002")),
+                    })
+                    .unwrap(),
+                }
+                .into(),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            }
         ]
     );
 }
@@ -303,12 +359,12 @@ fn execute_swap_operation() {
         .with_terraswap_pairs(&[(&"uusdasset".to_string(), &String::from("pair"))]);
     deps.querier.with_tax(
         Decimal::percent(5),
-        &[(&"uusd".to_string(), &Uint128(1000000u128))],
+        &[(&"uusd".to_string(), &Uint128::new(1000000u128))],
     );
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
-            amount: Uint128(1000000u128),
+            amount: Uint128::new(1000000u128),
             denom: "uusd".to_string(),
         }],
     )]);
@@ -330,13 +386,18 @@ fn execute_swap_operation() {
     let res = execute(deps.as_mut(), env, info, msg).unwrap();
     assert_eq!(
         res.messages,
-        vec![create_swap_msg(
-            Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128(1000000u128),
-            },
-            "uluna".to_string()
-        )],
+        vec![SubMsg {
+            msg: create_swap_msg(
+                Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::new(1000000u128),
+                },
+                "uluna".to_string()
+            ),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        }],
     );
     // optional to address
     // swap_send
@@ -352,21 +413,29 @@ fn execute_swap_operation() {
     let res = execute(deps.as_mut(), env, info, msg.clone()).unwrap();
     assert_eq!(
         res.messages,
-        vec![create_swap_send_msg(
-            String::from("addr0000"),
-            Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128(952380u128), // deduct tax
-            },
-            "uluna".to_string()
-        )],
+        vec![SubMsg {
+            msg: create_swap_send_msg(
+                String::from("addr0000"),
+                Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::new(952380u128), // deduct tax
+                },
+                "uluna".to_string()
+            ),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        }],
     );
 
     deps.querier
         .with_terraswap_pairs(&[(&"assetuusd".to_string(), &String::from("pair"))]);
     deps.querier.with_token_balances(&[(
         &String::from("asset"),
-        &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128(1000000u128))],
+        &[(
+            &String::from(MOCK_CONTRACT_ADDR),
+            &Uint128::new(1000000u128),
+        )],
     )]);
     let msg = ExecuteMsg::ExecuteSwapOperation {
         operation: SwapOperation::TerraSwap {
@@ -384,29 +453,33 @@ fn execute_swap_operation() {
     let res = execute(deps.as_mut(), env, info, msg).unwrap();
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from("asset"),
-            send: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: String::from("pair"),
-                amount: Uint128(1000000u128),
-                msg: Some(
-                    to_binary(&PairExecuteMsg::Swap {
+        vec![SubMsg {
+            msg: WasmMsg::Execute {
+                contract_addr: String::from("asset"),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: String::from("pair"),
+                    amount: Uint128::new(1000000u128),
+                    msg: to_binary(&PairExecuteMsg::Swap {
                         offer_asset: Asset {
                             info: AssetInfo::Token {
                                 contract_addr: Addr::unchecked("asset"),
                             },
-                            amount: Uint128(1000000u128),
+                            amount: Uint128::new(1000000u128),
                         },
                         belief_price: None,
                         max_spread: None,
                         to: Some(String::from("addr0000")),
                     })
                     .unwrap()
-                )
-            })
-            .unwrap()
-        })]
+                })
+                .unwrap()
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        }]
     );
 }
 
@@ -428,8 +501,8 @@ fn query_buy_with_routes() {
     deps.querier.with_tax(
         Decimal::percent(5),
         &[
-            (&"uusd".to_string(), &Uint128(1000000u128)),
-            (&"ukrw".to_string(), &Uint128(1000000u128)),
+            (&"uusd".to_string(), &Uint128::new(1000000u128)),
+            (&"ukrw".to_string(), &Uint128::new(1000000u128)),
         ],
     );
 

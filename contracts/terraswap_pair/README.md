@@ -156,7 +156,7 @@ The spread is determined with following uniswap mechanism:
 // -max_minus_spread < spread < max_spread
 // minus_spread means discount rate.
 // Ensure `asset pool * collateral pool = constant product`
-let cp = Uint128(offer_pool.u128() * ask_pool.u128());
+let cp = Uint128::new(offer_pool.u128() * ask_pool.u128());
 let return_amount = offer_amount * exchange_rate;
 let return_amount = (ask_pool - cp.multiply_ratio(1u128, offer_pool + offer_amount))?;
 

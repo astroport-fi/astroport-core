@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    entry_point, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
-    WasmMsg,
+    entry_point, Binary, Deps, DepsMut, Env, MessageInfo, ReplyOn, Response, StdError, StdResult,
+    SubMsg, WasmMsg,
 };
 
 use cw2::set_contract_version;
@@ -28,7 +28,7 @@ pub fn instantiate(
     msg.validate()?;
 
     // Create initial accounts
-    let total_supply = create_accounts(&mut deps, &msg.initial_balances)?;
+    let total_supply = create_accounts(&mut deps, msg.initial_balances.as_slice())?;
 
     // Check supply cap
     if let Some(limit) = msg.get_cap() {
@@ -58,12 +58,18 @@ pub fn instantiate(
 
     if let Some(hook) = msg.init_hook {
         Ok(Response {
-            submessages: vec![],
-            messages: vec![CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: hook.contract_addr,
-                msg: hook.msg,
-                send: vec![],
-            })],
+            messages: vec![SubMsg {
+                msg: WasmMsg::Execute {
+                    contract_addr: hook.contract_addr,
+                    msg: hook.msg,
+                    funds: vec![],
+                }
+                .into(),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            }],
+            events: vec![],
             attributes: vec![],
             data: None,
         })

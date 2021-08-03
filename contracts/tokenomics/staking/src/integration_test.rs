@@ -1,7 +1,7 @@
 use cosmwasm_std::{
     attr, from_binary,
     testing::{mock_env, MockApi, MockStorage},
-    to_binary, Addr, QueryRequest, Uint128, WasmQuery,
+    to_binary, Addr, Event, QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, ContractWrapper, SimpleBank};
@@ -94,12 +94,16 @@ fn mint_some_astro(router: &mut App, owner: Addr, astro_token_instance: Addr, to
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("action", "mint"),
-            attr("to", String::from(to)),
-            attr("amount", Uint128::from(100u128)),
-        ],
+        res.events,
+        vec![Event {
+            ty: String::from("wasm"),
+            attributes: vec![
+                attr("contract_address", "Contract #0"),
+                attr("action", "mint"),
+                attr("to", String::from(to)),
+                attr("amount", Uint128::from(100u128)),
+            ],
+        }]
     );
 }
 
@@ -162,13 +166,17 @@ fn should_not_allow_enter_if_not_enough_approve() {
         )
         .unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("action", "increase_allowance"),
-            attr("owner", alice_address.clone()),
-            attr("spender", staking_instance.clone()),
-            attr("amount", 50),
-        ],
+        res.events,
+        vec![Event {
+            ty: String::from("wasm"),
+            attributes: vec![
+                attr("contract_address", "Contract #0"),
+                attr("action", "increase_allowance"),
+                attr("owner", alice_address.clone()),
+                attr("spender", staking_instance.clone()),
+                attr("amount", 50),
+            ],
+        }]
     );
 
     // try to enter Alice's 100 ASTRO for 100 xASTRO
@@ -195,13 +203,17 @@ fn should_not_allow_enter_if_not_enough_approve() {
         )
         .unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("action", "increase_allowance"),
-            attr("owner", alice_address.clone()),
-            attr("spender", staking_instance.clone()),
-            attr("amount", 50),
-        ],
+        res.events,
+        vec![Event {
+            ty: String::from("wasm"),
+            attributes: vec![
+                attr("contract_address", "Contract #0"),
+                attr("action", "increase_allowance"),
+                attr("owner", alice_address.clone()),
+                attr("spender", staking_instance.clone()),
+                attr("amount", 50),
+            ],
+        }]
     );
 
     // enter Alice's 100 ASTRO for 100 xASTRO
@@ -263,13 +275,17 @@ fn should_not_allow_withraw_more_than_what_you_have() {
         )
         .unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("action", "increase_allowance"),
-            attr("owner", alice_address.clone()),
-            attr("spender", staking_instance.clone()),
-            attr("amount", 100),
-        ],
+        res.events,
+        vec![Event {
+            ty: String::from("wasm"),
+            attributes: vec![
+                attr("contract_address", "Contract #0"),
+                attr("action", "increase_allowance"),
+                attr("owner", alice_address.clone()),
+                attr("spender", staking_instance.clone()),
+                attr("amount", 100),
+            ],
+        }]
     );
 
     // enter Alice's 100 ASTRO for 100 xASTRO
@@ -295,13 +311,17 @@ fn should_not_allow_withraw_more_than_what_you_have() {
         )
         .unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("action", "increase_allowance"),
-            attr("owner", alice_address.clone()),
-            attr("spender", staking_instance.clone()),
-            attr("amount", 200),
-        ],
+        res.events,
+        vec![Event {
+            ty: String::from("wasm"),
+            attributes: vec![
+                attr("contract_address", "Contract #2"),
+                attr("action", "increase_allowance"),
+                attr("owner", alice_address.clone()),
+                attr("spender", staking_instance.clone()),
+                attr("amount", 200),
+            ],
+        }]
     );
 
     // try to leave Alice's 200 xASTRO
@@ -365,13 +385,17 @@ fn should_work_with_more_than_one_participant() {
         )
         .unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("action", "increase_allowance"),
-            attr("owner", alice_address.clone()),
-            attr("spender", staking_instance.clone()),
-            attr("amount", 100),
-        ],
+        res.events,
+        vec![Event {
+            ty: String::from("wasm"),
+            attributes: vec![
+                attr("contract_address", "Contract #0"),
+                attr("action", "increase_allowance"),
+                attr("owner", alice_address.clone()),
+                attr("spender", staking_instance.clone()),
+                attr("amount", 100),
+            ],
+        }]
     );
 
     // increase Bob's allowance to 100 ASTRO for staking contract
@@ -384,13 +408,17 @@ fn should_work_with_more_than_one_participant() {
         .execute_contract(bob_address.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("action", "increase_allowance"),
-            attr("owner", bob_address.clone()),
-            attr("spender", staking_instance.clone()),
-            attr("amount", 100),
-        ],
+        res.events,
+        vec![Event {
+            ty: String::from("wasm"),
+            attributes: vec![
+                attr("contract_address", "Contract #0"),
+                attr("action", "increase_allowance"),
+                attr("owner", bob_address.clone()),
+                attr("spender", staking_instance.clone()),
+                attr("amount", 100),
+            ],
+        }]
     );
 
     // enter Alice's 20 ASTRO for 20 xASTRO
@@ -474,13 +502,17 @@ fn should_work_with_more_than_one_participant() {
         )
         .unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("action", "transfer"),
-            attr("from", carol_address),
-            attr("to", staking_instance.clone()),
-            attr("amount", Uint128::from(20u128)),
-        ]
+        res.events,
+        vec![Event {
+            ty: String::from("wasm"),
+            attributes: vec![
+                attr("contract_address", "Contract #0"),
+                attr("action", "transfer"),
+                attr("from", carol_address),
+                attr("to", staking_instance.clone()),
+                attr("amount", Uint128::from(20u128)),
+            ]
+        }]
     );
 
     // enter Alice's 10 ASTRO for 6 xASTRO: 10*30/50 = 6
@@ -540,13 +572,17 @@ fn should_work_with_more_than_one_participant() {
         )
         .unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("action", "increase_allowance"),
-            attr("owner", bob_address.clone()),
-            attr("spender", staking_instance.clone()),
-            attr("amount", 5),
-        ],
+        res.events,
+        vec![Event {
+            ty: String::from("wasm"),
+            attributes: vec![
+                attr("contract_address", "Contract #2"),
+                attr("action", "increase_allowance"),
+                attr("owner", bob_address.clone()),
+                attr("spender", staking_instance.clone()),
+                attr("amount", 5),
+            ],
+        }]
     );
 
     // leave Bob's 5 xASTRO: gets 5*60/36 = 8 ASTRO

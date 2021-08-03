@@ -19,10 +19,10 @@ library = []
 
 [dependencies]
 terraswap = { path = "../../packages/terraswap", default-features = false, version = "2.1.0"}
-cw2 = "0.6"
-cw20 = "0.6"
-cw20-base = { version = "0.6", features = ["library"] }
-cosmwasm-std = { version = "0.14.0", features = ["iterator"] }
+cw2 = "0.7"
+cw20 = "0.7"
+cw20-base = { version = "0.7", features = ["library"] }
+cosmwasm-std = { version = "0.15.0", features = ["iterator"] }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }
@@ -30,4 +30,4 @@ snafu = { version = "0.6.3" }
 [dev-dependencies]
 # we only need to enable this if we use integration tests
 #cosmwasm-vm = { version = "0.10.1", default-features = false }
-cosmwasm-schema = { version = "0.14.0" }
+cosmwasm-schema = { version = "0.15.0" }

@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
-    StdResult, Timestamp, Uint128, WasmMsg,
+    attr, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, ReplyOn, Response,
+    StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 
 use crate::state::{read_vesting_infos, Config, CONFIG, VESTING_INFO};
@@ -86,7 +86,7 @@ pub fn update_config(
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response {
-        submessages: vec![],
+        events: vec![],
         messages: vec![],
         attributes: vec![attr("action", "update_config")],
         data: None,
@@ -125,7 +125,7 @@ pub fn register_vesting_accounts(
     }
 
     Ok(Response {
-        submessages: vec![],
+        events: vec![],
         messages: vec![],
         attributes: vec![attr("action", "register_vesting_accounts")],
         data: None,
@@ -141,24 +141,30 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Con
     let mut vesting_info: VestingInfo = VESTING_INFO.load(deps.storage, address.to_string())?;
 
     let claim_amount = compute_claim_amount(current_time, &vesting_info);
-    let messages: Vec<CosmosMsg> = if claim_amount.is_zero() {
+    let messages: Vec<SubMsg> = if claim_amount.is_zero() {
         vec![]
     } else {
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.token_addr)?.to_string(),
-            send: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: address.to_string(),
-                amount: claim_amount,
-            })?,
-        })]
+        vec![SubMsg {
+            msg: WasmMsg::Execute {
+                contract_addr: deps.api.addr_humanize(&config.token_addr)?.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: address.to_string(),
+                    amount: claim_amount,
+                })?,
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        }]
     };
 
     vesting_info.last_claim_time = current_time;
     VESTING_INFO.save(deps.storage, address.to_string(), &vesting_info)?;
 
     Ok(Response {
-        submessages: vec![],
+        events: vec![],
         messages,
         attributes: vec![
             attr("action", "claim"),
@@ -185,7 +191,7 @@ fn compute_claim_amount(current_time: Timestamp, vesting_info: &VestingInfo) -> 
         let time_period = s.1.seconds() - s.0.seconds();
         let release_amount_per_time: Decimal = Decimal::from_ratio(s.2, time_period);
 
-        claimable_amount += Uint128(passed_time as u128) * release_amount_per_time;
+        claimable_amount += Uint128::new(passed_time as u128) * release_amount_per_time;
     }
 
     claimable_amount
