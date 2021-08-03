@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+    entry_point, from_binary, to_binary, Addr, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
+    QueryRequest, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::error::ContractError;
@@ -51,7 +51,7 @@ pub fn execute(
             to,
         } => execute_swap_operations(
             deps,
-            env.clone(),
+            env,
             info.clone(),
             info.sender,
             operations,
@@ -129,42 +129,54 @@ pub fn execute_swap_operations(
     let target_asset_info = operations.last().unwrap().get_target_asset_info();
 
     let mut operation_index = 0;
-    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = operations
+    let mut messages: Vec<SubMsg<TerraMsgWrapper>> = operations
         .into_iter()
         .map(|op| {
             operation_index += 1;
-            Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address.to_string(),
-                send: vec![],
-                msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
-                    operation: op,
-                    to: if operation_index == operations_len {
-                        Some(to.to_string())
-                    } else {
-                        None
-                    },
-                })?,
-            }))
+            Ok(SubMsg {
+                msg: WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    funds: vec![],
+                    msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
+                        operation: op,
+                        to: if operation_index == operations_len {
+                            Some(to.to_string())
+                        } else {
+                            None
+                        },
+                    })?,
+                }
+                .into(),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            })
         })
-        .collect::<StdResult<Vec<CosmosMsg<TerraMsgWrapper>>>>()?;
+        .collect::<StdResult<Vec<SubMsg<TerraMsgWrapper>>>>()?;
 
     // Execute minimum amount assertion
     if let Some(minimum_receive) = minimum_receive {
         let receiver_balance = target_asset_info.query_pool(&deps.querier, to.clone())?;
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            send: vec![],
-            msg: to_binary(&ExecuteMsg::AssertMinimumReceive {
-                asset_info: target_asset_info,
-                prev_balance: receiver_balance,
-                minimum_receive,
-                receiver: to.to_string(),
-            })?,
-        }))
+        messages.push(SubMsg {
+            msg: WasmMsg::Execute {
+                contract_addr: env.contract.address.to_string(),
+                funds: vec![],
+                msg: to_binary(&ExecuteMsg::AssertMinimumReceive {
+                    asset_info: target_asset_info,
+                    prev_balance: receiver_balance,
+                    minimum_receive,
+                    receiver: to.to_string(),
+                })?,
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        })
     }
 
     Ok(Response {
-        submessages: vec![],
+        events: vec![],
         messages,
         attributes: vec![],
         data: None,
@@ -280,12 +292,9 @@ fn simulate_swap_operations(
                 )?;
 
                 // Deduct tax before querying simulation
-                match offer_asset_info.clone() {
-                    AssetInfo::NativeToken { denom } => {
-                        offer_amount =
-                            offer_amount.checked_sub(compute_tax(deps, offer_amount, denom)?)?;
-                    }
-                    _ => {}
+                if let AssetInfo::NativeToken { denom } = offer_asset_info.clone() {
+                    offer_amount =
+                        offer_amount.checked_sub(compute_tax(deps, offer_amount, denom)?)?;
                 }
 
                 let mut res: SimulationResponse =
@@ -300,15 +309,12 @@ fn simulate_swap_operations(
                     }))?;
 
                 // Deduct tax after querying simulation
-                match ask_asset_info.clone() {
-                    AssetInfo::NativeToken { denom } => {
-                        res.return_amount = res.return_amount.checked_sub(compute_tax(
-                            deps,
-                            res.return_amount,
-                            denom,
-                        )?)?;
-                    }
-                    _ => {}
+                if let AssetInfo::NativeToken { denom } = ask_asset_info.clone() {
+                    res.return_amount = res.return_amount.checked_sub(compute_tax(
+                        deps,
+                        res.return_amount,
+                        denom,
+                    )?)?;
                 }
 
                 offer_amount = res.return_amount;
@@ -321,9 +327,9 @@ fn simulate_swap_operations(
     })
 }
 
-fn assert_operations(operations: &Vec<SwapOperation>) -> Result<(), ContractError> {
+fn assert_operations(operations: &[SwapOperation]) -> Result<(), ContractError> {
     let mut ask_asset_map: HashMap<String, bool> = HashMap::new();
-    for operation in operations.into_iter() {
+    for operation in operations.iter() {
         let (offer_asset, ask_asset) = match operation {
             SwapOperation::NativeSwap {
                 offer_denom,

@@ -1,13 +1,16 @@
-use cosmwasm_std::{to_binary, Binary, CosmosMsg, Decimal, Env, Response, StdResult, Uint128, WasmMsg, Addr, attr, Timestamp, DepsMut, Deps, MessageInfo};
-
-use crate::state::{CONFIG, VESTING_INFO, read_vesting_infos, Config};
-
-use terraswap::vesting::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount, VestingAccountResponse,
-    VestingAccountsResponse, VestingInfo, OrderBy
+use cosmwasm_std::{
+    attr, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, ReplyOn, Response,
+    StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
 };
-use cw20::Cw20ExecuteMsg;
+
+use crate::state::{read_vesting_infos, Config, CONFIG, VESTING_INFO};
+
 use crate::error::ContractError;
+use cw20::Cw20ExecuteMsg;
+use terraswap::vesting::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, OrderBy, QueryMsg, VestingAccount,
+    VestingAccountResponse, VestingAccountsResponse, VestingInfo,
+};
 
 pub fn instantiate(
     deps: DepsMut,
@@ -52,11 +55,7 @@ pub fn execute(
     }
 }
 
-fn assert_owner_privilege(
-    deps: Deps,
-    _env: Env,
-    info: MessageInfo
-) -> Result<(), ContractError>  {
+fn assert_owner_privilege(deps: Deps, _env: Env, info: MessageInfo) -> Result<(), ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(ContractError::Unauthorized {});
@@ -87,23 +86,23 @@ pub fn update_config(
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response {
-        submessages: vec![],
+        events: vec![],
         messages: vec![],
-        attributes: vec![
-            attr("action", "update_config"),
-        ],
+        attributes: vec![attr("action", "update_config")],
         data: None,
     })
 }
 
-fn assert_vesting_schedules(vesting_schedules: &Vec<(Timestamp, Timestamp, Uint128)>) -> Result<(), ContractError>  {
+fn assert_vesting_schedules(
+    vesting_schedules: &[(Timestamp, Timestamp, Uint128)],
+) -> Result<(), ContractError> {
     for vesting_schedule in vesting_schedules.iter() {
         if vesting_schedule.0 >= vesting_schedule.1 {
-            return Err(ContractError::EndTimeError{});
+            return Err(ContractError::EndTimeError {});
         }
     }
 
-    return Ok(());
+    Ok(())
 }
 
 pub fn register_vesting_accounts(
@@ -126,11 +125,9 @@ pub fn register_vesting_accounts(
     }
 
     Ok(Response {
-        submessages: vec![],
+        events: vec![],
         messages: vec![],
-        attributes: vec![
-            attr("action", "register_vesting_accounts")
-        ],
+        attributes: vec![attr("action", "register_vesting_accounts")],
         data: None,
     })
 }
@@ -144,24 +141,30 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Con
     let mut vesting_info: VestingInfo = VESTING_INFO.load(deps.storage, address.to_string())?;
 
     let claim_amount = compute_claim_amount(current_time, &vesting_info);
-    let messages: Vec<CosmosMsg> = if claim_amount.is_zero() {
+    let messages: Vec<SubMsg> = if claim_amount.is_zero() {
         vec![]
     } else {
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.token_addr)?.to_string(),
-            send: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: address.to_string(),
-                amount: claim_amount,
-            })?,
-        })]
+        vec![SubMsg {
+            msg: WasmMsg::Execute {
+                contract_addr: deps.api.addr_humanize(&config.token_addr)?.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: address.to_string(),
+                    amount: claim_amount,
+                })?,
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        }]
     };
 
     vesting_info.last_claim_time = current_time;
     VESTING_INFO.save(deps.storage, address.to_string(), &vesting_info)?;
 
     Ok(Response {
-        submessages: vec![],
+        events: vec![],
         messages,
         attributes: vec![
             attr("action", "claim"),
@@ -181,24 +184,20 @@ fn compute_claim_amount(current_time: Timestamp, vesting_info: &VestingInfo) -> 
         }
 
         // min(s.1, current_time) - max(s.0, last_claim_time)
-        let passed_time =
-            std::cmp::min(s.1, current_time).seconds() - std::cmp::max(s.0, vesting_info.last_claim_time).seconds();
+        let passed_time = std::cmp::min(s.1, current_time).seconds()
+            - std::cmp::max(s.0, vesting_info.last_claim_time).seconds();
 
         // prevent zero time_period case
         let time_period = s.1.seconds() - s.0.seconds();
         let release_amount_per_time: Decimal = Decimal::from_ratio(s.2, time_period);
 
-        claimable_amount += Uint128(passed_time as u128) * release_amount_per_time;
+        claimable_amount += Uint128::new(passed_time as u128) * release_amount_per_time;
     }
 
-    return claimable_amount;
+    claimable_amount
 }
 
-pub fn query(
-    deps: Deps,
-    _env: Env,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::VestingAccount { address } => {
@@ -217,9 +216,7 @@ pub fn query(
     }
 }
 
-pub fn query_config(
-    deps: Deps,
-) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
         owner: deps.api.addr_humanize(&config.owner)?,
@@ -230,10 +227,7 @@ pub fn query_config(
     Ok(resp)
 }
 
-pub fn query_vesting_account(
-    deps: Deps,
-    address: Addr,
-) -> StdResult<VestingAccountResponse> {
+pub fn query_vesting_account(deps: Deps, address: Addr) -> StdResult<VestingAccountResponse> {
     let info: VestingInfo = VESTING_INFO.load(deps.storage, address.to_string())?;
 
     let resp = VestingAccountResponse { address, info };
@@ -249,7 +243,7 @@ pub fn query_vesting_accounts(
 ) -> StdResult<VestingAccountsResponse> {
     let vesting_infos = if let Some(start_after) = start_after {
         read_vesting_infos(
-            deps.clone(),
+            deps,
             Some(deps.api.addr_canonicalize(start_after.as_str())?),
             limit,
             order_by,
@@ -277,18 +271,43 @@ pub fn query_vesting_accounts(
 fn test_assert_vesting_schedules() {
     // valid
     assert_vesting_schedules(&vec![
-        (Timestamp::from_seconds(100), Timestamp::from_seconds(101), Uint128::from(100u128)),
-        (Timestamp::from_seconds(100), Timestamp::from_seconds(110), Uint128::from(100u128)),
-        (Timestamp::from_seconds(100), Timestamp::from_seconds(200), Uint128::from(100u128)),
+        (
+            Timestamp::from_seconds(100),
+            Timestamp::from_seconds(101),
+            Uint128::from(100u128),
+        ),
+        (
+            Timestamp::from_seconds(100),
+            Timestamp::from_seconds(110),
+            Uint128::from(100u128),
+        ),
+        (
+            Timestamp::from_seconds(100),
+            Timestamp::from_seconds(200),
+            Uint128::from(100u128),
+        ),
     ])
     .unwrap();
 
     // invalid
     let res = assert_vesting_schedules(&vec![
-        (Timestamp::from_seconds(100), Timestamp::from_seconds(100), Uint128::from(100u128)),
-        (Timestamp::from_seconds(100), Timestamp::from_seconds(110), Uint128::from(100u128)),
-        (Timestamp::from_seconds(100), Timestamp::from_seconds(200), Uint128::from(100u128)),
-    ]).unwrap_err();
+        (
+            Timestamp::from_seconds(100),
+            Timestamp::from_seconds(100),
+            Uint128::from(100u128),
+        ),
+        (
+            Timestamp::from_seconds(100),
+            Timestamp::from_seconds(110),
+            Uint128::from(100u128),
+        ),
+        (
+            Timestamp::from_seconds(100),
+            Timestamp::from_seconds(200),
+            Uint128::from(100u128),
+        ),
+    ])
+    .unwrap_err();
 
     assert_eq!(res, ContractError::EndTimeError {});
 }

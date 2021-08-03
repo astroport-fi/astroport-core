@@ -56,7 +56,7 @@ pub fn instantiate(
                 contract_addr: env.contract.address.to_string(),
             }),
         })?,
-        send: vec![],
+        funds: vec![],
         label: String::from("Astroport Staking Token"),
     }));
 
@@ -125,7 +125,7 @@ pub fn try_enter(
             recipient: info.sender.to_string(),
             amount: mint_amount,
         })?,
-        send: vec![],
+        funds: vec![],
     }));
 
     res.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -135,7 +135,7 @@ pub fn try_enter(
             recipient: env.contract.address.to_string(),
             amount,
         })?,
-        send: vec![],
+        funds: vec![],
     }));
 
     Ok(res)
@@ -165,7 +165,7 @@ pub fn try_leave(
             owner: info.sender.to_string(),
             amount: share,
         })?,
-        send: vec![],
+        funds: vec![],
     }));
 
     res.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -174,24 +174,24 @@ pub fn try_leave(
             recipient: info.sender.to_string(),
             amount: what,
         })?,
-        send: vec![],
+        funds: vec![],
     }));
 
     Ok(res)
 }
 
 pub fn get_total_shares(deps: &DepsMut, config: Config) -> StdResult<Uint128> {
-    return Ok(deps
+    Ok(deps
         .querier
         .query_wasm_smart::<TokenInfoResponse, _, _>(
             &config.share_token_addr,
             &Cw20QueryMsg::TokenInfo {},
         )?
-        .total_supply);
+        .total_supply)
 }
 
 pub fn get_total_deposit(deps: &DepsMut, env: Env, config: Config) -> StdResult<Uint128> {
-    return Ok(deps
+    Ok(deps
         .querier
         .query_wasm_smart::<BalanceResponse, _, _>(
             &config.deposit_token_addr,
@@ -199,7 +199,7 @@ pub fn get_total_deposit(deps: &DepsMut, env: Env, config: Config) -> StdResult<
                 address: env.contract.address.to_string(),
             },
         )?
-        .balance);
+        .balance)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

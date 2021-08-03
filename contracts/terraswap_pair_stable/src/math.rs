@@ -8,7 +8,7 @@ construct_uint! {
 }
 
 /////////////////////////////////////////////////////////////
-const DECIMAL_FRACTIONAL: Uint128 = Uint128(1_000_000_000u128);
+const DECIMAL_FRACTIONAL: Uint128 = Uint128::new(1_000_000_000u128);
 
 pub const AMP: u64 = 100;
 const N_COINS: u8 = 2;
@@ -38,7 +38,7 @@ pub fn calc_amount(balance_in: u128, balance_out: u128, amount_in: u128, amp: u6
     let leverage = amp.checked_mul(u64::from(N_COINS)).unwrap();
     let new_balance_in = balance_in + amount_in;
 
-    let d = compute_d(u64::from(leverage), balance_in, balance_out).unwrap();
+    let d = compute_d(leverage, balance_in, balance_out).unwrap();
 
     let new_balance_out = compute_new_balance_out(leverage, new_balance_in, d)?;
 
