@@ -22,7 +22,7 @@ impl fmt::Display for Asset {
     }
 }
 
-static DECIMAL_FRACTION: Uint128 = Uint128(1_000_000_000_000_000_000u128);
+static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
 impl Asset {
     pub fn is_native_token(&self) -> bool {
@@ -73,7 +73,7 @@ impl Asset {
                     recipient: recipient.to_string(),
                     amount,
                 })?,
-                send: vec![],
+                funds: vec![],
             })),
             AssetInfo::NativeToken { .. } => Ok(CosmosMsg::Bank(BankMsg::Send {
                 to_address: recipient.to_string(),

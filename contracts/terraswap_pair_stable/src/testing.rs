@@ -8,8 +8,8 @@ use crate::mock_querier::mock_dependencies;
 
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, Env, Response, StdError,
-    Timestamp, Uint128, WasmMsg,
+    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, Env, ReplyOn, Response,
+    StdError, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
@@ -36,7 +36,7 @@ fn proper_initialization() {
         token_code_id: 10u64,
         init_hook: Some(InitHook {
             contract_addr: String::from("factory0000"),
-            msg: to_binary(&Uint128(1000000u128)).unwrap(),
+            msg: to_binary(&Uint128::new(1000000u128)).unwrap(),
         }),
     };
 
@@ -47,32 +47,44 @@ fn proper_initialization() {
     assert_eq!(
         res.messages,
         vec![
-            CosmosMsg::Wasm(WasmMsg::Instantiate {
-                code_id: 10u64,
-                msg: to_binary(&TokenInstantiateMsg {
-                    name: "terraswap liquidity token".to_string(),
-                    symbol: "uLP".to_string(),
-                    decimals: 6,
-                    initial_balances: vec![],
-                    mint: Some(MinterResponse {
-                        minter: String::from(MOCK_CONTRACT_ADDR),
-                        cap: None,
-                    }),
-                    init_hook: Some(InitHook {
-                        msg: to_binary(&ExecuteMsg::PostInitialize {}).unwrap(),
-                        contract_addr: String::from(MOCK_CONTRACT_ADDR),
-                    }),
-                })
-                .unwrap(),
-                send: vec![],
-                admin: None,
-                label: String::new(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: String::from("factory0000"),
-                msg: to_binary(&Uint128(1000000u128)).unwrap(),
-                send: vec![],
-            })
+            SubMsg {
+                msg: WasmMsg::Instantiate {
+                    code_id: 10u64,
+                    msg: to_binary(&TokenInstantiateMsg {
+                        name: "terraswap liquidity token".to_string(),
+                        symbol: "uLP".to_string(),
+                        decimals: 6,
+                        initial_balances: vec![],
+                        mint: Some(MinterResponse {
+                            minter: String::from(MOCK_CONTRACT_ADDR),
+                            cap: None,
+                        }),
+                        init_hook: Some(InitHook {
+                            msg: to_binary(&ExecuteMsg::PostInitialize {}).unwrap(),
+                            contract_addr: String::from(MOCK_CONTRACT_ADDR),
+                        }),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                    admin: None,
+                    label: String::new(),
+                }
+                .into(),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
+            SubMsg {
+                msg: WasmMsg::Execute {
+                    contract_addr: String::from("factory0000"),
+                    msg: to_binary(&Uint128::new(1000000u128)).unwrap(),
+                    funds: vec![],
+                }
+                .into(),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            }
         ]
     );
 
@@ -108,12 +120,12 @@ fn proper_initialization() {
 fn provide_liquidity() {
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
-        amount: Uint128(200u128),
+        amount: Uint128::new(200u128),
     }]);
 
     deps.querier.with_token_balances(&[(
         &String::from("liquidity0000"),
-        &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128(0))],
+        &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(0))],
     )]);
 
     let msg = InstantiateMsg {
@@ -172,28 +184,40 @@ fn provide_liquidity() {
     let mint_msg = res.messages.get(1).expect("no message");
     assert_eq!(
         transfer_from_msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from("asset0000"),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: String::from("addr0000"),
-                recipient: String::from(MOCK_CONTRACT_ADDR),
-                amount: Uint128::from(100u128),
-            })
-            .unwrap(),
-            send: vec![],
-        })
+        &SubMsg {
+            msg: WasmMsg::Execute {
+                contract_addr: String::from("asset0000"),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: String::from("addr0000"),
+                    recipient: String::from(MOCK_CONTRACT_ADDR),
+                    amount: Uint128::from(100u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }
     );
     assert_eq!(
         mint_msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from("liquidity0000"),
-            msg: to_binary(&Cw20ExecuteMsg::Mint {
-                recipient: String::from("addr0000"),
-                amount: Uint128::from(100u128),
-            })
-            .unwrap(),
-            send: vec![],
-        })
+        &SubMsg {
+            msg: WasmMsg::Execute {
+                contract_addr: String::from("liquidity0000"),
+                msg: to_binary(&Cw20ExecuteMsg::Mint {
+                    recipient: String::from("addr0000"),
+                    amount: Uint128::from(100u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }
     );
 
     // provide more liquidity 1:2, which is not propotional to 1:1,
@@ -202,18 +226,18 @@ fn provide_liquidity() {
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128(200 + 200 /* user deposit must be pre-applied */),
+            amount: Uint128::new(200 + 200 /* user deposit must be pre-applied */),
         }],
     )]);
 
     deps.querier.with_token_balances(&[
         (
             &String::from("liquidity0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128(100))],
+            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(100))],
         ),
         (
             &String::from("asset0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128(200))],
+            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(200))],
         ),
     ]);
 
@@ -250,28 +274,40 @@ fn provide_liquidity() {
     let mint_msg = res.messages.get(1).expect("no message");
     assert_eq!(
         transfer_from_msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from("asset0000"),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: String::from("addr0000"),
-                recipient: String::from(MOCK_CONTRACT_ADDR),
-                amount: Uint128::from(100u128),
-            })
-            .unwrap(),
-            send: vec![],
-        })
+        &SubMsg {
+            msg: WasmMsg::Execute {
+                contract_addr: String::from("asset0000"),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: String::from("addr0000"),
+                    recipient: String::from(MOCK_CONTRACT_ADDR),
+                    amount: Uint128::from(100u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }
     );
     assert_eq!(
         mint_msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from("liquidity0000"),
-            msg: to_binary(&Cw20ExecuteMsg::Mint {
-                recipient: String::from("addr0000"),
-                amount: Uint128::from(50u128),
-            })
-            .unwrap(),
-            send: vec![],
-        })
+        &SubMsg {
+            msg: WasmMsg::Execute {
+                contract_addr: String::from("liquidity0000"),
+                msg: to_binary(&Cw20ExecuteMsg::Mint {
+                    recipient: String::from("addr0000"),
+                    amount: Uint128::from(50u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }
     );
 
     // check wrong argument
@@ -315,18 +351,18 @@ fn provide_liquidity() {
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128(100 + 100 /* user deposit must be pre-applied */),
+            amount: Uint128::new(100 + 100 /* user deposit must be pre-applied */),
         }],
     )]);
 
     deps.querier.with_token_balances(&[
         (
             &String::from("liquidity0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128(100))],
+            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(100))],
         ),
         (
             &String::from("asset0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128(100))],
+            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(100))],
         ),
     ]);
 
@@ -365,7 +401,7 @@ fn provide_liquidity() {
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128(100 + 98 /* user deposit must be pre-applied */),
+            amount: Uint128::new(100 + 98 /* user deposit must be pre-applied */),
         }],
     )]);
 
@@ -404,7 +440,7 @@ fn provide_liquidity() {
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128(100 + 100 /* user deposit must be pre-applied */),
+            amount: Uint128::new(100 + 100 /* user deposit must be pre-applied */),
         }],
     )]);
 
@@ -442,7 +478,7 @@ fn provide_liquidity() {
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128(100 + 99 /* user deposit must be pre-applied */),
+            amount: Uint128::new(100 + 99 /* user deposit must be pre-applied */),
         }],
     )]);
 
@@ -480,7 +516,7 @@ fn provide_liquidity() {
 fn withdraw_liquidity() {
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
-        amount: Uint128(100u128),
+        amount: Uint128::new(100u128),
     }]);
 
     deps.querier.with_tax(
@@ -490,11 +526,11 @@ fn withdraw_liquidity() {
     deps.querier.with_token_balances(&[
         (
             &String::from("liquidity0000"),
-            &[(&String::from("addr0000"), &Uint128(100u128))],
+            &[(&String::from("addr0000"), &Uint128::new(100u128))],
         ),
         (
             &String::from("asset0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128(100u128))],
+            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(100u128))],
         ),
     ]);
 
@@ -526,7 +562,7 @@ fn withdraw_liquidity() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: String::from("addr0000"),
         msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
-        amount: Uint128(100u128),
+        amount: Uint128::new(100u128),
     });
 
     let env = mock_env();
@@ -539,36 +575,53 @@ fn withdraw_liquidity() {
     let msg_burn_liquidity = res.messages.get(2).expect("no message");
     assert_eq!(
         msg_refund_0,
-        &CosmosMsg::Bank(BankMsg::Send {
-            to_address: String::from("addr0000"),
-            amount: vec![Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128::from(100u128),
-            }],
-        })
+        &SubMsg {
+            msg: CosmosMsg::Bank(BankMsg::Send {
+                to_address: String::from("addr0000"),
+                amount: vec![Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::from(100u128),
+                }],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }
     );
     assert_eq!(
         msg_refund_1,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from("asset0000"),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: String::from("addr0000"),
-                amount: Uint128::from(100u128),
-            })
-            .unwrap(),
-            send: vec![],
-        })
+        &SubMsg {
+            msg: WasmMsg::Execute {
+                contract_addr: String::from("asset0000"),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: String::from("addr0000"),
+                    amount: Uint128::from(100u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }
     );
     assert_eq!(
         msg_burn_liquidity,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from("liquidity0000"),
-            msg: to_binary(&Cw20ExecuteMsg::Burn {
-                amount: Uint128::from(100u128),
-            })
-            .unwrap(),
-            send: vec![],
-        })
+        &SubMsg {
+            msg: WasmMsg::Execute {
+                contract_addr: String::from("liquidity0000"),
+                msg: to_binary(&Cw20ExecuteMsg::Burn {
+                    amount: Uint128::from(100u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }
     );
 
     assert_eq!(
@@ -583,10 +636,10 @@ fn withdraw_liquidity() {
 
 #[test]
 fn try_native_to_token() {
-    let total_share = Uint128(30000000000u128);
-    let asset_pool_amount = Uint128(20000000000u128);
-    let collateral_pool_amount = Uint128(30000000000u128);
-    let offer_amount = Uint128(1500000000u128);
+    let total_share = Uint128::new(30000000000u128);
+    let asset_pool_amount = Uint128::new(20000000000u128);
+    let collateral_pool_amount = Uint128::new(30000000000u128);
+    let offer_amount = Uint128::new(1500000000u128);
 
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
@@ -665,7 +718,7 @@ fn try_native_to_token() {
 
     let sim_result = model.sim_exchange(0, 1, offer_amount.into());
 
-    let expected_ret_amount = Uint128(sim_result);
+    let expected_ret_amount = Uint128::new(sim_result);
     let expected_spread_amount = Uint128::zero();
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
     let expected_return_amount = expected_ret_amount
@@ -716,7 +769,10 @@ fn try_native_to_token() {
 
     let sim_result = model.sim_exchange(1, 0, expected_return_amount.into());
 
-    assert_eq!(Uint128(sim_result), reverse_simulation_res.offer_amount);
+    assert_eq!(
+        Uint128::new(sim_result),
+        reverse_simulation_res.offer_amount
+    );
     assert_eq!(
         expected_commission_amount,
         reverse_simulation_res.commission_amount
@@ -738,25 +794,31 @@ fn try_native_to_token() {
     );
 
     assert_eq!(
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from("asset0000"),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: String::from("addr0000"),
-                amount: Uint128::from(expected_return_amount),
-            })
-            .unwrap(),
-            send: vec![],
-        }),
+        &SubMsg {
+            msg: WasmMsg::Execute {
+                contract_addr: String::from("asset0000"),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: String::from("addr0000"),
+                    amount: Uint128::from(expected_return_amount),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        },
         msg_transfer,
     );
 }
 
 #[test]
 fn try_token_to_native() {
-    let total_share = Uint128(30000000000u128);
-    let asset_pool_amount = Uint128(20000000000u128);
-    let collateral_pool_amount = Uint128(30000000000u128);
-    let offer_amount = Uint128(1500000000u128);
+    let total_share = Uint128::new(30000000000u128);
+    let asset_pool_amount = Uint128::new(20000000000u128);
+    let collateral_pool_amount = Uint128::new(30000000000u128);
+    let offer_amount = Uint128::new(1500000000u128);
 
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
@@ -846,16 +908,18 @@ fn try_token_to_native() {
 
     let sim_result = model.sim_exchange(1, 0, offer_amount.into());
 
-    let expected_ret_amount = Uint128(sim_result);
+    let expected_ret_amount = Uint128::new(sim_result);
     let expected_spread_amount = Uint128::zero();
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
     let expected_return_amount = expected_ret_amount
         .checked_sub(expected_commission_amount)
         .unwrap();
     let expected_tax_amount = std::cmp::min(
-        Uint128(1000000u128),
+        Uint128::new(1000000u128),
         expected_return_amount
-            .checked_sub(expected_return_amount.multiply_ratio(Uint128(100u128), Uint128(101u128)))
+            .checked_sub(
+                expected_return_amount.multiply_ratio(Uint128::new(100u128), Uint128::new(101u128)),
+            )
             .unwrap(),
     );
     // check simulation res
@@ -899,7 +963,10 @@ fn try_token_to_native() {
 
     let sim_result = model.sim_exchange(0, 1, expected_return_amount.into());
 
-    assert_eq!(Uint128(sim_result), reverse_simulation_res.offer_amount);
+    assert_eq!(
+        Uint128::new(sim_result),
+        reverse_simulation_res.offer_amount
+    );
     assert_eq!(
         expected_commission_amount,
         reverse_simulation_res.commission_amount
@@ -921,15 +988,21 @@ fn try_token_to_native() {
     );
 
     assert_eq!(
-        &CosmosMsg::Bank(BankMsg::Send {
-            to_address: String::from("addr0000"),
-            amount: vec![Coin {
-                denom: "uusd".to_string(),
-                amount: expected_return_amount
-                    .checked_sub(expected_tax_amount)
-                    .unwrap(),
-            }],
-        }),
+        &SubMsg {
+            msg: CosmosMsg::Bank(BankMsg::Send {
+                to_address: String::from("addr0000"),
+                amount: vec![Coin {
+                    denom: "uusd".to_string(),
+                    amount: expected_return_amount
+                        .checked_sub(expected_tax_amount)
+                        .unwrap(),
+                }],
+            })
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        },
         msg_transfer,
     );
 
@@ -1000,7 +1073,7 @@ fn test_deduct() {
         &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
     );
 
-    let amount = Uint128(1000_000_000u128);
+    let amount = Uint128::new(1000_000_000u128);
     let expected_after_amount = std::cmp::max(
         amount.checked_sub(amount * tax_rate).unwrap(),
         amount.checked_sub(tax_cap).unwrap(),
