@@ -2,8 +2,8 @@ use std::cmp::{max, min};
 use std::ops::Add;
 
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
-    StdResult, Uint128, WasmMsg,
+    entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, ReplyOn,
+    Response, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg};
 
@@ -162,7 +162,12 @@ pub fn mass_update_pools(deps: &mut DepsMut, env: Env) -> Result<Response, Contr
 
         if let Some(msgs) = messages {
             for msg in msgs {
-                response.messages.push(CosmosMsg::Wasm(msg));
+                response.messages.push(SubMsg {
+                    msg: CosmosMsg::Wasm(msg),
+                    id: 0,
+                    gas_limit: None,
+                    reply_on: ReplyOn::Never,
+                });
             }
         }
 
@@ -184,7 +189,12 @@ pub fn update_pool(deps: DepsMut, env: Env, token: Addr) -> Result<Response, Con
     let (_, messages, pool) = update_pool_rewards(deps.as_ref(), env, token.clone(), pool, cfg)?;
     if let Some(msgs) = messages {
         for msg in msgs {
-            response.messages.push(CosmosMsg::Wasm(msg));
+            response.messages.push(SubMsg {
+                msg: CosmosMsg::Wasm(msg),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            });
         }
     }
 
@@ -225,7 +235,7 @@ pub fn update_pool_rewards(
     }
 
     let token_rewards = calculate_rewards(env.clone(), pool.clone(), cfg.clone())?;
-    let dev_token_rewards = token_rewards.checked_div(Uint128(10)).unwrap();
+    let dev_token_rewards = token_rewards.checked_div(Uint128::from(10u128)).unwrap();
     let messages = vec![
         // mint dev rewards
         WasmMsg::Execute {
@@ -234,7 +244,7 @@ pub fn update_pool_rewards(
                 recipient: cfg.dev_addr.to_string(),
                 amount: dev_token_rewards,
             })?,
-            send: vec![],
+            funds: vec![],
         },
         // mint rewards
         WasmMsg::Execute {
@@ -243,7 +253,7 @@ pub fn update_pool_rewards(
                 recipient: env.contract.address.to_string(),
                 amount: token_rewards,
             })?,
-            send: vec![],
+            funds: vec![],
         },
     ];
 
@@ -292,7 +302,7 @@ fn safe_reward_transfer_message(
             amount: min(amount, astro_balance.balance.add(mint_rewards)),
         })
         .unwrap(),
-        send: vec![],
+        funds: vec![],
     }
 }
 
@@ -324,7 +334,12 @@ pub fn deposit(
 
     if let Some(msgs) = messages {
         for msg in msgs {
-            response.messages.push(CosmosMsg::Wasm(msg));
+            response.messages.push(SubMsg {
+                msg: CosmosMsg::Wasm(msg),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            });
         }
     }
 
@@ -343,29 +358,37 @@ pub fn deposit(
             .checked_sub(user.reward_debt)
             .unwrap();
         if !pending.is_zero() {
-            response
-                .messages
-                .push(CosmosMsg::Wasm(safe_reward_transfer_message(
+            response.messages.push(SubMsg {
+                msg: CosmosMsg::Wasm(safe_reward_transfer_message(
                     deps.as_ref(),
                     env.clone(),
                     cfg,
                     info.sender.to_string(),
                     pending,
                     mint_rewards,
-                )));
+                )),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            });
         }
     }
     //call transfer function for lp token from: info.sender to: env.contract.address amount:_amount
     if !amount.is_zero() {
-        response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: info.sender.to_string(),
-                recipient: env.contract.address.to_string(),
-                amount,
-            })?,
-            send: vec![],
-        }));
+        response.messages.push(SubMsg {
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: token.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: info.sender.to_string(),
+                    recipient: env.contract.address.to_string(),
+                    amount,
+                })?,
+                funds: vec![],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        });
     }
     //Change user balance
     user.amount = user.amount.checked_add(amount)?;
@@ -406,7 +429,12 @@ pub fn withdraw(
     )?;
     if let Some(msgs) = messages {
         for msg in msgs {
-            response.messages.push(CosmosMsg::Wasm(msg));
+            response.messages.push(SubMsg {
+                msg: CosmosMsg::Wasm(msg),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            });
         }
     }
     if let Some(p) = updated_pool {
@@ -422,16 +450,19 @@ pub fn withdraw(
         .checked_sub(user.reward_debt)
         .unwrap();
     if !pending.is_zero() {
-        response
-            .messages
-            .push(CosmosMsg::Wasm(safe_reward_transfer_message(
+        response.messages.push(SubMsg {
+            msg: CosmosMsg::Wasm(safe_reward_transfer_message(
                 deps.as_ref(),
                 env.clone(),
                 cfg,
                 info.sender.to_string(),
                 pending,
                 mint_rewards,
-            )));
+            )),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        });
     }
     // Update user balance
     USER_INFO.update(
@@ -451,15 +482,20 @@ pub fn withdraw(
     )?;
     // call to transfer function for lp token
     if !amount.is_zero() {
-        response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: env.contract.address.to_string(),
-                recipient: info.sender.to_string(),
-                amount,
-            })?,
-            send: vec![],
-        }));
+        response.messages.push(SubMsg {
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: token.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: env.contract.address.to_string(),
+                    recipient: info.sender.to_string(),
+                    amount,
+                })?,
+                funds: vec![],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        });
     }
     Ok(response)
 }
@@ -479,15 +515,20 @@ pub fn emergency_withdraw(
     response.add_attribute("Action", "EmergencyWithdraw");
 
     //call to transfer function for lp token
-    response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-            owner: env.contract.address.to_string(),
-            recipient: info.sender.to_string(),
-            amount: user.amount,
-        })?,
-        send: vec![],
-    }));
+    response.messages.push(SubMsg {
+        msg: CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                owner: env.contract.address.to_string(),
+                recipient: info.sender.to_string(),
+                amount: user.amount,
+            })?,
+            funds: vec![],
+        }),
+        id: 0,
+        gas_limit: None,
+        reply_on: ReplyOn::Never,
+    });
     // Change user balance
     USER_INFO.remove(deps.storage, (&token, &info.sender));
     Ok(response)

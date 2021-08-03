@@ -3,7 +3,7 @@ use std::ops::Add;
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, from_binary, to_binary, Addr, CosmosMsg, Deps, DepsMut, Env, MemoryStorage, MessageInfo,
-    OwnedDeps, Response, StdError, Uint128, WasmMsg,
+    OwnedDeps, ReplyOn, Response, StdError, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg};
 
@@ -53,11 +53,15 @@ fn execute_messages_token_contract(
 ) {
     for request in res.messages {
         match request {
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                                contract_addr,
-                                msg,
-                                send: _,
-                            }) => match from_binary(&msg).unwrap() {
+            SubMsg {
+                msg:
+                    CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr,
+                        msg,
+                        funds: _,
+                    }),
+                ..
+            } => match from_binary(&msg).unwrap() {
                 Cw20ExecuteMsg::Transfer { recipient, amount } => {
                     println!(
                         "Transfer contract address: {}, to {}, amount: {}",
@@ -126,7 +130,7 @@ fn proper_initialization() {
     let dev = Addr::unchecked("dev0000");
     let env = mock_env();
     let astro_token_contract = Addr::unchecked("astro-token");
-    let token_amount = Uint128(10);
+    let token_amount = Uint128::from(10u128);
 
     let instantiate_msg = InstantiateMsg {
         token: astro_token_contract,
@@ -164,7 +168,7 @@ fn execute_add() {
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
     let lp_token_contract1 = Addr::unchecked("lp-token001");
-    let token_amount = Uint128(10);
+    let token_amount = Uint128::from(10u128);
     _do_instantiate(
         deps.as_mut(),
         env.clone(),
@@ -199,7 +203,7 @@ fn execute_add() {
             astro_token: Addr::unchecked("astro-token"),
             dev_addr: dev.clone(),
             bonus_end_block: env.block.height.add(110),
-            tokens_per_block: Uint128(10),
+            tokens_per_block: Uint128::from(10u128),
             total_alloc_point: 10,
             start_block: env.block.height.add(10),
         }
@@ -259,7 +263,7 @@ fn execute_add() {
             astro_token: Addr::unchecked("astro-token"),
             dev_addr: dev.clone(),
             bonus_end_block: env.block.height.add(110),
-            tokens_per_block: Uint128(10),
+            tokens_per_block: Uint128::from(10u128),
             total_alloc_point: 10 + 20,
             start_block: env.block.height.add(10),
         }
@@ -295,7 +299,7 @@ fn execute_set() {
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
 
-    let token_amount = Uint128(10);
+    let token_amount = Uint128::from(10u128);
     _do_instantiate(
         deps.as_mut(),
         env.clone(),
@@ -399,9 +403,12 @@ fn execute_deposit() {
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
     // mock start balances
-    deps.querier
-        .set_balance(user.clone(), lp_token_contract.clone(), Uint128(10000));
-    let token_amount = Uint128(100);
+    deps.querier.set_balance(
+        user.clone(),
+        lp_token_contract.clone(),
+        Uint128::from(10000u128),
+    );
+    let token_amount = Uint128::from(100u128);
 
     _do_instantiate(
         deps.as_mut(),
@@ -433,23 +440,28 @@ fn execute_deposit() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract.clone(),
-            amount: Uint128(1000),
+            amount: Uint128::from(1000u128),
         },
     )
     .unwrap();
     let transfer_from_msg = res.messages.get(0).expect("no message");
     assert_eq!(
         transfer_from_msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: lp_token_contract.clone().to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: info.sender.to_string(),
-                recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
-                amount: Uint128(1000),
-            })
-            .unwrap(),
-            send: vec![],
-        })
+        &SubMsg {
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: lp_token_contract.clone().to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: info.sender.to_string(),
+                    recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                    amount: Uint128::from(1000u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        }
     );
     assert_eq!(res.attributes, vec![attr("Action", "Deposit"),],);
     //mock execute messages cw20 token contract
@@ -467,7 +479,7 @@ fn execute_deposit() {
     assert_eq!(
         user_info,
         UserInfo {
-            amount: Uint128(1000),
+            amount: Uint128::from(1000u128),
             reward_debt: Uint128::zero(),
         }
     );
@@ -477,22 +489,27 @@ fn execute_deposit() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract.clone(),
-            amount: Uint128(2000),
+            amount: Uint128::from(2000u128),
         },
     )
     .unwrap();
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: lp_token_contract.clone().to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: info.sender.to_string(),
-                recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
-                amount: Uint128(2000),
-            })
-            .unwrap(),
-            send: vec![],
-        }),],
+        vec![SubMsg {
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: lp_token_contract.clone().to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: info.sender.to_string(),
+                    recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                    amount: Uint128::from(2000u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }],
     );
     //mock execute messages cw20 token contract
     execute_messages_token_contract(&mut deps, res);
@@ -504,50 +521,70 @@ fn execute_deposit() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract.clone(),
-            amount: Uint128(3000),
+            amount: Uint128::from(3000u128),
         },
     )
     .unwrap();
     assert_eq!(
         res.messages,
         vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: astro_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: dev.to_string(),
-                    amount: Uint128(5000),
-                })
-                .unwrap(),
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: astro_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
-                    amount: Uint128(50000),
-                })
-                .unwrap(),
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: astro_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: info.sender.to_string(),
-                    amount: Uint128(49999),
-                })
-                .unwrap(),
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: lp_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                    owner: info.sender.to_string(),
-                    recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
-                    amount: Uint128(3000),
-                })
-                .unwrap(),
-                send: vec![],
-            })
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: astro_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Mint {
+                        recipient: dev.to_string(),
+                        amount: Uint128::from(5000u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: astro_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Mint {
+                        recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                        amount: Uint128::from(50000u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: astro_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                        recipient: info.sender.to_string(),
+                        amount: Uint128::from(49999u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: lp_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                        owner: info.sender.to_string(),
+                        recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                        amount: Uint128::from(3000u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            }
         ]
     );
     // mock execute messages cw20 token contract
@@ -564,8 +601,8 @@ fn execute_deposit() {
     assert_eq!(
         user_info,
         UserInfo {
-            amount: Uint128(6000),
-            reward_debt: Uint128(99999),
+            amount: Uint128::from(6000u128),
+            reward_debt: Uint128::from(99999u128),
         }
     );
 }
@@ -580,15 +617,18 @@ fn execute_withdraw() {
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
     // mock start balances
-    deps.querier
-        .set_balance(user.clone(), lp_token_contract.clone(), Uint128(1000));
+    deps.querier.set_balance(
+        user.clone(),
+        lp_token_contract.clone(),
+        Uint128::from(1000u128),
+    );
     _do_instantiate(
         deps.as_mut(),
         env.clone(),
         info.clone(),
         dev.clone(),
         astro_token_contract.clone(),
-        Uint128(10u128),
+        Uint128::from(10u128),
         env.block.height,
         env.block.height.add(1000),
     );
@@ -612,7 +652,7 @@ fn execute_withdraw() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract.clone(),
-            amount: Uint128(100),
+            amount: Uint128::from(100u128),
         },
     )
     .unwrap();
@@ -625,22 +665,27 @@ fn execute_withdraw() {
         info.clone(),
         ExecuteMsg::Withdraw {
             token: lp_token_contract.clone(),
-            amount: Uint128(50),
+            amount: Uint128::from(50u128),
         },
     )
     .unwrap();
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: lp_token_contract.clone().to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
-                recipient: info.sender.to_string(),
-                amount: Uint128(50),
-            })
-            .unwrap(),
-            send: vec![],
-        })]
+        vec![SubMsg {
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: lp_token_contract.clone().to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                    recipient: info.sender.to_string(),
+                    amount: Uint128::from(50u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }]
     );
     execute_messages_token_contract(&mut deps, res);
 
@@ -656,8 +701,8 @@ fn execute_withdraw() {
     assert_eq!(
         user_info,
         UserInfo {
-            amount: Uint128(50),
-            reward_debt: Uint128(0),
+            amount: Uint128::from(50u128),
+            reward_debt: Uint128::from(0u128),
         }
     );
 
@@ -668,7 +713,7 @@ fn execute_withdraw() {
         info.clone(),
         ExecuteMsg::Withdraw {
             token: lp_token_contract.clone(),
-            amount: Uint128(25u128),
+            amount: Uint128::from(25u128),
         },
     )
     .unwrap();
@@ -678,28 +723,38 @@ fn execute_withdraw() {
     let transfer_from_msg = res.messages.get(3).expect("no message");
     assert_eq!(
         transfer_msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: astro_token_contract.clone().to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: info.sender.to_string(),
-                amount: Uint128(100000),
-            })
-            .unwrap(),
-            send: vec![],
-        }),
+        &SubMsg {
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: astro_token_contract.clone().to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: info.sender.to_string(),
+                    amount: Uint128::from(100000u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        },
     );
     assert_eq!(
         transfer_from_msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: lp_token_contract.clone().to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
-                recipient: info.sender.to_string(),
-                amount: Uint128(25),
-            })
-            .unwrap(),
-            send: vec![],
-        }),
+        &SubMsg {
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: lp_token_contract.clone().to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                    recipient: info.sender.to_string(),
+                    amount: Uint128::from(25u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        },
     );
     // mock execute messages cw20 token contract
     execute_messages_token_contract(&mut deps, res);
@@ -716,8 +771,8 @@ fn execute_withdraw() {
     assert_eq!(
         user_info,
         UserInfo {
-            amount: Uint128(25),
-            reward_debt: Uint128(50000),
+            amount: Uint128::from(25u128),
+            reward_debt: Uint128::from(50000u128),
         }
     );
     env.block.height = env.block.height.add(1000);
@@ -727,7 +782,7 @@ fn execute_withdraw() {
         info.clone(),
         ExecuteMsg::Withdraw {
             token: lp_token_contract.clone(),
-            amount: Uint128(25u128),
+            amount: Uint128::from(25u128),
         },
     )
     .unwrap();
@@ -737,28 +792,38 @@ fn execute_withdraw() {
 
     assert_eq!(
         transfer_msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: astro_token_contract.clone().to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: info.sender.to_string(),
-                amount: Uint128(10000),
-            })
-            .unwrap(),
-            send: vec![],
-        })
+        &SubMsg {
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: astro_token_contract.clone().to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: info.sender.to_string(),
+                    amount: Uint128::from(10000u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }
     );
     assert_eq!(
         transfer_from_msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: lp_token_contract.clone().to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
-                recipient: info.sender.to_string(),
-                amount: Uint128(25),
-            })
-            .unwrap(),
-            send: vec![],
-        })
+        &SubMsg {
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: lp_token_contract.clone().to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                    recipient: info.sender.to_string(),
+                    amount: Uint128::from(25u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }
     );
 
     // mock execute messages cw20 token contract
@@ -770,7 +835,7 @@ fn execute_withdraw() {
         info.clone(),
         ExecuteMsg::Withdraw {
             token: lp_token_contract,
-            amount: Uint128(25u128),
+            amount: Uint128::from(25u128),
         },
     );
     match wres {
@@ -791,7 +856,7 @@ fn execute_emergency_withdraw() {
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
 
-    let token_amount = Uint128(10);
+    let token_amount = Uint128::from(10u128);
 
     _do_instantiate(
         deps.as_mut(),
@@ -824,7 +889,7 @@ fn execute_emergency_withdraw() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract.clone(),
-            amount: Uint128(1122),
+            amount: Uint128::from(1122u128),
         },
     )
     .unwrap();
@@ -845,16 +910,21 @@ fn execute_emergency_withdraw() {
     let transfer_from_msg = res.messages.get(0).expect("no message");
     assert_eq!(
         transfer_from_msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: lp_token_contract.clone().to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
-                recipient: info.sender.to_string(),
-                amount: Uint128(1122),
-            })
-            .unwrap(),
-            send: vec![],
-        })
+        &SubMsg {
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: lp_token_contract.clone().to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                    recipient: info.sender.to_string(),
+                    amount: Uint128::from(1122u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }
     );
     execute_messages_token_contract(&mut deps, res);
 
@@ -881,8 +951,11 @@ fn give_token_after_farming_time() {
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
 
-    deps.querier
-        .set_balance(owner.clone(), lp_token_contract.clone(), Uint128(1000));
+    deps.querier.set_balance(
+        owner.clone(),
+        lp_token_contract.clone(),
+        Uint128::from(1000u128),
+    );
 
     // 100 per block farming rate starting at block 100 with bonus until block 1000
     _do_instantiate(
@@ -891,7 +964,7 @@ fn give_token_after_farming_time() {
         info.clone(),
         dev.clone(),
         astro_token_contract.clone(),
-        Uint128(100),
+        Uint128::from(100u128),
         env.block.height.add(100),
         env.block.height.add(1000),
     );
@@ -914,7 +987,7 @@ fn give_token_after_farming_time() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract.clone(),
-            amount: Uint128(100),
+            amount: Uint128::from(100u128),
         },
     )
     .unwrap();
@@ -996,15 +1069,20 @@ fn give_token_after_farming_time() {
     let transfer_msg = res.messages.get(1).expect("no message");
     assert_eq!(
         transfer_msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: astro_token_contract.clone().to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Mint {
-                recipient: MOCK_CONTRACT_ADDR.to_string(),
-                amount: Uint128(1000),
-            })
-            .unwrap(),
-            send: vec![],
-        }),
+        &SubMsg {
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: astro_token_contract.clone().to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Mint {
+                    recipient: MOCK_CONTRACT_ADDR.to_string(),
+                    amount: Uint128::from(1000u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        },
     );
     execute_messages_token_contract(&mut deps, res);
     // Block 105
@@ -1024,42 +1102,57 @@ fn give_token_after_farming_time() {
     assert_eq!(
         res.messages,
         vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: astro_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: dev.to_string(),
-                    amount: Uint128(400),
-                })
-                .unwrap(),
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: astro_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: MOCK_CONTRACT_ADDR.to_string(),
-                    amount: Uint128(4000),
-                })
-                .unwrap(),
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: astro_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: owner.to_string(),
-                    amount: Uint128(4000),
-                })
-                .unwrap(),
-                send: vec![],
-            })
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: astro_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Mint {
+                        recipient: dev.to_string(),
+                        amount: Uint128::from(400u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: astro_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Mint {
+                        recipient: MOCK_CONTRACT_ADDR.to_string(),
+                        amount: Uint128::from(4000u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: astro_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                        recipient: owner.to_string(),
+                        amount: Uint128::from(4000u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            }
         ]
     );
     execute_messages_token_contract(&mut deps, res);
     // astra token balanceOf contract address equal 5000
     let bal = get_token_balance(deps.as_ref(), owner.clone(), astro_token_contract.clone());
-    assert_eq!(bal, Uint128(5000));
+    assert_eq!(bal, Uint128::from(5000u128));
     // astra token balanceOf dev address equal 500
     let bal = get_token_balance(deps.as_ref(), dev.clone(), astro_token_contract.clone());
-    assert_eq!(bal, Uint128(500))
+    assert_eq!(bal, Uint128::from(500u128))
     // astra token totalSupply equal 5500
 }
 
@@ -1075,8 +1168,11 @@ fn not_distribute_tokens() {
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
 
-    deps.querier
-        .set_balance(user.clone(), lp_token_contract.clone(), Uint128(1000));
+    deps.querier.set_balance(
+        user.clone(),
+        lp_token_contract.clone(),
+        Uint128::from(1000u128),
+    );
     // 100 per block farming rate starting at block 200 with bonus until block 1000
     _do_instantiate(
         deps.as_mut(),
@@ -1084,7 +1180,7 @@ fn not_distribute_tokens() {
         info.clone(),
         dev.clone(),
         astro_token_contract.clone(),
-        Uint128(100),
+        Uint128::from(100u128),
         env.block.height.add(200),
         env.block.height.add(1000),
     );
@@ -1130,22 +1226,27 @@ fn not_distribute_tokens() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract.clone(),
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
         },
     )
     .unwrap();
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: lp_token_contract.clone().to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: info.sender.to_string(),
-                recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
-                amount: Uint128(10),
-            })
-            .unwrap(),
-            send: vec![],
-        })]
+        vec![SubMsg {
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: lp_token_contract.clone().to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: info.sender.to_string(),
+                    recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                    amount: Uint128::from(10u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }]
     );
     execute_messages_token_contract(&mut deps, res);
     // astra token totalSupply equal 0
@@ -1157,7 +1258,7 @@ fn not_distribute_tokens() {
     assert_eq!(bal, Uint128::zero());
     // lp token balanceOf equal -10
     let balance = get_token_balance(deps.as_ref(), user.clone(), lp_token_contract.clone());
-    assert_eq!(balance, Uint128(990));
+    assert_eq!(balance, Uint128::from(990u128));
 
     // Block 220
     env.block.height = env.block.height.add(10);
@@ -1167,50 +1268,70 @@ fn not_distribute_tokens() {
         info.clone(),
         ExecuteMsg::Withdraw {
             token: lp_token_contract.clone(),
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
         },
     )
     .unwrap();
     assert_eq!(
         res.messages,
         vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: astro_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: dev.to_string(),
-                    amount: Uint128(1000),
-                })
-                .unwrap(),
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: astro_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
-                    amount: Uint128(10000),
-                })
-                .unwrap(),
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: astro_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: info.sender.to_string(),
-                    amount: Uint128(10000),
-                })
-                .unwrap(),
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: lp_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                    owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
-                    recipient: info.sender.to_string(),
-                    amount: Uint128(10),
-                })
-                .unwrap(),
-                send: vec![],
-            })
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: astro_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Mint {
+                        recipient: dev.to_string(),
+                        amount: Uint128::from(1000u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: astro_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Mint {
+                        recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                        amount: Uint128::from(10000u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: astro_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                        recipient: info.sender.to_string(),
+                        amount: Uint128::from(10000u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: lp_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                        owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                        recipient: info.sender.to_string(),
+                        amount: Uint128::from(10u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            }
         ]
     );
     // mock execute messages cw20 token contract
@@ -1219,13 +1340,13 @@ fn not_distribute_tokens() {
     // astra token totalSupply equal 11000
     // astra token balanceOf user address equal 10000
     let balance = get_token_balance(deps.as_ref(), user.clone(), astro_token_contract.clone());
-    assert_eq!(balance, Uint128(10000));
+    assert_eq!(balance, Uint128::from(10000u128));
     // astra token balanceOf dev address equal 1000
     let balance = get_token_balance(deps.as_ref(), dev.clone(), astro_token_contract.clone());
-    assert_eq!(balance, Uint128(1000));
+    assert_eq!(balance, Uint128::from(1000u128));
     // lp token balanceOf equal +10
     let balance = get_token_balance(deps.as_ref(), user.clone(), lp_token_contract.clone());
-    assert_eq!(balance, Uint128(1000));
+    assert_eq!(balance, Uint128::from(1000u128));
 }
 
 // should distribute tokens properly for each staker
@@ -1242,12 +1363,21 @@ fn distribute_tokens() {
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
 
-    deps.querier
-        .set_balance(user_one.clone(), lp_token_contract.clone(), Uint128(1000));
-    deps.querier
-        .set_balance(user_two.clone(), lp_token_contract.clone(), Uint128(1000));
-    deps.querier
-        .set_balance(user_three.clone(), lp_token_contract.clone(), Uint128(1000));
+    deps.querier.set_balance(
+        user_one.clone(),
+        lp_token_contract.clone(),
+        Uint128::from(1000u128),
+    );
+    deps.querier.set_balance(
+        user_two.clone(),
+        lp_token_contract.clone(),
+        Uint128::from(1000u128),
+    );
+    deps.querier.set_balance(
+        user_three.clone(),
+        lp_token_contract.clone(),
+        Uint128::from(1000u128),
+    );
     // 100 per block farming rate starting at block 300 with bonus until block 1000
     env.block.height = 0;
     _do_instantiate(
@@ -1256,7 +1386,7 @@ fn distribute_tokens() {
         info.clone(),
         dev.clone(),
         astro_token_contract.clone(),
-        Uint128(100),
+        Uint128::from(100u128),
         env.block.height.add(300),
         env.block.height.add(1000),
     );
@@ -1284,7 +1414,7 @@ fn distribute_tokens() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract.clone(),
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
         },
     )
     .unwrap();
@@ -1300,7 +1430,7 @@ fn distribute_tokens() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract.clone(),
-            amount: Uint128(20),
+            amount: Uint128::from(20u128),
         },
     )
     .unwrap();
@@ -1316,7 +1446,7 @@ fn distribute_tokens() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract.clone(),
-            amount: Uint128(30),
+            amount: Uint128::from(30u128),
         },
     )
     .unwrap();
@@ -1334,7 +1464,7 @@ fn distribute_tokens() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract.clone(),
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
         },
     )
     .unwrap();
@@ -1346,7 +1476,7 @@ fn distribute_tokens() {
         user_one.clone(),
         astro_token_contract.clone(),
     );
-    assert_eq!(bal, Uint128(5666));
+    assert_eq!(bal, Uint128::from(5666u128));
     // expect token balanceOf User_two address equal 0
     let bal = get_token_balance(
         deps.as_ref(),
@@ -1367,10 +1497,10 @@ fn distribute_tokens() {
         Addr::unchecked(MOCK_CONTRACT_ADDR),
         astro_token_contract.clone(),
     );
-    assert_eq!(bal, Uint128(4334));
+    assert_eq!(bal, Uint128::from(4334u128));
     // expect token balanceOf dev address equal 1000
     let bal = get_token_balance(deps.as_ref(), dev.clone(), astro_token_contract.clone());
-    assert_eq!(bal, Uint128(1000));
+    assert_eq!(bal, Uint128::from(1000u128));
 
     // User_two withdraws 5 LPs at block 330. At this point:
     // User_two should have: 4*2/3*1000 + 2*2/6*1000 + 10*2/7*1000 = 6190
@@ -1383,7 +1513,7 @@ fn distribute_tokens() {
         info.clone(),
         ExecuteMsg::Withdraw {
             token: lp_token_contract.clone(),
-            amount: Uint128(5),
+            amount: Uint128::from(5u128),
         },
     )
     .unwrap();
@@ -1395,14 +1525,14 @@ fn distribute_tokens() {
         user_one.clone(),
         astro_token_contract.clone(),
     );
-    assert_eq!(bal, Uint128(5666));
+    assert_eq!(bal, Uint128::from(5666u128));
     // expect token balanceOf User_two address equal 6190
     let bal = get_token_balance(
         deps.as_ref(),
         user_two.clone(),
         astro_token_contract.clone(),
     );
-    assert_eq!(bal, Uint128(6190));
+    assert_eq!(bal, Uint128::from(6190u128));
     // expect token balanceOf User_three address equal 0
     let bal = get_token_balance(
         deps.as_ref(),
@@ -1416,10 +1546,10 @@ fn distribute_tokens() {
         Addr::unchecked(MOCK_CONTRACT_ADDR),
         astro_token_contract.clone(),
     );
-    assert_eq!(bal, Uint128(8144));
+    assert_eq!(bal, Uint128::from(8144u128));
     // expect token balanceOf dev address equal 2000
     let bal = get_token_balance(deps.as_ref(), dev.clone(), astro_token_contract.clone());
-    assert_eq!(bal, Uint128(2000));
+    assert_eq!(bal, Uint128::from(2000u128));
 
     // User_one withdraws 20 LPs at block 340.
     // User_two withdraws 15 LPs at block 350.
@@ -1433,7 +1563,7 @@ fn distribute_tokens() {
         info.clone(),
         ExecuteMsg::Withdraw {
             token: lp_token_contract.clone(),
-            amount: Uint128(20),
+            amount: Uint128::from(20u128),
         },
     )
     .unwrap();
@@ -1448,7 +1578,7 @@ fn distribute_tokens() {
         info.clone(),
         ExecuteMsg::Withdraw {
             token: lp_token_contract.clone(),
-            amount: Uint128(15),
+            amount: Uint128::from(15u128),
         },
     )
     .unwrap();
@@ -1463,7 +1593,7 @@ fn distribute_tokens() {
         info.clone(),
         ExecuteMsg::Withdraw {
             token: lp_token_contract.clone(),
-            amount: Uint128(30),
+            amount: Uint128::from(30u128),
         },
     )
     .unwrap();
@@ -1472,7 +1602,7 @@ fn distribute_tokens() {
     // expect token totalSupply equal 55000
     // expect token balanceOf dev address equal 5000
     let bal = get_token_balance(deps.as_ref(), dev.clone(), astro_token_contract.clone());
-    assert_eq!(bal, Uint128(5000));
+    assert_eq!(bal, Uint128::from(5000u128));
 
     // User_one should have: 5666 + 10*2/7*1000 + 10*2/6.5*1000 = 11600
     // expect token balanceOf User_one address equal 11600
@@ -1481,7 +1611,7 @@ fn distribute_tokens() {
         user_one.clone(),
         astro_token_contract.clone(),
     );
-    assert_eq!(bal, Uint128(11600));
+    assert_eq!(bal, Uint128::from(11600u128));
 
     // User_two should have: 6190 + 10*1.5/6.5 * 1000 + 10*1.5/4.5*1000 = 11831
     // expect token balanceOf User_two address equal 11831
@@ -1490,7 +1620,7 @@ fn distribute_tokens() {
         user_two.clone(),
         astro_token_contract.clone(),
     );
-    assert_eq!(bal, Uint128(11831));
+    assert_eq!(bal, Uint128::from(11831u128));
 
     // User_three should have: 2*3/6*1000 + 10*3/7*1000 + 10*3/6.5*1000 + 10*3/4.5*1000 + 10*1000 = 26568
     // expect token balanceOf User_three address equal 26568
@@ -1499,21 +1629,19 @@ fn distribute_tokens() {
         user_three.clone(),
         astro_token_contract.clone(),
     );
-    assert_eq!(bal, Uint128(26568));
+    assert_eq!(bal, Uint128::from(26568u128));
 
     // All of them should have 1000 LPs back.
     // expect lp token balanceOf User_one address equal 1000
     let bal = get_token_balance(deps.as_ref(), user_one.clone(), lp_token_contract.clone());
-    assert_eq!(bal, Uint128(1000));
+    assert_eq!(bal, Uint128::from(1000u128));
     // expect lp token balanceOf User_two address equal 1000
     let bal = get_token_balance(deps.as_ref(), user_two.clone(), lp_token_contract.clone());
-    assert_eq!(bal, Uint128(1000));
+    assert_eq!(bal, Uint128::from(1000u128));
     // expect lp token balanceOf User_three address equal 1000
     let bal = get_token_balance(deps.as_ref(), user_three.clone(), lp_token_contract.clone());
-    assert_eq!(bal, Uint128(1000));
+    assert_eq!(bal, Uint128::from(1000u128));
 }
-
-
 
 // should give proper tokens allocation to each pool
 #[test]
@@ -1532,12 +1660,12 @@ fn tokens_allocation_each_pool() {
     deps.querier.set_balance(
         user_one.clone(),
         lp_token_contract_one.clone(),
-        Uint128(1000),
+        Uint128::from(1000u128),
     );
     deps.querier.set_balance(
         user_two.clone(),
         lp_token_contract_two.clone(),
-        Uint128(1000),
+        Uint128::from(1000u128),
     );
     // 100 per block farming rate starting at block 400 with bonus until block 1000
     env.block.height = 0;
@@ -1547,7 +1675,7 @@ fn tokens_allocation_each_pool() {
         info.clone(),
         dev.clone(),
         astro_token_contract.clone(),
-        Uint128(100),
+        Uint128::from(100u128),
         env.block.height.add(400),
         env.block.height.add(1000),
     );
@@ -1575,7 +1703,7 @@ fn tokens_allocation_each_pool() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract_one.clone(),
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
         },
     )
     .unwrap();
@@ -1610,7 +1738,7 @@ fn tokens_allocation_each_pool() {
     )
     .unwrap();
     let rewards: PendingTokenResponse = from_binary(&res).unwrap();
-    assert_eq!(rewards.pending, Uint128(10000));
+    assert_eq!(rewards.pending, Uint128::from(10000u128));
 
     // User_two deposits 10 LP2s at block 425
     // Block +425
@@ -1622,7 +1750,7 @@ fn tokens_allocation_each_pool() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract_two.clone(),
-            amount: Uint128(5),
+            amount: Uint128::from(5u128),
         },
     )
     .unwrap();
@@ -1640,7 +1768,7 @@ fn tokens_allocation_each_pool() {
     )
     .unwrap();
     let rewards: PendingTokenResponse = from_binary(&res).unwrap();
-    assert_eq!(rewards.pending, Uint128(11666));
+    assert_eq!(rewards.pending, Uint128::from(11666u128));
 
     // Block +430
     env.block.height = env.block.height.add(5);
@@ -1656,7 +1784,7 @@ fn tokens_allocation_each_pool() {
     )
     .unwrap();
     let rewards: PendingTokenResponse = from_binary(&res).unwrap();
-    assert_eq!(rewards.pending, Uint128(13333));
+    assert_eq!(rewards.pending, Uint128::from(13333u128));
     // expect pending token two user two address equal 3333
     let res = query(
         deps.as_ref(),
@@ -1668,7 +1796,7 @@ fn tokens_allocation_each_pool() {
     )
     .unwrap();
     let rewards: PendingTokenResponse = from_binary(&res).unwrap();
-    assert_eq!(rewards.pending, Uint128(3333));
+    assert_eq!(rewards.pending, Uint128::from(3333u128));
 }
 
 //should stop giving bonus tokens after the bonus period ends
@@ -1683,8 +1811,11 @@ fn stop_giving_bonus_tokens() {
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
 
-    deps.querier
-        .set_balance(user.clone(), lp_token_contract.clone(), Uint128(1000));
+    deps.querier.set_balance(
+        user.clone(),
+        lp_token_contract.clone(),
+        Uint128::from(1000u128),
+    );
     // 100 per block farming rate starting at block 500 with bonus until block 600
     _do_instantiate(
         deps.as_mut(),
@@ -1692,7 +1823,7 @@ fn stop_giving_bonus_tokens() {
         info.clone(),
         dev.clone(),
         astro_token_contract.clone(),
-        Uint128(100),
+        Uint128::from(100u128),
         env.block.height.add(500),
         env.block.height.add(600),
     );
@@ -1719,7 +1850,7 @@ fn stop_giving_bonus_tokens() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract.clone(),
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
         },
     )
     .unwrap();
@@ -1738,7 +1869,7 @@ fn stop_giving_bonus_tokens() {
     )
     .unwrap();
     let rewards: PendingTokenResponse = from_binary(&res).unwrap();
-    assert_eq!(rewards.pending, Uint128(10500));
+    assert_eq!(rewards.pending, Uint128::from(10500u128));
     // At block 606, user withdraws all pending rewards and should get 10600.
     env.block.height = env.block.height.add(1);
     let res = execute(
@@ -1747,7 +1878,7 @@ fn stop_giving_bonus_tokens() {
         info.clone(),
         ExecuteMsg::Deposit {
             token: lp_token_contract.clone(),
-            amount: Uint128(0),
+            amount: Uint128::from(0u128),
         },
     )
     .unwrap();
@@ -1755,33 +1886,48 @@ fn stop_giving_bonus_tokens() {
     assert_eq!(
         res.messages,
         vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: astro_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: dev.to_string(),
-                    amount: Uint128(1060),
-                })
-                .unwrap(),
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: astro_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
-                    amount: Uint128(10600),
-                })
-                .unwrap(),
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: astro_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: info.sender.to_string(),
-                    amount: Uint128(10600),
-                })
-                .unwrap(),
-                send: vec![],
-            }),
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: astro_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Mint {
+                        recipient: dev.to_string(),
+                        amount: Uint128::from(1060u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: astro_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Mint {
+                        recipient: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                        amount: Uint128::from(10600u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: astro_token_contract.clone().to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                        recipient: info.sender.to_string(),
+                        amount: Uint128::from(10600u128),
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
         ]
     );
     // mock execute messages cw20 token contract
@@ -1808,11 +1954,14 @@ fn check_mock_query_balances() {
     let lp_token_contract = Addr::unchecked("lp-token000");
     let lp_token_contract_other = Addr::unchecked("lp-token001");
 
-    deps.querier
-        .set_balance(user.clone(), lp_token_contract.clone(), Uint128(1000));
+    deps.querier.set_balance(
+        user.clone(),
+        lp_token_contract.clone(),
+        Uint128::from(1000u128),
+    );
 
     let balance = get_token_balance(deps.as_ref(), user.clone(), lp_token_contract.clone());
-    assert_eq!(balance, Uint128(1000));
+    assert_eq!(balance, Uint128::from(1000u128));
     let balance = get_token_balance(deps.as_ref(), user.clone(), lp_token_contract_other.clone());
     assert_eq!(balance, Uint128::zero());
     let balance = get_token_balance(deps.as_ref(), user_other.clone(), lp_token_contract.clone());
@@ -1824,25 +1973,34 @@ fn check_mock_query_balances() {
     );
     assert_eq!(balance, Uint128::zero());
 
-    deps.querier
-        .add_balance(user.clone(), lp_token_contract.clone(), Uint128(1000));
+    deps.querier.add_balance(
+        user.clone(),
+        lp_token_contract.clone(),
+        Uint128::from(1000u128),
+    );
     let balance = get_token_balance(deps.as_ref(), user.clone(), lp_token_contract.clone());
-    assert_eq!(balance, Uint128(2000));
+    assert_eq!(balance, Uint128::from(2000u128));
 
-    deps.querier
-        .add_balance(user_other.clone(), lp_token_contract.clone(), Uint128(1000));
+    deps.querier.add_balance(
+        user_other.clone(),
+        lp_token_contract.clone(),
+        Uint128::from(1000u128),
+    );
     let balance = get_token_balance(deps.as_ref(), user_other.clone(), lp_token_contract.clone());
-    assert_eq!(balance, Uint128(1000));
+    assert_eq!(balance, Uint128::from(1000u128));
 
-    deps.querier
-        .sub_balance(user.clone(), lp_token_contract.clone(), Uint128(1500));
+    deps.querier.sub_balance(
+        user.clone(),
+        lp_token_contract.clone(),
+        Uint128::from(1500u128),
+    );
     let balance = get_token_balance(deps.as_ref(), user.clone(), lp_token_contract.clone());
-    assert_eq!(balance, Uint128(500));
+    assert_eq!(balance, Uint128::from(500u128));
 
     deps.querier.sub_balance(
         user_other.clone(),
         lp_token_contract_other.clone(),
-        Uint128(1000),
+        Uint128::from(1000u128),
     );
     let balance = get_token_balance(
         deps.as_ref(),
