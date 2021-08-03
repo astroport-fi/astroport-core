@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "StateResponse",
+  "type": "object",
+  "required": [
+    "state"
+  ],
+  "properties": {
+    "state": {
+      "$ref": "#/definitions/ProposalState"
+    }
+  },
+  "definitions": {
+    "ProposalState": {
+      "type": "string",
+      "enum": [
+        "Pending",
+        "Active",
+        "Canceled",
+        "Defeated",
+        "Succeeded",
+        "Queued",
+        "Expired",
+        "Executed"
+      ]
+    }
+  }
+}
