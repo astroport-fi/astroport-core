@@ -307,7 +307,7 @@ pub fn deposit(
     let mut response = Response::default();
     response.add_attribute("Action", "Deposit");
 
-    let user = USER_INFO
+    let mut user = USER_INFO
         .load(deps.storage, (&token, &info.sender))
         .unwrap_or_default();
 
@@ -368,22 +368,15 @@ pub fn deposit(
         }));
     }
     //Change user balance
-    USER_INFO.update(
-        deps.storage,
-        (&token, &info.sender),
-        |user_info| -> StdResult<_> {
-            let mut val = user_info.unwrap_or_default();
-            val.amount = val.amount.checked_add(amount)?;
-
-            if pool.acc_per_share > Uint128::zero() {
-                val.reward_debt = val
-                    .amount
-                    .checked_mul(pool.acc_per_share)?
-                    .checked_div(PRECISION_MULTIPLIER)?;
-            }
-            Ok(val)
-        },
-    )?;
+    user.amount = user.amount.checked_add(amount)?;
+    if pool.acc_per_share > Uint128::zero() {
+        user.reward_debt = user
+            .amount
+            .checked_mul(pool.acc_per_share)?
+            .checked_div(PRECISION_MULTIPLIER)
+            .map_err(|e| ContractError::Std(e.into()))?;
+    };
+    USER_INFO.save(deps.storage, (&token, &info.sender), &user)?;
 
     Ok(response)
 }
