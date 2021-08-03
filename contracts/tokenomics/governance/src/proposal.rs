@@ -1,8 +1,8 @@
 use std::ops::Add;
 
 use cosmwasm_std::{
-    CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128,
-    WasmMsg,
+    Decimal, Deps, DepsMut, Env, MessageInfo, ReplyOn, Response, StdError, StdResult, SubMsg,
+    Uint128, WasmMsg,
 };
 use cw_storage_plus::U64Key;
 
@@ -230,11 +230,17 @@ pub fn try_execute(deps: DepsMut, _env: Env, proposal_id: u64) -> Result<Respons
         let mut msgs = all_msgs;
         msgs.sort();
         for msg in msgs {
-            response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: msg.contract.to_string(),
-                msg: msg.msg,
-                send: vec![],
-            }))
+            response.messages.push(SubMsg {
+                id: 0,
+                msg: WasmMsg::Execute {
+                    contract_addr: msg.contract.to_string(),
+                    msg: msg.msg,
+                    funds: vec![],
+                }
+                .into(),
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            })
         }
     } else {
         return Err(ContractError::ProposalError {

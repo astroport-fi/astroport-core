@@ -1,7 +1,7 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, Addr, CosmosMsg, Decimal, Deps, DepsMut, Env, Response,
-    StdError, Timestamp, Uint128, WasmMsg,
+    attr, coins, from_binary, to_binary, Addr, Decimal, Deps, DepsMut, Env, Event, ReplyOn,
+    Response, StdError, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -101,8 +101,9 @@ fn assert_stake_tokens_result(
     handle_res: Response,
     deps: DepsMut,
 ) {
+    let event = handle_res.events.get(0).expect("no event");
     assert_eq!(
-        handle_res.attributes.get(2).expect("no attr"),
+        event.attributes.get(1).expect("no attr"),
         &attr("amount", new_share.to_string())
     );
 
@@ -112,7 +113,7 @@ fn assert_stake_tokens_result(
         State {
             owner: Addr::unchecked(TEST_CREATOR),
             proposal_count,
-            supply: Uint128(total_share + total_deposit),
+            supply: Uint128::from(total_share + total_deposit),
             epoch: 0,
             point_history: vec![],
         }
@@ -143,7 +144,7 @@ fn assert_create_proposal_result(
         State {
             owner: Addr::unchecked(TEST_CREATOR),
             proposal_count: 1,
-            supply: Uint128(DEFAULT_DEPOSIT),
+            supply: Uint128::from(DEFAULT_DEPOSIT),
             epoch: 0,
             point_history: vec![],
         }
@@ -217,7 +218,7 @@ fn fails_init_invalid_quorum() {
         voting_period: DEFAULT_VOTING_PERIOD,
         voting_delay_period: 0,
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
-        proposal_weight: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+        proposal_weight: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
         expiration_period: DEFAULT_EXPIRATION_PERIOD,
         admin: Addr::unchecked(ADMIN),
     };
@@ -244,7 +245,7 @@ fn fails_init_invalid_threshold() {
         voting_period: DEFAULT_VOTING_PERIOD,
         voting_delay_period: 0,
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
-        proposal_weight: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+        proposal_weight: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
         expiration_period: DEFAULT_EXPIRATION_PERIOD,
         admin: Addr::unchecked(ADMIN),
     };
@@ -379,7 +380,7 @@ fn create_proposal() {
     let info = mock_info(TEST_CREATOR, &vec![]);
 
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
@@ -404,14 +405,14 @@ fn query_proposals() {
 
     info.sender = Addr::unchecked(TEST_CREATOR);
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
 
     info.sender = Addr::unchecked(TEST_VOTER);
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
@@ -489,7 +490,7 @@ fn create_proposal_no_quorum() {
     let info = mock_info(TEST_CREATOR, &vec![]);
 
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
@@ -514,7 +515,7 @@ fn fails_end_lock_before_end_height() {
     let info = mock_info(TEST_CREATOR, &vec![]);
 
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time,
     };
     let handle_res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg);
@@ -539,16 +540,19 @@ fn end_proposal() {
     let creator_info = mock_info(TEST_CREATOR, &coins(2, VOTING_TOKEN));
 
     let exec_msg_bz = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(123),
+        amount: Uint128::from(123u128),
     })
     .unwrap();
 
     let exec_msg_bz2 = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(12),
+        amount: Uint128::from(12u128),
     })
     .unwrap();
 
-    let exec_msg_bz3 = to_binary(&Cw20ExecuteMsg::Burn { amount: Uint128(1) }).unwrap();
+    let exec_msg_bz3 = to_binary(&Cw20ExecuteMsg::Burn {
+        amount: Uint128::from(1u128),
+    })
+    .unwrap();
 
     //add three messages with different order
     let mut execute_msgs: Vec<ExecuteData> = vec![];
@@ -579,7 +583,7 @@ fn end_proposal() {
     );
 
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), creator_info.clone(), lock_msg).unwrap();
@@ -597,7 +601,7 @@ fn end_proposal() {
     env.block.height += DEFAULT_VOTING_DELAY_PERIOD + 1;
 
     let msg = ExecuteMsg::CreateLock {
-        amount: Uint128(stake_amount as u128),
+        amount: Uint128::from(stake_amount as u128),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     //let _res = execute(deps.as_mut(), creator_env.clone(), creator_info.clone(), lock_msg).unwrap();
@@ -728,21 +732,39 @@ fn end_proposal() {
     assert_eq!(
         handle_res.messages,
         vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: VOTING_TOKEN.to_string(),
-                msg: exec_msg_bz.clone(),
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: VOTING_TOKEN.to_string(),
-                msg: exec_msg_bz2,
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: VOTING_TOKEN.to_string(),
-                msg: exec_msg_bz3,
-                send: vec![],
-            })
+            SubMsg {
+                id: 0,
+                msg: WasmMsg::Execute {
+                    contract_addr: VOTING_TOKEN.to_string(),
+                    msg: exec_msg_bz.clone(),
+                    funds: vec![],
+                }
+                .into(),
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
+            SubMsg {
+                id: 0,
+                msg: WasmMsg::Execute {
+                    contract_addr: VOTING_TOKEN.to_string(),
+                    msg: exec_msg_bz2,
+                    funds: vec![],
+                }
+                .into(),
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            },
+            SubMsg {
+                id: 0,
+                msg: WasmMsg::Execute {
+                    contract_addr: VOTING_TOKEN.to_string(),
+                    msg: exec_msg_bz3,
+                    funds: vec![],
+                }
+                .into(),
+                gas_limit: None,
+                reply_on: ReplyOn::Never
+            }
         ]
     );
 }
@@ -759,7 +781,7 @@ fn expire_proposal() {
     let mut info = mock_info(TEST_CREATOR, &coins(2, VOTING_TOKEN));
 
     let exec_msg_bz = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(123),
+        amount: Uint128::from(123u128),
     })
     .unwrap();
     let mut execute_msgs: Vec<ExecuteData> = vec![];
@@ -770,7 +792,7 @@ fn expire_proposal() {
     });
 
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
@@ -796,7 +818,7 @@ fn expire_proposal() {
 
     info.sender = Addr::unchecked(TEST_VOTER);
     let msg = ExecuteMsg::CreateLock {
-        amount: Uint128(stake_amount as u128),
+        amount: Uint128::from(stake_amount as u128),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -898,13 +920,13 @@ fn end_proposal_zero_quorum() {
         order: 1u64,
         contract: Addr::unchecked(VOTING_TOKEN),
         msg: to_binary(&Cw20ExecuteMsg::Burn {
-            amount: Uint128(123),
+            amount: Uint128::from(123u128),
         })
         .unwrap(),
     });
 
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
@@ -959,12 +981,12 @@ fn end_proposal_quorum_rejected() {
         order: 1u64,
         contract: Addr::unchecked(VOTING_TOKEN),
         msg: to_binary(&Cw20ExecuteMsg::Burn {
-            amount: Uint128(123),
+            amount: Uint128::from(123u128),
         })
         .unwrap(),
     });
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
@@ -990,7 +1012,7 @@ fn end_proposal_quorum_rejected() {
 
     info.sender = Addr::unchecked(TEST_VOTER);
     let msg = ExecuteMsg::CreateLock {
-        amount: Uint128(45_000_000_000u128),
+        amount: Uint128::from(45_000_000_000u128),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -1036,12 +1058,12 @@ fn end_proposal_nay_rejected() {
         order: 1u64,
         contract: Addr::unchecked(VOTING_TOKEN),
         msg: to_binary(&Cw20ExecuteMsg::Burn {
-            amount: Uint128(123),
+            amount: Uint128::from(123u64),
         })
         .unwrap(),
     });
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
@@ -1068,7 +1090,7 @@ fn end_proposal_nay_rejected() {
     //voter1
     info.sender = Addr::unchecked(TEST_VOTER);
     let msg = ExecuteMsg::CreateLock {
-        amount: Uint128(voter1_stake),
+        amount: Uint128::from(voter1_stake),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -1082,7 +1104,7 @@ fn end_proposal_nay_rejected() {
     //voter2
     info.sender = Addr::unchecked(TEST_VOTER_2);
     let msg = ExecuteMsg::CreateLock {
-        amount: Uint128(voter2_stake),
+        amount: Uint128::from(voter2_stake),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -1123,24 +1145,26 @@ fn vote_power() {
     let info = mock_info(TEST_CREATOR, &coins(2, VOTING_TOKEN));
 
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(time_lock),
     };
     let lock_time =
         ((env.block.time.plus_seconds(time_lock).nanos() / 1_000_000_000) / WEEK) * WEEK;
     let res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("Action", "Deposit"),
-            attr("addr", TEST_CREATOR),
-            attr("amount", DEFAULT_DEPOSIT.to_string()),
-            attr("end", lock_time.to_string()),
-        ]
+        res.events,
+        vec![Event {
+            ty: "Deposit".to_string(),
+            attributes: vec![
+                attr("addr", TEST_CREATOR),
+                attr("amount", DEFAULT_DEPOSIT.to_string()),
+                attr("end", lock_time.to_string()),
+            ]
+        }]
     );
 
     let power = get_locked_balance(deps.as_ref(), env.clone(), Addr::unchecked(TEST_CREATOR));
-    assert_eq!(power, Uint128(109678764800u128));
+    assert_eq!(power, Uint128::from(109678764800u128));
 
     //tor example 1 block i second 1 day = 86400 sec/block
 
@@ -1179,7 +1203,7 @@ fn vote_power() {
         env.block.height += block_per_day * 30;
         env.block.time = env.block.time.plus_seconds(second * 30);
         let power = get_locked_balance(deps.as_ref(), env.clone(), Addr::unchecked(TEST_CREATOR));
-        assert_eq!(power, Uint128(pwr));
+        assert_eq!(power, Uint128::from(pwr));
     }
 }
 
@@ -1193,20 +1217,22 @@ fn withdraw_voting_tokens() {
     let info = mock_info(TEST_VOTER, &coins(2, VOTING_TOKEN));
 
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(time_lock),
     };
     let lock_time =
         ((env.block.time.plus_seconds(time_lock).nanos() / 1_000_000_000) / WEEK) * WEEK;
     let res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("Action", "Deposit"),
-            attr("addr", TEST_VOTER),
-            attr("amount", DEFAULT_DEPOSIT.to_string()),
-            attr("end", lock_time.to_string()),
-        ]
+        res.events,
+        vec![Event {
+            ty: "Deposit".to_string(),
+            attributes: vec![
+                attr("addr", TEST_VOTER),
+                attr("amount", DEFAULT_DEPOSIT.to_string()),
+                attr("end", lock_time.to_string()),
+            ]
+        }]
     );
 
     let state: State = GOVERNANCE_SATE.load(deps.as_mut().storage).unwrap();
@@ -1215,7 +1241,7 @@ fn withdraw_voting_tokens() {
         State {
             owner: Addr::unchecked(TEST_CREATOR),
             proposal_count: 0,
-            supply: Uint128(DEFAULT_DEPOSIT),
+            supply: Uint128::from(DEFAULT_DEPOSIT),
             epoch: 0,
             point_history: vec![],
         }
@@ -1229,17 +1255,22 @@ fn withdraw_voting_tokens() {
 
     assert_eq!(
         msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: Addr::unchecked(VOTING_TOKEN).to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: Addr::unchecked(TEST_VOTER).to_string(),
-                amount: Uint128(DEFAULT_DEPOSIT),
-            })
-            .unwrap(),
-            send: vec![],
-        })
+        &SubMsg {
+            id: 0,
+            msg: WasmMsg::Execute {
+                contract_addr: Addr::unchecked(VOTING_TOKEN).to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: Addr::unchecked(TEST_VOTER).to_string(),
+                    amount: Uint128::from(DEFAULT_DEPOSIT),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }
     );
-
     let state: State = GOVERNANCE_SATE.load(deps.as_mut().storage).unwrap();
     assert_eq!(
         state,
@@ -1282,20 +1313,22 @@ fn fails_withdraw_locked_tokens() {
     let info = mock_info(TEST_VOTER, &coins(2, VOTING_TOKEN));
 
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(time_lock),
     };
     let lock_time =
         ((env.block.time.plus_seconds(time_lock).nanos() / 1_000_000_000) / WEEK) * WEEK;
     let res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("Action", "Deposit"),
-            attr("addr", TEST_VOTER),
-            attr("amount", DEFAULT_DEPOSIT.to_string()),
-            attr("end", lock_time.to_string()),
-        ]
+        res.events,
+        vec![Event {
+            ty: "Deposit".to_string(),
+            attributes: vec![
+                attr("addr", TEST_VOTER),
+                attr("amount", DEFAULT_DEPOSIT.to_string()),
+                attr("end", lock_time.to_string()),
+            ]
+        }]
     );
 
     let state: State = GOVERNANCE_SATE.load(deps.as_mut().storage).unwrap();
@@ -1304,7 +1337,7 @@ fn fails_withdraw_locked_tokens() {
         State {
             owner: Addr::unchecked(TEST_CREATOR),
             proposal_count: 0,
-            supply: Uint128(DEFAULT_DEPOSIT),
+            supply: Uint128::from(DEFAULT_DEPOSIT),
             epoch: 0,
             point_history: vec![],
         }
@@ -1332,14 +1365,14 @@ fn fails_cast_vote_twice() {
 
     info.sender = Addr::unchecked(TEST_CREATOR);
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
 
     info.sender = Addr::unchecked(TEST_VOTER);
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
@@ -1369,7 +1402,7 @@ fn fails_cast_vote_without_proposal() {
     let info = mock_info(TEST_VOTER, &vec![]);
 
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(DEFAULT_DEPOSIT),
+        amount: Uint128::from(DEFAULT_DEPOSIT),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
@@ -1399,34 +1432,42 @@ fn stake_voting_tokens() {
     let info = mock_info(TEST_VOTER, &vec![]);
 
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(deposit),
+        amount: Uint128::from(deposit),
         lock: env.block.time.plus_seconds(2 * 365 * 86400),
     };
     let lock_time =
         ((env.block.time.plus_seconds(2 * 365 * 86400).nanos() / 1_000_000_000) / WEEK) * WEEK;
     let res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("Action", "Deposit"),
-            attr("addr", TEST_VOTER.to_string()),
-            attr("amount", deposit.to_string()),
-            attr("end", lock_time.to_string()),
-        ]
+        res.events,
+        vec![Event {
+            ty: "Deposit".to_string(),
+            attributes: vec![
+                attr("addr", TEST_VOTER.to_string()),
+                attr("amount", deposit.to_string()),
+                attr("end", lock_time.to_string()),
+            ]
+        }]
     );
 
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: Addr::unchecked(VOTING_TOKEN).to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: Addr::unchecked(TEST_VOTER).to_string(),
-                recipient: Addr::unchecked(MOCK_CONTRACT_ADDR).to_string(),
-                amount: Uint128(deposit),
-            })
-            .unwrap(),
-            send: vec![],
-        })]
+        vec![SubMsg {
+            id: 0,
+            msg: WasmMsg::Execute {
+                contract_addr: Addr::unchecked(VOTING_TOKEN).to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: Addr::unchecked(TEST_VOTER).to_string(),
+                    recipient: Addr::unchecked(MOCK_CONTRACT_ADDR).to_string(),
+                    amount: Uint128::from(deposit),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        }]
     );
     assert_stake_tokens_result(0, deposit, deposit, 0, res, deps.as_mut());
 }
@@ -1477,7 +1518,7 @@ fn update_config() {
         voting_period: Some(20000u64),
         timelock_period: Some(20000u64),
         expiration_period: Some(30000u64),
-        proposal_weight: Some(Uint128(123u128)),
+        proposal_weight: Some(Uint128::from(123u128)),
         voting_delay_period: None,
     };
 
@@ -1548,7 +1589,7 @@ fn change_amount_stake_voting_tokens() {
     let info = mock_info(TEST_VOTER, &vec![]);
 
     let msg = ExecuteMsg::IncreaseAmount {
-        amount: Uint128(deposit),
+        amount: Uint128::from(deposit),
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     match res {
@@ -1558,33 +1599,41 @@ fn change_amount_stake_voting_tokens() {
     }
 
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(deposit),
+        amount: Uint128::from(deposit),
         lock: env.block.time.plus_seconds(locked),
     };
     let lock_time = ((env.block.time.plus_seconds(locked).nanos() / 1_000_000_000) / WEEK) * WEEK;
     let res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("Action", "Deposit"),
-            attr("addr", TEST_VOTER.to_string()),
-            attr("amount", deposit.to_string()),
-            attr("end", lock_time.to_string()),
-        ]
+        res.events,
+        vec![Event {
+            ty: "Deposit".to_string(),
+            attributes: vec![
+                attr("addr", TEST_VOTER.to_string()),
+                attr("amount", deposit.to_string()),
+                attr("end", lock_time.to_string()),
+            ]
+        }]
     );
 
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: Addr::unchecked(VOTING_TOKEN).to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: Addr::unchecked(TEST_VOTER).to_string(),
-                recipient: Addr::unchecked(MOCK_CONTRACT_ADDR).to_string(),
-                amount: Uint128(deposit),
-            })
-            .unwrap(),
-            send: vec![],
-        })]
+        vec![SubMsg {
+            id: 0,
+            msg: WasmMsg::Execute {
+                contract_addr: Addr::unchecked(VOTING_TOKEN).to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: Addr::unchecked(TEST_VOTER).to_string(),
+                    recipient: Addr::unchecked(MOCK_CONTRACT_ADDR).to_string(),
+                    amount: Uint128::from(deposit),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        }]
     );
     assert_stake_tokens_result(0, deposit, deposit, 0, res, deps.as_mut());
 
@@ -1599,37 +1648,45 @@ fn change_amount_stake_voting_tokens() {
     }
 
     let msg = ExecuteMsg::IncreaseAmount {
-        amount: Uint128(deposit),
+        amount: Uint128::from(deposit),
     };
 
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("Action", "Deposit"),
-            attr("addr", TEST_VOTER.to_string()),
-            attr("amount", deposit.to_string()),
-            attr("end", lock_time.to_string()),
-        ]
+        res.events,
+        vec![Event {
+            ty: "Deposit".to_string(),
+            attributes: vec![
+                attr("addr", TEST_VOTER.to_string()),
+                attr("amount", deposit.to_string()),
+                attr("end", lock_time.to_string()),
+            ]
+        }]
     );
 
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: Addr::unchecked(VOTING_TOKEN).to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: Addr::unchecked(TEST_VOTER).to_string(),
-                recipient: Addr::unchecked(MOCK_CONTRACT_ADDR).to_string(),
-                amount: Uint128(deposit),
-            })
-            .unwrap(),
-            send: vec![],
-        })]
+        vec![SubMsg {
+            id: 0,
+            msg: WasmMsg::Execute {
+                contract_addr: Addr::unchecked(VOTING_TOKEN).to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: Addr::unchecked(TEST_VOTER).to_string(),
+                    recipient: Addr::unchecked(MOCK_CONTRACT_ADDR).to_string(),
+                    amount: Uint128::from(deposit),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        }]
     );
     assert_stake_tokens_result(deposit, deposit, deposit, 0, res, deps.as_mut());
 
     let msg = ExecuteMsg::IncreaseAmount {
-        amount: Uint128(deposit),
+        amount: Uint128::from(deposit),
     };
     env.block.time = env.block.time.plus_seconds(locked);
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
@@ -1663,33 +1720,41 @@ fn change_unlock_time_stake_voting_tokens() {
     }
 
     let lock_msg = ExecuteMsg::CreateLock {
-        amount: Uint128(deposit),
+        amount: Uint128::from(deposit),
         lock: env.block.time.plus_seconds(locked),
     };
     let lock_time = ((env.block.time.plus_seconds(locked).nanos() / 1_000_000_000) / WEEK) * WEEK;
     let res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("Action", "Deposit"),
-            attr("addr", TEST_VOTER.to_string()),
-            attr("amount", deposit.to_string()),
-            attr("end", lock_time.to_string()),
-        ]
+        res.events,
+        vec![Event {
+            ty: "Deposit".to_string(),
+            attributes: vec![
+                attr("addr", TEST_VOTER.to_string()),
+                attr("amount", deposit.to_string()),
+                attr("end", lock_time.to_string()),
+            ]
+        }]
     );
 
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: Addr::unchecked(VOTING_TOKEN).to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: Addr::unchecked(TEST_VOTER).to_string(),
-                recipient: Addr::unchecked(MOCK_CONTRACT_ADDR).to_string(),
-                amount: Uint128(deposit),
-            })
-            .unwrap(),
-            send: vec![],
-        })]
+        vec![SubMsg {
+            id: 0,
+            msg: WasmMsg::Execute {
+                contract_addr: Addr::unchecked(VOTING_TOKEN).to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: Addr::unchecked(TEST_VOTER).to_string(),
+                    recipient: Addr::unchecked(MOCK_CONTRACT_ADDR).to_string(),
+                    amount: Uint128::from(deposit),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        }]
     );
     assert_stake_tokens_result(0, deposit, deposit, 0, res, deps.as_mut());
 
@@ -1727,13 +1792,15 @@ fn change_unlock_time_stake_voting_tokens() {
 
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
     assert_eq!(
-        res.attributes,
-        vec![
-            attr("Action", "Deposit"),
-            attr("addr", TEST_VOTER.to_string()),
-            attr("amount", "0"),
-            attr("end", lock_time.to_string()),
-        ]
+        res.events,
+        vec![Event {
+            ty: "Deposit".to_string(),
+            attributes: vec![
+                attr("addr", TEST_VOTER.to_string()),
+                attr("amount", "0"),
+                attr("end", lock_time.to_string()),
+            ]
+        }]
     );
 
     assert_eq!(res.messages, vec![]);

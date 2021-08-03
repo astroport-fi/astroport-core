@@ -2,8 +2,8 @@ use std::convert::TryFrom;
 use std::ops::Div;
 
 use cosmwasm_std::{
-    to_binary, Addr, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Storage,
-    Timestamp, Uint128, WasmMsg,
+    to_binary, Addr, Deps, DepsMut, Env, Event, MessageInfo, ReplyOn, Response, StdResult, Storage,
+    SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 use cw_storage_plus::U64Key;
@@ -146,7 +146,7 @@ pub fn withdraw(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response,
     // Withdraw all tokens for `msg.sender`
     // Only possible if the lock has expired
     let mut response = Response::default();
-    response.add_attribute("Action", "Withdraw");
+    //response.add_attribute("Action", "Withdraw");
     let mut locked: LockedBalance =
         LOCKED
             .load(deps.storage, &info.sender)
@@ -189,17 +189,25 @@ pub fn withdraw(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response,
         locked,
     )?;
 
-    response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: config.xtrs_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: info.sender.to_string(),
-            amount,
-        })?,
-        send: vec![],
-    }));
-    response.add_attribute("Sender", info.sender.to_string());
-    response.add_attribute("Amount", amount.to_string());
-    response.add_attribute("Timestamp", _env.block.time.to_string());
+    response.messages.push(SubMsg {
+        id: 0,
+        msg: WasmMsg::Execute {
+            contract_addr: config.xtrs_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: info.sender.to_string(),
+                amount,
+            })?,
+            funds: vec![],
+        }
+        .into(),
+        gas_limit: None,
+        reply_on: ReplyOn::Never,
+    });
+    let event = Event::new("Withdraw")
+        .attr("Sender", info.sender.to_string())
+        .attr("Amount", amount.to_string())
+        .attr("Timestamp", _env.block.time.to_string());
+    response.add_event(event);
     GOVERNANCE_SATE.save(deps.storage, &state)?;
     Ok(response)
 }
@@ -368,13 +376,12 @@ fn deposit_for(
     locked_balance: LockedBalance,
 ) -> Result<Response, ContractError> {
     let mut response = Response::default();
-    response.add_attribute("Action", "Deposit");
     let mut state = GOVERNANCE_SATE.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
     let mut _locked = locked_balance;
-    //response.add_attribute("SupplyBefore", state.supply.to_string());
+
     state.supply = state.supply.checked_add(amount).unwrap();
-    //response.add_attribute("Supply", state.supply.to_string());
+
     let old_locked = _locked.clone();
     // Adding to existing lock, or if a lock is expired - creating a new one
     _locked.amount = _locked.amount.checked_add(amount).unwrap();
@@ -399,19 +406,27 @@ fn deposit_for(
         _locked.clone(),
     )?;
     if !amount.is_zero() {
-        response.messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.xtrs_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: addr.to_string(),
-                recipient: _env.contract.address.to_string(),
-                amount,
-            })?,
-            send: vec![],
-        }));
+        response.messages.push(SubMsg {
+            id: 0,
+            msg: WasmMsg::Execute {
+                contract_addr: config.xtrs_token.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: addr.to_string(),
+                    recipient: _env.contract.address.to_string(),
+                    amount,
+                })?,
+                funds: vec![],
+            }
+            .into(),
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        });
     }
-    response.add_attribute("addr", addr.to_string());
-    response.add_attribute("amount", amount.to_string());
-    response.add_attribute("end", _locked.end.to_string());
+    let event = Event::new("Deposit")
+        .attr("addr", addr.to_string())
+        .attr("amount", amount.to_string())
+        .attr("end", _locked.end.to_string());
+    response.add_event(event);
     GOVERNANCE_SATE.save(deps.storage, &state)?;
     Ok(response)
 }
