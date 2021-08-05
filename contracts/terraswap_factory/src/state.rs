@@ -2,9 +2,9 @@ use cw_storage_plus::{Bound, Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Deps, Order, StdResult};
+use cosmwasm_std::{CanonicalAddr, Deps, Order};
 
-use terraswap::asset::{AssetInfoRaw, PairInfo, PairInfoRaw};
+use terraswap::asset::{AssetInfo, PairInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -14,9 +14,9 @@ pub struct Config {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const PAIRS: Map<&[u8], PairInfoRaw> = Map::new("pair_info");
+pub const PAIRS: Map<&[u8], PairInfo> = Map::new("pair_info");
 
-pub fn pair_key(asset_infos: &[AssetInfoRaw; 2]) -> Vec<u8> {
+pub fn pair_key(asset_infos: &[AssetInfo; 2]) -> Vec<u8> {
     let mut asset_infos = asset_infos.to_vec();
     asset_infos.sort_by(|a, b| a.as_bytes().cmp(&b.as_bytes()));
 
@@ -28,9 +28,9 @@ const MAX_LIMIT: u32 = 30;
 const DEFAULT_LIMIT: u32 = 10;
 pub fn read_pairs(
     deps: Deps,
-    start_after: Option<[AssetInfoRaw; 2]>,
+    start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
-) -> StdResult<Vec<PairInfo>> {
+) -> Vec<PairInfo> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = calc_range_start(start_after).map(Bound::exclusive);
 
@@ -38,14 +38,14 @@ pub fn read_pairs(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (_, v) = item?;
-            v.to_normal(deps.api)
+            let (_, pair_info) = item.unwrap();
+            pair_info
         })
         .collect()
 }
 
 // this will set the first key after the provided key, by appending a 1 byte
-fn calc_range_start(start_after: Option<[AssetInfoRaw; 2]>) -> Option<Vec<u8>> {
+fn calc_range_start(start_after: Option<[AssetInfo; 2]>) -> Option<Vec<u8>> {
     start_after.map(|asset_infos| {
         let mut asset_infos = asset_infos.to_vec();
         asset_infos.sort_by(|a, b| a.as_bytes().cmp(&b.as_bytes()));
