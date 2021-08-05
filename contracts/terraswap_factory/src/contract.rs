@@ -1,13 +1,13 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Binary, CanonicalAddr, Deps, DepsMut, Env, MessageInfo, ReplyOn,
-    Response, StdError, StdResult, SubMsg, WasmMsg,
+    attr, entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, ReplyOn, Response,
+    StdError, StdResult, SubMsg, WasmMsg,
 };
 
 use crate::error::ContractError;
 use crate::querier::query_liquidity_token;
 use crate::state::{pair_key, read_pairs, Config, CONFIG, PAIRS};
 
-use terraswap::asset::{AssetInfo, PairInfo, PairInfoRaw};
+use terraswap::asset::{AssetInfo, PairInfo};
 use terraswap::factory::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, PairsResponse, QueryMsg,
 };
@@ -124,13 +124,9 @@ pub fn execute_create_pair(
     init_hook: Option<InitHook>,
 ) -> Result<Response, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
-    let raw_infos = [
-        asset_infos[0].to_raw(deps.api)?,
-        asset_infos[1].to_raw(deps.api)?,
-    ];
 
     if PAIRS
-        .may_load(deps.storage, &pair_key(&raw_infos))
+        .may_load(deps.storage, &pair_key(&asset_infos))
         .unwrap_or(None)
         .is_some()
     {
@@ -144,11 +140,11 @@ pub fn execute_create_pair(
 
     PAIRS.save(
         deps.storage,
-        &pair_key(&raw_infos),
-        &PairInfoRaw {
-            liquidity_token: CanonicalAddr::from(vec![]),
-            contract_addr: CanonicalAddr::from(vec![]),
-            asset_infos: raw_infos,
+        &pair_key(&asset_infos),
+        &PairInfo {
+            liquidity_token: Addr::unchecked(""),
+            contract_addr: Addr::unchecked(""),
+            asset_infos: [asset_infos[0].clone(), asset_infos[1].clone()],
         },
     )?;
 
@@ -207,12 +203,8 @@ pub fn register(
     info: MessageInfo,
     asset_infos: [AssetInfo; 2],
 ) -> Result<Response, ContractError> {
-    let raw_infos = [
-        asset_infos[0].to_raw(deps.api)?,
-        asset_infos[1].to_raw(deps.api)?,
-    ];
-    let pair_info: PairInfoRaw = PAIRS.load(deps.storage, &pair_key(&raw_infos))?;
-    if pair_info.contract_addr != CanonicalAddr::from(vec![]) {
+    let pair_info: PairInfo = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
+    if pair_info.contract_addr != Addr::unchecked("") {
         return Err(ContractError::PairWasRegistered {});
     }
 
@@ -220,10 +212,10 @@ pub fn register(
     let liquidity_token = query_liquidity_token(deps.as_ref(), pair_contract.clone())?;
     PAIRS.save(
         deps.storage,
-        &pair_key(&raw_infos),
-        &PairInfoRaw {
-            contract_addr: deps.api.addr_canonicalize(&pair_contract.to_string())?,
-            liquidity_token: deps.api.addr_canonicalize(liquidity_token.as_str())?,
+        &pair_key(&asset_infos),
+        &PairInfo {
+            contract_addr: pair_contract.clone(),
+            liquidity_token,
             ..pair_info
         },
     )?;
@@ -262,12 +254,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
-    let raw_infos = [
-        asset_infos[0].to_raw(deps.api)?,
-        asset_infos[1].to_raw(deps.api)?,
-    ];
-    let pair_info: PairInfoRaw = PAIRS.load(deps.storage, &pair_key(&raw_infos))?;
-    pair_info.to_normal(deps.api)
+    PAIRS.load(deps.storage, &pair_key(&asset_infos))
 }
 
 pub fn query_pairs(
@@ -275,16 +262,7 @@ pub fn query_pairs(
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
 ) -> StdResult<PairsResponse> {
-    let start_after = if let Some(start_after) = start_after {
-        Some([
-            start_after[0].to_raw(deps.api)?,
-            start_after[1].to_raw(deps.api)?,
-        ])
-    } else {
-        None
-    };
-
-    let pairs: Vec<PairInfo> = read_pairs(deps, start_after, limit)?;
+    let pairs: Vec<PairInfo> = read_pairs(deps, start_after, limit);
     let resp = PairsResponse { pairs };
 
     Ok(resp)
