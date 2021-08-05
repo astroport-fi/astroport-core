@@ -486,6 +486,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::ReverseSimulation { ask_asset } => {
             to_binary(&query_reverse_simulation(deps, ask_asset)?)
         }
+        _ => {
+            return Err(StdError::generic_err("not implemented"));
+        }
     }
 }
 

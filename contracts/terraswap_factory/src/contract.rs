@@ -22,9 +22,10 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let config = Config {
-        owner: deps.api.addr_canonicalize(info.sender.as_str())?,
+        owner: info.sender,
         token_code_id: msg.token_code_id,
         pair_code_ids: msg.pair_code_ids,
+        fee_address: msg.fee_address.unwrap_or(Addr::unchecked("")),
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -64,7 +65,16 @@ pub fn execute(
             owner,
             token_code_id,
             pair_code_ids,
-        } => execute_update_config(deps, env, info, owner, token_code_id, pair_code_ids),
+            fee_address,
+        } => execute_update_config(
+            deps,
+            env,
+            info,
+            owner,
+            token_code_id,
+            pair_code_ids,
+            fee_address,
+        ),
         ExecuteMsg::CreatePair {
             pair_code_id,
             asset_infos,
@@ -79,22 +89,26 @@ pub fn execute_update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    owner: Option<String>,
+    owner: Option<Addr>,
     token_code_id: Option<u64>,
     pair_code_ids: Option<Vec<u64>>,
+    fee_address: Option<Addr>,
 ) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
     // permission check
-    if deps.api.addr_canonicalize(info.sender.as_str())? != config.owner {
+    if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
     if let Some(owner) = owner {
         // validate address format
-        let _ = deps.api.addr_validate(&owner)?;
+        config.owner = deps.api.addr_validate(owner.as_str())?;
+    }
 
-        config.owner = deps.api.addr_canonicalize(&owner)?;
+    if let Some(fee_address) = fee_address {
+        // validate address format
+        config.fee_address = deps.api.addr_validate(fee_address.as_str())?;
     }
 
     if let Some(token_code_id) = token_code_id {
@@ -239,15 +253,16 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Pairs { start_after, limit } => {
             to_binary(&query_pairs(deps, start_after, limit)?)
         }
+        QueryMsg::FeeAddress {} => to_binary(&query_fee_address(deps)?),
     }
 }
 
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
-    let state: Config = CONFIG.load(deps.storage)?;
+    let config: Config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
-        owner: deps.api.addr_humanize(&state.owner)?.to_string(),
-        token_code_id: state.token_code_id,
-        pair_code_ids: state.pair_code_ids,
+        owner: config.owner,
+        token_code_id: config.token_code_id,
+        pair_code_ids: config.pair_code_ids,
     };
 
     Ok(resp)
@@ -266,6 +281,12 @@ pub fn query_pairs(
     let resp = PairsResponse { pairs };
 
     Ok(resp)
+}
+
+pub fn query_fee_address(deps: Deps) -> StdResult<Addr> {
+    let config: Config = CONFIG.load(deps.storage)?;
+
+    Ok(config.fee_address)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

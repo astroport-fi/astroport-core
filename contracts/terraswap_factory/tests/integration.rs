@@ -69,6 +69,7 @@ fn proper_initialization() {
         pair_code_ids: vec![321u64],
         token_code_id: 123u64,
         init_hook: None,
+        fee_address: None,
     };
 
     let env = mock_env();
@@ -91,6 +92,7 @@ fn update_config() {
         pair_code_ids: vec![321u64],
         token_code_id: 123u64,
         init_hook: None,
+        fee_address: None,
     };
 
     let env = mock_env();
@@ -103,9 +105,10 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        owner: Some(String::from("addr0001")),
+        owner: Some(Addr::unchecked("addr0001")),
         pair_code_ids: None,
         token_code_id: None,
+        fee_address: None,
     };
 
     let res: Response = execute(&mut deps, env.clone(), info, msg).unwrap();
@@ -125,6 +128,7 @@ fn update_config() {
         owner: None,
         pair_code_ids: Some(vec![100u64]),
         token_code_id: Some(200u64),
+        fee_address: None,
     };
 
     let res: Response = execute(&mut deps, env.clone(), info, msg).unwrap();
@@ -144,6 +148,7 @@ fn update_config() {
         owner: None,
         pair_code_ids: None,
         token_code_id: None,
+        fee_address: None,
     };
 
     let res: ContractResult<Response> = execute(&mut deps, env, info, msg);
@@ -158,6 +163,7 @@ fn create_pair() {
         pair_code_ids: vec![321u64],
         token_code_id: 123u64,
         init_hook: None,
+        fee_address: None,
     };
 
     let env = mock_env();
