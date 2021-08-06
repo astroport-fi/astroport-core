@@ -1,0 +1,33 @@
+[package]
+name = "maker"
+version = "0.1.0"
+authors = ["www"]
+edition = "2018"
+
+exclude = [
+  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+  "contract.wasm",
+  "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cosmwasm-std = { version = "0.15.0" }
+cw20 = { version = "0.7.0" }
+cw-storage-plus = { version = "0.7.0", features = ["iterator"] }
+schemars = "0.8.1"
+terraswap = { version = "2.1.0", path = "../../../packages/terraswap" }
+serde = { version = "1.0.125", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.24" }
+
+[dev-dependencies]
+cosmwasm-schema = { version = "0.15.0" }
