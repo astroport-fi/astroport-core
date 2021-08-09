@@ -29,6 +29,7 @@ fn _do_instantiate(
         tokens_per_block,
         start_block,
         bonus_end_block,
+        allowed_rewarders: vec![],
     };
     let res = instantiate(deps, _env.clone(), info.clone(), instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -138,6 +139,7 @@ fn proper_initialization() {
         tokens_per_block: token_amount,
         start_block: 2,
         bonus_end_block: 10,
+        allowed_rewarders: vec![],
     };
     let res = instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -153,6 +155,7 @@ fn proper_initialization() {
             tokens_per_block: token_amount,
             total_alloc_point: 0,
             start_block: 2,
+            allowed_rewarders: vec![],
         }
     )
 }
@@ -187,6 +190,7 @@ fn execute_add() {
     let msg = ExecuteMsg::Add {
         alloc_point: 10,
         token: lp_token_contract.clone(),
+        additional_rewarder: None,
         with_update: false,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -206,6 +210,7 @@ fn execute_add() {
             tokens_per_block: Uint128::from(10u128),
             total_alloc_point: 10,
             start_block: env.block.height.add(10),
+            allowed_rewarders: vec![],
         }
     );
     assert_eq!(
@@ -214,6 +219,7 @@ fn execute_add() {
             alloc_point: 10,
             last_reward_block: env.block.height.add(10),
             acc_per_share: Default::default(),
+            additional_rewarder: None,
         }
     );
     let res = query(deps.as_ref(), env.clone(), QueryMsg::PoolLength {}).unwrap();
@@ -223,6 +229,7 @@ fn execute_add() {
     let msg = ExecuteMsg::Add {
         alloc_point: 20,
         token: lp_token_contract.clone(),
+        additional_rewarder: None,
         with_update: false,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
@@ -236,6 +243,7 @@ fn execute_add() {
     let msg = ExecuteMsg::Add {
         alloc_point: 20,
         token: lp_token_contract1.clone(),
+        additional_rewarder: None,
         with_update: false,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
@@ -266,6 +274,7 @@ fn execute_add() {
             tokens_per_block: Uint128::from(10u128),
             total_alloc_point: 10 + 20,
             start_block: env.block.height.add(10),
+            allowed_rewarders: vec![],
         }
     );
     assert_eq!(
@@ -274,6 +283,7 @@ fn execute_add() {
             alloc_point: 10,
             last_reward_block: env.block.height.add(10),
             acc_per_share: Default::default(),
+            additional_rewarder: None,
         }
     );
     assert_eq!(
@@ -282,6 +292,7 @@ fn execute_add() {
             alloc_point: 20,
             last_reward_block: env.block.height.add(10),
             acc_per_share: Default::default(),
+            additional_rewarder: None,
         }
     );
     let res = query(deps.as_ref(), env.clone(), QueryMsg::PoolLength {}).unwrap();
@@ -314,6 +325,7 @@ fn execute_set() {
     let msg = ExecuteMsg::Add {
         alloc_point: 10,
         token: lp_token_contract.clone(),
+        additional_rewarder: None,
         with_update: false,
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -328,6 +340,7 @@ fn execute_set() {
             alloc_point: 10,
             last_reward_block: env.block.height.add(10),
             acc_per_share: Default::default(),
+            additional_rewarder: None,
         }
     );
 
@@ -370,6 +383,7 @@ fn execute_set() {
     let msg = ExecuteMsg::Add {
         alloc_point: 100,
         token: Addr::unchecked("come_token"),
+        additional_rewarder: None,
         with_update: false,
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -428,6 +442,7 @@ fn execute_deposit() {
         ExecuteMsg::Add {
             alloc_point: 10,
             token: lp_token_contract.clone(),
+            additional_rewarder: None,
             with_update: false,
         },
     )
@@ -640,6 +655,7 @@ fn execute_withdraw() {
         ExecuteMsg::Add {
             alloc_point: 10,
             token: lp_token_contract.clone(),
+            additional_rewarder: None,
             with_update: false,
         },
     )
@@ -674,8 +690,7 @@ fn execute_withdraw() {
         vec![SubMsg {
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: lp_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                    owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: info.sender.to_string(),
                     amount: Uint128::from(50u128),
                 })
@@ -743,8 +758,7 @@ fn execute_withdraw() {
         &SubMsg {
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: lp_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                    owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: info.sender.to_string(),
                     amount: Uint128::from(25u128),
                 })
@@ -812,8 +826,7 @@ fn execute_withdraw() {
         &SubMsg {
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: lp_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                    owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: info.sender.to_string(),
                     amount: Uint128::from(25u128),
                 })
@@ -876,6 +889,7 @@ fn execute_emergency_withdraw() {
         ExecuteMsg::Add {
             alloc_point: 10,
             token: lp_token_contract.clone(),
+            additional_rewarder: None,
             with_update: false,
         },
     )
@@ -913,8 +927,7 @@ fn execute_emergency_withdraw() {
         &SubMsg {
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: lp_token_contract.clone().to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                    owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: info.sender.to_string(),
                     amount: Uint128::from(1122u128),
                 })
@@ -976,6 +989,7 @@ fn give_token_after_farming_time() {
         ExecuteMsg::Add {
             alloc_point: 100,
             token: lp_token_contract.clone(),
+            additional_rewarder: None,
             with_update: false,
         },
     )
@@ -1192,6 +1206,7 @@ fn not_distribute_tokens() {
         ExecuteMsg::Add {
             alloc_point: 100,
             token: lp_token_contract.clone(),
+            additional_rewarder: None,
             with_update: false,
         },
     )
@@ -1320,8 +1335,7 @@ fn not_distribute_tokens() {
             SubMsg {
                 msg: CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: lp_token_contract.clone().to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                        owner: MOCK_CONTRACT_ADDR.parse().unwrap(),
+                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
                         recipient: info.sender.to_string(),
                         amount: Uint128::from(10u128),
                     })
@@ -1398,6 +1412,7 @@ fn distribute_tokens() {
         ExecuteMsg::Add {
             alloc_point: 100,
             token: lp_token_contract.clone(),
+            additional_rewarder: None,
             with_update: true,
         },
     )
@@ -1687,6 +1702,7 @@ fn tokens_allocation_each_pool() {
         ExecuteMsg::Add {
             alloc_point: 10,
             token: lp_token_contract_one.clone(),
+            additional_rewarder: None,
             with_update: true,
         },
     )
@@ -1720,6 +1736,7 @@ fn tokens_allocation_each_pool() {
         ExecuteMsg::Add {
             alloc_point: 20,
             token: lp_token_contract_two.clone(),
+            additional_rewarder: None,
             with_update: true,
         },
     )
@@ -1835,6 +1852,7 @@ fn stop_giving_bonus_tokens() {
         ExecuteMsg::Add {
             alloc_point: 1,
             token: lp_token_contract.clone(),
+            additional_rewarder: None,
             with_update: false,
         },
     )

@@ -15,6 +15,7 @@ pub struct PoolInfo {
     pub alloc_point: u64,
     pub last_reward_block: u64,
     pub acc_per_share: Uint128,
+    pub additional_rewarder: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -32,6 +33,8 @@ pub struct Config {
     pub total_alloc_point: u64,
     // The block number when ASTRO mining starts.
     pub start_block: u64,
+    // List of allowed additional reward contracts
+    pub allowed_rewarders: Vec<Addr>,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

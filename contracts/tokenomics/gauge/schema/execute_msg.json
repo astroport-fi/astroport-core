@@ -16,6 +16,12 @@
             "with_update"
           ],
           "properties": {
+            "additional_rewarder": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "alloc_point": {
               "type": "integer",
               "format": "uint64",

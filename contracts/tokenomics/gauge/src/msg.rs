@@ -9,6 +9,7 @@ pub struct InstantiateMsg {
     pub tokens_per_block: Uint128,
     pub start_block: u64,
     pub bonus_end_block: u64,
+    pub allowed_rewarders: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -17,6 +18,7 @@ pub enum ExecuteMsg {
     Add {
         alloc_point: u64,
         token: Addr,
+        additional_rewarder: Option<String>,
         with_update: bool,
     },
     Set {

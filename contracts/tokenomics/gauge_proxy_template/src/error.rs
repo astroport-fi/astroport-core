@@ -8,15 +8,8 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
-
-    #[error("Insufficient balance in contract to process claim")]
-    BalanceTooSmall {},
-
-    #[error("Pool with the LP token already exists!")]
-    TokenPoolAlreadyExists {},
-
-    #[error("Additional reward contract not allowed!")]
-    AdditionalRewardContractNotAllowed {},
+    // Add any other custom errors you like here.
+    // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }
 
 impl From<OverflowError> for ContractError {

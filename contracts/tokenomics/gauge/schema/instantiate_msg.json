@@ -3,6 +3,7 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
+    "allowed_rewarders",
     "bonus_end_block",
     "dev_addr",
     "start_block",
@@ -10,6 +11,12 @@
     "tokens_per_block"
   ],
   "properties": {
+    "allowed_rewarders": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "bonus_end_block": {
       "type": "integer",
       "format": "uint64",

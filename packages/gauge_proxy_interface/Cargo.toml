@@ -1,5 +1,5 @@
 [package]
-name = "astroport-gauge"
+name = "gauge-proxy-interface"
 version = "0.0.0"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"
@@ -21,12 +21,10 @@ backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 cosmwasm-std = { version = "0.15.0" }
-cw20 = { version = "0.7.0" }
-cw-storage-plus = { version = "0.7.0", features = ["iterator"] }
 schemars = "0.8.1"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
-gauge-proxy-interface = { path = "../../../packages/gauge_proxy_interface"}
+cw20 = "0.7.0"
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.15.0" }

@@ -3,7 +3,7 @@ use std::ops::Add;
 
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, ReplyOn,
-    Response, StdResult, SubMsg, Uint128, WasmMsg,
+    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg};
 
@@ -13,18 +13,28 @@ use crate::msg::{
     QueryMsg,
 };
 use crate::state::{Config, PoolInfo, CONFIG, POOL_INFO, USER_INFO};
+use gauge_proxy_interface::msg::{Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg};
 
 // Bonus multiplier for early ASTRO makers.
 const BONUS_MULTIPLIER: u64 = 10;
 const PRECISION_MULTIPLIER: Uint128 = Uint128::new(100_000_000_000);
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    let mut allowed_rewarders = msg
+        .allowed_rewarders
+        .into_iter()
+        .map(|v| deps.api.addr_validate(&v));
+    if let Some(wrong) = allowed_rewarders.find(|v| v.is_err()) {
+        wrong?;
+    };
+    let allowed_rewarders = allowed_rewarders.filter_map(|v| v.ok()).collect();
+
     let config = Config {
         astro_token: msg.token,
         dev_addr: msg.dev_addr,
@@ -33,12 +43,13 @@ pub fn instantiate(
         total_alloc_point: 0,
         owner: info.sender,
         start_block: msg.start_block,
+        allowed_rewarders,
     };
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::default())
 }
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     mut deps: DepsMut,
     env: Env,
@@ -49,8 +60,17 @@ pub fn execute(
         ExecuteMsg::Add {
             alloc_point,
             token,
+            additional_rewarder,
             with_update,
-        } => add(deps, env, info, alloc_point, token, with_update),
+        } => add(
+            deps,
+            env,
+            info,
+            alloc_point,
+            token,
+            additional_rewarder,
+            with_update,
+        ),
         ExecuteMsg::Set {
             token,
             alloc_point,
@@ -73,11 +93,22 @@ pub fn add(
     info: MessageInfo,
     alloc_point: u64,
     token: Addr,
+    additional_rewarder: Option<String>,
     with_update: bool,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.owner {
         return Err(ContractError::Unauthorized {});
+    }
+
+    let additional_rewarder = additional_rewarder
+        .map(|v| deps.api.addr_validate(&v))
+        .transpose()?;
+
+    if let Some(rewarder) = &additional_rewarder {
+        if !cfg.allowed_rewarders.contains(&rewarder) {
+            return Err(ContractError::AdditionalRewardContractNotAllowed {});
+        }
     }
 
     let response = if !with_update {
@@ -96,6 +127,7 @@ pub fn add(
         alloc_point,
         last_reward_block: max(cfg.start_block, env.block.height),
         acc_per_share: Uint128::zero(),
+        additional_rewarder,
     };
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -230,6 +262,7 @@ pub fn update_pool_rewards(
             alloc_point: pool.alloc_point,
             last_reward_block: env.block.height,
             acc_per_share: pool.acc_per_share,
+            additional_rewarder: pool.additional_rewarder,
         };
         return Ok((Uint128::zero(), None, Some(updated_pool)));
     }
@@ -267,6 +300,7 @@ pub fn update_pool_rewards(
         alloc_point: pool.alloc_point,
         last_reward_block: env.block.height,
         acc_per_share: pool.acc_per_share.checked_add(share).unwrap(),
+        additional_rewarder: pool.additional_rewarder,
     };
 
     Ok((
@@ -375,20 +409,42 @@ pub fn deposit(
     }
     //call transfer function for lp token from: info.sender to: env.contract.address amount:_amount
     if !amount.is_zero() {
-        response.messages.push(SubMsg {
-            msg: CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                    owner: info.sender.to_string(),
-                    recipient: env.contract.address.to_string(),
-                    amount,
-                })?,
-                funds: vec![],
-            }),
-            id: 0,
-            gas_limit: None,
-            reply_on: ReplyOn::Never,
-        });
+        response
+            .messages
+            .push(if let Some(receiver) = pool.additional_rewarder {
+                SubMsg {
+                    msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr: token.to_string(),
+                        msg: to_binary(&Cw20ExecuteMsg::SendFrom {
+                            owner: info.sender.to_string(),
+                            contract: receiver.to_string(),
+                            msg: to_binary(&ProxyCw20HookMsg::Deposit {
+                                account: info.sender.clone(),
+                            })?,
+                            amount,
+                        })?,
+                        funds: vec![],
+                    }),
+                    id: 0,
+                    gas_limit: None,
+                    reply_on: ReplyOn::Never,
+                }
+            } else {
+                SubMsg {
+                    msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr: token.to_string(),
+                        msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                            owner: info.sender.to_string(),
+                            recipient: env.contract.address.to_string(),
+                            amount,
+                        })?,
+                        funds: vec![],
+                    }),
+                    id: 0,
+                    gas_limit: None,
+                    reply_on: ReplyOn::Never,
+                }
+            })
     }
     //Change user balance
     user.amount = user.amount.checked_add(amount)?;
@@ -414,7 +470,7 @@ pub fn withdraw(
 ) -> Result<Response, ContractError> {
     let mut response = Response::default();
     response.add_attribute("Action", "Withdraw");
-    let user = USER_INFO.load(deps.storage, (&token, &info.sender))?;
+    let mut user = USER_INFO.load(deps.storage, (&token, &info.sender))?;
     if user.amount < amount {
         return Err(ContractError::BalanceTooSmall {});
     }
@@ -453,7 +509,7 @@ pub fn withdraw(
         response.messages.push(SubMsg {
             msg: CosmosMsg::Wasm(safe_reward_transfer_message(
                 deps.as_ref(),
-                env.clone(),
+                env,
                 cfg,
                 info.sender.to_string(),
                 pending,
@@ -465,37 +521,47 @@ pub fn withdraw(
         });
     }
     // Update user balance
-    USER_INFO.update(
-        deps.storage,
-        (&token, &info.sender),
-        |user_info| -> StdResult<_> {
-            let mut val = user_info.unwrap();
-            val.amount = val.amount.checked_sub(amount).unwrap();
-            val.reward_debt = val
-                .amount
-                .checked_mul(pool.acc_per_share)
-                .unwrap()
-                .checked_div(PRECISION_MULTIPLIER)
-                .unwrap();
-            Ok(val)
-        },
-    )?;
+    user.amount = user.amount.checked_sub(amount)?;
+    user.reward_debt = user
+        .amount
+        .checked_mul(pool.acc_per_share)?
+        .checked_div(PRECISION_MULTIPLIER)
+        .map_err(StdError::from)?;
+    USER_INFO.save(deps.storage, (&token, &info.sender), &user)?;
+
     // call to transfer function for lp token
     if !amount.is_zero() {
-        response.messages.push(SubMsg {
-            msg: CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                    owner: env.contract.address.to_string(),
-                    recipient: info.sender.to_string(),
-                    amount,
-                })?,
-                funds: vec![],
-            }),
-            id: 0,
-            gas_limit: None,
-            reply_on: ReplyOn::Never,
-        });
+        response
+            .messages
+            .push(if let Some(rewarder) = pool.additional_rewarder {
+                SubMsg {
+                    msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr: rewarder.to_string(),
+                        msg: to_binary(&ProxyExecuteMsg::Withdraw {
+                            account: info.sender,
+                            amount,
+                        })?,
+                        funds: vec![],
+                    }),
+                    id: 0,
+                    gas_limit: None,
+                    reply_on: ReplyOn::Never,
+                }
+            } else {
+                SubMsg {
+                    msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr: token.to_string(),
+                        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                            recipient: info.sender.to_string(),
+                            amount,
+                        })?,
+                        funds: vec![],
+                    }),
+                    id: 0,
+                    gas_limit: None,
+                    reply_on: ReplyOn::Never,
+                }
+            });
     }
     Ok(response)
 }
@@ -503,7 +569,7 @@ pub fn withdraw(
 // Withdraw without caring about rewards. EMERGENCY ONLY.
 pub fn emergency_withdraw(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     token: Addr,
 ) -> Result<Response, ContractError> {
@@ -514,21 +580,39 @@ pub fn emergency_withdraw(
     let mut response = Response::default();
     response.add_attribute("Action", "EmergencyWithdraw");
 
+    let pool = POOL_INFO.load(deps.storage, &token)?;
+
     //call to transfer function for lp token
-    response.messages.push(SubMsg {
-        msg: CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: env.contract.address.to_string(),
-                recipient: info.sender.to_string(),
-                amount: user.amount,
-            })?,
-            funds: vec![],
-        }),
-        id: 0,
-        gas_limit: None,
-        reply_on: ReplyOn::Never,
-    });
+    response
+        .messages
+        .push(if let Some(rewarder) = &pool.additional_rewarder {
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: rewarder.to_string(),
+                    msg: to_binary(&ProxyExecuteMsg::EmergencyWithdraw {
+                        account: info.sender.clone(),
+                    })?,
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            }
+        } else {
+            SubMsg {
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: token.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                        recipient: info.sender.to_string(),
+                        amount: user.amount,
+                    })?,
+                    funds: vec![],
+                }),
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            }
+        });
     // Change user balance
     USER_INFO.remove(deps.storage, (&token, &info.sender));
     Ok(response)
@@ -550,7 +634,7 @@ pub fn set_dev(
     Ok(Response::default())
 }
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::PoolLength {} => to_binary(&pool_length(deps)?),
