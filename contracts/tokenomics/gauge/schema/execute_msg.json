@@ -187,6 +187,29 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "set_allowed_additional_rewarders"
+      ],
+      "properties": {
+        "set_allowed_additional_rewarders": {
+          "type": "object",
+          "required": [
+            "allowed_rewarders"
+          ],
+          "properties": {
+            "allowed_rewarders": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

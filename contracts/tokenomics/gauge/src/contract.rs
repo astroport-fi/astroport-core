@@ -82,6 +82,9 @@ pub fn execute(
         ExecuteMsg::Withdraw { token, amount } => withdraw(deps, env, info, token, amount),
         ExecuteMsg::EmergencyWithdraw { token } => emergency_withdraw(deps, env, info, token),
         ExecuteMsg::SetDev { dev_address } => set_dev(deps, info, dev_address),
+        ExecuteMsg::SetAllowedAdditionalRewarders { allowed_rewarders } => {
+            Ok(set_allowed_additional_rewarders(deps, allowed_rewarders)?)
+        }
     }
 }
 
@@ -631,6 +634,25 @@ pub fn set_dev(
     cfg.dev_addr = dev_address;
     CONFIG.save(deps.storage, &cfg)?;
 
+    Ok(Response::default())
+}
+
+fn set_allowed_additional_rewarders(
+    deps: DepsMut,
+    allowed_rewarders: Vec<String>,
+) -> StdResult<Response> {
+    let mut allowed_rewarders = allowed_rewarders
+        .into_iter()
+        .map(|v| deps.api.addr_validate(&v));
+    if let Some(wrong) = allowed_rewarders.find(|v| v.is_err()) {
+        wrong?;
+    };
+    let allowed_rewarders = allowed_rewarders.filter_map(|v| v.ok()).collect();
+
+    CONFIG.update::<_, StdError>(deps.storage, |mut v| {
+        v.allowed_rewarders = allowed_rewarders;
+        Ok(v)
+    })?;
     Ok(Response::default())
 }
 

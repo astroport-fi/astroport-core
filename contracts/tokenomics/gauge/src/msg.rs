@@ -44,6 +44,9 @@ pub enum ExecuteMsg {
     SetDev {
         dev_address: Addr,
     },
+    SetAllowedAdditionalRewarders {
+        allowed_rewarders: Vec<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

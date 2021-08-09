@@ -44,60 +44,60 @@ pub fn execute(
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
-    if cw20_msg.sender != cfg.gauge_contract_addr {
-        return Err(ContractError::Unauthorized {});
-    };
-    match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::Deposit { account } => {
-            let mut response = Response::default();
 
-            let mut user = USER_INFO.load(deps.storage, &account).unwrap_or_default();
+    let mut response = Response::default();
 
-            let lp_new_balance = get_token_balance(deps.as_ref(), &env, &cfg.lp_token_addr)?;
-            let rewards_balance = get_token_balance(deps.as_ref(), &env, &cfg.reward_token_addr)?;
-
-            let lp_old_balance = lp_new_balance.checked_sub(cw20_msg.amount)?;
-            if !user.amount.is_zero() && !lp_old_balance.is_zero() {
-                let pending = user
-                    .amount
-                    .checked_mul(rewards_balance)?
-                    .checked_div(lp_old_balance)
-                    .map_err(StdError::from)?
-                    .checked_sub(user.reward_debt)
-                    .unwrap_or_default();
-                if !pending.is_zero() {
-                    response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-                        contract_addr: cfg.reward_token_addr.to_string(),
-                        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                            recipient: account.to_string(),
-                            amount: pending.min(lp_old_balance),
-                        })?,
-                        funds: vec![],
-                    }));
-                }
-            }
-
-            if !cw20_msg.amount.is_zero() {
-                // stake to the end reward contract here
-                unimplemented!();
-            }
-
-            user.amount = user.amount.checked_add(cw20_msg.amount)?;
-            if !lp_old_balance.is_zero() {
-                user.reward_debt = user
-                    .amount
-                    .checked_mul(rewards_balance)?
-                    .checked_div(lp_old_balance)
-                    .map_err(StdError::from)?;
-            }
-            USER_INFO.save(deps.storage, &account, &user)?;
-            Ok(response)
+    if let Ok(Cw20HookMsg::Deposit { account }) = from_binary(&cw20_msg.msg) {
+        if cw20_msg.sender != cfg.gauge_contract_addr || info.sender != cfg.lp_token_addr {
+            return Err(ContractError::Unauthorized {});
         }
+
+        let mut user = USER_INFO.load(deps.storage, &account).unwrap_or_default();
+
+        let lp_new_balance = get_token_balance(deps.as_ref(), &env, &cfg.lp_token_addr)?;
+        let rewards_balance = get_token_balance(deps.as_ref(), &env, &cfg.reward_token_addr)?;
+
+        let lp_old_balance = lp_new_balance.checked_sub(cw20_msg.amount)?;
+        if !user.amount.is_zero() && !lp_old_balance.is_zero() {
+            let pending = user
+                .amount
+                .checked_mul(rewards_balance)?
+                .checked_div(lp_old_balance)
+                .map_err(StdError::from)?
+                .checked_sub(user.reward_debt)
+                .unwrap_or_default();
+            if !pending.is_zero() {
+                response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: cfg.reward_token_addr.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                        recipient: account.to_string(),
+                        amount: pending.min(lp_old_balance),
+                    })?,
+                    funds: vec![],
+                }));
+            }
+        }
+
+        if !cw20_msg.amount.is_zero() {
+            // stake to the end reward contract here
+            unimplemented!();
+        }
+
+        user.amount = user.amount.checked_add(cw20_msg.amount)?;
+        if !lp_old_balance.is_zero() {
+            user.reward_debt = user
+                .amount
+                .checked_mul(rewards_balance)?
+                .checked_div(lp_old_balance)
+                .map_err(StdError::from)?;
+        }
+        USER_INFO.save(deps.storage, &account, &user)?;
     }
+    Ok(response)
 }
 
 fn get_token_balance(deps: Deps, env: &Env, token: &Addr) -> Result<Uint128, StdError> {
@@ -179,7 +179,7 @@ fn emergency_withdraw(
     let mut response = Response::default();
     let user = USER_INFO.load(deps.storage, &account)?;
 
-    // emergency withdraw from the end reward contract
+    // emergency withdraw from the end reward contract here
     unimplemented!();
 
     USER_INFO.remove(deps.storage, &account);
