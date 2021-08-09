@@ -1,4 +1,4 @@
-use cosmwasm_std::{attr, from_binary, to_binary, Addr, CanonicalAddr, ReplyOn, SubMsg, WasmMsg};
+use cosmwasm_std::{attr, from_binary, to_binary, Addr, ReplyOn, SubMsg, WasmMsg};
 
 use crate::mock_querier::mock_dependencies;
 use crate::state::{pair_key, PAIRS};
@@ -184,13 +184,9 @@ fn create_pair() {
         }]
     );
 
-    let raw_infos = [
-        asset_infos[0].to_raw(&deps.api).unwrap(),
-        asset_infos[1].to_raw(&deps.api).unwrap(),
-    ];
-    let pair_info = PAIRS.load(&deps.storage, &pair_key(&raw_infos)).unwrap();
+    let pair_info = PAIRS.load(&deps.storage, &pair_key(&asset_infos)).unwrap();
 
-    assert_eq!(pair_info.contract_addr, CanonicalAddr::from(vec![]),);
+    assert_eq!(pair_info.contract_addr, Addr::unchecked(""),);
 }
 
 #[test]
