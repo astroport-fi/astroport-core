@@ -25,7 +25,7 @@ pub fn instantiate(
         owner: info.sender,
         token_code_id: msg.token_code_id,
         pair_code_ids: msg.pair_code_ids,
-        fee_address: msg.fee_address.unwrap_or(Addr::unchecked("")),
+        fee_address: msg.fee_address.unwrap_or_else(|| Addr::unchecked("")),
     };
 
     CONFIG.save(deps.storage, &config)?;

@@ -1,12 +1,13 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Coin, Decimal, OwnedDeps, Querier, QuerierResult,
+    from_binary, from_slice, to_binary, Addr, Coin, Decimal, OwnedDeps, Querier, QuerierResult,
     QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use std::collections::HashMap;
 
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
+use terraswap::factory::QueryMsg::FeeAddress;
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -127,51 +128,62 @@ impl WasmMockQuerier {
                 }
             }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
-                match from_binary(&msg).unwrap() {
-                    Cw20QueryMsg::TokenInfo {} => {
-                        let balances: &HashMap<String, Uint128> =
-                            match self.token_querier.balances.get(contract_addr) {
-                                Some(balances) => balances,
-                                None => {
-                                    return SystemResult::Err(SystemError::Unknown {});
-                                }
-                            };
-
-                        let mut total_supply = Uint128::zero();
-
-                        for balance in balances {
-                            total_supply += *balance.1;
+                if contract_addr == "factory" {
+                    match from_binary(&msg).unwrap() {
+                        FeeAddress {} => {
+                            SystemResult::Ok(to_binary(&Addr::unchecked("fee_address")).into())
                         }
-
-                        SystemResult::Ok(
-                            to_binary(&TokenInfoResponse {
-                                name: "mAPPL".to_string(),
-                                symbol: "mAPPL".to_string(),
-                                decimals: 6,
-                                total_supply: total_supply,
-                            })
-                            .into(),
-                        )
+                        _ => panic!("DO NOT ENTER HERE"),
                     }
-                    Cw20QueryMsg::Balance { address } => {
-                        let balances: &HashMap<String, Uint128> =
-                            match self.token_querier.balances.get(contract_addr) {
-                                Some(balances) => balances,
+                } else {
+                    match from_binary(&msg).unwrap() {
+                        Cw20QueryMsg::TokenInfo {} => {
+                            let balances: &HashMap<String, Uint128> =
+                                match self.token_querier.balances.get(contract_addr) {
+                                    Some(balances) => balances,
+                                    None => {
+                                        return SystemResult::Err(SystemError::Unknown {});
+                                    }
+                                };
+
+                            let mut total_supply = Uint128::zero();
+
+                            for balance in balances {
+                                total_supply += *balance.1;
+                            }
+
+                            SystemResult::Ok(
+                                to_binary(&TokenInfoResponse {
+                                    name: "mAPPL".to_string(),
+                                    symbol: "mAPPL".to_string(),
+                                    decimals: 6,
+                                    total_supply: total_supply,
+                                })
+                                .into(),
+                            )
+                        }
+                        Cw20QueryMsg::Balance { address } => {
+                            let balances: &HashMap<String, Uint128> =
+                                match self.token_querier.balances.get(contract_addr) {
+                                    Some(balances) => balances,
+                                    None => {
+                                        return SystemResult::Err(SystemError::Unknown {});
+                                    }
+                                };
+
+                            let balance = match balances.get(&address) {
+                                Some(v) => v,
                                 None => {
                                     return SystemResult::Err(SystemError::Unknown {});
                                 }
                             };
 
-                        let balance = match balances.get(&address) {
-                            Some(v) => v,
-                            None => {
-                                return SystemResult::Err(SystemError::Unknown {});
-                            }
-                        };
-
-                        SystemResult::Ok(to_binary(&BalanceResponse { balance: *balance }).into())
+                            SystemResult::Ok(
+                                to_binary(&BalanceResponse { balance: *balance }).into(),
+                            )
+                        }
+                        _ => panic!("DO NOT ENTER HERE"),
                     }
-                    _ => panic!("DO NOT ENTER HERE"),
                 }
             }
             _ => self.base.handle_query(request),

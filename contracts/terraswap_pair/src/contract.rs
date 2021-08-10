@@ -4,7 +4,8 @@ use crate::state::{Config, CONFIG};
 
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env,
-    MessageInfo, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    MessageInfo, QueryRequest, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    WasmQuery,
 };
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -12,6 +13,7 @@ use integer_sqrt::IntegerSquareRoot;
 use std::str::FromStr;
 use std::vec;
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
+use terraswap::factory::QueryMsg as FactoryQueryMsg;
 use terraswap::hook::InitHook;
 use terraswap::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse, QueryMsg,
@@ -22,6 +24,8 @@ use terraswap::token::InstantiateMsg as TokenInstantiateMsg;
 
 /// Commission rate == 0.3%
 const COMMISSION_RATE: &str = "0.003";
+const MAKER_FEE_RATE: &str = "0.166";
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -461,28 +465,63 @@ pub fn swap(
 
     let tax_amount = return_asset.compute_tax(&deps.querier)?;
 
+    let mut response = Response::new();
+
     // 1. send collateral token from the contract to a user
     // 2. send inactive commission to collector
-    Ok(Response {
-        events: vec![],
-        messages: vec![SubMsg {
-            msg: return_asset.into_msg(&deps.querier, to.unwrap_or(sender))?,
-            id: 0,
-            gas_limit: None,
-            reply_on: ReplyOn::Never,
-        }],
-        attributes: vec![
-            attr("action", "swap"),
-            attr("offer_asset", offer_asset.info.to_string()),
-            attr("ask_asset", ask_pool.info.to_string()),
-            attr("offer_amount", offer_amount.to_string()),
-            attr("return_amount", return_amount.to_string()),
-            attr("tax_amount", tax_amount.to_string()),
-            attr("spread_amount", spread_amount.to_string()),
-            attr("commission_amount", commission_amount.to_string()),
-        ],
-        data: None,
+    response.messages.push(SubMsg {
+        msg: return_asset.into_msg(&deps.querier, to.unwrap_or(sender))?,
+        id: 0,
+        gas_limit: None,
+        reply_on: ReplyOn::Never,
+    });
+    response.add_attribute("action", "swap");
+    response.add_attribute("offer_asset", offer_asset.info.to_string());
+    response.add_attribute("ask_asset", ask_pool.info.to_string());
+    response.add_attribute("offer_amount", offer_amount.to_string());
+    response.add_attribute("return_amount", return_amount.to_string());
+    response.add_attribute("tax_amount", tax_amount.to_string());
+    response.add_attribute("spread_amount", spread_amount.to_string());
+    response.add_attribute("commission_amount", commission_amount.to_string());
+
+    let mut maker_fee_amount = Uint128::new(0);
+
+    let fee_address = get_fee_address(deps.as_ref(), config)?;
+    if fee_address != Addr::unchecked("") {
+        if let Some(f) = calculate_maker_fee(ask_pool.info, commission_amount) {
+            response.messages.push(SubMsg {
+                msg: f.clone().into_msg(&deps.querier, fee_address)?,
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            });
+
+            maker_fee_amount = f.amount;
+        }
+    }
+
+    response.add_attribute("maker_fee_amount", maker_fee_amount.to_string());
+
+    Ok(response)
+}
+
+pub fn calculate_maker_fee(pool_info: AssetInfo, commission_amount: Uint128) -> Option<Asset> {
+    let maker_fee: Uint128 = commission_amount * Decimal::from_str(&MAKER_FEE_RATE).unwrap();
+    if maker_fee.is_zero() {
+        return None;
+    }
+
+    Some(Asset {
+        info: pool_info,
+        amount: maker_fee,
     })
+}
+
+pub fn get_fee_address(deps: Deps, config: Config) -> StdResult<Addr> {
+    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: config.factory_addr.to_string(),
+        msg: to_binary(&FactoryQueryMsg::FeeAddress {}).unwrap(),
+    }))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -532,7 +571,7 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
         ask_pool = pools[0].clone();
     } else {
         return Err(StdError::generic_err(
-            "Given offer asset is not blong to pairs",
+            "Given offer asset does not belong to pairs",
         ));
     }
 

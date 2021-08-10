@@ -103,7 +103,7 @@ fn proper_initialization() {
 
     // // it worked, let's query the state
     let pair_info: PairInfo = query_pair_info(deps.as_ref()).unwrap();
-    assert_eq!("liquidity0000", pair_info.liquidity_token.as_str());
+    assert_eq!(Addr::unchecked("liquidity0000"), pair_info.liquidity_token);
     assert_eq!(
         pair_info.asset_infos,
         [
@@ -159,7 +159,7 @@ fn provide_liquidity() {
         assets: [
             Asset {
                 info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked("asset0000".to_string()),
+                    contract_addr: Addr::unchecked("asset0000"),
                 },
                 amount: Uint128::from(100u128),
             },
@@ -247,7 +247,7 @@ fn provide_liquidity() {
         assets: [
             Asset {
                 info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked("asset0000".to_string()),
+                    contract_addr: Addr::unchecked("asset0000"),
                 },
                 amount: Uint128::from(100u128),
             },
@@ -317,7 +317,7 @@ fn provide_liquidity() {
         assets: [
             Asset {
                 info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked("asset0000".to_string()),
+                    contract_addr: Addr::unchecked("asset0000"),
                 },
                 amount: Uint128::from(100u128),
             },
@@ -373,7 +373,7 @@ fn provide_liquidity() {
         assets: [
             Asset {
                 info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked("asset0000".to_string()),
+                    contract_addr: Addr::unchecked("asset0000"),
                 },
                 amount: Uint128::from(98u128),
             },
@@ -412,7 +412,7 @@ fn provide_liquidity() {
         assets: [
             Asset {
                 info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked("asset0000".to_string()),
+                    contract_addr: Addr::unchecked("asset0000"),
                 },
                 amount: Uint128::from(100u128),
             },
@@ -451,7 +451,7 @@ fn provide_liquidity() {
         assets: [
             Asset {
                 info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked("asset0000".to_string()),
+                    contract_addr: Addr::unchecked("asset0000"),
                 },
                 amount: Uint128::from(99u128),
             },
@@ -489,7 +489,7 @@ fn provide_liquidity() {
         assets: [
             Asset {
                 info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked("asset0000".to_string()),
+                    contract_addr: Addr::unchecked("asset0000"),
                 },
                 amount: Uint128::from(100u128),
             },
@@ -725,6 +725,8 @@ fn try_native_to_token() {
     let expected_ret_amount = Uint128::new(sim_result);
     let expected_spread_amount = Uint128::zero();
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
+    let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
+
     let expected_return_amount = expected_ret_amount
         .checked_sub(expected_commission_amount)
         .unwrap();
@@ -794,6 +796,7 @@ fn try_native_to_token() {
             attr("tax_amount", expected_tax_amount.to_string()),
             attr("spread_amount", expected_spread_amount.to_string()),
             attr("commission_amount", expected_commission_amount.to_string()),
+            attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
         ]
     );
 
@@ -916,6 +919,7 @@ fn try_token_to_native() {
     let expected_ret_amount = Uint128::new(sim_result);
     let expected_spread_amount = Uint128::zero();
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
+    let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
     let expected_return_amount = expected_ret_amount
         .checked_sub(expected_commission_amount)
         .unwrap();
@@ -989,6 +993,7 @@ fn try_token_to_native() {
             attr("tax_amount", expected_tax_amount.to_string()),
             attr("spread_amount", expected_spread_amount.to_string()),
             attr("commission_amount", expected_commission_amount.to_string()),
+            attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
         ]
     );
 

@@ -25,6 +25,7 @@ fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
+        factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -38,7 +39,6 @@ fn proper_initialization() {
             contract_addr: String::from("factory0000"),
             msg: to_binary(&Uint128::new(1000000u128)).unwrap(),
         }),
-        factory_addr: Addr::unchecked("factory"),
     };
 
     // we can just call .unwrap() to assert this was a success
@@ -724,6 +724,8 @@ fn try_native_to_token() {
         .checked_sub(expected_ret_amount)
         .unwrap();
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
+    let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
+
     let expected_return_amount = expected_ret_amount
         .checked_sub(expected_commission_amount)
         .unwrap();
@@ -794,6 +796,7 @@ fn try_native_to_token() {
             attr("tax_amount", expected_tax_amount.to_string()),
             attr("spread_amount", expected_spread_amount.to_string()),
             attr("commission_amount", expected_commission_amount.to_string()),
+            attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
         ]
     );
 
@@ -914,6 +917,7 @@ fn try_token_to_native() {
         .checked_sub(expected_ret_amount)
         .unwrap();
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
+    let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
     let expected_return_amount = expected_ret_amount
         .checked_sub(expected_commission_amount)
         .unwrap();
@@ -994,6 +998,7 @@ fn try_token_to_native() {
             attr("tax_amount", expected_tax_amount.to_string()),
             attr("spread_amount", expected_spread_amount.to_string()),
             attr("commission_amount", expected_commission_amount.to_string()),
+            attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
         ]
     );
 
