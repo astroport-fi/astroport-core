@@ -56,7 +56,6 @@ pub enum Cw20HookMsg {
 pub enum QueryMsg {
     Pair {},
     Pool {},
-    KLast {},
     Simulation { offer_asset: Asset },
     ReverseSimulation { ask_asset: Asset },
 }
