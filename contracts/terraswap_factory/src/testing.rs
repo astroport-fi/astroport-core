@@ -22,6 +22,7 @@ fn proper_initialization() {
         pair_code_ids: pair_code_ids.clone(),
         token_code_id: 123u64,
         init_hook: None,
+        fee_address: None,
     };
 
     let env = mock_env();
@@ -45,6 +46,7 @@ fn update_config() {
         pair_code_ids: vec![321u64],
         token_code_id: 123u64,
         init_hook: None,
+        fee_address: None,
     };
 
     let env = mock_env();
@@ -57,20 +59,25 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        owner: Some("addr0001".to_string()),
+        owner: Some(Addr::unchecked("addr0001")),
         pair_code_ids: None,
         token_code_id: None,
+        fee_address: Some(Addr::unchecked("fee_addr")),
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     // it worked, let's query the state
-    let query_res = query(deps.as_ref(), env, QueryMsg::Config {}).unwrap();
+    let query_res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(123u64, config_res.token_code_id);
     assert_eq!(vec![321u64], config_res.pair_code_ids);
     assert_eq!(String::from("addr0001"), config_res.owner);
+
+    let query_res = query(deps.as_ref(), env, QueryMsg::FeeAddress {}).unwrap();
+    let fee_addr: Addr = from_binary(&query_res).unwrap();
+    assert_eq!(String::from("fee_addr"), fee_addr);
 
     // update left items
     let env = mock_env();
@@ -79,6 +86,7 @@ fn update_config() {
         owner: None,
         pair_code_ids: Some(vec![100u64, 321u64, 500u64]),
         token_code_id: Some(200u64),
+        fee_address: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -98,6 +106,7 @@ fn update_config() {
         owner: None,
         pair_code_ids: None,
         token_code_id: None,
+        fee_address: None,
     };
 
     let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
@@ -112,6 +121,7 @@ fn create_pair() {
         pair_code_ids: vec![321u64],
         token_code_id: 123u64,
         init_hook: None,
+        fee_address: None,
     };
 
     let env = mock_env();
@@ -161,6 +171,7 @@ fn create_pair() {
         vec![SubMsg {
             msg: WasmMsg::Instantiate {
                 msg: to_binary(&PairInstantiateMsg {
+                    factory_addr: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     asset_infos: asset_infos.clone(),
                     token_code_id: 123u64,
                     init_hook: Some(InitHook {
@@ -198,6 +209,7 @@ fn register() {
         pair_code_ids: vec![pair_code_id],
         token_code_id: 123u64,
         init_hook: None,
+        fee_address: None,
     };
 
     let env = mock_env();

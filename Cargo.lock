@@ -1722,6 +1722,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-vm",
+ "cw-multi-test",
  "cw-storage-plus",
  "cw20",
  "integer-sqrt",
@@ -1729,6 +1730,7 @@ dependencies = [
  "serde",
  "terra-cosmwasm",
  "terraswap",
+ "terraswap-token",
  "thiserror",
 ]
 
@@ -1739,6 +1741,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-vm",
+ "cw-multi-test",
  "cw-storage-plus",
  "cw20",
  "integer-sqrt",
@@ -1748,6 +1751,7 @@ dependencies = [
  "sim",
  "terra-cosmwasm",
  "terraswap",
+ "terraswap-token",
  "thiserror",
  "uint 0.8.5",
 ]
