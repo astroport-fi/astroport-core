@@ -191,7 +191,6 @@ pub fn receive_cw20(
         }
         Ok(Cw20HookMsg::WithdrawLiquidity {}) => withdraw_liquidity(
             deps,
-            env,
             info,
             Addr::unchecked(cw20_msg.sender),
             cw20_msg.amount,
@@ -333,7 +332,6 @@ pub fn provide_liquidity(
 
 pub fn withdraw_liquidity(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     sender: Addr,
     amount: Uint128,
@@ -344,20 +342,7 @@ pub fn withdraw_liquidity(
         return Err(ContractError::Unauthorized {});
     }
 
-    let pools: [Asset; 2] = config
-        .pair_info
-        .query_pools(&deps.querier, env.contract.address)?;
-    let total_share: Uint128 =
-        query_supply(&deps.querier, config.pair_info.liquidity_token.clone())?;
-
-    let share_ratio: Decimal = Decimal::from_ratio(amount, total_share);
-    let refund_assets: Vec<Asset> = pools
-        .iter()
-        .map(|a| Asset {
-            info: a.info.clone(),
-            amount: a.amount * share_ratio,
-        })
-        .collect();
+    let refund_assets = get_refund_assets(deps.as_ref(), config.clone(), amount)?;
 
     // update pool info
     Ok(Response {
@@ -403,6 +388,23 @@ pub fn withdraw_liquidity(
     })
 }
 
+pub fn get_refund_assets(deps: Deps, config: Config, amount: Uint128) -> StdResult<Vec<Asset>> {
+    let pair_info = config.pair_info.clone();
+    let pools: [Asset; 2] = config
+        .pair_info
+        .query_pools(&deps.querier, pair_info.contract_addr)?;
+    let total_share: Uint128 = query_supply(&deps.querier, pair_info.liquidity_token)?;
+
+    let share_ratio: Decimal = Decimal::from_ratio(amount, total_share);
+
+    Ok(pools
+        .iter()
+        .map(|a| Asset {
+            info: a.info.clone(),
+            amount: a.amount * share_ratio,
+        })
+        .collect())
+}
 // CONTRACT - a user must do token approval
 #[allow(clippy::too_many_arguments)]
 pub fn swap(
@@ -529,6 +531,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Pair {} => to_binary(&query_pair_info(deps)?),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
+        QueryMsg::Share { amount } => to_binary(&query_share(deps, amount)?),
         QueryMsg::Simulation { offer_asset } => to_binary(&query_simulation(deps, offer_asset)?),
         QueryMsg::ReverseSimulation { ask_asset } => {
             to_binary(&query_reverse_simulation(deps, ask_asset)?)
@@ -553,6 +556,13 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
     };
 
     Ok(resp)
+}
+
+pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
+    let config: Config = CONFIG.load(deps.storage)?;
+    let refund_assets = get_refund_assets(deps, config, amount)?;
+
+    Ok(refund_assets)
 }
 
 pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationResponse> {

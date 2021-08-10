@@ -1,6 +1,6 @@
 use crate::contract::{
     assert_max_spread, execute, instantiate, query_pair_info, query_pool, query_reverse_simulation,
-    query_simulation,
+    query_share, query_simulation,
 };
 use crate::error::ContractError;
 use crate::math::{calc_amount, AMP};
@@ -1167,6 +1167,58 @@ fn test_query_pool() {
         ]
     );
     assert_eq!(res.total_share, total_share_amount);
+}
+
+#[test]
+fn test_query_share() {
+    let total_share_amount = Uint128::from(500u128);
+    let asset_0_amount = Uint128::from(250u128);
+    let asset_1_amount = Uint128::from(1000u128);
+    let mut deps = mock_dependencies(&[Coin {
+        denom: "uusd".to_string(),
+        amount: asset_0_amount,
+    }]);
+
+    deps.querier.with_token_balances(&[
+        (
+            &String::from("asset0000"),
+            &[(&String::from(MOCK_CONTRACT_ADDR), &asset_1_amount)],
+        ),
+        (
+            &String::from("liquidity0000"),
+            &[(&String::from(MOCK_CONTRACT_ADDR), &total_share_amount)],
+        ),
+    ]);
+
+    let msg = InstantiateMsg {
+        asset_infos: [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked("asset0000"),
+            },
+        ],
+        token_code_id: 10u64,
+        init_hook: None,
+        factory_addr: Addr::unchecked("factory"),
+    };
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+    // we can just call .unwrap() to assert this was a success
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+
+    // post initalize
+    let msg = ExecuteMsg::PostInitialize {};
+    let env = mock_env();
+    let info = mock_info("liquidity0000", &[]);
+    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
+
+    let res = query_share(deps.as_ref(), Uint128::new(250)).unwrap();
+
+    assert_eq!(res[0].amount, Uint128::new(125));
+    assert_eq!(res[1].amount, Uint128::new(500));
 }
 
 fn mock_env_with_block_time(time: u64) -> Env {

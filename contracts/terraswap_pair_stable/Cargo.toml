@@ -39,3 +39,5 @@ cosmwasm-schema = "0.15.0"
 terra-cosmwasm = { version = "2.1.0" }
 proptest = "1.0.0"
 sim =  { path = "./sim" }
+terraswap-token = {path = "../terraswap_token"}
+cw-multi-test = "0.7.0"
