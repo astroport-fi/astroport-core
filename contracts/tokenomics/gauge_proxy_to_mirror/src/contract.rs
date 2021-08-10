@@ -8,6 +8,7 @@ use crate::error::ContractError;
 use crate::msg::InstantiateMsg;
 use crate::state::{Config, ReplyInfo, CONFIG, REPLY_INFO, USER_INFO};
 use gauge_proxy_interface::msg::{Cw20HookMsg, ExecuteMsg, QueryMsg};
+use mirror_protocol::staking::{Cw20HookMsg as MirrorCw20HookMsg, ExecuteMsg as MirrorExecuteMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -79,8 +80,9 @@ fn get_rewards(deps: DepsMut, cfg: Config, reply_info: ReplyInfo) -> StdResult<C
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: cfg.reward_contract_addr.to_string(),
         funds: vec![],
-        // specify withdraw rewards message from the end reward contract here
-        msg: unimplemented!(),
+        msg: to_binary(&MirrorExecuteMsg::Withdraw {
+            asset_token: Some(cfg.lp_token_addr),
+        })?,
     }))
 }
 
@@ -97,7 +99,8 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 
 fn deposit(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let mut response = Response::default();
-    if let ReplyInfo::Deposit { account, amount } = REPLY_INFO.load(deps.storage)? {
+    let reply_info = REPLY_INFO.load(deps.storage)?;
+    if let ReplyInfo::Deposit { account, amount } = reply_info {
         let cfg = CONFIG.load(deps.storage)?;
         let mut user = USER_INFO.load(deps.storage, &account).unwrap_or_default();
 
@@ -126,9 +129,19 @@ fn deposit(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         }
 
         if !amount.is_zero() {
-            // stake to the end reward contract here
-            unimplemented!();
-        }
+            // stake to the end reward contract
+            response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: cfg.lp_token_addr.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: cfg.reward_contract_addr.to_string(),
+                    amount,
+                    msg: to_binary(&MirrorCw20HookMsg::Bond {
+                        asset_token: cfg.lp_token_addr,
+                    })?,
+                })?,
+            }));
+        };
 
         user.amount = user.amount.checked_add(amount)?;
         if !lp_old_balance.is_zero() {
@@ -217,8 +230,23 @@ fn withdraw(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 
         USER_INFO.save(deps.storage, &account, &user)?;
 
-        // withdraw from the end reward contract here
-        unimplemented!();
+        // withdraw from the end reward contract
+        response.add_message(WasmMsg::Execute {
+            contract_addr: cfg.reward_contract_addr.to_string(),
+            funds: vec![],
+            msg: to_binary(&MirrorExecuteMsg::Unbond {
+                asset_token: cfg.lp_token_addr,
+                amount,
+            })?,
+        });
+        response.add_message(WasmMsg::Execute {
+            contract_addr: cfg.lp_token_addr.to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: account.to_string(),
+                amount,
+            })?,
+        });
 
         Ok(response)
     } else {
@@ -240,8 +268,23 @@ fn emergency_withdraw(
     let mut response = Response::default();
     let user = USER_INFO.load(deps.storage, &account)?;
 
-    // emergency withdraw from the end reward contract here
-    unimplemented!();
+    // emergency withdraw from the end reward contract
+    response.add_message(WasmMsg::Execute {
+        contract_addr: cfg.reward_contract_addr.to_string(),
+        funds: vec![],
+        msg: to_binary(&MirrorExecuteMsg::Unbond {
+            asset_token: cfg.lp_token_addr,
+            amount: user.amount,
+        })?,
+    });
+    response.add_message(WasmMsg::Execute {
+        contract_addr: cfg.lp_token_addr.to_string(),
+        funds: vec![],
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: account.to_string(),
+            amount: user.amount,
+        })?,
+    });
 
     USER_INFO.remove(deps.storage, &account);
     Ok(response)

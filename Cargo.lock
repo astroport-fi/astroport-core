@@ -698,6 +698,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauge-proxy-to-mirror"
+version = "0.0.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw20",
+ "gauge-proxy-interface",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
