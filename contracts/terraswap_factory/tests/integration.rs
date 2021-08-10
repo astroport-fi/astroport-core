@@ -201,6 +201,7 @@ fn create_pair() {
         vec![SubMsg {
             msg: WasmMsg::Instantiate {
                 msg: to_binary(&PairInstantiateMsg {
+                    factory_addr: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     asset_infos: asset_infos.clone(),
                     token_code_id: 123u64,
                     init_hook: Some(InitHook {

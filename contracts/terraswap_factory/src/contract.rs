@@ -177,6 +177,7 @@ pub fn execute_create_pair(
                         asset_infos: asset_infos.clone(),
                     })?,
                 }),
+                factory_addr: env.contract.address,
             })?,
         }
         .into(),

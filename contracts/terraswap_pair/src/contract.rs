@@ -4,14 +4,17 @@ use crate::state::{Config, CONFIG};
 
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env,
-    MessageInfo, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    MessageInfo, QueryRequest, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    WasmQuery,
 };
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use integer_sqrt::IntegerSquareRoot;
+use std::ops::Add;
 use std::str::FromStr;
 use std::vec;
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
+use terraswap::factory::QueryMsg as FactoryQueryMsg;
 use terraswap::hook::InitHook;
 use terraswap::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse, QueryMsg,
@@ -36,6 +39,7 @@ pub fn instantiate(
             asset_infos: msg.asset_infos,
         },
         k_last: Uint128::new(0),
+        factory_addr: msg.factory_addr,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -283,19 +287,36 @@ pub fn provide_liquidity(
     // assert slippage tolerance
     assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
 
-    let total_share = query_supply(&deps.querier, config.pair_info.liquidity_token.clone())?;
-    let share = if total_share.is_zero() {
+    let total_supply = query_supply(&deps.querier, config.pair_info.liquidity_token.clone())?;
+
+    // Mint fee
+    let (amount_minted, fee_msg) = mint_fee(
+        deps.as_ref(),
+        config.clone(),
+        pools[0].amount,
+        pools[1].amount,
+        total_supply,
+    );
+
+    if let Some(f) = fee_msg {
+        messages.push(f)
+    }
+
+    // Add minted fee to total supply for further calculations
+    let total_supply = total_supply.add(amount_minted);
+
+    let share = if total_supply.is_zero() {
         // Initial share = collateral amount
         Uint128::new((deposits[0].u128() * deposits[1].u128()).integer_sqrt())
     } else {
         // min(1, 2)
-        // 1. sqrt(deposit_0 * exchange_rate_0_to_1 * deposit_0) * (total_share / sqrt(pool_0 * pool_1))
-        // == deposit_0 * total_share / pool_0
-        // 2. sqrt(deposit_1 * exchange_rate_1_to_0 * deposit_1) * (total_share / sqrt(pool_1 * pool_1))
-        // == deposit_1 * total_share / pool_1
+        // 1. sqrt(deposit_0 * exchange_rate_0_to_1 * deposit_0) * (total_supply / sqrt(pool_0 * pool_1))
+        // == deposit_0 * total_supply / pool_0
+        // 2. sqrt(deposit_1 * exchange_rate_1_to_0 * deposit_1) * (total_supply / sqrt(pool_1 * pool_1))
+        // == deposit_1 * total_supply / pool_1
         std::cmp::min(
-            deposits[0].multiply_ratio(total_share, pools[0].amount),
-            deposits[1].multiply_ratio(total_share, pools[1].amount),
+            deposits[0].multiply_ratio(total_supply, pools[0].amount),
+            deposits[1].multiply_ratio(total_supply, pools[1].amount),
         )
     };
 
@@ -322,6 +343,7 @@ pub fn provide_liquidity(
         gas_limit: None,
         reply_on: ReplyOn::Never,
     });
+
     Ok(Response {
         events: vec![],
         messages,
@@ -350,10 +372,28 @@ pub fn withdraw_liquidity(
     let pools: [Asset; 2] = config
         .pair_info
         .query_pools(&deps.querier, env.contract.address)?;
-    let total_share: Uint128 =
-        query_supply(&deps.querier, config.pair_info.liquidity_token.clone())?;
 
-    let share_ratio: Decimal = Decimal::from_ratio(amount, total_share);
+    let total_supply = query_supply(&deps.querier, config.pair_info.liquidity_token.clone())?;
+
+    let mut messages: Vec<SubMsg> = vec![];
+
+    // Mint fee
+    let (amount_minted, fee_msg) = mint_fee(
+        deps.as_ref(),
+        config.clone(),
+        pools[0].amount,
+        pools[1].amount,
+        total_supply,
+    );
+
+    if let Some(f) = fee_msg {
+        messages.push(f)
+    }
+
+    // Add minted fee to total supply for further calculations
+    let total_supply = total_supply.add(amount_minted);
+
+    let share_ratio: Decimal = Decimal::from_ratio(amount, total_supply);
     let refund_assets: Vec<Asset> = pools
         .iter()
         .map(|a| Asset {
@@ -366,42 +406,44 @@ pub fn withdraw_liquidity(
     update_k_last(
         deps.branch(),
         config.clone(),
-        pools[0].amount - (pools[0].amount * share_ratio),
-        pools[1].amount - (pools[1].amount * share_ratio),
+        refund_assets[0].amount,
+        refund_assets[1].amount,
     )?;
+
+    // refund asset tokens
+    messages.push(SubMsg {
+        msg: refund_assets[0]
+            .clone()
+            .into_msg(&deps.querier, sender.clone())?,
+        id: 0,
+        gas_limit: None,
+        reply_on: ReplyOn::Never,
+    });
+
+    messages.push(SubMsg {
+        msg: refund_assets[1].clone().into_msg(&deps.querier, sender)?,
+        id: 0,
+        gas_limit: None,
+        reply_on: ReplyOn::Never,
+    });
+
+    // burn liquidity token
+    messages.push(SubMsg {
+        msg: WasmMsg::Execute {
+            contract_addr: config.pair_info.liquidity_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
+            funds: vec![],
+        }
+        .into(),
+        id: 0,
+        gas_limit: None,
+        reply_on: ReplyOn::Never,
+    });
 
     // update pool info
     Ok(Response {
         events: vec![],
-        messages: vec![
-            // refund asset tokens
-            SubMsg {
-                msg: refund_assets[0]
-                    .clone()
-                    .into_msg(&deps.querier, sender.clone())?,
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never,
-            },
-            SubMsg {
-                msg: refund_assets[1].clone().into_msg(&deps.querier, sender)?,
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never,
-            },
-            // burn liquidity token
-            SubMsg {
-                msg: WasmMsg::Execute {
-                    contract_addr: config.pair_info.liquidity_token.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
-                    funds: vec![],
-                }
-                .into(),
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never,
-            },
-        ],
+        messages,
         attributes: vec![
             attr("action", "withdraw_liquidity"),
             attr("withdrawn_share", &amount.to_string()),
@@ -721,6 +763,67 @@ pub fn update_k_last(deps: DepsMut, config: Config, x: Uint128, y: Uint128) -> S
     CONFIG.save(deps.storage, &config)?;
 
     Ok(config)
+}
+
+pub fn mint_fee(
+    deps: Deps,
+    config: Config,
+    x: Uint128,
+    y: Uint128,
+    total_supply: Uint128,
+) -> (Uint128, Option<SubMsg>) {
+    let fee_address: Addr = deps
+        .querier
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.factory_addr.to_string(),
+            msg: to_binary(&FactoryQueryMsg::FeeAddress {}).unwrap(),
+        }))
+        .unwrap();
+
+    if fee_address == Addr::unchecked("") {
+        return (Uint128::zero(), None);
+    }
+
+    if config.k_last.is_zero() {
+        return (Uint128::zero(), None);
+    }
+
+    let root_k = Uint128::new((x.u128() * y.u128()).integer_sqrt());
+    let root_k_last = Uint128::new(config.k_last.u128().integer_sqrt());
+
+    if root_k > root_k_last {
+        let numerator = total_supply
+            .checked_mul(root_k.checked_sub(root_k_last).unwrap())
+            .unwrap();
+        let denominator = root_k
+            .checked_mul(Uint128::new(5))
+            .unwrap()
+            .checked_add(root_k_last)
+            .unwrap();
+        let liquidity = numerator.checked_div(denominator).unwrap();
+        if !liquidity.is_zero() {
+            return (
+                liquidity,
+                Some(SubMsg {
+                    msg: WasmMsg::Execute {
+                        contract_addr: config.pair_info.liquidity_token.to_string(),
+                        msg: to_binary(&Cw20ExecuteMsg::Mint {
+                            recipient: fee_address.to_string(),
+                            amount: liquidity,
+                        })
+                        .unwrap(),
+                        funds: vec![],
+                    }
+                    .into(),
+                    id: 0,
+                    gas_limit: None,
+                    reply_on: ReplyOn::Never,
+                }),
+            );
+        }
+    }
+
+    (Uint128::zero(), None)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

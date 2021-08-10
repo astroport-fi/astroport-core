@@ -25,6 +25,7 @@ fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
+        factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -129,6 +130,7 @@ fn provide_liquidity() {
     )]);
 
     let msg = InstantiateMsg {
+        factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -535,6 +537,7 @@ fn withdraw_liquidity() {
     ]);
 
     let msg = InstantiateMsg {
+        factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -663,6 +666,7 @@ fn try_native_to_token() {
     ]);
 
     let msg = InstantiateMsg {
+        factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -843,6 +847,7 @@ fn try_token_to_native() {
     ]);
 
     let msg = InstantiateMsg {
+        factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1113,6 +1118,7 @@ fn test_query_pool() {
     ]);
 
     let msg = InstantiateMsg {
+        factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),

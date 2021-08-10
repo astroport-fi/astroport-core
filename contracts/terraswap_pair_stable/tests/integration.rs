@@ -70,6 +70,7 @@ fn proper_initialization() {
         ],
         token_code_id: 10u64,
         init_hook: None,
+        factory_addr: Addr::unchecked("factory"),
     };
 
     let env = mock_env();
