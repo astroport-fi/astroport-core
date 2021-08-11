@@ -1,10 +1,11 @@
 use crate::error::ContractError;
 use crate::math::{decimal_multiplication, decimal_subtraction, reverse_decimal};
-use crate::state::PAIR_INFO;
+use crate::state::{Config, CONFIG};
 
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env,
-    MessageInfo, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    MessageInfo, QueryRequest, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    WasmQuery,
 };
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -12,6 +13,7 @@ use integer_sqrt::IntegerSquareRoot;
 use std::str::FromStr;
 use std::vec;
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
+use terraswap::factory::QueryMsg as FactoryQueryMsg;
 use terraswap::hook::InitHook;
 use terraswap::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse, QueryMsg,
@@ -22,6 +24,8 @@ use terraswap::token::InstantiateMsg as TokenInstantiateMsg;
 
 /// Commission rate == 0.3%
 const COMMISSION_RATE: &str = "0.003";
+const MAKER_FEE_RATE: &str = "0.166";
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -29,13 +33,16 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
-    let pair_info = &PairInfo {
-        contract_addr: env.contract.address.clone(),
-        liquidity_token: Addr::unchecked(""),
-        asset_infos: msg.asset_infos,
+    let config = Config {
+        pair_info: PairInfo {
+            contract_addr: env.contract.address.clone(),
+            liquidity_token: Addr::unchecked(""),
+            asset_infos: msg.asset_infos,
+        },
+        factory_addr: msg.factory_addr,
     };
 
-    PAIR_INFO.save(deps.storage, &pair_info)?;
+    CONFIG.save(deps.storage, &config)?;
 
     // Create LP token
     let mut messages: Vec<SubMsg> = vec![SubMsg {
@@ -146,9 +153,10 @@ pub fn receive_cw20(
         }) => {
             // only asset contract can execute this message
             let mut authorized: bool = false;
-            let config: PairInfo = PAIR_INFO.load(deps.storage)?;
-            let pools: [Asset; 2] =
-                config.query_pools(&deps.querier, env.contract.address.clone())?;
+            let config: Config = CONFIG.load(deps.storage)?;
+            let pools: [Asset; 2] = config
+                .pair_info
+                .query_pools(&deps.querier, env.contract.address.clone())?;
             for pool in pools.iter() {
                 if let AssetInfo::Token { contract_addr, .. } = &pool.info {
                     if contract_addr == &info.sender {
@@ -183,7 +191,6 @@ pub fn receive_cw20(
         }
         Ok(Cw20HookMsg::WithdrawLiquidity {}) => withdraw_liquidity(
             deps,
-            env,
             info,
             Addr::unchecked(cw20_msg.sender),
             cw20_msg.amount,
@@ -198,20 +205,16 @@ pub fn post_initialize(
     _env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    let config: PairInfo = PAIR_INFO.load(deps.storage)?;
+    let mut config: Config = CONFIG.load(deps.storage)?;
 
     // permission check
-    if config.liquidity_token != Addr::unchecked("") {
+    if config.pair_info.liquidity_token != Addr::unchecked("") {
         return Err(ContractError::Unauthorized {});
     }
 
-    PAIR_INFO.save(
-        deps.storage,
-        &PairInfo {
-            liquidity_token: info.sender.clone(),
-            ..config
-        },
-    )?;
+    config.pair_info.liquidity_token = info.sender.clone();
+
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response {
         events: vec![],
@@ -233,9 +236,10 @@ pub fn provide_liquidity(
         asset.assert_sent_native_token_balance(&info)?;
     }
 
-    let pair_info: PairInfo = PAIR_INFO.load(deps.storage)?;
-    let mut pools: [Asset; 2] =
-        pair_info.query_pools(&deps.querier, env.contract.address.clone())?;
+    let config: Config = CONFIG.load(deps.storage)?;
+    let mut pools: [Asset; 2] = config
+        .pair_info
+        .query_pools(&deps.querier, env.contract.address.clone())?;
     let deposits: [Uint128; 2] = [
         assets
             .iter()
@@ -282,7 +286,7 @@ pub fn provide_liquidity(
     // assert slippage tolerance
     assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
 
-    let total_share = query_supply(&deps.querier, pair_info.liquidity_token.clone())?;
+    let total_share = query_supply(&deps.querier, config.pair_info.liquidity_token.clone())?;
     let share = if total_share.is_zero() {
         // Initial share = collateral amount
         Uint128::new((deposits[0].u128() * deposits[1].u128()).integer_sqrt())
@@ -301,7 +305,7 @@ pub fn provide_liquidity(
     // mint LP token to sender
     messages.push(SubMsg {
         msg: WasmMsg::Execute {
-            contract_addr: pair_info.liquidity_token.to_string(),
+            contract_addr: config.pair_info.liquidity_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Mint {
                 recipient: info.sender.to_string(),
                 amount: share,
@@ -313,6 +317,7 @@ pub fn provide_liquidity(
         gas_limit: None,
         reply_on: ReplyOn::Never,
     });
+
     Ok(Response {
         events: vec![],
         messages,
@@ -327,28 +332,17 @@ pub fn provide_liquidity(
 
 pub fn withdraw_liquidity(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     sender: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let pair_info: PairInfo = PAIR_INFO.load(deps.storage).unwrap();
+    let config: Config = CONFIG.load(deps.storage).unwrap();
 
-    if info.sender != pair_info.liquidity_token {
+    if info.sender != config.pair_info.liquidity_token {
         return Err(ContractError::Unauthorized {});
     }
 
-    let pools: [Asset; 2] = pair_info.query_pools(&deps.querier, env.contract.address)?;
-    let total_share: Uint128 = query_supply(&deps.querier, pair_info.liquidity_token.clone())?;
-
-    let share_ratio: Decimal = Decimal::from_ratio(amount, total_share);
-    let refund_assets: Vec<Asset> = pools
-        .iter()
-        .map(|a| Asset {
-            info: a.info.clone(),
-            amount: a.amount * share_ratio,
-        })
-        .collect();
+    let refund_assets = get_refund_assets(deps.as_ref(), config.clone(), amount)?;
 
     // update pool info
     Ok(Response {
@@ -372,7 +366,7 @@ pub fn withdraw_liquidity(
             // burn liquidity token
             SubMsg {
                 msg: WasmMsg::Execute {
-                    contract_addr: pair_info.liquidity_token.to_string(),
+                    contract_addr: config.pair_info.liquidity_token.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
                     funds: vec![],
                 }
@@ -394,6 +388,23 @@ pub fn withdraw_liquidity(
     })
 }
 
+pub fn get_refund_assets(deps: Deps, config: Config, amount: Uint128) -> StdResult<Vec<Asset>> {
+    let pair_info = config.pair_info.clone();
+    let pools: [Asset; 2] = config
+        .pair_info
+        .query_pools(&deps.querier, pair_info.contract_addr)?;
+    let total_share: Uint128 = query_supply(&deps.querier, pair_info.liquidity_token)?;
+
+    let share_ratio: Decimal = Decimal::from_ratio(amount, total_share);
+
+    Ok(pools
+        .iter()
+        .map(|a| Asset {
+            info: a.info.clone(),
+            amount: a.amount * share_ratio,
+        })
+        .collect())
+}
 // CONTRACT - a user must do token approval
 #[allow(clippy::too_many_arguments)]
 pub fn swap(
@@ -408,9 +419,11 @@ pub fn swap(
 ) -> Result<Response, ContractError> {
     offer_asset.assert_sent_native_token_balance(&info)?;
 
-    let pair_info: PairInfo = PAIR_INFO.load(deps.storage)?;
+    let config: Config = CONFIG.load(deps.storage)?;
 
-    let pools: [Asset; 2] = pair_info.query_pools(&deps.querier, env.contract.address)?;
+    let pools: [Asset; 2] = config
+        .pair_info
+        .query_pools(&deps.querier, env.contract.address)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;
@@ -454,28 +467,63 @@ pub fn swap(
 
     let tax_amount = return_asset.compute_tax(&deps.querier)?;
 
+    let mut response = Response::new();
+
     // 1. send collateral token from the contract to a user
     // 2. send inactive commission to collector
-    Ok(Response {
-        events: vec![],
-        messages: vec![SubMsg {
-            msg: return_asset.into_msg(&deps.querier, to.unwrap_or(sender))?,
-            id: 0,
-            gas_limit: None,
-            reply_on: ReplyOn::Never,
-        }],
-        attributes: vec![
-            attr("action", "swap"),
-            attr("offer_asset", offer_asset.info.to_string()),
-            attr("ask_asset", ask_pool.info.to_string()),
-            attr("offer_amount", offer_amount.to_string()),
-            attr("return_amount", return_amount.to_string()),
-            attr("tax_amount", tax_amount.to_string()),
-            attr("spread_amount", spread_amount.to_string()),
-            attr("commission_amount", commission_amount.to_string()),
-        ],
-        data: None,
+    response.messages.push(SubMsg {
+        msg: return_asset.into_msg(&deps.querier, to.unwrap_or(sender))?,
+        id: 0,
+        gas_limit: None,
+        reply_on: ReplyOn::Never,
+    });
+    response.add_attribute("action", "swap");
+    response.add_attribute("offer_asset", offer_asset.info.to_string());
+    response.add_attribute("ask_asset", ask_pool.info.to_string());
+    response.add_attribute("offer_amount", offer_amount.to_string());
+    response.add_attribute("return_amount", return_amount.to_string());
+    response.add_attribute("tax_amount", tax_amount.to_string());
+    response.add_attribute("spread_amount", spread_amount.to_string());
+    response.add_attribute("commission_amount", commission_amount.to_string());
+
+    let mut maker_fee_amount = Uint128::new(0);
+
+    let fee_address = get_fee_address(deps.as_ref(), config)?;
+    if fee_address != Addr::unchecked("") {
+        if let Some(f) = calculate_maker_fee(ask_pool.info, commission_amount) {
+            response.messages.push(SubMsg {
+                msg: f.clone().into_msg(&deps.querier, fee_address)?,
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            });
+
+            maker_fee_amount = f.amount;
+        }
+    }
+
+    response.add_attribute("maker_fee_amount", maker_fee_amount.to_string());
+
+    Ok(response)
+}
+
+pub fn calculate_maker_fee(pool_info: AssetInfo, commission_amount: Uint128) -> Option<Asset> {
+    let maker_fee: Uint128 = commission_amount * Decimal::from_str(&MAKER_FEE_RATE).unwrap();
+    if maker_fee.is_zero() {
+        return None;
+    }
+
+    Some(Asset {
+        info: pool_info,
+        amount: maker_fee,
     })
+}
+
+pub fn get_fee_address(deps: Deps, config: Config) -> StdResult<Addr> {
+    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: config.factory_addr.to_string(),
+        msg: to_binary(&FactoryQueryMsg::FeeAddress {}).unwrap(),
+    }))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -483,6 +531,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Pair {} => to_binary(&query_pair_info(deps)?),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
+        QueryMsg::Share { amount } => to_binary(&query_share(deps, amount)?),
         QueryMsg::Simulation { offer_asset } => to_binary(&query_simulation(deps, offer_asset)?),
         QueryMsg::ReverseSimulation { ask_asset } => {
             to_binary(&query_reverse_simulation(deps, ask_asset)?)
@@ -491,14 +540,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub fn query_pair_info(deps: Deps) -> StdResult<PairInfo> {
-    PAIR_INFO.load(deps.storage)
+    let config: Config = CONFIG.load(deps.storage)?;
+    Ok(config.pair_info)
 }
 
 pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
-    let pair_info: PairInfo = PAIR_INFO.load(deps.storage)?;
-    let contract_addr = pair_info.contract_addr.clone();
-    let assets: [Asset; 2] = pair_info.query_pools(&deps.querier, contract_addr)?;
-    let total_share: Uint128 = query_supply(&deps.querier, pair_info.liquidity_token)?;
+    let config: Config = CONFIG.load(deps.storage)?;
+    let contract_addr = config.pair_info.contract_addr.clone();
+    let assets: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
+    let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;
 
     let resp = PoolResponse {
         assets,
@@ -508,11 +558,18 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
     Ok(resp)
 }
 
-pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationResponse> {
-    let pair_info: PairInfo = PAIR_INFO.load(deps.storage)?;
-    let contract_addr = pair_info.contract_addr.clone();
+pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
+    let config: Config = CONFIG.load(deps.storage)?;
+    let refund_assets = get_refund_assets(deps, config, amount)?;
 
-    let pools: [Asset; 2] = pair_info.query_pools(&deps.querier, contract_addr)?;
+    Ok(refund_assets)
+}
+
+pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationResponse> {
+    let config: Config = CONFIG.load(deps.storage)?;
+    let contract_addr = config.pair_info.contract_addr.clone();
+
+    let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;
@@ -524,7 +581,7 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
         ask_pool = pools[0].clone();
     } else {
         return Err(StdError::generic_err(
-            "Given offer asset is not blong to pairs",
+            "Given offer asset does not belong to pairs",
         ));
     }
 
@@ -542,10 +599,10 @@ pub fn query_reverse_simulation(
     deps: Deps,
     ask_asset: Asset,
 ) -> StdResult<ReverseSimulationResponse> {
-    let pair_info: PairInfo = PAIR_INFO.load(deps.storage)?;
-    let contract_addr = pair_info.contract_addr.clone();
+    let config: Config = CONFIG.load(deps.storage)?;
+    let contract_addr = config.pair_info.contract_addr.clone();
 
-    let pools: [Asset; 2] = pair_info.query_pools(&deps.querier, contract_addr)?;
+    let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;
