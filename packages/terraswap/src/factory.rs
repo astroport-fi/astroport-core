@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{AssetInfo, PairInfo};
 use crate::hook::InitHook;
+use cosmwasm_std::Addr;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -10,6 +11,8 @@ pub struct InstantiateMsg {
     pub pair_code_ids: Vec<u64>,
     pub token_code_id: u64,
     pub init_hook: Option<InitHook>,
+    // Contract address to send fees to
+    pub fee_address: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -17,9 +20,10 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// UpdateConfig update relevant code IDs
     UpdateConfig {
-        owner: Option<String>,
+        owner: Option<Addr>,
         token_code_id: Option<u64>,
         pair_code_ids: Option<Vec<u64>>,
+        fee_address: Option<Addr>,
     },
     /// CreatePair instantiates pair contract
     CreatePair {
@@ -45,12 +49,13 @@ pub enum QueryMsg {
         start_after: Option<[AssetInfo; 2]>,
         limit: Option<u32>,
     },
+    FeeAddress {},
 }
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub owner: String,
+    pub owner: Addr,
     pub pair_code_ids: Vec<u64>,
     pub token_code_id: u64,
 }

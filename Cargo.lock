@@ -514,6 +514,107 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
+=======
+name = "terraswap"
+version = "2.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
+name = "terraswap-factory"
+version = "0.0.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-vm",
+ "cw-storage-plus",
+ "schemars",
+ "serde",
+ "terraswap",
+ "thiserror",
+]
+
+[[package]]
+name = "terraswap-pair"
+version = "0.0.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-vm",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "cw20",
+ "integer-sqrt",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "terraswap",
+ "terraswap-token",
+ "thiserror",
+]
+
+[[package]]
+name = "terraswap-pair-stable"
+version = "0.0.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-vm",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "cw20",
+ "integer-sqrt",
+ "proptest",
+ "schemars",
+ "serde",
+ "sim",
+ "terra-cosmwasm",
+ "terraswap",
+ "terraswap-token",
+ "thiserror",
+ "uint 0.8.5",
+]
+
+[[package]]
+name = "terraswap-router"
+version = "0.0.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw20",
+ "integer-sqrt",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "terraswap",
+ "thiserror",
+]
+
+[[package]]
+name = "terraswap-token"
+version = "0.0.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "schemars",
+ "serde",
+ "snafu",
+ "terraswap",
+]
+
+[[package]]
+>>>>>>> master
 name = "thiserror"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"

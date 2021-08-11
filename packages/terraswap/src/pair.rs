@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::asset::{Asset, AssetInfo};
 use crate::hook::InitHook;
 
-use cosmwasm_std::{Decimal, Uint128};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -15,6 +15,8 @@ pub struct InstantiateMsg {
     pub token_code_id: u64,
     /// Hook for post initialization
     pub init_hook: Option<InitHook>,
+    /// Factory contract address
+    pub factory_addr: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -54,6 +56,7 @@ pub enum Cw20HookMsg {
 pub enum QueryMsg {
     Pair {},
     Pool {},
+    Share { amount: Uint128 },
     Simulation { offer_asset: Asset },
     ReverseSimulation { ask_asset: Asset },
 }

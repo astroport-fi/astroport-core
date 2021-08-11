@@ -1,104 +1,186 @@
-//! This integration test tries to run and call the generated wasm.
-//! It depends on a Wasm build being available, which you can create with `cargo wasm`.
-//! Then running `cargo integration-test` will validate we can properly call into that generated Wasm.
-//!
-//! You can easily convert unit tests to integration tests as follows:
-//! 1. Copy them over verbatim
-//! 2. Then change
-//!      let mut deps = mock_dependencies(20, &[]);
-//!    to
-//!      let mut deps = mock_instance(WASM, &[]);
-//! 3. If you access raw storage, where ever you see something like:
-//!      deps.storage.get(CONFIG_KEY).expect("no data stored");
-//!    replace it with:
-//!      deps.with_storage(|store| {
-//!          let data = store.get(CONFIG_KEY).expect("no data stored");
-//!          //...
-//!      });
-//! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
-
-use astroport::asset::{AssetInfo, PairInfo};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::pair::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use cosmwasm_std::testing::mock_info;
-use cosmwasm_std::{from_binary, Addr, Coin, Response};
-use cosmwasm_vm::testing::{
-    execute, instantiate, mock_backend_with_balances, mock_env, query, MockApi, MockQuerier,
-    MockStorage, MOCK_CONTRACT_ADDR,
+use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
+use cosmwasm_std::{
+    attr, from_binary, to_binary, Addr, Coin, Event, QueryRequest, Uint128, WasmQuery,
 };
-use cosmwasm_vm::{Instance, InstanceOptions};
+use cw_multi_test::{App, ContractWrapper, SimpleBank};
 
-// This line will test the output of cargo wasm
-static WASM: &[u8] =
-    include_bytes!("../../../target/wasm32-unknown-unknown/release/astroport_pair_stable.wasm");
-// You can uncomment this line instead to test productionified build from rust-optimizer
-// static WASM: &[u8] = include_bytes!("../contract.wasm");
+fn mock_app() -> App {
+    let env = mock_env();
+    let api = Box::new(MockApi::default());
+    let bank = SimpleBank {};
 
-const DEFAULT_GAS_LIMIT: u64 = 500_000;
-
-pub fn mock_instance(
-    wasm: &[u8],
-    contract_balance: &[(&str, &[Coin])],
-) -> Instance<MockApi, MockStorage, MockQuerier> {
-    // TODO: check_wasm is not exported from cosmwasm_vm
-    // let terra_features = features_from_csv("staking,terra");
-    // check_wasm(wasm, &terra_features).unwrap();
-    let backend = mock_backend_with_balances(contract_balance);
-    Instance::from_code(
-        wasm,
-        backend,
-        InstanceOptions {
-            gas_limit: DEFAULT_GAS_LIMIT,
-            print_debug: false,
-        },
-        None,
-    )
-    .unwrap()
+    App::new(api, env.block, bank, || Box::new(MockStorage::new()))
 }
 
-#[test]
-fn proper_initialization() {
-    let mut deps = mock_instance(WASM, &[]);
+fn instantiate_pair(router: &mut App, owner: Addr) -> Addr {
+    let token_contract = Box::new(ContractWrapper::new(
+        astroport_token::contract::execute,
+        astroport_token::contract::instantiate,
+        astroport_token::contract::query,
+    ));
+
+    let token_contract_code_id = router.store_code(token_contract);
+
+    let pair_contract = Box::new(ContractWrapper::new(
+        astroport_pair_stable::contract::execute,
+        astroport_pair_stable::contract::instantiate,
+        astroport_pair_stable::contract::query,
+    ));
+
+    let pair_contract_code_id = router.store_code(pair_contract);
 
     let msg = InstantiateMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
-            AssetInfo::Token {
-                contract_addr: Addr::unchecked("asset0000"),
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
             },
         ],
-        token_code_id: 10u64,
+        token_code_id: token_contract_code_id,
         init_hook: None,
+        factory_addr: Addr::unchecked("factory"),
     };
 
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
+    let pair = router
+        .instantiate_contract(
+            pair_contract_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("PAIR"),
+        )
+        .unwrap();
 
-    // we can just call .unwrap() to assert this was a success
-    let _res: Response = instantiate(&mut deps, env, info, msg).unwrap();
+    pair
+}
 
-    // cannot change it after post intialization
-    let msg = ExecuteMsg::PostInitialize {};
-    let env = mock_env();
-    let info = mock_info("liquidity0000", &[]);
-    let _res: Response = execute(&mut deps, env.clone(), info, msg).unwrap();
+#[test]
+fn test_provide_and_withdraw_liquidity() {
+    let owner = Addr::unchecked("owner");
+    let alice_address = Addr::unchecked("alice");
+    let mut router = mock_app();
 
-    // it worked, let's query the state
-    let res = query(&mut deps, env, QueryMsg::Pair {}).unwrap();
-    let pair_info: PairInfo = from_binary(&res).unwrap();
-    assert_eq!(MOCK_CONTRACT_ADDR, pair_info.contract_addr.as_str());
+    // Set alice balances
+    router
+        .set_bank_balance(
+            &alice_address,
+            vec![
+                Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::new(200u128),
+                },
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::new(200u128),
+                },
+            ],
+        )
+        .unwrap();
+
+    // Init pair
+    let pair_instance = instantiate_pair(&mut router, owner.clone());
+
+    let res = router
+        .query(QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: pair_instance.to_string(),
+            msg: to_binary(&QueryMsg::Pair {}).unwrap(),
+        }))
+        .unwrap();
+    let res: PairInfo = from_binary(&res).unwrap();
+
     assert_eq!(
+        res.asset_infos,
         [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
-            AssetInfo::Token {
-                contract_addr: Addr::unchecked("asset0000"),
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
             },
         ],
-        pair_info.asset_infos
     );
 
-    assert_eq!("liquidity0000", pair_info.liquidity_token.as_str());
+    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
+    router
+        .set_bank_balance(
+            &pair_instance,
+            vec![
+                Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::new(100u128),
+                },
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::new(100u128),
+                },
+            ],
+        )
+        .unwrap();
+
+    // Provide liquidity
+    let (msg, coins) = provide_liquidity_msg(Uint128::new(100), Uint128::new(100));
+    let res = router
+        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap();
+
+    assert_eq!(
+        res.events,
+        vec![
+            Event {
+                ty: String::from("wasm"),
+                attributes: vec![
+                    attr("contract_address", "Contract #0"),
+                    attr("action", "provide_liquidity"),
+                    attr("assets", "100uusd, 100uluna"),
+                    attr("share", 100),
+                ],
+            },
+            Event {
+                ty: String::from("wasm"),
+                attributes: vec![
+                    attr("contract_address", "Contract #1"),
+                    attr("action", "mint"),
+                    attr("to", "alice"),
+                    attr("amount", 100),
+                ],
+            }
+        ]
+    );
+}
+
+fn provide_liquidity_msg(uusd_amount: Uint128, uluna_amount: Uint128) -> (ExecuteMsg, [Coin; 2]) {
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: [
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: uusd_amount.clone(),
+            },
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+                amount: uluna_amount.clone(),
+            },
+        ],
+        slippage_tolerance: None,
+    };
+
+    let coins = [
+        Coin {
+            denom: "uusd".to_string(),
+            amount: uusd_amount.clone(),
+        },
+        Coin {
+            denom: "uluna".to_string(),
+            amount: uluna_amount.clone(),
+        },
+    ];
+
+    (msg, coins)
 }

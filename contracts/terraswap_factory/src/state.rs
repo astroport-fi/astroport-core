@@ -2,15 +2,16 @@ use cw_storage_plus::{Bound, Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Deps, Order};
+use cosmwasm_std::{Addr, Deps, Order};
 
 use astroport::asset::{AssetInfo, PairInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub owner: CanonicalAddr,
+    pub owner: Addr,
     pub pair_code_ids: Vec<u64>,
     pub token_code_id: u64,
+    pub fee_address: Addr,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
