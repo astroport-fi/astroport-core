@@ -7,12 +7,12 @@ use crate::error::ContractError;
 use crate::querier::query_liquidity_token;
 use crate::state::{pair_key, read_pairs, Config, CONFIG, PAIRS};
 
-use terraswap::asset::{AssetInfo, PairInfo};
-use terraswap::factory::{
+use astroport::asset::{AssetInfo, PairInfo};
+use astroport::factory::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, PairsResponse, QueryMsg,
 };
-use terraswap::hook::InitHook;
-use terraswap::pair::InstantiateMsg as PairInstantiateMsg;
+use astroport::hook::InitHook;
+use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(

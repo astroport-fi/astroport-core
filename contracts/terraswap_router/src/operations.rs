@@ -7,12 +7,12 @@ use crate::error::ContractError;
 use crate::querier::compute_tax;
 use crate::state::{Config, CONFIG};
 
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::pair::ExecuteMsg as PairExecuteMsg;
+use astroport::querier::{query_balance, query_pair_info, query_token_balance};
+use astroport::router::SwapOperation;
 use cw20::Cw20ExecuteMsg;
 use terra_cosmwasm::{create_swap_msg, create_swap_send_msg, TerraMsgWrapper};
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::ExecuteMsg as PairExecuteMsg;
-use terraswap::querier::{query_balance, query_pair_info, query_token_balance};
-use terraswap::router::SwapOperation;
 
 /// Execute swap operation
 /// swap all offer asset to ask asset
@@ -67,15 +67,15 @@ pub fn execute_swap_operation(
                 }]
             }
         }
-        SwapOperation::TerraSwap {
+        SwapOperation::AstroSwap {
             offer_asset_info,
             ask_asset_info,
         } => {
             let config: Config = CONFIG.load(deps.storage)?;
-            let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
+            let astroport_factory = deps.api.addr_humanize(&config.astroport_factory)?;
             let pair_info: PairInfo = query_pair_info(
                 &deps.querier,
-                terraswap_factory,
+                astroport_factory,
                 &[offer_asset_info.clone(), ask_asset_info],
             )?;
 

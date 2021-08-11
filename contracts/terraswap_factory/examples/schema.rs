@@ -3,8 +3,10 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use terraswap::asset::PairInfo;
-use terraswap::factory::{ConfigResponse, ExecuteMsg, InstantiateMsg, PairsResponse, QueryMsg};
+use astroport::asset::PairInfo;
+use astroport::factory::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, PairsResponse, QueryMsg,
+};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -18,4 +20,5 @@ fn main() {
     export_schema(&schema_for!(PairInfo), &out_dir);
     export_schema(&schema_for!(PairsResponse), &out_dir);
     export_schema(&schema_for!(ConfigResponse), &out_dir);
+    export_schema(&schema_for!(MigrateMsg), &out_dir);
 }

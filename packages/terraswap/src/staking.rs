@@ -26,3 +26,6 @@ pub struct ConfigResponse {
     pub deposit_token_addr: Addr,
     pub share_token_addr: Addr,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

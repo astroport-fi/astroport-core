@@ -1,6 +1,6 @@
 # Astroport Factory
 
-The factory contract can perform creation of terraswap pair contract and also be used as directory contract for all pairs.
+The factory contract can perform creation of astroport pair contract and also be used as directory contract for all pairs.
 Code ID for a pair type can be provided when instantiating a new pair, allowing for different pool mechanisms (e.g. stableswap).
 Available pair types are managed via a whitelist. 
 
@@ -126,7 +126,7 @@ The factory contract owner can change relevant code IDs for future pair contract
 {
     "update_config":
     {
-        "owner": Option<HumanAddr>,
+        "owner": Option<Addr>,
         "pair_code_id": Option<u64>,
         "token_code_id": Option<u64>,
     }

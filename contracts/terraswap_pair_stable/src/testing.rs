@@ -6,19 +6,19 @@ use crate::error::ContractError;
 use crate::math::{calc_amount, AMP};
 use crate::mock_querier::mock_dependencies;
 
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::hook::InitHook;
+use astroport::pair::{
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
+    SimulationResponse,
+};
+use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, Env, ReplyOn, Response,
     StdError, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::hook::InitHook;
-use terraswap::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
-    SimulationResponse,
-};
-use terraswap::token::InstantiateMsg as TokenInstantiateMsg;
 
 #[test]
 fn proper_initialization() {
@@ -51,7 +51,7 @@ fn proper_initialization() {
                 msg: WasmMsg::Instantiate {
                     code_id: 10u64,
                     msg: to_binary(&TokenInstantiateMsg {
-                        name: "terraswap liquidity token".to_string(),
+                        name: "astroport liquidity token".to_string(),
                         symbol: "uLP".to_string(),
                         decimals: 6,
                         initial_balances: vec![],

@@ -17,6 +17,8 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
+use astroport::asset::{AssetInfo, PairInfo};
+use astroport::pair::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use cosmwasm_std::testing::mock_info;
 use cosmwasm_std::{from_binary, Addr, Coin, Response};
 use cosmwasm_vm::testing::{
@@ -24,12 +26,10 @@ use cosmwasm_vm::testing::{
     MockStorage, MOCK_CONTRACT_ADDR,
 };
 use cosmwasm_vm::{Instance, InstanceOptions};
-use terraswap::asset::{AssetInfo, PairInfo};
-use terraswap::pair::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 // This line will test the output of cargo wasm
 static WASM: &[u8] =
-    include_bytes!("../../../target/wasm32-unknown-unknown/release/terraswap_pair.wasm");
+    include_bytes!("../../../target/wasm32-unknown-unknown/release/astroport_pair.wasm");
 // You can uncomment this line instead to test productionified build from rust-optimizer
 // static WASM: &[u8] = include_bytes!("../contract.wasm");
 

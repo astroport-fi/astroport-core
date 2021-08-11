@@ -7,11 +7,11 @@ use crate::{
     error::ContractError,
 };
 
+use astroport::asset::{AssetInfo, PairInfo};
+use astroport::factory::{ConfigResponse, ExecuteMsg, InstantiateMsg, PairsResponse, QueryMsg};
+use astroport::hook::InitHook;
+use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
-use terraswap::asset::{AssetInfo, PairInfo};
-use terraswap::factory::{ConfigResponse, ExecuteMsg, InstantiateMsg, PairsResponse, QueryMsg};
-use terraswap::hook::InitHook;
-use terraswap::pair::InstantiateMsg as PairInstantiateMsg;
 
 #[test]
 fn proper_initialization() {
@@ -223,8 +223,8 @@ fn register() {
     let info = mock_info("addr0000", &[]);
     let _res = execute(deps.as_mut(), env, info, msg).unwrap();
 
-    // register terraswap pair querier
-    deps.querier.with_terraswap_pairs(&[(
+    // register astroport pair querier
+    deps.querier.with_astroport_pairs(&[(
         &String::from("pair0000"),
         &PairInfo {
             asset_infos: [
@@ -296,8 +296,8 @@ fn register() {
     let info = mock_info("addr0000", &[]);
     let _res = execute(deps.as_mut(), env, info, msg).unwrap();
 
-    // register terraswap pair querier
-    deps.querier.with_terraswap_pairs(&[(
+    // register astroport pair querier
+    deps.querier.with_astroport_pairs(&[(
         &String::from("pair0001"),
         &PairInfo {
             asset_infos: [

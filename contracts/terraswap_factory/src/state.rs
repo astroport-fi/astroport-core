@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{CanonicalAddr, Deps, Order};
 
-use terraswap::asset::{AssetInfo, PairInfo};
+use astroport::asset::{AssetInfo, PairInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {

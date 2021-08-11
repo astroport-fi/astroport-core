@@ -28,14 +28,14 @@ use cosmwasm_vm::testing::{
 };
 use cosmwasm_vm::{Instance, InstanceOptions};
 
-use terraswap::asset::AssetInfo;
-use terraswap::factory::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
-use terraswap::hook::InitHook;
-use terraswap::pair::InstantiateMsg as PairInstantiateMsg;
+use astroport::asset::AssetInfo;
+use astroport::factory::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::hook::InitHook;
+use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 
 // This line will test the output of cargo wasm
 static WASM: &[u8] =
-    include_bytes!("../../../target/wasm32-unknown-unknown/release/terraswap_factory.wasm");
+    include_bytes!("../../../target/wasm32-unknown-unknown/release/astroport_factory.wasm");
 // You can uncomment this line instead to test productionified build from rust-optimizer
 // static WASM: &[u8] = include_bytes!("../contract.wasm");
 

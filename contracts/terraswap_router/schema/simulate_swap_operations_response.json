@@ -1,12 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "BalanceResponse",
+  "title": "SimulateSwapOperationsResponse",
   "type": "object",
   "required": [
-    "balance"
+    "amount"
   ],
   "properties": {
-    "balance": {
+    "amount": {
       "$ref": "#/definitions/Uint128"
     }
   },

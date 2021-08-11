@@ -93,13 +93,13 @@ pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint1
 }
 
 #[derive(Clone, Default)]
-pub struct TerraswapFactoryQuerier {
+pub struct AstroportFactoryQuerier {
     pairs: HashMap<String, PairInfo>,
 }
 
-impl TerraswapFactoryQuerier {
+impl AstroportFactoryQuerier {
     pub fn new(pairs: &[(&String, &PairInfo)]) -> Self {
-        TerraswapFactoryQuerier {
+        AstroportFactoryQuerier {
             pairs: pairs_to_map(pairs),
         }
     }
@@ -201,7 +201,7 @@ impl CW20QueryHandler {
 struct DefaultQueryHandler {
     base: MockQuerier<TerraQueryWrapper>,
     tax_querier: TaxQuerier,
-    terraswap_factory_querier: TerraswapFactoryQuerier,
+    astroport_factory_querier: AstroportFactoryQuerier,
 }
 
 impl DefaultQueryHandler {
@@ -238,7 +238,7 @@ impl DefaultQueryHandler {
             }) => match from_binary(&msg).unwrap() {
                 FactoryQueryMsg::Pair { asset_infos } => {
                     let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
-                    match self.terraswap_factory_querier.pairs.get(&key) {
+                    match self.astroport_factory_querier.pairs.get(&key) {
                         Some(v) => SystemResult::Ok(to_binary(&v).into()),
                         None => SystemResult::Err(SystemError::InvalidRequest {
                             error: "No pair info exists".to_string(),
@@ -259,7 +259,7 @@ impl WasmMockQuerier {
             query_handler: DefaultQueryHandler {
                 base,
                 tax_querier: TaxQuerier::default(),
-                terraswap_factory_querier: TerraswapFactoryQuerier::default(),
+                astroport_factory_querier: AstroportFactoryQuerier::default(),
             },
             cw20_query_handler: CW20QueryHandler {
                 token_querier: TokenQuerier::default(),
@@ -278,9 +278,9 @@ impl WasmMockQuerier {
         self.query_handler.tax_querier = TaxQuerier::new(rate, caps);
     }
 
-    // configure the terraswap pair
-    pub fn with_terraswap_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
-        self.query_handler.terraswap_factory_querier = TerraswapFactoryQuerier::new(pairs);
+    // configure the astroport pair
+    pub fn with_astroport_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
+        self.query_handler.astroport_factory_querier = AstroportFactoryQuerier::new(pairs);
     }
 
     pub fn with_default_query_handler(&mut self) {

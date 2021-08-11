@@ -8,16 +8,16 @@ use crate::operations::execute_swap_operation;
 use crate::querier::compute_tax;
 use crate::state::{Config, CONFIG};
 
-use cw20::Cw20ReceiveMsg;
-use std::collections::HashMap;
-use terra_cosmwasm::{SwapResponse, TerraMsgWrapper, TerraQuerier};
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::{QueryMsg as PairQueryMsg, SimulationResponse};
-use terraswap::querier::query_pair_info;
-use terraswap::router::{
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::pair::{QueryMsg as PairQueryMsg, SimulationResponse};
+use astroport::querier::query_pair_info;
+use astroport::router::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
     SimulateSwapOperationsResponse, SwapOperation,
 };
+use cw20::Cw20ReceiveMsg;
+use std::collections::HashMap;
+use terra_cosmwasm::{SwapResponse, TerraMsgWrapper, TerraQuerier};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -29,7 +29,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
+            astroport_factory: deps.api.addr_canonicalize(&msg.astroport_factory)?,
         },
     )?;
 
@@ -221,9 +221,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 pub fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
     let state = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
-        terraswap_factory: deps
+        astroport_factory: deps
             .api
-            .addr_humanize(&state.terraswap_factory)?
+            .addr_humanize(&state.astroport_factory)?
             .to_string(),
     };
 
@@ -241,7 +241,7 @@ fn simulate_swap_operations(
     operations: Vec<SwapOperation>,
 ) -> Result<SimulateSwapOperationsResponse, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
-    let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
+    let astroport_factory = deps.api.addr_humanize(&config.astroport_factory)?;
     let terra_querier = TerraQuerier::new(&deps.querier);
 
     assert_operations(&operations)?;
@@ -281,13 +281,13 @@ fn simulate_swap_operations(
 
                 offer_amount = res.receive.amount;
             }
-            SwapOperation::TerraSwap {
+            SwapOperation::AstroSwap {
                 offer_asset_info,
                 ask_asset_info,
             } => {
                 let pair_info: PairInfo = query_pair_info(
                     &deps.querier,
-                    terraswap_factory.clone(),
+                    astroport_factory.clone(),
                     &[offer_asset_info.clone(), ask_asset_info.clone()],
                 )?;
 
@@ -342,7 +342,7 @@ fn assert_operations(operations: &[SwapOperation]) -> Result<(), ContractError> 
                     denom: ask_denom.clone(),
                 },
             ),
-            SwapOperation::TerraSwap {
+            SwapOperation::AstroSwap {
                 offer_asset_info,
                 ask_asset_info,
             } => (offer_asset_info.clone(), ask_asset_info.clone()),
@@ -372,7 +372,7 @@ fn test_invalid_operations() {
                 offer_denom: "uusd".to_string(),
                 ask_denom: "uluna".to_string(),
             },
-            SwapOperation::TerraSwap {
+            SwapOperation::AstroSwap {
                 offer_asset_info: AssetInfo::NativeToken {
                     denom: "ukrw".to_string(),
                 },
@@ -380,7 +380,7 @@ fn test_invalid_operations() {
                     contract_addr: Addr::unchecked("asset0001"),
                 },
             },
-            SwapOperation::TerraSwap {
+            SwapOperation::AstroSwap {
                 offer_asset_info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0001"),
                 },
@@ -400,7 +400,7 @@ fn test_invalid_operations() {
                 offer_denom: "uusd".to_string(),
                 ask_denom: "uluna".to_string(),
             },
-            SwapOperation::TerraSwap {
+            SwapOperation::AstroSwap {
                 offer_asset_info: AssetInfo::NativeToken {
                     denom: "ukrw".to_string(),
                 },
@@ -408,7 +408,7 @@ fn test_invalid_operations() {
                     contract_addr: Addr::unchecked("asset0001"),
                 },
             },
-            SwapOperation::TerraSwap {
+            SwapOperation::AstroSwap {
                 offer_asset_info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0001"),
                 },
@@ -416,7 +416,7 @@ fn test_invalid_operations() {
                     denom: "uluna".to_string(),
                 },
             },
-            SwapOperation::TerraSwap {
+            SwapOperation::AstroSwap {
                 offer_asset_info: AssetInfo::NativeToken {
                     denom: "uluna".to_string(),
                 },
@@ -436,7 +436,7 @@ fn test_invalid_operations() {
                 offer_denom: "uusd".to_string(),
                 ask_denom: "ukrw".to_string(),
             },
-            SwapOperation::TerraSwap {
+            SwapOperation::AstroSwap {
                 offer_asset_info: AssetInfo::NativeToken {
                     denom: "ukrw".to_string(),
                 },
@@ -444,7 +444,7 @@ fn test_invalid_operations() {
                     contract_addr: Addr::unchecked("asset0001"),
                 },
             },
-            SwapOperation::TerraSwap {
+            SwapOperation::AstroSwap {
                 offer_asset_info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0001"),
                 },
@@ -452,7 +452,7 @@ fn test_invalid_operations() {
                     denom: "uaud".to_string(),
                 },
             },
-            SwapOperation::TerraSwap {
+            SwapOperation::AstroSwap {
                 offer_asset_info: AssetInfo::NativeToken {
                     denom: "uluna".to_string(),
                 },

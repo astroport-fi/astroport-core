@@ -120,10 +120,10 @@
         {
           "type": "object",
           "required": [
-            "terra_swap"
+            "astro_swap"
           ],
           "properties": {
-            "terra_swap": {
+            "astro_swap": {
               "type": "object",
               "required": [
                 "ask_asset_info",

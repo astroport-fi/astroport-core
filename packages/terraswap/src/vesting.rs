@@ -92,3 +92,6 @@ impl Into<Order> for OrderBy {
         }
     }
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

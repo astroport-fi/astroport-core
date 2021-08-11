@@ -1,9 +1,9 @@
 [package]
-name = "terraswap"
-version = "2.1.0"
+name = "astroport"
+version = "2.3.0"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"
-description = "Common terraswap types"
+description = "Common astroport types"
 license = "Apache-2.0"
 repository = "https://github.com/terraswap/terraswap"
 homepage = "https://terraswap.io"

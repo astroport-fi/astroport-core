@@ -7,12 +7,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::pair::SimulationResponse;
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use terra_cosmwasm::{
     SwapResponse, TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute,
 };
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::SimulationResponse;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -40,7 +40,7 @@ pub struct WasmMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
-    terraswap_factory_querier: TerraswapFactoryQuerier,
+    astroport_factory_querier: AstroportFactoryQuerier,
 }
 
 #[derive(Clone, Default)]
@@ -97,13 +97,13 @@ pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint1
 }
 
 #[derive(Clone, Default)]
-pub struct TerraswapFactoryQuerier {
+pub struct AstroportFactoryQuerier {
     pairs: HashMap<String, String>,
 }
 
-impl TerraswapFactoryQuerier {
+impl AstroportFactoryQuerier {
     pub fn new(pairs: &[(&String, &String)]) -> Self {
-        TerraswapFactoryQuerier {
+        AstroportFactoryQuerier {
             pairs: pairs_to_map(pairs),
         }
     }
@@ -197,7 +197,7 @@ impl WasmMockQuerier {
         match from_binary(&msg).unwrap() {
             QueryMsg::Pair { asset_infos } => {
                 let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
-                match self.terraswap_factory_querier.pairs.get(&key) {
+                match self.astroport_factory_querier.pairs.get(&key) {
                     Some(v) => SystemResult::Ok(ContractResult::from(to_binary(&PairInfo {
                         contract_addr: Addr::unchecked(v),
                         liquidity_token: Addr::unchecked("liquidity"),
@@ -281,7 +281,7 @@ impl WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
             tax_querier: TaxQuerier::default(),
-            terraswap_factory_querier: TerraswapFactoryQuerier::default(),
+            astroport_factory_querier: AstroportFactoryQuerier::default(),
         }
     }
 
@@ -299,7 +299,7 @@ impl WasmMockQuerier {
         self.tax_querier = TaxQuerier::new(rate, caps);
     }
 
-    pub fn with_terraswap_pairs(&mut self, pairs: &[(&String, &String)]) {
-        self.terraswap_factory_querier = TerraswapFactoryQuerier::new(pairs);
+    pub fn with_astroport_pairs(&mut self, pairs: &[(&String, &String)]) {
+        self.astroport_factory_querier = AstroportFactoryQuerier::new(pairs);
     }
 }

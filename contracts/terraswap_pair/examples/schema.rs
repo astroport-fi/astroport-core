@@ -3,10 +3,10 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use terraswap::asset::PairInfo;
-use terraswap::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse,
-    SimulationResponse,
+use astroport::asset::PairInfo;
+use astroport::pair::{
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse, QueryMsg,
+    ReverseSimulationResponse, SimulationResponse,
 };
 
 fn main() {
@@ -23,4 +23,5 @@ fn main() {
     export_schema(&schema_for!(PoolResponse), &out_dir);
     export_schema(&schema_for!(ReverseSimulationResponse), &out_dir);
     export_schema(&schema_for!(SimulationResponse), &out_dir);
+    export_schema(&schema_for!(MigrateMsg), &out_dir);
 }

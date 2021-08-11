@@ -33,7 +33,7 @@ Swap KRT => UST => mABNB
             }
          },
          {
-            "terra_swap":{
+            "astro_swap":{
                "offer_asset_info":{
                   "native_token":{
                      "denom":"uusd"

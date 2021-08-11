@@ -1,11 +1,11 @@
+use astroport::asset::PairInfo;
+use astroport::pair::QueryMsg;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, Empty, OwnedDeps, Querier, QuerierResult,
     QueryRequest, SystemError, SystemResult, WasmQuery,
 };
 use std::collections::HashMap;
-use terraswap::asset::PairInfo;
-use terraswap::pair::QueryMsg;
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -24,17 +24,17 @@ pub fn mock_dependencies(
 
 pub struct WasmMockQuerier {
     base: MockQuerier<Empty>,
-    terraswap_pair_querier: TerraswapPairQuerier,
+    astroport_pair_querier: AstroportPairQuerier,
 }
 
 #[derive(Clone, Default)]
-pub struct TerraswapPairQuerier {
+pub struct AstroportPairQuerier {
     pairs: HashMap<String, PairInfo>,
 }
 
-impl TerraswapPairQuerier {
+impl AstroportPairQuerier {
     pub fn new(pairs: &[(&String, &PairInfo)]) -> Self {
-        TerraswapPairQuerier {
+        AstroportPairQuerier {
             pairs: pairs_to_map(pairs),
         }
     }
@@ -71,7 +71,7 @@ impl WasmMockQuerier {
                 => match from_binary(&msg).unwrap() {
                     QueryMsg::Pair {} => {
                        let pair_info: PairInfo =
-                        match self.terraswap_pair_querier.pairs.get(contract_addr) {
+                        match self.astroport_pair_querier.pairs.get(contract_addr) {
                             Some(v) => v.clone(),
                             None => {
                                 return SystemResult::Err(SystemError::NoSuchContract {
@@ -93,13 +93,13 @@ impl WasmMockQuerier {
     pub fn new(base: MockQuerier<Empty>) -> Self {
         WasmMockQuerier {
             base,
-            terraswap_pair_querier: TerraswapPairQuerier::default(),
+            astroport_pair_querier: AstroportPairQuerier::default(),
         }
     }
 
-    // configure the terraswap pair
-    pub fn with_terraswap_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
-        self.terraswap_pair_querier = TerraswapPairQuerier::new(pairs);
+    // configure the astroport pair
+    pub fn with_astroport_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
+        self.astroport_pair_querier = AstroportPairQuerier::new(pairs);
     }
 
     // pub fn with_balance(&mut self, balances: &[(&String, &[Coin])]) {

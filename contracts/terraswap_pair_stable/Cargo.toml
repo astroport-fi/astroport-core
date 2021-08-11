@@ -1,9 +1,9 @@
 [package]
-name = "terraswap-pair-stable"
+name = "astroport-pair-stable"
 version = "0.0.0"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"
-description = "A Terraswap pair contract"
+description = "An Astroport pair contract"
 license = "MIT"
 
 exclude = [
@@ -24,7 +24,7 @@ backtraces = ["cosmwasm-std/backtraces", "cosmwasm-vm/backtraces"]
 
 [dependencies]
 integer-sqrt = "0.1.5"
-terraswap = { path = "../../packages/terraswap", default-features = false, version = "2.1.0"}
+astroport = { path = "../../packages/astroport", default-features = false, version = "2.3.0"}
 cw20 = { version = "0.7" }
 cosmwasm-std = { version = "0.15.0" }
 cw-storage-plus = {version = "0.7.0"}

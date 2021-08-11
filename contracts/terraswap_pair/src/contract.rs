@@ -7,18 +7,18 @@ use cosmwasm_std::{
     MessageInfo, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::hook::InitHook;
+use astroport::pair::{
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse, QueryMsg,
+    ReverseSimulationResponse, SimulationResponse,
+};
+use astroport::querier::query_supply;
+use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use integer_sqrt::IntegerSquareRoot;
 use std::str::FromStr;
 use std::vec;
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::hook::InitHook;
-use terraswap::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse, QueryMsg,
-    ReverseSimulationResponse, SimulationResponse,
-};
-use terraswap::querier::query_supply;
-use terraswap::token::InstantiateMsg as TokenInstantiateMsg;
 
 /// Commission rate == 0.3%
 const COMMISSION_RATE: &str = "0.003";
@@ -42,7 +42,7 @@ pub fn instantiate(
         msg: WasmMsg::Instantiate {
             code_id: msg.token_code_id,
             msg: to_binary(&TokenInstantiateMsg {
-                name: "terraswap liquidity token".to_string(),
+                name: "astroport liquidity token".to_string(),
                 symbol: "uLP".to_string(),
                 decimals: 6,
                 initial_balances: vec![],
@@ -629,7 +629,7 @@ fn compute_offer_amount(
 }
 
 /// If `belief_price` and `max_spread` both are given,
-/// we compute new spread else we just use terraswap
+/// we compute new spread else we just use swap
 /// spread to check `max_spread`
 pub fn assert_max_spread(
     belief_price: Option<Decimal>,

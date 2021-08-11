@@ -8,5 +8,5 @@ pub const CONFIG: Item<Config> = Item::new("config");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub terraswap_factory: CanonicalAddr,
+    pub astroport_factory: CanonicalAddr,
 }

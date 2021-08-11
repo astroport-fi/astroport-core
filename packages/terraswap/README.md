@@ -1,6 +1,6 @@
-# Terraswap: Common Types
+# Astroport: Common Types
 
-This is a collection of common types and the queriers which are commonly used in terraswap contracts.
+This is a collection of common types and the queriers which are commonly used in astroport contracts.
 
 ## Data Types
 
@@ -11,7 +11,7 @@ AssetInfo is a convience wrapper to represent the native token and the contract 
 ```rust
 #[serde(rename_all = "snake_case")]
 pub enum AssetInfo {
-    Token { contract_addr: HumanAddr },
+    Token { contract_addr: Addr },
     NativeToken { denom: String },
 }
 ```
@@ -33,7 +33,7 @@ It is used to represent response data of [Pair-Info-Querier](#Pair-Info-Querier)
 
 ```rust
 pub struct PairInfo {
-    pub contract_addr: HumanAddr,
+    pub contract_addr: Addr,
     pub asset_infos: [AssetInfo; 2],
 }
 ```
@@ -46,7 +46,7 @@ It uses CosmWasm standard interface to query the account balance to chain.
 ```rust
 pub fn query_balance(
     deps: &Extern<S, A, Q>,
-    account_addr: &HumanAddr,
+    account_addr: &Addr,
     denom: String,
 ) -> StdResult<Uint128>
 ```
@@ -58,8 +58,8 @@ It provides simliar query interface with [Native-Token-Balance-Querier](Native-T
 ```rust
 pub fn query_token_balance(
     deps: &Extern<S, A, Q>,
-    contract_addr: &HumanAddr,
-    account_addr: &HumanAddr,
+    contract_addr: &Addr,
+    account_addr: &Addr,
 ) -> StdResult<Uint128>
 ```
 
@@ -70,29 +70,29 @@ It provides token supply querier for CW20 token contract.
 ```rust
 pub fn query_supply(
     deps: &Extern<S, A, Q>,
-    contract_addr: &HumanAddr,
+    contract_addr: &Addr,
 ) -> StdResult<Uint128>
 ```
 
 ### Pair Info Querier
 
-It also provides the query interface to query avaliable terraswap pair contract info. Any contract can query pair info to terraswap factory contract.
+It also provides the query interface to query available astroport pair contract info. Any contract can query pair info to astroport factory contract.
 
 ```rust
 pub fn query_pair_contract(
     deps: &Extern<S, A, Q>,
-    contract_addr: &HumanAddr,
+    contract_addr: &Addr,
     asset_infos: &[AssetInfo; 2],
-) -> StdResult<HumanAddr>
+) -> StdResult<Addr>
 ```
 
 ### Liquidity Token Querier
 
-It returns liquidity token contract address of terraswap pair contract. 
+It returns liquidity token contract address of astroport pair contract. 
 
 ```rust
 pub fn query_liquidity_token(
     deps: &Extern<S, A, Q>,
-    contract_addr: &HumanAddr,
-) -> StdResult<HumanAddr>
+    contract_addr: &Addr,
+) -> StdResult<Addr>
 ```

@@ -1,17 +1,18 @@
 use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, ReplyOn, Response,
-    StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
+    attr, entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, ReplyOn,
+    Response, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 
 use crate::state::{read_vesting_infos, Config, CONFIG, VESTING_INFO};
 
 use crate::error::ContractError;
-use cw20::Cw20ExecuteMsg;
-use terraswap::vesting::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, OrderBy, QueryMsg, VestingAccount,
+use astroport::vesting::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg, VestingAccount,
     VestingAccountResponse, VestingAccountsResponse, VestingInfo,
 };
+use cw20::Cw20ExecuteMsg;
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
@@ -30,6 +31,7 @@ pub fn instantiate(
     Ok(Response::new())
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
     env: Env,
@@ -265,6 +267,11 @@ pub fn query_vesting_accounts(
     Ok(VestingAccountsResponse {
         vesting_accounts: vesting_account_responses?,
     })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
 
 #[test]

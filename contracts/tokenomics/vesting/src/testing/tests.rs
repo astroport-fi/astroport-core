@@ -1,5 +1,5 @@
 use crate::contract::{execute, instantiate, query};
-use terraswap::vesting::{
+use astroport::vesting::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, OrderBy, QueryMsg, VestingAccount,
     VestingAccountResponse, VestingAccountsResponse, VestingInfo,
 };

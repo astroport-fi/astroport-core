@@ -3,10 +3,10 @@
   "title": "ConfigResponse",
   "type": "object",
   "required": [
-    "terraswap_factory"
+    "astroport_factory"
   ],
   "properties": {
-    "terraswap_factory": {
+    "astroport_factory": {
       "type": "string"
     }
   }
