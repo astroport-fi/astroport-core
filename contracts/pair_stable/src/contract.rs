@@ -18,10 +18,7 @@ use astroport::pair::{
 use astroport::querier::query_supply;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use integer_sqrt::IntegerSquareRoot;
-use integer_sqrt::IntegerSquareRoot;
-use std::str::FromStr;
 use std::str::FromStr;
 use std::vec;
 
