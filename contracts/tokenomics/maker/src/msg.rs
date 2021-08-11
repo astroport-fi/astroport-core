@@ -13,7 +13,7 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    SetBridge {token:Addr, bridge:Addr},
+    //SetBridge {token:Addr, bridge:Addr},
     Convert {token1: AssetInfo, token2: AssetInfo},
     ConvertMultiple {token1: Vec<AssetInfo>, token2: Vec<AssetInfo> },
 }
@@ -21,11 +21,11 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    BridgeFor {token: Addr},
+    //BridgeFor {token: Addr},
 }
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct QueryAddressResponse {
-    pub address: Addr,
+    pub address: AssetInfo,
 }

@@ -1,6 +1,4 @@
-use cosmwasm_std::{DepsMut, Deps, Addr, StdResult, QueryRequest, WasmQuery, to_binary, QuerierWrapper};
-use std::convert::TryFrom;
-use crate::msg::QueryMsg;
+use cosmwasm_std::{Addr, StdResult, QueryRequest, WasmQuery, to_binary, QuerierWrapper};
 use terraswap::asset::{AssetInfo, PairInfo};
 
 pub fn query_pair_info(
@@ -10,7 +8,7 @@ pub fn query_pair_info(
 ) -> StdResult<PairInfo> {
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: factory_contract.to_string(),
-        msg: to_binary(&FactoryQueryMsg::Pair {
+        msg: to_binary(&terraswap::factory::QueryMsg::Pair {
             asset_infos: asset_infos.clone(),
         })?,
     }))
