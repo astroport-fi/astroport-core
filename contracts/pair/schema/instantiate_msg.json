@@ -4,6 +4,7 @@
   "type": "object",
   "required": [
     "asset_infos",
+    "factory_addr",
     "token_code_id"
   ],
   "properties": {
@@ -15,6 +16,14 @@
       },
       "maxItems": 2,
       "minItems": 2
+    },
+    "factory_addr": {
+      "description": "Factory contract address",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        }
+      ]
     },
     "init_hook": {
       "description": "Hook for post initialization",

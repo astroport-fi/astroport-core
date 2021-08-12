@@ -29,6 +29,26 @@
     {
       "type": "object",
       "required": [
+        "share"
+      ],
+      "properties": {
+        "share": {
+          "type": "object",
+          "required": [
+            "amount"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "simulation"
       ],
       "properties": {
