@@ -37,6 +37,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-governance"
+version = "0.0.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw20",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-staking"
 version = "1.0.0"
 dependencies = [
@@ -728,19 +741,6 @@ dependencies = [
  "fallible-iterator",
  "indexmap",
  "stable_deref_trait",
-]
-
-[[package]]
-name = "governance"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw20",
- "schemars",
- "serde",
- "thiserror",
 ]
 
 [[package]]

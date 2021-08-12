@@ -1,6 +1,6 @@
 [package]
-name = "governance"
-version = "0.1.0"
+name = "astroport-governance"
+version = "0.0.0"
 authors = ["Terraform Labs, PTE"]
 edition = "2018"
 
