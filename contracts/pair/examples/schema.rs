@@ -3,9 +3,10 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use astroport::vesting::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, VestingAccountResponse,
-    VestingAccountsResponse,
+use astroport::asset::PairInfo;
+use astroport::pair::{
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse, QueryMsg,
+    ReverseSimulationResponse, SimulationResponse,
 };
 
 fn main() {
@@ -16,9 +17,11 @@ fn main() {
 
     export_schema(&schema_for!(InstantiateMsg), &out_dir);
     export_schema(&schema_for!(ExecuteMsg), &out_dir);
+    export_schema(&schema_for!(Cw20HookMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
-    export_schema(&schema_for!(ConfigResponse), &out_dir);
-    export_schema(&schema_for!(VestingAccountResponse), &out_dir);
-    export_schema(&schema_for!(VestingAccountsResponse), &out_dir);
+    export_schema(&schema_for!(PairInfo), &out_dir);
+    export_schema(&schema_for!(PoolResponse), &out_dir);
+    export_schema(&schema_for!(ReverseSimulationResponse), &out_dir);
+    export_schema(&schema_for!(SimulationResponse), &out_dir);
     export_schema(&schema_for!(MigrateMsg), &out_dir);
 }

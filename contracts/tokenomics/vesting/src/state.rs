@@ -1,9 +1,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use astroport::vesting::{OrderBy, VestingInfo};
 use cosmwasm_std::{Addr, CanonicalAddr, Deps, StdResult, Timestamp};
 use cw_storage_plus::{Bound, Item, Map};
-use terraswap::vesting::{OrderBy, VestingInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {

@@ -1,13 +1,13 @@
 [workspace]
-members = ["packages/*", "contracts/terraswap_*", "contracts/tokenomics/*"]
-
-[profile.release.package.terraswap]
-opt-level = 3
-debug = false
-debug-assertions = false
-codegen-units = 1
-incremental = false
-overflow-checks = true
+members = [
+    "packages/*",
+    "contracts/factory",
+    "contracts/pair",
+    "contracts/pair_stable",
+    "contracts/router",
+    "contracts/token",
+    "contracts/tokenomics/*"
+]
 
 [profile.release]
 opt-level = 3

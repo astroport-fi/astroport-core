@@ -1,3 +1,5 @@
+use astroport::staking::{ConfigResponse, InstantiateMsg as xInstatiateMsg, QueryMsg};
+use astroport::token::InstantiateMsg;
 use cosmwasm_std::{
     attr, from_binary,
     testing::{mock_env, MockApi, MockStorage},
@@ -5,8 +7,6 @@ use cosmwasm_std::{
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, ContractWrapper, SimpleBank};
-use terraswap::staking::{ConfigResponse, InstantiateMsg as xInstatiateMsg, QueryMsg};
-use terraswap::token::InstantiateMsg;
 
 const ALICE: &str = "Alice";
 const BOB: &str = "Bob";
@@ -22,9 +22,9 @@ fn mock_app() -> App {
 
 fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
     let astro_token_contract = Box::new(ContractWrapper::new(
-        terraswap_token::contract::execute,
-        terraswap_token::contract::instantiate,
-        terraswap_token::contract::query,
+        astroport_token::contract::execute,
+        astroport_token::contract::instantiate,
+        astroport_token::contract::query,
     ));
 
     let astro_token_code_id = router.store_code(astro_token_contract);
@@ -143,7 +143,7 @@ fn should_not_allow_enter_if_not_enough_approve() {
     );
 
     // try to enter Alice's 100 ASTRO for 100 xASTRO
-    let msg = terraswap::staking::ExecuteMsg::Enter {
+    let msg = astroport::staking::ExecuteMsg::Enter {
         amount: Uint128::from(100u128),
     };
     let res = router
@@ -180,7 +180,7 @@ fn should_not_allow_enter_if_not_enough_approve() {
     );
 
     // try to enter Alice's 100 ASTRO for 100 xASTRO
-    let msg = terraswap::staking::ExecuteMsg::Enter {
+    let msg = astroport::staking::ExecuteMsg::Enter {
         amount: Uint128::from(100u128),
     };
     let res = router
@@ -217,7 +217,7 @@ fn should_not_allow_enter_if_not_enough_approve() {
     );
 
     // enter Alice's 100 ASTRO for 100 xASTRO
-    let msg = terraswap::staking::ExecuteMsg::Enter {
+    let msg = astroport::staking::ExecuteMsg::Enter {
         amount: Uint128::from(100u128),
     };
     router
@@ -289,7 +289,7 @@ fn should_not_allow_withraw_more_than_what_you_have() {
     );
 
     // enter Alice's 100 ASTRO for 100 xASTRO
-    let msg = terraswap::staking::ExecuteMsg::Enter {
+    let msg = astroport::staking::ExecuteMsg::Enter {
         amount: Uint128::from(100u128),
     };
     router
@@ -325,7 +325,7 @@ fn should_not_allow_withraw_more_than_what_you_have() {
     );
 
     // try to leave Alice's 200 xASTRO
-    let msg = terraswap::staking::ExecuteMsg::Leave {
+    let msg = astroport::staking::ExecuteMsg::Leave {
         share: Uint128::from(200u128),
     };
     let res = router
@@ -422,7 +422,7 @@ fn should_work_with_more_than_one_participant() {
     );
 
     // enter Alice's 20 ASTRO for 20 xASTRO
-    let msg = terraswap::staking::ExecuteMsg::Enter {
+    let msg = astroport::staking::ExecuteMsg::Enter {
         amount: Uint128::from(20u128),
     };
     router
@@ -430,7 +430,7 @@ fn should_work_with_more_than_one_participant() {
         .unwrap();
 
     // enter Bob's 10 ASTRO for 10 xASTRO
-    let msg = terraswap::staking::ExecuteMsg::Enter {
+    let msg = astroport::staking::ExecuteMsg::Enter {
         amount: Uint128::from(10u128),
     };
     router
@@ -516,7 +516,7 @@ fn should_work_with_more_than_one_participant() {
     );
 
     // enter Alice's 10 ASTRO for 6 xASTRO: 10*30/50 = 6
-    let msg = terraswap::staking::ExecuteMsg::Enter {
+    let msg = astroport::staking::ExecuteMsg::Enter {
         amount: Uint128::from(10u128),
     };
     router
@@ -586,7 +586,7 @@ fn should_work_with_more_than_one_participant() {
     );
 
     // leave Bob's 5 xASTRO: gets 5*60/36 = 8 ASTRO
-    let msg = terraswap::staking::ExecuteMsg::Leave {
+    let msg = astroport::staking::ExecuteMsg::Leave {
         share: Uint128::from(5u128),
     };
     router

@@ -5,12 +5,12 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
+use astroport::staking::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
-use terraswap::staking::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 
-use terraswap::hook::InitHook;
-use terraswap::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport::hook::InitHook;
+use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-staking";
@@ -211,4 +211,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             share_token_addr: config.share_token_addr,
         })?),
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
