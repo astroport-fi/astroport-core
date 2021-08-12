@@ -10,8 +10,10 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg};
 use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError;
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
-use crate::msg::{ExecuteMsg, InstantiateMsg, PendingTokenResponse, PoolLengthResponse, QueryMsg};
 use crate::state::{Config, PoolInfo, UserInfo, CONFIG, POOL_INFO, USER_INFO};
+use terraswap::gauge::{
+    ExecuteMsg, InstantiateMsg, PendingTokenResponse, PoolLengthResponse, QueryMsg,
+};
 
 fn _do_instantiate(
     deps: DepsMut,

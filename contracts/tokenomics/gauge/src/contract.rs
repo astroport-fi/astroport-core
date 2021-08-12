@@ -8,12 +8,12 @@ use cosmwasm_std::{
 use cw20::{BalanceResponse, Cw20ExecuteMsg};
 
 use crate::error::ContractError;
-use crate::msg::{
-    ExecuteMsg, GetMultiplierResponse, InstantiateMsg, PendingTokenResponse, PoolLengthResponse,
-    QueryMsg,
-};
 use crate::state::{Config, PoolInfo, CONFIG, POOL_INFO, USER_INFO};
 use gauge_proxy_interface::msg::{Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg};
+use terraswap::gauge::{
+    ExecuteMsg, GetMultiplierResponse, InstantiateMsg, MigrateMsg, PendingTokenResponse,
+    PoolLengthResponse, QueryMsg,
+};
 
 // Bonus multiplier for early ASTRO makers.
 const BONUS_MULTIPLIER: u64 = 10;
@@ -756,4 +756,9 @@ pub fn calculate_rewards(env: Env, pool: PoolInfo, cfg: Config) -> StdResult<Uin
         .checked_div(Uint128::from(cfg.total_alloc_point))?;
 
     Ok(r)
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

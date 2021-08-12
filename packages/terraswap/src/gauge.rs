@@ -71,3 +71,6 @@ pub struct GetMultiplierResponse {
 pub struct PendingTokenResponse {
     pub pending: Uint128,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

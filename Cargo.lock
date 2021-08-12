@@ -34,6 +34,7 @@ dependencies = [
  "gauge-proxy-interface",
  "schemars",
  "serde",
+ "terraswap",
  "thiserror",
 ]
 

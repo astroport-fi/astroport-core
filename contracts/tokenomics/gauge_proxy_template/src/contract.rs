@@ -7,7 +7,7 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use crate::error::ContractError;
 use crate::msg::InstantiateMsg;
 use crate::state::{Config, ReplyInfo, CONFIG, REPLY_INFO, USER_INFO};
-use gauge_proxy_interface::msg::{Cw20HookMsg, ExecuteMsg, QueryMsg};
+use gauge_proxy_interface::msg::{Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -250,4 +250,9 @@ fn emergency_withdraw(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {}
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
