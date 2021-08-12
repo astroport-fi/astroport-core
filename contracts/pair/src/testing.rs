@@ -1230,7 +1230,7 @@ fn test_query_share() {
 #[test]
 fn test_accumulate_prices() {
     struct Case {
-        block_height: u64,
+        block_time: u64,
         block_time_last: u64,
         last0: u128,
         last1: u128,
@@ -1247,7 +1247,7 @@ fn test_accumulate_prices() {
     let test_cases: Vec<(Case, Result)> = vec![
         (
             Case {
-                block_height: 1000,
+                block_time: 1000,
                 block_time_last: 0,
                 last0: 0,
                 last1: 0,
@@ -1260,9 +1260,25 @@ fn test_accumulate_prices() {
                 price1: 2000, // 500/250*1000
             },
         ),
+        // Same block height, no changes
         (
             Case {
-                block_height: 1500,
+                block_time: 1000,
+                block_time_last: 1000,
+                last0: 1,
+                last1: 2,
+                x: 250,
+                y: 500,
+            },
+            Result {
+                block_time_last: 1000,
+                price0: 1,
+                price1: 2,
+            },
+        ),
+        (
+            Case {
+                block_time: 1500,
                 block_time_last: 1000,
                 last0: 500,
                 last1: 2000,
@@ -1280,7 +1296,7 @@ fn test_accumulate_prices() {
     for test_case in test_cases {
         let (case, result) = test_case;
 
-        let env = mock_env_with_block_time(case.block_height);
+        let env = mock_env_with_block_time(case.block_time);
         let config = accumulate_prices(
             env,
             Config {
