@@ -1242,6 +1242,7 @@ fn test_accumulate_prices() {
         block_time_last: u64,
         price0: u128,
         price1: u128,
+        is_some: bool,
     }
 
     let test_cases: Vec<(Case, Result)> = vec![
@@ -1258,6 +1259,7 @@ fn test_accumulate_prices() {
                 block_time_last: 1000,
                 price0: 500,  // 250/500*1000
                 price1: 2000, // 500/250*1000
+                is_some: true,
             },
         ),
         // Same block height, no changes
@@ -1274,6 +1276,7 @@ fn test_accumulate_prices() {
                 block_time_last: 1000,
                 price0: 1,
                 price1: 2,
+                is_some: false,
             },
         ),
         (
@@ -1289,6 +1292,7 @@ fn test_accumulate_prices() {
                 block_time_last: 1500,
                 price0: 750,  // 500 + (250/500*500)
                 price1: 3000, // 2000 + (500/250*500)
+                is_some: true,
             },
         ),
     ];
@@ -1321,9 +1325,13 @@ fn test_accumulate_prices() {
             Uint128::new(case.y),
         );
 
-        assert_eq!(config.block_time_last, result.block_time_last);
-        assert_eq!(config.price0_cumulative_last, Uint128::new(result.price0));
-        assert_eq!(config.price1_cumulative_last, Uint128::new(result.price1));
+        assert_eq!(result.is_some, config.is_some());
+
+        if let Some(config) = config {
+            assert_eq!(config.block_time_last, result.block_time_last);
+            assert_eq!(config.price0_cumulative_last, Uint128::new(result.price0));
+            assert_eq!(config.price1_cumulative_last, Uint128::new(result.price1));
+        }
     }
 }
 

@@ -323,8 +323,9 @@ pub fn provide_liquidity(
     });
 
     // Accumulate prices for oracle
-    let config = accumulate_prices(env, config, pools[0].amount, pools[1].amount);
-    CONFIG.save(deps.storage, &config)?;
+    if let Some(config) = accumulate_prices(env, config, pools[0].amount, pools[1].amount) {
+        CONFIG.save(deps.storage, &config)?;
+    }
 
     Ok(Response {
         events: vec![],
@@ -355,8 +356,9 @@ pub fn withdraw_liquidity(
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
 
     // Accumulate prices for oracle
-    let config = accumulate_prices(env, config, pools[0].amount, pools[1].amount);
-    CONFIG.save(deps.storage, &config)?;
+    if let Some(config) = accumulate_prices(env, config.clone(), pools[0].amount, pools[1].amount) {
+        CONFIG.save(deps.storage, &config)?;
+    }
 
     // update pool info
     Ok(Response {
@@ -521,26 +523,28 @@ pub fn swap(
     response.add_attribute("maker_fee_amount", maker_fee_amount.to_string());
 
     // Accumulate prices for oracle
-    let config = accumulate_prices(env, config, pools[0].amount, pools[1].amount);
-    CONFIG.save(deps.storage, &config)?;
+    if let Some(config) = accumulate_prices(env, config, pools[0].amount, pools[1].amount) {
+        CONFIG.save(deps.storage, &config)?;
+    }
 
     Ok(response)
 }
 
-pub fn accumulate_prices(env: Env, config: Config, x: Uint128, y: Uint128) -> Config {
+pub fn accumulate_prices(env: Env, config: Config, x: Uint128, y: Uint128) -> Option<Config> {
     let mut config = config;
 
     let block_time = env.block.time.seconds();
-    let time_elapsed = Uint128::new((block_time - config.block_time_last) as u128);
-
-    if !time_elapsed.is_zero() && !x.is_zero() && !y.is_zero() {
-        config.price0_cumulative_last += time_elapsed * Decimal::from_ratio(x, y);
-        config.price1_cumulative_last += time_elapsed * Decimal::from_ratio(y, x);
+    if block_time <= config.block_time_last || x.is_zero() || y.is_zero() {
+        return None;
     }
 
+    let time_elapsed = Uint128::new((block_time - config.block_time_last) as u128);
+
+    config.price0_cumulative_last += time_elapsed * Decimal::from_ratio(x, y);
+    config.price1_cumulative_last += time_elapsed * Decimal::from_ratio(y, x);
     config.block_time_last = block_time;
 
-    config
+    Some(config)
 }
 
 pub fn calculate_maker_fee(pool_info: AssetInfo, commission_amount: Uint128) -> Option<Asset> {
