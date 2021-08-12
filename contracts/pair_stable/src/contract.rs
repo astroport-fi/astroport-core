@@ -553,6 +553,8 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
     let resp = PoolResponse {
         assets,
         total_share,
+        price0_cumulative_last: Uint128::zero(),
+        price1_cumulative_last: Uint128::zero(),
     };
 
     Ok(resp)

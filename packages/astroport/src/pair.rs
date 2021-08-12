@@ -66,6 +66,8 @@ pub enum QueryMsg {
 pub struct PoolResponse {
     pub assets: [Asset; 2],
     pub total_share: Uint128,
+    pub price0_cumulative_last: Uint128,
+    pub price1_cumulative_last: Uint128,
 }
 
 /// SimulationResponse returns swap simulation response

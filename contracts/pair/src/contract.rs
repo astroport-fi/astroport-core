@@ -40,6 +40,9 @@ pub fn instantiate(
             asset_infos: msg.asset_infos,
         },
         factory_addr: msg.factory_addr,
+        block_time_last: 0,
+        price0_cumulative_last: Uint128::zero(),
+        price1_cumulative_last: Uint128::zero(),
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -191,6 +194,7 @@ pub fn receive_cw20(
         }
         Ok(Cw20HookMsg::WithdrawLiquidity {}) => withdraw_liquidity(
             deps,
+            env,
             info,
             Addr::unchecked(cw20_msg.sender),
             cw20_msg.amount,
@@ -318,6 +322,10 @@ pub fn provide_liquidity(
         reply_on: ReplyOn::Never,
     });
 
+    // Accumulate prices for oracle
+    let config = accumulate_prices(env, config, pools[0].amount, pools[1].amount);
+    CONFIG.save(deps.storage, &config)?;
+
     Ok(Response {
         events: vec![],
         messages,
@@ -332,6 +340,7 @@ pub fn provide_liquidity(
 
 pub fn withdraw_liquidity(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     sender: Addr,
     amount: Uint128,
@@ -342,7 +351,12 @@ pub fn withdraw_liquidity(
         return Err(ContractError::Unauthorized {});
     }
 
-    let refund_assets = get_refund_assets(deps.as_ref(), config.clone(), amount)?;
+    let (pools, total_share) = pool_info(deps.as_ref(), config.clone())?;
+    let refund_assets = get_share_in_assets(&pools, amount, total_share);
+
+    // Accumulate prices for oracle
+    let config = accumulate_prices(env, config, pools[0].amount, pools[1].amount);
+    CONFIG.save(deps.storage, &config)?;
 
     // update pool info
     Ok(Response {
@@ -388,22 +402,20 @@ pub fn withdraw_liquidity(
     })
 }
 
-pub fn get_refund_assets(deps: Deps, config: Config, amount: Uint128) -> StdResult<Vec<Asset>> {
-    let pair_info = config.pair_info.clone();
-    let pools: [Asset; 2] = config
-        .pair_info
-        .query_pools(&deps.querier, pair_info.contract_addr)?;
-    let total_share: Uint128 = query_supply(&deps.querier, pair_info.liquidity_token)?;
-
+pub fn get_share_in_assets(
+    pools: &[Asset; 2],
+    amount: Uint128,
+    total_share: Uint128,
+) -> Vec<Asset> {
     let share_ratio: Decimal = Decimal::from_ratio(amount, total_share);
 
-    Ok(pools
+    pools
         .iter()
         .map(|a| Asset {
             info: a.info.clone(),
             amount: a.amount * share_ratio,
         })
-        .collect())
+        .collect()
 }
 // CONTRACT - a user must do token approval
 #[allow(clippy::too_many_arguments)]
@@ -421,26 +433,30 @@ pub fn swap(
 
     let config: Config = CONFIG.load(deps.storage)?;
 
-    let pools: [Asset; 2] = config
+    // If the asset balance is already increased
+    // To calculated properly we should subtract user deposit from the pool
+    let pools: Vec<Asset> = config
         .pair_info
-        .query_pools(&deps.querier, env.contract.address)?;
+        .query_pools(&deps.querier, env.clone().contract.address)?
+        .iter()
+        .map(|p| {
+            let mut p = p.clone();
+            if p.info.equal(&offer_asset.info) {
+                p.amount = p.amount.checked_sub(offer_asset.amount).unwrap();
+            }
+
+            p
+        })
+        .collect();
 
     let offer_pool: Asset;
     let ask_pool: Asset;
 
-    // If the asset balance is already increased
-    // To calculated properly we should subtract user deposit from the pool
     if offer_asset.info.equal(&pools[0].info) {
-        offer_pool = Asset {
-            amount: pools[0].amount.checked_sub(offer_asset.amount)?,
-            info: pools[0].info.clone(),
-        };
+        offer_pool = pools[0].clone();
         ask_pool = pools[1].clone();
     } else if offer_asset.info.equal(&pools[1].info) {
-        offer_pool = Asset {
-            amount: pools[1].amount.checked_sub(offer_asset.amount)?,
-            info: pools[1].info.clone(),
-        };
+        offer_pool = pools[1].clone();
         ask_pool = pools[0].clone();
     } else {
         return Err(ContractError::AssetMismatch {});
@@ -488,7 +504,7 @@ pub fn swap(
 
     let mut maker_fee_amount = Uint128::new(0);
 
-    let fee_address = get_fee_address(deps.as_ref(), config)?;
+    let fee_address = get_fee_address(deps.as_ref(), config.clone())?;
     if fee_address != Addr::unchecked("") {
         if let Some(f) = calculate_maker_fee(ask_pool.info, commission_amount) {
             response.messages.push(SubMsg {
@@ -504,7 +520,27 @@ pub fn swap(
 
     response.add_attribute("maker_fee_amount", maker_fee_amount.to_string());
 
+    // Accumulate prices for oracle
+    let config = accumulate_prices(env, config, pools[0].amount, pools[1].amount);
+    CONFIG.save(deps.storage, &config)?;
+
     Ok(response)
+}
+
+pub fn accumulate_prices(env: Env, config: Config, x: Uint128, y: Uint128) -> Config {
+    let mut config = config;
+
+    let block_time = env.block.time.seconds();
+    let time_elapsed = Uint128::new((block_time - config.block_time_last) as u128);
+
+    if !time_elapsed.is_zero() && !x.is_zero() && !y.is_zero() {
+        config.price0_cumulative_last += time_elapsed * Decimal::from_ratio(x, y);
+        config.price1_cumulative_last += time_elapsed * Decimal::from_ratio(y, x);
+    }
+
+    config.block_time_last = block_time;
+
+    config
 }
 
 pub fn calculate_maker_fee(pool_info: AssetInfo, commission_amount: Uint128) -> Option<Asset> {
@@ -546,13 +582,13 @@ pub fn query_pair_info(deps: Deps) -> StdResult<PairInfo> {
 
 pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
-    let contract_addr = config.pair_info.contract_addr.clone();
-    let assets: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
-    let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;
+    let (assets, total_share) = pool_info(deps, config.clone())?;
 
     let resp = PoolResponse {
         assets,
         total_share,
+        price0_cumulative_last: config.price0_cumulative_last,
+        price1_cumulative_last: config.price1_cumulative_last,
     };
 
     Ok(resp)
@@ -560,7 +596,8 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 
 pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
     let config: Config = CONFIG.load(deps.storage)?;
-    let refund_assets = get_refund_assets(deps, config, amount)?;
+    let (pools, total_share) = pool_info(deps, config)?;
+    let refund_assets = get_share_in_assets(&pools, amount, total_share);
 
     Ok(refund_assets)
 }
@@ -743,4 +780,12 @@ fn assert_slippage_tolerance(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
+}
+
+pub fn pool_info(deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)> {
+    let contract_addr = config.pair_info.contract_addr.clone();
+    let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
+    let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;
+
+    Ok((pools, total_share))
 }
