@@ -26,14 +26,10 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let mut allowed_rewarders = msg
-        .allowed_rewarders
-        .into_iter()
-        .map(|v| deps.api.addr_validate(&v));
-    if let Some(wrong) = allowed_rewarders.find(|v| v.is_err()) {
-        wrong?;
-    };
-    let allowed_rewarders = allowed_rewarders.filter_map(|v| v.ok()).collect();
+    let mut allowed_rewarders: Vec<Addr> = vec![];
+    for rewarder in msg.allowed_rewarders {
+        allowed_rewarders.push(deps.api.addr_validate(&rewarder)?);
+    }
 
     let config = Config {
         astro_token: msg.token,
@@ -60,7 +56,7 @@ pub fn execute(
         ExecuteMsg::Add {
             alloc_point,
             token,
-            additional_rewarder,
+            reward_proxy,
             with_update,
         } => add(
             deps,
@@ -68,7 +64,7 @@ pub fn execute(
             info,
             alloc_point,
             token,
-            additional_rewarder,
+            reward_proxy,
             with_update,
         ),
         ExecuteMsg::Set {
@@ -83,7 +79,7 @@ pub fn execute(
         ExecuteMsg::EmergencyWithdraw { token } => emergency_withdraw(deps, env, info, token),
         ExecuteMsg::SetDev { dev_address } => set_dev(deps, info, dev_address),
         ExecuteMsg::SetAllowedAdditionalRewarders { allowed_rewarders } => {
-            Ok(set_allowed_additional_rewarders(deps, allowed_rewarders)?)
+            Ok(set_allowed_reward_proxies(deps, allowed_rewarders)?)
         }
     }
 }
@@ -96,7 +92,7 @@ pub fn add(
     info: MessageInfo,
     alloc_point: u64,
     token: Addr,
-    additional_rewarder: Option<String>,
+    reward_proxy: Option<String>,
     with_update: bool,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
@@ -104,11 +100,11 @@ pub fn add(
         return Err(ContractError::Unauthorized {});
     }
 
-    let additional_rewarder = additional_rewarder
+    let reward_proxy = reward_proxy
         .map(|v| deps.api.addr_validate(&v))
         .transpose()?;
 
-    if let Some(rewarder) = &additional_rewarder {
+    if let Some(rewarder) = &reward_proxy {
         if !cfg.allowed_rewarders.contains(&rewarder) {
             return Err(ContractError::AdditionalRewardContractNotAllowed {});
         }
@@ -130,7 +126,7 @@ pub fn add(
         alloc_point,
         last_reward_block: max(cfg.start_block, env.block.height),
         acc_per_share: Uint128::zero(),
-        additional_rewarder,
+        reward_proxy,
     };
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -265,7 +261,7 @@ pub fn update_pool_rewards(
             alloc_point: pool.alloc_point,
             last_reward_block: env.block.height,
             acc_per_share: pool.acc_per_share,
-            additional_rewarder: pool.additional_rewarder,
+            reward_proxy: pool.reward_proxy,
         };
         return Ok((Uint128::zero(), None, Some(updated_pool)));
     }
@@ -303,7 +299,7 @@ pub fn update_pool_rewards(
         alloc_point: pool.alloc_point,
         last_reward_block: env.block.height,
         acc_per_share: pool.acc_per_share.checked_add(share).unwrap(),
-        additional_rewarder: pool.additional_rewarder,
+        reward_proxy: pool.reward_proxy,
     };
 
     Ok((
@@ -414,7 +410,7 @@ pub fn deposit(
     if !amount.is_zero() {
         response
             .messages
-            .push(if let Some(receiver) = pool.additional_rewarder {
+            .push(if let Some(receiver) = pool.reward_proxy {
                 SubMsg {
                     msg: CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr: token.to_string(),
@@ -536,7 +532,7 @@ pub fn withdraw(
     if !amount.is_zero() {
         response
             .messages
-            .push(if let Some(rewarder) = pool.additional_rewarder {
+            .push(if let Some(rewarder) = pool.reward_proxy {
                 SubMsg {
                     msg: CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr: rewarder.to_string(),
@@ -588,7 +584,7 @@ pub fn emergency_withdraw(
     //call to transfer function for lp token
     response
         .messages
-        .push(if let Some(rewarder) = &pool.additional_rewarder {
+        .push(if let Some(rewarder) = &pool.reward_proxy {
             SubMsg {
                 msg: CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: rewarder.to_string(),
@@ -637,7 +633,7 @@ pub fn set_dev(
     Ok(Response::default())
 }
 
-fn set_allowed_additional_rewarders(
+fn set_allowed_reward_proxies(
     deps: DepsMut,
     allowed_rewarders: Vec<String>,
 ) -> StdResult<Response> {

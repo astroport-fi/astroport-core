@@ -192,7 +192,7 @@ fn execute_add() {
     let msg = ExecuteMsg::Add {
         alloc_point: 10,
         token: lp_token_contract.clone(),
-        additional_rewarder: None,
+        reward_proxy: None,
         with_update: false,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -221,7 +221,7 @@ fn execute_add() {
             alloc_point: 10,
             last_reward_block: env.block.height.add(10),
             acc_per_share: Default::default(),
-            additional_rewarder: None,
+            reward_proxy: None,
         }
     );
     let res = query(deps.as_ref(), env.clone(), QueryMsg::PoolLength {}).unwrap();
@@ -231,7 +231,7 @@ fn execute_add() {
     let msg = ExecuteMsg::Add {
         alloc_point: 20,
         token: lp_token_contract.clone(),
-        additional_rewarder: None,
+        reward_proxy: None,
         with_update: false,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
@@ -245,7 +245,7 @@ fn execute_add() {
     let msg = ExecuteMsg::Add {
         alloc_point: 20,
         token: lp_token_contract1.clone(),
-        additional_rewarder: None,
+        reward_proxy: None,
         with_update: false,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
@@ -285,7 +285,7 @@ fn execute_add() {
             alloc_point: 10,
             last_reward_block: env.block.height.add(10),
             acc_per_share: Default::default(),
-            additional_rewarder: None,
+            reward_proxy: None,
         }
     );
     assert_eq!(
@@ -294,7 +294,7 @@ fn execute_add() {
             alloc_point: 20,
             last_reward_block: env.block.height.add(10),
             acc_per_share: Default::default(),
-            additional_rewarder: None,
+            reward_proxy: None,
         }
     );
     let res = query(deps.as_ref(), env.clone(), QueryMsg::PoolLength {}).unwrap();
@@ -327,7 +327,7 @@ fn execute_set() {
     let msg = ExecuteMsg::Add {
         alloc_point: 10,
         token: lp_token_contract.clone(),
-        additional_rewarder: None,
+        reward_proxy: None,
         with_update: false,
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -342,7 +342,7 @@ fn execute_set() {
             alloc_point: 10,
             last_reward_block: env.block.height.add(10),
             acc_per_share: Default::default(),
-            additional_rewarder: None,
+            reward_proxy: None,
         }
     );
 
@@ -385,7 +385,7 @@ fn execute_set() {
     let msg = ExecuteMsg::Add {
         alloc_point: 100,
         token: Addr::unchecked("come_token"),
-        additional_rewarder: None,
+        reward_proxy: None,
         with_update: false,
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -444,7 +444,7 @@ fn execute_deposit() {
         ExecuteMsg::Add {
             alloc_point: 10,
             token: lp_token_contract.clone(),
-            additional_rewarder: None,
+            reward_proxy: None,
             with_update: false,
         },
     )
@@ -657,7 +657,7 @@ fn execute_withdraw() {
         ExecuteMsg::Add {
             alloc_point: 10,
             token: lp_token_contract.clone(),
-            additional_rewarder: None,
+            reward_proxy: None,
             with_update: false,
         },
     )
@@ -891,7 +891,7 @@ fn execute_emergency_withdraw() {
         ExecuteMsg::Add {
             alloc_point: 10,
             token: lp_token_contract.clone(),
-            additional_rewarder: None,
+            reward_proxy: None,
             with_update: false,
         },
     )
@@ -991,7 +991,7 @@ fn give_token_after_farming_time() {
         ExecuteMsg::Add {
             alloc_point: 100,
             token: lp_token_contract.clone(),
-            additional_rewarder: None,
+            reward_proxy: None,
             with_update: false,
         },
     )
@@ -1208,7 +1208,7 @@ fn not_distribute_tokens() {
         ExecuteMsg::Add {
             alloc_point: 100,
             token: lp_token_contract.clone(),
-            additional_rewarder: None,
+            reward_proxy: None,
             with_update: false,
         },
     )
@@ -1414,7 +1414,7 @@ fn distribute_tokens() {
         ExecuteMsg::Add {
             alloc_point: 100,
             token: lp_token_contract.clone(),
-            additional_rewarder: None,
+            reward_proxy: None,
             with_update: true,
         },
     )
@@ -1704,7 +1704,7 @@ fn tokens_allocation_each_pool() {
         ExecuteMsg::Add {
             alloc_point: 10,
             token: lp_token_contract_one.clone(),
-            additional_rewarder: None,
+            reward_proxy: None,
             with_update: true,
         },
     )
@@ -1738,7 +1738,7 @@ fn tokens_allocation_each_pool() {
         ExecuteMsg::Add {
             alloc_point: 20,
             token: lp_token_contract_two.clone(),
-            additional_rewarder: None,
+            reward_proxy: None,
             with_update: true,
         },
     )
@@ -1854,7 +1854,7 @@ fn stop_giving_bonus_tokens() {
         ExecuteMsg::Add {
             alloc_point: 1,
             token: lp_token_contract.clone(),
-            additional_rewarder: None,
+            reward_proxy: None,
             with_update: false,
         },
     )

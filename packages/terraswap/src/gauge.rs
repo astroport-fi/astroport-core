@@ -18,7 +18,7 @@ pub enum ExecuteMsg {
     Add {
         alloc_point: u64,
         token: Addr,
-        additional_rewarder: Option<String>,
+        reward_proxy: Option<String>,
         with_update: bool,
     },
     Set {

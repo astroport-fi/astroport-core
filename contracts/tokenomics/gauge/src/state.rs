@@ -15,7 +15,7 @@ pub struct PoolInfo {
     pub alloc_point: u64,
     pub last_reward_block: u64,
     pub acc_per_share: Uint128,
-    pub additional_rewarder: Option<Addr>,
+    pub reward_proxy: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
