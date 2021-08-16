@@ -33,8 +33,8 @@ pub struct Config {
     pub total_alloc_point: u64,
     // The block number when ASTRO mining starts.
     pub start_block: u64,
-    // List of allowed additional reward contracts
-    pub allowed_rewarders: Vec<Addr>,
+    // List of allowed reward proxy contracts
+    pub allowed_reward_proxies: Vec<Addr>,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

@@ -15,8 +15,8 @@ pub enum ContractError {
     #[error("Pool with the LP token already exists!")]
     TokenPoolAlreadyExists {},
 
-    #[error("Additional reward contract not allowed!")]
-    AdditionalRewardContractNotAllowed {},
+    #[error("Reward proxy not allowed!")]
+    RewardProxyNotAllowed {},
 }
 
 impl From<OverflowError> for ContractError {

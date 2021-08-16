@@ -9,7 +9,7 @@ pub struct InstantiateMsg {
     pub tokens_per_block: Uint128,
     pub start_block: u64,
     pub bonus_end_block: u64,
-    pub allowed_rewarders: Vec<String>,
+    pub allowed_reward_proxies: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -44,8 +44,8 @@ pub enum ExecuteMsg {
     SetDev {
         dev_address: Addr,
     },
-    SetAllowedAdditionalRewarders {
-        allowed_rewarders: Vec<String>,
+    SetAllowedRewardProxies {
+        proxies: Vec<String>,
     },
 }
 

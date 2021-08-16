@@ -26,9 +26,9 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let mut allowed_rewarders: Vec<Addr> = vec![];
-    for rewarder in msg.allowed_rewarders {
-        allowed_rewarders.push(deps.api.addr_validate(&rewarder)?);
+    let mut allowed_reward_proxies: Vec<Addr> = vec![];
+    for proxy in msg.allowed_reward_proxies {
+        allowed_reward_proxies.push(deps.api.addr_validate(&proxy)?);
     }
 
     let config = Config {
@@ -39,7 +39,7 @@ pub fn instantiate(
         total_alloc_point: 0,
         owner: info.sender,
         start_block: msg.start_block,
-        allowed_rewarders,
+        allowed_reward_proxies,
     };
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::default())
@@ -78,8 +78,8 @@ pub fn execute(
         ExecuteMsg::Withdraw { token, amount } => withdraw(deps, env, info, token, amount),
         ExecuteMsg::EmergencyWithdraw { token } => emergency_withdraw(deps, env, info, token),
         ExecuteMsg::SetDev { dev_address } => set_dev(deps, info, dev_address),
-        ExecuteMsg::SetAllowedAdditionalRewarders { allowed_rewarders } => {
-            Ok(set_allowed_reward_proxies(deps, allowed_rewarders)?)
+        ExecuteMsg::SetAllowedRewardProxies { proxies } => {
+            Ok(set_allowed_reward_proxies(deps, proxies)?)
         }
     }
 }
@@ -104,9 +104,9 @@ pub fn add(
         .map(|v| deps.api.addr_validate(&v))
         .transpose()?;
 
-    if let Some(rewarder) = &reward_proxy {
-        if !cfg.allowed_rewarders.contains(&rewarder) {
-            return Err(ContractError::AdditionalRewardContractNotAllowed {});
+    if let Some(proxy) = &reward_proxy {
+        if !cfg.allowed_reward_proxies.contains(&proxy) {
+            return Err(ContractError::RewardProxyNotAllowed {});
         }
     }
 
@@ -532,10 +532,10 @@ pub fn withdraw(
     if !amount.is_zero() {
         response
             .messages
-            .push(if let Some(rewarder) = pool.reward_proxy {
+            .push(if let Some(proxy) = pool.reward_proxy {
                 SubMsg {
                     msg: CosmosMsg::Wasm(WasmMsg::Execute {
-                        contract_addr: rewarder.to_string(),
+                        contract_addr: proxy.to_string(),
                         msg: to_binary(&ProxyExecuteMsg::Withdraw {
                             account: info.sender,
                             amount,
@@ -584,10 +584,10 @@ pub fn emergency_withdraw(
     //call to transfer function for lp token
     response
         .messages
-        .push(if let Some(rewarder) = &pool.reward_proxy {
+        .push(if let Some(proxy) = &pool.reward_proxy {
             SubMsg {
                 msg: CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: rewarder.to_string(),
+                    contract_addr: proxy.to_string(),
                     msg: to_binary(&ProxyExecuteMsg::EmergencyWithdraw {
                         account: info.sender.clone(),
                     })?,
@@ -633,20 +633,14 @@ pub fn set_dev(
     Ok(Response::default())
 }
 
-fn set_allowed_reward_proxies(
-    deps: DepsMut,
-    allowed_rewarders: Vec<String>,
-) -> StdResult<Response> {
-    let mut allowed_rewarders = allowed_rewarders
-        .into_iter()
-        .map(|v| deps.api.addr_validate(&v));
-    if let Some(wrong) = allowed_rewarders.find(|v| v.is_err()) {
-        wrong?;
-    };
-    let allowed_rewarders = allowed_rewarders.filter_map(|v| v.ok()).collect();
+fn set_allowed_reward_proxies(deps: DepsMut, proxies: Vec<String>) -> StdResult<Response> {
+    let mut allowed_reward_proxies: Vec<Addr> = vec![];
+    for proxy in proxies {
+        allowed_reward_proxies.push(deps.api.addr_validate(&proxy)?);
+    }
 
     CONFIG.update::<_, StdError>(deps.storage, |mut v| {
-        v.allowed_rewarders = allowed_rewarders;
+        v.allowed_reward_proxies = allowed_reward_proxies;
         Ok(v)
     })?;
     Ok(Response::default())

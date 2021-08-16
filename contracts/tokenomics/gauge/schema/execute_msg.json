@@ -16,16 +16,16 @@
             "with_update"
           ],
           "properties": {
-            "additional_rewarder": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "alloc_point": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0
+            },
+            "reward_proxy": {
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "token": {
               "$ref": "#/definitions/Addr"
@@ -191,16 +191,16 @@
     {
       "type": "object",
       "required": [
-        "set_allowed_additional_rewarders"
+        "set_allowed_reward_proxies"
       ],
       "properties": {
-        "set_allowed_additional_rewarders": {
+        "set_allowed_reward_proxies": {
           "type": "object",
           "required": [
-            "allowed_rewarders"
+            "proxies"
           ],
           "properties": {
-            "allowed_rewarders": {
+            "proxies": {
               "type": "array",
               "items": {
                 "type": "string"

@@ -31,7 +31,7 @@ fn _do_instantiate(
         tokens_per_block,
         start_block,
         bonus_end_block,
-        allowed_rewarders: vec![],
+        allowed_reward_proxies: vec![],
     };
     let res = instantiate(deps, _env.clone(), info.clone(), instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -141,7 +141,7 @@ fn proper_initialization() {
         tokens_per_block: token_amount,
         start_block: 2,
         bonus_end_block: 10,
-        allowed_rewarders: vec![],
+        allowed_reward_proxies: vec![],
     };
     let res = instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -157,7 +157,7 @@ fn proper_initialization() {
             tokens_per_block: token_amount,
             total_alloc_point: 0,
             start_block: 2,
-            allowed_rewarders: vec![],
+            allowed_reward_proxies: vec![],
         }
     )
 }
@@ -212,7 +212,7 @@ fn execute_add() {
             tokens_per_block: Uint128::from(10u128),
             total_alloc_point: 10,
             start_block: env.block.height.add(10),
-            allowed_rewarders: vec![],
+            allowed_reward_proxies: vec![],
         }
     );
     assert_eq!(
@@ -276,7 +276,7 @@ fn execute_add() {
             tokens_per_block: Uint128::from(10u128),
             total_alloc_point: 10 + 20,
             start_block: env.block.height.add(10),
-            allowed_rewarders: vec![],
+            allowed_reward_proxies: vec![],
         }
     );
     assert_eq!(
