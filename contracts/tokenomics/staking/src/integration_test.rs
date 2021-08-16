@@ -1,12 +1,12 @@
 use astroport::staking::{ConfigResponse, InstantiateMsg as xInstatiateMsg, QueryMsg};
 use astroport::token::InstantiateMsg;
 use cosmwasm_std::{
-    attr, from_binary,
+    attr,
     testing::{mock_env, MockApi, MockStorage},
-    to_binary, Addr, Event, QueryRequest, Uint128, WasmQuery,
+    to_binary, Addr, QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{App, ContractWrapper, SimpleBank};
+use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
 
 const ALICE: &str = "Alice";
 const BOB: &str = "Bob";
@@ -14,10 +14,10 @@ const CAROL: &str = "Carol";
 
 fn mock_app() -> App {
     let env = mock_env();
-    let api = Box::new(MockApi::default());
-    let bank = SimpleBank {};
+    let api = MockApi::default();
+    let bank = BankKeeper::new();
 
-    App::new(api, env.block, bank, || Box::new(MockStorage::new()))
+    App::new(api, env.block, bank, MockStorage::new())
 }
 
 fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
@@ -48,6 +48,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
             &msg,
             &[],
             String::from("ASTRO"),
+            None,
         )
         .unwrap();
 
@@ -63,20 +64,25 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
         deposit_token_addr: astro_token_instance.clone(),
     };
     let staking_instance = router
-        .instantiate_contract(staking_code_id, owner, &msg, &[], String::from("xASTRO"))
+        .instantiate_contract(
+            staking_code_id,
+            owner,
+            &msg,
+            &[],
+            String::from("xASTRO"),
+            None,
+        )
         .unwrap();
 
     let msg = QueryMsg::Config {};
-    let x_astro_token_instance = from_binary::<ConfigResponse>(
-        &router
-            .query(QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: staking_instance.to_string(),
-                msg: to_binary(&msg).unwrap(),
-            }))
-            .unwrap(),
-    )
-    .unwrap()
-    .share_token_addr;
+    let x_astro_token_instance = router
+        .wrap()
+        .query::<ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: staking_instance.to_string(),
+            msg: to_binary(&msg).unwrap(),
+        }))
+        .unwrap()
+        .share_token_addr;
 
     (
         astro_token_instance,
@@ -93,17 +99,11 @@ fn mint_some_astro(router: &mut App, owner: Addr, astro_token_instance: Addr, to
     let res = router
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap();
+    assert_eq!(res.events[1].attributes[1], attr("action", "mint"));
+    assert_eq!(res.events[1].attributes[2], attr("to", String::from(to)));
     assert_eq!(
-        res.events,
-        vec![Event {
-            ty: String::from("wasm"),
-            attributes: vec![
-                attr("contract_address", "Contract #0"),
-                attr("action", "mint"),
-                attr("to", String::from(to)),
-                attr("amount", Uint128::from(100u128)),
-            ],
-        }]
+        res.events[1].attributes[3],
+        attr("amount", Uint128::from(100u128))
     );
 }
 
@@ -129,14 +129,13 @@ fn should_not_allow_enter_if_not_enough_approve() {
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
-    let res = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
             msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+        }));
     assert_eq!(
-        from_binary::<BalanceResponse>(&res).unwrap(),
+        res.unwrap(),
         BalanceResponse {
             balance: Uint128::from(100u128)
         }
@@ -166,17 +165,20 @@ fn should_not_allow_enter_if_not_enough_approve() {
         )
         .unwrap();
     assert_eq!(
-        res.events,
-        vec![Event {
-            ty: String::from("wasm"),
-            attributes: vec![
-                attr("contract_address", "Contract #0"),
-                attr("action", "increase_allowance"),
-                attr("owner", alice_address.clone()),
-                attr("spender", staking_instance.clone()),
-                attr("amount", 50),
-            ],
-        }]
+        res.events[1].attributes[1],
+        attr("action", "increase_allowance")
+    );
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr("owner", alice_address.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[3],
+        attr("spender", staking_instance.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[4],
+        attr("amount", 50u128.to_string())
     );
 
     // try to enter Alice's 100 ASTRO for 100 xASTRO
@@ -202,18 +204,22 @@ fn should_not_allow_enter_if_not_enough_approve() {
             &[],
         )
         .unwrap();
+
     assert_eq!(
-        res.events,
-        vec![Event {
-            ty: String::from("wasm"),
-            attributes: vec![
-                attr("contract_address", "Contract #0"),
-                attr("action", "increase_allowance"),
-                attr("owner", alice_address.clone()),
-                attr("spender", staking_instance.clone()),
-                attr("amount", 50),
-            ],
-        }]
+        res.events[1].attributes[1],
+        attr("action", "increase_allowance")
+    );
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr("owner", alice_address.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[3],
+        attr("spender", staking_instance.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[4],
+        attr("amount", 50u128.to_string())
     );
 
     // enter Alice's 100 ASTRO for 100 xASTRO
@@ -228,14 +234,13 @@ fn should_not_allow_enter_if_not_enough_approve() {
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
-    let res = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
             msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+        }));
     assert_eq!(
-        from_binary::<BalanceResponse>(&res).unwrap(),
+        res.unwrap(),
         BalanceResponse {
             balance: Uint128::from(100u128)
         }
@@ -275,17 +280,20 @@ fn should_not_allow_withraw_more_than_what_you_have() {
         )
         .unwrap();
     assert_eq!(
-        res.events,
-        vec![Event {
-            ty: String::from("wasm"),
-            attributes: vec![
-                attr("contract_address", "Contract #0"),
-                attr("action", "increase_allowance"),
-                attr("owner", alice_address.clone()),
-                attr("spender", staking_instance.clone()),
-                attr("amount", 100),
-            ],
-        }]
+        res.events[1].attributes[1],
+        attr("action", "increase_allowance")
+    );
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr("owner", alice_address.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[3],
+        attr("spender", staking_instance.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[4],
+        attr("amount", 100u128.to_string())
     );
 
     // enter Alice's 100 ASTRO for 100 xASTRO
@@ -310,18 +318,22 @@ fn should_not_allow_withraw_more_than_what_you_have() {
             &[],
         )
         .unwrap();
+
     assert_eq!(
-        res.events,
-        vec![Event {
-            ty: String::from("wasm"),
-            attributes: vec![
-                attr("contract_address", "Contract #2"),
-                attr("action", "increase_allowance"),
-                attr("owner", alice_address.clone()),
-                attr("spender", staking_instance.clone()),
-                attr("amount", 200),
-            ],
-        }]
+        res.events[1].attributes[1],
+        attr("action", "increase_allowance")
+    );
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr("owner", alice_address.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[3],
+        attr("spender", staking_instance.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[4],
+        attr("amount", 200u128.to_string())
     );
 
     // try to leave Alice's 200 xASTRO
@@ -384,18 +396,22 @@ fn should_work_with_more_than_one_participant() {
             &[],
         )
         .unwrap();
+
     assert_eq!(
-        res.events,
-        vec![Event {
-            ty: String::from("wasm"),
-            attributes: vec![
-                attr("contract_address", "Contract #0"),
-                attr("action", "increase_allowance"),
-                attr("owner", alice_address.clone()),
-                attr("spender", staking_instance.clone()),
-                attr("amount", 100),
-            ],
-        }]
+        res.events[1].attributes[1],
+        attr("action", "increase_allowance")
+    );
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr("owner", alice_address.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[3],
+        attr("spender", staking_instance.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[4],
+        attr("amount", 100u128.to_string())
     );
 
     // increase Bob's allowance to 100 ASTRO for staking contract
@@ -407,18 +423,22 @@ fn should_work_with_more_than_one_participant() {
     let res = router
         .execute_contract(bob_address.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap();
+
     assert_eq!(
-        res.events,
-        vec![Event {
-            ty: String::from("wasm"),
-            attributes: vec![
-                attr("contract_address", "Contract #0"),
-                attr("action", "increase_allowance"),
-                attr("owner", bob_address.clone()),
-                attr("spender", staking_instance.clone()),
-                attr("amount", 100),
-            ],
-        }]
+        res.events[1].attributes[1],
+        attr("action", "increase_allowance")
+    );
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr("owner", bob_address.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[3],
+        attr("spender", staking_instance.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[4],
+        attr("amount", 100u128.to_string())
     );
 
     // enter Alice's 20 ASTRO for 20 xASTRO
@@ -441,14 +461,13 @@ fn should_work_with_more_than_one_participant() {
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
-    let res = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
             msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+        }));
     assert_eq!(
-        from_binary::<BalanceResponse>(&res).unwrap(),
+        res.unwrap(),
         BalanceResponse {
             balance: Uint128::from(20u128)
         }
@@ -458,14 +477,13 @@ fn should_work_with_more_than_one_participant() {
     let msg = Cw20QueryMsg::Balance {
         address: bob_address.to_string(),
     };
-    let res = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
             msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+        }));
     assert_eq!(
-        from_binary::<BalanceResponse>(&res).unwrap(),
+        res.unwrap(),
         BalanceResponse {
             balance: Uint128::from(10u128)
         }
@@ -475,14 +493,13 @@ fn should_work_with_more_than_one_participant() {
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
-    let res = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
             msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+        }));
     assert_eq!(
-        from_binary::<BalanceResponse>(&res).unwrap(),
+        res.unwrap(),
         BalanceResponse {
             balance: Uint128::from(30u128)
         }
@@ -501,18 +518,15 @@ fn should_work_with_more_than_one_participant() {
             &[],
         )
         .unwrap();
+    assert_eq!(res.events[1].attributes[1], attr("action", "transfer"));
+    assert_eq!(res.events[1].attributes[2], attr("from", carol_address));
     assert_eq!(
-        res.events,
-        vec![Event {
-            ty: String::from("wasm"),
-            attributes: vec![
-                attr("contract_address", "Contract #0"),
-                attr("action", "transfer"),
-                attr("from", carol_address),
-                attr("to", staking_instance.clone()),
-                attr("amount", Uint128::from(20u128)),
-            ]
-        }]
+        res.events[1].attributes[3],
+        attr("to", staking_instance.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[4],
+        attr("amount", Uint128::from(20u128))
     );
 
     // enter Alice's 10 ASTRO for 6 xASTRO: 10*30/50 = 6
@@ -527,14 +541,13 @@ fn should_work_with_more_than_one_participant() {
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
-    let res = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
             msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+        }));
     assert_eq!(
-        from_binary::<BalanceResponse>(&res).unwrap(),
+        res.unwrap(),
         BalanceResponse {
             balance: Uint128::from(26u128)
         }
@@ -544,14 +557,13 @@ fn should_work_with_more_than_one_participant() {
     let msg = Cw20QueryMsg::Balance {
         address: bob_address.to_string(),
     };
-    let res = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
             msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+        }));
     assert_eq!(
-        from_binary::<BalanceResponse>(&res).unwrap(),
+        res.unwrap(),
         BalanceResponse {
             balance: Uint128::from(10u128)
         }
@@ -572,17 +584,20 @@ fn should_work_with_more_than_one_participant() {
         )
         .unwrap();
     assert_eq!(
-        res.events,
-        vec![Event {
-            ty: String::from("wasm"),
-            attributes: vec![
-                attr("contract_address", "Contract #2"),
-                attr("action", "increase_allowance"),
-                attr("owner", bob_address.clone()),
-                attr("spender", staking_instance.clone()),
-                attr("amount", 5),
-            ],
-        }]
+        res.events[1].attributes[1],
+        attr("action", "increase_allowance")
+    );
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr("owner", bob_address.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[3],
+        attr("spender", staking_instance.clone())
+    );
+    assert_eq!(
+        res.events[1].attributes[4],
+        attr("amount", 5u128.to_string())
     );
 
     // leave Bob's 5 xASTRO: gets 5*60/36 = 8 ASTRO
@@ -597,14 +612,13 @@ fn should_work_with_more_than_one_participant() {
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
-    let res = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
             msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+        }));
     assert_eq!(
-        from_binary::<BalanceResponse>(&res).unwrap(),
+        res.unwrap(),
         BalanceResponse {
             balance: Uint128::from(26u128)
         }
@@ -614,14 +628,13 @@ fn should_work_with_more_than_one_participant() {
     let msg = Cw20QueryMsg::Balance {
         address: bob_address.to_string(),
     };
-    let res = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
             msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+        }));
     assert_eq!(
-        from_binary::<BalanceResponse>(&res).unwrap(),
+        res.unwrap(),
         BalanceResponse {
             balance: Uint128::from(5u128)
         }
@@ -631,14 +644,13 @@ fn should_work_with_more_than_one_participant() {
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
-    let res = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
             msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+        }));
     assert_eq!(
-        from_binary::<BalanceResponse>(&res).unwrap(),
+        res.unwrap(),
         BalanceResponse {
             balance: Uint128::from(52u128)
         }
@@ -648,14 +660,13 @@ fn should_work_with_more_than_one_participant() {
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
-    let res = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
             msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+        }));
     assert_eq!(
-        from_binary::<BalanceResponse>(&res).unwrap(),
+        res.unwrap(),
         BalanceResponse {
             balance: Uint128::from(70u128)
         }
@@ -665,14 +676,13 @@ fn should_work_with_more_than_one_participant() {
     let msg = Cw20QueryMsg::Balance {
         address: bob_address.to_string(),
     };
-    let res = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
             msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+        }));
     assert_eq!(
-        from_binary::<BalanceResponse>(&res).unwrap(),
+        res.unwrap(),
         BalanceResponse {
             balance: Uint128::from(98u128)
         }

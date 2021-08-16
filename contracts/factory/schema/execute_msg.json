@@ -12,10 +12,24 @@
         "update_config": {
           "type": "object",
           "properties": {
+            "fee_address": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "owner": {
-              "type": [
-                "string",
-                "null"
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                },
+                {
+                  "type": "null"
+                }
               ]
             },
             "pair_code_ids": {

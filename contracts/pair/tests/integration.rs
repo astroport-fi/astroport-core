@@ -1,17 +1,15 @@
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::pair::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Coin, Event, QueryRequest, Uint128, WasmQuery,
-};
-use cw_multi_test::{App, ContractWrapper, SimpleBank};
+use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
+use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
 
 fn mock_app() -> App {
     let env = mock_env();
-    let api = Box::new(MockApi::default());
-    let bank = SimpleBank {};
+    let api = MockApi::default();
+    let bank = BankKeeper {};
 
-    App::new(api, env.block, bank, || Box::new(MockStorage::new()))
+    App::new(api, env.block, bank, MockStorage::new())
 }
 
 fn instantiate_pair(router: &mut App, owner: Addr) -> Addr {
@@ -52,6 +50,7 @@ fn instantiate_pair(router: &mut App, owner: Addr) -> Addr {
             &msg,
             &[],
             String::from("PAIR"),
+            None,
         )
         .unwrap();
 
@@ -66,7 +65,7 @@ fn test_provide_and_withdraw_liquidity() {
 
     // Set alice balances
     router
-        .set_bank_balance(
+        .init_bank_balance(
             &alice_address,
             vec![
                 Coin {
@@ -84,13 +83,11 @@ fn test_provide_and_withdraw_liquidity() {
     // Init pair
     let pair_instance = instantiate_pair(&mut router, owner.clone());
 
-    let res = router
-        .query(QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: pair_instance.to_string(),
-            msg: to_binary(&QueryMsg::Pair {}).unwrap(),
-        }))
-        .unwrap();
-    let res: PairInfo = from_binary(&res).unwrap();
+    let res: Result<PairInfo, _> = router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: pair_instance.to_string(),
+        msg: to_binary(&QueryMsg::Pair {}).unwrap(),
+    }));
+    let res = res.unwrap();
 
     assert_eq!(
         res.asset_infos,
@@ -106,7 +103,7 @@ fn test_provide_and_withdraw_liquidity() {
 
     // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
     router
-        .set_bank_balance(
+        .init_bank_balance(
             &pair_instance,
             vec![
                 Coin {
@@ -128,28 +125,20 @@ fn test_provide_and_withdraw_liquidity() {
         .unwrap();
 
     assert_eq!(
-        res.events,
-        vec![
-            Event {
-                ty: String::from("wasm"),
-                attributes: vec![
-                    attr("contract_address", "Contract #0"),
-                    attr("action", "provide_liquidity"),
-                    attr("assets", "100uusd, 100uluna"),
-                    attr("share", 100),
-                ],
-            },
-            Event {
-                ty: String::from("wasm"),
-                attributes: vec![
-                    attr("contract_address", "Contract #1"),
-                    attr("action", "mint"),
-                    attr("to", "alice"),
-                    attr("amount", 100),
-                ],
-            }
-        ]
+        res.events[1].attributes[1],
+        attr("action", "provide_liquidity")
     );
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr("assets", "100uusd, 100uluna")
+    );
+    assert_eq!(
+        res.events[1].attributes[3],
+        attr("share", 100u128.to_string())
+    );
+    assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
+    assert_eq!(res.events[3].attributes[2], attr("to", "alice"));
+    assert_eq!(res.events[3].attributes[3], attr("amount", 100.to_string()));
 }
 
 fn provide_liquidity_msg(uusd_amount: Uint128, uluna_amount: Uint128) -> (ExecuteMsg, [Coin; 2]) {

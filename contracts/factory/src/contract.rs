@@ -45,12 +45,7 @@ pub fn instantiate(
         });
     }
 
-    Ok(Response {
-        events: vec![],
-        messages,
-        attributes: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_submessages(messages))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -121,12 +116,7 @@ pub fn execute_update_config(
 
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response {
-        events: vec![],
-        messages: vec![],
-        attributes: vec![attr("action", "update_config")],
-        data: None,
-    })
+    Ok(Response::new().add_attribute("action", "update_config"))
 }
 
 // Anyone can execute it to create swap pair
@@ -167,7 +157,7 @@ pub fn execute_create_pair(
             code_id: pair_code_id,
             funds: vec![],
             admin: None,
-            label: String::new(),
+            label: String::from("Astroport pair"),
             msg: to_binary(&PairInstantiateMsg {
                 asset_infos: asset_infos.clone(),
                 token_code_id: config.token_code_id,
@@ -200,15 +190,12 @@ pub fn execute_create_pair(
         });
     }
 
-    Ok(Response {
-        events: vec![],
-        messages,
-        attributes: vec![
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![
             attr("action", "create_pair"),
             attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
-        ],
-        data: None,
-    })
+        ]))
 }
 
 /// create pair execute this message
@@ -235,15 +222,10 @@ pub fn register(
         },
     )?;
 
-    Ok(Response {
-        events: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "register"),
-            attr("pair_contract_addr", pair_contract),
-        ],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "register"),
+        attr("pair_contract_addr", pair_contract),
+    ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

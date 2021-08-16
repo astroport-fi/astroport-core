@@ -24,18 +24,18 @@ backtraces = ["cosmwasm-std/backtraces", "cosmwasm-vm/backtraces"]
 
 [dependencies]
 integer-sqrt = "0.1.5"
-astroport = { path = "../../packages/astroport", default-features = false, version = "2.3.0"}
-cw20 = { version = "0.7" }
-cosmwasm-std = { version = "0.15.0" }
-cw-storage-plus = {version = "0.7.0"}
+astroport = { path = "../../packages/astroport", default-features = false, version = "2.4.0"}
+cw20 = { version = "0.8" }
+cosmwasm-std = { version = "0.16.0" }
+cw-storage-plus = {version = "0.8.0"}
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }
 
 [dev-dependencies]
-cosmwasm-vm = { version = "0.15.0", default-features = false, features = ["iterator"] }
-cosmwasm-schema = "0.15.0"
-terra-cosmwasm = { version = "2.1.0" }
+cosmwasm-vm = { version = "0.16.0", default-features = false, features = ["iterator"] }
+cosmwasm-schema = "0.16.0"
+terra-cosmwasm = { version = "2.2.0" }
 astroport-token = {path = "../token"}
-cw-multi-test = "0.7.0"
+cw-multi-test = "0.8.0"
 

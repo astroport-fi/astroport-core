@@ -107,12 +107,7 @@ pub fn execute_swap_operation(
         }
     };
 
-    Ok(Response {
-        events: vec![],
-        messages,
-        attributes: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_submessages(messages))
 }
 
 pub fn asset_into_swap_msg(
