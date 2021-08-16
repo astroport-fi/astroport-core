@@ -1,17 +1,18 @@
 use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, ReplyOn, Response,
-    StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
+    attr, entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, ReplyOn,
+    Response, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 
 use crate::state::{read_vesting_infos, Config, CONFIG, VESTING_INFO};
 
 use crate::error::ContractError;
-use cw20::Cw20ExecuteMsg;
-use terraswap::vesting::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, OrderBy, QueryMsg, VestingAccount,
+use astroport::vesting::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg, VestingAccount,
     VestingAccountResponse, VestingAccountsResponse, VestingInfo,
 };
+use cw20::Cw20ExecuteMsg;
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
@@ -30,6 +31,7 @@ pub fn instantiate(
     Ok(Response::new())
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
     env: Env,
@@ -85,12 +87,7 @@ pub fn update_config(
 
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response {
-        events: vec![],
-        messages: vec![],
-        attributes: vec![attr("action", "update_config")],
-        data: None,
-    })
+    Ok(Response::new().add_attribute("action", "update_config"))
 }
 
 fn assert_vesting_schedules(
@@ -124,12 +121,7 @@ pub fn register_vesting_accounts(
         )?;
     }
 
-    Ok(Response {
-        events: vec![],
-        messages: vec![],
-        attributes: vec![attr("action", "register_vesting_accounts")],
-        data: None,
-    })
+    Ok(Response::new().add_attribute("action", "register_vesting_accounts"))
 }
 
 pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
@@ -163,17 +155,14 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Con
     vesting_info.last_claim_time = current_time;
     VESTING_INFO.save(deps.storage, address.to_string(), &vesting_info)?;
 
-    Ok(Response {
-        events: vec![],
-        messages,
-        attributes: vec![
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![
             attr("action", "claim"),
             attr("address", address),
             attr("claim_amount", claim_amount),
-            attr("last_claim_time", current_time.seconds()),
-        ],
-        data: None,
-    })
+            attr("last_claim_time", current_time.seconds().to_string()),
+        ]))
 }
 
 fn compute_claim_amount(current_time: Timestamp, vesting_info: &VestingInfo) -> Uint128 {
@@ -265,6 +254,11 @@ pub fn query_vesting_accounts(
     Ok(VestingAccountsResponse {
         vesting_accounts: vesting_account_responses?,
     })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
 
 #[test]

@@ -1,0 +1,41 @@
+[package]
+name = "astroport-pair"
+version = "0.0.0"
+authors = ["Terraform Labs, PTE."]
+edition = "2018"
+description = "An Astroport pair contract"
+license = "MIT"
+
+exclude = [
+  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+  "contract.wasm",
+  "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces", "cosmwasm-vm/backtraces"]
+
+[dependencies]
+integer-sqrt = "0.1.5"
+astroport = { path = "../../packages/astroport", default-features = false, version = "2.4.0"}
+cw20 = { version = "0.8" }
+cosmwasm-std = { version = "0.16.0" }
+cw-storage-plus = {version = "0.8.0"}
+schemars = "0.8.1"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.20" }
+
+[dev-dependencies]
+cosmwasm-vm = { version = "0.16.0", default-features = false, features = ["iterator"] }
+cosmwasm-schema = "0.16.0"
+terra-cosmwasm = { version = "2.2.0" }
+astroport-token = {path = "../token"}
+cw-multi-test = "0.8.0"
+
