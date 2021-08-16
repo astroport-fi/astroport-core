@@ -31,3 +31,9 @@ thiserror = { version = "1.0.24" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.15.0" }
+terraswap = {path = "../../../packages/terraswap"}
+terraswap-token = {path = "../../terraswap_token"}
+terraswap-factory = {path = "../../terraswap_factory"}
+terraswap-pair = {path = "../../terraswap_pair"}
+cw20-base = "0.7.0"
+cw-multi-test = "0.7.0"

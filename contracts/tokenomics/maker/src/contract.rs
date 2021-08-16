@@ -1,9 +1,6 @@
 use std::ops::Add;
 
-use cosmwasm_std::{
-    to_binary, Addr, CosmosMsg, DepsMut, Env, Event, MessageInfo, ReplyOn, Response, StdResult,
-    SubMsg, Uint128, WasmMsg,
-};
+use cosmwasm_std::{to_binary, Addr, CosmosMsg, DepsMut, Env, Event, MessageInfo, ReplyOn, Response, StdResult, SubMsg, Uint128, WasmMsg, Deps, Binary};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
@@ -11,7 +8,7 @@ use terraswap::pair::Cw20HookMsg;
 use terraswap::querier::query_token_balance;
 
 use crate::error::ContractError;
-use crate::msg::{ConvertResponse, ExecuteMsg, InitMsg};
+use crate::msg::{ConvertResponse, ExecuteMsg, InitMsg, QueryMsg, QueryAddressResponse};
 use crate::querier::{query_pair_info, query_pair_share, query_swap_amount};
 use crate::state::{State, STATE};
 
@@ -434,3 +431,16 @@ fn to_astro(
         state.staking,
     )
 }
+
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::GetFactory {} => to_binary(&query_get_factory(deps)?),
+    }
+}
+
+fn query_get_factory( deps: Deps) -> StdResult<QueryAddressResponse>{
+    let config = STATE.load(deps.storage)?;
+    Ok( QueryAddressResponse{address:config.factory})
+}
+
+

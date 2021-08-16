@@ -961,11 +961,16 @@ version = "0.1.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-multi-test",
  "cw-storage-plus",
  "cw20",
+ "cw20-base",
  "schemars",
  "serde",
  "terraswap",
+ "terraswap-factory",
+ "terraswap-pair",
+ "terraswap-token",
  "thiserror",
 ]
 
