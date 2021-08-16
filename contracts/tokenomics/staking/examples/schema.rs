@@ -3,11 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use cw20::{
-    AllAccountsResponse, AllAllowancesResponse, AllowanceResponse, BalanceResponse,
-    TokenInfoResponse,
-};
-use terraswap::staking::{ExecuteMsg, InstantiateMsg};
+use astroport::staking::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -17,9 +13,7 @@ fn main() {
 
     export_schema(&schema_for!(InstantiateMsg), &out_dir);
     export_schema(&schema_for!(ExecuteMsg), &out_dir);
-    export_schema(&schema_for!(AllowanceResponse), &out_dir);
-    export_schema(&schema_for!(BalanceResponse), &out_dir);
-    export_schema(&schema_for!(TokenInfoResponse), &out_dir);
-    export_schema(&schema_for!(AllAllowancesResponse), &out_dir);
-    export_schema(&schema_for!(AllAccountsResponse), &out_dir);
+    export_schema(&schema_for!(QueryMsg), &out_dir);
+    export_schema(&schema_for!(ConfigResponse), &out_dir);
+    export_schema(&schema_for!(MigrateMsg), &out_dir);
 }
