@@ -58,7 +58,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
     let factory_code_id = router.store_code(factory_contract);
 
     let msg = terraswap::factory::InstantiateMsg {
-        pair_code_ids: vec![12u64, 13u64, 23u64],
+        pair_code_ids: vec![ 5u64, 6u64, 12u64, 13u64, 23u64],
         token_code_id: 1u64,
         init_hook: None,
         fee_address: None
@@ -94,7 +94,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
     )
 }
 
-fn instantiate_token( router: &mut App, owner: Addr, name: String, symbol: String ) -> Addr {
+fn instantiate_token( router: &mut App, owner: Addr, name: String, symbol: String ) -> (u64, Addr) {
     let token_contract = Box::new(ContractWrapper::new(
         cw20_base::contract::execute,
         cw20_base::contract::instantiate,
@@ -116,15 +116,107 @@ fn instantiate_token( router: &mut App, owner: Addr, name: String, symbol: Strin
 
     let token_instance = router
         .instantiate_contract(
-            token_code_id,
+            token_code_id.clone(),
             owner.clone(),
             &msg,
             &[],
             symbol,
         )
         .unwrap();
-    token_instance
+    (
+        token_code_id,
+        token_instance,
+    )
+
 }
+
+// fn instantiate_pair(router: &mut App, owner: Addr, factory: Addr, token1: Addr, token2: Addr, token_id: u64) -> (u64, Addr) {
+//     let pair_contract = Box::new(ContractWrapper::new(
+//         terraswap_pair::contract::execute,
+//         terraswap_pair::contract::instantiate,
+//         terraswap_pair::contract::query,
+//     ));
+//
+//     let pair_code_id = router.store_code(pair_contract);
+//
+//     let asset_infos = [
+//         AssetInfo::Token {
+//             contract_addr: token1.clone(),
+//         },
+//         AssetInfo::Token {
+//             contract_addr: token2.clone(),
+//         },
+//     ];
+//
+//     let msg = terraswap::pair::InstantiateMsg{
+//         asset_infos: asset_infos.clone(),
+//         token_code_id: token_id,
+//         init_hook: None,
+//         factory_addr: factory.clone()
+//     };
+//     let pair_instance = router
+//         .instantiate_contract(
+//             pair_code_id.clone(),
+//             owner.clone(),
+//             &msg,
+//             &[],
+//             format!("{}-{}", asset_infos[0].clone(), asset_infos[1].clone()),
+//         )
+//         .unwrap();
+//     (
+//         pair_code_id,
+//         pair_instance,
+//     )
+// }
+
+fn instantiate_pair(router: &mut App, owner: Addr, factory: Addr, token1: &str, token2: &str) -> (u64, u64, Addr) {
+    let token_contract = Box::new(ContractWrapper::new(
+        terraswap_token::contract::execute,
+        terraswap_token::contract::instantiate,
+        terraswap_token::contract::query,
+    ));
+
+    let token_contract_code_id = router.store_code(token_contract);
+
+    let pair_contract = Box::new(ContractWrapper::new(
+        terraswap_pair::contract::execute,
+        terraswap_pair::contract::instantiate,
+        terraswap_pair::contract::query,
+    ));
+
+    let pair_contract_code_id = router.store_code(pair_contract);
+
+    let msg = terraswap::pair::InstantiateMsg {
+        asset_infos: [
+            AssetInfo::NativeToken {
+                denom: token1.to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: token2.to_string(),
+            },
+        ],
+        token_code_id: token_contract_code_id,
+        init_hook: None,
+        factory_addr: factory,
+    };
+
+    let pair = router
+        .instantiate_contract(
+            pair_contract_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("PAIR"),
+        )
+        .unwrap();
+    (
+        token_contract_code_id,
+        pair_contract_code_id,
+        pair,
+    )
+
+}
+
 
 fn mint_some_astro(router: &mut App, owner: Addr, astro_token_instance: Addr, to: &str, amount:Uint128) {
     let msg = cw20::Cw20ExecuteMsg::Mint {
@@ -186,7 +278,7 @@ fn test(){
             balance: Uint128::from(100u128)
         }
     );
-    let usdc_token_instance = instantiate_token(
+    let ( _, usdc_token_instance) = instantiate_token(
         &mut router,
         owner.clone(),
         String::from("USDC token"),
@@ -194,7 +286,25 @@ fn test(){
     );
 
     let astro_assets = AssetInfo::Token {contract_addr: astro_token_instance.clone()};
-    let usdc_assets = AssetInfo::Token {contract_addr:usdc_token_instance};
+    let usdc_assets = AssetInfo::Token {contract_addr:usdc_token_instance.clone()};
+
+    // let (lp_token_id,  astro_usdc_token_instance) = instantiate_token(
+    //     &mut router,
+    //     owner.clone(),
+    //     String::from("lp token"),
+    //     String::from("ASTRO-USDC"),
+    // );
+    // println!("{}", lp_token_id.to_string());
+
+    let (lp_token_id, pair_code_id, pair_instance) = instantiate_pair (
+        &mut router,
+        owner.clone(),
+        factory_instance.clone(),
+        "astro",
+        "usdc",
+    );
+
+    println!("{}", pair_code_id.to_string());
 
 
     let res = router
@@ -207,12 +317,22 @@ fn test(){
     let config = from_binary::<ConfigResponse>(&res).unwrap();
     assert_eq!(
         config.pair_code_ids,
-        vec![12u64, 13u64, 23u64]
+        vec![5u64, 6u64, 12u64, 13u64, 23u64]
     );
 
+    let asset_infos =
+        [
+            AssetInfo::NativeToken {
+                denom: "astro".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "usdc".to_string(),
+            },
+        ];
+
     let msg = terraswap::factory::ExecuteMsg::CreatePair {
-        pair_code_id: 12u64,
-        asset_infos: [astro_assets.clone(), usdc_assets.clone()],
+        pair_code_id: lp_token_id.clone(),
+        asset_infos: asset_infos.clone(),
         init_hook: None,
     };
 
