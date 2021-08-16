@@ -52,7 +52,7 @@ fn proper_initialization() {
                 msg: WasmMsg::Instantiate {
                     code_id: 10u64,
                     msg: to_binary(&TokenInstantiateMsg {
-                        name: "astroport liquidity token".to_string(),
+                        name: "Astroport LP token".to_string(),
                         symbol: "uLP".to_string(),
                         decimals: 6,
                         initial_balances: vec![],
@@ -68,7 +68,7 @@ fn proper_initialization() {
                     .unwrap(),
                     funds: vec![],
                     admin: None,
-                    label: String::from("Astroport liquidity token"),
+                    label: String::from("Astroport LP token"),
                 }
                 .into(),
                 id: 0,
