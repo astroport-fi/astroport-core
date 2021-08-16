@@ -64,7 +64,7 @@ pub fn instantiate(
             })?,
             funds: vec![],
             admin: None,
-            label: String::new(),
+            label: String::from("Astroport liquidity token"),
         }
         .into(),
         id: 0,
@@ -86,12 +86,7 @@ pub fn instantiate(
         });
     }
 
-    Ok(Response {
-        events: vec![],
-        messages,
-        attributes: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_submessages(messages))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -216,12 +211,7 @@ pub fn post_initialize(
 
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response {
-        events: vec![],
-        messages: vec![],
-        attributes: vec![attr("liquidity_token_addr", info.sender.as_str())],
-        data: None,
-    })
+    Ok(Response::new().add_attribute("liquidity_token_addr", info.sender.as_str()))
 }
 
 /// CONTRACT - should approve contract to use the amount of token
@@ -318,16 +308,13 @@ pub fn provide_liquidity(
         reply_on: ReplyOn::Never,
     });
 
-    Ok(Response {
-        events: vec![],
-        messages,
-        attributes: vec![
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![
             attr("action", "provide_liquidity"),
             attr("assets", format!("{}, {}", assets[0], assets[1])),
-            attr("share", &share),
-        ],
-        data: None,
-    })
+            attr("share", share.to_string()),
+        ]))
 }
 
 pub fn withdraw_liquidity(
@@ -345,9 +332,8 @@ pub fn withdraw_liquidity(
     let refund_assets = get_refund_assets(deps.as_ref(), config.clone(), amount)?;
 
     // update pool info
-    Ok(Response {
-        events: vec![],
-        messages: vec![
+    Ok(Response::new()
+        .add_submessages(vec![
             // refund asset tokens
             SubMsg {
                 msg: refund_assets[0]
@@ -375,17 +361,15 @@ pub fn withdraw_liquidity(
                 gas_limit: None,
                 reply_on: ReplyOn::Never,
             },
-        ],
-        attributes: vec![
+        ])
+        .add_attributes(vec![
             attr("action", "withdraw_liquidity"),
             attr("withdrawn_share", &amount.to_string()),
             attr(
                 "refund_assets",
                 format!("{}, {}", refund_assets[0], refund_assets[1]),
             ),
-        ],
-        data: None,
-    })
+        ]))
 }
 
 pub fn get_refund_assets(deps: Deps, config: Config, amount: Uint128) -> StdResult<Vec<Asset>> {
@@ -467,24 +451,25 @@ pub fn swap(
 
     let tax_amount = return_asset.compute_tax(&deps.querier)?;
 
-    let mut response = Response::new();
-
-    // 1. send collateral token from the contract to a user
-    // 2. send inactive commission to collector
-    response.messages.push(SubMsg {
-        msg: return_asset.into_msg(&deps.querier, to.unwrap_or(sender))?,
-        id: 0,
-        gas_limit: None,
-        reply_on: ReplyOn::Never,
-    });
-    response.add_attribute("action", "swap");
-    response.add_attribute("offer_asset", offer_asset.info.to_string());
-    response.add_attribute("ask_asset", ask_pool.info.to_string());
-    response.add_attribute("offer_amount", offer_amount.to_string());
-    response.add_attribute("return_amount", return_amount.to_string());
-    response.add_attribute("tax_amount", tax_amount.to_string());
-    response.add_attribute("spread_amount", spread_amount.to_string());
-    response.add_attribute("commission_amount", commission_amount.to_string());
+    let mut response = Response::new()
+        .add_submessage(
+            // 1. send collateral token from the contract to a user
+            // 2. send inactive commission to collector
+            SubMsg {
+                msg: return_asset.into_msg(&deps.querier, to.unwrap_or(sender))?,
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            },
+        )
+        .add_attribute("action", "swap")
+        .add_attribute("offer_asset", offer_asset.info.to_string())
+        .add_attribute("ask_asset", ask_pool.info.to_string())
+        .add_attribute("offer_amount", offer_amount.to_string())
+        .add_attribute("return_amount", return_amount.to_string())
+        .add_attribute("tax_amount", tax_amount.to_string())
+        .add_attribute("spread_amount", spread_amount.to_string())
+        .add_attribute("commission_amount", commission_amount.to_string());
 
     let mut maker_fee_amount = Uint128::new(0);
 
@@ -502,9 +487,7 @@ pub fn swap(
         }
     }
 
-    response.add_attribute("maker_fee_amount", maker_fee_amount.to_string());
-
-    Ok(response)
+    Ok(response.add_attribute("maker_fee_amount", maker_fee_amount.to_string()))
 }
 
 pub fn calculate_maker_fee(pool_info: AssetInfo, commission_amount: Uint128) -> Option<Asset> {

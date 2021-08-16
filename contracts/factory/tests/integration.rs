@@ -216,7 +216,7 @@ fn create_pair() {
                 code_id: 321u64,
                 funds: vec![],
                 admin: None,
-                label: String::new(),
+                label: String::from("Astroport pair"),
             }
             .into(),
             id: 0,

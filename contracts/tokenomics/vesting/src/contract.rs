@@ -87,12 +87,7 @@ pub fn update_config(
 
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response {
-        events: vec![],
-        messages: vec![],
-        attributes: vec![attr("action", "update_config")],
-        data: None,
-    })
+    Ok(Response::new().add_attribute("action", "update_config"))
 }
 
 fn assert_vesting_schedules(
@@ -126,12 +121,7 @@ pub fn register_vesting_accounts(
         )?;
     }
 
-    Ok(Response {
-        events: vec![],
-        messages: vec![],
-        attributes: vec![attr("action", "register_vesting_accounts")],
-        data: None,
-    })
+    Ok(Response::new().add_attribute("action", "register_vesting_accounts"))
 }
 
 pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
@@ -165,17 +155,14 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Con
     vesting_info.last_claim_time = current_time;
     VESTING_INFO.save(deps.storage, address.to_string(), &vesting_info)?;
 
-    Ok(Response {
-        events: vec![],
-        messages,
-        attributes: vec![
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![
             attr("action", "claim"),
             attr("address", address),
             attr("claim_amount", claim_amount),
-            attr("last_claim_time", current_time.seconds()),
-        ],
-        data: None,
-    })
+            attr("last_claim_time", current_time.seconds().to_string()),
+        ]))
 }
 
 fn compute_claim_amount(current_time: Timestamp, vesting_info: &VestingInfo) -> Uint128 {

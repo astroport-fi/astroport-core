@@ -68,7 +68,7 @@ fn proper_initialization() {
                     .unwrap(),
                     funds: vec![],
                     admin: None,
-                    label: String::new(),
+                    label: String::from("Astroport liquidity token"),
                 }
                 .into(),
                 id: 0,

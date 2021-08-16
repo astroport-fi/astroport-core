@@ -38,8 +38,7 @@ pub fn instantiate(
     )?;
 
     // Create token
-    let mut resp = Response::new();
-    resp.add_message(CosmosMsg::Wasm(WasmMsg::Instantiate {
+    let resp = Response::new().add_message(CosmosMsg::Wasm(WasmMsg::Instantiate {
         admin: None,
         code_id: msg.token_code_id,
         msg: to_binary(&TokenInstantiateMsg {
@@ -118,25 +117,24 @@ pub fn try_enter(
             .map_err(|e| StdError::DivideByZero { source: e })?
     };
 
-    let mut res = Response::new();
-    res.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: config.share_token_addr.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Mint {
-            recipient: info.sender.to_string(),
-            amount: mint_amount,
-        })?,
-        funds: vec![],
-    }));
-
-    res.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: config.deposit_token_addr.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-            owner: info.sender.to_string(),
-            recipient: env.contract.address.to_string(),
-            amount,
-        })?,
-        funds: vec![],
-    }));
+    let res = Response::new()
+        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: config.share_token_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Mint {
+                recipient: info.sender.to_string(),
+                amount: mint_amount,
+            })?,
+            funds: vec![],
+        }))
+        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: config.deposit_token_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                owner: info.sender.to_string(),
+                recipient: env.contract.address.to_string(),
+                amount,
+            })?,
+            funds: vec![],
+        }));
 
     Ok(res)
 }
@@ -158,48 +156,43 @@ pub fn try_leave(
         .map_err(|e| StdError::DivideByZero { source: e })?;
 
     // Burn share
-    let mut res = Response::new();
-    res.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: config.share_token_addr.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::BurnFrom {
-            owner: info.sender.to_string(),
-            amount: share,
-        })?,
-        funds: vec![],
-    }));
-
-    res.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: config.deposit_token_addr.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: info.sender.to_string(),
-            amount: what,
-        })?,
-        funds: vec![],
-    }));
+    let res = Response::new()
+        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: config.share_token_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::BurnFrom {
+                owner: info.sender.to_string(),
+                amount: share,
+            })?,
+            funds: vec![],
+        }))
+        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: config.deposit_token_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: info.sender.to_string(),
+                amount: what,
+            })?,
+            funds: vec![],
+        }));
 
     Ok(res)
 }
 
 pub fn get_total_shares(deps: &DepsMut, config: Config) -> StdResult<Uint128> {
-    Ok(deps
+    let result: TokenInfoResponse = deps
         .querier
-        .query_wasm_smart::<TokenInfoResponse, _, _>(
-            &config.share_token_addr,
-            &Cw20QueryMsg::TokenInfo {},
-        )?
-        .total_supply)
+        .query_wasm_smart(&config.share_token_addr, &Cw20QueryMsg::TokenInfo {})?;
+
+    Ok(result.total_supply)
 }
 
 pub fn get_total_deposit(deps: &DepsMut, env: Env, config: Config) -> StdResult<Uint128> {
-    Ok(deps
-        .querier
-        .query_wasm_smart::<BalanceResponse, _, _>(
-            &config.deposit_token_addr,
-            &Cw20QueryMsg::Balance {
-                address: env.contract.address.to_string(),
-            },
-        )?
-        .balance)
+    let result: BalanceResponse = deps.querier.query_wasm_smart(
+        &config.deposit_token_addr,
+        &Cw20QueryMsg::Balance {
+            address: env.contract.address.to_string(),
+        },
+    )?;
+    Ok(result.balance)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

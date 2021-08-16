@@ -25,7 +25,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> StdResult<Response> {
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
     CONFIG.save(
         deps.storage,
         &Config {
@@ -175,12 +175,7 @@ pub fn execute_swap_operations(
         })
     }
 
-    Ok(Response {
-        events: vec![],
-        messages,
-        attributes: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_submessages(messages))
 }
 
 fn assert_minium_receive(
