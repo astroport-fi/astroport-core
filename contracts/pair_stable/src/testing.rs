@@ -1,11 +1,12 @@
 use crate::contract::{
-    assert_max_spread, execute, instantiate, query_pair_info, query_pool, query_reverse_simulation,
-    query_share, query_simulation,
+    accumulate_prices, assert_max_spread, execute, instantiate, query_pair_info, query_pool,
+    query_reverse_simulation, query_share, query_simulation,
 };
 use crate::error::ContractError;
 use crate::math::{calc_amount, AMP};
 use crate::mock_querier::mock_dependencies;
 
+use crate::state::Config;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::hook::InitHook;
 use astroport::pair::{
@@ -130,7 +131,6 @@ fn provide_liquidity() {
     )]);
 
     let msg = InstantiateMsg {
-        factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -141,6 +141,7 @@ fn provide_liquidity() {
         ],
         token_code_id: 10u64,
         init_hook: None,
+        factory_addr: Addr::unchecked("factory"),
     };
 
     let env = mock_env();
@@ -181,7 +182,7 @@ fn provide_liquidity() {
             amount: Uint128::from(100u128),
         }],
     );
-    let res = execute(deps.as_mut(), env, info, msg).unwrap();
+    let res = execute(deps.as_mut(), env.clone().clone(), info, msg).unwrap();
     let transfer_from_msg = res.messages.get(0).expect("no message");
     let mint_msg = res.messages.get(1).expect("no message");
     assert_eq!(
@@ -218,7 +219,7 @@ fn provide_liquidity() {
             .into(),
             id: 0,
             gas_limit: None,
-            reply_on: ReplyOn::Never
+            reply_on: ReplyOn::Never,
         }
     );
 
@@ -261,7 +262,7 @@ fn provide_liquidity() {
         slippage_tolerance: None,
     };
 
-    let env = mock_env_with_block_time(1000);
+    let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
     let info = mock_info(
         "addr0000",
         &[Coin {
@@ -271,7 +272,7 @@ fn provide_liquidity() {
     );
 
     // only accept 100, then 50 share will be generated with 100 * (100 / 200)
-    let res: Response = execute(deps.as_mut(), env, info, msg).unwrap();
+    let res: Response = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     let transfer_from_msg = res.messages.get(0).expect("no message");
     let mint_msg = res.messages.get(1).expect("no message");
     assert_eq!(
@@ -290,7 +291,7 @@ fn provide_liquidity() {
             .into(),
             id: 0,
             gas_limit: None,
-            reply_on: ReplyOn::Never
+            reply_on: ReplyOn::Never,
         }
     );
     assert_eq!(
@@ -308,7 +309,7 @@ fn provide_liquidity() {
             .into(),
             id: 0,
             gas_limit: None,
-            reply_on: ReplyOn::Never
+            reply_on: ReplyOn::Never,
         }
     );
 
@@ -339,7 +340,7 @@ fn provide_liquidity() {
             amount: Uint128::from(100u128),
         }],
     );
-    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
     match res {
         ContractError::Std(StdError::GenericErr { msg, .. }) => assert_eq!(
             msg,
@@ -387,7 +388,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(1)),
     };
 
-    let env = mock_env_with_block_time(1000);
+    let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
     let info = mock_info(
         "addr0001",
         &[Coin {
@@ -395,7 +396,7 @@ fn provide_liquidity() {
             amount: Uint128::from(100u128),
         }],
     );
-    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
     assert_eq!(res, ContractError::MaxSlippageAssertion {});
 
     // initialize token balance to 1:1
@@ -426,7 +427,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(1)),
     };
 
-    let env = mock_env_with_block_time(1000);
+    let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
     let info = mock_info(
         "addr0001",
         &[Coin {
@@ -434,7 +435,7 @@ fn provide_liquidity() {
             amount: Uint128::from(98u128),
         }],
     );
-    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
     assert_eq!(res, ContractError::MaxSlippageAssertion {});
 
     // initialize token balance to 1:1
@@ -465,7 +466,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(1)),
     };
 
-    let env = mock_env_with_block_time(1000);
+    let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
     let info = mock_info(
         "addr0001",
         &[Coin {
@@ -473,7 +474,7 @@ fn provide_liquidity() {
             amount: Uint128::from(100u128),
         }],
     );
-    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
+    let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     // initialize token balance to 1:1
     deps.querier.with_balance(&[(
@@ -503,7 +504,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(1)),
     };
 
-    let env = mock_env_with_block_time(1000);
+    let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
     let info = mock_info(
         "addr0001",
         &[Coin {
@@ -537,7 +538,6 @@ fn withdraw_liquidity() {
     ]);
 
     let msg = InstantiateMsg {
-        factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -548,6 +548,8 @@ fn withdraw_liquidity() {
         ],
         token_code_id: 10u64,
         init_hook: None,
+
+        factory_addr: Addr::unchecked("factory"),
     };
 
     let env = mock_env();
@@ -588,7 +590,7 @@ fn withdraw_liquidity() {
             }),
             id: 0,
             gas_limit: None,
-            reply_on: ReplyOn::Never
+            reply_on: ReplyOn::Never,
         }
     );
     assert_eq!(
@@ -606,7 +608,7 @@ fn withdraw_liquidity() {
             .into(),
             id: 0,
             gas_limit: None,
-            reply_on: ReplyOn::Never
+            reply_on: ReplyOn::Never,
         }
     );
     assert_eq!(
@@ -623,7 +625,7 @@ fn withdraw_liquidity() {
             .into(),
             id: 0,
             gas_limit: None,
-            reply_on: ReplyOn::Never
+            reply_on: ReplyOn::Never,
         }
     );
 
@@ -666,7 +668,6 @@ fn try_native_to_token() {
     ]);
 
     let msg = InstantiateMsg {
-        factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -677,6 +678,7 @@ fn try_native_to_token() {
         ],
         token_code_id: 10u64,
         init_hook: None,
+        factory_addr: Addr::unchecked("factory"),
     };
 
     let env = mock_env();
@@ -814,7 +816,7 @@ fn try_native_to_token() {
             .into(),
             id: 0,
             gas_limit: None,
-            reply_on: ReplyOn::Never
+            reply_on: ReplyOn::Never,
         },
         msg_transfer,
     );
@@ -850,7 +852,6 @@ fn try_token_to_native() {
     ]);
 
     let msg = InstantiateMsg {
-        factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -861,6 +862,7 @@ fn try_token_to_native() {
         ],
         token_code_id: 10u64,
         init_hook: None,
+        factory_addr: Addr::unchecked("factory"),
     };
 
     let env = mock_env();
@@ -1011,7 +1013,7 @@ fn try_token_to_native() {
             .into(),
             id: 0,
             gas_limit: None,
-            reply_on: ReplyOn::Never
+            reply_on: ReplyOn::Never,
         },
         msg_transfer,
     );
@@ -1123,7 +1125,6 @@ fn test_query_pool() {
     ]);
 
     let msg = InstantiateMsg {
-        factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1134,6 +1135,7 @@ fn test_query_pool() {
         ],
         token_code_id: 10u64,
         init_hook: None,
+        factory_addr: Addr::unchecked("factory"),
     };
 
     let env = mock_env();
@@ -1221,17 +1223,122 @@ fn test_query_share() {
     assert_eq!(res[1].amount, Uint128::new(500));
 }
 
+#[test]
+fn test_accumulate_prices() {
+    struct Case {
+        block_time: u64,
+        block_time_last: u64,
+        last0: u128,
+        last1: u128,
+        x: u128,
+        y: u128,
+    }
+
+    struct Result {
+        block_time_last: u64,
+        price0: u128,
+        price1: u128,
+        is_some: bool,
+    }
+
+    let test_cases: Vec<(Case, Result)> = vec![
+        (
+            Case {
+                block_time: 1000,
+                block_time_last: 0,
+                last0: 0,
+                last1: 0,
+                x: 250,
+                y: 500,
+            },
+            Result {
+                block_time_last: 1000,
+                price0: 500,  // 250/500*1000
+                price1: 2000, // 500/250*1000
+                is_some: true,
+            },
+        ),
+        // Same block height, no changes
+        (
+            Case {
+                block_time: 1000,
+                block_time_last: 1000,
+                last0: 1,
+                last1: 2,
+                x: 250,
+                y: 500,
+            },
+            Result {
+                block_time_last: 1000,
+                price0: 1,
+                price1: 2,
+                is_some: false,
+            },
+        ),
+        (
+            Case {
+                block_time: 1500,
+                block_time_last: 1000,
+                last0: 500,
+                last1: 2000,
+                x: 250,
+                y: 500,
+            },
+            Result {
+                block_time_last: 1500,
+                price0: 750,  // 500 + (250/500*500)
+                price1: 3000, // 2000 + (500/250*500)
+                is_some: true,
+            },
+        ),
+    ];
+
+    for test_case in test_cases {
+        let (case, result) = test_case;
+
+        let env = mock_env_with_block_time(case.block_time);
+        let config = accumulate_prices(
+            env,
+            Config {
+                pair_info: PairInfo {
+                    asset_infos: [
+                        AssetInfo::NativeToken {
+                            denom: "uusd".to_string(),
+                        },
+                        AssetInfo::Token {
+                            contract_addr: Addr::unchecked("asset0000"),
+                        },
+                    ],
+                    contract_addr: Addr::unchecked("pair"),
+                    liquidity_token: Addr::unchecked("lp_token"),
+                },
+                factory_addr: Addr::unchecked("factory"),
+                block_time_last: case.block_time_last,
+                price0_cumulative_last: Uint128::new(case.last0),
+                price1_cumulative_last: Uint128::new(case.last1),
+            },
+            Uint128::new(case.x),
+            Uint128::new(case.y),
+        );
+
+        assert_eq!(result.is_some, config.is_some());
+
+        if let Some(config) = config {
+            assert_eq!(config.block_time_last, result.block_time_last);
+            assert_eq!(config.price0_cumulative_last, Uint128::new(result.price0));
+            assert_eq!(config.price1_cumulative_last, Uint128::new(result.price1));
+        }
+    }
+}
+
 fn mock_env_with_block_time(time: u64) -> Env {
-    let env = mock_env();
-    // register time
-    return Env {
-        block: BlockInfo {
-            height: 1,
-            time: Timestamp::from_seconds(time),
-            chain_id: "columbus".to_string(),
-        },
-        ..env
+    let mut env = mock_env();
+    env.block = BlockInfo {
+        height: 1,
+        time: Timestamp::from_seconds(time),
+        chain_id: "columbus".to_string(),
     };
+    env
 }
 
 use proptest::prelude::*;
