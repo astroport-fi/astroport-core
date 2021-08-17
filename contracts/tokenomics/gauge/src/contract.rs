@@ -2,8 +2,8 @@ use std::cmp::{max, min};
 use std::ops::Add;
 
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, ReplyOn,
-    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    entry_point, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg};
 
@@ -17,7 +17,6 @@ use gauge_proxy_interface::msg::{Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as 
 
 // Bonus multiplier for early ASTRO makers.
 const BONUS_MULTIPLIER: u64 = 10;
-const PRECISION_MULTIPLIER: Uint128 = Uint128::new(100_000_000_000);
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -125,7 +124,7 @@ pub fn add(
     let pool_info = PoolInfo {
         alloc_point,
         last_reward_block: max(cfg.start_block, env.block.height),
-        acc_per_share: Uint128::zero(),
+        acc_per_share: Decimal::zero(),
         reward_proxy,
     };
 
@@ -286,16 +285,12 @@ pub fn update_pool_rewards(
         },
     ];
 
-    let share = token_rewards
-        .checked_mul(PRECISION_MULTIPLIER)
-        .unwrap()
-        .checked_div(lp_supply.balance)
-        .unwrap();
+    let share = Decimal::from_ratio(token_rewards, lp_supply.balance);
     // update pool info
     let updated_pool = PoolInfo {
         alloc_point: pool.alloc_point,
         last_reward_block: env.block.height,
-        acc_per_share: pool.acc_per_share.checked_add(share).unwrap(),
+        acc_per_share: pool.acc_per_share + share,
         reward_proxy: pool.reward_proxy,
     };
 
@@ -378,14 +373,7 @@ pub fn deposit(
     }
     //let mut pending = Uint128::zero();
     if user.amount > Uint128::zero() {
-        let pending = user
-            .amount
-            .checked_mul(pool.acc_per_share)
-            .unwrap()
-            .checked_div(PRECISION_MULTIPLIER)
-            .unwrap()
-            .checked_sub(user.reward_debt)
-            .unwrap();
+        let pending = (user.amount * pool.acc_per_share).checked_sub(user.reward_debt)?;
         if !pending.is_zero() {
             response.messages.push(SubMsg {
                 msg: CosmosMsg::Wasm(safe_reward_transfer_message(
@@ -443,12 +431,8 @@ pub fn deposit(
     }
     //Change user balance
     user.amount = user.amount.checked_add(amount)?;
-    if pool.acc_per_share > Uint128::zero() {
-        user.reward_debt = user
-            .amount
-            .checked_mul(pool.acc_per_share)?
-            .checked_div(PRECISION_MULTIPLIER)
-            .map_err(|e| ContractError::Std(e.into()))?;
+    if pool.acc_per_share > Decimal::zero() {
+        user.reward_debt = user.amount * pool.acc_per_share;
     };
     USER_INFO.save(deps.storage, (&token, &info.sender), &user)?;
 
@@ -491,14 +475,7 @@ pub fn withdraw(
         pool = p;
         POOL_INFO.save(deps.storage, &token, &pool)?;
     }
-    let pending = user
-        .amount
-        .checked_mul(pool.acc_per_share)
-        .unwrap()
-        .checked_div(PRECISION_MULTIPLIER)
-        .unwrap()
-        .checked_sub(user.reward_debt)
-        .unwrap();
+    let pending = (user.amount * pool.acc_per_share).checked_sub(user.reward_debt)?;
     if !pending.is_zero() {
         response.messages.push(SubMsg {
             msg: CosmosMsg::Wasm(safe_reward_transfer_message(
@@ -516,11 +493,7 @@ pub fn withdraw(
     }
     // Update user balance
     user.amount = user.amount.checked_sub(amount)?;
-    user.reward_debt = user
-        .amount
-        .checked_mul(pool.acc_per_share)?
-        .checked_div(PRECISION_MULTIPLIER)
-        .map_err(StdError::from)?;
+    user.reward_debt = user.amount * pool.acc_per_share;
     USER_INFO.save(deps.storage, (&token, &info.sender), &user)?;
 
     // call to transfer function for lp token
@@ -704,24 +677,9 @@ pub fn pending_token(
     )?;
     if env.block.height > pool.last_reward_block && !lp_supply.balance.is_zero() {
         let token_rewards = calculate_rewards(env, pool, cfg)?;
-        acc_per_share = acc_per_share
-            .checked_add(
-                token_rewards
-                    .checked_mul(PRECISION_MULTIPLIER)
-                    .unwrap()
-                    .checked_div(lp_supply.balance)
-                    .unwrap(),
-            )
-            .unwrap();
+        acc_per_share = acc_per_share + Decimal::from_ratio(token_rewards, lp_supply.balance);
     }
-    let pending_amount = user_info
-        .amount
-        .checked_mul(acc_per_share)
-        .unwrap()
-        .checked_div(PRECISION_MULTIPLIER)
-        .unwrap()
-        .checked_sub(user_info.reward_debt)
-        .unwrap();
+    let pending_amount = (user_info.amount * acc_per_share).checked_sub(user_info.reward_debt)?;
     Ok(PendingTokenResponse {
         pending: pending_amount,
     })
