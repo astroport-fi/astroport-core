@@ -20,11 +20,11 @@ pub struct UserInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum ReplyInfo {
+pub enum ExecuteOnReply {
     Deposit { account: Addr, amount: Uint128 },
     Withdraw { account: Addr, amount: Uint128 },
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const REPLY_INFO: Item<ReplyInfo> = Item::new("reply_info");
+pub const TMP_USER_ACTION: Item<ExecuteOnReply> = Item::new("tmp_user_action");
 pub const USER_INFO: Map<&Addr, UserInfo> = Map::new("user_info");
