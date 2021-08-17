@@ -11,7 +11,7 @@ use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError;
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{Config, PoolInfo, UserInfo, CONFIG, POOL_INFO, USER_INFO};
-use terraswap::gauge::{
+use astroport::gauge::{
     ExecuteMsg, InstantiateMsg, PendingTokenResponse, PoolLengthResponse, QueryMsg,
 };
 

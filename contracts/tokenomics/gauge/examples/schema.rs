@@ -1,10 +1,10 @@
-use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
-use std::env::current_dir;
-use std::fs::create_dir_all;
-use terraswap::gauge::{
+use astroport::gauge::{
     ExecuteMsg, GetMultiplierResponse, InstantiateMsg, MigrateMsg, PendingTokenResponse,
     PoolLengthResponse, QueryMsg,
 };
+use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
+use std::env::current_dir;
+use std::fs::create_dir_all;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

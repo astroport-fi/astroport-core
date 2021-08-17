@@ -7,7 +7,7 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use crate::error::ContractError;
 use crate::msg::InstantiateMsg;
 use crate::state::{Config, ReplyInfo, CONFIG, REPLY_INFO, USER_INFO};
-use gauge_proxy_interface::msg::{Cw20HookMsg, ExecuteMsg, QueryMsg};
+use gauge_proxy_interface::msg::{Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg};
 use mirror_protocol::staking::{Cw20HookMsg as MirrorCw20HookMsg, ExecuteMsg as MirrorExecuteMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -50,14 +50,11 @@ fn receive_cw20(
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
-    let mut response = Response::default();
-
     if let Ok(Cw20HookMsg::Deposit { account }) = from_binary(&cw20_msg.msg) {
         if cw20_msg.sender != cfg.gauge_contract_addr || info.sender != cfg.lp_token_addr {
             return Err(ContractError::Unauthorized {});
         }
-
-        response.add_submessage(SubMsg {
+        Ok(Response::new().add_submessage(SubMsg {
             msg: get_rewards(
                 deps.branch(),
                 cfg,
@@ -69,9 +66,10 @@ fn receive_cw20(
             gas_limit: None,
             id: 1, // Deposit
             reply_on: ReplyOn::Success,
-        });
+        }))
+    } else {
+        Ok(Response::new())
     }
-    Ok(response)
 }
 
 fn get_rewards(deps: DepsMut, cfg: Config, reply_info: ReplyInfo) -> StdResult<CosmosMsg> {
@@ -99,8 +97,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 
 fn deposit(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let mut response = Response::default();
-    let reply_info = REPLY_INFO.load(deps.storage)?;
-    if let ReplyInfo::Deposit { account, amount } = reply_info {
+    if let ReplyInfo::Deposit { account, amount } = REPLY_INFO.load(deps.storage)? {
         let cfg = CONFIG.load(deps.storage)?;
         let mut user = USER_INFO.load(deps.storage, &account).unwrap_or_default();
 
@@ -117,7 +114,7 @@ fn deposit(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
                 .checked_sub(user.reward_debt)
                 .unwrap_or_default();
             if !pending.is_zero() {
-                response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: cfg.reward_token_addr.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::Transfer {
                         recipient: account.to_string(),
@@ -129,8 +126,8 @@ fn deposit(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         }
 
         if !amount.is_zero() {
-            // stake to the end reward contract
-            response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+            // deposit to the end reward contract
+            response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: cfg.lp_token_addr.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Send {
@@ -160,15 +157,13 @@ fn deposit(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 }
 
 fn get_token_balance(deps: Deps, env: &Env, token: &Addr) -> Result<Uint128, StdError> {
-    Ok(deps
-        .querier
-        .query_wasm_smart::<BalanceResponse, _, _>(
-            token.clone(),
-            &Cw20QueryMsg::Balance {
-                address: env.contract.address.to_string(),
-            },
-        )?
-        .balance)
+    let res: Result<BalanceResponse, StdError> = deps.querier.query_wasm_smart(
+        token.clone(),
+        &Cw20QueryMsg::Balance {
+            address: env.contract.address.to_string(),
+        },
+    );
+    Ok(res?.balance)
 }
 
 fn before_withdraw(
@@ -181,18 +176,16 @@ fn before_withdraw(
     if info.sender != cfg.gauge_contract_addr {
         return Err(ContractError::Unauthorized {});
     };
-    let mut response = Response::default();
-    response.add_submessage(SubMsg {
+    Ok(Response::new().add_submessage(SubMsg {
         msg: get_rewards(deps.branch(), cfg, ReplyInfo::Withdraw { account, amount })?,
         gas_limit: None,
         id: 2, // Withdraw
         reply_on: ReplyOn::Success,
-    });
-    Ok(response)
+    }))
 }
 
 fn withdraw(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
-    let mut response = Response::default();
+    let mut response = Response::new();
     if let ReplyInfo::Withdraw { account, amount } = REPLY_INFO.load(deps.storage)? {
         let cfg = CONFIG.load(deps.storage)?;
         let mut user = USER_INFO.load(deps.storage, &account)?;
@@ -210,7 +203,7 @@ fn withdraw(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
                 .checked_sub(user.reward_debt)
                 .unwrap_or_default();
             if !pending.is_zero() {
-                response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: cfg.reward_token_addr.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::Transfer {
                         recipient: account.to_string(),
@@ -231,24 +224,24 @@ fn withdraw(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         USER_INFO.save(deps.storage, &account, &user)?;
 
         // withdraw from the end reward contract
-        response.add_message(WasmMsg::Execute {
-            contract_addr: cfg.reward_contract_addr.to_string(),
-            funds: vec![],
-            msg: to_binary(&MirrorExecuteMsg::Unbond {
-                asset_token: cfg.lp_token_addr,
-                amount,
-            })?,
-        });
-        response.add_message(WasmMsg::Execute {
-            contract_addr: cfg.lp_token_addr.to_string(),
-            funds: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: account.to_string(),
-                amount,
-            })?,
-        });
-
-        Ok(response)
+        Ok(response.add_messages(vec![
+            WasmMsg::Execute {
+                contract_addr: cfg.reward_contract_addr.to_string(),
+                funds: vec![],
+                msg: to_binary(&MirrorExecuteMsg::Unbond {
+                    asset_token: cfg.lp_token_addr,
+                    amount,
+                })?,
+            },
+            WasmMsg::Execute {
+                contract_addr: cfg.lp_token_addr.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: account.to_string(),
+                    amount,
+                })?,
+            },
+        ]))
     } else {
         unreachable!()
     }
@@ -265,32 +258,37 @@ fn emergency_withdraw(
         return Err(ContractError::Unauthorized {});
     };
 
-    let mut response = Response::default();
     let user = USER_INFO.load(deps.storage, &account)?;
 
-    // emergency withdraw from the end reward contract
-    response.add_message(WasmMsg::Execute {
-        contract_addr: cfg.reward_contract_addr.to_string(),
-        funds: vec![],
-        msg: to_binary(&MirrorExecuteMsg::Unbond {
-            asset_token: cfg.lp_token_addr,
-            amount: user.amount,
-        })?,
-    });
-    response.add_message(WasmMsg::Execute {
-        contract_addr: cfg.lp_token_addr.to_string(),
-        funds: vec![],
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: account.to_string(),
-            amount: user.amount,
-        })?,
-    });
-
     USER_INFO.remove(deps.storage, &account);
-    Ok(response)
+
+    // emergency withdraw from the end reward contract
+    Ok(Response::new().add_messages(vec![
+        WasmMsg::Execute {
+            contract_addr: cfg.reward_contract_addr.to_string(),
+            funds: vec![],
+            msg: to_binary(&MirrorExecuteMsg::Unbond {
+                asset_token: cfg.lp_token_addr,
+                amount: user.amount,
+            })?,
+        },
+        WasmMsg::Execute {
+            contract_addr: cfg.lp_token_addr.to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: account.to_string(),
+                amount: user.amount,
+            })?,
+        },
+    ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {}
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

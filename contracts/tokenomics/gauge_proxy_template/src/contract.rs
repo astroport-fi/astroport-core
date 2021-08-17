@@ -49,14 +49,11 @@ fn receive_cw20(
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
-    let mut response = Response::default();
-
     if let Ok(Cw20HookMsg::Deposit { account }) = from_binary(&cw20_msg.msg) {
         if cw20_msg.sender != cfg.gauge_contract_addr || info.sender != cfg.lp_token_addr {
             return Err(ContractError::Unauthorized {});
         }
-
-        response.add_submessage(SubMsg {
+        Ok(Response::new().add_submessage(SubMsg {
             msg: get_rewards(
                 deps.branch(),
                 cfg,
@@ -68,9 +65,10 @@ fn receive_cw20(
             gas_limit: None,
             id: 1, // Deposit
             reply_on: ReplyOn::Success,
-        });
+        }))
+    } else {
+        Ok(Response::new())
     }
-    Ok(response)
 }
 
 fn get_rewards(deps: DepsMut, cfg: Config, reply_info: ReplyInfo) -> StdResult<CosmosMsg> {
@@ -114,7 +112,7 @@ fn deposit(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
                 .checked_sub(user.reward_debt)
                 .unwrap_or_default();
             if !pending.is_zero() {
-                response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: cfg.reward_token_addr.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::Transfer {
                         recipient: account.to_string(),
@@ -147,15 +145,13 @@ fn deposit(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 }
 
 fn get_token_balance(deps: Deps, env: &Env, token: &Addr) -> Result<Uint128, StdError> {
-    Ok(deps
-        .querier
-        .query_wasm_smart::<BalanceResponse, _, _>(
-            token.clone(),
-            &Cw20QueryMsg::Balance {
-                address: env.contract.address.to_string(),
-            },
-        )?
-        .balance)
+    let res: Result<BalanceResponse, StdError> = deps.querier.query_wasm_smart(
+        token.clone(),
+        &Cw20QueryMsg::Balance {
+            address: env.contract.address.to_string(),
+        },
+    );
+    Ok(res?.balance)
 }
 
 fn before_withdraw(
@@ -168,18 +164,16 @@ fn before_withdraw(
     if info.sender != cfg.gauge_contract_addr {
         return Err(ContractError::Unauthorized {});
     };
-    let mut response = Response::default();
-    response.add_submessage(SubMsg {
+    Ok(Response::new().add_submessage(SubMsg {
         msg: get_rewards(deps.branch(), cfg, ReplyInfo::Withdraw { account, amount })?,
         gas_limit: None,
         id: 2, // Withdraw
         reply_on: ReplyOn::Success,
-    });
-    Ok(response)
+    }))
 }
 
 fn withdraw(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
-    let mut response = Response::default();
+    let mut response = Response::new();
     if let ReplyInfo::Withdraw { account, amount } = REPLY_INFO.load(deps.storage)? {
         let cfg = CONFIG.load(deps.storage)?;
         let mut user = USER_INFO.load(deps.storage, &account)?;
@@ -197,7 +191,7 @@ fn withdraw(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
                 .checked_sub(user.reward_debt)
                 .unwrap_or_default();
             if !pending.is_zero() {
-                response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: cfg.reward_token_addr.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::Transfer {
                         recipient: account.to_string(),
@@ -237,14 +231,12 @@ fn emergency_withdraw(
         return Err(ContractError::Unauthorized {});
     };
 
-    let mut response = Response::default();
     let user = USER_INFO.load(deps.storage, &account)?;
 
+    USER_INFO.remove(deps.storage, &account);
     // emergency withdraw from the end reward contract here
     unimplemented!();
-
-    USER_INFO.remove(deps.storage, &account);
-    Ok(response)
+    Ok(Response::new())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

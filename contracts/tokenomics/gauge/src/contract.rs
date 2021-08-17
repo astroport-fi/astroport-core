@@ -9,11 +9,11 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg};
 
 use crate::error::ContractError;
 use crate::state::{Config, PoolInfo, CONFIG, POOL_INFO, USER_INFO};
-use gauge_proxy_interface::msg::{Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg};
-use terraswap::gauge::{
+use astroport::gauge::{
     ExecuteMsg, GetMultiplierResponse, InstantiateMsg, MigrateMsg, PendingTokenResponse,
     PoolLengthResponse, QueryMsg,
 };
+use gauge_proxy_interface::msg::{Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg};
 
 // Bonus multiplier for early ASTRO makers.
 const BONUS_MULTIPLIER: u64 = 10;
@@ -464,7 +464,7 @@ pub fn withdraw(
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let mut response = Response::new().add_attribute("Action", "Withdraw");
-    let user = USER_INFO.load(deps.storage, (&token, &info.sender))?;
+    let mut user = USER_INFO.load(deps.storage, (&token, &info.sender))?;
     if user.amount < amount {
         return Err(ContractError::BalanceTooSmall {});
     }

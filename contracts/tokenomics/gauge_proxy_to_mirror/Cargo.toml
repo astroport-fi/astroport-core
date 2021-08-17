@@ -20,15 +20,15 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = { version = "0.15.0" }
-cw-storage-plus = "0.7.0"
+cosmwasm-std = { version = "0.16.0" }
+cw-storage-plus = "0.8.0"
 schemars = "0.8.1"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
 gauge-proxy-interface = { path = "../../../packages/gauge_proxy_interface"}
-cw20 = "0.7.0"
+cw20 = "0.8.0"
 # this version hasn't been released yet, expected columbus-5 compotibility
 #mirror-protocol = "2.1.0"
 
 [dev-dependencies]
-cosmwasm-schema = { version = "0.15.0" }
+cosmwasm-schema = { version = "0.16.0" }
