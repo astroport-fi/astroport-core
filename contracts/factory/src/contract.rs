@@ -76,6 +76,7 @@ pub fn execute(
             init_hook,
         } => execute_create_pair(deps, env, pair_code_id, asset_infos, init_hook),
         ExecuteMsg::Register { asset_infos } => register(deps, env, info, asset_infos),
+        ExecuteMsg::Deregister { asset_infos } => deregister(deps, env, info, asset_infos),
     }
 }
 
@@ -225,6 +226,28 @@ pub fn register(
     Ok(Response::new().add_attributes(vec![
         attr("action", "register"),
         attr("pair_contract_addr", pair_contract),
+    ]))
+}
+
+/// create pair execute this message
+pub fn deregister(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    asset_infos: [AssetInfo; 2],
+) -> Result<Response, ContractError> {
+    let config: Config = CONFIG.load(deps.storage)?;
+
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let pair_info: PairInfo = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
+    PAIRS.remove(deps.storage, &pair_key(&asset_infos));
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "deregister"),
+        attr("pair_contract_addr", pair_info.contract_addr),
     ]))
 }
 

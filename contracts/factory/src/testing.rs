@@ -387,4 +387,50 @@ fn register() {
             asset_infos: asset_infos_2.clone(),
         }]
     );
+
+    // Deregister from wrong acc
+    let env = mock_env();
+    let info = mock_info("wrong_addr0000", &[]);
+    let res = execute(
+        deps.as_mut(),
+        env.clone(),
+        info,
+        ExecuteMsg::Deregister {
+            asset_infos: asset_infos_2.clone(),
+        },
+    )
+    .unwrap_err();
+
+    assert_eq!(res, ContractError::Unauthorized {});
+
+    // Proper deregister
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+    let res = execute(
+        deps.as_mut(),
+        env.clone(),
+        info,
+        ExecuteMsg::Deregister {
+            asset_infos: asset_infos_2.clone(),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(res.attributes[0], attr("action", "deregister"));
+
+    let query_msg = QueryMsg::Pairs {
+        start_after: None,
+        limit: None,
+    };
+
+    let res = query(deps.as_ref(), env.clone(), query_msg).unwrap();
+    let pairs_res: PairsResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        pairs_res.pairs,
+        vec![PairInfo {
+            liquidity_token: Addr::unchecked("liquidity0000"),
+            contract_addr: Addr::unchecked("pair0000"),
+            asset_infos: asset_infos.clone(),
+        },]
+    );
 }
