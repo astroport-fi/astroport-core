@@ -1,7 +1,7 @@
+use astroport::asset::AssetInfo;
 use cosmwasm_std::{Addr, Event, Uint128, WasmMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use terraswap::asset::AssetInfo;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {

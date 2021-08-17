@@ -1,6 +1,6 @@
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::pair::SimulationResponse;
 use cosmwasm_std::{to_binary, Addr, QuerierWrapper, QueryRequest, StdResult, Uint128, WasmQuery};
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::SimulationResponse;
 
 pub fn query_pair_info(
     querier: &QuerierWrapper,
@@ -9,7 +9,7 @@ pub fn query_pair_info(
 ) -> StdResult<PairInfo> {
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: factory_contract.to_string(),
-        msg: to_binary(&terraswap::factory::QueryMsg::Pair {
+        msg: to_binary(&astroport::factory::QueryMsg::Pair {
             asset_infos: asset_infos.clone(),
         })?,
     }))
@@ -22,7 +22,7 @@ pub fn query_pair_share(
 ) -> StdResult<Vec<Asset>> {
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: pair_contract.to_string(),
-        msg: to_binary(&terraswap::pair::QueryMsg::Share { amount: share })?,
+        msg: to_binary(&astroport::pair::QueryMsg::Share { amount: share })?,
     }))
 }
 
@@ -40,7 +40,7 @@ pub fn query_swap_amount(
     let response: SimulationResponse = querier
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: pair_contract.to_string(),
-            msg: to_binary(&terraswap::pair::QueryMsg::Simulation { offer_asset: asset })?,
+            msg: to_binary(&astroport::pair::QueryMsg::Simulation { offer_asset: asset })?,
         }))
         .unwrap();
 

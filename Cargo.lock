@@ -1062,6 +1062,10 @@ dependencies = [
 name = "maker"
 version = "0.1.0"
 dependencies = [
+ "astroport",
+ "astroport-factory",
+ "astroport-pair",
+ "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -1070,10 +1074,6 @@ dependencies = [
  "cw20-base",
  "schemars",
  "serde",
- "terraswap",
- "terraswap-factory",
- "terraswap-pair",
- "terraswap-token",
  "thiserror",
 ]
 

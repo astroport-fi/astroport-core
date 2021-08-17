@@ -1,16 +1,15 @@
 use std::ops::Add;
 
-use cosmwasm_std::{to_binary, Addr, CosmosMsg, DepsMut, Env, Event, MessageInfo, ReplyOn, Response, StdResult, SubMsg, Uint128, WasmMsg, Deps, Binary};
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::Cw20HookMsg;
-use terraswap::querier::query_token_balance;
+use cosmwasm_std::{to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo, ReplyOn, Response, StdResult, SubMsg, Uint128, WasmMsg};
+use cw20::{Cw20ExecuteMsg};
 
 use crate::error::ContractError;
-use crate::msg::{ConvertResponse, ExecuteMsg, InitMsg, QueryMsg, QueryAddressResponse};
+use crate::msg::{ConvertResponse, ExecuteMsg, InitMsg, QueryAddressResponse, QueryMsg};
 use crate::querier::{query_pair_info, query_pair_share, query_swap_amount};
 use crate::state::{State, STATE};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::pair::Cw20HookMsg;
+use astroport::querier::query_token_balance;
 
 pub fn instantiate(
     deps: DepsMut,
@@ -123,12 +122,12 @@ fn convert(
     response.messages.push(SubMsg {
         id: 0,
         msg: CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: pair.contract_addr.to_string(),
-            msg: to_binary(&terraswap::pair::ExecuteMsg::Receive(Cw20ReceiveMsg {
-                sender: state.contract.to_string(),
-                msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
+            contract_addr: pair.liquidity_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: pair.contract_addr.to_string(), //state.contract.to_string(),
                 amount: balances,
-            }))
+                msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
+            })
             .unwrap(),
             funds: vec![],
         }),
@@ -137,13 +136,6 @@ fn convert(
     });
 
     // swap tokens to astro
-    // if !token0.equal(&pair.asset_infos[0]) {
-    //     (amount0, amount1) = (amount1, amount0);
-    // }
-    //example  pool ust-> luna
-    // ust->asto +
-    // luna-> astro -
-    // => luna ->ust -> ust -> astro
     let res = convert_step(deps, token0.clone(), token1.clone(), amount0, amount1).unwrap();
     if let Some(msgs) = res.massages {
         for msg in msgs {
@@ -162,12 +154,12 @@ fn convert(
     }
 
     let event = Event::new("LogConvert")
-        .attr("sender", info.sender.to_string())
-        .attr("token0", token0.to_string())
-        .attr("token1", token1.to_string())
-        .attr("amount0", amount0.to_string())
-        .attr("amount1", amount1.to_string())
-        .attr("astro", res.amount.to_string());
+        .add_attribute("sender", info.sender.to_string())
+        .add_attribute("token0", token0.to_string())
+        .add_attribute("token1", token1.to_string())
+        .add_attribute("amount0", amount0.to_string())
+        .add_attribute("amount1", amount1.to_string())
+        .add_attribute("astro", res.amount.to_string());
     response.events.push(event);
     Ok(response)
 }
@@ -198,7 +190,8 @@ fn convert_step(
                 })?,
                 funds: vec![],
             }];
-            let events = vec![Event::new("TransferToStaking").attr("astroOut", amount.to_string())];
+            let events =
+                vec![Event::new("TransferToStaking").add_attribute("astroOut", amount.to_string())];
             Ok(ConvertResponse {
                 amount,
                 massages: Some(messages),
@@ -246,7 +239,7 @@ fn convert_step(
             funds: vec![],
         }];
         let mut events =
-            vec![Event::new("TransferToStaking").attr("astroOut", amount0.to_string())];
+            vec![Event::new("TransferToStaking").add_attribute("astroOut", amount0.to_string())];
         let res = to_astro(deps, token1, amount1).unwrap();
         if let Some(msgs) = res.massages {
             for msg in msgs {
@@ -273,7 +266,7 @@ fn convert_step(
             funds: vec![],
         }];
         let mut events =
-            vec![Event::new("TransferToStaking").attr("astroOut", amount1.to_string())];
+            vec![Event::new("TransferToStaking").add_attribute("astroOut", amount1.to_string())];
 
         let res = to_astro(deps, token0, amount0).unwrap();
         if let Some(msgs) = res.massages {
@@ -352,7 +345,6 @@ fn swap(
         state.factory,
         &[from_token.clone(), to_token],
     )?;
-
     // Interactions
     // let mut reserve0 = Uint128::zero();
     // let mut reserve1 = Uint128::zero();
@@ -382,32 +374,75 @@ fn swap(
         pair.contract_addr.clone(),
         from_token.clone(),
         amount_in,
-    )
-    .unwrap();
-    let messages = vec![
-        WasmMsg::Execute {
-            contract_addr: pair.contract_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: pair.contract_addr.to_string(),
-                amount: amount_in,
-            })?,
-            funds: vec![],
-        },
-        WasmMsg::Execute {
-            contract_addr: pair.contract_addr.to_string(),
-            msg: to_binary(&terraswap::pair::ExecuteMsg::Swap {
-                offer_asset: Asset {
-                    info: from_token,
-                    amount: amount_out,
-                },
-                belief_price: None,
-                max_spread: None,
-                to: Option::from(to.to_string()),
-            })?,
-            funds: vec![],
-        },
-    ];
-    let events = vec![Event::new("Swap").attr("AmountOut", amount_out.to_string())];
+    ).unwrap();
+
+
+    let messages =
+        vec![
+            if from_token.is_native_token() {
+                // WasmMsg::Execute {
+                //     contract_addr:from_token.to_string(),
+                //     msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                //         spender: pair.contract_addr.to_string(),
+                //         amount: amount_in,
+                //         expires: None
+                //     })?,
+                //     funds: vec![]
+                // },
+                WasmMsg::Execute {
+                    contract_addr: pair.contract_addr.to_string(),
+                    msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
+                        offer_asset: Asset {
+                            info: from_token,
+                            amount: amount_out,
+                        },
+                        belief_price: None,
+                        max_spread: None,
+                        to: Option::from(to.to_string()),
+                    })?,
+                    funds: vec![],
+                }
+            }else{
+                WasmMsg::Execute {
+                    contract_addr: from_token.to_string(),
+                    msg: to_binary(
+                        &cw20::Cw20ExecuteMsg::Send {
+                            contract: pair.contract_addr.to_string(),
+                            amount: amount_in,
+                            msg: to_binary( &Cw20HookMsg::Swap { belief_price: None, max_spread: None, to: Option::from(to.to_string()) }).unwrap(),
+                        }
+                    ).unwrap(),
+                    funds: vec![]
+                }
+            }
+        ];
+
+    // let messages = vec![
+    //
+    //     WasmMsg::Execute {
+    //         contract_addr:from_token.to_string(),
+    //         msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+    //             spender: pair.contract_addr.to_string(),
+    //             amount: amount_in,
+    //             expires: None
+    //         })?,
+    //         funds: vec![]
+    //     },
+    //     WasmMsg::Execute {
+    //         contract_addr: pair.contract_addr.to_string(),
+    //         msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
+    //             offer_asset: Asset {
+    //                 info: from_token,
+    //                 amount: amount_out,
+    //             },
+    //             belief_price: None,
+    //             max_spread: None,
+    //             to: Option::from(to.to_string()),
+    //         })?,
+    //         funds: vec![],
+    //     },
+    // ];
+    let events = vec![Event::new("Swap").add_attribute("AmountOut", amount_out.to_string())];
     Ok(ConvertResponse {
         amount: amount_out,
         massages: Some(messages),
@@ -438,9 +473,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_get_factory( deps: Deps) -> StdResult<QueryAddressResponse>{
+fn query_get_factory(deps: Deps) -> StdResult<QueryAddressResponse> {
     let config = STATE.load(deps.storage)?;
-    Ok( QueryAddressResponse{address:config.factory})
+    Ok(QueryAddressResponse {
+        address: config.factory,
+    })
 }
-
-

@@ -1,12 +1,9 @@
-use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Uint128};
-use cosmwasm_std::testing::{MOCK_CONTRACT_ADDR, mock_env, mock_info};
+use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR, mock_dependencies};
+use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo};
 
-use terraswap::asset::AssetInfo;
-
-use crate::contract::{execute, instantiate};
-use crate::mock_querier::mock_dependencies;
-use crate::msg::{ExecuteMsg, InitMsg};
-use crate::state::{STATE, State};
+use crate::contract::instantiate;
+use crate::msg::InitMsg;
+use crate::state::{State, STATE};
 
 fn _do_instantiate(
     deps: DepsMut,
@@ -59,31 +56,37 @@ fn proper_initialization() {
 // should convert USDC - ASTRO
 #[test]
 fn convert_usdc_astro() {
-    let mut deps = mock_dependencies(&[]);
-    let info = mock_info("addr0000", &[]);
-
-    let env = mock_env();
-    let factory = Addr::unchecked("factory");
-    let staking = Addr::unchecked("staking");
-    let astro_token_contract = Addr::unchecked("astro");
-    let astro_token = AssetInfo::Token { contract_addr: astro_token_contract.clone() };
-    let usdc_token = AssetInfo::Token { contract_addr: Addr::unchecked("usdc") };
-    let lp_token_contract = Addr::unchecked("usdc_astro");
-    let lp_token = AssetInfo::Token { contract_addr:lp_token_contract.clone() };
-
-    _do_instantiate(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        factory.clone(),
-        staking.clone(),
-        astro_token_contract.clone(),
-    );
-    deps.querier.set_balance(
-        Addr::unchecked(MOCK_CONTRACT_ADDR),
-        lp_token_contract.clone(),
-        Uint128::from(1u128),
-    );
+    // let mut deps = mock_dependencies(&[]);
+    // let info = mock_info("addr0000", &[]);
+    //
+    // let env = mock_env();
+    // let factory = Addr::unchecked("factory");
+    // let staking = Addr::unchecked("staking");
+    // let astro_token_contract = Addr::unchecked("astro");
+    // let astro_token = AssetInfo::Token {
+    //     contract_addr: astro_token_contract.clone(),
+    // };
+    // let usdc_token = AssetInfo::Token {
+    //     contract_addr: Addr::unchecked("usdc"),
+    // };
+    // let lp_token_contract = Addr::unchecked("usdc_astro");
+    // let lp_token = AssetInfo::Token {
+    //     contract_addr: lp_token_contract.clone(),
+    // };
+    //
+    // _do_instantiate(
+    //     deps.as_mut(),
+    //     env.clone(),
+    //     info.clone(),
+    //     factory.clone(),
+    //     staking.clone(),
+    //     astro_token_contract.clone(),
+    // );
+    // deps.querier.set_balance(
+    //     Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //     lp_token_contract.clone(),
+    //     Uint128::from(1u128),
+    // );
 
     // let res = execute(deps.as_mut(), env, info, ExecuteMsg::Convert { token1: usdc_token, token2: astro_token }).unwrap();
     //
@@ -109,14 +112,13 @@ fn converts_astro_usdc() {
 
 // converts DAI/USDC
 #[test]
-fn converts_dai_usdc(){
+fn converts_dai_usdc() {
     // transfer DAI_USDC to Maker address 1
     // Maker convert(DAI address, USDC address)
     // expect astro balanceOf Maker address equal 0
     // expect DAI_USDC balanceOf Maker address equal 0
     // expect astro balanceOf staking address equal "100"
 }
-
 
 // reverts if pair does not exist
 #[test]
@@ -126,7 +128,7 @@ fn pair_not_exist() {
 
 // reverts if no path is available
 #[test]
-fn no_path_available(){
+fn no_path_available() {
     // transfer ASTRO_USDC to Maker address 1
     // Maker.convert(this.mic.address, this.usdc.address)).to.be.revertedWith("SushiMaker: Cannot convert")
     // expect(await this.sushi.balanceOf(this.sushiMaker.address)).to.equal(0)
@@ -134,15 +136,14 @@ fn no_path_available(){
     // expect(await this.sushi.balanceOf(this.bar.address)).to.equal(0)
 }
 
-
 // should allow to convert multiple
 #[test]
 fn convert_multiple() {
-  // transfer LUNA_USDC to Maker address 1
-  // transfer ASTRO_DAI to Maker address 1
-  // Maker convertMultiple([LUNA address, ASTRO address], [USDC address, DAI.address])
-  // expect astro balanceOf Maker address equal 0
-  // expect LUNA_USDC balanceOf Maker address equal 0
-  // expect ASTRO_DAI balanceOf Maker address equal 0
-  // expect astro balanceOf staking address equal "100500"
+    // transfer LUNA_USDC to Maker address 1
+    // transfer ASTRO_DAI to Maker address 1
+    // Maker convertMultiple([LUNA address, ASTRO address], [USDC address, DAI.address])
+    // expect astro balanceOf Maker address equal 0
+    // expect LUNA_USDC balanceOf Maker address equal 0
+    // expect ASTRO_DAI balanceOf Maker address equal 0
+    // expect astro balanceOf staking address equal "100500"
 }
