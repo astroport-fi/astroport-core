@@ -1,21 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "SimulationResponse",
-  "description": "SimulationResponse returns swap simulation response",
+  "title": "SimulateSwapOperationsResponse",
   "type": "object",
   "required": [
-    "commission_amount",
-    "return_amount",
-    "spread_amount"
+    "amount"
   ],
   "properties": {
-    "commission_amount": {
-      "$ref": "#/definitions/Uint128"
-    },
-    "return_amount": {
-      "$ref": "#/definitions/Uint128"
-    },
-    "spread_amount": {
+    "amount": {
       "$ref": "#/definitions/Uint128"
     }
   },

@@ -4,8 +4,6 @@
   "type": "object",
   "required": [
     "assets",
-    "price0_cumulative_last",
-    "price1_cumulative_last",
     "total_share"
   ],
   "properties": {
@@ -16,12 +14,6 @@
       },
       "maxItems": 2,
       "minItems": 2
-    },
-    "price0_cumulative_last": {
-      "$ref": "#/definitions/Uint128"
-    },
-    "price1_cumulative_last": {
-      "$ref": "#/definitions/Uint128"
     },
     "total_share": {
       "$ref": "#/definitions/Uint128"
