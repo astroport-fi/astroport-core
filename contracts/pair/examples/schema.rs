@@ -5,8 +5,8 @@ use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use astroport::asset::PairInfo;
 use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse, QueryMsg,
-    ReverseSimulationResponse, SimulationResponse,
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
+    QueryMsg, ReverseSimulationResponse, SimulationResponse,
 };
 
 fn main() {
@@ -24,4 +24,5 @@ fn main() {
     export_schema(&schema_for!(ReverseSimulationResponse), &out_dir);
     export_schema(&schema_for!(SimulationResponse), &out_dir);
     export_schema(&schema_for!(MigrateMsg), &out_dir);
+    export_schema(&schema_for!(CumulativePricesResponse), &out_dir);
 }

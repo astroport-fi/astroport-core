@@ -5,10 +5,10 @@
     {
       "type": "object",
       "required": [
-        "pair"
+        "config"
       ],
       "properties": {
-        "pair": {
+        "config": {
           "type": "object"
         }
       },
@@ -17,69 +17,24 @@
     {
       "type": "object",
       "required": [
-        "pool"
+        "simulate_swap_operations"
       ],
       "properties": {
-        "pool": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "share"
-      ],
-      "properties": {
-        "share": {
+        "simulate_swap_operations": {
           "type": "object",
           "required": [
-            "amount"
+            "offer_amount",
+            "operations"
           ],
           "properties": {
-            "amount": {
+            "offer_amount": {
               "$ref": "#/definitions/Uint128"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "simulation"
-      ],
-      "properties": {
-        "simulation": {
-          "type": "object",
-          "required": [
-            "offer_asset"
-          ],
-          "properties": {
-            "offer_asset": {
-              "$ref": "#/definitions/Asset"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "reverse_simulation"
-      ],
-      "properties": {
-        "reverse_simulation": {
-          "type": "object",
-          "required": [
-            "ask_asset"
-          ],
-          "properties": {
-            "ask_asset": {
-              "$ref": "#/definitions/Asset"
+            },
+            "operations": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/SwapOperation"
+              }
             }
           }
         }
@@ -91,21 +46,6 @@
     "Addr": {
       "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
       "type": "string"
-    },
-    "Asset": {
-      "type": "object",
-      "required": [
-        "amount",
-        "info"
-      ],
-      "properties": {
-        "amount": {
-          "$ref": "#/definitions/Uint128"
-        },
-        "info": {
-          "$ref": "#/definitions/AssetInfo"
-        }
-      }
     },
     "AssetInfo": {
       "anyOf": [
@@ -143,6 +83,58 @@
               "properties": {
                 "denom": {
                   "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "SwapOperation": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "native_swap"
+          ],
+          "properties": {
+            "native_swap": {
+              "type": "object",
+              "required": [
+                "ask_denom",
+                "offer_denom"
+              ],
+              "properties": {
+                "ask_denom": {
+                  "type": "string"
+                },
+                "offer_denom": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "astro_swap"
+          ],
+          "properties": {
+            "astro_swap": {
+              "type": "object",
+              "required": [
+                "ask_asset_info",
+                "offer_asset_info"
+              ],
+              "properties": {
+                "ask_asset_info": {
+                  "$ref": "#/definitions/AssetInfo"
+                },
+                "offer_asset_info": {
+                  "$ref": "#/definitions/AssetInfo"
                 }
               }
             }

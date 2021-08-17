@@ -85,6 +85,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "cumulative_prices"
+      ],
+      "properties": {
+        "cumulative_prices": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

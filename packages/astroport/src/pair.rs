@@ -59,6 +59,7 @@ pub enum QueryMsg {
     Share { amount: Uint128 },
     Simulation { offer_asset: Asset },
     ReverseSimulation { ask_asset: Asset },
+    CumulativePrices {},
 }
 
 // We define a custom struct for each query response
@@ -66,8 +67,6 @@ pub enum QueryMsg {
 pub struct PoolResponse {
     pub assets: [Asset; 2],
     pub total_share: Uint128,
-    pub price0_cumulative_last: Uint128,
-    pub price1_cumulative_last: Uint128,
 }
 
 /// SimulationResponse returns swap simulation response
@@ -84,6 +83,15 @@ pub struct ReverseSimulationResponse {
     pub offer_amount: Uint128,
     pub spread_amount: Uint128,
     pub commission_amount: Uint128,
+}
+
+// We define a custom struct for each query response
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CumulativePricesResponse {
+    pub assets: [Asset; 2],
+    pub total_share: Uint128,
+    pub price0_cumulative_last: Uint128,
+    pub price1_cumulative_last: Uint128,
 }
 
 /// We currently take no arguments for migrations

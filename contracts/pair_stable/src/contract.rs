@@ -12,8 +12,8 @@ use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::QueryMsg as FactoryQueryMsg;
 use astroport::hook::InitHook;
 use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse, QueryMsg,
-    ReverseSimulationResponse, SimulationResponse,
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
+    QueryMsg, ReverseSimulationResponse, SimulationResponse,
 };
 use astroport::querier::query_supply;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
@@ -559,6 +559,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::ReverseSimulation { ask_asset } => {
             to_binary(&query_reverse_simulation(deps, ask_asset)?)
         }
+        QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps)?),
     }
 }
 
@@ -574,8 +575,6 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
     let resp = PoolResponse {
         assets,
         total_share,
-        price0_cumulative_last: config.price0_cumulative_last,
-        price1_cumulative_last: config.price1_cumulative_last,
     };
 
     Ok(resp)
@@ -650,6 +649,20 @@ pub fn query_reverse_simulation(
         spread_amount,
         commission_amount,
     })
+}
+
+pub fn query_cumulative_prices(deps: Deps) -> StdResult<CumulativePricesResponse> {
+    let config: Config = CONFIG.load(deps.storage)?;
+    let (assets, total_share) = pool_info(deps, config.clone())?;
+
+    let resp = CumulativePricesResponse {
+        assets,
+        total_share,
+        price0_cumulative_last: config.price0_cumulative_last,
+        price1_cumulative_last: config.price1_cumulative_last,
+    };
+
+    Ok(resp)
 }
 
 pub fn amount_of(coins: &[Coin], denom: String) -> Uint128 {
