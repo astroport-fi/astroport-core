@@ -1,7 +1,10 @@
 use std::ops::Add;
 
-use cosmwasm_std::{to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo, ReplyOn, Response, StdResult, SubMsg, Uint128, WasmMsg};
-use cw20::{Cw20ExecuteMsg};
+use cosmwasm_std::{
+    to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo, ReplyOn, Response,
+    StdResult, SubMsg, Uint128, WasmMsg,
+};
+use cw20::Cw20ExecuteMsg;
 
 use crate::error::ContractError;
 use crate::msg::{ConvertResponse, ExecuteMsg, InitMsg, QueryAddressResponse, QueryMsg};
@@ -158,8 +161,8 @@ fn convert(
         .add_attribute("token0", token0.to_string())
         .add_attribute("token1", token1.to_string())
         .add_attribute("amount0", amount0.to_string())
-        .add_attribute("amount1", amount1.to_string())
-        .add_attribute("astro", res.amount.to_string());
+        .add_attribute("amount1", amount1.to_string());
+        //.add_attribute("astro", res.amount.to_string());
     response.events.push(event);
     Ok(response)
 }
@@ -346,76 +349,58 @@ fn swap(
         &[from_token.clone(), to_token],
     )?;
     // Interactions
-    // let mut reserve0 = Uint128::zero();
-    // let mut reserve1 = Uint128::zero();
-    // let assets = query_pair_share(&deps.querier, pair.contract_addr.clone(), amount_in).unwrap();
-    // for asset in assets{
-    //     if asset.info.equal(&from_token.clone()) {
-    //         reserve0 = asset.amount;
-    //     }
-    //     if asset.info.equal(&to_token.clone()) {
-    //         reserve1 = asset.amount;
-    //     }
-    // }
-    // let amount_in_with_fee = amount_in.checked_mul(Uint128::from(997u128)).unwrap();
-    // let amount_out = amount_in_with_fee
-    //     .checked_mul(reserve1)
-    //     .unwrap()
-    //     .checked_div(
-    //         reserve0
-    //             .checked_mul(Uint128::from(1000u128))
-    //             .unwrap()
-    //             .checked_add(amount_in_with_fee)
-    //             .unwrap()
-    //     )
-    //     .unwrap();
     let amount_out = query_swap_amount(
         &deps.querier,
         pair.contract_addr.clone(),
         from_token.clone(),
         amount_in,
-    ).unwrap();
+    )
+    .unwrap();
 
-
-    let messages =
+    let messages = if from_token.is_native_token() {
         vec![
-            if from_token.is_native_token() {
-                // WasmMsg::Execute {
-                //     contract_addr:from_token.to_string(),
-                //     msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                //         spender: pair.contract_addr.to_string(),
-                //         amount: amount_in,
-                //         expires: None
-                //     })?,
-                //     funds: vec![]
-                // },
-                WasmMsg::Execute {
-                    contract_addr: pair.contract_addr.to_string(),
-                    msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
-                        offer_asset: Asset {
-                            info: from_token,
-                            amount: amount_out,
-                        },
+            WasmMsg::Execute {
+                contract_addr:from_token.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: pair.contract_addr.to_string(),
+                    amount: amount_in,
+                    expires: None
+                })?,
+                funds: vec![]
+            },
+            WasmMsg::Execute {
+                contract_addr: pair.contract_addr.to_string(),
+                msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
+                    offer_asset: Asset {
+                        info: from_token,
+                        amount: amount_out,
+                    },
+                    belief_price: None,
+                    max_spread: None,
+                    to: Option::from(to.to_string()),
+                })?,
+                funds: vec![],
+            }
+        ]
+    } else {
+        vec![
+            WasmMsg::Execute {
+                contract_addr: from_token.to_string(),
+                msg: to_binary(&cw20::Cw20ExecuteMsg::Send {
+                    contract: pair.contract_addr.to_string(),
+                    amount: amount_in,
+                    msg: to_binary(&Cw20HookMsg::Swap {
                         belief_price: None,
                         max_spread: None,
                         to: Option::from(to.to_string()),
-                    })?,
-                    funds: vec![],
-                }
-            }else{
-                WasmMsg::Execute {
-                    contract_addr: from_token.to_string(),
-                    msg: to_binary(
-                        &cw20::Cw20ExecuteMsg::Send {
-                            contract: pair.contract_addr.to_string(),
-                            amount: amount_in,
-                            msg: to_binary( &Cw20HookMsg::Swap { belief_price: None, max_spread: None, to: Option::from(to.to_string()) }).unwrap(),
-                        }
-                    ).unwrap(),
-                    funds: vec![]
-                }
+                    })
+                    .unwrap(),
+                })
+                .unwrap(),
+                funds: vec![],
             }
-        ];
+        ]
+    };
 
     // let messages = vec![
     //
