@@ -161,8 +161,8 @@ fn convert(
         .add_attribute("token0", token0.to_string())
         .add_attribute("token1", token1.to_string())
         .add_attribute("amount0", amount0.to_string())
-        .add_attribute("amount1", amount1.to_string());
-        //.add_attribute("astro", res.amount.to_string());
+        .add_attribute("amount1", amount1.to_string())
+        .add_attribute("astro", res.amount.to_string());
     response.events.push(event);
     Ok(response)
 }
