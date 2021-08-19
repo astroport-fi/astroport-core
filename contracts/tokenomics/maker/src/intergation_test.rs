@@ -4,17 +4,17 @@ use astroport::token::InstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
-//use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
-use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
-pub use terra_mocks::TerraMockQuerier;
+use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
+// use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
+// pub use terra_mocks::TerraMockQuerier;
 
 fn mock_app() -> App {
     let env = mock_env();
     let api = MockApi::default();
     let bank = BankKeeper::new();
 
-    App::new(api, env.block, bank, MockStorage::new(), TerraMockQuerier)
     //App::new(api, env.block, bank, MockStorage::new(), TerraMockQuerier)
+    App::new(api, env.block, bank, MockStorage::new())
 }
 
 fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr, Addr, Addr) {
@@ -104,14 +104,14 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
 
 fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String) -> Addr {
     let token_contract = Box::new(ContractWrapper::new(
-        cw20_base::contract::execute,
-        cw20_base::contract::instantiate,
-        cw20_base::contract::query,
+        astroport_token::contract::execute,
+        astroport_token::contract::instantiate,
+        astroport_token::contract::query,
     ));
 
     let token_code_id = router.store_code(token_contract);
 
-    let msg = cw20_base::msg::InstantiateMsg {
+    let msg = InstantiateMsg {
         name,
         symbol: symbol.clone(),
         decimals: 6,
@@ -120,7 +120,8 @@ fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String
             minter: owner.to_string(),
             cap: None,
         }),
-        marketing: None,
+        //marketing: None,
+        init_hook: None
     };
 
     let token_instance = router
