@@ -14,6 +14,7 @@ use astroport::factory::{
 };
 use astroport::hook::InitHook;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
+use std::collections::HashSet;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -28,11 +29,18 @@ pub fn instantiate(
         fee_address: msg.fee_address.unwrap_or_else(|| Addr::unchecked("")),
     };
 
-    for pc in msg.pair_configs.iter() {
-        if PAIR_CONFIGS.has(deps.storage, pc.clone().pair_type.to_string()) {
-            return Err(ContractError::PairConfigDuplicate {});
-        }
+    let config_set: HashSet<String> = msg
+        .pair_configs
+        .clone()
+        .into_iter()
+        .map(|pc| pc.pair_type.to_string())
+        .collect();
 
+    if config_set.len() != msg.pair_configs.len() {
+        return Err(ContractError::PairConfigDuplicate {});
+    }
+
+    for pc in msg.pair_configs.iter() {
         PAIR_CONFIGS.save(deps.storage, pc.clone().pair_type.to_string(), pc)?;
     }
 
