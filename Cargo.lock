@@ -1087,7 +1087,6 @@ dependencies = [
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test",
  "cw-storage-plus 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw20",
  "schemars",
