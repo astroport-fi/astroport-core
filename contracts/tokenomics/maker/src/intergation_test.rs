@@ -4,14 +4,17 @@ use astroport::token::InstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
+//use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
+use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
+pub use terra_mocks::TerraMockQuerier;
 
 fn mock_app() -> App {
     let env = mock_env();
     let api = MockApi::default();
     let bank = BankKeeper::new();
 
-    App::new(api, env.block, bank, MockStorage::new())
+    App::new(api, env.block, bank, MockStorage::new(), TerraMockQuerier)
+    //App::new(api, env.block, bank, MockStorage::new(), TerraMockQuerier)
 }
 
 fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr, Addr, Addr) {
@@ -1176,6 +1179,7 @@ fn convert_multiple() {
             AssetInfo::Token {
                 contract_addr: luna_token_instance.clone(),
             },
+
         ],
 
         token2: vec![
@@ -1303,49 +1307,49 @@ fn convert_multiple2() {
         "luna",
     );
 
-    let amount1 = Uint128::from(100u128);
-    let amount2 = Uint128::from(2000u128);
-    let amount3 = Uint128::from(3000u128);
+    let amount_pair_usdc_astro = Uint128::from(1000u128);
+    let amount_pair_luna_astro = Uint128::from(2000u128);
+    let amount_pair_usdc_luna = Uint128::from(3000u128);
 
     transfer_token(
         &mut router,
         user.clone(),
         pair_usdc_astro.liquidity_token.clone(),
         maker_instance.clone(),
-        amount1.clone(),
+        amount_pair_usdc_astro.clone(),
     );
     transfer_token(
         &mut router,
         user.clone(),
         pair_luna_astro.liquidity_token.clone(),
         maker_instance.clone(),
-        amount2.clone(),
+        amount_pair_luna_astro.clone(),
     );
     transfer_token(
         &mut router,
         user.clone(),
         pair_info.liquidity_token.clone(),
         maker_instance.clone(),
-        amount3.clone(),
+        amount_pair_usdc_luna.clone(),
     );
 
     check_balance(
         &mut router,
         maker_instance.clone(),
         pair_usdc_astro.liquidity_token.clone(),
-        amount1.clone(),
+        amount_pair_usdc_astro.clone(),
     );
     check_balance(
         &mut router,
         maker_instance.clone(),
         pair_luna_astro.liquidity_token.clone(),
-        amount2.clone(),
+        amount_pair_luna_astro.clone(),
     );
     check_balance(
         &mut router,
         maker_instance.clone(),
         pair_info.liquidity_token.clone(),
-        amount3.clone(),
+        amount_pair_usdc_luna.clone(),
     );
 
     check_balance(
@@ -1373,7 +1377,6 @@ fn convert_multiple2() {
                 contract_addr: usdc_token_instance.clone(),
             },
         ],
-
         token2: vec![
             AssetInfo::Token {
                 contract_addr: astro_token_instance.clone(),
@@ -1420,7 +1423,7 @@ fn convert_multiple2() {
         &mut router,
         staking.clone(),
         astro_token_instance.clone(),
-        Uint128::from(10176u128),
+        Uint128::from(11973u128),
     );
     //TODO ???
     check_balance(

@@ -360,15 +360,6 @@ fn swap(
     let messages = if from_token.is_native_token() {
         vec![
             WasmMsg::Execute {
-                contract_addr:from_token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: pair.contract_addr.to_string(),
-                    amount: amount_in,
-                    expires: None
-                })?,
-                funds: vec![]
-            },
-            WasmMsg::Execute {
                 contract_addr: pair.contract_addr.to_string(),
                 msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
                     offer_asset: Asset {
@@ -380,53 +371,25 @@ fn swap(
                     to: Option::from(to.to_string()),
                 })?,
                 funds: vec![],
-            }
+            },
         ]
     } else {
-        vec![
-            WasmMsg::Execute {
-                contract_addr: from_token.to_string(),
-                msg: to_binary(&cw20::Cw20ExecuteMsg::Send {
-                    contract: pair.contract_addr.to_string(),
-                    amount: amount_in,
-                    msg: to_binary(&Cw20HookMsg::Swap {
-                        belief_price: None,
-                        max_spread: None,
-                        to: Option::from(to.to_string()),
-                    })
-                    .unwrap(),
+        vec![WasmMsg::Execute {
+            contract_addr: from_token.to_string(),
+            msg: to_binary(&cw20::Cw20ExecuteMsg::Send {
+                contract: pair.contract_addr.to_string(),
+                amount: amount_in,
+                msg: to_binary(&Cw20HookMsg::Swap {
+                    belief_price: None,
+                    max_spread: None,
+                    to: Option::from(to.to_string()),
                 })
                 .unwrap(),
-                funds: vec![],
-            }
-        ]
+            })
+            .unwrap(),
+            funds: vec![],
+        }]
     };
-
-    // let messages = vec![
-    //
-    //     WasmMsg::Execute {
-    //         contract_addr:from_token.to_string(),
-    //         msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-    //             spender: pair.contract_addr.to_string(),
-    //             amount: amount_in,
-    //             expires: None
-    //         })?,
-    //         funds: vec![]
-    //     },
-    //     WasmMsg::Execute {
-    //         contract_addr: pair.contract_addr.to_string(),
-    //         msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
-    //             offer_asset: Asset {
-    //                 info: from_token,
-    //                 amount: amount_out,
-    //             },
-    //             belief_price: None,
-    //             max_spread: None,
-    //             to: Option::from(to.to_string()),
-    //         })?,
-    //         funds: vec![],
-    //     },
-    // ];
     let events = vec![Event::new("Swap").add_attribute("AmountOut", amount_out.to_string())];
     Ok(ConvertResponse {
         amount: amount_out,
