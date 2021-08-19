@@ -1311,6 +1311,7 @@ fn test_accumulate_prices() {
                     ],
                     contract_addr: Addr::unchecked("pair"),
                     liquidity_token: Addr::unchecked("lp_token"),
+                    pair_type: PairType::Stable {},
                 },
                 factory_addr: Addr::unchecked("factory"),
                 block_time_last: case.block_time_last,
@@ -1341,6 +1342,7 @@ fn mock_env_with_block_time(time: u64) -> Env {
     env
 }
 
+use astroport::factory::PairType;
 use proptest::prelude::*;
 use sim::StableSwapModel;
 

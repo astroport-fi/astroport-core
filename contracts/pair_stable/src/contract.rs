@@ -9,7 +9,7 @@ use cosmwasm_std::{
 };
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::QueryMsg as FactoryQueryMsg;
+use astroport::factory::{FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg};
 use astroport::hook::InitHook;
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
@@ -19,12 +19,7 @@ use astroport::querier::query_supply;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use integer_sqrt::IntegerSquareRoot;
-use std::str::FromStr;
 use std::vec;
-
-/// Commission rate == 0.3%
-const COMMISSION_RATE: &str = "0.003";
-const MAKER_FEE_RATE: &str = "0.166";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -38,6 +33,7 @@ pub fn instantiate(
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
             asset_infos: msg.asset_infos,
+            pair_type: PairType::Stable {},
         },
         factory_addr: msg.factory_addr,
         block_time_last: 0,
@@ -448,9 +444,16 @@ pub fn swap(
         return Err(ContractError::AssetMismatch {});
     }
 
+    // Get fee info from factory
+    let fee_info = get_fee_info(deps.as_ref(), config.clone())?;
+
     let offer_amount = offer_asset.amount;
-    let (return_amount, spread_amount, commission_amount) =
-        compute_swap(offer_pool.amount, ask_pool.amount, offer_amount);
+    let (return_amount, spread_amount, commission_amount) = compute_swap(
+        offer_pool.amount,
+        ask_pool.amount,
+        offer_amount,
+        fee_info.total_fee_rate,
+    );
 
     // check max spread limit if exist
     assert_max_spread(
@@ -489,11 +492,12 @@ pub fn swap(
         .add_attribute("spread_amount", spread_amount.to_string())
         .add_attribute("commission_amount", commission_amount.to_string());
 
+    // Maker fee
     let mut maker_fee_amount = Uint128::new(0);
-
-    let fee_address = get_fee_address(deps.as_ref(), config.clone())?;
-    if fee_address != Addr::unchecked("") {
-        if let Some(f) = calculate_maker_fee(ask_pool.info, commission_amount) {
+    if let Some(fee_address) = fee_info.fee_address {
+        if let Some(f) =
+            calculate_maker_fee(ask_pool.info, commission_amount, fee_info.maker_fee_rate)
+        {
             response.messages.push(SubMsg {
                 msg: f.clone().into_msg(&deps.querier, fee_address)?,
                 id: 0,
@@ -530,8 +534,12 @@ pub fn accumulate_prices(env: Env, config: Config, x: Uint128, y: Uint128) -> Op
     Some(config)
 }
 
-pub fn calculate_maker_fee(pool_info: AssetInfo, commission_amount: Uint128) -> Option<Asset> {
-    let maker_fee: Uint128 = commission_amount * Decimal::from_str(&MAKER_FEE_RATE).unwrap();
+pub fn calculate_maker_fee(
+    pool_info: AssetInfo,
+    commission_amount: Uint128,
+    maker_commission_rate: Decimal,
+) -> Option<Asset> {
+    let maker_fee: Uint128 = commission_amount * maker_commission_rate;
     if maker_fee.is_zero() {
         return None;
     }
@@ -542,11 +550,26 @@ pub fn calculate_maker_fee(pool_info: AssetInfo, commission_amount: Uint128) -> 
     })
 }
 
-pub fn get_fee_address(deps: Deps, config: Config) -> StdResult<Addr> {
-    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+pub struct FeeInfo {
+    pub fee_address: Option<Addr>,
+    pub total_fee_rate: Decimal,
+    pub maker_fee_rate: Decimal,
+}
+
+pub fn get_fee_info(deps: Deps, config: Config) -> StdResult<FeeInfo> {
+    let res: FeeInfoResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.factory_addr.to_string(),
-        msg: to_binary(&FactoryQueryMsg::FeeAddress {}).unwrap(),
-    }))
+        msg: to_binary(&FactoryQueryMsg::FeeInfo {
+            pair_type: config.pair_info.pair_type,
+        })
+        .unwrap(),
+    }))?;
+
+    Ok(FeeInfo {
+        fee_address: res.fee_address,
+        total_fee_rate: Decimal::from_ratio(Uint128::from(res.total_fee_bps), Uint128::new(10000)),
+        maker_fee_rate: Decimal::from_ratio(Uint128::from(res.maker_fee_bps), Uint128::new(10000)),
+    })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -570,7 +593,7 @@ pub fn query_pair_info(deps: Deps) -> StdResult<PairInfo> {
 
 pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
-    let (assets, total_share) = pool_info(deps, config.clone())?;
+    let (assets, total_share) = pool_info(deps, config)?;
 
     let resp = PoolResponse {
         assets,
@@ -608,8 +631,15 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
         ));
     }
 
-    let (return_amount, spread_amount, commission_amount) =
-        compute_swap(offer_pool.amount, ask_pool.amount, offer_asset.amount);
+    // Get fee info from factory
+    let fee_info = get_fee_info(deps, config)?;
+
+    let (return_amount, spread_amount, commission_amount) = compute_swap(
+        offer_pool.amount,
+        ask_pool.amount,
+        offer_asset.amount,
+        fee_info.total_fee_rate,
+    );
 
     Ok(SimulationResponse {
         return_amount,
@@ -641,8 +671,15 @@ pub fn query_reverse_simulation(
         ));
     }
 
-    let (offer_amount, spread_amount, commission_amount) =
-        compute_offer_amount(offer_pool.amount, ask_pool.amount, ask_asset.amount)?;
+    // Get fee info from factory
+    let fee_info = get_fee_info(deps, config)?;
+
+    let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
+        offer_pool.amount,
+        ask_pool.amount,
+        ask_asset.amount,
+        fee_info.total_fee_rate,
+    )?;
 
     Ok(ReverseSimulationResponse {
         offer_amount,
@@ -676,6 +713,7 @@ fn compute_swap(
     offer_pool: Uint128,
     ask_pool: Uint128,
     offer_amount: Uint128,
+    commission_rate: Decimal,
 ) -> (Uint128, Uint128, Uint128) {
     // offer => ask
 
@@ -687,7 +725,7 @@ fn compute_swap(
     // difference between the prices for exchanging this SPREAD_EPSILON and the price for exchaning the amount provided by user in contract call
     let spread_amount = Uint128::zero();
 
-    let commission_amount: Uint128 = return_amount * Decimal::from_str(&COMMISSION_RATE).unwrap();
+    let commission_amount: Uint128 = return_amount * commission_rate;
 
     // commission will be absorbed to pool
     let return_amount: Uint128 = return_amount.checked_sub(commission_amount).unwrap();
@@ -699,11 +737,11 @@ fn compute_offer_amount(
     offer_pool: Uint128,
     ask_pool: Uint128,
     ask_amount: Uint128,
+    commission_rate: Decimal,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
 
-    let one_minus_commission =
-        decimal_subtraction(Decimal::one(), Decimal::from_str(&COMMISSION_RATE).unwrap())?;
+    let one_minus_commission = decimal_subtraction(Decimal::one(), commission_rate)?;
 
     let offer_amount = Uint128::new(
         calc_amount(ask_pool.u128(), offer_pool.u128(), ask_amount.u128(), AMP).unwrap(),
@@ -715,8 +753,7 @@ fn compute_offer_amount(
     // difference between the prices for exchanging this SPREAD_EPSILON and the price for exchaning the amount provided by user in contract call
     let spread_amount = Uint128::zero();
 
-    let commission_amount =
-        before_commission_deduction * Decimal::from_str(&COMMISSION_RATE).unwrap();
+    let commission_amount = before_commission_deduction * commission_rate;
     Ok((offer_amount, spread_amount, commission_amount))
 }
 
