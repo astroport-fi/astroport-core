@@ -2,17 +2,24 @@ use crate::msg::{ExecuteMsg, InitMsg};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 //use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
+
 // pub use terra_mocks::TerraMockQuerier;
 
 fn mock_app() -> App {
     let env = mock_env();
     let api = MockApi::default();
     let bank = BankKeeper::new();
-    let tmq = TerraMockQuerier::new(MockQuerier::new(&[]));
+    let mut tmq = TerraMockQuerier::new(MockQuerier::new(&[]));
+
+    tmq.with_market(&[
+        ("uusd", "astro", Decimal::percent(100)),
+        ("luna", "astro", Decimal::percent(100)),
+        ("uusd", "luna", Decimal::percent(100)),
+    ]);
 
     App::new(api, env.block, bank, MockStorage::new(), tmq)
     //App::new(api, env.block, bank, MockStorage::new())
@@ -551,14 +558,14 @@ fn convert_token_pair_not_exist() {
     };
     let res = router.execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[]);
 
-    /*     match res {
-           Ok(_) => panic!("Must return error"),
-           Err(msg) => assert_eq!(
-               msg,
-               "Generic error: Querier contract error: astroport::asset::PairInfo not found"
-           ),
-       }
-    */
+    match res {
+        Ok(_) => panic!("Must return error"),
+        Err(msg) => assert_eq!(
+            msg.to_string(),
+            "Generic error: Querier contract error: astroport::asset::PairInfo not found"
+                .to_string()
+        ),
+    }
 }
 
 #[test]
@@ -652,9 +659,8 @@ fn convert_token_astro_token_usdc_2() {
     );
 }
 
-//TODO not implemented querier.custom_query in cw_multi_test
 #[test]
-#[ignore]
+//#[ignore]
 fn convert_token_astro_native_token_uusd() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
@@ -805,9 +811,26 @@ fn convert_token_astro_native_token_uusd() {
             denom: "uusd".to_string(),
         },
     };
+    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
+    router
+        .init_bank_balance(
+            &maker_instance.clone(),
+            vec![Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(9u128),
+            }],
+        )
+        .unwrap();
     let _res = router
         .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
         .unwrap();
+
+    let bal = router
+        .wrap()
+        .query_all_balances(maker_instance.clone())
+        .unwrap();
+    assert_eq!(bal, vec![]);
+
     check_balance(
         &mut router,
         maker_instance.clone(),
@@ -818,7 +841,7 @@ fn convert_token_astro_native_token_uusd() {
         &mut router,
         maker_instance.clone(),
         astro_token_instance.clone(),
-        Uint128::zero(),
+        Uint128::from(Uint128::zero()),
     );
     check_balance(
         &mut router,
@@ -826,12 +849,6 @@ fn convert_token_astro_native_token_uusd() {
         astro_token_instance.clone(),
         Uint128::from(18u128),
     );
-    // check_balance(
-    //     &mut router,
-    //     maker_instance.clone(),
-    //     uusd_instance.clone(),
-    //     Uint128::zero(),
-    // );
 }
 
 #[test]

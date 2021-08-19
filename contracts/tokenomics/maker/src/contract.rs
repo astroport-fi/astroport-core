@@ -1,8 +1,8 @@
 use std::ops::Add;
 
 use cosmwasm_std::{
-    to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo, ReplyOn, Response,
-    StdResult, SubMsg, Uint128, WasmMsg,
+    to_binary, Addr, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo, ReplyOn,
+    Response, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -122,6 +122,20 @@ fn convert(
         }
     }
     // collect tokens from pool(withdraw)
+    let funds = if token1.is_native_token() {
+        vec![Coin {
+            denom: token1.to_string(),
+            amount: amount1,
+        }]
+    } else if token0.is_native_token() {
+        vec![Coin {
+            denom: token0.to_string(),
+            amount: amount0,
+        }]
+    } else {
+        vec![]
+    };
+
     response.messages.push(SubMsg {
         id: 0,
         msg: CosmosMsg::Wasm(WasmMsg::Execute {
@@ -132,7 +146,7 @@ fn convert(
                 msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
             })
             .unwrap(),
-            funds: vec![],
+            funds,
         }),
         gas_limit: None,
         reply_on: ReplyOn::Never,
@@ -358,21 +372,22 @@ fn swap(
     .unwrap();
 
     let messages = if from_token.is_native_token() {
-        vec![
-            WasmMsg::Execute {
-                contract_addr: pair.contract_addr.to_string(),
-                msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
-                    offer_asset: Asset {
-                        info: from_token,
-                        amount: amount_out,
-                    },
-                    belief_price: None,
-                    max_spread: None,
-                    to: Option::from(to.to_string()),
-                })?,
-                funds: vec![],
-            },
-        ]
+        vec![WasmMsg::Execute {
+            contract_addr: pair.contract_addr.to_string(),
+            msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
+                offer_asset: Asset {
+                    info: from_token.clone(),
+                    amount: amount_out,
+                },
+                belief_price: None,
+                max_spread: None,
+                to: Option::from(to.to_string()),
+            })?,
+            funds: vec![Coin {
+                denom: from_token.to_string(),
+                amount: amount_out,
+            }],
+        }]
     } else {
         vec![WasmMsg::Execute {
             contract_addr: from_token.to_string(),
