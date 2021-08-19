@@ -29,7 +29,9 @@ use cosmwasm_vm::testing::{
 use cosmwasm_vm::{Instance, InstanceOptions};
 
 use astroport::asset::AssetInfo;
-use astroport::factory::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::factory::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, PairType, QueryMsg,
+};
 use astroport::hook::InitHook;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 
@@ -64,10 +66,16 @@ pub fn mock_instance(
 #[test]
 fn proper_initialization() {
     let mut deps = mock_instance(WASM, &[]);
+    let pair_configs = vec![PairConfig {
+        code_id: 321,
+        pair_type: PairType::Xyk {},
+        total_fee_bps: 100,
+        maker_fee_bps: 10,
+    }];
 
     let msg = InstantiateMsg {
-        pair_code_ids: vec![321u64],
-        token_code_id: 123u64,
+        pair_configs: pair_configs.clone(),
+        token_code_id: 123,
         init_hook: None,
         fee_address: None,
     };
@@ -80,8 +88,8 @@ fn proper_initialization() {
 
     let query_res = query(&mut deps, env, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
-    assert_eq!(123u64, config_res.token_code_id);
-    assert_eq!(vec![321u64], config_res.pair_code_ids);
+    assert_eq!(123, config_res.token_code_id);
+    assert_eq!(pair_configs, config_res.pair_configs);
     assert_eq!(String::from("addr0000"), config_res.owner);
 }
 
@@ -89,8 +97,13 @@ fn proper_initialization() {
 fn update_config() {
     let mut deps = mock_instance(WASM, &[]);
     let msg = InstantiateMsg {
-        pair_code_ids: vec![321u64],
-        token_code_id: 123u64,
+        pair_configs: vec![PairConfig {
+            code_id: 321,
+            pair_type: PairType::Xyk {},
+            total_fee_bps: 100,
+            maker_fee_bps: 10,
+        }],
+        token_code_id: 123,
         init_hook: None,
         fee_address: None,
     };
@@ -106,7 +119,6 @@ fn update_config() {
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
         owner: Some(Addr::unchecked("addr0001")),
-        pair_code_ids: None,
         token_code_id: None,
         fee_address: None,
     };
@@ -118,7 +130,6 @@ fn update_config() {
     let query_res = query(&mut deps, env, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(123u64, config_res.token_code_id);
-    assert_eq!(vec![321u64], config_res.pair_code_ids);
     assert_eq!(String::from("addr0001"), config_res.owner);
 
     // update left items
@@ -126,9 +137,8 @@ fn update_config() {
     let info = mock_info("addr0001", &[]);
     let msg = ExecuteMsg::UpdateConfig {
         owner: None,
-        pair_code_ids: Some(vec![100u64]),
         token_code_id: Some(200u64),
-        fee_address: None,
+        fee_address: Some(Addr::unchecked("fee")),
     };
 
     let res: Response = execute(&mut deps, env.clone(), info, msg).unwrap();
@@ -138,7 +148,6 @@ fn update_config() {
     let query_res = query(&mut deps, env, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(200u64, config_res.token_code_id);
-    assert_eq!(vec![100u64], config_res.pair_code_ids);
     assert_eq!(String::from("addr0001"), config_res.owner);
 
     // Unauthorzied err
@@ -146,7 +155,6 @@ fn update_config() {
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
         owner: None,
-        pair_code_ids: None,
         token_code_id: None,
         fee_address: None,
     };
@@ -160,8 +168,13 @@ fn create_pair() {
     let mut deps = mock_instance(WASM, &[]);
 
     let msg = InstantiateMsg {
-        pair_code_ids: vec![321u64],
-        token_code_id: 123u64,
+        pair_configs: vec![PairConfig {
+            code_id: 321,
+            pair_type: PairType::Xyk {},
+            total_fee_bps: 100,
+            maker_fee_bps: 10,
+        }],
+        token_code_id: 123,
         init_hook: None,
         fee_address: None,
     };
@@ -181,7 +194,7 @@ fn create_pair() {
         },
     ];
     let msg = ExecuteMsg::CreatePair {
-        pair_code_id: 321u64,
+        pair_type: PairType::Xyk {},
         asset_infos: asset_infos.clone(),
         init_hook: None,
     };
@@ -203,7 +216,7 @@ fn create_pair() {
                 msg: to_binary(&PairInstantiateMsg {
                     factory_addr: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     asset_infos: asset_infos.clone(),
-                    token_code_id: 123u64,
+                    token_code_id: 123,
                     init_hook: Some(InitHook {
                         contract_addr: String::from(MOCK_CONTRACT_ADDR),
                         msg: to_binary(&ExecuteMsg::Register {

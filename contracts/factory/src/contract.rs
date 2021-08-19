@@ -1,15 +1,16 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, ReplyOn, Response,
-    StdError, StdResult, SubMsg, WasmMsg,
+    attr, entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, ReplyOn,
+    Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 
 use crate::error::ContractError;
 use crate::querier::query_liquidity_token;
-use crate::state::{pair_key, read_pairs, Config, CONFIG, PAIRS};
+use crate::state::{pair_key, read_pairs, Config, CONFIG, PAIRS, PAIR_CONFIGS};
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, PairsResponse, QueryMsg,
+    ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
+    PairsResponse, QueryMsg,
 };
 use astroport::hook::InitHook;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
@@ -20,13 +21,20 @@ pub fn instantiate(
     _env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
-) -> StdResult<Response> {
+) -> Result<Response, ContractError> {
     let config = Config {
         owner: info.sender,
         token_code_id: msg.token_code_id,
-        pair_code_ids: msg.pair_code_ids,
         fee_address: msg.fee_address.unwrap_or_else(|| Addr::unchecked("")),
     };
+
+    for pc in msg.pair_configs.iter() {
+        if PAIR_CONFIGS.has(deps.storage, pc.clone().pair_type.to_string()) {
+            return Err(ContractError::PairConfigDuplicate {});
+        }
+
+        PAIR_CONFIGS.save(deps.storage, pc.clone().pair_type.to_string(), pc)?;
+    }
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -59,24 +67,19 @@ pub fn execute(
         ExecuteMsg::UpdateConfig {
             owner,
             token_code_id,
-            pair_code_ids,
             fee_address,
-        } => execute_update_config(
-            deps,
-            env,
-            info,
-            owner,
-            token_code_id,
-            pair_code_ids,
-            fee_address,
-        ),
+        } => execute_update_config(deps, env, info, owner, token_code_id, fee_address),
+        ExecuteMsg::UpdatePairConfig { config } => execute_update_pair_config(deps, info, config),
+        ExecuteMsg::RemovePairConfig { pair_type } => {
+            execute_remove_pair_config(deps, info, pair_type)
+        }
         ExecuteMsg::CreatePair {
-            pair_code_id,
+            pair_type,
             asset_infos,
             init_hook,
-        } => execute_create_pair(deps, env, pair_code_id, asset_infos, init_hook),
-        ExecuteMsg::Register { asset_infos } => register(deps, env, info, asset_infos),
-        ExecuteMsg::Deregister { asset_infos } => deregister(deps, env, info, asset_infos),
+        } => execute_create_pair(deps, env, pair_type, asset_infos, init_hook),
+        ExecuteMsg::Register { asset_infos } => register(deps, info, asset_infos),
+        ExecuteMsg::Deregister { asset_infos } => deregister(deps, info, asset_infos),
     }
 }
 
@@ -87,7 +90,6 @@ pub fn execute_update_config(
     info: MessageInfo,
     owner: Option<Addr>,
     token_code_id: Option<u64>,
-    pair_code_ids: Option<Vec<u64>>,
     fee_address: Option<Addr>,
 ) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
@@ -111,24 +113,62 @@ pub fn execute_update_config(
         config.token_code_id = token_code_id;
     }
 
-    if let Some(pair_code_ids) = pair_code_ids {
-        config.pair_code_ids = pair_code_ids;
-    }
-
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_attribute("action", "update_config"))
+}
+
+pub fn execute_update_pair_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    pair_config: PairConfig,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    // permission check
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    PAIR_CONFIGS.save(
+        deps.storage,
+        pair_config.pair_type.to_string(),
+        &pair_config,
+    )?;
+
+    Ok(Response::new().add_attribute("action", "update_pair_config"))
+}
+
+pub fn execute_remove_pair_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    pair_type: PairType,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    // permission check
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if !PAIR_CONFIGS.has(deps.storage, pair_type.to_string()) {
+        return Err(ContractError::PairConfigNotFound {});
+    }
+
+    PAIR_CONFIGS.remove(deps.storage, pair_type.to_string());
+
+    Ok(Response::new().add_attribute("action", "remove_pair_config"))
 }
 
 // Anyone can execute it to create swap pair
 pub fn execute_create_pair(
     deps: DepsMut,
     env: Env,
-    pair_code_id: u64,
+    pair_type: PairType,
     asset_infos: [AssetInfo; 2],
     init_hook: Option<InitHook>,
 ) -> Result<Response, ContractError> {
-    let config: Config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     if PAIRS
         .may_load(deps.storage, &pair_key(&asset_infos))
@@ -138,10 +178,10 @@ pub fn execute_create_pair(
         return Err(StdError::generic_err("Pair already exists").into());
     }
 
-    // Check if pair ID is whitelisted
-    if !config.pair_code_ids.contains(&pair_code_id) {
-        return Err(ContractError::PairCodeNotAllowed {});
-    }
+    // Get pair type from config
+    let pair_config = PAIR_CONFIGS
+        .load(deps.storage, pair_type.to_string())
+        .map_err(|_| ContractError::PairConfigNotFound {})?;
 
     PAIRS.save(
         deps.storage,
@@ -150,12 +190,13 @@ pub fn execute_create_pair(
             liquidity_token: Addr::unchecked(""),
             contract_addr: Addr::unchecked(""),
             asset_infos: [asset_infos[0].clone(), asset_infos[1].clone()],
+            pair_type,
         },
     )?;
 
     let mut messages: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
-            code_id: pair_code_id,
+            code_id: pair_config.code_id,
             funds: vec![],
             admin: None,
             label: String::from("Astroport pair"),
@@ -202,7 +243,6 @@ pub fn execute_create_pair(
 /// create pair execute this message
 pub fn register(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     asset_infos: [AssetInfo; 2],
 ) -> Result<Response, ContractError> {
@@ -232,11 +272,10 @@ pub fn register(
 /// create pair execute this message
 pub fn deregister(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     asset_infos: [AssetInfo; 2],
 ) -> Result<Response, ContractError> {
-    let config: Config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
@@ -259,16 +298,22 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Pairs { start_after, limit } => {
             to_binary(&query_pairs(deps, start_after, limit)?)
         }
-        QueryMsg::FeeAddress {} => to_binary(&query_fee_address(deps)?),
+        QueryMsg::FeeInfo { pair_type } => to_binary(&query_fee_info(deps, pair_type)?),
     }
 }
 
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
-    let config: Config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
         owner: config.owner,
         token_code_id: config.token_code_id,
-        pair_code_ids: config.pair_code_ids,
+        pair_configs: PAIR_CONFIGS
+            .range(deps.storage, None, None, Order::Ascending)
+            .map(|item| {
+                let (_, cfg) = item.unwrap();
+                cfg
+            })
+            .collect(),
     };
 
     Ok(resp)
@@ -289,10 +334,15 @@ pub fn query_pairs(
     Ok(resp)
 }
 
-pub fn query_fee_address(deps: Deps) -> StdResult<Addr> {
-    let config: Config = CONFIG.load(deps.storage)?;
+pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoResponse> {
+    let config = CONFIG.load(deps.storage)?;
+    let pair_config = PAIR_CONFIGS.load(deps.storage, pair_type.to_string())?;
 
-    Ok(config.fee_address)
+    Ok(FeeInfoResponse {
+        fee_address: Some(config.fee_address).filter(|a| a != &Addr::unchecked("")),
+        total_fee_bps: pair_config.total_fee_bps,
+        maker_fee_bps: pair_config.maker_fee_bps,
+    })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

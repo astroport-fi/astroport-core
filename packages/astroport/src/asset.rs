@@ -2,6 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use crate::factory::PairType;
 use crate::querier::{query_balance, query_token_balance};
 use cosmwasm_std::{
     to_binary, Addr, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper, StdError,
@@ -174,6 +175,7 @@ pub struct PairInfo {
     pub asset_infos: [AssetInfo; 2],
     pub contract_addr: Addr,
     pub liquidity_token: Addr,
+    pub pair_type: PairType,
 }
 
 impl PairInfo {
