@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::asset::{Asset, AssetInfo};
 use crate::hook::InitHook;
 
+use crate::factory::PairType;
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
@@ -17,6 +18,8 @@ pub struct InstantiateMsg {
     pub init_hook: Option<InitHook>,
     /// Factory contract address
     pub factory_addr: Addr,
+    /// Pair type
+    pub pair_type: PairType,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

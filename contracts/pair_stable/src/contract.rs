@@ -27,13 +27,17 @@ pub fn instantiate(
     env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> StdResult<Response> {
+) -> Result<Response, ContractError> {
+    if msg.pair_type != (PairType::Stable {}) {
+        return Err(ContractError::PairTypeMismatch {});
+    }
+
     let config = Config {
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
             asset_infos: msg.asset_infos,
-            pair_type: PairType::Stable {},
+            pair_type: msg.pair_type,
         },
         factory_addr: msg.factory_addr,
         block_time_last: 0,

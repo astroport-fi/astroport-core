@@ -223,7 +223,8 @@ fn create_pair() {
                             asset_infos: asset_infos.clone()
                         })
                         .unwrap(),
-                    })
+                    }),
+                    pair_type: PairType::Xyk {},
                 })
                 .unwrap(),
                 code_id: 321u64,

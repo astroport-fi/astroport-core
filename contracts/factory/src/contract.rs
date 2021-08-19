@@ -190,7 +190,7 @@ pub fn execute_create_pair(
             liquidity_token: Addr::unchecked(""),
             contract_addr: Addr::unchecked(""),
             asset_infos: [asset_infos[0].clone(), asset_infos[1].clone()],
-            pair_type,
+            pair_type: pair_type.clone(),
         },
     )?;
 
@@ -210,6 +210,7 @@ pub fn execute_create_pair(
                     })?,
                 }),
                 factory_addr: env.contract.address,
+                pair_type,
             })?,
         }
         .into(),

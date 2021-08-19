@@ -5,6 +5,7 @@
   "required": [
     "asset_infos",
     "factory_addr",
+    "pair_type",
     "token_code_id"
   ],
   "properties": {
@@ -33,6 +34,14 @@
         },
         {
           "type": "null"
+        }
+      ]
+    },
+    "pair_type": {
+      "description": "Pair type",
+      "allOf": [
+        {
+          "$ref": "#/definitions/PairType"
         }
       ]
     },
@@ -110,6 +119,54 @@
           "$ref": "#/definitions/Binary"
         }
       }
+    },
+    "PairType": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "xyk"
+          ],
+          "properties": {
+            "xyk": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "stable"
+          ],
+          "properties": {
+            "stable": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "custom"
+          ],
+          "properties": {
+            "custom": {
+              "type": "object",
+              "required": [
+                "pair_type"
+              ],
+              "properties": {
+                "pair_type": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     }
   }
 }
