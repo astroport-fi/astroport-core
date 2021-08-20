@@ -1,12 +1,15 @@
 use std::ops::Add;
 
-use cosmwasm_std::{to_binary, entry_point, Addr, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo, ReplyOn, Response, StdResult, SubMsg, Uint128, WasmMsg, Reply};
+use cosmwasm_std::{
+    entry_point, to_binary, Addr, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo,
+    Reply, ReplyOn, Response, StdResult, SubMsg, Uint128, WasmMsg,
+};
 use cw20::Cw20ExecuteMsg;
 
 use crate::error::ContractError;
 use crate::msg::{ConvertResponse, ExecuteMsg, InitMsg, QueryAddressResponse, QueryMsg};
 use crate::querier::{query_pair_info, query_pair_share, query_swap_amount};
-use crate::state::{State, STATE, ExecuteOnReply, CONVERT_MULTIPLE};
+use crate::state::{ExecuteOnReply, State, CONVERT_MULTIPLE, STATE};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_token_balance;
@@ -89,16 +92,11 @@ pub fn convert_multiple(
     if tokens.token0.len() == 1 {
         let t0 = tokens.token0.swap_remove(0);
         let t1 = tokens.token1.swap_remove(0);
-        CONVERT_MULTIPLE.save(deps.storage, &ExecuteOnReply{token0, token1})?;
-        return convert(deps, env, sender, t0, t1)
+        CONVERT_MULTIPLE.save(deps.storage, &ExecuteOnReply { token0, token1 })?;
+        return convert(deps, env, sender, t0, t1);
     }
     Ok(Response::new().add_submessage(SubMsg::reply_on_success(
-        convert_and_execute(
-            deps,
-            state,
-            token0.clone(),
-            token1.clone(),
-        )?,
+        convert_and_execute(deps, state, token0, token1)?,
         0,
     )))
 }
@@ -111,7 +109,7 @@ fn convert_and_execute(
 ) -> StdResult<CosmosMsg> {
     let t0 = token0.swap_remove(0);
     let t1 = token1.swap_remove(0);
-    CONVERT_MULTIPLE.save(deps.storage, &ExecuteOnReply{token0, token1})?;
+    CONVERT_MULTIPLE.save(deps.storage, &ExecuteOnReply { token0, token1 })?;
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: state.contract.to_string(),
         funds: vec![],

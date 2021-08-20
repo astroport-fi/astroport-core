@@ -90,7 +90,8 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
             crate::contract::execute,
             crate::contract::instantiate,
             crate::contract::query,
-        ).with_reply(crate::contract::reply )
+        )
+        .with_reply(crate::contract::reply),
     );
     let market_code_id = router.store_code(maker_contract);
 

@@ -1,8 +1,8 @@
+use astroport::asset::AssetInfo;
 use cosmwasm_std::Addr;
 use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use astroport::asset::AssetInfo;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
@@ -14,7 +14,7 @@ pub struct State {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, JsonSchema)]
-pub struct  ExecuteOnReply {
+pub struct ExecuteOnReply {
     pub token0: Vec<AssetInfo>,
     pub token1: Vec<AssetInfo>,
 }
