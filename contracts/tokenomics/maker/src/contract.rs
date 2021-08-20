@@ -1,19 +1,17 @@
 use std::ops::Add;
 
-use cosmwasm_std::{
-    to_binary, Addr, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo, ReplyOn,
-    Response, StdResult, SubMsg, Uint128, WasmMsg,
-};
+use cosmwasm_std::{to_binary, entry_point, Addr, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo, ReplyOn, Response, StdResult, SubMsg, Uint128, WasmMsg, Reply};
 use cw20::Cw20ExecuteMsg;
 
 use crate::error::ContractError;
 use crate::msg::{ConvertResponse, ExecuteMsg, InitMsg, QueryAddressResponse, QueryMsg};
 use crate::querier::{query_pair_info, query_pair_share, query_swap_amount};
-use crate::state::{State, STATE};
+use crate::state::{State, STATE, ExecuteOnReply, CONVERT_MULTIPLE};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_token_balance;
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     env: Env,
@@ -31,6 +29,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     mut deps: DepsMut,
     env: Env,
@@ -41,7 +40,7 @@ pub fn execute(
         //ExecuteMsg::SetBridge { token, bridge } => set_bridge(deps, env, info, token, bridge),
         ExecuteMsg::Convert { token1, token2 } => try_convert(&mut deps, env, info, token1, token2),
         ExecuteMsg::ConvertMultiple { token1, token2 } => {
-            convert_multiple(&mut deps, env, info, token1, token2)
+            convert_multiple(&mut deps, env, info.sender, token1, token2)
         }
     }
 }
@@ -53,41 +52,87 @@ pub fn try_convert(
     token0: AssetInfo,
     token1: AssetInfo,
 ) -> Result<Response, ContractError> {
-    convert(deps, env, info, token0, token1)
+    convert(deps, env, info.sender, token0, token1)
 }
 
 pub fn convert_multiple(
     deps: &mut DepsMut,
     env: Env,
-    info: MessageInfo,
+    sender: Addr,
     token0: Vec<AssetInfo>,
     token1: Vec<AssetInfo>,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::default();
-    let len = token0.len();
-    for i in 0..len {
-        let res = convert(
-            deps,
-            env.clone(),
-            info.clone(),
-            token0[i].clone(),
-            token1[i].clone(),
-        )
-        .unwrap();
-        for msg in res.messages {
-            response.messages.push(msg);
-        }
-        for event in res.events {
-            response.events.push(event);
-        }
+    // let mut response = Response::default();
+    // let len = token0.len();
+    // for i in 0..len {
+    //     let res = convert(
+    //         deps,
+    //         env.clone(),
+    //         info.clone(),
+    //         token0[i].clone(),
+    //         token1[i].clone(),
+    //     )
+    //     .unwrap();
+    //     for msg in res.messages {
+    //         response.messages.push(msg);
+    //     }
+    //     for event in res.events {
+    //         response.events.push(event);
+    //     }
+    // }
+    // Ok(response)
+    let state = STATE.load(deps.storage)?;
+    if sender != state.contract {
+        return Err(ContractError::Unauthorized {});
     }
-    Ok(response)
+    let mut tokens = CONVERT_MULTIPLE.load(deps.storage).unwrap_or_default();
+    if tokens.token0.len() == 1 {
+        let t0 = tokens.token0.swap_remove(0);
+        let t1 = tokens.token1.swap_remove(0);
+        CONVERT_MULTIPLE.save(deps.storage, &ExecuteOnReply{token0, token1})?;
+        return convert(deps, env, sender, t0, t1)
+    }
+    Ok(Response::new().add_submessage(SubMsg::reply_on_success(
+        convert_and_execute(
+            deps,
+            state,
+            token0.clone(),
+            token1.clone(),
+        )?,
+        0,
+    )))
+}
+
+fn convert_and_execute(
+    deps: &mut DepsMut,
+    state: State,
+    mut token0: Vec<AssetInfo>,
+    mut token1: Vec<AssetInfo>,
+) -> StdResult<CosmosMsg> {
+    let t0 = token0.swap_remove(0);
+    let t1 = token1.swap_remove(0);
+    CONVERT_MULTIPLE.save(deps.storage, &ExecuteOnReply{token0, token1})?;
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: state.contract.to_string(),
+        funds: vec![],
+        msg: to_binary(&ExecuteMsg::Convert {
+            token1: t0,
+            token2: t1,
+        })?,
+    }))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(mut deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage)?;
+    let tokens = CONVERT_MULTIPLE.load(deps.storage)?;
+    convert_multiple(&mut deps, env, state.contract, tokens.token0, tokens.token1)
 }
 
 fn convert(
     deps: &mut DepsMut,
     env: Env,
-    info: MessageInfo,
+    sender: Addr,
     token0: AssetInfo,
     token1: AssetInfo,
 ) -> Result<Response, ContractError> {
@@ -171,7 +216,7 @@ fn convert(
     }
 
     let event = Event::new("LogConvert")
-        .add_attribute("sender", info.sender.to_string())
+        .add_attribute("sender", sender.to_string())
         .add_attribute("token0", token0.to_string())
         .add_attribute("token1", token1.to_string())
         .add_attribute("amount0", amount0.to_string())
@@ -430,6 +475,7 @@ fn to_astro(
     )
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetFactory {} => to_binary(&query_get_factory(deps)?),

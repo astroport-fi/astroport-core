@@ -85,11 +85,13 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
         )
         .unwrap();
 
-    let maker_contract = Box::new(ContractWrapper::new(
-        crate::contract::execute,
-        crate::contract::instantiate,
-        crate::contract::query,
-    ));
+    let maker_contract = Box::new(
+        ContractWrapper::new(
+            crate::contract::execute,
+            crate::contract::instantiate,
+            crate::contract::query,
+        ).with_reply(crate::contract::reply )
+    );
     let market_code_id = router.store_code(maker_contract);
 
     let msg = InitMsg {
@@ -1249,18 +1251,17 @@ fn convert_multiple() {
         astro_token_instance.clone(),
         Uint128::from(52u128),
     );
-    //TODO ???
     check_balance(
         &mut router,
         maker_instance.clone(),
         usdc_token_instance.clone(),
-        Uint128::from(1u128),
+        Uint128::zero(),
     );
     check_balance(
         &mut router,
         maker_instance.clone(),
         luna_token_instance.clone(),
-        Uint128::from(1u128),
+        Uint128::zero(),
     );
 }
 
@@ -1287,7 +1288,7 @@ fn convert_multiple2() {
         "LUNA".to_string(),
     );
 
-    let liquidity_amount = Uint128::from(1000_000_000_000u128);
+    let liquidity_amount = Uint128::from(100u128);
 
     let pair_usdc_astro = create_pair(
         &mut router,
@@ -1326,9 +1327,9 @@ fn convert_multiple2() {
         "luna",
     );
 
-    let amount_pair_usdc_astro = Uint128::from(1000u128);
-    let amount_pair_luna_astro = Uint128::from(2000u128);
-    let amount_pair_usdc_luna = Uint128::from(3000u128);
+    let amount_pair_usdc_astro = Uint128::from(10u128);
+    let amount_pair_luna_astro = Uint128::from(10u128);
+    let amount_pair_usdc_luna = Uint128::from(10u128);
 
     transfer_token(
         &mut router,
@@ -1390,21 +1391,21 @@ fn convert_multiple2() {
                 contract_addr: usdc_token_instance.clone(),
             },
             AssetInfo::Token {
-                contract_addr: luna_token_instance.clone(),
+                contract_addr: usdc_token_instance.clone(),
             },
             AssetInfo::Token {
-                contract_addr: usdc_token_instance.clone(),
+                contract_addr: luna_token_instance.clone(),
             },
         ],
         token2: vec![
             AssetInfo::Token {
-                contract_addr: astro_token_instance.clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: astro_token_instance.clone(),
-            },
-            AssetInfo::Token {
                 contract_addr: luna_token_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: astro_token_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: astro_token_instance.clone(),
             },
         ],
     };
@@ -1442,7 +1443,7 @@ fn convert_multiple2() {
         &mut router,
         staking.clone(),
         astro_token_instance.clone(),
-        Uint128::from(11973u128),
+        Uint128::from(56u128),
     );
     //TODO ???
     check_balance(
