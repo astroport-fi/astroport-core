@@ -498,6 +498,7 @@ fn execute_deposit() {
         UserInfo {
             amount: Uint128::from(1000u128),
             reward_debt: Uint128::zero(),
+            reward_debt_proxy: Uint128::zero(),
         }
     );
     let res = execute(
@@ -620,6 +621,7 @@ fn execute_deposit() {
         UserInfo {
             amount: Uint128::from(6000u128),
             reward_debt: Uint128::from(99999u128),
+            reward_debt_proxy: Uint128::zero(),
         }
     );
 }
@@ -720,6 +722,7 @@ fn execute_withdraw() {
         UserInfo {
             amount: Uint128::from(50u128),
             reward_debt: Uint128::from(0u128),
+            reward_debt_proxy: Uint128::zero(),
         }
     );
 
@@ -789,6 +792,7 @@ fn execute_withdraw() {
         UserInfo {
             amount: Uint128::from(25u128),
             reward_debt: Uint128::from(50000u128),
+            reward_debt_proxy: Uint128::zero(),
         }
     );
     env.block.height = env.block.height.add(1000);

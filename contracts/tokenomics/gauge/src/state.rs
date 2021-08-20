@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct UserInfo {
     pub amount: Uint128,
     pub reward_debt: Uint128,
+    pub reward_debt_proxy: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -37,8 +38,25 @@ pub struct Config {
     pub allowed_reward_proxies: Vec<Addr>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum ExecuteOnReply {
+    Deposit {
+        lp_token: Addr,
+        proxy: Addr,
+        account: Addr,
+        amount: Uint128,
+    },
+    Withdraw {
+        lp_token: Addr,
+        proxy: Addr,
+        account: Addr,
+        amount: Uint128,
+    },
+}
+
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const POOL_INFO: Map<&Addr, PoolInfo> = Map::new("pool_info");
+pub const TMP_USER_ACTION: Item<ExecuteOnReply> = Item::new("tmp_user_action");
 
 // first key part is token, second - depositor
 pub const USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");

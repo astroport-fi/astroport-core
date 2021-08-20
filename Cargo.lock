@@ -794,6 +794,7 @@ dependencies = [
  "cw-storage-plus",
  "cw20",
  "gauge-proxy-interface",
+ "mirror-protocol",
  "schemars",
  "serde",
  "thiserror",
@@ -1116,6 +1117,19 @@ checksum = "a92518e98c078586bc6c934028adcca4c92a53d6a958196de835170a01d84e4b"
 dependencies = [
  "adler",
  "autocfg",
+]
+
+[[package]]
+name = "mirror-protocol"
+version = "2.1.0"
+source = "git+https://github.com/Mirror-Protocol/mirror-contracts.git?branch=dev/col5#04df10f31e20d0043fc4a4cce9493a08a91bfb12"
+dependencies = [
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terraswap",
 ]
 
 [[package]]
@@ -1823,6 +1837,20 @@ dependencies = [
  "cosmwasm-std",
  "schemars",
  "serde",
+]
+
+[[package]]
+name = "terraswap"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96f2c2a6371e9ddf2c942368e64645cc3e8fc2855da70c8c6bed238dcdd5522f"
+dependencies = [
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
 ]
 
 [[package]]

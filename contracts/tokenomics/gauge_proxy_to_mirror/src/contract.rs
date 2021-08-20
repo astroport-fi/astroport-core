@@ -1,14 +1,18 @@
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 
 use crate::error::ContractError;
-use crate::msg::InstantiateMsg;
-use crate::state::{Config, ExecuteOnReply, CONFIG, TMP_USER_ACTION, USER_INFO};
-use gauge_proxy_interface::msg::{Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg};
-use mirror_protocol::staking::{Cw20HookMsg as MirrorCw20HookMsg, ExecuteMsg as MirrorExecuteMsg};
+use crate::state::{Config, CONFIG};
+use gauge_proxy_interface::msg::{
+    Cw20HookMsg, DepositAndRewardResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+};
+use mirror_protocol::staking::{
+    Cw20HookMsg as MirrorCw20HookMsg, ExecuteMsg as MirrorExecuteMsg, QueryMsg as MirrorQueryMsg,
+    RewardInfoResponse,
+};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -37,258 +41,182 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::Withdraw { account, amount } => before_withdraw(deps, info, account, amount),
-        ExecuteMsg::EmergencyWithdraw { account } => emergency_withdraw(deps, env, info, account),
+        ExecuteMsg::UpdateRewards {} => update_rewards(deps),
+        ExecuteMsg::SendRewards { account, amount } => send_rewards(deps, info, account, amount),
+        ExecuteMsg::Withdraw { account, amount } => withdraw(deps, info, account, amount),
+        ExecuteMsg::EmergencyWithdraw { account, amount } => {
+            emergency_withdraw(deps, info, account, amount)
+        }
     }
 }
 
 fn receive_cw20(
-    mut deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
+    let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
 
-    if let Ok(Cw20HookMsg::Deposit { account }) = from_binary(&cw20_msg.msg) {
+    if let Ok(Cw20HookMsg::Deposit {}) = from_binary(&cw20_msg.msg) {
         if cw20_msg.sender != cfg.gauge_contract_addr || info.sender != cfg.lp_token_addr {
             return Err(ContractError::Unauthorized {});
         }
-        Ok(Response::new().add_submessage(SubMsg::reply_on_success(
-            get_rewards_and_execute(
-                deps.branch(),
-                cfg,
-                ExecuteOnReply::Deposit {
-                    account,
-                    amount: cw20_msg.amount,
-                },
-            )?,
-            0,
-        )))
-    } else {
-        Ok(Response::new())
-    }
-}
-
-fn get_rewards_and_execute(
-    deps: DepsMut,
-    cfg: Config,
-    on_reply: ExecuteOnReply,
-) -> StdResult<CosmosMsg> {
-    TMP_USER_ACTION.save(deps.storage, &on_reply)?;
-
-    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.reward_contract_addr.to_string(),
-        funds: vec![],
-        msg: to_binary(&MirrorExecuteMsg::Withdraw {
-            asset_token: Some(cfg.lp_token_addr),
-        })?,
-    }))
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match TMP_USER_ACTION.load(deps.storage)? {
-        ExecuteOnReply::Deposit { account, amount } => deposit(deps, env, account, amount),
-        ExecuteOnReply::Withdraw { account, amount } => withdraw(deps, env, account, amount),
-    }
-}
-
-fn deposit(
-    deps: DepsMut,
-    env: Env,
-    account: Addr,
-    amount: Uint128,
-) -> Result<Response, ContractError> {
-    let mut response = Response::default();
-    let cfg = CONFIG.load(deps.storage)?;
-    let mut user = USER_INFO.load(deps.storage, &account).unwrap_or_default();
-
-    let lp_new_balance = get_token_balance(deps.as_ref(), &env, &cfg.lp_token_addr)?;
-    let rewards_balance = get_token_balance(deps.as_ref(), &env, &cfg.reward_token_addr)?;
-
-    let lp_old_balance = lp_new_balance.checked_sub(amount)?;
-    if !user.amount.is_zero() && !lp_old_balance.is_zero() {
-        let pending = user
-            .amount
-            .checked_mul(rewards_balance)?
-            .checked_div(lp_old_balance)
-            .map_err(StdError::from)?
-            .checked_sub(user.reward_debt)
-            .unwrap_or_default();
-        if !pending.is_zero() {
-            response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.reward_token_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: account.to_string(),
-                    amount: pending.min(lp_old_balance),
-                })?,
+        response
+            .messages
+            .push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: cfg.lp_token_addr.to_string(),
                 funds: vec![],
-            }));
-        }
-    }
-
-    if !amount.is_zero() {
-        // deposit to the end reward contract
-        response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.lp_token_addr.to_string(),
-            funds: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: cfg.reward_contract_addr.to_string(),
-                amount,
-                msg: to_binary(&MirrorCw20HookMsg::Bond {
-                    asset_token: cfg.lp_token_addr,
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: cfg.reward_contract_addr.to_string(),
+                    amount: cw20_msg.amount,
+                    msg: to_binary(&MirrorCw20HookMsg::Bond {
+                        asset_token: cfg.lp_token_addr.into_string(),
+                    })?,
                 })?,
-            })?,
-        }));
-    };
-
-    user.amount = user.amount.checked_add(amount)?;
-    if !lp_old_balance.is_zero() {
-        user.reward_debt = user
-            .amount
-            .checked_mul(rewards_balance)?
-            .checked_div(lp_old_balance)
-            .map_err(StdError::from)?;
+            })));
     }
-    USER_INFO.save(deps.storage, &account, &user)?;
+    Ok(response)
+}
+
+fn update_rewards(deps: DepsMut) -> Result<Response, ContractError> {
+    let mut response = Response::new();
+    let cfg = CONFIG.load(deps.storage)?;
+
+    response
+        .messages
+        .push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.reward_contract_addr.to_string(),
+            funds: vec![],
+            msg: to_binary(&MirrorExecuteMsg::Withdraw {
+                asset_token: Some(cfg.lp_token_addr.into_string()),
+            })?,
+        })));
 
     Ok(response)
 }
 
-fn get_token_balance(deps: Deps, env: &Env, token: &Addr) -> Result<Uint128, StdError> {
-    let res: Result<BalanceResponse, StdError> = deps.querier.query_wasm_smart(
-        token.clone(),
-        &Cw20QueryMsg::Balance {
-            address: env.contract.address.to_string(),
-        },
-    );
-    Ok(res?.balance)
-}
-
-fn before_withdraw(
-    mut deps: DepsMut,
-    info: MessageInfo,
-    account: Addr,
-    amount: Uint128,
-) -> Result<Response, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
-    if info.sender != cfg.gauge_contract_addr {
-        return Err(ContractError::Unauthorized {});
-    };
-    Ok(Response::new().add_submessage(SubMsg::reply_on_success(
-        get_rewards_and_execute(
-            deps.branch(),
-            cfg,
-            ExecuteOnReply::Withdraw { account, amount },
-        )?,
-        0,
-    )))
-}
-
-fn withdraw(
+fn send_rewards(
     deps: DepsMut,
-    env: Env,
+    info: MessageInfo,
     account: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
-    let mut user = USER_INFO.load(deps.storage, &account)?;
+    if info.sender != cfg.gauge_contract_addr {
+        return Err(ContractError::Unauthorized {});
+    };
 
-    let amount = user.amount.min(amount);
-
-    let lp_balance = get_token_balance(deps.as_ref(), &env, &cfg.lp_token_addr)?;
-    let rewards_balance = get_token_balance(deps.as_ref(), &env, &cfg.reward_token_addr)?;
-
-    if !amount.is_zero() && !lp_balance.is_zero() {
-        let pending = amount
-            .checked_mul(rewards_balance)?
-            .checked_div(lp_balance)
-            .map_err(StdError::from)?
-            .checked_sub(user.reward_debt)
-            .unwrap_or_default();
-        if !pending.is_zero() {
-            response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.reward_token_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: account.to_string(),
-                    amount: pending.min(lp_balance),
-                })?,
-                funds: vec![],
-            }));
-        }
-    }
-
-    user.amount = user.amount.checked_sub(amount)?;
-    user.reward_debt = user
-        .amount
-        .checked_mul(rewards_balance)?
-        .checked_div(lp_balance)
-        .map_err(StdError::from)?;
-
-    USER_INFO.save(deps.storage, &account, &user)?;
-
-    // withdraw from the end reward contract
-    Ok(response.add_messages(vec![
-        WasmMsg::Execute {
-            contract_addr: cfg.reward_contract_addr.to_string(),
-            funds: vec![],
-            msg: to_binary(&MirrorExecuteMsg::Unbond {
-                asset_token: cfg.lp_token_addr,
-                amount,
-            })?,
-        },
-        WasmMsg::Execute {
-            contract_addr: cfg.lp_token_addr.to_string(),
-            funds: vec![],
+    response
+        .messages
+        .push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.reward_token_addr.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: account.to_string(),
                 amount,
             })?,
-        },
-    ]))
+            funds: vec![],
+        })));
+    Ok(response)
 }
 
-fn emergency_withdraw(
+fn withdraw(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     account: Addr,
+    amount: Uint128,
 ) -> Result<Response, ContractError> {
+    let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.gauge_contract_addr {
         return Err(ContractError::Unauthorized {});
     };
 
-    let user = USER_INFO.load(deps.storage, &account)?;
+    // withdraw from the end reward contract
+    response.messages.push(SubMsg::new(WasmMsg::Execute {
+        contract_addr: cfg.reward_contract_addr.to_string(),
+        funds: vec![],
+        msg: to_binary(&MirrorExecuteMsg::Unbond {
+            asset_token: cfg.lp_token_addr.to_string(),
+            amount,
+        })?,
+    }));
 
-    USER_INFO.remove(deps.storage, &account);
+    response.messages.push(SubMsg::new(WasmMsg::Execute {
+        contract_addr: cfg.lp_token_addr.to_string(),
+        funds: vec![],
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: account.to_string(),
+            amount,
+        })?,
+    }));
 
-    // emergency withdraw from the end reward contract
-    Ok(Response::new().add_messages(vec![
-        WasmMsg::Execute {
-            contract_addr: cfg.reward_contract_addr.to_string(),
-            funds: vec![],
-            msg: to_binary(&MirrorExecuteMsg::Unbond {
-                asset_token: cfg.lp_token_addr,
-                amount: user.amount,
-            })?,
-        },
-        WasmMsg::Execute {
-            contract_addr: cfg.lp_token_addr.to_string(),
-            funds: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: account.to_string(),
-                amount: user.amount,
-            })?,
-        },
-    ]))
+    Ok(response)
+}
+
+fn emergency_withdraw(
+    deps: DepsMut,
+    info: MessageInfo,
+    account: Addr,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let mut response = Response::new();
+    let cfg = CONFIG.load(deps.storage)?;
+    if info.sender != cfg.gauge_contract_addr {
+        return Err(ContractError::Unauthorized {});
+    };
+
+    response.messages.push(SubMsg::new(WasmMsg::Execute {
+        contract_addr: cfg.reward_contract_addr.to_string(),
+        funds: vec![],
+        msg: to_binary(&MirrorExecuteMsg::Unbond {
+            asset_token: cfg.lp_token_addr.to_string(),
+            amount,
+        })?,
+    }));
+
+    response.messages.push(SubMsg::new(WasmMsg::Execute {
+        contract_addr: cfg.lp_token_addr.to_string(),
+        funds: vec![],
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: account.to_string(),
+            amount,
+        })?,
+    }));
+
+    Ok(response)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    match msg {}
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    let cfg = CONFIG.load(deps.storage)?;
+    match msg {
+        QueryMsg::DepositAndReward {} => {
+            let res: StdResult<RewardInfoResponse> = deps.querier.query_wasm_smart(
+                cfg.reward_contract_addr,
+                &MirrorQueryMsg::RewardInfo {
+                    staker_addr: env.contract.address.to_string(),
+                    asset_token: Some(cfg.reward_token_addr.to_string()),
+                },
+            );
+            let deposit_amount = res?.reward_infos[0].bond_amount;
+
+            let res: Result<BalanceResponse, StdError> = deps.querier.query_wasm_smart(
+                cfg.reward_token_addr,
+                &Cw20QueryMsg::Balance {
+                    address: env.contract.address.into_string(),
+                },
+            );
+            let reward_amount = res?.balance;
+
+            to_binary(&DepositAndRewardResponse {
+                deposit_amount,
+                reward_amount,
+            })
+        }
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

@@ -4,22 +4,40 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct InstantiateMsg {
+    pub gauge_contract_addr: String,
+    pub lp_token_addr: String,
+    pub reward_contract_addr: String,
+    pub reward_token_addr: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    Deposit { account: Addr },
+    Deposit {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
+    UpdateRewards {},
+    SendRewards { account: Addr, amount: Uint128 },
     Withdraw { account: Addr, amount: Uint128 },
-    EmergencyWithdraw { account: Addr },
+    EmergencyWithdraw { account: Addr, amount: Uint128 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryMsg {}
+pub enum QueryMsg {
+    DepositAndReward {},
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DepositAndRewardResponse {
+    pub deposit_amount: Uint128,
+    pub reward_amount: Uint128,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
