@@ -5,11 +5,11 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Deps, Order};
 
 use astroport::asset::{AssetInfo, PairInfo};
+use astroport::factory::PairConfig;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: Addr,
-    pub pair_code_ids: Vec<u64>,
     pub token_code_id: u64,
     pub fee_address: Addr,
 }
@@ -23,6 +23,8 @@ pub fn pair_key(asset_infos: &[AssetInfo; 2]) -> Vec<u8> {
 
     [asset_infos[0].as_bytes(), asset_infos[1].as_bytes()].concat()
 }
+
+pub const PAIR_CONFIGS: Map<String, PairConfig> = Map::new("pair_configs");
 
 // settings for pagination
 const MAX_LIMIT: u32 = 30;

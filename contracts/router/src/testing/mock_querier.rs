@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::factory::PairType;
 use astroport::pair::SimulationResponse;
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use terra_cosmwasm::{
@@ -209,6 +210,7 @@ impl WasmMockQuerier {
                                 denom: "uusd".to_string(),
                             },
                         ],
+                        pair_type: PairType::Xyk {},
                     }))),
                     None => SystemResult::Err(SystemError::InvalidRequest {
                         error: "No pair info exists".to_string(),

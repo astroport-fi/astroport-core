@@ -5,7 +5,8 @@ use cosmwasm_std::{
 };
 use std::collections::HashMap;
 
-use astroport::factory::QueryMsg::FeeAddress;
+use astroport::factory::FeeInfoResponse;
+use astroport::factory::QueryMsg::FeeInfo;
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
@@ -130,9 +131,14 @@ impl WasmMockQuerier {
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if contract_addr == "factory" {
                     match from_binary(&msg).unwrap() {
-                        FeeAddress {} => {
-                            SystemResult::Ok(to_binary(&Addr::unchecked("fee_address")).into())
-                        }
+                        FeeInfo { .. } => SystemResult::Ok(
+                            to_binary(&FeeInfoResponse {
+                                fee_address: Some(Addr::unchecked("fee_address")),
+                                total_fee_bps: 30,
+                                maker_fee_bps: 1660,
+                            })
+                            .into(),
+                        ),
                         _ => panic!("DO NOT ENTER HERE"),
                     }
                 } else {

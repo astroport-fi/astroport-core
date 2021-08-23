@@ -40,6 +40,7 @@ fn proper_initialization() {
             contract_addr: String::from("factory0000"),
             msg: to_binary(&Uint128::new(1000000u128)).unwrap(),
         }),
+        pair_type: PairType::Stable {},
     };
 
     // we can just call .unwrap() to assert this was a success
@@ -142,6 +143,7 @@ fn provide_liquidity() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Stable {},
     };
 
     let env = mock_env();
@@ -548,8 +550,8 @@ fn withdraw_liquidity() {
         ],
         token_code_id: 10u64,
         init_hook: None,
-
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Stable {},
     };
 
     let env = mock_env();
@@ -679,6 +681,7 @@ fn try_native_to_token() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Stable {},
     };
 
     let env = mock_env();
@@ -863,6 +866,7 @@ fn try_token_to_native() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Stable {},
     };
 
     let env = mock_env();
@@ -1136,6 +1140,7 @@ fn test_query_pool() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Stable {},
     };
 
     let env = mock_env();
@@ -1204,6 +1209,7 @@ fn test_query_share() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Stable {},
     };
 
     let env = mock_env();
@@ -1311,6 +1317,7 @@ fn test_accumulate_prices() {
                     ],
                     contract_addr: Addr::unchecked("pair"),
                     liquidity_token: Addr::unchecked("lp_token"),
+                    pair_type: PairType::Stable {},
                 },
                 factory_addr: Addr::unchecked("factory"),
                 block_time_last: case.block_time_last,
@@ -1341,6 +1348,7 @@ fn mock_env_with_block_time(time: u64) -> Env {
     env
 }
 
+use astroport::factory::PairType;
 use proptest::prelude::*;
 use sim::StableSwapModel;
 

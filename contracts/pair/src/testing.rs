@@ -1,6 +1,6 @@
 use crate::contract::{
-    accumulate_prices, assert_max_spread, execute, instantiate, query_pair_info, query_pool,
-    query_reverse_simulation, query_share, query_simulation,
+    accumulate_prices, assert_max_spread, execute, get_fee_info, instantiate, query_pair_info,
+    query_pool, query_reverse_simulation, query_share, query_simulation,
 };
 use crate::error::ContractError;
 use crate::math::{decimal_multiplication, reverse_decimal};
@@ -8,6 +8,7 @@ use crate::mock_querier::mock_dependencies;
 
 use crate::state::Config;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::factory::PairType;
 use astroport::hook::InitHook;
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
@@ -20,6 +21,38 @@ use cosmwasm_std::{
     StdError, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
+use std::str::FromStr;
+
+#[test]
+fn test_get_fee_info() {
+    let deps = mock_dependencies(&[]);
+    let fee_info = get_fee_info(
+        deps.as_ref(),
+        Config {
+            pair_info: PairInfo {
+                asset_infos: [
+                    AssetInfo::NativeToken {
+                        denom: "uusd".to_string(),
+                    },
+                    AssetInfo::Token {
+                        contract_addr: Addr::unchecked("asset0000"),
+                    },
+                ],
+                contract_addr: Addr::unchecked("contract"),
+                liquidity_token: Addr::unchecked("token"),
+                pair_type: PairType::Xyk {},
+            },
+            factory_addr: Addr::unchecked("factory"),
+            block_time_last: 0,
+            price0_cumulative_last: Default::default(),
+            price1_cumulative_last: Default::default(),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(fee_info.total_fee_rate, Decimal::from_str("0.003").unwrap());
+    assert_eq!(fee_info.maker_fee_rate, Decimal::from_str("0.166").unwrap());
+}
 
 #[test]
 fn proper_initialization() {
@@ -40,6 +73,7 @@ fn proper_initialization() {
             contract_addr: String::from("factory0000"),
             msg: to_binary(&Uint128::new(1000000u128)).unwrap(),
         }),
+        pair_type: PairType::Xyk {},
     };
 
     // we can just call .unwrap() to assert this was a success
@@ -142,6 +176,7 @@ fn provide_liquidity() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Xyk {},
     };
 
     let env = mock_env();
@@ -550,6 +585,7 @@ fn withdraw_liquidity() {
         init_hook: None,
 
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Xyk {},
     };
 
     let env = mock_env();
@@ -681,6 +717,7 @@ fn try_native_to_token() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Xyk {},
     };
 
     let env = mock_env();
@@ -725,7 +762,7 @@ fn try_native_to_token() {
         .checked_sub(expected_ret_amount)
         .unwrap();
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
-    let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
+    let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128); // 0.166
 
     let expected_return_amount = expected_ret_amount
         .checked_sub(expected_commission_amount)
@@ -864,6 +901,7 @@ fn try_token_to_native() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Xyk {},
     };
 
     let env = mock_env();
@@ -1140,6 +1178,7 @@ fn test_query_pool() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Xyk {},
     };
 
     let env = mock_env();
@@ -1208,6 +1247,7 @@ fn test_query_share() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Xyk {},
     };
 
     let env = mock_env();
@@ -1315,6 +1355,7 @@ fn test_accumulate_prices() {
                     ],
                     contract_addr: Addr::unchecked("pair"),
                     liquidity_token: Addr::unchecked("lp_token"),
+                    pair_type: PairType::Xyk {}, // Implemented in mock querier
                 },
                 factory_addr: Addr::unchecked("factory"),
                 block_time_last: case.block_time_last,
