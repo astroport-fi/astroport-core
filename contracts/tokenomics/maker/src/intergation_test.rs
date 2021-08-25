@@ -1,11 +1,13 @@
-use crate::msg::{ExecuteMsg, InitMsg};
-use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::token::InstantiateMsg;
+use cosmwasm_std::{Addr, attr, Coin, Decimal, QueryRequest, to_binary, Uint128, WasmQuery};
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 //use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
+
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::token::InstantiateMsg;
+
+use crate::msg::{ExecuteMsg, InitMsg};
 
 // pub use terra_mocks::TerraMockQuerier;
 
@@ -91,7 +93,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
             crate::contract::instantiate,
             crate::contract::query,
         )
-        .with_reply(crate::contract::reply),
+            .with_reply(crate::contract::reply),
     );
     let market_code_id = router.store_code(maker_contract);
 
@@ -329,7 +331,7 @@ fn create_pair(
                 "{}-{}",
                 asset_infos[0].to_string(),
                 asset_infos[1].to_string()
-            )
+            ),
         )
     );
 
@@ -340,7 +342,7 @@ fn create_pair(
             msg: to_binary(&astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
-            .unwrap(),
+                .unwrap(),
         }))
         .unwrap();
 
@@ -728,7 +730,7 @@ fn convert_token_astro_native_token_uusd() {
                 "{}-{}",
                 asset_infos[0].to_string(),
                 asset_infos[1].to_string()
-            )
+            ),
         )
     );
 
@@ -739,7 +741,7 @@ fn convert_token_astro_native_token_uusd() {
             msg: to_binary(&astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
-            .unwrap(),
+                .unwrap(),
         }))
         .unwrap();
 
@@ -1289,7 +1291,7 @@ fn convert_multiple2() {
         "LUNA".to_string(),
     );
 
-    let liquidity_amount = Uint128::from(100u128);
+    let liquidity_amount = Uint128::from(1000_000_000_000_000_000u128);
 
     let pair_usdc_astro = create_pair(
         &mut router,
@@ -1385,29 +1387,43 @@ fn convert_multiple2() {
         astro_token_instance.clone(),
         Uint128::zero(),
     );
+    //t1-a, t2-a, t1-t2 = 5987992029989 | 59
+    //t1-t2, t2-a, t1-a = 5987992029988 | 58
+    //t2-a, t1-t2, t1-a = 5987992029990 | 60
 
     let msg = ExecuteMsg::ConvertMultiple {
         token1: vec![
-            AssetInfo::Token {
+            AssetInfo::Token { //t1
                 contract_addr: usdc_token_instance.clone(),
             },
-            AssetInfo::Token {
-                contract_addr: usdc_token_instance.clone(),
-            },
-            AssetInfo::Token {
+
+
+            AssetInfo::Token { //t2
                 contract_addr: luna_token_instance.clone(),
+            },
+
+
+
+
+            AssetInfo::Token { //t1
+                contract_addr: usdc_token_instance.clone(),
             },
         ],
         token2: vec![
-            AssetInfo::Token {
+            AssetInfo::Token { //t2
                 contract_addr: luna_token_instance.clone(),
             },
-            AssetInfo::Token {
+
+            AssetInfo::Token { //a
                 contract_addr: astro_token_instance.clone(),
             },
-            AssetInfo::Token {
+
+
+            AssetInfo::Token { //a
                 contract_addr: astro_token_instance.clone(),
             },
+
+
         ],
     };
 
@@ -1444,7 +1460,7 @@ fn convert_multiple2() {
         &mut router,
         staking.clone(),
         astro_token_instance.clone(),
-        Uint128::from(56u128),
+        Uint128::from(58u128),
     );
     //TODO ???
     check_balance(
@@ -1459,4 +1475,147 @@ fn convert_multiple2() {
         luna_token_instance.clone(),
         Uint128::zero(),
     );
+}
+
+#[test]
+fn try_calc() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+    let user = Addr::unchecked("user0000");
+    let staking = Addr::unchecked("staking");
+
+    let (astro_token_instance, factory_instance, maker_instance) =
+        instantiate_contracts(&mut router, owner.clone(), staking.clone());
+
+    let usdc_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Usdc token".to_string(),
+        "USDC".to_string(),
+    );
+    let luna_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Luna token".to_string(),
+        "LUNA".to_string(),
+    );
+
+    let liquidity_amount0 = Uint128::from(1000u128);
+    let liquidity_amount1 = Uint128::from(1000u128);
+
+    //t1-a
+    let pair_usdc_astro = create_pair(
+        &mut router,
+        owner.clone(),
+        user.clone(),
+        &factory_instance,
+        &usdc_token_instance,
+        &astro_token_instance,
+        liquidity_amount0,
+        liquidity_amount1,
+        "usdc",
+        "astro",
+    );
+    //t2-a
+    let pair_luna_astro = create_pair(
+        &mut router,
+        owner.clone(),
+        user.clone(),
+        &factory_instance,
+        &luna_token_instance,
+        &astro_token_instance,
+        liquidity_amount0,
+        liquidity_amount1,
+        "luna",
+        "astro",
+    );
+    //t1-t2
+    let pair_info = create_pair(
+        &mut router,
+        owner.clone(),
+        user.clone(),
+        &factory_instance,
+        &usdc_token_instance,
+        &luna_token_instance,
+        liquidity_amount0,
+        liquidity_amount1,
+        "usdc",
+        "luna",
+    );
+
+    let amount_pair_usdc_astro = Uint128::from(10u128);
+    let amount_pair_luna_astro = Uint128::from(10u128);
+    let amount_pair_usdc_luna = Uint128::from(10u128);
+
+    transfer_token(
+        &mut router,
+        user.clone(),
+        pair_usdc_astro.liquidity_token.clone(),
+        maker_instance.clone(),
+        amount_pair_usdc_astro.clone(),
+    );
+    transfer_token(
+        &mut router,
+        user.clone(),
+        pair_luna_astro.liquidity_token.clone(),
+        maker_instance.clone(),
+        amount_pair_luna_astro.clone(),
+    );
+    transfer_token(
+        &mut router,
+        user.clone(),
+        pair_info.liquidity_token.clone(),
+        maker_instance.clone(),
+        amount_pair_usdc_luna.clone(),
+    );
+
+    let msg_t1_t2 = ExecuteMsg::Convert {
+        token1: AssetInfo::Token {contract_addr: usdc_token_instance.clone()},
+        token2: AssetInfo::Token { contract_addr: luna_token_instance.clone() },
+    };
+    let msg_t1_a = ExecuteMsg::Convert {
+        token1: AssetInfo::Token { contract_addr: usdc_token_instance.clone() },
+        token2: AssetInfo::Token { contract_addr: astro_token_instance.clone() },
+    };
+    let msg_t2_a = ExecuteMsg::Convert {
+        token1: AssetInfo::Token { contract_addr: luna_token_instance.clone() },
+        token2: AssetInfo::Token { contract_addr: astro_token_instance.clone() },
+    };
+
+    router
+        .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg_t1_t2, &[])
+        .unwrap();
+    balance_info(&mut router,staking.clone(),astro_token_instance.clone(), pair_info.clone(), pair_usdc_astro.clone(), pair_luna_astro.clone());
+    router
+        .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg_t1_a, &[])
+        .unwrap();
+    balance_info(&mut router,staking.clone(),astro_token_instance.clone(), pair_info.clone(), pair_usdc_astro.clone(), pair_luna_astro.clone());
+    router
+        .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg_t2_a, &[])
+        .unwrap();
+    balance_info(&mut router,staking.clone(),astro_token_instance.clone(), pair_info.clone(), pair_usdc_astro.clone(), pair_luna_astro.clone());
+}
+
+fn balance_info(router: &mut App, staking: Addr, astro_token: Addr, t1_t2: PairInfo, t1_a: PairInfo, t2_a:PairInfo) {
+    let msg = Cw20QueryMsg::Balance {
+        address: staking.to_string(),
+    };
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: astro_token.to_string(),
+            msg: to_binary(&msg).unwrap(),
+        }));
+    let staking_bal = res.unwrap().balance;
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: astro_token.to_string(),
+            msg: to_binary(&Cw20QueryMsg::Balance {
+                address: t1_t2.liquidity_token.to_string(),
+            }).unwrap(),
+        }));
+    let lp_token_t1_t2_bal = res.unwrap().balance;
+
+
+
+    println!("balance for staking contract: {}",  staking_bal.to_string());
 }
