@@ -1,15 +1,13 @@
-use cosmwasm_std::{Addr, attr, Coin, Decimal, QueryRequest, to_binary, Uint128, WasmQuery};
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
-//use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg;
 
 use crate::msg::{ExecuteMsg, InitMsg};
-
-// pub use terra_mocks::TerraMockQuerier;
+use astroport::pair::{PoolResponse, QueryMsg, SimulationResponse};
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -93,7 +91,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
             crate::contract::instantiate,
             crate::contract::query,
         )
-            .with_reply(crate::contract::reply),
+        .with_reply(crate::contract::reply),
     );
     let market_code_id = router.store_code(maker_contract);
 
@@ -342,7 +340,7 @@ fn create_pair(
             msg: to_binary(&astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
-                .unwrap(),
+            .unwrap(),
         }))
         .unwrap();
 
@@ -665,7 +663,6 @@ fn convert_token_astro_token_usdc_2() {
 }
 
 #[test]
-//#[ignore]
 fn convert_token_astro_native_token_uusd() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
@@ -741,7 +738,7 @@ fn convert_token_astro_native_token_uusd() {
             msg: to_binary(&astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
-                .unwrap(),
+            .unwrap(),
         }))
         .unwrap();
 
@@ -1393,37 +1390,32 @@ fn convert_multiple2() {
 
     let msg = ExecuteMsg::ConvertMultiple {
         token1: vec![
-            AssetInfo::Token { //t1
+            AssetInfo::Token {
+                //t1
                 contract_addr: usdc_token_instance.clone(),
             },
-
-
-            AssetInfo::Token { //t2
+            AssetInfo::Token {
+                //t2
                 contract_addr: luna_token_instance.clone(),
             },
-
-
-
-
-            AssetInfo::Token { //t1
+            AssetInfo::Token {
+                //t1
                 contract_addr: usdc_token_instance.clone(),
             },
         ],
         token2: vec![
-            AssetInfo::Token { //t2
+            AssetInfo::Token {
+                //t2
                 contract_addr: luna_token_instance.clone(),
             },
-
-            AssetInfo::Token { //a
+            AssetInfo::Token {
+                //a
                 contract_addr: astro_token_instance.clone(),
             },
-
-
-            AssetInfo::Token { //a
+            AssetInfo::Token {
+                //a
                 contract_addr: astro_token_instance.clone(),
             },
-
-
         ],
     };
 
@@ -1462,7 +1454,6 @@ fn convert_multiple2() {
         astro_token_instance.clone(),
         Uint128::from(58u128),
     );
-    //TODO ???
     check_balance(
         &mut router,
         maker_instance.clone(),
@@ -1478,6 +1469,7 @@ fn convert_multiple2() {
 }
 
 #[test]
+#[ignore]
 fn try_calc() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
@@ -1570,33 +1562,102 @@ fn try_calc() {
     );
 
     let msg_t1_t2 = ExecuteMsg::Convert {
-        token1: AssetInfo::Token {contract_addr: usdc_token_instance.clone()},
-        token2: AssetInfo::Token { contract_addr: luna_token_instance.clone() },
+        token1: AssetInfo::Token {
+            contract_addr: usdc_token_instance.clone(),
+        },
+        token2: AssetInfo::Token {
+            contract_addr: luna_token_instance.clone(),
+        },
     };
     let msg_t1_a = ExecuteMsg::Convert {
-        token1: AssetInfo::Token { contract_addr: usdc_token_instance.clone() },
-        token2: AssetInfo::Token { contract_addr: astro_token_instance.clone() },
+        token1: AssetInfo::Token {
+            contract_addr: usdc_token_instance.clone(),
+        },
+        token2: AssetInfo::Token {
+            contract_addr: astro_token_instance.clone(),
+        },
     };
     let msg_t2_a = ExecuteMsg::Convert {
-        token1: AssetInfo::Token { contract_addr: luna_token_instance.clone() },
-        token2: AssetInfo::Token { contract_addr: astro_token_instance.clone() },
+        token1: AssetInfo::Token {
+            contract_addr: luna_token_instance.clone(),
+        },
+        token2: AssetInfo::Token {
+            contract_addr: astro_token_instance.clone(),
+        },
     };
 
+    balance_info(
+        &mut router,
+        staking.clone(),
+        maker_instance.clone(),
+        astro_token_instance.clone(),
+        pair_info.clone(),
+        pair_usdc_astro.clone(),
+        pair_luna_astro.clone(),
+    );
     router
-        .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg_t1_t2, &[])
+        .execute_contract(
+            maker_instance.clone(),
+            maker_instance.clone(),
+            &msg_t1_a,
+            &[],
+        )
         .unwrap();
-    balance_info(&mut router,staking.clone(),astro_token_instance.clone(), pair_info.clone(), pair_usdc_astro.clone(), pair_luna_astro.clone());
+
+    balance_info(
+        &mut router,
+        staking.clone(),
+        maker_instance.clone(),
+        astro_token_instance.clone(),
+        pair_info.clone(),
+        pair_usdc_astro.clone(),
+        pair_luna_astro.clone(),
+    );
     router
-        .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg_t1_a, &[])
+        .execute_contract(
+            maker_instance.clone(),
+            maker_instance.clone(),
+            &msg_t2_a,
+            &[],
+        )
         .unwrap();
-    balance_info(&mut router,staking.clone(),astro_token_instance.clone(), pair_info.clone(), pair_usdc_astro.clone(), pair_luna_astro.clone());
+    balance_info(
+        &mut router,
+        staking.clone(),
+        maker_instance.clone(),
+        astro_token_instance.clone(),
+        pair_info.clone(),
+        pair_usdc_astro.clone(),
+        pair_luna_astro.clone(),
+    );
     router
-        .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg_t2_a, &[])
+        .execute_contract(
+            maker_instance.clone(),
+            maker_instance.clone(),
+            &msg_t1_t2,
+            &[],
+        )
         .unwrap();
-    balance_info(&mut router,staking.clone(),astro_token_instance.clone(), pair_info.clone(), pair_usdc_astro.clone(), pair_luna_astro.clone());
+    balance_info(
+        &mut router,
+        staking.clone(),
+        maker_instance.clone(),
+        astro_token_instance.clone(),
+        pair_info.clone(),
+        pair_usdc_astro.clone(),
+        pair_luna_astro.clone(),
+    );
 }
 
-fn balance_info(router: &mut App, staking: Addr, astro_token: Addr, t1_t2: PairInfo, t1_a: PairInfo, t2_a:PairInfo) {
+fn balance_info(
+    router: &mut App,
+    staking: Addr,
+    maker: Addr,
+    astro_token: Addr,
+    t1_t2: PairInfo,
+    t1_a: PairInfo,
+    t2_a: PairInfo,
+) {
     let msg = Cw20QueryMsg::Balance {
         address: staking.to_string(),
     };
@@ -1608,14 +1669,121 @@ fn balance_info(router: &mut App, staking: Addr, astro_token: Addr, t1_t2: PairI
     let staking_bal = res.unwrap().balance;
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: astro_token.to_string(),
+            contract_addr: t1_t2.liquidity_token.to_string(),
             msg: to_binary(&Cw20QueryMsg::Balance {
-                address: t1_t2.liquidity_token.to_string(),
-            }).unwrap(),
+                address: maker.to_string(),
+            })
+            .unwrap(),
         }));
     let lp_token_t1_t2_bal = res.unwrap().balance;
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: t1_a.liquidity_token.to_string(),
+            msg: to_binary(&Cw20QueryMsg::Balance {
+                address: maker.to_string(),
+            })
+            .unwrap(),
+        }));
+    let lp_token_t1_a_bal = res.unwrap().balance;
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: t2_a.liquidity_token.to_string(),
+            msg: to_binary(&Cw20QueryMsg::Balance {
+                address: maker.to_string(),
+            })
+            .unwrap(),
+        }));
+    let lp_token_t2_a_bal = res.unwrap().balance;
 
+    let res: Result<PoolResponse, _> = router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: t1_t2.contract_addr.to_string(),
+        msg: to_binary(&QueryMsg::Pool {}).unwrap(),
+    }));
 
+    let t1_t2_pool = res.unwrap();
+    let res: Result<PoolResponse, _> = router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: t1_a.contract_addr.to_string(),
+        msg: to_binary(&QueryMsg::Pool {}).unwrap(),
+    }));
 
-    println!("balance for staking contract: {}",  staking_bal.to_string());
+    let t1_a_pool = res.unwrap();
+    let res: Result<PoolResponse, _> = router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: t2_a.contract_addr.to_string(),
+        msg: to_binary(&QueryMsg::Pool {}).unwrap(),
+    }));
+
+    let t2_a_pool = res.unwrap();
+    let res: Result<Vec<Asset>, _> = router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: t1_a.contract_addr.to_string(),
+        msg: to_binary(&QueryMsg::Share {
+            amount: lp_token_t1_a_bal,
+        })
+        .unwrap(),
+    }));
+
+    let mut assets = res.unwrap();
+    let t1_offer = assets.swap_remove(0);
+    let exected_astro1 = assets.swap_remove(0).amount;
+
+    let res: Result<SimulationResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: t1_a.contract_addr.to_string(),
+            msg: to_binary(&QueryMsg::Simulation {
+                offer_asset: t1_offer,
+            })
+            .unwrap(),
+        }));
+    let t1_a_ex = res.unwrap();
+
+    let res: Result<Vec<Asset>, _> = router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: t2_a.contract_addr.to_string(),
+        msg: to_binary(&QueryMsg::Share {
+            amount: lp_token_t2_a_bal,
+        })
+        .unwrap(),
+    }));
+
+    let mut assets = res.unwrap();
+    let t2_offer = assets.swap_remove(0);
+    let exected_astro2 = assets.swap_remove(0).amount;
+
+    let res: Result<SimulationResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: t2_a.contract_addr.to_string(),
+            msg: to_binary(&QueryMsg::Simulation {
+                offer_asset: t2_offer,
+            })
+            .unwrap(),
+        }));
+
+    let t2_a_ex = res.unwrap();
+
+    println!(
+        "Pool t1_t2 info: t1({})/t2({}), total {}",
+        t1_t2_pool.assets[0].amount.to_string(),
+        t1_t2_pool.assets[1].amount.to_string(),
+        t1_t2_pool.total_share.to_string()
+    );
+    println!(
+        "Pool t1_a info: t1({})/t2({}), total {}",
+        t1_a_pool.assets[0].amount.to_string(),
+        t1_a_pool.assets[1].amount.to_string(),
+        t1_a_pool.total_share.to_string()
+    );
+    println!(
+        "Pool t2_a info: t1({})/t2({}), total {}",
+        t2_a_pool.assets[0].amount.to_string(),
+        t2_a_pool.assets[1].amount.to_string(),
+        t2_a_pool.total_share.to_string()
+    );
+    println!("balance for staking contract: {} t1_t2: {} t1_a: {} expected astro({}+{}) t2_a: {} expected astro({}+{})",
+             staking_bal.to_string(),
+             lp_token_t1_t2_bal.to_string(),
+             lp_token_t1_a_bal.to_string(),
+             t1_a_ex.return_amount.to_string(), exected_astro1.to_string(),
+             lp_token_t2_a_bal.to_string(),
+             t2_a_ex.return_amount.to_string(),exected_astro2.to_string()
+    );
+
+    println!("======================================");
 }
