@@ -49,7 +49,7 @@ fn th_setup() -> OwnedDeps<MockStorage, MockApi, AstroMockQuerier> {
 }
 
 #[test]
-fn test_proper_initialization() {
+fn test_proper_init() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {

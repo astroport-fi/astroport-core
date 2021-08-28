@@ -116,7 +116,7 @@ impl Querier for AstroMockQuerier {
             Ok(v) => v,
             Err(e) => {
                 return Err(SystemError::InvalidRequest {
-                    error: format!("Parsing query request: {}", e),
+                    error: format!("Parsing query request: {:?}", e),
                     request: bin_request.into(),
                 })
                 .into()
