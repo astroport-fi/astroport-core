@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::Addr;
 use cw_storage_plus::Item;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -12,11 +12,4 @@ pub struct Config {
     pub reward_token_addr: Addr,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum ExecuteOnReply {
-    Deposit { account: Addr, amount: Uint128 },
-    Withdraw { account: Addr, amount: Uint128 },
-}
-
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const TMP_USER_ACTION: Item<ExecuteOnReply> = Item::new("tmp_user_action");

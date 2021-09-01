@@ -6,9 +6,7 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
-use gauge_proxy_interface::msg::{
-    Cw20HookMsg, DepositAndRewardResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
-};
+use gauge_proxy_interface::msg::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use mirror_protocol::staking::{
     Cw20HookMsg as MirrorCw20HookMsg, ExecuteMsg as MirrorExecuteMsg, QueryMsg as MirrorQueryMsg,
     RewardInfoResponse,
@@ -193,7 +191,7 @@ fn emergency_withdraw(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cfg = CONFIG.load(deps.storage)?;
     match msg {
-        QueryMsg::DepositAndReward {} => {
+        QueryMsg::Deposit {} => {
             let res: StdResult<RewardInfoResponse> = deps.querier.query_wasm_smart(
                 cfg.reward_contract_addr,
                 &MirrorQueryMsg::RewardInfo {
@@ -203,6 +201,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             );
             let deposit_amount = res?.reward_infos[0].bond_amount;
 
+            to_binary(&deposit_amount)
+        }
+        QueryMsg::Reward {} => {
             let res: Result<BalanceResponse, StdError> = deps.querier.query_wasm_smart(
                 cfg.reward_token_addr,
                 &Cw20QueryMsg::Balance {
@@ -211,10 +212,19 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             );
             let reward_amount = res?.balance;
 
-            to_binary(&DepositAndRewardResponse {
-                deposit_amount,
-                reward_amount,
-            })
+            to_binary(&reward_amount)
+        }
+        QueryMsg::PendingToken {} => {
+            let res: StdResult<RewardInfoResponse> = deps.querier.query_wasm_smart(
+                cfg.reward_contract_addr,
+                &MirrorQueryMsg::RewardInfo {
+                    staker_addr: env.contract.address.to_string(),
+                    asset_token: Some(cfg.reward_token_addr.to_string()),
+                },
+            );
+            let pending_reward = res?.reward_infos[0].pending_reward;
+
+            to_binary(&Some(pending_reward))
         }
     }
 }

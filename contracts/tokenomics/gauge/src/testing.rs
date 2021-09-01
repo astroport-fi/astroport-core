@@ -2,8 +2,8 @@ use std::ops::Add;
 
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, CosmosMsg, Deps, DepsMut, Env, MemoryStorage, MessageInfo,
-    OwnedDeps, ReplyOn, Response, StdError, SubMsg, Uint128, WasmMsg,
+    attr, from_binary, to_binary, Addr, CosmosMsg, Decimal, Deps, DepsMut, Env, MemoryStorage,
+    MessageInfo, OwnedDeps, ReplyOn, Response, StdError, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg};
 
@@ -19,19 +19,21 @@ fn _do_instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    dev: Addr,
-    astro_toke: Addr,
+    dev_addr: String,
+    astro_token: String,
     tokens_per_block: Uint128,
     start_block: u64,
     bonus_end_block: u64,
+    vesting_contract: String,
 ) {
     let instantiate_msg = InstantiateMsg {
-        token: astro_toke,
-        dev_addr: dev,
+        astro_token,
+        dev_addr,
         tokens_per_block,
-        start_block,
-        bonus_end_block,
+        start_block: Uint64::from(start_block),
+        bonus_end_block: Uint64::from(bonus_end_block),
         allowed_reward_proxies: vec![],
+        vesting_contract,
     };
     let res = instantiate(deps, _env.clone(), info.clone(), instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -133,15 +135,19 @@ fn proper_initialization() {
     let dev = Addr::unchecked("dev0000");
     let env = mock_env();
     let astro_token_contract = Addr::unchecked("astro-token");
+    let vesting_contract = Addr::unchecked("vesting");
     let token_amount = Uint128::from(10u128);
+    let bonus_end_block = Uint64::from(10u64);
+    let start_block = Uint64::from(2u64);
 
     let instantiate_msg = InstantiateMsg {
-        token: astro_token_contract,
-        dev_addr: dev,
+        astro_token: astro_token_contract.to_string(),
+        dev_addr: dev.to_string(),
         tokens_per_block: token_amount,
-        start_block: 2,
-        bonus_end_block: 10,
+        start_block,
+        bonus_end_block,
         allowed_reward_proxies: vec![],
+        vesting_contract: vesting_contract.to_string(),
     };
     let res = instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -151,13 +157,14 @@ fn proper_initialization() {
         config,
         Config {
             owner: Addr::unchecked("addr0000"),
-            astro_token: Addr::unchecked("astro-token"),
-            dev_addr: Addr::unchecked("dev0000"),
-            bonus_end_block: 10,
+            astro_token: astro_token_contract,
+            dev_addr: dev,
+            bonus_end_block,
             tokens_per_block: token_amount,
-            total_alloc_point: 0,
-            start_block: 2,
+            total_alloc_point: Uint64::from(0u64),
+            start_block,
             allowed_reward_proxies: vec![],
+            vesting_contract
         }
     )
 }
@@ -174,15 +181,18 @@ fn execute_add() {
     let lp_token_contract = Addr::unchecked("lp-token000");
     let lp_token_contract1 = Addr::unchecked("lp-token001");
     let token_amount = Uint128::from(10u128);
+    let vesting_contract = Addr::unchecked("vesting");
+
     _do_instantiate(
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        dev.clone(),
-        astro_token_contract.clone(),
+        dev.to_string(),
+        astro_token_contract.to_string(),
         token_amount,
         env.block.height.add(10),
         env.block.height.add(110),
+        vesting_contract.to_string(),
     );
 
     let res = query(deps.as_ref(), env.clone(), QueryMsg::PoolLength {}).unwrap();
@@ -190,8 +200,8 @@ fn execute_add() {
     assert_eq!(pool_length.length, 0);
 
     let msg = ExecuteMsg::Add {
-        alloc_point: 10,
-        token: lp_token_contract.clone(),
+        alloc_point: Uint64::from(10u64),
+        lp_token: lp_token_contract.clone(),
         reward_proxy: None,
         with_update: false,
     };
@@ -208,20 +218,23 @@ fn execute_add() {
             owner: owner.clone(),
             astro_token: Addr::unchecked("astro-token"),
             dev_addr: dev.clone(),
-            bonus_end_block: env.block.height.add(110),
+            bonus_end_block: Uint64::from(env.block.height.add(110)),
             tokens_per_block: Uint128::from(10u128),
-            total_alloc_point: 10,
-            start_block: env.block.height.add(10),
+            total_alloc_point: Uint64::from(10u64),
+            start_block: Uint64::from(env.block.height.add(10)),
             allowed_reward_proxies: vec![],
+            vesting_contract: vesting_contract.clone(),
         }
     );
     assert_eq!(
         pool_info,
         PoolInfo {
-            alloc_point: 10,
-            last_reward_block: env.block.height.add(10),
+            alloc_point: Uint64::from(10u64),
+            last_reward_block: Uint64::from(env.block.height.add(10)),
             acc_per_share: Default::default(),
             reward_proxy: None,
+            acc_per_share_on_proxy: Decimal::zero(),
+            proxy_reward_balance_before_update: Uint128::zero()
         }
     );
     let res = query(deps.as_ref(), env.clone(), QueryMsg::PoolLength {}).unwrap();
@@ -229,8 +242,8 @@ fn execute_add() {
     assert_eq!(pool_length.length, 1);
 
     let msg = ExecuteMsg::Add {
-        alloc_point: 20,
-        token: lp_token_contract.clone(),
+        alloc_point: Uint64::from(20u64),
+        lp_token: lp_token_contract.clone(),
         reward_proxy: None,
         with_update: false,
     };
@@ -243,8 +256,8 @@ fn execute_add() {
 
     info.sender = user;
     let msg = ExecuteMsg::Add {
-        alloc_point: 20,
-        token: lp_token_contract1.clone(),
+        alloc_point: Uint64::from(20u64),
+        lp_token: lp_token_contract1.clone(),
         reward_proxy: None,
         with_update: false,
     };
@@ -272,29 +285,34 @@ fn execute_add() {
             owner: owner.clone(),
             astro_token: Addr::unchecked("astro-token"),
             dev_addr: dev.clone(),
-            bonus_end_block: env.block.height.add(110),
+            bonus_end_block: Uint64::from(env.block.height.add(110)),
             tokens_per_block: Uint128::from(10u128),
-            total_alloc_point: 10 + 20,
-            start_block: env.block.height.add(10),
+            total_alloc_point: Uint64::from(10u64 + 20u64),
+            start_block: Uint64::from(env.block.height.add(10)),
             allowed_reward_proxies: vec![],
+            vesting_contract
         }
     );
     assert_eq!(
         pool_info1,
         PoolInfo {
-            alloc_point: 10,
-            last_reward_block: env.block.height.add(10),
+            alloc_point: Uint64::from(10u64),
+            last_reward_block: Uint64::from(env.block.height.add(10)),
             acc_per_share: Default::default(),
             reward_proxy: None,
+            acc_per_share_on_proxy: Decimal::zero(),
+            proxy_reward_balance_before_update: Uint128::zero(),
         }
     );
     assert_eq!(
         pool_info2,
         PoolInfo {
-            alloc_point: 20,
-            last_reward_block: env.block.height.add(10),
+            alloc_point: Uint64::from(20u64),
+            last_reward_block: Uint64::from(env.block.height.add(10)),
             acc_per_share: Default::default(),
             reward_proxy: None,
+            acc_per_share_on_proxy: Decimal::zero(),
+            proxy_reward_balance_before_update: Uint128::zero(),
         }
     );
     let res = query(deps.as_ref(), env.clone(), QueryMsg::PoolLength {}).unwrap();
@@ -311,22 +329,24 @@ fn execute_set() {
     let env = mock_env();
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
+    let vesting_contract = Addr::unchecked("vesting");
 
     let token_amount = Uint128::from(10u128);
     _do_instantiate(
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        dev.clone(),
-        astro_token_contract.clone(),
+        dev.to_string(),
+        astro_token_contract.to_string(),
         token_amount,
         env.block.height.add(10),
         env.block.height.add(110),
+        vesting_contract.to_string(),
     );
 
     let msg = ExecuteMsg::Add {
-        alloc_point: 10,
-        token: lp_token_contract.clone(),
+        alloc_point: Uint64::from(10u64),
+        lp_token: lp_token_contract.clone(),
         reward_proxy: None,
         with_update: false,
     };
@@ -335,14 +355,16 @@ fn execute_set() {
     let pool_info = POOL_INFO
         .load(deps.as_ref().storage, &lp_token_contract.clone())
         .unwrap();
-    assert_eq!(config.total_alloc_point, 10);
+    assert_eq!(config.total_alloc_point, Uint64::from(10u64));
     assert_eq!(
         pool_info,
         PoolInfo {
-            alloc_point: 10,
-            last_reward_block: env.block.height.add(10),
+            alloc_point: Uint64::from(10u64),
+            last_reward_block: Uint64::from(env.block.height.add(10u64)),
             acc_per_share: Default::default(),
             reward_proxy: None,
+            acc_per_share_on_proxy: Decimal::zero(),
+            proxy_reward_balance_before_update: Uint128::zero(),
         }
     );
 
@@ -352,8 +374,8 @@ fn execute_set() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Set {
-            token: lp_token_contract.clone(),
-            alloc_point: 20,
+            lp_token: lp_token_contract.clone(),
+            alloc_point: Uint64::from(20u64),
             with_update: false,
         },
     );
@@ -368,8 +390,8 @@ fn execute_set() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Set {
-            token: lp_token_contract.clone(),
-            alloc_point: 20,
+            lp_token: lp_token_contract.clone(),
+            alloc_point: Uint64::from(20u64),
             with_update: false,
         },
     )
@@ -379,12 +401,12 @@ fn execute_set() {
     let pool_info = POOL_INFO
         .load(deps.as_ref().storage, &lp_token_contract.clone())
         .unwrap();
-    assert_eq!(config.total_alloc_point, 20);
-    assert_eq!(pool_info.alloc_point, 20);
+    assert_eq!(config.total_alloc_point, Uint64::from(20u64));
+    assert_eq!(pool_info.alloc_point, Uint64::from(20u64));
 
     let msg = ExecuteMsg::Add {
-        alloc_point: 100,
-        token: Addr::unchecked("come_token"),
+        alloc_point: Uint64::from(100u64),
+        lp_token: Addr::unchecked("come_token"),
         reward_proxy: None,
         with_update: false,
     };
@@ -394,8 +416,8 @@ fn execute_set() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Set {
-            token: lp_token_contract.clone(),
-            alloc_point: 50,
+            lp_token: lp_token_contract.clone(),
+            alloc_point: Uint64::from(50u64),
             with_update: false,
         },
     )
@@ -405,8 +427,8 @@ fn execute_set() {
     let pool_info = POOL_INFO
         .load(deps.as_ref().storage, &lp_token_contract.clone())
         .unwrap();
-    assert_eq!(config.total_alloc_point, 150); //old: token120+token2 100; new: total 120 -20+50 token1
-    assert_eq!(pool_info.alloc_point, 50);
+    assert_eq!(config.total_alloc_point, Uint64::from(150u64)); //old: token120+token2 100; new: total 120 -20+50 token1
+    assert_eq!(pool_info.alloc_point, Uint64::from(50u64));
 }
 
 #[test]
@@ -418,6 +440,7 @@ fn execute_deposit() {
     let mut env = mock_env();
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
+    let vesting_contract = Addr::unchecked("vesting");
     // mock start balances
     deps.querier.set_balance(
         user.clone(),
@@ -430,11 +453,12 @@ fn execute_deposit() {
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        dev.clone(),
-        astro_token_contract.clone(),
+        dev.to_string(),
+        astro_token_contract.to_string(),
         token_amount,
         env.block.height,
         env.block.height.add(100),
+        vesting_contract.to_string(),
     );
 
     let _res = execute(
@@ -442,8 +466,8 @@ fn execute_deposit() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Add {
-            alloc_point: 10,
-            token: lp_token_contract.clone(),
+            alloc_point: Uint64::from(10u64),
+            lp_token: lp_token_contract.clone(),
             reward_proxy: None,
             with_update: false,
         },
@@ -456,7 +480,7 @@ fn execute_deposit() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(1000u128),
         },
     )
@@ -506,7 +530,7 @@ fn execute_deposit() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(2000u128),
         },
     )
@@ -538,7 +562,7 @@ fn execute_deposit() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(3000u128),
         },
     )
@@ -635,6 +659,7 @@ fn execute_withdraw() {
     let mut env = mock_env();
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
+    let vesting_contract = Addr::unchecked("vesting");
     // mock start balances
     deps.querier.set_balance(
         user.clone(),
@@ -645,11 +670,12 @@ fn execute_withdraw() {
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        dev.clone(),
-        astro_token_contract.clone(),
+        dev.to_string(),
+        astro_token_contract.to_string(),
         Uint128::from(10u128),
         env.block.height,
         env.block.height.add(1000),
+        vesting_contract.to_string(),
     );
 
     let _res = execute(
@@ -657,8 +683,8 @@ fn execute_withdraw() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Add {
-            alloc_point: 10,
-            token: lp_token_contract.clone(),
+            alloc_point: Uint64::from(10u64),
+            lp_token: lp_token_contract.clone(),
             reward_proxy: None,
             with_update: false,
         },
@@ -671,7 +697,7 @@ fn execute_withdraw() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(100u128),
         },
     )
@@ -684,7 +710,7 @@ fn execute_withdraw() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Withdraw {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(50u128),
         },
     )
@@ -732,7 +758,7 @@ fn execute_withdraw() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Withdraw {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(25u128),
         },
     )
@@ -801,7 +827,7 @@ fn execute_withdraw() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Withdraw {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(25u128),
         },
     )
@@ -853,7 +879,7 @@ fn execute_withdraw() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Withdraw {
-            token: lp_token_contract,
+            lp_token: lp_token_contract,
             amount: Uint128::from(25u128),
         },
     );
@@ -874,6 +900,7 @@ fn execute_emergency_withdraw() {
     let mut env = mock_env();
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
+    let vesting_contract = Addr::unchecked("vesting");
 
     let token_amount = Uint128::from(10u128);
 
@@ -881,11 +908,12 @@ fn execute_emergency_withdraw() {
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        dev.clone(),
-        astro_token_contract.clone(),
+        dev.to_string(),
+        astro_token_contract.to_string(),
         token_amount,
         env.block.height,
         env.block.height.add(1000),
+        vesting_contract.to_string(),
     );
 
     let res = execute(
@@ -893,8 +921,8 @@ fn execute_emergency_withdraw() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Add {
-            alloc_point: 10,
-            token: lp_token_contract.clone(),
+            alloc_point: Uint64::from(10u64),
+            lp_token: lp_token_contract.clone(),
             reward_proxy: None,
             with_update: false,
         },
@@ -908,7 +936,7 @@ fn execute_emergency_withdraw() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(1122u128),
         },
     )
@@ -922,7 +950,7 @@ fn execute_emergency_withdraw() {
         env.clone(),
         info.clone(),
         ExecuteMsg::EmergencyWithdraw {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
         },
     )
     .unwrap();
@@ -969,6 +997,7 @@ fn give_token_after_farming_time() {
     let mut env = mock_env();
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
+    let vesting_contract = Addr::unchecked("vesting");
 
     deps.querier.set_balance(
         owner.clone(),
@@ -981,11 +1010,12 @@ fn give_token_after_farming_time() {
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        dev.clone(),
-        astro_token_contract.clone(),
+        dev.to_string(),
+        astro_token_contract.to_string(),
         Uint128::from(100u128),
         env.block.height.add(100),
         env.block.height.add(1000),
+        vesting_contract.to_string(),
     );
 
     let _ = execute(
@@ -993,8 +1023,8 @@ fn give_token_after_farming_time() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Add {
-            alloc_point: 100,
-            token: lp_token_contract.clone(),
+            alloc_point: Uint64::from(100u64),
+            lp_token: lp_token_contract.clone(),
             reward_proxy: None,
             with_update: false,
         },
@@ -1006,7 +1036,7 @@ fn give_token_after_farming_time() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(100u128),
         },
     )
@@ -1021,7 +1051,7 @@ fn give_token_after_farming_time() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::zero(),
         },
     )
@@ -1036,7 +1066,7 @@ fn give_token_after_farming_time() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::zero(),
         },
     )
@@ -1051,7 +1081,7 @@ fn give_token_after_farming_time() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::zero(),
         },
     )
@@ -1066,7 +1096,7 @@ fn give_token_after_farming_time() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::zero(),
         },
     )
@@ -1080,7 +1110,7 @@ fn give_token_after_farming_time() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::zero(),
         },
     )
@@ -1113,7 +1143,7 @@ fn give_token_after_farming_time() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::zero(),
         },
     )
@@ -1187,6 +1217,7 @@ fn not_distribute_tokens() {
     let mut env = mock_env();
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
+    let vesting_contract = Addr::unchecked("vesting");
 
     deps.querier.set_balance(
         user.clone(),
@@ -1198,11 +1229,12 @@ fn not_distribute_tokens() {
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        dev.clone(),
-        astro_token_contract.clone(),
+        dev.to_string(),
+        astro_token_contract.to_string(),
         Uint128::from(100u128),
         env.block.height.add(200),
         env.block.height.add(1000),
+        vesting_contract.to_string(),
     );
 
     let _ = execute(
@@ -1210,8 +1242,8 @@ fn not_distribute_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Add {
-            alloc_point: 100,
-            token: lp_token_contract.clone(),
+            alloc_point: Uint64::from(100u64),
+            lp_token: lp_token_contract.clone(),
             reward_proxy: None,
             with_update: false,
         },
@@ -1246,7 +1278,7 @@ fn not_distribute_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(10u128),
         },
     )
@@ -1288,7 +1320,7 @@ fn not_distribute_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Withdraw {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(10u128),
         },
     )
@@ -1382,6 +1414,7 @@ fn distribute_tokens() {
     let mut env = mock_env();
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
+    let vesting_contract = Addr::unchecked("vesting");
 
     deps.querier.set_balance(
         user_one.clone(),
@@ -1404,11 +1437,12 @@ fn distribute_tokens() {
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        dev.clone(),
-        astro_token_contract.clone(),
+        dev.to_string(),
+        astro_token_contract.to_string(),
         Uint128::from(100u128),
         env.block.height.add(300),
         env.block.height.add(1000),
+        vesting_contract.to_string(),
     );
     // Add first LP to the pool with allocation 1
     let res = execute(
@@ -1416,8 +1450,8 @@ fn distribute_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Add {
-            alloc_point: 100,
-            token: lp_token_contract.clone(),
+            alloc_point: Uint64::from(100u64),
+            lp_token: lp_token_contract.clone(),
             reward_proxy: None,
             with_update: true,
         },
@@ -1434,7 +1468,7 @@ fn distribute_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(10u128),
         },
     )
@@ -1450,7 +1484,7 @@ fn distribute_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(20u128),
         },
     )
@@ -1466,7 +1500,7 @@ fn distribute_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(30u128),
         },
     )
@@ -1484,7 +1518,7 @@ fn distribute_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(10u128),
         },
     )
@@ -1533,7 +1567,7 @@ fn distribute_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Withdraw {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(5u128),
         },
     )
@@ -1583,7 +1617,7 @@ fn distribute_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Withdraw {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(20u128),
         },
     )
@@ -1598,7 +1632,7 @@ fn distribute_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Withdraw {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(15u128),
         },
     )
@@ -1613,7 +1647,7 @@ fn distribute_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Withdraw {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(30u128),
         },
     )
@@ -1677,6 +1711,7 @@ fn tokens_allocation_each_pool() {
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract_one = Addr::unchecked("lp-token000");
     let lp_token_contract_two = Addr::unchecked("lp-token001");
+    let vesting_contract = Addr::unchecked("vesting");
 
     deps.querier.set_balance(
         user_one.clone(),
@@ -1694,11 +1729,12 @@ fn tokens_allocation_each_pool() {
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        dev.clone(),
-        astro_token_contract.clone(),
+        dev.to_string(),
+        astro_token_contract.to_string(),
         Uint128::from(100u128),
         env.block.height.add(400),
         env.block.height.add(1000),
+        vesting_contract.to_string(),
     );
     // Add first LP to the pool with allocation 1
     let res = execute(
@@ -1706,8 +1742,8 @@ fn tokens_allocation_each_pool() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Add {
-            alloc_point: 10,
-            token: lp_token_contract_one.clone(),
+            alloc_point: Uint64::from(10u64),
+            lp_token: lp_token_contract_one.clone(),
             reward_proxy: None,
             with_update: true,
         },
@@ -1724,7 +1760,7 @@ fn tokens_allocation_each_pool() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract_one.clone(),
+            lp_token: lp_token_contract_one.clone(),
             amount: Uint128::from(10u128),
         },
     )
@@ -1740,8 +1776,8 @@ fn tokens_allocation_each_pool() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Add {
-            alloc_point: 20,
-            token: lp_token_contract_two.clone(),
+            alloc_point: Uint64::from(20u64),
+            lp_token: lp_token_contract_two.clone(),
             reward_proxy: None,
             with_update: true,
         },
@@ -1755,7 +1791,7 @@ fn tokens_allocation_each_pool() {
         deps.as_ref(),
         env.clone(),
         QueryMsg::PendingToken {
-            token: lp_token_contract_one.clone(),
+            lp_token: lp_token_contract_one.clone(),
             user: user_one.clone(),
         },
     )
@@ -1772,7 +1808,7 @@ fn tokens_allocation_each_pool() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract_two.clone(),
+            lp_token: lp_token_contract_two.clone(),
             amount: Uint128::from(5u128),
         },
     )
@@ -1785,7 +1821,7 @@ fn tokens_allocation_each_pool() {
         deps.as_ref(),
         env.clone(),
         QueryMsg::PendingToken {
-            token: lp_token_contract_one.clone(),
+            lp_token: lp_token_contract_one.clone(),
             user: user_one.clone(),
         },
     )
@@ -1801,7 +1837,7 @@ fn tokens_allocation_each_pool() {
         deps.as_ref(),
         env.clone(),
         QueryMsg::PendingToken {
-            token: lp_token_contract_one.clone(),
+            lp_token: lp_token_contract_one.clone(),
             user: user_one.clone(),
         },
     )
@@ -1813,7 +1849,7 @@ fn tokens_allocation_each_pool() {
         deps.as_ref(),
         env.clone(),
         QueryMsg::PendingToken {
-            token: lp_token_contract_two.clone(),
+            lp_token: lp_token_contract_two.clone(),
             user: user_two.clone(),
         },
     )
@@ -1833,6 +1869,7 @@ fn stop_giving_bonus_tokens() {
     let mut env = mock_env();
     let astro_token_contract = Addr::unchecked("astro-token");
     let lp_token_contract = Addr::unchecked("lp-token000");
+    let vesting_contract = Addr::unchecked("vesting");
 
     deps.querier.set_balance(
         user.clone(),
@@ -1844,11 +1881,12 @@ fn stop_giving_bonus_tokens() {
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        dev.clone(),
-        astro_token_contract.clone(),
+        dev.to_string(),
+        astro_token_contract.to_string(),
         Uint128::from(100u128),
         env.block.height.add(500),
         env.block.height.add(600),
+        vesting_contract.to_string(),
     );
 
     let _ = execute(
@@ -1856,8 +1894,8 @@ fn stop_giving_bonus_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Add {
-            alloc_point: 1,
-            token: lp_token_contract.clone(),
+            alloc_point: Uint64::from(1u64),
+            lp_token: lp_token_contract.clone(),
             reward_proxy: None,
             with_update: false,
         },
@@ -1873,7 +1911,7 @@ fn stop_giving_bonus_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(10u128),
         },
     )
@@ -1887,7 +1925,7 @@ fn stop_giving_bonus_tokens() {
         deps.as_ref(),
         env.clone(),
         QueryMsg::PendingToken {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             user: user.clone(),
         },
     )
@@ -1901,7 +1939,7 @@ fn stop_giving_bonus_tokens() {
         env.clone(),
         info.clone(),
         ExecuteMsg::Deposit {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             amount: Uint128::from(0u128),
         },
     )
@@ -1961,7 +1999,7 @@ fn stop_giving_bonus_tokens() {
         deps.as_ref(),
         env.clone(),
         QueryMsg::PendingToken {
-            token: lp_token_contract.clone(),
+            lp_token: lp_token_contract.clone(),
             user: user.clone(),
         },
     )

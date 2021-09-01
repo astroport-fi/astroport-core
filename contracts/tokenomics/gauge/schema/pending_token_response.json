@@ -8,6 +8,16 @@
   "properties": {
     "pending": {
       "$ref": "#/definitions/Uint128"
+    },
+    "pending_on_proxy": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "definitions": {

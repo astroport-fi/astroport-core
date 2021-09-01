@@ -30,13 +30,9 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    DepositAndReward {},
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct DepositAndRewardResponse {
-    pub deposit_amount: Uint128,
-    pub reward_amount: Uint128,
+    Deposit {},
+    Reward {},
+    PendingToken {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

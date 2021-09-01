@@ -6,9 +6,7 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
-use gauge_proxy_interface::msg::{
-    Cw20HookMsg, DepositAndRewardResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
-};
+use gauge_proxy_interface::msg::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -165,10 +163,13 @@ fn emergency_withdraw(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cfg = CONFIG.load(deps.storage)?;
     match msg {
-        QueryMsg::DepositAndReward {} => {
+        QueryMsg::Deposit {} => {
             // query the end reward contract for total deposit amount if possible or implement storing local balance
             unimplemented!();
 
+            // return amount (Uint128)
+        }
+        QueryMsg::Reward {} => {
             let res: Result<BalanceResponse, StdError> = deps.querier.query_wasm_smart(
                 cfg.reward_token_addr,
                 &Cw20QueryMsg::Balance {
@@ -177,10 +178,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             );
             let reward_amount = res?.balance;
 
-            to_binary(&DepositAndRewardResponse {
-                deposit_amount: unimplemented!(),
-                reward_amount,
-            })
+            to_binary(&reward_amount)
+        },
+        QueryMsg::PendingToken {
+            // query the end reward contract for pending token amount if possible
+            unimplemented!();
+
+            // return amount (Some(Uint128) or None)
         }
     }
 }

@@ -5,10 +5,34 @@
     {
       "type": "object",
       "required": [
-        "get_count"
+        "deposit"
       ],
       "properties": {
-        "get_count": {
+        "deposit": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "reward"
+      ],
+      "properties": {
+        "reward": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "pending_token"
+      ],
+      "properties": {
+        "pending_token": {
           "type": "object"
         }
       },

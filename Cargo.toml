@@ -8,9 +8,6 @@ members = [
     "contracts/token",
     "contracts/tokenomics/*"
 ]
-exclude = [
-    "contracts/tokenomics/gauge_proxy_template"
-]
 
 [profile.release]
 opt-level = 3

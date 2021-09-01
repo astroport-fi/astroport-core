@@ -27,7 +27,7 @@ serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
 gauge-proxy-interface = { path = "../../../packages/gauge_proxy_interface"}
 cw20 = "0.8.0"
-mirror-protocol = {git = "https://github.com/Mirror-Protocol/mirror-contracts.git", branch = "dev/col5", package = "mirror-protocol"}
+mirror-protocol = {git = "https://github.com/Mirror-Protocol/mirror-contracts.git", rev = "a76fd3c61b36d1111125a94ff5efff82285adb5d", package = "mirror-protocol"}
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
