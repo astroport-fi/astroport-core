@@ -3,7 +3,6 @@ use crate::contract::{
     query_pool, query_reverse_simulation, query_share, query_simulation,
 };
 use crate::error::ContractError;
-use crate::math::{decimal_multiplication, reverse_decimal};
 use crate::mock_querier::mock_dependencies;
 
 use crate::state::Config;
@@ -15,6 +14,7 @@ use astroport::pair::{
     SimulationResponse,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, Env, ReplyOn, Response,
@@ -681,7 +681,7 @@ fn try_native_to_token() {
     let asset_pool_amount = Uint128::new(20000000000u128);
     let collateral_pool_amount = Uint128::new(30000000000u128);
     let price = Decimal::from_ratio(collateral_pool_amount, asset_pool_amount);
-    let exchange_rate = reverse_decimal(price);
+    let exchange_rate = Decimal::from(Decimal256::one() / Decimal256::from(price));
     let offer_amount = Uint128::new(1500000000u128);
 
     let mut deps = mock_dependencies(&[Coin {
@@ -864,7 +864,7 @@ fn try_token_to_native() {
     let asset_pool_amount = Uint128::new(30000000000u128);
     let collateral_pool_amount = Uint128::new(20000000000u128);
     let price = Decimal::from_ratio(collateral_pool_amount, asset_pool_amount);
-    let exchange_rate = decimal_multiplication(price, Decimal::one());
+    let exchange_rate = price;
     let offer_amount = Uint128::new(1500000000u128);
 
     let mut deps = mock_dependencies(&[Coin {
