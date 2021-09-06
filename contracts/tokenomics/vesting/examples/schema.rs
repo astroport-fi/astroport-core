@@ -3,8 +3,9 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use terraswap::vesting::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccountResponse, VestingAccountsResponse,
+use astroport::vesting::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, VestingAccountResponse,
+    VestingAccountsResponse,
 };
 
 fn main() {
@@ -19,4 +20,5 @@ fn main() {
     export_schema(&schema_for!(ConfigResponse), &out_dir);
     export_schema(&schema_for!(VestingAccountResponse), &out_dir);
     export_schema(&schema_for!(VestingAccountsResponse), &out_dir);
+    export_schema(&schema_for!(MigrateMsg), &out_dir);
 }

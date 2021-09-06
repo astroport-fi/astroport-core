@@ -175,8 +175,7 @@ pub fn mass_update_pools(deps: &mut DepsMut, env: Env) -> Result<Response, Contr
             POOL_INFO.save(deps.storage, &token, &p)?;
         }
     }
-    response.add_attribute("Action", "MassUpdatePools");
-    Ok(response)
+    Ok(response.add_attribute("Action", "MassUpdatePools"))
 }
 
 // Update reward variables of the given pool to be up-to-date.
@@ -202,9 +201,7 @@ pub fn update_pool(deps: DepsMut, env: Env, token: Addr) -> Result<Response, Con
         POOL_INFO.save(deps.storage, &token, &p)?;
     }
 
-    response.add_attribute("Action", "UpdatePool");
-
-    Ok(response)
+    Ok(response.add_attribute("Action", "UpdatePool"))
 }
 
 // Update reward variables of the given pool to be up-to-date.
@@ -314,8 +311,7 @@ pub fn deposit(
     token: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::default();
-    response.add_attribute("Action", "Deposit");
+    let mut response = Response::new().add_attribute("Action", "Deposit");
 
     let mut user = USER_INFO
         .load(deps.storage, (&token, &info.sender))
@@ -412,8 +408,7 @@ pub fn withdraw(
     token: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::default();
-    response.add_attribute("Action", "Withdraw");
+    let mut response = Response::new().add_attribute("Action", "Withdraw");
     let user = USER_INFO.load(deps.storage, (&token, &info.sender))?;
     if user.amount < amount {
         return Err(ContractError::BalanceTooSmall {});
@@ -511,8 +506,7 @@ pub fn emergency_withdraw(
         .load(deps.storage, (&token, &info.sender))
         .unwrap();
 
-    let mut response = Response::default();
-    response.add_attribute("Action", "EmergencyWithdraw");
+    let mut response = Response::new().add_attribute("Action", "EmergencyWithdraw");
 
     //call to transfer function for lp token
     response.messages.push(SubMsg {
