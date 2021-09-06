@@ -626,7 +626,7 @@ fn end_proposal() {
         handle_res.attributes,
         vec![
             attr("Action", "VoteCast"),
-            attr("proposal_id", PROPOSAL_ID),
+            attr("proposal_id", PROPOSAL_ID.to_string()),
             attr("vote_power", power.to_string()),
             attr("voter", TEST_VOTER),
             attr("support", "true"),
@@ -834,7 +834,7 @@ fn expire_proposal() {
         handle_res.attributes,
         vec![
             attr("Action", "VoteCast"),
-            attr("proposal_id", PROPOSAL_ID),
+            attr("proposal_id", PROPOSAL_ID.to_string()),
             attr("vote_power", "109678764800"),
             attr("voter", TEST_VOTER),
             attr("support", "true"),
@@ -1151,16 +1151,14 @@ fn vote_power() {
     let lock_time =
         ((env.block.time.plus_seconds(time_lock).nanos() / 1_000_000_000) / WEEK) * WEEK;
     let res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
+
     assert_eq!(
-        res.events,
-        vec![Event {
-            ty: "Deposit".to_string(),
-            attributes: vec![
-                attr("addr", TEST_CREATOR),
-                attr("amount", DEFAULT_DEPOSIT.to_string()),
-                attr("end", lock_time.to_string()),
-            ]
-        }]
+        res.events.to_vec(),
+        vec![Event::new("Deposit").add_attributes(vec![
+            attr("addr", TEST_CREATOR),
+            attr("amount", DEFAULT_DEPOSIT.to_string()),
+            attr("end", lock_time.to_string()),
+        ])]
     );
 
     let power = get_locked_balance(deps.as_ref(), env.clone(), Addr::unchecked(TEST_CREATOR));
@@ -1225,14 +1223,11 @@ fn withdraw_voting_tokens() {
     let res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
     assert_eq!(
         res.events,
-        vec![Event {
-            ty: "Deposit".to_string(),
-            attributes: vec![
-                attr("addr", TEST_VOTER),
-                attr("amount", DEFAULT_DEPOSIT.to_string()),
-                attr("end", lock_time.to_string()),
-            ]
-        }]
+        vec![Event::new("Deposit").add_attributes(vec![
+            attr("addr", TEST_VOTER),
+            attr("amount", DEFAULT_DEPOSIT.to_string()),
+            attr("end", lock_time.to_string()),
+        ])]
     );
 
     let state: State = GOVERNANCE_SATE.load(deps.as_mut().storage).unwrap();
@@ -1321,14 +1316,11 @@ fn fails_withdraw_locked_tokens() {
     let res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
     assert_eq!(
         res.events,
-        vec![Event {
-            ty: "Deposit".to_string(),
-            attributes: vec![
-                attr("addr", TEST_VOTER),
-                attr("amount", DEFAULT_DEPOSIT.to_string()),
-                attr("end", lock_time.to_string()),
-            ]
-        }]
+        vec![Event::new("Deposit").add_attributes(vec![
+            attr("addr", TEST_VOTER),
+            attr("amount", DEFAULT_DEPOSIT.to_string()),
+            attr("end", lock_time.to_string()),
+        ])]
     );
 
     let state: State = GOVERNANCE_SATE.load(deps.as_mut().storage).unwrap();
@@ -1440,14 +1432,11 @@ fn stake_voting_tokens() {
     let res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
     assert_eq!(
         res.events,
-        vec![Event {
-            ty: "Deposit".to_string(),
-            attributes: vec![
-                attr("addr", TEST_VOTER.to_string()),
-                attr("amount", deposit.to_string()),
-                attr("end", lock_time.to_string()),
-            ]
-        }]
+        vec![Event::new("Deposit").add_attributes(vec![
+            attr("addr", TEST_VOTER.to_string()),
+            attr("amount", deposit.to_string()),
+            attr("end", lock_time.to_string()),
+        ])]
     );
 
     assert_eq!(
@@ -1606,14 +1595,11 @@ fn change_amount_stake_voting_tokens() {
     let res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
     assert_eq!(
         res.events,
-        vec![Event {
-            ty: "Deposit".to_string(),
-            attributes: vec![
-                attr("addr", TEST_VOTER.to_string()),
-                attr("amount", deposit.to_string()),
-                attr("end", lock_time.to_string()),
-            ]
-        }]
+        vec![Event::new("Deposit").add_attributes(vec![
+            attr("addr", TEST_VOTER.to_string()),
+            attr("amount", deposit.to_string()),
+            attr("end", lock_time.to_string()),
+        ])]
     );
 
     assert_eq!(
@@ -1654,14 +1640,11 @@ fn change_amount_stake_voting_tokens() {
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
     assert_eq!(
         res.events,
-        vec![Event {
-            ty: "Deposit".to_string(),
-            attributes: vec![
-                attr("addr", TEST_VOTER.to_string()),
-                attr("amount", deposit.to_string()),
-                attr("end", lock_time.to_string()),
-            ]
-        }]
+        vec![Event::new("Deposit").add_attributes(vec![
+            attr("addr", TEST_VOTER.to_string()),
+            attr("amount", deposit.to_string()),
+            attr("end", lock_time.to_string()),
+        ])]
     );
 
     assert_eq!(
@@ -1727,14 +1710,11 @@ fn change_unlock_time_stake_voting_tokens() {
     let res = execute(deps.as_mut(), env.clone(), info.clone(), lock_msg).unwrap();
     assert_eq!(
         res.events,
-        vec![Event {
-            ty: "Deposit".to_string(),
-            attributes: vec![
-                attr("addr", TEST_VOTER.to_string()),
-                attr("amount", deposit.to_string()),
-                attr("end", lock_time.to_string()),
-            ]
-        }]
+        vec![Event::new("Deposit").add_attributes(vec![
+            attr("addr", TEST_VOTER.to_string()),
+            attr("amount", deposit.to_string()),
+            attr("end", lock_time.to_string()),
+        ])]
     );
 
     assert_eq!(
@@ -1793,14 +1773,11 @@ fn change_unlock_time_stake_voting_tokens() {
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
     assert_eq!(
         res.events,
-        vec![Event {
-            ty: "Deposit".to_string(),
-            attributes: vec![
-                attr("addr", TEST_VOTER.to_string()),
-                attr("amount", "0"),
-                attr("end", lock_time.to_string()),
-            ]
-        }]
+        vec![Event::new("Deposit").add_attributes(vec![
+            attr("addr", TEST_VOTER.to_string()),
+            attr("amount", "0"),
+            attr("end", lock_time.to_string()),
+        ])]
     );
 
     assert_eq!(res.messages, vec![]);

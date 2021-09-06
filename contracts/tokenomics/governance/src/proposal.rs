@@ -33,9 +33,6 @@ pub fn propose(
     validate_title(&title)?;
     validate_description(&description)?;
     validate_link(&link)?;
-
-    let mut response = Response::default();
-    response.add_attribute("Action", "ProposalCreated");
     let mut state = GOVERNANCE_SATE.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
 
@@ -102,11 +99,13 @@ pub fn propose(
     LATEST_PROPOSAL_IDS
         .save(deps.storage, &new_proposal.proposer, &new_proposal.id)
         .unwrap();
-    response.add_attribute("id", new_proposal.id.to_string());
-    response.add_attribute("proposer", info.sender.to_string());
-    response.add_attribute("endBlock", end_block.to_string());
+
     GOVERNANCE_SATE.save(deps.storage, &state)?;
-    Ok(response)
+    Ok(Response::new()
+        .add_attribute("Action", "ProposalCreated")
+        .add_attribute("id", new_proposal.id.to_string())
+        .add_attribute("proposer", info.sender.to_string())
+        .add_attribute("endBlock", end_block.to_string()))
 }
 
 pub fn cast_vote(
@@ -116,8 +115,6 @@ pub fn cast_vote(
     proposal_id: u64,
     support: bool,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::default();
-    response.add_attribute("Action", "VoteCast");
     let state = query_get_state(deps.as_ref(), _env.clone(), proposal_id);
     if state.is_err() {
         return match state {
@@ -172,16 +169,16 @@ pub fn cast_vote(
             Ok(val)
         },
     )?;
-    response.add_attribute("proposal_id", proposal_id.to_string());
-    response.add_attribute("vote_power", vote_power.to_string());
-    response.add_attribute("voter", info.sender.to_string());
-    response.add_attribute("support", support.to_string());
-    Ok(response)
+
+    Ok(Response::new()
+        .add_attribute("Action", "VoteCast")
+        .add_attribute("proposal_id", proposal_id.to_string())
+        .add_attribute("vote_power", vote_power.to_string())
+        .add_attribute("voter", info.sender.to_string())
+        .add_attribute("support", support.to_string()))
 }
 
 pub fn try_queue(deps: DepsMut, _env: Env, proposal_id: u64) -> Result<Response, ContractError> {
-    let mut response = Response::default();
-    response.add_attribute("Action", "ProposalQueued");
     let proposers_latest_proposal_state = query_get_state(deps.as_ref(), _env.clone(), proposal_id)
         .unwrap()
         .state;
@@ -201,14 +198,14 @@ pub fn try_queue(deps: DepsMut, _env: Env, proposal_id: u64) -> Result<Response,
             Ok(val)
         },
     )?;
-    response.add_attribute("proposalId", proposal_id.to_string());
-    response.add_attribute("Eta", eta.to_string());
-    Ok(response)
+
+    Ok(Response::new()
+        .add_attribute("Action", "ProposalQueued")
+        .add_attribute("proposalId", proposal_id.to_string())
+        .add_attribute("Eta", eta.to_string()))
 }
 
 pub fn try_execute(deps: DepsMut, _env: Env, proposal_id: u64) -> Result<Response, ContractError> {
-    let mut response = Response::default();
-    response.add_attribute("Action", "ProposalExecute");
     let proposers_proposal_state = query_get_state(deps.as_ref(), _env.clone(), proposal_id)
         .unwrap()
         .state;
@@ -226,11 +223,12 @@ pub fn try_execute(deps: DepsMut, _env: Env, proposal_id: u64) -> Result<Respons
             "Timelock period has not expired",
         ));
     }
+    let mut messages = vec![];
     if let Some(all_msgs) = proposal.execute_data {
         let mut msgs = all_msgs;
         msgs.sort();
         for msg in msgs {
-            response.messages.push(SubMsg {
+            messages.push(SubMsg {
                 id: 0,
                 msg: WasmMsg::Execute {
                     contract_addr: msg.contract.to_string(),
@@ -256,8 +254,11 @@ pub fn try_execute(deps: DepsMut, _env: Env, proposal_id: u64) -> Result<Respons
             Ok(val)
         },
     )?;
-    response.add_attribute("proposalId", proposal_id.to_string());
-    Ok(response)
+
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attribute("Action", "ProposalExecute")
+        .add_attribute("proposalId", proposal_id.to_string()))
 }
 
 pub fn try_cancel(
@@ -266,8 +267,6 @@ pub fn try_cancel(
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::default();
-    response.add_attribute("Action", "ProposalCanceled");
     let config = CONFIG.load(deps.storage)?;
     let proposers_proposal_state = query_get_state(deps.as_ref(), _env.clone(), proposal_id)
         .unwrap()
@@ -297,8 +296,10 @@ pub fn try_cancel(
             Ok(val)
         },
     )?;
-    response.add_attribute("proposalId", proposal_id.to_string());
-    Ok(response)
+
+    Ok(Response::new()
+        .add_attribute("Action", "ProposalCanceled")
+        .add_attribute("proposalId", proposal_id.to_string()))
 }
 
 pub fn query_get_state(deps: Deps, _env: Env, proposal_id: u64) -> StdResult<StateResponse> {

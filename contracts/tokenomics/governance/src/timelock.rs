@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::state::CONFIG;
-use cosmwasm_std::{Addr, Decimal, DepsMut, Env, MessageInfo, Response, Uint128};
+use cosmwasm_std::{attr, Addr, Decimal, DepsMut, Env, MessageInfo, Response, Uint128};
 
 pub const MINIMUM_DELAY: u64 = 2 * 86400; // 2days
 pub const MAXIMUM_DELAY: u64 = 30 * 86400; //30 days
@@ -11,8 +11,6 @@ pub fn try_timelock_period(
     info: MessageInfo,
     timelock_period: u64,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::default();
-    response.add_attribute("Action", "NewTimelockPeriod");
     if info.sender == _env.contract.address {
         return Err(ContractError::TimelockError {
             fun_name: String::from("setTimelockPeriod"),
@@ -34,12 +32,13 @@ pub fn try_timelock_period(
     let mut config = CONFIG.load(deps.storage)?;
     config.timelock_period = timelock_period;
     CONFIG.save(deps.storage, &config)?;
-    response.add_attribute("timelockPeriod", timelock_period.to_string());
-    Ok(response)
+
+    Ok(Response::new()
+        .add_attribute("Action", "NewTimelockPeriod")
+        .add_attribute("timelockPeriod", timelock_period.to_string()))
 }
 
 pub fn try_accept_admin(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
-    let mut response = Response::default();
     let mut config = CONFIG.load(deps.storage)?;
     if info.sender != config.pending_admin {
         return Err(ContractError::TimelockError {
@@ -50,8 +49,8 @@ pub fn try_accept_admin(deps: DepsMut, info: MessageInfo) -> Result<Response, Co
     config.admin = info.sender.clone();
     config.pending_admin = Addr::unchecked("0");
     CONFIG.save(deps.storage, &config)?;
-    response.add_attribute("NewAdmin", info.sender.to_string());
-    Ok(response)
+
+    Ok(Response::new().add_attribute("NewAdmin", info.sender.to_string()))
 }
 
 pub fn try_set_pending_admin(
@@ -60,15 +59,13 @@ pub fn try_set_pending_admin(
     info: MessageInfo,
     admin: Addr,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::default();
-    response.add_attribute("NewPendingAdmin", admin.to_string());
     let mut config = CONFIG.load(deps.storage)?;
     if info.sender != config.admin {
         return Err(ContractError::Unauthorized {});
     }
-    config.pending_admin = admin;
+    config.pending_admin = admin.clone();
     CONFIG.save(deps.storage, &config)?;
-    Ok(response)
+    Ok(Response::new().add_attribute("NewPendingAdmin", admin.to_string()))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -84,44 +81,54 @@ pub fn update_config(
     threshold: Option<Decimal>,
     proposal_weight: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::default();
-    response.add_attribute("Action", "UpdateConfig");
     let mut config = CONFIG.load(deps.storage)?;
     if info.sender != config.admin {
         return Err(ContractError::Unauthorized {});
     }
-
+    let mut attrs = vec![attr("Action", "UpdateConfig")];
     if let Some(threshold) = threshold {
         config.threshold = threshold;
-        response.add_attribute("threshold", config.threshold.to_string());
+        attrs.push(attr("threshold", config.threshold.to_string()));
     }
 
     if let Some(quorum) = quorum {
         config.quorum = quorum;
-        response.add_attribute("quorum", config.quorum.to_string());
+        attrs.push(attr("quorum", config.quorum.to_string()));
     }
     if let Some(guardian) = guardian {
         config.guardian = guardian;
+        attrs.push(attr("guardian", config.guardian.to_string()));
     }
     if let Some(voting_period) = voting_period {
         config.voting_period = voting_period;
+        attrs.push(attr("voting_period", config.voting_period.to_string()));
     }
 
     if let Some(timelock_period) = timelock_period {
         config.timelock_period = timelock_period;
+        attrs.push(attr("timelock_period", config.timelock_period.to_string()));
     }
 
     if let Some(expiration_period) = expiration_period {
         config.expiration_period = expiration_period;
+        attrs.push(attr(
+            "expiration_period",
+            config.expiration_period.to_string(),
+        ));
     }
 
     if let Some(proposal_weight) = proposal_weight {
         config.proposal_weight = proposal_weight;
+        attrs.push(attr("proposal_weight", config.proposal_weight.to_string()));
     }
 
     if let Some(voting_delay_period) = voting_delay_period {
         config.voting_delay_period = voting_delay_period;
+        attrs.push(attr(
+            "voting_delay_period",
+            config.voting_delay_period.to_string(),
+        ));
     }
     CONFIG.save(deps.storage, &config)?;
-    Ok(response)
+    Ok(Response::new().add_attributes(attrs))
 }

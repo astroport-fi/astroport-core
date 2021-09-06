@@ -145,8 +145,7 @@ pub fn deposit(
 pub fn withdraw(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     // Withdraw all tokens for `msg.sender`
     // Only possible if the lock has expired
-    let mut response = Response::default();
-    //response.add_attribute("Action", "Withdraw");
+    //let mut response = Response::new();
     let mut locked: LockedBalance =
         LOCKED
             .load(deps.storage, &info.sender)
@@ -173,11 +172,7 @@ pub fn withdraw(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response,
         val.end = locked.end;
         Ok(val)
     })?;
-
-    //response.add_attribute("SupplyBefore", state.supply.to_string());
     state.supply = state.supply.checked_sub(amount).unwrap();
-    //response.add_attribute("Supply", state.supply.to_string());
-
     // old_locked can have either expired <= timestamp or zero end
     // locked has only 0 end
     // Both can have >= 0 amount
@@ -189,7 +184,7 @@ pub fn withdraw(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response,
         locked,
     )?;
 
-    response.messages.push(SubMsg {
+    let messages = vec![SubMsg {
         id: 0,
         msg: WasmMsg::Execute {
             contract_addr: config.xtrs_token.to_string(),
@@ -202,14 +197,13 @@ pub fn withdraw(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response,
         .into(),
         gas_limit: None,
         reply_on: ReplyOn::Never,
-    });
+    }];
     let event = Event::new("Withdraw")
-        .attr("Sender", info.sender.to_string())
-        .attr("Amount", amount.to_string())
-        .attr("Timestamp", _env.block.time.to_string());
-    response.add_event(event);
+        .add_attribute("Sender", info.sender.to_string())
+        .add_attribute("Amount", amount.to_string())
+        .add_attribute("Timestamp", _env.block.time.to_string());
     GOVERNANCE_SATE.save(deps.storage, &state)?;
-    Ok(response)
+    Ok(Response::new().add_submessages(messages).add_event(event))
 }
 
 pub fn checkpoint(deps: DepsMut, _env: Env) -> Result<Response, ContractError> {
@@ -375,7 +369,6 @@ fn deposit_for(
     unlock_time: u64,
     locked_balance: LockedBalance,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::default();
     let mut state = GOVERNANCE_SATE.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
     let mut _locked = locked_balance;
@@ -405,8 +398,8 @@ fn deposit_for(
         old_locked,
         _locked.clone(),
     )?;
-    if !amount.is_zero() {
-        response.messages.push(SubMsg {
+    let messages = if !amount.is_zero() {
+        vec![SubMsg {
             id: 0,
             msg: WasmMsg::Execute {
                 contract_addr: config.xtrs_token.to_string(),
@@ -420,15 +413,16 @@ fn deposit_for(
             .into(),
             gas_limit: None,
             reply_on: ReplyOn::Never,
-        });
-    }
+        }]
+    } else {
+        vec![]
+    };
     let event = Event::new("Deposit")
-        .attr("addr", addr.to_string())
-        .attr("amount", amount.to_string())
-        .attr("end", _locked.end.to_string());
-    response.add_event(event);
+        .add_attribute("addr", addr.to_string())
+        .add_attribute("amount", amount.to_string())
+        .add_attribute("end", _locked.end.to_string());
     GOVERNANCE_SATE.save(deps.storage, &state)?;
-    Ok(response)
+    Ok(Response::new().add_submessages(messages).add_event(event))
 }
 
 fn query_supply_at(deps: Deps, _env: Env, point: Point, t: u64) -> StdResult<Uint128> {
