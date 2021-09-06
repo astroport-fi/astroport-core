@@ -1,4 +1,4 @@
-use cosmwasm_std::{OverflowError, StdError};
+use cosmwasm_std::{StdError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -8,16 +8,4 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
-
-    #[error("Insufficient balance in contract to process claim")]
-    BalanceTooSmall {},
-
-    #[error("Pool with the LP token already exists!")]
-    TokenPoolAlreadyExists {},
-}
-
-impl From<OverflowError> for ContractError {
-    fn from(o: OverflowError) -> Self {
-        StdError::from(o).into()
-    }
 }
