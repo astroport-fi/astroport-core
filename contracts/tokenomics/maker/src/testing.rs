@@ -1,9 +1,9 @@
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo};
 
 use crate::contract::instantiate;
-use crate::msg::InitMsg;
-use crate::state::{State, STATE};
+use crate::msg::InstantiateMsg;
+use crate::state::{Config, CONFIG};
 
 fn _do_instantiate(
     deps: DepsMut,
@@ -13,10 +13,10 @@ fn _do_instantiate(
     staking: Addr,
     astro_toke: Addr,
 ) {
-    let instantiate_msg = InitMsg {
-        factory,
-        staking,
-        astro: astro_toke,
+    let instantiate_msg = InstantiateMsg {
+        factory_contract: factory.to_string(),
+        staking_contract: staking.to_string(),
+        astro_token_contract: astro_toke.to_string(),
     };
     let res = instantiate(deps, _env.clone(), info.clone(), instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -32,23 +32,22 @@ fn proper_initialization() {
     let staking = Addr::unchecked("staking");
     let astro_token_contract = Addr::unchecked("astro-token");
 
-    let instantiate_msg = InitMsg {
-        factory,
-        staking,
-        astro: astro_token_contract,
+    let instantiate_msg = InstantiateMsg {
+        factory_contract: factory.to_string(),
+        staking_contract: staking.to_string(),
+        astro_token_contract: astro_token_contract.to_string(),
     };
     let res = instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    let state = STATE.load(deps.as_mut().storage).unwrap();
+    let state = CONFIG.load(deps.as_mut().storage).unwrap();
     assert_eq!(
         state,
-        State {
+        Config {
             owner: Addr::unchecked("addr0000"),
-            contract: Addr::unchecked(MOCK_CONTRACT_ADDR),
-            factory: Addr::unchecked("factory"),
-            staking: Addr::unchecked("staking"),
-            astro_token: Addr::unchecked("astro-token"),
+            factory_contract: Addr::unchecked("factory"),
+            staking_contract: Addr::unchecked("staking"),
+            astro_token_contract: Addr::unchecked("astro-token"),
         }
     )
 }

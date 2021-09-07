@@ -9,6 +9,3 @@ pub mod state;
 
 #[cfg(test)]
 mod testing;
-
-#[cfg(test)]
-mod intergation_test;

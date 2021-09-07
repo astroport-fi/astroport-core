@@ -1,20 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "InitMsg",
+  "title": "QueryAddressResponse",
   "type": "object",
   "required": [
-    "astro",
-    "factory",
-    "staking"
+    "address"
   ],
   "properties": {
-    "astro": {
-      "$ref": "#/definitions/Addr"
-    },
-    "factory": {
-      "$ref": "#/definitions/Addr"
-    },
-    "staking": {
+    "address": {
       "$ref": "#/definitions/Addr"
     }
   },

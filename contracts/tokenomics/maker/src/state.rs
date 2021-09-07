@@ -5,12 +5,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct State {
+pub struct Config {
     pub owner: Addr,
-    pub contract: Addr,
-    pub factory: Addr,
-    pub staking: Addr,
-    pub astro_token: Addr,
+    pub factory_contract: Addr,
+    pub staking_contract: Addr,
+    pub astro_token_contract: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, JsonSchema)]
@@ -19,5 +18,5 @@ pub struct ExecuteOnReply {
     pub token1: Vec<AssetInfo>,
 }
 
-pub const STATE: Item<State> = Item::new("state");
+pub const CONFIG: Item<Config> = Item::new("config");
 pub const CONVERT_MULTIPLE: Item<ExecuteOnReply> = Item::new("convert_multiple");

@@ -4,10 +4,10 @@ use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::token::InstantiateMsg;
+use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
-use crate::msg::{ExecuteMsg, InitMsg};
 use astroport::pair::{PoolResponse, QueryMsg, SimulationResponse};
+use astroport_maker::msg::{ExecuteMsg, InstantiateMsg};
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -34,7 +34,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
 
     let astro_token_code_id = router.store_code(astro_token_contract);
 
-    let msg = InstantiateMsg {
+    let msg = TokenInstantiateMsg {
         name: String::from("Astro token"),
         symbol: String::from("ASTRO"),
         decimals: 6,
@@ -87,18 +87,18 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
 
     let maker_contract = Box::new(
         ContractWrapper::new(
-            crate::contract::execute,
-            crate::contract::instantiate,
-            crate::contract::query,
+            astroport_maker::contract::execute,
+            astroport_maker::contract::instantiate,
+            astroport_maker::contract::query,
         )
-        .with_reply(crate::contract::reply),
+        .with_reply(astroport_maker::contract::reply),
     );
     let market_code_id = router.store_code(maker_contract);
 
-    let msg = InitMsg {
-        factory: factory_instance.clone(),
-        staking,
-        astro: astro_token_instance.clone(),
+    let msg = InstantiateMsg {
+        factory_contract: factory_instance.to_string(),
+        staking_contract: staking.to_string(),
+        astro_token_contract: astro_token_instance.to_string(),
     };
     let maker_instance = router
         .instantiate_contract(
@@ -122,7 +122,7 @@ fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String
 
     let token_code_id = router.store_code(token_contract);
 
-    let msg = InstantiateMsg {
+    let msg = TokenInstantiateMsg {
         name,
         symbol: symbol.clone(),
         decimals: 6,
@@ -1469,7 +1469,6 @@ fn convert_multiple2() {
 }
 
 #[test]
-#[ignore]
 fn try_calc() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
