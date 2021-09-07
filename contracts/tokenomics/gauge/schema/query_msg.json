@@ -17,6 +17,30 @@
     {
       "type": "object",
       "required": [
+        "deposit"
+      ],
+      "properties": {
+        "deposit": {
+          "type": "object",
+          "required": [
+            "lp_token",
+            "user"
+          ],
+          "properties": {
+            "lp_token": {
+              "$ref": "#/definitions/Addr"
+            },
+            "user": {
+              "$ref": "#/definitions/Addr"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "pending_token"
       ],
       "properties": {

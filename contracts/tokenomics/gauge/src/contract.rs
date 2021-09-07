@@ -709,6 +709,7 @@ fn set_allowed_reward_proxies(deps: DepsMut, proxies: Vec<String>) -> StdResult<
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::PoolLength {} => to_binary(&pool_length(deps)?),
+        QueryMsg::Deposit { lp_token, user } => to_binary(&query_deposit(deps, lp_token, user)),
         QueryMsg::PendingToken { lp_token, user } => {
             to_binary(&pending_token(deps, env, lp_token, user)?)
         }
@@ -728,6 +729,13 @@ pub fn pool_length(deps: Deps) -> StdResult<PoolLengthResponse> {
         .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
         .count();
     Ok(PoolLengthResponse { length })
+}
+
+pub fn query_deposit(deps: Deps, lp_token: Addr, user: Addr) -> Uint128 {
+    let user_info = USER_INFO
+        .load(deps.storage, (&lp_token, &user))
+        .unwrap_or_default();
+    user_info.amount
 }
 
 // Return reward multiplier over the given _from to _to block.
@@ -761,7 +769,9 @@ pub fn pending_token(
 ) -> StdResult<PendingTokenResponse> {
     let cfg = CONFIG.load(deps.storage)?;
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
-    let user_info = USER_INFO.load(deps.storage, (&lp_token, &user))?;
+    let user_info = USER_INFO
+        .load(deps.storage, (&lp_token, &user))
+        .unwrap_or_default();
 
     let mut pending = Uint128::zero();
     let mut pending_on_proxy = None;

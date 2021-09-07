@@ -54,6 +54,7 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     PoolLength {},
+    Deposit { lp_token: Addr, user: Addr },
     PendingToken { lp_token: Addr, user: Addr },
     GetMultiplier { from: Uint64, to: Uint64 },
 }
