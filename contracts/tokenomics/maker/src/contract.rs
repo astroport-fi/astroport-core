@@ -223,22 +223,9 @@ fn convert_step(
     if token0.equal(&token1) {
         let amount = amount0.checked_add(amount1)?;
         if token0.equal(&astro) {
-            convert_astro_response(&cfg, amount)
+            transfer_astro(&cfg, amount)
         } else {
-            let mut messages = Vec::new();
-            let mut events = Vec::new();
-            let res = to_astro(deps.branch(), cfg.clone(), token0, amount).unwrap();
-            let amount = res.amount;
-            if let Some(msgs) = res.massages {
-                for msg in msgs {
-                    messages.push(msg);
-                }
-            }
-            if let Some(evts) = res.events {
-                for evt in evts {
-                    events.push(evt);
-                }
-            }
+            let convert_step_response = swap_to_astro(deps.branch(), cfg.clone(), token0, amount).unwrap();
             let res = convert_step(
                 deps,
                 env,
@@ -249,67 +236,19 @@ fn convert_step(
                 Uint128::zero(),
             )
             .unwrap();
-            if let Some(msgs) = res.massages {
-                for msg in msgs {
-                    messages.push(msg);
-                }
-            }
-            if let Some(evts) = res.events {
-                for evt in evts {
-                    events.push(evt);
-                }
-            }
-            Ok(ConvertStepResponse {
-                amount: amount.checked_add(res.amount)?,
-                massages: Some(messages),
-                events: Some(events),
-            })
+            Ok(convert_step_response.push_msg(res))
         }
     } else if token0.equal(&astro) {
-        let convert_response = convert_astro_response(&cfg, amount0)?;
-        let mut messages = convert_response.massages.unwrap().to_vec();
-        let mut events = convert_response.events.unwrap().to_vec();
-        let res = to_astro(deps, cfg, token1, amount1).unwrap();
-        if let Some(msgs) = res.massages {
-            for msg in msgs {
-                messages.push(msg);
-            }
-        }
-        if let Some(evts) = res.events {
-            for evt in evts {
-                events.push(evt);
-            }
-        }
-        Ok(ConvertStepResponse {
-            amount: convert_response.amount.checked_add(res.amount)?,
-            massages: Some(messages),
-            events: Some(events),
-        })
+        let convert_step_response = transfer_astro(&cfg, amount0)?;
+        let res = swap_to_astro(deps, cfg, token1, amount1).unwrap();
+        Ok(convert_step_response.push_msg(res))
     } else if token1.equal(&astro) {
-        let convert_response = convert_astro_response(&cfg, amount1)?;
-        let mut messages = convert_response.massages.unwrap().to_vec();
-        let mut events = convert_response.events.unwrap().to_vec();
-        let res = to_astro(deps, cfg, token0, amount0).unwrap();
-        if let Some(msgs) = res.massages {
-            for msg in msgs {
-                messages.push(msg);
-            }
-        }
-        if let Some(evts) = res.events {
-            for evt in evts {
-                events.push(evt);
-            }
-        }
-        Ok(ConvertStepResponse {
-            amount: convert_response.amount.checked_add(res.amount)?,
-            massages: Some(messages),
-            events: Some(events),
-        })
+        let convert_step_response = transfer_astro(&cfg, amount1)?;
+        let res = swap_to_astro(deps, cfg, token0, amount0).unwrap();
+        Ok(convert_step_response.push_msg(res))
     } else {
         // eg. MIC - USDT
-        let mut messages = vec![];
-        let mut events = vec![];
-        let res = swap(
+        let convert_step_resp = swap(
             deps.branch(),
             cfg.clone(),
             token0,
@@ -318,17 +257,6 @@ fn convert_step(
             env.contract.address.clone(),
         )
         .unwrap();
-        let amount0 = res.amount;
-        if let Some(msgs) = res.massages {
-            for msg in msgs {
-                messages.push(msg);
-            }
-        }
-        if let Some(evts) = res.events {
-            for evt in evts {
-                events.push(evt);
-            }
-        }
         let res = swap(
             deps.branch(),
             cfg.clone(),
@@ -338,37 +266,13 @@ fn convert_step(
             env.contract.address.clone(),
         )
         .unwrap();
-        let amount1 = res.amount;
-        if let Some(msgs) = res.massages {
-            for msg in msgs {
-                messages.push(msg);
-            }
-        }
-        if let Some(evts) = res.events {
-            for evt in evts {
-                events.push(evt);
-            }
-        }
+        let convert_step_response = convert_step_resp.push_msg(res);
         let res = convert_step(deps, env, cfg, astro.clone(), astro, amount0, amount1).unwrap();
-        if let Some(msgs) = res.massages {
-            for msg in msgs {
-                messages.push(msg);
-            }
-        }
-        if let Some(evts) = res.events {
-            for evt in evts {
-                events.push(evt);
-            }
-        }
-        Ok(ConvertStepResponse {
-            amount: res.amount,
-            massages: Some(messages),
-            events: Some(events),
-        })
+        Ok(convert_step_response.push_msg(res))
     }
 }
 
-fn convert_astro_response(cfg: &Config, amount: Uint128) -> StdResult<ConvertStepResponse> {
+fn transfer_astro(cfg: &Config, amount: Uint128) -> StdResult<ConvertStepResponse> {
     let messages = vec![WasmMsg::Execute {
         contract_addr: cfg.astro_token_contract.to_string(),
         msg: to_binary(&Cw20ExecuteMsg::Transfer {
@@ -451,7 +355,7 @@ fn swap(
     })
 }
 
-fn to_astro(
+fn swap_to_astro(
     deps: DepsMut,
     cfg: Config,
     token: AssetInfo,

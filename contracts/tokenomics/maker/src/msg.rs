@@ -36,6 +36,40 @@ pub struct ConvertStepResponse {
     pub events: Option<Vec<Event>>,
 }
 
+impl ConvertStepResponse{
+    pub fn push_msg(&self, res: ConvertStepResponse) -> ConvertStepResponse{
+        let mut messages = vec![];
+        let mut events =vec![];
+
+        if let Some(msgs) = self.massages.clone() {
+            for msg in msgs {
+                messages.push(msg);
+            }
+        }
+        if let Some(evts) = self.events.clone() {
+            for evt in evts {
+                events.push(evt);
+            }
+        }
+
+        if let Some(msgs) = res.massages {
+            for msg in msgs {
+                messages.push(msg);
+            }
+        }
+        if let Some(evts) = res.events {
+            for evt in evts {
+                events.push(evt);
+            }
+        }
+        ConvertStepResponse{
+            amount: self.amount.checked_add(res.amount).unwrap_or_default(),
+            massages: Some(messages),
+            events: Some(events),
+        }
+    }
+}
+
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct QueryAddressResponse {

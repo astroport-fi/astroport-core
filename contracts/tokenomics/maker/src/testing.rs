@@ -11,12 +11,12 @@ fn _do_instantiate(
     info: MessageInfo,
     factory: Addr,
     staking: Addr,
-    astro_toke: Addr,
+    astro_token: Addr,
 ) {
     let instantiate_msg = InstantiateMsg {
         factory_contract: factory.to_string(),
         staking_contract: staking.to_string(),
-        astro_token_contract: astro_toke.to_string(),
+        astro_token_contract: astro_token.to_string(),
     };
     let res = instantiate(deps, _env.clone(), info.clone(), instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
