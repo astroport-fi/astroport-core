@@ -236,16 +236,16 @@ fn convert_step(
                 Uint128::zero(),
             )
             .unwrap();
-            Ok(convert_step_response.push_msg(res))
+            Ok(convert_step_response.push(res))
         }
     } else if token0.equal(&astro) {
         let convert_step_response = transfer_astro(&cfg, amount0)?;
         let res = swap_to_astro(deps, cfg, token1, amount1).unwrap();
-        Ok(convert_step_response.push_msg(res))
+        Ok(convert_step_response.push(res))
     } else if token1.equal(&astro) {
         let convert_step_response = transfer_astro(&cfg, amount1)?;
         let res = swap_to_astro(deps, cfg, token0, amount0).unwrap();
-        Ok(convert_step_response.push_msg(res))
+        Ok(convert_step_response.push(res))
     } else {
         // eg. MIC - USDT
         let convert_step_resp = swap(
@@ -266,9 +266,9 @@ fn convert_step(
             env.contract.address.clone(),
         )
         .unwrap();
-        let convert_step_response = convert_step_resp.push_msg(res);
+        let convert_step_response = convert_step_resp.push(res);
         let res = convert_step(deps, env, cfg, astro.clone(), astro, amount0, amount1).unwrap();
-        Ok(convert_step_response.push_msg(res))
+        Ok(convert_step_response.push(res))
     }
 }
 

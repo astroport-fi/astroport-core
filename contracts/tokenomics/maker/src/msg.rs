@@ -37,7 +37,7 @@ pub struct ConvertStepResponse {
 }
 
 impl ConvertStepResponse{
-    pub fn push_msg(&self, res: ConvertStepResponse) -> ConvertStepResponse{
+    pub fn push(&self, res: ConvertStepResponse) -> ConvertStepResponse{
         let mut messages = vec![];
         let mut events =vec![];
 
