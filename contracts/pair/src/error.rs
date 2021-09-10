@@ -18,8 +18,11 @@ pub enum ContractError {
     #[error("Operation exceeds max splippage tolerance")]
     MaxSlippageAssertion {},
 
-    #[error("Native token balance mismatch between the argument and the transferred")]
+    #[error("Asset mismatch between the requested and stored in contract")]
     AssetMismatch {},
+
+    #[error("Pair type mismatch. Check factory pair configs")]
+    PairTypeMismatch {},
 }
 
 impl From<OverflowError> for ContractError {

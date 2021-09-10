@@ -20,6 +20,9 @@ pub enum ContractError {
 
     #[error("Native token balance mismatch between the argument and the transferred")]
     AssetMismatch {},
+
+    #[error("Pair type mismatch. Check factory pair configs")]
+    PairTypeMismatch {},
 }
 
 impl From<OverflowError> for ContractError {

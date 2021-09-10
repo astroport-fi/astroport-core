@@ -67,7 +67,8 @@
       "required": [
         "asset_infos",
         "contract_addr",
-        "liquidity_token"
+        "liquidity_token",
+        "pair_type"
       ],
       "properties": {
         "asset_infos": {
@@ -83,8 +84,59 @@
         },
         "liquidity_token": {
           "$ref": "#/definitions/Addr"
+        },
+        "pair_type": {
+          "$ref": "#/definitions/PairType"
         }
       }
+    },
+    "PairType": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "xyk"
+          ],
+          "properties": {
+            "xyk": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "stable"
+          ],
+          "properties": {
+            "stable": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "custom"
+          ],
+          "properties": {
+            "custom": {
+              "type": "object",
+              "required": [
+                "pair_type"
+              ],
+              "properties": {
+                "pair_type": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     }
   }
 }
