@@ -225,7 +225,8 @@ fn convert_step(
         if token0.equal(&astro) {
             transfer_astro(&cfg, amount)
         } else {
-            let convert_step_response = swap_to_astro(deps.branch(), cfg.clone(), token0, amount).unwrap();
+            let convert_step_response =
+                swap_to_astro(deps.branch(), cfg.clone(), token0, amount).unwrap();
             let res = convert_step(
                 deps,
                 env,

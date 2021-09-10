@@ -36,10 +36,10 @@ pub struct ConvertStepResponse {
     pub events: Option<Vec<Event>>,
 }
 
-impl ConvertStepResponse{
-    pub fn push(&self, res: ConvertStepResponse) -> ConvertStepResponse{
+impl ConvertStepResponse {
+    pub fn push(&self, res: ConvertStepResponse) -> ConvertStepResponse {
         let mut messages = vec![];
-        let mut events =vec![];
+        let mut events = vec![];
 
         if let Some(msgs) = self.massages.clone() {
             for msg in msgs {
@@ -62,7 +62,7 @@ impl ConvertStepResponse{
                 events.push(evt);
             }
         }
-        ConvertStepResponse{
+        ConvertStepResponse {
             amount: self.amount.checked_add(res.amount).unwrap_or_default(),
             massages: Some(messages),
             events: Some(events),
