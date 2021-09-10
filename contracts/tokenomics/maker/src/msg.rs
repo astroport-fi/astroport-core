@@ -4,16 +4,15 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
-    pub factory: Addr,
-    pub staking: Addr,
-    pub astro: Addr,
+pub struct InstantiateMsg {
+    pub factory_contract: String,
+    pub staking_contract: String,
+    pub astro_token_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    //SetBridge {token:Addr, bridge:Addr},
     Convert {
         token1: AssetInfo,
         token2: AssetInfo,

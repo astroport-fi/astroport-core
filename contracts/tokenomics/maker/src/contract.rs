@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo,
     Reply, ReplyOn, Response, StdResult, SubMsg, Uint128, WasmMsg,
@@ -7,9 +5,9 @@ use cosmwasm_std::{
 use cw20::Cw20ExecuteMsg;
 
 use crate::error::ContractError;
-use crate::msg::{ConvertResponse, ExecuteMsg, InitMsg, QueryAddressResponse, QueryMsg};
+use crate::msg::{ConvertResponse, ExecuteMsg, InstantiateMsg, QueryAddressResponse, QueryMsg};
 use crate::querier::{query_pair_info, query_pair_share, query_swap_amount};
-use crate::state::{ExecuteOnReply, State, CONVERT_MULTIPLE, STATE};
+use crate::state::{Config, ExecuteOnReply, CONFIG, CONVERT_MULTIPLE};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_token_balance;
@@ -17,75 +15,43 @@ use astroport::querier::query_token_balance;
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
+    msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let state = State {
+    let cfg = Config {
         owner: info.sender,
-        contract: env.contract.address,
-        factory: msg.factory,
-        staking: msg.staking,
-        astro_token: msg.astro,
+        factory_contract: deps.api.addr_validate(&msg.factory_contract)?,
+        staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
+        astro_token_contract: deps.api.addr_validate(&msg.astro_token_contract)?,
     };
-    STATE.save(deps.storage, &state)?;
+    CONFIG.save(deps.storage, &cfg)?;
     Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        //ExecuteMsg::SetBridge { token, bridge } => set_bridge(deps, env, info, token, bridge),
-        ExecuteMsg::Convert { token1, token2 } => try_convert(&mut deps, env, info, token1, token2),
+        ExecuteMsg::Convert { token1, token2 } => convert(deps, env, info.sender, token1, token2),
         ExecuteMsg::ConvertMultiple { token1, token2 } => {
-            convert_multiple(&mut deps, env, info.sender, token1, token2)
+            convert_multiple(deps, env, info.sender, token1, token2)
         }
     }
 }
 
-pub fn try_convert(
-    deps: &mut DepsMut,
-    env: Env,
-    info: MessageInfo,
-    token0: AssetInfo,
-    token1: AssetInfo,
-) -> Result<Response, ContractError> {
-    convert(deps, env, info.sender, token0, token1)
-}
-
 pub fn convert_multiple(
-    deps: &mut DepsMut,
+    deps: DepsMut,
     env: Env,
     sender: Addr,
     token0: Vec<AssetInfo>,
     token1: Vec<AssetInfo>,
 ) -> Result<Response, ContractError> {
-    // let mut response = Response::default();
-    // let len = token0.len();
-    // for i in 0..len {
-    //     let res = convert(
-    //         deps,
-    //         env.clone(),
-    //         info.clone(),
-    //         token0[i].clone(),
-    //         token1[i].clone(),
-    //     )
-    //     .unwrap();
-    //     for msg in res.messages {
-    //         response.messages.push(msg);
-    //     }
-    //     for event in res.events {
-    //         response.events.push(event);
-    //     }
-    // }
-    // Ok(response)
-    let state = STATE.load(deps.storage)?;
-    if sender != state.contract {
+    if sender != env.contract.address {
         return Err(ContractError::Unauthorized {});
     }
     let mut tokens = CONVERT_MULTIPLE.load(deps.storage).unwrap_or_default();
@@ -96,14 +62,14 @@ pub fn convert_multiple(
         return convert(deps, env, sender, t0, t1);
     }
     Ok(Response::new().add_submessage(SubMsg::reply_on_success(
-        convert_and_execute(deps, state, token0, token1)?,
+        convert_and_execute(deps, env, token0, token1)?,
         0,
     )))
 }
 
 fn convert_and_execute(
-    deps: &mut DepsMut,
-    state: State,
+    deps: DepsMut,
+    env: Env,
     mut token0: Vec<AssetInfo>,
     mut token1: Vec<AssetInfo>,
 ) -> StdResult<CosmosMsg> {
@@ -111,7 +77,7 @@ fn convert_and_execute(
     let t1 = token1.swap_remove(0);
     CONVERT_MULTIPLE.save(deps.storage, &ExecuteOnReply { token0, token1 })?;
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: state.contract.to_string(),
+        contract_addr: env.contract.address.to_string(),
         funds: vec![],
         msg: to_binary(&ExecuteMsg::Convert {
             token1: t0,
@@ -121,26 +87,31 @@ fn convert_and_execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(mut deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
+pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
     let tokens = CONVERT_MULTIPLE.load(deps.storage)?;
-    convert_multiple(&mut deps, env, state.contract, tokens.token0, tokens.token1)
+    convert_multiple(
+        deps,
+        env.clone(),
+        env.contract.address,
+        tokens.token0,
+        tokens.token1,
+    )
 }
 
 fn convert(
-    deps: &mut DepsMut,
+    deps: DepsMut,
     env: Env,
     sender: Addr,
     token0: AssetInfo,
     token1: AssetInfo,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
+    let cfg = CONFIG.load(deps.storage)?;
     let mut response = Response::default();
 
     // get pair lp token
     let pair: PairInfo = query_pair_info(
         &deps.querier,
-        state.factory,
+        cfg.factory_contract,
         &[token0.clone(), token1.clone()],
     )?;
 
@@ -148,7 +119,7 @@ fn convert(
     let balances = query_token_balance(
         &deps.querier,
         pair.liquidity_token.clone(),
-        env.contract.address,
+        env.contract.address.clone(),
     )
     .unwrap();
 
@@ -184,7 +155,7 @@ fn convert(
         msg: CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: pair.liquidity_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: pair.contract_addr.to_string(), //state.contract.to_string(),
+                contract: pair.contract_addr.to_string(),
                 amount: balances,
                 msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
             })
@@ -196,7 +167,7 @@ fn convert(
     });
 
     // swap tokens to astro
-    let res = convert_step(deps, token0.clone(), token1.clone(), amount0, amount1).unwrap();
+    let res = convert_step(deps, env, token0.clone(), token1.clone(), amount0, amount1).unwrap();
     if let Some(msgs) = res.massages {
         for msg in msgs {
             response.messages.push(SubMsg {
@@ -225,7 +196,8 @@ fn convert(
 }
 
 fn convert_step(
-    deps: &mut DepsMut,
+    mut deps: DepsMut,
+    env: Env,
     token0: AssetInfo,
     token1: AssetInfo,
     amount0: Uint128,
@@ -233,19 +205,18 @@ fn convert_step(
 ) -> StdResult<ConvertResponse>
 //) -> StdResult<(Uint128, Option<Vec<WasmMsg>>, Option<Vec<Event>>)>
 {
-    let state = STATE.load(deps.storage)?;
+    let cfg = CONFIG.load(deps.storage)?;
     let astro = AssetInfo::Token {
-        contract_addr: state.astro_token.clone(),
+        contract_addr: cfg.astro_token_contract.clone(),
     };
     // Interactions
     if token0.equal(&token1) {
-        let amount = amount0.add(amount1);
+        let amount = amount0.checked_add(amount1)?;
         if token0.equal(&astro) {
-            // transfer all astro to bar
             let messages = vec![WasmMsg::Execute {
-                contract_addr: state.astro_token.to_string(),
+                contract_addr: cfg.astro_token_contract.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: state.staking.to_string(),
+                    recipient: cfg.staking_contract.to_string(),
                     amount,
                 })?,
                 funds: vec![],
@@ -260,7 +231,7 @@ fn convert_step(
         } else {
             let mut messages = Vec::new();
             let mut events = Vec::new();
-            let res = to_astro(deps, token0, amount).unwrap();
+            let res = to_astro(deps.branch(), token0, amount).unwrap();
             let amount = res.amount;
             if let Some(msgs) = res.massages {
                 for msg in msgs {
@@ -272,7 +243,8 @@ fn convert_step(
                     events.push(evt);
                 }
             }
-            let res = convert_step(deps, astro.clone(), astro, amount, Uint128::zero()).unwrap();
+            let res =
+                convert_step(deps, env, astro.clone(), astro, amount, Uint128::zero()).unwrap();
             if let Some(msgs) = res.massages {
                 for msg in msgs {
                     messages.push(msg);
@@ -284,16 +256,16 @@ fn convert_step(
                 }
             }
             Ok(ConvertResponse {
-                amount: amount.add(res.amount),
+                amount: amount.checked_add(res.amount)?,
                 massages: Some(messages),
                 events: Some(events),
             })
         }
     } else if token0.equal(&astro) {
         let mut messages = vec![WasmMsg::Execute {
-            contract_addr: state.astro_token.to_string(),
+            contract_addr: cfg.astro_token_contract.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: state.staking.to_string(),
+                recipient: cfg.staking_contract.to_string(),
                 amount: amount0,
             })?,
             funds: vec![],
@@ -312,15 +284,15 @@ fn convert_step(
             }
         }
         Ok(ConvertResponse {
-            amount: amount0.add(res.amount),
+            amount: amount0.checked_add(res.amount)?,
             massages: Some(messages),
             events: Some(events),
         })
     } else if token1.equal(&astro) {
         let mut messages = vec![WasmMsg::Execute {
-            contract_addr: state.astro_token.to_string(),
+            contract_addr: cfg.astro_token_contract.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: state.staking.to_string(),
+                recipient: cfg.staking_contract.to_string(),
                 amount: amount1,
             })?,
             funds: vec![],
@@ -340,7 +312,7 @@ fn convert_step(
             }
         }
         Ok(ConvertResponse {
-            amount: amount0.add(res.amount),
+            amount: amount0.checked_add(res.amount)?,
             massages: Some(messages),
             events: Some(events),
         })
@@ -348,7 +320,14 @@ fn convert_step(
         // eg. MIC - USDT
         let mut messages = vec![];
         let mut events = vec![];
-        let res = swap(deps, token0, astro.clone(), amount0, state.contract.clone()).unwrap();
+        let res = swap(
+            deps.branch(),
+            token0,
+            astro.clone(),
+            amount0,
+            env.contract.address.clone(),
+        )
+        .unwrap();
         let amount0 = res.amount;
         if let Some(msgs) = res.massages {
             for msg in msgs {
@@ -360,7 +339,14 @@ fn convert_step(
                 events.push(evt);
             }
         }
-        let res = swap(deps, token1, astro.clone(), amount1, state.contract).unwrap();
+        let res = swap(
+            deps.branch(),
+            token1,
+            astro.clone(),
+            amount1,
+            env.contract.address.clone(),
+        )
+        .unwrap();
         let amount1 = res.amount;
         if let Some(msgs) = res.massages {
             for msg in msgs {
@@ -372,7 +358,7 @@ fn convert_step(
                 events.push(evt);
             }
         }
-        let res = convert_step(deps, astro.clone(), astro, amount0, amount1).unwrap();
+        let res = convert_step(deps, env, astro.clone(), astro, amount0, amount1).unwrap();
         if let Some(msgs) = res.massages {
             for msg in msgs {
                 messages.push(msg);
@@ -392,17 +378,17 @@ fn convert_step(
 }
 
 fn swap(
-    deps: &mut DepsMut,
+    deps: DepsMut,
     from_token: AssetInfo,
     to_token: AssetInfo,
     amount_in: Uint128,
     to: Addr,
 ) -> StdResult<ConvertResponse> {
-    let state = STATE.load(deps.storage)?;
+    let cfg = CONFIG.load(deps.storage)?;
     // Checks
     let pair: PairInfo = query_pair_info(
         &deps.querier,
-        state.factory,
+        cfg.factory_contract,
         &[from_token.clone(), to_token],
     )?;
     // Interactions
@@ -456,20 +442,16 @@ fn swap(
     })
 }
 
-fn to_astro(
-    deps: &mut DepsMut,
-    token: AssetInfo,
-    amount_in: Uint128,
-) -> StdResult<ConvertResponse> {
-    let state = STATE.load(deps.storage)?;
+fn to_astro(deps: DepsMut, token: AssetInfo, amount_in: Uint128) -> StdResult<ConvertResponse> {
+    let cfg = CONFIG.load(deps.storage)?;
     swap(
         deps,
         token,
         AssetInfo::Token {
-            contract_addr: state.astro_token,
+            contract_addr: cfg.astro_token_contract,
         },
         amount_in,
-        state.staking,
+        cfg.staking_contract,
     )
 }
 
@@ -481,8 +463,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 fn query_get_factory(deps: Deps) -> StdResult<QueryAddressResponse> {
-    let config = STATE.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     Ok(QueryAddressResponse {
-        address: config.factory,
+        address: config.factory_contract,
     })
 }

@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InstantiateMsg",
+  "type": "object",
+  "required": [
+    "astro_token_contract",
+    "factory_contract",
+    "staking_contract"
+  ],
+  "properties": {
+    "astro_token_contract": {
+      "type": "string"
+    },
+    "factory_contract": {
+      "type": "string"
+    },
+    "staking_contract": {
+      "type": "string"
+    }
+  }
+}
