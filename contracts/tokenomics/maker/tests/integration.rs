@@ -6,8 +6,9 @@ use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuer
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
+use astroport::factory::{PairConfig, PairType};
 use astroport::pair::{PoolResponse, QueryMsg, SimulationResponse};
-use astroport_maker::msg::{ExecuteMsg, InstantiateMsg};
+use maker::msg::{ExecuteMsg, InstantiateMsg};
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -22,7 +23,6 @@ fn mock_app() -> App {
     ]);
 
     App::new(api, env.block, bank, MockStorage::new(), tmq)
-    //App::new(api, env.block, bank, MockStorage::new())
 }
 
 fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr, Addr, Addr) {
@@ -57,6 +57,14 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
         )
         .unwrap();
 
+    let pair_contract = Box::new(ContractWrapper::new(
+        astroport_pair::contract::execute,
+        astroport_pair::contract::instantiate,
+        astroport_pair::contract::query,
+    ));
+
+    let pair_code_id = router.store_code(pair_contract);
+
     let factory_contract = Box::new(ContractWrapper::new(
         astroport_factory::contract::execute,
         astroport_factory::contract::instantiate,
@@ -64,11 +72,13 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
     ));
 
     let factory_code_id = router.store_code(factory_contract);
-
     let msg = astroport::factory::InstantiateMsg {
-        pair_code_ids: vec![
-            5u64, 6u64, 7u64, 8u64, 9u64, 10u64, 11u64, 12u64, 13u64, 23u64,
-        ],
+        pair_configs: vec![PairConfig {
+            code_id: pair_code_id,
+            pair_type: PairType::Xyk {},
+            total_fee_bps: 0,
+            maker_fee_bps: 0,
+        }],
         token_code_id: 1u64,
         init_hook: None,
         fee_address: None,
@@ -87,11 +97,11 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
 
     let maker_contract = Box::new(
         ContractWrapper::new(
-            astroport_maker::contract::execute,
-            astroport_maker::contract::instantiate,
-            astroport_maker::contract::query,
+            maker::contract::execute,
+            maker::contract::instantiate,
+            maker::contract::query,
         )
-        .with_reply(astroport_maker::contract::reply),
+        .with_reply(maker::contract::reply),
     );
     let market_code_id = router.store_code(maker_contract);
 
@@ -146,56 +156,6 @@ fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String
         )
         .unwrap();
     token_instance
-}
-
-fn instantiate_pair(
-    router: &mut App,
-    owner: Addr,
-    factory: Addr,
-    token1: &str,
-    token2: &str,
-) -> (u64, Addr) {
-    let token_contract = Box::new(ContractWrapper::new(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
-
-    let token_contract_code_id = router.store_code(token_contract);
-
-    let pair_contract = Box::new(ContractWrapper::new(
-        astroport_pair::contract::execute,
-        astroport_pair::contract::instantiate,
-        astroport_pair::contract::query,
-    ));
-
-    let pair_contract_code_id = router.store_code(pair_contract);
-
-    let msg = astroport::pair::InstantiateMsg {
-        asset_infos: [
-            AssetInfo::NativeToken {
-                denom: token1.to_string(),
-            },
-            AssetInfo::NativeToken {
-                denom: token2.to_string(),
-            },
-        ],
-        token_code_id: token_contract_code_id,
-        init_hook: None,
-        factory_addr: factory,
-    };
-
-    let pair = router
-        .instantiate_contract(
-            pair_contract_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("PAIR"),
-            None,
-        )
-        .unwrap();
-    (pair_contract_code_id, pair)
 }
 
 fn mint_some_token(router: &mut App, owner: Addr, token_instance: Addr, to: Addr, amount: Uint128) {
@@ -275,8 +235,6 @@ fn create_pair(
     token2: &Addr,
     amount1: Uint128,
     amount2: Uint128,
-    name1: &str,
-    name2: &str,
 ) -> PairInfo {
     mint_some_token(
         &mut router,
@@ -293,14 +251,6 @@ fn create_pair(
         user.clone(),
         amount2,
     );
-
-    let (pair_code_id, _pair_instance) = instantiate_pair(
-        &mut router,
-        owner.clone(),
-        factory_instance.clone(),
-        name1,
-        name2,
-    );
     let asset_infos = [
         AssetInfo::Token {
             contract_addr: token1.clone(),
@@ -311,7 +261,7 @@ fn create_pair(
     ];
 
     let msg = astroport::factory::ExecuteMsg::CreatePair {
-        pair_code_id: pair_code_id.clone(),
+        pair_type: PairType::Xyk {},
         asset_infos: asset_infos.clone(),
         init_hook: None,
     };
@@ -470,8 +420,6 @@ fn convert_token_astro_token_usdc() {
         &usdc_instance,
         Uint128::from(100u128),
         Uint128::from(100u128),
-        "astro",
-        "usdc",
     );
     mint_some_token(
         &mut router,
@@ -596,8 +544,6 @@ fn convert_token_astro_token_usdc_2() {
         &usdc_instance,
         Uint128::from(100u128),
         Uint128::from(100u128),
-        "astro",
-        "usdc",
     );
     mint_some_token(
         &mut router,
@@ -691,13 +637,13 @@ fn convert_token_astro_native_token_uusd() {
         )
         .unwrap();
 
-    let (pair_code_id, _pair_instance) = instantiate_pair(
-        &mut router,
-        owner.clone(),
-        factory_instance.clone(),
-        "astro",
-        "uusd",
-    );
+    // let (pair_code_id, _pair_instance) = instantiate_pair(
+    //     &mut router,
+    //     owner.clone(),
+    //     factory_instance.clone(),
+    //     "astro",
+    //     "uusd",
+    // );
 
     let asset_infos = [
         AssetInfo::Token {
@@ -709,7 +655,8 @@ fn convert_token_astro_native_token_uusd() {
     ];
 
     let msg = astroport::factory::ExecuteMsg::CreatePair {
-        pair_code_id: pair_code_id.clone(),
+        pair_type: PairType::Xyk {},
+        //pair_code_id: pair_code_id.clone(),
         asset_infos: asset_infos.clone(),
         init_hook: None,
     };
@@ -878,8 +825,6 @@ fn convert_token_luna_token_astro() {
         &astro_token_instance,
         Uint128::from(100u128),
         Uint128::from(100u128),
-        "luna",
-        "astro",
     );
     mint_some_token(
         &mut router,
@@ -976,8 +921,6 @@ fn convert_token_usdc_token_luna() {
         &astro_token_instance,
         Uint128::from(100u128),
         Uint128::from(100u128),
-        "usdc",
-        "astro",
     );
     let _pair_luna_astro = create_pair(
         &mut router,
@@ -988,8 +931,6 @@ fn convert_token_usdc_token_luna() {
         &astro_token_instance,
         Uint128::from(100u128),
         Uint128::from(100u128),
-        "luna",
-        "astro",
     );
     let pair_info = create_pair(
         &mut router,
@@ -1000,8 +941,6 @@ fn convert_token_usdc_token_luna() {
         &luna_token_instance,
         Uint128::from(100u128),
         Uint128::from(100u128),
-        "usdc",
-        "luna",
     );
     mint_some_token(
         &mut router,
@@ -1099,8 +1038,6 @@ fn convert_multiple() {
         &astro_token_instance,
         Uint128::from(100u128),
         Uint128::from(100u128),
-        "usdc",
-        "astro",
     );
     let pair_luna_astro = create_pair(
         &mut router,
@@ -1111,8 +1048,6 @@ fn convert_multiple() {
         &astro_token_instance,
         Uint128::from(100u128),
         Uint128::from(100u128),
-        "luna",
-        "astro",
     );
     let pair_info = create_pair(
         &mut router,
@@ -1123,8 +1058,6 @@ fn convert_multiple() {
         &luna_token_instance,
         Uint128::from(100u128),
         Uint128::from(100u128),
-        "usdc",
-        "luna",
     );
 
     add_liquidity(
@@ -1299,8 +1232,6 @@ fn convert_multiple2() {
         &astro_token_instance,
         liquidity_amount,
         liquidity_amount,
-        "usdc",
-        "astro",
     );
     let pair_luna_astro = create_pair(
         &mut router,
@@ -1311,8 +1242,6 @@ fn convert_multiple2() {
         &astro_token_instance,
         liquidity_amount,
         liquidity_amount,
-        "luna",
-        "astro",
     );
     let pair_info = create_pair(
         &mut router,
@@ -1323,8 +1252,6 @@ fn convert_multiple2() {
         &luna_token_instance,
         liquidity_amount,
         liquidity_amount,
-        "usdc",
-        "luna",
     );
 
     let amount_pair_usdc_astro = Uint128::from(10u128);
@@ -1504,8 +1431,6 @@ fn try_calc() {
         &astro_token_instance,
         liquidity_amount0,
         liquidity_amount1,
-        "usdc",
-        "astro",
     );
     //t2-a
     let pair_luna_astro = create_pair(
@@ -1517,8 +1442,6 @@ fn try_calc() {
         &astro_token_instance,
         liquidity_amount0,
         liquidity_amount1,
-        "luna",
-        "astro",
     );
     //t1-t2
     let pair_info = create_pair(
@@ -1530,8 +1453,6 @@ fn try_calc() {
         &luna_token_instance,
         liquidity_amount0,
         liquidity_amount1,
-        "usdc",
-        "luna",
     );
 
     let amount_pair_usdc_astro = Uint128::from(10u128);

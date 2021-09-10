@@ -30,7 +30,7 @@ pub enum QueryMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct ConvertResponse {
+pub struct ConvertStepResponse {
     pub amount: Uint128,
     pub massages: Option<Vec<WasmMsg>>,
     pub events: Option<Vec<Event>>,

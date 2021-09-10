@@ -4,11 +4,11 @@ use cosmwasm_std::{to_binary, Addr, QuerierWrapper, QueryRequest, StdResult, Uin
 
 pub fn query_pair_info(
     querier: &QuerierWrapper,
-    factory_contract: Addr,
+    factory_contract: String,
     asset_infos: &[AssetInfo; 2],
 ) -> StdResult<PairInfo> {
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: factory_contract.to_string(),
+        contract_addr: factory_contract,
         msg: to_binary(&astroport::factory::QueryMsg::Pair {
             asset_infos: asset_infos.clone(),
         })?,
@@ -46,22 +46,3 @@ pub fn query_swap_amount(
 
     Ok(response.return_amount)
 }
-
-// pub fn query_swap_reverse_amount(
-//     querier: &QuerierWrapper,
-//     pair_contract: Addr,
-//     asset_info: AssetInfo,
-//     amount: Uint128
-// )-> StdResult<Uint128> {
-//
-//     let asset = Asset{ info: asset_info, amount };
-//
-//     let response:ReverseSimulationResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-//         contract_addr: pair_contract.to_string(),
-//         msg: to_binary(&terraswap::pair::QueryMsg::ReverseSimulation {
-//             ask_asset: asset,
-//         })?,
-//     })).unwrap();
-//
-//     Ok(response.offer_amount)
-// }
