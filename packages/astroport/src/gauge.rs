@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub astro_token: String,
-    pub dev_addr: String,
     pub tokens_per_block: Uint128,
     pub start_block: Uint64,
     pub bonus_end_block: Uint64,
@@ -41,9 +40,6 @@ pub enum ExecuteMsg {
     },
     EmergencyWithdraw {
         lp_token: Addr,
-    },
-    SetDev {
-        dev_address: Addr,
     },
     SetAllowedRewardProxies {
         proxies: Vec<String>,

@@ -27,8 +27,6 @@ pub struct Config {
     pub owner: Addr,
     // The ASTRO TOKEN!
     pub astro_token: Addr,
-    // Dev address.
-    pub dev_addr: Addr,
     // Block number when bonus ASTRO period ends.
     pub bonus_end_block: Uint64,
     // ASTRO tokens created per block.

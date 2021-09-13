@@ -43,7 +43,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-vm",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "schemars",
  "serde",
  "thiserror",
@@ -54,13 +54,19 @@ name = "astroport-gauge"
 version = "0.0.0"
 dependencies = [
  "astroport",
+ "astroport-token",
+ "astroport-vesting",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "cw20",
  "gauge-proxy-interface",
+ "gauge-proxy-to-mirror",
+ "mirror-protocol 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mirror-staking",
  "schemars",
  "serde",
+ "terra-multi-test",
  "thiserror",
 ]
 
@@ -74,7 +80,7 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-vm",
  "cw-multi-test",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "cw20",
  "integer-sqrt",
  "schemars",
@@ -93,7 +99,7 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-vm",
  "cw-multi-test",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "cw20",
  "integer-sqrt",
  "proptest",
@@ -112,7 +118,7 @@ dependencies = [
  "astroport",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "cw20",
  "integer-sqrt",
  "schemars",
@@ -130,7 +136,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "cw2",
  "cw20",
  "schemars",
@@ -160,7 +166,7 @@ dependencies = [
  "astroport",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "cw20",
  "schemars",
  "serde",
@@ -521,13 +527,23 @@ dependencies = [
  "anyhow",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.8.1",
+ "cw0 0.8.1",
  "itertools",
  "prost",
  "schemars",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "cw-storage-plus"
+version = "0.8.0"
+source = "git+https://github.com/astroport-fi/terra-plus.git#edab04fe04412eb55cde5b79132043a8c49c5df5"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
 ]
 
 [[package]]
@@ -539,6 +555,17 @@ dependencies = [
  "cosmwasm-std",
  "schemars",
  "serde",
+]
+
+[[package]]
+name = "cw0"
+version = "0.8.0"
+source = "git+https://github.com/astroport-fi/terra-plus.git#edab04fe04412eb55cde5b79132043a8c49c5df5"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -560,7 +587,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d48454f96494aa1018556cd457977375cc8c57ef3e5c767cfa2ea5ec24b0258"
 dependencies = [
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "schemars",
  "serde",
 ]
@@ -572,7 +599,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a11a2adbd52258f5b4ed5323f62bc6e559f2cefbe52ef0e58290016fde5bb083"
 dependencies = [
  "cosmwasm-std",
- "cw0",
+ "cw0 0.8.1",
  "schemars",
  "serde",
 ]
@@ -584,8 +611,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe3791e0f6b4a0a82b86541d48dcc67c2d607da8e5691a91b40b2c06ddf09c52"
 dependencies = [
  "cosmwasm-std",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.8.1",
+ "cw0 0.8.1",
  "cw2",
  "cw20",
  "schemars",
@@ -793,10 +820,10 @@ version = "0.0.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "cw20",
  "gauge-proxy-interface",
- "mirror-protocol",
+ "mirror-protocol 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemars",
  "serde",
  "thiserror",
@@ -1123,12 +1150,40 @@ dependencies = [
 
 [[package]]
 name = "mirror-protocol"
-version = "2.1.0"
-source = "git+https://github.com/Mirror-Protocol/mirror-contracts.git?rev=a76fd3c61b36d1111125a94ff5efff82285adb5d#a76fd3c61b36d1111125a94ff5efff82285adb5d"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68b4a3ba65a8fd11cd24862cc49a2c4eebb98e8dfd38d43df72145cde19d9ca6"
 dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
+ "schemars",
+ "serde",
+ "terraswap",
+]
+
+[[package]]
+name = "mirror-protocol"
+version = "2.1.1"
+source = "git+https://github.com/Mirror-Protocol/mirror-contracts.git?tag=v2.1.1#485f63677decb2c106778037d38314995ea6955e"
+dependencies = [
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terraswap",
+]
+
+[[package]]
+name = "mirror-staking"
+version = "2.1.1"
+source = "git+https://github.com/Mirror-Protocol/mirror-contracts.git?tag=v2.1.1#485f63677decb2c106778037d38314995ea6955e"
+dependencies = [
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "mirror-protocol 2.1.1 (git+https://github.com/Mirror-Protocol/mirror-contracts.git?tag=v2.1.1)",
  "schemars",
  "serde",
  "terraswap",
@@ -1839,6 +1894,35 @@ dependencies = [
  "cosmwasm-std",
  "schemars",
  "serde",
+]
+
+[[package]]
+name = "terra-mocks"
+version = "0.0.0"
+source = "git+https://github.com/terra-money/cosmwasm-contracts.git?rev=b25f4ac2d7bddaa3a18838cfe51d18e1ae855dcd#b25f4ac2d7bddaa3a18838cfe51d18e1ae855dcd"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
+name = "terra-multi-test"
+version = "0.8.0"
+source = "git+https://github.com/astroport-fi/terra-plus.git#edab04fe04412eb55cde5b79132043a8c49c5df5"
+dependencies = [
+ "anyhow",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus 0.8.0",
+ "cw0 0.8.0",
+ "itertools",
+ "prost",
+ "schemars",
+ "serde",
+ "terra-mocks",
+ "thiserror",
 ]
 
 [[package]]

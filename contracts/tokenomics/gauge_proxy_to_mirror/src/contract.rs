@@ -21,6 +21,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     let config = Config {
         gauge_contract_addr: deps.api.addr_validate(&msg.gauge_contract_addr)?,
+        pair_addr: deps.api.addr_validate(&msg.pair_addr)?,
         lp_token_addr: deps.api.addr_validate(&msg.lp_token_addr)?,
         reward_contract_addr: deps.api.addr_validate(&msg.reward_contract_addr)?,
         reward_token_addr: deps.api.addr_validate(&msg.reward_token_addr)?,
@@ -70,7 +71,7 @@ fn receive_cw20(
                     contract: cfg.reward_contract_addr.to_string(),
                     amount: cw20_msg.amount,
                     msg: to_binary(&MirrorCw20HookMsg::Bond {
-                        asset_token: cfg.lp_token_addr.into_string(),
+                        asset_token: cfg.pair_addr.into_string(),
                     })?,
                 })?,
             })));
@@ -88,7 +89,7 @@ fn update_rewards(deps: DepsMut) -> Result<Response, ContractError> {
             contract_addr: cfg.reward_contract_addr.to_string(),
             funds: vec![],
             msg: to_binary(&MirrorExecuteMsg::Withdraw {
-                asset_token: Some(cfg.lp_token_addr.into_string()),
+                asset_token: Some(cfg.pair_addr.into_string()),
             })?,
         })));
 
@@ -137,7 +138,7 @@ fn withdraw(
         contract_addr: cfg.reward_contract_addr.to_string(),
         funds: vec![],
         msg: to_binary(&MirrorExecuteMsg::Unbond {
-            asset_token: cfg.lp_token_addr.to_string(),
+            asset_token: cfg.pair_addr.to_string(),
             amount,
         })?,
     }));
@@ -170,7 +171,7 @@ fn emergency_withdraw(
         contract_addr: cfg.reward_contract_addr.to_string(),
         funds: vec![],
         msg: to_binary(&MirrorExecuteMsg::Unbond {
-            asset_token: cfg.lp_token_addr.to_string(),
+            asset_token: cfg.pair_addr.to_string(),
             amount,
         })?,
     }));
@@ -196,10 +197,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 cfg.reward_contract_addr,
                 &MirrorQueryMsg::RewardInfo {
                     staker_addr: env.contract.address.to_string(),
-                    asset_token: Some(cfg.reward_token_addr.to_string()),
+                    asset_token: Some(cfg.pair_addr.to_string()),
                 },
             );
-            let deposit_amount = res?.reward_infos[0].bond_amount;
+            let reward_infos = res?.reward_infos;
+            let deposit_amount = if !reward_infos.is_empty() {
+                reward_infos[0].bond_amount
+            } else {
+                Uint128::zero()
+            };
 
             to_binary(&deposit_amount)
         }
@@ -219,10 +225,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 cfg.reward_contract_addr,
                 &MirrorQueryMsg::RewardInfo {
                     staker_addr: env.contract.address.to_string(),
-                    asset_token: Some(cfg.reward_token_addr.to_string()),
+                    asset_token: Some(cfg.pair_addr.to_string()),
                 },
             );
-            let pending_reward = res?.reward_infos[0].pending_reward;
+            let reward_infos = res?.reward_infos;
+            let pending_reward = if !reward_infos.is_empty() {
+                reward_infos[0].pending_reward
+            } else {
+                Uint128::zero()
+            };
 
             to_binary(&Some(pending_reward))
         }

@@ -17,6 +17,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     let config = Config {
         gauge_contract_addr: deps.api.addr_validate(&msg.gauge_contract_addr)?,
+        pair_addr: deps.api.addr_validate(&msg.pair_addr)?,
         lp_token_addr: deps.api.addr_validate(&msg.lp_token_addr)?,
         reward_contract_addr: deps.api.addr_validate(&msg.reward_contract_addr)?,
         reward_token_addr: deps.api.addr_validate(&msg.reward_token_addr)?,

@@ -7,6 +7,7 @@ use cw_storage_plus::Item;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub gauge_contract_addr: Addr,
+    pub pair_addr: Addr,
     pub lp_token_addr: Addr,
     pub reward_contract_addr: Addr,
     pub reward_token_addr: Addr,

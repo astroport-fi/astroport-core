@@ -31,3 +31,10 @@ gauge-proxy-interface = { path = "../../../packages/gauge_proxy_interface"}
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
+astroport-token = {path = "../../token"}
+mirror-staking = {git = "https://github.com/Mirror-Protocol/mirror-contracts.git", tag = "v2.1.1", package = "mirror-staking"}
+mirror-protocol = {version = "2.1.1"}
+astroport-vesting = {path = "../vesting"}
+gauge-proxy-to-mirror = {path = "../gauge_proxy_to_mirror"}
+gauge-proxy-interface = {path = "../../../packages/gauge_proxy_interface"}
