@@ -1,7 +1,7 @@
 use crate::error::ContractError;
-use crate::math::{decimal_multiplication, decimal_subtraction, reverse_decimal};
 use crate::state::{Config, CONFIG};
 
+use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env,
     MessageInfo, QueryRequest, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
@@ -16,9 +16,8 @@ use astroport::pair::{
     QueryMsg, ReverseSimulationResponse, SimulationResponse,
 };
 use astroport::querier::query_supply;
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
-use integer_sqrt::IntegerSquareRoot;
 use std::vec;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -283,7 +282,11 @@ pub fn provide_liquidity(
     let total_share = query_supply(&deps.querier, config.pair_info.liquidity_token.clone())?;
     let share = if total_share.is_zero() {
         // Initial share = collateral amount
-        Uint128::new((deposits[0].u128() * deposits[1].u128()).integer_sqrt())
+        Uint128::new(
+            (U256::from(deposits[0].u128()) * U256::from(deposits[1].u128()))
+                .integer_sqrt()
+                .as_u128(),
+        )
     } else {
         // min(1, 2)
         // 1. sqrt(deposit_0 * exchange_rate_0_to_1 * deposit_0) * (total_share / sqrt(pool_0 * pool_1))
@@ -721,9 +724,11 @@ fn compute_swap(
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // offer => ask
     // ask_amount = (ask_pool - cp / (offer_pool + offer_amount)) * (1 - commission_rate)
-    let cp = Uint128::new(offer_pool.u128() * ask_pool.u128());
-    let return_amount =
-        ask_pool.checked_sub(cp.multiply_ratio(1u128, offer_pool + offer_amount))?;
+    let cp = Uint256::from(offer_pool) * Uint256::from(ask_pool);
+    let return_amount = ask_pool.checked_sub(
+        cp.multiply_ratio(Uint256::one(), Uint256::from(offer_pool + offer_amount))
+            .into(),
+    )?;
 
     // calculate spread & commission
     let spread_amount: Uint128 = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool))
@@ -745,17 +750,17 @@ fn compute_offer_amount(
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
     // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
-    let cp = Uint128::new(offer_pool.u128() * ask_pool.u128());
-    let one_minus_commission = decimal_subtraction(Decimal::one(), commission_rate)?;
+    let cp = Uint256::from(offer_pool) * Uint256::from(ask_pool);
+    let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
+    let inv_one_minus_commission = (Decimal256::one() / one_minus_commission).into();
 
-    let offer_amount: Uint128 = cp
-        .multiply_ratio(
-            1u128,
-            ask_pool.checked_sub(ask_amount * reverse_decimal(one_minus_commission))?,
-        )
-        .checked_sub(offer_pool)?;
+    let offer_amount: Uint128 = Uint128::from(cp.multiply_ratio(
+        Uint256::one(),
+        Uint256::from(ask_pool.checked_sub(ask_amount * inv_one_minus_commission)?),
+    ))
+    .checked_sub(offer_pool)?;
 
-    let before_commission_deduction = ask_amount * reverse_decimal(one_minus_commission);
+    let before_commission_deduction = ask_amount * inv_one_minus_commission;
     let spread_amount = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool))
         .checked_sub(before_commission_deduction)
         .unwrap_or_else(|_| Uint128::zero());
@@ -774,7 +779,8 @@ pub fn assert_max_spread(
     spread_amount: Uint128,
 ) -> Result<(), ContractError> {
     if let (Some(max_spread), Some(belief_price)) = (max_spread, belief_price) {
-        let expected_return = offer_amount * reverse_decimal(belief_price);
+        let expected_return =
+            offer_amount * Decimal::from(Decimal256::one() / Decimal256::from(belief_price));
         let spread_amount = expected_return
             .checked_sub(return_amount)
             .unwrap_or_else(|_| Uint128::zero());
@@ -799,17 +805,20 @@ fn assert_slippage_tolerance(
     pools: &[Asset; 2],
 ) -> Result<(), ContractError> {
     if let Some(slippage_tolerance) = *slippage_tolerance {
-        let one_minus_slippage_tolerance = decimal_subtraction(Decimal::one(), slippage_tolerance)?;
+        let slippage_tolerance: Decimal256 = slippage_tolerance.into();
+        if slippage_tolerance > Decimal256::one() {
+            return Err(StdError::generic_err("slippage_tolerance cannot bigger than 1").into());
+        }
+
+        let one_minus_slippage_tolerance = Decimal256::one() - slippage_tolerance;
+        let deposits: [Uint256; 2] = [deposits[0].into(), deposits[1].into()];
+        let pools: [Uint256; 2] = [pools[0].amount.into(), pools[1].amount.into()];
 
         // Ensure each prices are not dropped as much as slippage tolerance rate
-        if decimal_multiplication(
-            Decimal::from_ratio(deposits[0], deposits[1]),
-            one_minus_slippage_tolerance,
-        ) > Decimal::from_ratio(pools[0].amount, pools[1].amount)
-            || decimal_multiplication(
-                Decimal::from_ratio(deposits[1], deposits[0]),
-                one_minus_slippage_tolerance,
-            ) > Decimal::from_ratio(pools[1].amount, pools[0].amount)
+        if Decimal256::from_ratio(deposits[0], deposits[1]) * one_minus_slippage_tolerance
+            > Decimal256::from_ratio(pools[0], pools[1])
+            || Decimal256::from_ratio(deposits[1], deposits[0]) * one_minus_slippage_tolerance
+                > Decimal256::from_ratio(pools[1], pools[0])
         {
             return Err(ContractError::MaxSlippageAssertion {});
         }
