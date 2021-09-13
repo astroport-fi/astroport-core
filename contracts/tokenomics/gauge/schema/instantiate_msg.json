@@ -5,8 +5,6 @@
   "required": [
     "allowed_reward_proxies",
     "astro_token",
-    "bonus_end_block",
-    "dev_addr",
     "start_block",
     "tokens_per_block",
     "vesting_contract"
@@ -19,12 +17,6 @@
       }
     },
     "astro_token": {
-      "type": "string"
-    },
-    "bonus_end_block": {
-      "$ref": "#/definitions/Uint64"
-    },
-    "dev_addr": {
       "type": "string"
     },
     "start_block": {

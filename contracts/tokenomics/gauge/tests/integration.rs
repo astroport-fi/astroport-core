@@ -120,20 +120,20 @@ fn gauge_without_reward_proxies() {
 
     app.update_block(|bi| next_block(bi));
 
-    // 10 per block and 10 multiplier at bonus period = 100 by 50 for two pools having the same alloc points
+    // 10 per block by 50 for two pools having the same alloc points
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_cny_eur_instance,
         USER1,
-        (50_000000, None),
+        (50_00000, None),
     );
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_eur_usd_instance,
         USER1,
-        (50_000000, None),
+        (50_00000, None),
     );
 
     // User 2
@@ -154,21 +154,21 @@ fn gauge_without_reward_proxies() {
     check_token_balance(&mut app, &lp_eur_usd_instance, &gauge_instance, 20);
 
     // 100 distributed to gauge contract after last deposit
-    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 100_000000);
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 100_00000);
 
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_cny_eur_instance,
         USER1,
-        (50_000000, None),
+        (50_00000, None),
     );
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_eur_usd_instance,
         USER1,
-        (50_000000, None),
+        (50_00000, None),
     );
 
     // new deposits can't receive already calculated rewards
@@ -211,14 +211,14 @@ fn gauge_without_reward_proxies() {
         &gauge_instance,
         &lp_cny_eur_instance,
         USER1,
-        (80_000000, None),
+        (80_00000, None),
     );
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_eur_usd_instance,
         USER1,
-        (70_000000, None),
+        (70_00000, None),
     );
 
     check_pending_rewards(
@@ -226,14 +226,14 @@ fn gauge_without_reward_proxies() {
         &gauge_instance,
         &lp_cny_eur_instance,
         USER2,
-        (30_000000, None),
+        (30_00000, None),
     );
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_eur_usd_instance,
         USER2,
-        (20_000000, None),
+        (20_00000, None),
     );
 
     // User1 emergency withdraw and lose already fixed rewards (50).
@@ -249,14 +249,14 @@ fn gauge_without_reward_proxies() {
         &gauge_instance,
         &lp_cny_eur_instance,
         USER1,
-        (0_000000, None),
+        (0_00000, None),
     );
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_eur_usd_instance,
         USER1,
-        (70_000000, None),
+        (70_00000, None),
     );
 
     check_pending_rewards(
@@ -264,14 +264,14 @@ fn gauge_without_reward_proxies() {
         &gauge_instance,
         &lp_cny_eur_instance,
         USER2,
-        (60_000000, None),
+        (60_00000, None),
     );
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_eur_usd_instance,
         USER2,
-        (20_000000, None),
+        (20_00000, None),
     );
 
     // balance of the gauge should be decreased
@@ -302,9 +302,9 @@ fn gauge_without_reward_proxies() {
     check_token_balance(&mut app, &lp_cny_eur_instance, &user2, 10);
 
     check_token_balance(&mut app, &astro_token_instance, &user1, 0);
-    check_token_balance(&mut app, &astro_token_instance, &user2, 60_000000);
+    check_token_balance(&mut app, &astro_token_instance, &user2, 60_00000);
     // Astro balance of the contract is 70 + 20 (for other pool) + 50 (left on emergency withdraw) - 60 (transfered to User2)
-    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 140_000000);
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 140_00000);
 
     // User1 withdraw and get rewards
     let msg = GaugeExecuteMsg::Withdraw {
@@ -317,7 +317,7 @@ fn gauge_without_reward_proxies() {
     check_token_balance(&mut app, &lp_eur_usd_instance, &gauge_instance, 15);
     check_token_balance(&mut app, &lp_eur_usd_instance, &user1, 5);
 
-    check_token_balance(&mut app, &astro_token_instance, &user1, 70_000000);
+    check_token_balance(&mut app, &astro_token_instance, &user1, 70_00000);
 
     // User1 withdraw and get rewards
     let msg = GaugeExecuteMsg::Withdraw {
@@ -329,7 +329,7 @@ fn gauge_without_reward_proxies() {
 
     check_token_balance(&mut app, &lp_eur_usd_instance, &gauge_instance, 10);
     check_token_balance(&mut app, &lp_eur_usd_instance, &user1, 10);
-    check_token_balance(&mut app, &astro_token_instance, &user1, 70_000000);
+    check_token_balance(&mut app, &astro_token_instance, &user1, 70_00000);
 
     // User2 withdraw and get rewards
     let msg = GaugeExecuteMsg::Withdraw {
@@ -343,14 +343,9 @@ fn gauge_without_reward_proxies() {
     check_token_balance(&mut app, &lp_eur_usd_instance, &user1, 10);
     check_token_balance(&mut app, &lp_eur_usd_instance, &user2, 10);
 
-    check_token_balance(&mut app, &astro_token_instance, &user1, 70_000000);
-    check_token_balance(
-        &mut app,
-        &astro_token_instance,
-        &user2,
-        60_000000 + 20_000000,
-    );
-    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 50_000000);
+    check_token_balance(&mut app, &astro_token_instance, &user1, 70_00000);
+    check_token_balance(&mut app, &astro_token_instance, &user2, 60_00000 + 20_00000);
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 50_00000);
 }
 
 #[test]
@@ -510,20 +505,20 @@ fn gauge_with_mirror_reward_proxy() {
     app.execute_contract(owner.clone(), mirror_token_instance.clone(), &msg, &[])
         .unwrap();
 
-    // 10 per block and 10 multiplier at bonus period = 100 by 50 for two pools having the same alloc points
+    // 10 per block by 50 for two pools having the same alloc points
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_cny_eur_instance,
         USER1,
-        (50_000000, Some(50_000000)),
+        (5_000000, Some(50_000000)),
     );
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_eur_usd_instance,
         USER1,
-        (50_000000, None),
+        (5_000000, None),
     );
 
     // User 2
@@ -546,9 +541,9 @@ fn gauge_with_mirror_reward_proxy() {
     check_token_balance(&mut app, &lp_eur_usd_instance, &gauge_instance, 20);
     check_token_balance(&mut app, &lp_eur_usd_instance, &mirror_staking_instance, 0);
 
-    // 100 distributed to gauge contract after last deposit
-    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 100_000000);
-    // 50 distrubuted to proxy contract after last deposit
+    // 10 distributed to gauge contract after last deposit
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 10_000000);
+    // 5 distrubuted to proxy contract after last deposit
     check_token_balance(
         &mut app,
         &mirror_token_instance,
@@ -561,14 +556,14 @@ fn gauge_with_mirror_reward_proxy() {
         &gauge_instance,
         &lp_cny_eur_instance,
         USER1,
-        (50_000000, Some(50_000000)),
+        (5_000000, Some(50_000000)),
     );
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_eur_usd_instance,
         USER1,
-        (50_000000, None),
+        (5_000000, None),
     );
 
     // new deposits can't receive already calculated rewards
@@ -624,14 +619,14 @@ fn gauge_with_mirror_reward_proxy() {
         &gauge_instance,
         &lp_cny_eur_instance,
         USER1,
-        (80_000000, Some(80_000000)),
+        (8_000000, Some(80_000000)),
     );
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_eur_usd_instance,
         USER1,
-        (70_000000, None),
+        (7_000000, None),
     );
 
     check_pending_rewards(
@@ -639,14 +634,14 @@ fn gauge_with_mirror_reward_proxy() {
         &gauge_instance,
         &lp_cny_eur_instance,
         USER2,
-        (30_000000, Some(30_000000)),
+        (3_000000, Some(30_000000)),
     );
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_eur_usd_instance,
         USER2,
-        (20_000000, None),
+        (2_000000, None),
     );
 
     // User1 emergency withdraw and lose already fixed rewards (50).
@@ -669,7 +664,7 @@ fn gauge_with_mirror_reward_proxy() {
         &gauge_instance,
         &lp_eur_usd_instance,
         USER1,
-        (70_000000, None),
+        (7_000000, None),
     );
 
     check_pending_rewards(
@@ -677,14 +672,14 @@ fn gauge_with_mirror_reward_proxy() {
         &gauge_instance,
         &lp_cny_eur_instance,
         USER2,
-        (60_000000, Some(60_000000)),
+        (6_000000, Some(60_000000)),
     );
     check_pending_rewards(
         &mut app,
         &gauge_instance,
         &lp_eur_usd_instance,
         USER2,
-        (20_000000, None),
+        (2_000000, None),
     );
 
     // balance of the end contract should be decreased
@@ -717,10 +712,10 @@ fn gauge_with_mirror_reward_proxy() {
 
     check_token_balance(&mut app, &astro_token_instance, &user1, 0);
     check_token_balance(&mut app, &mirror_token_instance, &user1, 0);
-    check_token_balance(&mut app, &astro_token_instance, &user2, 60_000000);
+    check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000);
     check_token_balance(&mut app, &mirror_token_instance, &user2, 60_000000);
     // Astro balance of the contract is 70 + 20 (for other pool) + 50 (left on emergency withdraw) - 60 (transfered to User2)
-    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 140_000000);
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 14_000000);
     check_token_balance(
         &mut app,
         &mirror_token_instance,
@@ -739,7 +734,7 @@ fn gauge_with_mirror_reward_proxy() {
     check_token_balance(&mut app, &lp_eur_usd_instance, &gauge_instance, 15);
     check_token_balance(&mut app, &lp_eur_usd_instance, &user1, 5);
 
-    check_token_balance(&mut app, &astro_token_instance, &user1, 70_000000);
+    check_token_balance(&mut app, &astro_token_instance, &user1, 7_000000);
     check_token_balance(&mut app, &mirror_token_instance, &user1, 0_000000);
 
     // User1 withdraw and get rewards
@@ -752,7 +747,7 @@ fn gauge_with_mirror_reward_proxy() {
 
     check_token_balance(&mut app, &lp_eur_usd_instance, &gauge_instance, 10);
     check_token_balance(&mut app, &lp_eur_usd_instance, &user1, 10);
-    check_token_balance(&mut app, &astro_token_instance, &user1, 70_000000);
+    check_token_balance(&mut app, &astro_token_instance, &user1, 7_000000);
     check_token_balance(&mut app, &mirror_token_instance, &user1, 0_000000);
 
     // User2 withdraw and get rewards
@@ -767,16 +762,11 @@ fn gauge_with_mirror_reward_proxy() {
     check_token_balance(&mut app, &lp_eur_usd_instance, &user1, 10);
     check_token_balance(&mut app, &lp_eur_usd_instance, &user2, 10);
 
-    check_token_balance(&mut app, &astro_token_instance, &user1, 70_000000);
+    check_token_balance(&mut app, &astro_token_instance, &user1, 7_000000);
     check_token_balance(&mut app, &mirror_token_instance, &user1, 0_000000);
-    check_token_balance(
-        &mut app,
-        &astro_token_instance,
-        &user2,
-        60_000000 + 20_000000,
-    );
+    check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000 + 2_000000);
     check_token_balance(&mut app, &mirror_token_instance, &user2, 60_000000);
-    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 50_000000);
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 5_000000);
     check_token_balance(
         &mut app,
         &mirror_token_instance,
@@ -875,13 +865,10 @@ fn instantiate_gauge(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
     //      20% of that - for the first year = 120_000_000
     // let tokens distributed per block be 10
     // block time - 5 seconds
-    // 10bonus_multiplier * 10 * x + 10 * (365 * 24 * 60 * 60 / 5 - x) = 120_000_000
-    // x - bonus period in blocks = 632533(.333333333)
 
     let init_msg = GaugeInstantiateMsg {
         allowed_reward_proxies: vec![],
         start_block: Uint64::from(app.block_info().height),
-        bonus_end_block: Uint64::from(app.block_info().height + 632533),
         astro_token: astro_token_instance.to_string(),
         tokens_per_block: Uint128::from(10_000000u128),
         vesting_contract: vesting_instance.to_string(),
@@ -899,8 +886,8 @@ fn instantiate_gauge(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
         .unwrap();
 
     // vesting to gauge:
-    //  bonus period: 632533 * 5sec = 3162665 seconds - 36+ days, amount = 10bonus_multiplier * 10 * 632533 = 63253300 astro
-    //  next period: 365×24×60×60−3162665 = 28373335 seconds - 328+ days, amount = 10 * (365 * 24 * 60 * 60 / 5 - 632533) = 56746670 astro
+    //  first period: 632533 * 5sec = 3162665 seconds - 36+ days, amount =  10 * 632533 = 6325330 astro
+    //  second period: 365×24×60×60−3162665 = 28373335 seconds - 328+ days, amount = 10 * (365 * 24 * 60 * 60 / 5 - 632533) = 56746670 astro
     // total astro: 119999970
 
     let current_block = app.block_info();
@@ -912,7 +899,7 @@ fn instantiate_gauge(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
                 (
                     current_block.time,
                     current_block.time.plus_seconds(3162665),
-                    Uint128::new(63253300_000000),
+                    Uint128::new(6325330_000000),
                 ),
                 (
                     current_block.time.plus_seconds(3162665),

@@ -27,8 +27,6 @@ pub struct Config {
     pub owner: Addr,
     // The ASTRO TOKEN!
     pub astro_token: Addr,
-    // Block number when bonus ASTRO period ends.
-    pub bonus_end_block: Uint64,
     // ASTRO tokens created per block.
     pub tokens_per_block: Uint128,
     // Total allocation points. Must be the sum of all allocation points in all pools.

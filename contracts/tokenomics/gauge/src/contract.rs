@@ -10,20 +10,13 @@ use crate::state::{
 };
 use astroport::{
     gauge::{
-        ExecuteMsg, GetMultiplierResponse, InstantiateMsg, MigrateMsg, PendingTokenResponse,
-        PoolLengthResponse, QueryMsg,
+        ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse, PoolLengthResponse, QueryMsg,
     },
     vesting::ExecuteMsg as VestingExecuteMsg,
 };
 use gauge_proxy_interface::msg::{
     Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
 };
-
-// Bonus multiplier for early ASTRO makers.
-// It is important that for the bonus period the vesting contract can give necessary astro amount,
-// else users don't get declared reward in full amount.
-// As a solution we can set the bonus period and another period with sufficient amount of ASTRO in the vesting contract.
-const BONUS_MULTIPLIER: u64 = 10;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -39,7 +32,6 @@ pub fn instantiate(
 
     let config = Config {
         astro_token: deps.api.addr_validate(&msg.astro_token)?,
-        bonus_end_block: msg.bonus_end_block,
         tokens_per_block: msg.tokens_per_block,
         total_alloc_point: Uint64::from(0u64),
         owner: info.sender,
@@ -694,14 +686,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::PendingToken { lp_token, user } => {
             to_binary(&pending_token(deps, env, lp_token, user)?)
         }
-        QueryMsg::GetMultiplier { from, to } => {
-            let cfg = CONFIG.load(deps.storage)?;
-            to_binary(&get_multiplier(
-                from.max(cfg.start_block),
-                to,
-                cfg.bonus_end_block,
-            )?)
-        }
     }
 }
 
@@ -717,28 +701,6 @@ pub fn query_deposit(deps: Deps, lp_token: Addr, user: Addr) -> Uint128 {
         .load(deps.storage, (&lp_token, &user))
         .unwrap_or_default();
     user_info.amount
-}
-
-// Return reward multiplier over the given _from to _to block.
-fn get_multiplier(
-    from: Uint64,
-    to: Uint64,
-    bonus_end_block: Uint64,
-) -> StdResult<GetMultiplierResponse> {
-    let reward: Uint64;
-    if to <= bonus_end_block {
-        reward = to
-            .checked_sub(from)?
-            .checked_mul(Uint64::from(BONUS_MULTIPLIER))?;
-    } else if from >= bonus_end_block {
-        reward = to.checked_sub(from)?;
-    } else {
-        reward = bonus_end_block
-            .checked_sub(from)?
-            .checked_mul(Uint64::from(BONUS_MULTIPLIER))?
-            .checked_add(to.checked_sub(bonus_end_block)?)?;
-    }
-    Ok(GetMultiplierResponse { multiplier: reward })
 }
 
 // View function to see pending ASTRO on frontend.
@@ -805,13 +767,9 @@ pub fn pending_token(
 }
 
 pub fn calculate_rewards(env: &Env, pool: &PoolInfo, cfg: &Config) -> StdResult<Uint128> {
-    let m = get_multiplier(
-        pool.last_reward_block,
-        Uint64::from(env.block.height),
-        cfg.bonus_end_block,
-    )?;
+    let n_blocks = Uint128::from(env.block.height).checked_sub(pool.last_reward_block.into())?;
 
-    let r = Uint128::from(m.multiplier.u64())
+    let r = n_blocks
         .checked_mul(cfg.tokens_per_block)?
         .checked_mul(Uint128::from(pool.alloc_point.u64()))?
         .checked_div(Uint128::from(cfg.total_alloc_point.u64()))?;
