@@ -120,7 +120,7 @@ fn gauge_without_reward_proxies() {
 
     app.update_block(|bi| next_block(bi));
 
-    // 10 per block by 50 for two pools having the same alloc points
+    // 10 per block by 5 for two pools having the same alloc points
     check_pending_rewards(
         &mut app,
         &gauge_instance,
@@ -200,7 +200,7 @@ fn gauge_without_reward_proxies() {
         lp_token: lp_eur_usd_instance.clone(),
         with_update: true,
     };
-    app.execute_contract(owner, gauge_instance.clone(), &msg, &[])
+    app.execute_contract(owner.clone(), gauge_instance.clone(), &msg, &[])
         .unwrap();
 
     app.update_block(|bi| next_block(bi));
@@ -236,8 +236,8 @@ fn gauge_without_reward_proxies() {
         (2_000000, None),
     );
 
-    // User1 emergency withdraw and lose already fixed rewards (50).
-    // Pending tokens (30) will be redistributed to other staking users.
+    // User1 emergency withdraws and loses already fixed rewards (5).
+    // Pending tokens (3) will be redistributed to other staking users.
     let msg = GaugeExecuteMsg::EmergencyWithdraw {
         lp_token: lp_cny_eur_instance.clone(),
     };
@@ -249,7 +249,7 @@ fn gauge_without_reward_proxies() {
         &gauge_instance,
         &lp_cny_eur_instance,
         USER1,
-        (0_00000, None),
+        (0_000000, None),
     );
     check_pending_rewards(
         &mut app,
@@ -289,6 +289,40 @@ fn gauge_without_reward_proxies() {
         "Insufficient balance in contract to process claim".to_string(),
     );
 
+    let msg = GaugeExecuteMsg::MassUpdatePools {};
+    app.execute_contract(owner.clone(), gauge_instance.clone(), &msg, &[])
+        .unwrap();
+
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 20_000000);
+    check_token_balance(&mut app, &astro_token_instance, &owner, 0_000000);
+
+    // Owner sends orphan astro rewards
+    let msg = GaugeExecuteMsg::SendOrphanReward {
+        recipient: owner.to_string(),
+        lp_token: None,
+        amount: Uint128::new(5_000000),
+    };
+
+    app.execute_contract(owner.clone(), gauge_instance.clone(), &msg, &[])
+        .unwrap();
+
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 15_000000);
+    check_token_balance(&mut app, &astro_token_instance, &owner, 5_000000);
+
+    // Owner can't send astro rewards for distribution to users
+    let msg = GaugeExecuteMsg::SendOrphanReward {
+        recipient: owner.to_string(),
+        lp_token: None,
+        amount: Uint128::new(0_000001),
+    };
+
+    assert_eq!(
+        app.execute_contract(owner.clone(), gauge_instance.clone(), &msg, &[])
+            .unwrap_err()
+            .to_string(),
+        "Insufficient amount of orphan rewards!"
+    );
+
     // User2 withdraw and get rewards
     let msg = GaugeExecuteMsg::Withdraw {
         lp_token: lp_cny_eur_instance.clone(),
@@ -303,8 +337,8 @@ fn gauge_without_reward_proxies() {
 
     check_token_balance(&mut app, &astro_token_instance, &user1, 0);
     check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000);
-    // Astro balance of the contract is 70 + 20 (for other pool) + 50 (left on emergency withdraw) - 60 (transfered to User2)
-    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 14_000000);
+    // Astro balance of the contract is 7 + 2 (for other pool) (5 left on emergency withdraw, 6 transfered to User2)
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 9_000000);
 
     // User1 withdraw and get rewards
     let msg = GaugeExecuteMsg::Withdraw {
@@ -345,7 +379,7 @@ fn gauge_without_reward_proxies() {
 
     check_token_balance(&mut app, &astro_token_instance, &user1, 7_000000);
     check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000 + 2_000000);
-    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 5_000000);
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 0_000000);
 }
 
 #[test]
@@ -505,7 +539,7 @@ fn gauge_with_mirror_reward_proxy() {
     app.execute_contract(owner.clone(), mirror_token_instance.clone(), &msg, &[])
         .unwrap();
 
-    // 10 per block by 50 for two pools having the same alloc points
+    // 10 per block by 5 for two pools having the same alloc points
     check_pending_rewards(
         &mut app,
         &gauge_instance,
@@ -644,8 +678,8 @@ fn gauge_with_mirror_reward_proxy() {
         (2_000000, None),
     );
 
-    // User1 emergency withdraw and lose already fixed rewards (50).
-    // Pending tokens (30) will be redistributed to other staking users.
+    // User1 emergency withdraws and loses already fixed rewards (5).
+    // Pending tokens (3) will be redistributed to other staking users.
     let msg = GaugeExecuteMsg::EmergencyWithdraw {
         lp_token: lp_cny_eur_instance.clone(),
     };
@@ -697,6 +731,80 @@ fn gauge_with_mirror_reward_proxy() {
         "Insufficient balance in contract to process claim".to_string(),
     );
 
+    let msg = GaugeExecuteMsg::MassUpdatePools {};
+    app.execute_contract(owner.clone(), gauge_instance.clone(), &msg, &[])
+        .unwrap();
+
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 20_000000);
+    check_token_balance(&mut app, &astro_token_instance, &owner, 0_000000);
+
+    // Owner sends orphan astro rewards
+    let msg = GaugeExecuteMsg::SendOrphanReward {
+        recipient: owner.to_string(),
+        lp_token: None,
+        amount: Uint128::new(5_000000),
+    };
+
+    app.execute_contract(owner.clone(), gauge_instance.clone(), &msg, &[])
+        .unwrap();
+
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 15_000000);
+    check_token_balance(&mut app, &astro_token_instance, &owner, 5_000000);
+
+    // Owner can't send astro rewards for distribution to users
+    let msg = GaugeExecuteMsg::SendOrphanReward {
+        recipient: owner.to_string(),
+        lp_token: None,
+        amount: Uint128::new(0_000001),
+    };
+
+    assert_eq!(
+        app.execute_contract(owner.clone(), gauge_instance.clone(), &msg, &[])
+            .unwrap_err()
+            .to_string(),
+        "Insufficient amount of orphan rewards!"
+    );
+
+    check_token_balance(
+        &mut app,
+        &mirror_token_instance,
+        &proxy_to_mirror_instance,
+        110_000000,
+    );
+    check_token_balance(&mut app, &mirror_token_instance, &owner, 0_000000);
+
+    // Owner sends orphan proxy rewards
+    let msg = GaugeExecuteMsg::SendOrphanReward {
+        recipient: owner.to_string(),
+        lp_token: Some(lp_cny_eur_instance.to_string()),
+        amount: Uint128::new(50_000000),
+    };
+
+    app.execute_contract(owner.clone(), gauge_instance.clone(), &msg, &[])
+        .unwrap();
+
+    check_token_balance(
+        &mut app,
+        &mirror_token_instance,
+        &proxy_to_mirror_instance,
+        60_000000,
+    );
+    check_token_balance(&mut app, &mirror_token_instance, &owner, 50_000000);
+
+    // Owner can't send proxy rewards for distribution to users
+    let msg = GaugeExecuteMsg::SendOrphanReward {
+        recipient: owner.to_string(),
+        lp_token: Some(lp_cny_eur_instance.to_string()),
+        amount: Uint128::new(0_000001),
+    };
+
+    assert_eq!(
+        app.execute_contract(owner.clone(), gauge_instance.clone(), &msg, &[])
+            .unwrap_err()
+            .to_string(),
+        "Insufficient amount of orphan rewards!"
+    );
+
     // User2 withdraw and get rewards
     let msg = GaugeExecuteMsg::Withdraw {
         lp_token: lp_cny_eur_instance.clone(),
@@ -714,13 +822,13 @@ fn gauge_with_mirror_reward_proxy() {
     check_token_balance(&mut app, &mirror_token_instance, &user1, 0);
     check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000);
     check_token_balance(&mut app, &mirror_token_instance, &user2, 60_000000);
-    // Astro balance of the contract is 70 + 20 (for other pool) + 50 (left on emergency withdraw) - 60 (transfered to User2)
-    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 14_000000);
+    // Astro balance of the contract is 7 + 2 (for other pool) (5 left on emergency withdraw, 6 transfered to User2)
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 9_000000);
     check_token_balance(
         &mut app,
         &mirror_token_instance,
         &proxy_to_mirror_instance,
-        50_000000,
+        0_000000,
     );
 
     // User1 withdraw and get rewards
@@ -766,12 +874,12 @@ fn gauge_with_mirror_reward_proxy() {
     check_token_balance(&mut app, &mirror_token_instance, &user1, 0_000000);
     check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000 + 2_000000);
     check_token_balance(&mut app, &mirror_token_instance, &user2, 60_000000);
-    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 5_000000);
+    check_token_balance(&mut app, &astro_token_instance, &gauge_instance, 0_000000);
     check_token_balance(
         &mut app,
         &mirror_token_instance,
         &proxy_to_mirror_instance,
-        50_000000,
+        0_000000,
     );
 }
 
@@ -860,12 +968,6 @@ fn instantiate_gauge(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
 
     let gauge_code_id = app.store_code(gauge_contract);
 
-    // Vesting limits:
-    //      60% for liquidity providers = 600_000_000
-    //      20% of that - for the first year = 120_000_000
-    // let tokens distributed per block be 10
-    // block time - 5 seconds
-
     let init_msg = GaugeInstantiateMsg {
         allowed_reward_proxies: vec![],
         start_block: Uint64::from(app.block_info().height),
@@ -886,27 +988,17 @@ fn instantiate_gauge(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
         .unwrap();
 
     // vesting to gauge:
-    //  first period: 632533 * 5sec = 3162665 seconds - 36+ days, amount =  10 * 632533 = 6325330 astro
-    //  second period: 365×24×60×60−3162665 = 28373335 seconds - 328+ days, amount = 10 * (365 * 24 * 60 * 60 / 5 - 632533) = 56746670 astro
-    // total astro: 119999970
 
     let current_block = app.block_info();
 
     let msg = VestingExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![VestingAccount {
             address: gauge_instance.clone(),
-            schedules: vec![
-                (
-                    current_block.time,
-                    current_block.time.plus_seconds(3162665),
-                    Uint128::new(6325330_000000),
-                ),
-                (
-                    current_block.time.plus_seconds(3162665),
-                    current_block.time.plus_seconds(3162665 + 28373335),
-                    Uint128::new(56746670_000000),
-                ),
-            ],
+            schedules: vec![(
+                current_block.time,
+                current_block.time.plus_seconds(365 * 24 * 60 * 60),
+                Uint128::new(63072000_000000),
+            )],
         }],
     };
 

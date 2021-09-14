@@ -55,6 +55,11 @@ pub enum ExecuteOnReply {
         account: Addr,
         amount: Uint128,
     },
+    SendOrphanReward {
+        recipient: Addr,
+        lp_token: Option<Addr>,
+        amount: Uint128,
+    },
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

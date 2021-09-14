@@ -17,6 +17,12 @@ pub enum ContractError {
 
     #[error("Reward proxy not allowed!")]
     RewardProxyNotAllowed {},
+
+    #[error("Pool doesn't have additional rewards!")]
+    PoolDoesNotHaveAdditionalRewards {},
+
+    #[error("Insufficient amount of orphan rewards!")]
+    OrphanRewardsTooSmall {},
 }
 
 impl From<OverflowError> for ContractError {

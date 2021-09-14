@@ -43,6 +43,11 @@ pub enum ExecuteMsg {
     SetAllowedRewardProxies {
         proxies: Vec<String>,
     },
+    SendOrphanReward {
+        recipient: String,
+        lp_token: Option<String>,
+        amount: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

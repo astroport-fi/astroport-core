@@ -2,7 +2,7 @@ use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event, MessageInfo, Reply,
     Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
-use cw20::{BalanceResponse, Cw20ExecuteMsg};
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 
 use crate::error::ContractError;
 use crate::state::{
@@ -103,6 +103,11 @@ pub fn execute(
         ExecuteMsg::SetAllowedRewardProxies { proxies } => {
             Ok(set_allowed_reward_proxies(deps, proxies)?)
         }
+        ExecuteMsg::SendOrphanReward {
+            recipient,
+            lp_token,
+            amount,
+        } => before_send_orphan_rewards(deps, info, recipient, lp_token, amount),
     }
 }
 
@@ -320,6 +325,11 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractE
                     account,
                     amount,
                 } => withdraw(deps, env, lp_token, account, amount),
+                ExecuteOnReply::SendOrphanReward {
+                    recipient,
+                    lp_token,
+                    amount,
+                } => send_orphan_rewards(deps, env, recipient, lp_token, amount),
             }
         }
         None => Ok(Response::default()),
@@ -676,6 +686,148 @@ fn set_allowed_reward_proxies(deps: DepsMut, proxies: Vec<String>) -> StdResult<
         Ok(v)
     })?;
     Ok(Response::new().add_event(Event::new(String::from("Set allowed reward proxies"))))
+}
+
+// lp_token:
+//  None - for sending ASTRO
+//  Some(lp_token) - fo sending additional reward from the pool
+fn before_send_orphan_rewards(
+    deps: DepsMut,
+    info: MessageInfo,
+    recipient: String,
+    lp_token: Option<String>,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
+    if info.sender != cfg.owner {
+        return Err(ContractError::Unauthorized {});
+    };
+
+    let lp_token = lp_token.map(|v| deps.api.addr_validate(&v)).transpose()?;
+
+    let recipient = deps.api.addr_validate(&recipient)?;
+
+    update_rewards_and_execute(
+        deps,
+        lp_token.clone(),
+        ExecuteOnReply::SendOrphanReward {
+            recipient,
+            lp_token,
+            amount,
+        },
+    )
+}
+
+fn send_orphan_rewards(
+    mut deps: DepsMut,
+    env: Env,
+    recipient: Addr,
+    lp_token: Option<Addr>,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
+    let mut response = Response::new().add_event(
+        Event::new("Sent orphan rewards")
+            .add_attribute("recipient", recipient.to_string())
+            .add_attribute(
+                "lp_token",
+                match &lp_token {
+                    Some(s) => s.to_string(),
+                    None => "None".to_string(),
+                },
+            )
+            .add_attribute("amount", amount),
+    );
+
+    if let Some(lp_token) = lp_token {
+        let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
+        let proxy = match &pool.reward_proxy {
+            Some(proxy) => proxy.clone(),
+            None => return Err(ContractError::PoolDoesNotHaveAdditionalRewards {}),
+        };
+
+        update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg)?;
+        POOL_INFO.save(deps.storage, &lp_token, &pool)?;
+
+        let msg = ProxyQueryMsg::Reward {};
+        let balance: Uint128 = deps.querier.query_wasm_smart(proxy.to_string(), &msg)?;
+        let mut to_distribute = Uint128::zero();
+
+        for (_, user_info) in USER_INFO
+            .prefix(&lp_token)
+            .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+            .filter_map(|v| v.ok())
+        {
+            to_distribute = to_distribute.checked_add(
+                (user_info.amount * pool.acc_per_share_on_proxy)
+                    .checked_sub(user_info.reward_debt_proxy)?,
+            )?;
+        }
+
+        if amount <= balance.checked_sub(to_distribute)? {
+            let msg = ProxyExecuteMsg::SendRewards {
+                account: recipient,
+                amount,
+            };
+
+            response.messages.push(SubMsg::new(WasmMsg::Execute {
+                contract_addr: proxy.to_string(),
+                funds: vec![],
+                msg: to_binary(&msg)?,
+            }));
+        } else {
+            return Err(ContractError::OrphanRewardsTooSmall {});
+        }
+    } else {
+        let msg = Cw20QueryMsg::Balance {
+            address: env.contract.address.to_string(),
+        };
+        let res: BalanceResponse = deps
+            .querier
+            .query_wasm_smart(cfg.astro_token.to_string(), &msg)?;
+        let mut to_distribute = Uint128::zero();
+
+        let pools: Vec<(Addr, PoolInfo)> = POOL_INFO
+            .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+            .filter_map(|v| {
+                v.ok()
+                    .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
+            })
+            .collect();
+
+        for (lp_token, mut pool) in pools {
+            update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg)?;
+            POOL_INFO.save(deps.storage, &lp_token, &pool)?;
+
+            for (_, user_info) in USER_INFO
+                .prefix(&lp_token)
+                .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+                .filter_map(|v| v.ok())
+            {
+                to_distribute = to_distribute.checked_add(
+                    (user_info.amount * pool.acc_per_share).checked_sub(user_info.reward_debt)?,
+                )?;
+            }
+        }
+        if amount <= res.balance.checked_sub(to_distribute)? {
+            let msg = Cw20ExecuteMsg::Transfer {
+                recipient: recipient.to_string(),
+                amount,
+            };
+
+            response.messages.push(SubMsg::new(WasmMsg::Execute {
+                contract_addr: cfg.astro_token.to_string(),
+                funds: vec![],
+                msg: to_binary(&msg)?,
+            }));
+        } else {
+            return Err(ContractError::OrphanRewardsTooSmall {});
+        }
+    }
+
+    Ok(response)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
