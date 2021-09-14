@@ -760,16 +760,6 @@ fn convert_token_astro_native_token_uusd() {
             denom: "uusd".to_string(),
         },
     };
-    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
-    router
-        .init_bank_balance(
-            &maker_instance.clone(),
-            vec![Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128::new(9u128),
-            }],
-        )
-        .unwrap();
     let _res = router
         .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
         .unwrap();

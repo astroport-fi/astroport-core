@@ -137,22 +137,6 @@ fn convert(
             .map(|a| a.amount)
             .expect("Wrong asset info is given"),
     );
-
-    // collect tokens from pool(withdraw)
-    let funds = if token1.is_native_token() {
-        vec![Coin {
-            denom: token1.to_string(),
-            amount: amount1,
-        }]
-    } else if token0.is_native_token() {
-        vec![Coin {
-            denom: token0.to_string(),
-            amount: amount0,
-        }]
-    } else {
-        vec![]
-    };
-
     response.messages.push(SubMsg {
         id: 0,
         msg: CosmosMsg::Wasm(WasmMsg::Execute {
@@ -163,7 +147,7 @@ fn convert(
                 msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
             })
             .unwrap(),
-            funds,
+            funds: vec![],
         }),
         gas_limit: None,
         reply_on: ReplyOn::Never,
