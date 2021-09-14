@@ -25,5 +25,5 @@ export const local: Config = {
             deposit_token_addr: undefined,
         }
     },
-    astroTokenContractAddress: undefined,
+    astroTokenContractAddress: 'terra1f7qkgxpd36k3750647czwz4wcftkt0tyd8krra'
 }
