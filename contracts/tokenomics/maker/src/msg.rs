@@ -64,7 +64,7 @@ impl ConvertStepResponse {
         }
         ConvertStepResponse {
             amount: self.amount.checked_add(res.amount).unwrap_or_default(),
-            massages: Some(messages),
+            messages: Some(messages),
             events: Some(events),
         }
     }

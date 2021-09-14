@@ -180,7 +180,7 @@ fn convert(
         amount1,
     )
     .unwrap();
-    if let Some(msgs) = res.massages {
+    if let Some(msgs) = res.messages {
         for msg in msgs {
             response.messages.push(SubMsg {
                 msg: CosmosMsg::Wasm(msg),
@@ -286,7 +286,7 @@ fn transfer_astro(cfg: &Config, amount: Uint128) -> StdResult<ConvertStepRespons
         vec![Event::new("TransferToStaking").add_attribute("astroOut", amount.to_string())];
     Ok(ConvertStepResponse {
         amount,
-        massages: Some(messages),
+        messages: Some(messages),
         events: Some(events),
     })
 }
@@ -351,7 +351,7 @@ fn swap(
     let events = vec![Event::new("Swap").add_attribute("AmountOut", amount_out.to_string())];
     Ok(ConvertStepResponse {
         amount: amount_out,
-        massages: Some(messages),
+        messages: Some(messages),
         events: Some(events),
     })
 }
