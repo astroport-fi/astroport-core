@@ -7,7 +7,6 @@ pub struct InstantiateMsg {
     pub astro_token: String,
     pub tokens_per_block: Uint128,
     pub start_block: Uint64,
-    pub bonus_end_block: Uint64,
     pub allowed_reward_proxies: Vec<String>,
     pub vesting_contract: String,
 }
@@ -52,17 +51,11 @@ pub enum QueryMsg {
     PoolLength {},
     Deposit { lp_token: Addr, user: Addr },
     PendingToken { lp_token: Addr, user: Addr },
-    GetMultiplier { from: Uint64, to: Uint64 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolLengthResponse {
     pub length: usize,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GetMultiplierResponse {
-    pub multiplier: Uint64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

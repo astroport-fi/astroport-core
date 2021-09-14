@@ -1,6 +1,5 @@
 use astroport::gauge::{
-    ExecuteMsg, GetMultiplierResponse, InstantiateMsg, MigrateMsg, PendingTokenResponse,
-    PoolLengthResponse, QueryMsg,
+    ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse, PoolLengthResponse, QueryMsg,
 };
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 use std::env::current_dir;
@@ -17,6 +16,5 @@ fn main() {
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(PoolLengthResponse), &out_dir);
     export_schema(&schema_for!(PendingTokenResponse), &out_dir);
-    export_schema(&schema_for!(GetMultiplierResponse), &out_dir);
     export_schema(&schema_for!(MigrateMsg), &out_dir);
 }

@@ -167,26 +167,6 @@
     {
       "type": "object",
       "required": [
-        "set_dev"
-      ],
-      "properties": {
-        "set_dev": {
-          "type": "object",
-          "required": [
-            "dev_address"
-          ],
-          "properties": {
-            "dev_address": {
-              "$ref": "#/definitions/Addr"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "set_allowed_reward_proxies"
       ],
       "properties": {
