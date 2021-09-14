@@ -1,26 +1,9 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo};
+use cosmwasm_std::Addr;
 
 use crate::contract::instantiate;
 use crate::msg::InstantiateMsg;
 use crate::state::{Config, CONFIG};
-
-fn _do_instantiate(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    factory: Addr,
-    staking: Addr,
-    astro_token: Addr,
-) {
-    let instantiate_msg = InstantiateMsg {
-        factory_contract: factory.to_string(),
-        staking_contract: staking.to_string(),
-        astro_token_contract: astro_token.to_string(),
-    };
-    let res = instantiate(deps, _env.clone(), info.clone(), instantiate_msg).unwrap();
-    assert_eq!(0, res.messages.len());
-}
 
 #[test]
 fn proper_initialization() {

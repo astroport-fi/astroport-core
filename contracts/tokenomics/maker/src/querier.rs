@@ -19,7 +19,7 @@ pub fn query_pair_share(
     querier: &QuerierWrapper,
     pair_contract: Addr,
     share: Uint128,
-) -> StdResult<Vec<Asset>> {
+) -> StdResult<[Asset; 2]> {
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: pair_contract.to_string(),
         msg: to_binary(&astroport::pair::QueryMsg::Share { amount: share })?,
