@@ -32,7 +32,7 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConvertStepResponse {
     pub amount: Uint128,
-    pub massages: Option<Vec<WasmMsg>>,
+    pub messages: Option<Vec<WasmMsg>>,
     pub events: Option<Vec<Event>>,
 }
 
@@ -41,7 +41,7 @@ impl ConvertStepResponse {
         let mut messages = vec![];
         let mut events = vec![];
 
-        if let Some(msgs) = self.massages.clone() {
+        if let Some(msgs) = self.messages.clone() {
             for msg in msgs {
                 messages.push(msg);
             }
@@ -52,7 +52,7 @@ impl ConvertStepResponse {
             }
         }
 
-        if let Some(msgs) = res.massages {
+        if let Some(msgs) = res.messages {
             for msg in msgs {
                 messages.push(msg);
             }
