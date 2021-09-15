@@ -1,1 +1,0 @@
-export type PairType = "Xyk" | "Stable" | "Custom";
