@@ -18,4 +18,4 @@ pub struct ExecuteOnReply {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const CONVERT_MULTIPLE: Item<ExecuteOnReply> = Item::new("convert_multiple");
+pub const CONVERT_MULTIPLE: Item<Option<ExecuteOnReply>> = Item::new("convert_multiple");

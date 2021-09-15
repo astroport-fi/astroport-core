@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo,
-    Reply, ReplyOn, Response, StdResult, SubMsg, Uint128, WasmMsg,
+    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -33,14 +33,13 @@ pub fn instantiate(
 pub fn execute(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Convert { asset_infos } => convert(deps, env, asset_infos),
-
         ExecuteMsg::ConvertMultiple { asset_infos } => {
-            convert_multiple(deps, env, info.sender, asset_infos)
+            convert_multiple(deps, env, asset_infos, true)
         }
     }
 }
@@ -48,53 +47,46 @@ pub fn execute(
 pub fn convert_multiple(
     deps: DepsMut,
     env: Env,
-    sender: Addr,
-    asset_infos: Vec<[AssetInfo; 2]>,
-) -> Result<Response, ContractError> {
-    if sender != env.contract.address {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let mut convert_assets = CONVERT_MULTIPLE.load(deps.storage).unwrap_or_default();
-    if convert_assets.asset_infos.len() == 1 {
-        let asset_to_convert = convert_assets.asset_infos.swap_remove(0);
-        CONVERT_MULTIPLE.save(deps.storage, &ExecuteOnReply { asset_infos })?;
-        return convert(deps, env, asset_to_convert);
-    }
-
-    Ok(Response::new().add_submessage(SubMsg::reply_on_success(
-        convert_and_execute(deps, env, asset_infos)?,
-        0,
-    )))
-}
-
-fn convert_and_execute(
-    deps: DepsMut,
-    env: Env,
     mut asset_infos: Vec<[AssetInfo; 2]>,
-) -> StdResult<CosmosMsg> {
+    assert_empty_state: bool,
+) -> Result<Response, ContractError> {
+    // On first run state should be empty
+    if assert_empty_state {
+        let exists = CONVERT_MULTIPLE.load(deps.storage)?;
+        if exists.is_some() {
+            Err(ContractError::RepetitiveReply {})
+        }
+    }
+
+    // Pop first item from asset_infos to convert
     let asset_to_convert = asset_infos.swap_remove(0);
 
-    CONVERT_MULTIPLE.save(deps.storage, &ExecuteOnReply { asset_infos })?;
+    CONVERT_MULTIPLE.save(
+        deps.storage,
+        if asset_infos.len() > 0 {
+            &Some(ExecuteOnReply { asset_infos })
+        } else {
+            None
+        },
+    )?;
 
-    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: env.contract.address.to_string(),
-        funds: vec![],
-        msg: to_binary(&ExecuteMsg::Convert {
-            asset_infos: asset_to_convert,
-        })?,
-    }))
+    let mut resp = convert(deps, env, asset_to_convert)?;
+
+    if asset_infos.len() > 0 {
+        resp.messages.push(SubMsg::reply_on_success(msg, 0)); // MAYBE WE CAN ADD HERE?
+    }
+
+    Ok(resp)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
-    let convert_assets = CONVERT_MULTIPLE.load(deps.storage)?;
-    convert_multiple(
-        deps,
-        env.clone(),
-        env.contract.address,
-        convert_assets.asset_infos,
-    )
+    let asset_infos = CONVERT_MULTIPLE.load(deps.storage)?;
+    if asset_infos.is_none() {
+        Ok(Response::new())
+    }
+
+    convert_multiple(deps, env, asset_infos.unwrap().asset_infos, false)
 }
 
 fn convert(

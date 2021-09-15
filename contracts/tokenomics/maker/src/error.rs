@@ -14,4 +14,7 @@ pub enum ContractError {
 
     #[error("Insufficient balance in contract to process claim")]
     BalanceTooSmall {},
+
+    #[error("Repetitive reply definition")]
+    RepetitiveReply {},
 }
