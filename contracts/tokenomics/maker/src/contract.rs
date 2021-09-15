@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo,
-    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    Reply, ReplyOn, Response, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -25,6 +25,7 @@ pub fn instantiate(
         staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
         astro_token_contract: deps.api.addr_validate(&msg.astro_token_contract)?,
     };
+
     CONFIG.save(deps.storage, &cfg)?;
     Ok(Response::default())
 }
@@ -50,30 +51,29 @@ pub fn convert_multiple(
     mut asset_infos: Vec<[AssetInfo; 2]>,
     assert_empty_state: bool,
 ) -> Result<Response, ContractError> {
-    // On first run state should be empty
     if assert_empty_state {
-        let exists = CONVERT_MULTIPLE.load(deps.storage)?;
+        let exists = CONVERT_MULTIPLE.load(deps.storage).unwrap_or_default();
         if exists.is_some() {
-            Err(ContractError::RepetitiveReply {})
+            return Err(ContractError::RepetitiveReply {});
         }
     }
 
     // Pop first item from asset_infos to convert
     let asset_to_convert = asset_infos.swap_remove(0);
 
-    CONVERT_MULTIPLE.save(
-        deps.storage,
-        if asset_infos.len() > 0 {
-            &Some(ExecuteOnReply { asset_infos })
-        } else {
-            None
-        },
-    )?;
+    if asset_infos.len() > 0 {
+        let asset_to_store = Some(ExecuteOnReply {
+            asset_infos: asset_infos.clone(),
+        });
+
+        CONVERT_MULTIPLE.save(deps.storage, &asset_to_store)?;
+    } else {
+        CONVERT_MULTIPLE.remove(deps.storage);
+    };
 
     let mut resp = convert(deps, env, asset_to_convert)?;
-
-    if asset_infos.len() > 0 {
-        resp.messages.push(SubMsg::reply_on_success(msg, 0)); // MAYBE WE CAN ADD HERE?
+    if asset_infos.len() > 0 && resp.messages.len() > 0 {
+        resp.messages.last_mut().unwrap().reply_on = ReplyOn::Success;
     }
 
     Ok(resp)
@@ -83,7 +83,7 @@ pub fn convert_multiple(
 pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
     let asset_infos = CONVERT_MULTIPLE.load(deps.storage)?;
     if asset_infos.is_none() {
-        Ok(Response::new())
+        return Ok(Response::new());
     }
 
     convert_multiple(deps, env, asset_infos.unwrap().asset_infos, false)
