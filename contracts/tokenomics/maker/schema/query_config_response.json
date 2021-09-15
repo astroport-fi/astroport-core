@@ -1,12 +1,24 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "QueryAddressResponse",
+  "title": "QueryConfigResponse",
   "type": "object",
   "required": [
-    "address"
+    "astro_token_contract",
+    "factory_contract",
+    "owner",
+    "staking_contract"
   ],
   "properties": {
-    "address": {
+    "astro_token_contract": {
+      "$ref": "#/definitions/Addr"
+    },
+    "factory_contract": {
+      "$ref": "#/definitions/Addr"
+    },
+    "owner": {
+      "$ref": "#/definitions/Addr"
+    },
+    "staking_contract": {
       "$ref": "#/definitions/Addr"
     }
   },

@@ -61,7 +61,7 @@ pub fn convert_multiple(
     // Pop first item from asset_infos to convert
     let asset_to_convert = asset_infos.swap_remove(0);
 
-    if asset_infos.len() > 0 {
+    if !asset_infos.is_empty() {
         let asset_to_store = Some(ExecuteOnReply {
             asset_infos: asset_infos.clone(),
         });
@@ -72,7 +72,7 @@ pub fn convert_multiple(
     };
 
     let mut resp = convert(deps, env, asset_to_convert)?;
-    if asset_infos.len() > 0 && resp.messages.len() > 0 {
+    if !asset_infos.is_empty() && !resp.messages.is_empty() {
         resp.messages.last_mut().unwrap().reply_on = ReplyOn::Success;
     }
 
@@ -108,7 +108,7 @@ fn convert(
     let balances = query_token_balance(
         &deps.querier,
         pair.liquidity_token.clone(),
-        env.contract.address.clone(),
+        env.contract.address,
     )
     .unwrap();
 
