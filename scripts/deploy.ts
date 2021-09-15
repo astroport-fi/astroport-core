@@ -39,6 +39,44 @@ async function main() {
         console.log(`Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...`)
         return
     }
+
+    /*************************************** Register Pairs Contract *****************************************/
+    console.log("Register Pairs Contract...")
+    let pairCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair.wasm')!)
+    deployConfig.pairConfig.code_id = pairCodeID;
+
+    let pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair.wasm')!)
+    deployConfig.pairStableConfig.code_id = pairStableCodeID;
+    console.log("Code Pair Contract: " + pairCodeID + " Code Stable Pair Contract: " + pairStableCodeID)
+
+    /*************************************** Deploy Factory Contract *****************************************/
+    console.log("Deploying Factory...")
+    const addressFactoryContract = await deployContract(
+        terra,
+        wallet,
+        join(ARTIFACTS_PATH, 'astroport_factory.wasm'),
+        {
+            "pair_configs": [deployConfig.pairConfig, deployConfig.pairStableConfig],
+            "token_code_id": process.env.CW20_CODE_ID,
+        },
+    )
+    console.log("Address Vesting Contract: " + addressFactoryContract)
+
+
+    /*************************************** Deploy Vesting Contract *****************************************/
+    // console.log("Deploying Vesting...")
+    // const addressVestingContract = await deployContract(
+    //     terra,
+    //     wallet,
+    //     join(ARTIFACTS_PATH, 'astroport_vesting.wasm'),
+    //     {
+    //         "owner": wallet.key.accAddress,
+    //         "token_addr": deployConfig.astroTokenContractAddress,
+    //         "genesis_time": Date.now()
+    //     },
+    // )
+    // console.log("Address Vesting Contract: " + addressVestingContract)
+
     console.log("FINISH")
 }
 

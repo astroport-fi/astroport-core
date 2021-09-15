@@ -5,6 +5,18 @@ export const testnet: Config = {
             deposit_token_addr: undefined,
         }
     },
+    pairConfig : {
+        code_id: 0,
+        pair_type:"xyk",
+        total_fee_bps: 0,
+        maker_fee_bps: 0,
+    },
+    pairStableConfig : {
+        code_id: 0,
+        pair_type: "stable",
+        total_fee_bps: 0,
+        maker_fee_bps: 0,
+    },
     astroTokenContractAddress: undefined,
 }
 
@@ -14,6 +26,18 @@ export const bombay: Config = {
             token_code_id: 1,
             deposit_token_addr: undefined,
         }
+    },
+    pairConfig : {
+        code_id: 0,
+        pair_type: "xyk",
+        total_fee_bps: 0,
+        maker_fee_bps: 0,
+    },
+    pairStableConfig : {
+        code_id: 0,
+        pair_type: "stable",
+        total_fee_bps: 0,
+        maker_fee_bps: 0,
     },
     astroTokenContractAddress: undefined,
 }
@@ -25,5 +49,17 @@ export const local: Config = {
             deposit_token_addr: undefined,
         }
     },
-    astroTokenContractAddress: 'terra1f7qkgxpd36k3750647czwz4wcftkt0tyd8krra'
+    pairConfig : {
+        code_id: 0,
+        pair_type: "xyk",
+        total_fee_bps: 0,
+        maker_fee_bps: 0,
+    },
+    pairStableConfig : {
+        code_id: 0,
+        pair_type: "stable",
+        total_fee_bps: 0,
+        maker_fee_bps: 0,
+    },
+    astroTokenContractAddress: 'terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v'
 }
