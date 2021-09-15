@@ -5,50 +5,30 @@
     {
       "type": "object",
       "required": [
-        "convert"
+        "collect"
       ],
       "properties": {
-        "convert": {
+        "collect": {
           "type": "object",
-          "required": [
-            "asset_infos"
-          ],
           "properties": {
-            "asset_infos": {
-              "type": "array",
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "type": [
+                "array",
+                "null"
+              ],
               "items": {
                 "$ref": "#/definitions/AssetInfo"
               },
               "maxItems": 2,
               "minItems": 2
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "convert_multiple"
-      ],
-      "properties": {
-        "convert_multiple": {
-          "type": "object",
-          "required": [
-            "asset_infos"
-          ],
-          "properties": {
-            "asset_infos": {
-              "type": "array",
-              "items": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/definitions/AssetInfo"
-                },
-                "maxItems": 2,
-                "minItems": 2
-              }
             }
           }
         }

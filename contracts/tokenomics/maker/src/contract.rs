@@ -1,16 +1,15 @@
-use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo,
-    Reply, ReplyOn, Response, StdResult, SubMsg, Uint128, WasmMsg,
-};
-use cw20::Cw20ExecuteMsg;
-
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryConfigResponse, QueryMsg};
-use crate::querier::{query_pair_info, query_pair_share, query_swap_amount};
-use crate::state::{Config, ExecuteOnReply, CONFIG, CONVERT_MULTIPLE};
+use crate::state::{Config, CONFIG};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::factory::PairsResponse;
 use astroport::pair::Cw20HookMsg;
-use astroport::querier::query_token_balance;
+use astroport::querier::{query_pair_info, query_pairs_info};
+use cosmwasm_std::{
+    entry_point, to_binary, Addr, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    ReplyOn, Response, StdResult, SubMsg, Uint128, WasmMsg,
+};
+use std::collections::HashMap;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -38,167 +37,77 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Convert { asset_infos } => convert(deps, env, asset_infos),
-        ExecuteMsg::ConvertMultiple { asset_infos } => {
-            convert_multiple(deps, env, asset_infos, true)
-        }
+        ExecuteMsg::Collect { start_after, limit } => collect(deps, env, start_after, limit),
     }
 }
 
-pub fn convert_multiple(
-    deps: DepsMut,
+fn collect(
+    mut deps: DepsMut,
     env: Env,
-    mut asset_infos: Vec<[AssetInfo; 2]>,
-    assert_empty_state: bool,
-) -> Result<Response, ContractError> {
-    if assert_empty_state {
-        let exists = CONVERT_MULTIPLE.load(deps.storage).unwrap_or_default();
-        if exists.is_some() {
-            return Err(ContractError::RepetitiveReply {});
-        }
-    }
-
-    // Pop first item from asset_infos to convert
-    let asset_to_convert = asset_infos.swap_remove(0);
-
-    if !asset_infos.is_empty() {
-        let asset_to_store = Some(ExecuteOnReply {
-            asset_infos: asset_infos.clone(),
-        });
-
-        CONVERT_MULTIPLE.save(deps.storage, &asset_to_store)?;
-    } else {
-        CONVERT_MULTIPLE.remove(deps.storage);
-    };
-
-    let mut resp = convert(deps, env, asset_to_convert)?;
-    if !asset_infos.is_empty() && !resp.messages.is_empty() {
-        resp.messages.last_mut().unwrap().reply_on = ReplyOn::Success;
-    }
-
-    Ok(resp)
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
-    let asset_infos = CONVERT_MULTIPLE.load(deps.storage)?;
-    if asset_infos.is_none() {
-        return Ok(Response::new());
-    }
-
-    convert_multiple(deps, env, asset_infos.unwrap().asset_infos, false)
-}
-
-fn convert(
-    deps: DepsMut,
-    env: Env,
-    asset_infos: [AssetInfo; 2],
+    start_after: Option<[AssetInfo; 2]>,
+    limit: Option<u32>,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
-    let mut response = Response::default();
 
-    // get pair lp token
-    let pair: PairInfo = query_pair_info(
+    let pairs_info: PairsResponse = query_pairs_info(
         &deps.querier,
-        cfg.factory_contract.to_string(),
-        &asset_infos,
+        cfg.factory_contract.clone(),
+        start_after,
+        limit,
     )?;
 
-    // check lp token balance for this contract address
-    let balances = query_token_balance(
-        &deps.querier,
-        pair.liquidity_token.clone(),
-        env.contract.address,
-    )
-    .unwrap();
+    let pairs_info: Vec<AssetInfo> = pairs_info
+        .pairs
+        .into_iter()
+        .map(|p| p.asset_infos)
+        .into_iter()
+        .flatten()
+        .collect();
 
-    // get simulation share for asset balances
-    let assets = query_pair_share(&deps.querier, pair.contract_addr.clone(), balances).unwrap();
+    let mut assets_map: HashMap<String, AssetInfo> = HashMap::new();
+    for p in pairs_info {
+        assets_map.insert(p.to_string(), p);
+    }
 
-    response.messages.push(SubMsg {
-        id: 0,
-        msg: CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: pair.liquidity_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: pair.contract_addr.to_string(),
-                amount: balances,
-                msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
-            })
-            .unwrap(),
-            funds: vec![],
-        }),
-        gas_limit: None,
-        reply_on: ReplyOn::Never,
-    });
+    let astro = AssetInfo::Token {
+        contract_addr: cfg.astro_token_contract.clone(),
+    };
 
-    // swap tokens to astro
-    let messages = convert_tokens(deps, cfg, assets.clone()).unwrap();
-    for msg in messages {
+    let mut response = Response::default();
+
+    for a in assets_map.into_values() {
+        // Get Balance
+        let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
+
+        let msg = if a.equal(&astro) {
+            // Transfer astro directly
+            let asset = Asset {
+                info: a,
+                amount: balance,
+            };
+
+            asset.into_msg(&deps.querier, cfg.staking_contract.clone())?
+        } else {
+            // Swap to astro and transfer to staking
+            swap(
+                deps.branch(),
+                cfg.clone(),
+                a,
+                astro.clone(),
+                balance,
+                cfg.staking_contract.clone(),
+            )?
+        };
+
         response.messages.push(SubMsg {
-            msg: CosmosMsg::Wasm(msg),
+            msg,
             id: 0,
             gas_limit: None,
             reply_on: ReplyOn::Never,
         });
     }
 
-    response.events.push(
-        Event::new("LogConvert").add_attribute("assets", format!("{}, {}", assets[0], assets[1])),
-    );
-
     Ok(response)
-}
-
-fn convert_tokens(mut deps: DepsMut, cfg: Config, assets: [Asset; 2]) -> StdResult<Vec<WasmMsg>> {
-    let astro = AssetInfo::Token {
-        contract_addr: cfg.astro_token_contract.clone(),
-    };
-
-    // Merge assets, in case both are same
-    let assets_reduced = if assets[0].info.equal(&assets[1].info) {
-        vec![Asset {
-            info: assets[0].info.clone(),
-            amount: assets[0].amount.checked_add(assets[1].amount)?,
-        }]
-    } else {
-        assets.to_vec()
-    };
-
-    let mut messages = vec![];
-
-    for a in assets_reduced {
-        let msgs = if a.info.equal(&astro) {
-            // Transfer astro directly
-            transfer_astro(&cfg, a.amount)
-        } else {
-            // Swap to astro and transfer to staking
-            swap(
-                deps.branch(),
-                cfg.clone(),
-                a.info,
-                astro.clone(),
-                a.amount,
-                cfg.staking_contract.clone(),
-            )
-        };
-
-        messages.extend(msgs.unwrap());
-    }
-
-    Ok(messages)
-}
-
-fn transfer_astro(cfg: &Config, amount: Uint128) -> StdResult<Vec<WasmMsg>> {
-    let messages = vec![WasmMsg::Execute {
-        contract_addr: cfg.astro_token_contract.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: cfg.staking_contract.to_string(),
-            amount,
-        })?,
-        funds: vec![],
-    }];
-
-    Ok(messages)
 }
 
 fn swap(
@@ -208,30 +117,20 @@ fn swap(
     to_token: AssetInfo,
     amount_in: Uint128,
     to: Addr,
-) -> StdResult<Vec<WasmMsg>> {
-    // Checks
+) -> StdResult<CosmosMsg> {
     let pair: PairInfo = query_pair_info(
         &deps.querier,
-        cfg.factory_contract.to_string(),
+        cfg.factory_contract,
         &[from_token.clone(), to_token],
     )?;
 
-    // Interactions
-    let amount_out = query_swap_amount(
-        &deps.querier,
-        pair.contract_addr.clone(),
-        from_token.clone(),
-        amount_in,
-    )
-    .unwrap();
-
-    let messages = if from_token.is_native_token() {
-        vec![WasmMsg::Execute {
+    let msg = if from_token.is_native_token() {
+        WasmMsg::Execute {
             contract_addr: pair.contract_addr.to_string(),
             msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
                 offer_asset: Asset {
                     info: from_token.clone(),
-                    amount: amount_out,
+                    amount: amount_in,
                 },
                 belief_price: None,
                 max_spread: None,
@@ -239,11 +138,11 @@ fn swap(
             })?,
             funds: vec![Coin {
                 denom: from_token.to_string(),
-                amount: amount_out,
+                amount: amount_in,
             }],
-        }]
+        }
     } else {
-        vec![WasmMsg::Execute {
+        WasmMsg::Execute {
             contract_addr: from_token.to_string(),
             msg: to_binary(&cw20::Cw20ExecuteMsg::Send {
                 contract: pair.contract_addr.to_string(),
@@ -257,10 +156,10 @@ fn swap(
             })
             .unwrap(),
             funds: vec![],
-        }]
+        }
     };
 
-    Ok(messages)
+    Ok(CosmosMsg::Wasm(msg))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

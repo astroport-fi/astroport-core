@@ -13,8 +13,10 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    Convert { asset_infos: [AssetInfo; 2] },
-    ConvertMultiple { asset_infos: Vec<[AssetInfo; 2]> },
+    Collect {
+        start_after: Option<[AssetInfo; 2]>,
+        limit: Option<u32>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

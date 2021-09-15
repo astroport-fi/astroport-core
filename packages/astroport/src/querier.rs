@@ -1,5 +1,5 @@
 use crate::asset::{Asset, AssetInfo, PairInfo};
-use crate::factory::QueryMsg as FactoryQueryMsg;
+use crate::factory::{PairsResponse, QueryMsg as FactoryQueryMsg};
 use crate::pair::{QueryMsg as PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
 
 use cosmwasm_std::{
@@ -68,6 +68,18 @@ pub fn query_pair_info(
         msg: to_binary(&FactoryQueryMsg::Pair {
             asset_infos: asset_infos.clone(),
         })?,
+    }))
+}
+
+pub fn query_pairs_info(
+    querier: &QuerierWrapper,
+    factory_contract: Addr,
+    start_after: Option<[AssetInfo; 2]>,
+    limit: Option<u32>,
+) -> StdResult<PairsResponse> {
+    querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: factory_contract.to_string(),
+        msg: to_binary(&FactoryQueryMsg::Pairs { start_after, limit })?,
     }))
 }
 
