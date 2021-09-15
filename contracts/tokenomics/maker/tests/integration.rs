@@ -448,12 +448,14 @@ fn convert_token_astro_token_usdc() {
         Uint128::zero(),
     );
     let msg = ExecuteMsg::Convert {
-        token1: AssetInfo::Token {
-            contract_addr: astro_token_instance.clone(),
-        },
-        token2: AssetInfo::Token {
-            contract_addr: usdc_instance.clone(),
-        },
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: astro_token_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: usdc_instance.clone(),
+            },
+        ],
     };
     let _res = router
         .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
@@ -500,12 +502,14 @@ fn convert_token_pair_not_exist() {
         "USDC".to_string(),
     );
     let msg = ExecuteMsg::Convert {
-        token2: AssetInfo::Token {
-            contract_addr: astro_token_instance.clone(),
-        },
-        token1: AssetInfo::Token {
-            contract_addr: usdc_instance.clone(),
-        },
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: astro_token_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: usdc_instance.clone(),
+            },
+        ],
     };
     let res = router.execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[]);
 
@@ -572,12 +576,14 @@ fn convert_token_astro_token_usdc_2() {
         Uint128::zero(),
     );
     let msg = ExecuteMsg::Convert {
-        token2: AssetInfo::Token {
-            contract_addr: astro_token_instance.clone(),
-        },
-        token1: AssetInfo::Token {
-            contract_addr: usdc_instance.clone(),
-        },
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: astro_token_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: usdc_instance.clone(),
+            },
+        ],
     };
     let _res = router
         .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
@@ -753,12 +759,14 @@ fn convert_token_astro_native_token_uusd() {
     );
 
     let msg = ExecuteMsg::Convert {
-        token1: AssetInfo::Token {
-            contract_addr: astro_token_instance.clone(),
-        },
-        token2: AssetInfo::NativeToken {
-            denom: "uusd".to_string(),
-        },
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: astro_token_instance.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+        ],
     };
     let _res = router
         .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
@@ -843,12 +851,14 @@ fn convert_token_luna_token_astro() {
     );
 
     let msg = ExecuteMsg::Convert {
-        token1: AssetInfo::Token {
-            contract_addr: astro_token_instance.clone(),
-        },
-        token2: AssetInfo::Token {
-            contract_addr: luna_token_instance.clone(),
-        },
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: astro_token_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: luna_token_instance.clone(),
+            },
+        ],
     };
 
     let _res = router
@@ -959,12 +969,14 @@ fn convert_token_usdc_token_luna() {
     );
 
     let msg = ExecuteMsg::Convert {
-        token1: AssetInfo::Token {
-            contract_addr: usdc_token_instance.clone(),
-        },
-        token2: AssetInfo::Token {
-            contract_addr: luna_token_instance.clone(),
-        },
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: usdc_token_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: luna_token_instance.clone(),
+            },
+        ],
     };
 
     let _res = router
@@ -1114,28 +1126,31 @@ fn convert_multiple() {
     );
 
     let msg = ExecuteMsg::ConvertMultiple {
-        token1: vec![
-            AssetInfo::Token {
-                contract_addr: usdc_token_instance.clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: usdc_token_instance.clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: luna_token_instance.clone(),
-            },
-        ],
-
-        token2: vec![
-            AssetInfo::Token {
-                contract_addr: luna_token_instance.clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: astro_token_instance.clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: astro_token_instance.clone(),
-            },
+        asset_infos: vec![
+            [
+                AssetInfo::Token {
+                    contract_addr: usdc_token_instance.clone(),
+                },
+                AssetInfo::Token {
+                    contract_addr: luna_token_instance.clone(),
+                },
+            ],
+            [
+                AssetInfo::Token {
+                    contract_addr: usdc_token_instance.clone(),
+                },
+                AssetInfo::Token {
+                    contract_addr: astro_token_instance.clone(),
+                },
+            ],
+            [
+                AssetInfo::Token {
+                    contract_addr: luna_token_instance.clone(),
+                },
+                AssetInfo::Token {
+                    contract_addr: astro_token_instance.clone(),
+                },
+            ],
         ],
     };
 
@@ -1306,33 +1321,37 @@ fn convert_multiple2() {
     //t2-a, t1-t2, t1-a = 5987992029990 | 60
 
     let msg = ExecuteMsg::ConvertMultiple {
-        token1: vec![
-            AssetInfo::Token {
-                //t1
-                contract_addr: usdc_token_instance.clone(),
-            },
-            AssetInfo::Token {
-                //t2
-                contract_addr: luna_token_instance.clone(),
-            },
-            AssetInfo::Token {
-                //t1
-                contract_addr: usdc_token_instance.clone(),
-            },
-        ],
-        token2: vec![
-            AssetInfo::Token {
-                //t2
-                contract_addr: luna_token_instance.clone(),
-            },
-            AssetInfo::Token {
-                //a
-                contract_addr: astro_token_instance.clone(),
-            },
-            AssetInfo::Token {
-                //a
-                contract_addr: astro_token_instance.clone(),
-            },
+        asset_infos: vec![
+            [
+                AssetInfo::Token {
+                    //t1
+                    contract_addr: usdc_token_instance.clone(),
+                },
+                AssetInfo::Token {
+                    //t2
+                    contract_addr: luna_token_instance.clone(),
+                },
+            ],
+            [
+                AssetInfo::Token {
+                    //t2
+                    contract_addr: luna_token_instance.clone(),
+                },
+                AssetInfo::Token {
+                    //a
+                    contract_addr: astro_token_instance.clone(),
+                },
+            ],
+            [
+                AssetInfo::Token {
+                    //t1
+                    contract_addr: usdc_token_instance.clone(),
+                },
+                AssetInfo::Token {
+                    //a
+                    contract_addr: astro_token_instance.clone(),
+                },
+            ],
         ],
     };
 
@@ -1472,28 +1491,34 @@ fn try_calc() {
     );
 
     let msg_t1_t2 = ExecuteMsg::Convert {
-        token1: AssetInfo::Token {
-            contract_addr: usdc_token_instance.clone(),
-        },
-        token2: AssetInfo::Token {
-            contract_addr: luna_token_instance.clone(),
-        },
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: usdc_token_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: luna_token_instance.clone(),
+            },
+        ],
     };
     let msg_t1_a = ExecuteMsg::Convert {
-        token1: AssetInfo::Token {
-            contract_addr: usdc_token_instance.clone(),
-        },
-        token2: AssetInfo::Token {
-            contract_addr: astro_token_instance.clone(),
-        },
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: usdc_token_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: astro_token_instance.clone(),
+            },
+        ],
     };
     let msg_t2_a = ExecuteMsg::Convert {
-        token1: AssetInfo::Token {
-            contract_addr: luna_token_instance.clone(),
-        },
-        token2: AssetInfo::Token {
-            contract_addr: astro_token_instance.clone(),
-        },
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: luna_token_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: astro_token_instance.clone(),
+            },
+        ],
     };
 
     balance_info(

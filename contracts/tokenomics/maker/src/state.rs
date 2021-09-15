@@ -14,9 +14,8 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, JsonSchema)]
 pub struct ExecuteOnReply {
-    pub token0: Vec<AssetInfo>,
-    pub token1: Vec<AssetInfo>,
+    pub asset_infos: Vec<[AssetInfo; 2]>,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const CONVERT_MULTIPLE: Item<ExecuteOnReply> = Item::new("convert_multiple");
+pub const CONVERT_MULTIPLE: Item<Option<ExecuteOnReply>> = Item::new("convert_multiple");

@@ -11,15 +11,16 @@
         "convert": {
           "type": "object",
           "required": [
-            "token1",
-            "token2"
+            "asset_infos"
           ],
           "properties": {
-            "token1": {
-              "$ref": "#/definitions/AssetInfo"
-            },
-            "token2": {
-              "$ref": "#/definitions/AssetInfo"
+            "asset_infos": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/AssetInfo"
+              },
+              "maxItems": 2,
+              "minItems": 2
             }
           }
         }
@@ -35,20 +36,18 @@
         "convert_multiple": {
           "type": "object",
           "required": [
-            "token1",
-            "token2"
+            "asset_infos"
           ],
           "properties": {
-            "token1": {
+            "asset_infos": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/AssetInfo"
-              }
-            },
-            "token2": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/AssetInfo"
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/AssetInfo"
+                },
+                "maxItems": 2,
+                "minItems": 2
               }
             }
           }
