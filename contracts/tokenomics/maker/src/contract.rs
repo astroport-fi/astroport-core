@@ -78,33 +78,34 @@ fn collect(
     for a in assets_map.into_values() {
         // Get Balance
         let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
+        if !balance.is_zero() {
+            let msg = if a.equal(&astro) {
+                // Transfer astro directly
+                let asset = Asset {
+                    info: a,
+                    amount: balance,
+                };
 
-        let msg = if a.equal(&astro) {
-            // Transfer astro directly
-            let asset = Asset {
-                info: a,
-                amount: balance,
+                asset.into_msg(&deps.querier, cfg.staking_contract.clone())?
+            } else {
+                // Swap to astro and transfer to staking
+                swap(
+                    deps.branch(),
+                    cfg.clone(),
+                    a,
+                    astro.clone(),
+                    balance,
+                    cfg.staking_contract.clone(),
+                )?
             };
 
-            asset.into_msg(&deps.querier, cfg.staking_contract.clone())?
-        } else {
-            // Swap to astro and transfer to staking
-            swap(
-                deps.branch(),
-                cfg.clone(),
-                a,
-                astro.clone(),
-                balance,
-                cfg.staking_contract.clone(),
-            )?
-        };
-
-        response.messages.push(SubMsg {
-            msg,
-            id: 0,
-            gas_limit: None,
-            reply_on: ReplyOn::Never,
-        });
+            response.messages.push(SubMsg {
+                msg,
+                id: 0,
+                gas_limit: None,
+                reply_on: ReplyOn::Never,
+            });
+        }
     }
 
     Ok(response)
@@ -117,12 +118,13 @@ fn swap(
     to_token: AssetInfo,
     amount_in: Uint128,
     to: Addr,
-) -> StdResult<CosmosMsg> {
+) -> Result<CosmosMsg, ContractError> {
     let pair: PairInfo = query_pair_info(
         &deps.querier,
         cfg.factory_contract,
-        &[from_token.clone(), to_token],
-    )?;
+        &[from_token.clone(), to_token.clone()],
+    )
+    .map_err(|_| ContractError::PairNotFound(from_token.clone(), to_token.clone()))?;
 
     let msg = if from_token.is_native_token() {
         WasmMsg::Execute {

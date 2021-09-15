@@ -1,3 +1,4 @@
+use astroport::asset::AssetInfo;
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
@@ -17,4 +18,7 @@ pub enum ContractError {
 
     #[error("Repetitive reply definition")]
     RepetitiveReply {},
+
+    #[error("Cannot swap {0} to {1}. Pair not found in factory")]
+    PairNotFound(AssetInfo, AssetInfo),
 }
