@@ -33,28 +33,21 @@ pub fn instantiate(
 pub fn execute(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Convert { asset_infos } => convert(deps, env, asset_infos),
 
-        ExecuteMsg::ConvertMultiple { asset_infos } => {
-            convert_multiple(deps, env, info.sender, asset_infos)
-        }
+        ExecuteMsg::ConvertMultiple { asset_infos } => convert_multiple(deps, env, asset_infos),
     }
 }
 
 pub fn convert_multiple(
     deps: DepsMut,
     env: Env,
-    sender: Addr,
     asset_infos: Vec<[AssetInfo; 2]>,
 ) -> Result<Response, ContractError> {
-    if sender != env.contract.address {
-        return Err(ContractError::Unauthorized {});
-    }
-
     let mut convert_assets = CONVERT_MULTIPLE.load(deps.storage).unwrap_or_default();
     if convert_assets.asset_infos.len() == 1 {
         let asset_to_convert = convert_assets.asset_infos.swap_remove(0);
@@ -89,12 +82,7 @@ fn convert_and_execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
     let convert_assets = CONVERT_MULTIPLE.load(deps.storage)?;
-    convert_multiple(
-        deps,
-        env.clone(),
-        env.contract.address,
-        convert_assets.asset_infos,
-    )
+    convert_multiple(deps, env, convert_assets.asset_infos)
 }
 
 fn convert(
@@ -116,7 +104,7 @@ fn convert(
     let balances = query_token_balance(
         &deps.querier,
         pair.liquidity_token.clone(),
-        env.contract.address.clone(),
+        env.contract.address,
     )
     .unwrap();
 
