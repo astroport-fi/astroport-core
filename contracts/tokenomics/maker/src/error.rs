@@ -22,6 +22,6 @@ pub enum ContractError {
     #[error("Cannot swap {0} to {1}. Pair not found in factory")]
     PairNotFound(AssetInfo, AssetInfo),
 
-    #[error("Incorrent governance percent of its share")]
+    #[error("Incorrect governance percent of its share")]
     IncorrectGovernancePercent {},
 }
