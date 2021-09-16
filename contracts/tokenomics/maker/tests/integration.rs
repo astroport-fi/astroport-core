@@ -7,7 +7,8 @@ use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use astroport::factory::{PairConfig, PairType};
-use maker::msg::{ExecuteMsg, InstantiateMsg};
+use maker::msg::QueryMsg::Balances;
+use maker::msg::{ExecuteMsg, InstantiateMsg, QueryBalancesResponse};
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -462,16 +463,65 @@ fn collect_all() {
             &maker_instance,
             vec![
                 Coin {
-                    denom: uusd_asset,
+                    denom: uusd_asset.clone(),
                     amount: Uint128::new(100),
                 },
                 Coin {
-                    denom: uluna_asset,
+                    denom: uluna_asset.clone(),
                     amount: Uint128::new(110),
                 },
             ],
         )
         .unwrap();
+
+    let balances_resp: QueryBalancesResponse = router
+        .wrap()
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: maker_instance.to_string(),
+            msg: to_binary(&Balances {}).unwrap(),
+        }))
+        .unwrap();
+
+    for b in vec![
+        Asset {
+            info: AssetInfo::NativeToken {
+                denom: uusd_asset.clone(),
+            },
+            amount: Uint128::new(100),
+        },
+        Asset {
+            info: AssetInfo::NativeToken {
+                denom: uluna_asset.clone(),
+            },
+            amount: Uint128::new(110),
+        },
+        Asset {
+            info: AssetInfo::Token {
+                contract_addr: astro_token_instance.clone(),
+            },
+            amount: Uint128::new(10),
+        },
+        Asset {
+            info: AssetInfo::Token {
+                contract_addr: usdc_token_instance.clone(),
+            },
+            amount: Uint128::new(20),
+        },
+        Asset {
+            info: AssetInfo::Token {
+                contract_addr: luna_token_instance.clone(),
+            },
+            amount: Uint128::new(30),
+        },
+    ] {
+        let found = balances_resp
+            .balances
+            .iter()
+            .find(|n| n.info.equal(&b.info))
+            .unwrap();
+
+        assert_eq!(found, &b);
+    }
 
     let msg = ExecuteMsg::Collect {
         start_after: None,

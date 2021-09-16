@@ -1,4 +1,4 @@
-use astroport::asset::AssetInfo;
+use astroport::asset::{Asset, AssetInfo};
 use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -23,6 +23,7 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
+    Balances {},
 }
 
 // We define a custom struct for each query response
@@ -32,4 +33,10 @@ pub struct QueryConfigResponse {
     pub factory_contract: Addr,
     pub staking_contract: Addr,
     pub astro_token_contract: Addr,
+}
+
+// We define a custom struct for each query response
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct QueryBalancesResponse {
+    pub balances: Vec<Asset>,
 }
