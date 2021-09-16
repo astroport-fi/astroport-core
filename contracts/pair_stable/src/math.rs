@@ -1,38 +1,11 @@
-use cosmwasm_std::{Decimal, StdResult, Uint128};
 use std::convert::TryFrom;
 
-use uint::construct_uint;
-
-construct_uint! {
-    pub struct U256(4);
-}
-
-/////////////////////////////////////////////////////////////
-const DECIMAL_FRACTIONAL: Uint128 = Uint128::new(1_000_000_000u128);
+use astroport::U256;
 
 pub const AMP: u64 = 100;
 const N_COINS: u8 = 2;
 const N_COINS_SQUARED: u8 = 4;
 const ITERATIONS: u8 = 32;
-
-pub fn reverse_decimal(decimal: Decimal) -> Decimal {
-    if decimal.is_zero() {
-        return Decimal::zero();
-    }
-
-    Decimal::from_ratio(DECIMAL_FRACTIONAL, decimal * DECIMAL_FRACTIONAL)
-}
-
-pub fn decimal_subtraction(a: Decimal, b: Decimal) -> StdResult<Decimal> {
-    Ok(Decimal::from_ratio(
-        (a * DECIMAL_FRACTIONAL).checked_sub(b * DECIMAL_FRACTIONAL)?,
-        DECIMAL_FRACTIONAL,
-    ))
-}
-
-pub fn decimal_multiplication(a: Decimal, b: Decimal) -> Decimal {
-    Decimal::from_ratio(a * DECIMAL_FRACTIONAL * b, DECIMAL_FRACTIONAL)
-}
 
 pub fn calc_amount(balance_in: u128, balance_out: u128, amount_in: u128, amp: u64) -> Option<u128> {
     let leverage = amp.checked_mul(u64::from(N_COINS)).unwrap();

@@ -53,9 +53,9 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
         .unwrap();
 
     let staking_contract = Box::new(ContractWrapper::new(
-        crate::contract::execute,
-        crate::contract::instantiate,
-        crate::contract::query,
+        astroport_staking::contract::execute,
+        astroport_staking::contract::instantiate,
+        astroport_staking::contract::query,
     ));
     let staking_code_id = router.store_code(staking_contract);
 
@@ -148,7 +148,7 @@ fn should_not_allow_enter_if_not_enough_approve() {
     let res = router
         .execute_contract(alice_address.clone(), staking_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(res, "No allowance for this account");
+    assert_eq!(res.to_string(), "No allowance for this account");
 
     // increase Alice's allowance to 50 ASTRO for staking contract
     let msg = Cw20ExecuteMsg::IncreaseAllowance {
@@ -188,7 +188,7 @@ fn should_not_allow_enter_if_not_enough_approve() {
     let res = router
         .execute_contract(alice_address.clone(), staking_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(res, "Overflow: Cannot Sub with 50 and 100");
+    assert_eq!(res.to_string(), "Overflow: Cannot Sub with 50 and 100");
 
     // increase Alice's allowance to 100 ASTRO for staking contract
     let msg = Cw20ExecuteMsg::IncreaseAllowance {
@@ -343,7 +343,7 @@ fn should_not_allow_withraw_more_than_what_you_have() {
     let res = router
         .execute_contract(alice_address.clone(), staking_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(res, "Overflow: Cannot Sub with 100 and 200");
+    assert_eq!(res.to_string(), "Overflow: Cannot Sub with 100 and 200");
 }
 
 #[test]
