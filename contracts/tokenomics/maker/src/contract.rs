@@ -1,12 +1,14 @@
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryConfigResponse, QueryMsg};
+use crate::msg::{
+    ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
+};
 use crate::state::{Config, CONFIG};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::PairsResponse;
 use astroport::pair::{Cw20HookMsg, SimulationResponse};
 use astroport::querier::{query_pair_info, query_pairs_info};
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo, Response,
+    entry_point, to_binary, Addr, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo, Response,
     StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use std::collections::HashMap;
@@ -56,33 +58,20 @@ fn collect(
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
-    let pairs_info: PairsResponse = query_pairs_info(
-        &deps.querier,
-        cfg.factory_contract.clone(),
-        start_after,
-        limit,
-    )?;
-
-    let pairs_info: Vec<AssetInfo> = pairs_info
-        .pairs
-        .into_iter()
-        .map(|p| p.asset_infos)
-        .into_iter()
-        .flatten()
-        .collect();
-
-    let mut assets_map: HashMap<String, AssetInfo> = HashMap::new();
-    for p in pairs_info {
-        assets_map.insert(p.to_string(), p);
-    }
-
     let astro = AssetInfo::Token {
         contract_addr: cfg.astro_token_contract.clone(),
     };
 
     let mut response = Response::default();
 
-    for a in assets_map.into_values() {
+    let assets = get_assets_from_factory(
+        deps.as_ref(),
+        cfg.factory_contract.clone(),
+        start_after,
+        limit,
+    )?;
+
+    for a in assets {
         // Get Balance
         let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
         if !balance.is_zero() {
@@ -222,9 +211,10 @@ fn set_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_get_config(deps)?),
+        QueryMsg::Balances {} => to_binary(&query_get_balances(deps, env)?),
     }
 }
 
@@ -238,4 +228,43 @@ fn query_get_config(deps: Deps) -> StdResult<QueryConfigResponse> {
         governance_percent: config.governance_percent,
         astro_token_contract: config.astro_token_contract,
     })
+}
+
+fn query_get_balances(deps: Deps, env: Env) -> StdResult<QueryBalancesResponse> {
+    let cfg = CONFIG.load(deps.storage)?;
+
+    let mut resp = QueryBalancesResponse { balances: vec![] };
+
+    let assets = get_assets_from_factory(deps, cfg.factory_contract, None, None)?;
+    for a in assets {
+        // Get Balance
+        let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
+        if !balance.is_zero() {
+            resp.balances.push(Asset {
+                info: a,
+                amount: balance,
+            })
+        }
+    }
+
+    Ok(resp)
+}
+
+fn get_assets_from_factory(
+    deps: Deps,
+    factory_contract: Addr,
+    start_after: Option<[AssetInfo; 2]>,
+    limit: Option<u32>,
+) -> StdResult<Vec<AssetInfo>> {
+    let pairs_info: PairsResponse =
+        query_pairs_info(&deps.querier, factory_contract, start_after, limit)?;
+
+    // Deduplicate assets
+    let mut assets_map: HashMap<String, AssetInfo> = HashMap::new();
+    for pair in pairs_info.pairs {
+        assets_map.insert(pair.asset_infos[0].to_string(), pair.asset_infos[0].clone());
+        assets_map.insert(pair.asset_infos[1].to_string(), pair.asset_infos[1].clone());
+    }
+
+    Ok(assets_map.values().cloned().collect())
 }

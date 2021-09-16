@@ -13,6 +13,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "balances"
+      ],
+      "properties": {
+        "balances": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }
