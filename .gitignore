@@ -16,7 +16,7 @@ target/
 .cargo-ok
 /scripts/.env
 /scripts/node_modules/
-/scripts/package-lock.json
+#/scripts/package-lock.json
 /artifacts/
 /contracts/factory/schema/
 /contracts/pair/schema/

@@ -16,9 +16,16 @@ interface FactoryInitMsg{
     }
 }
 
+type PairType = {
+    xyk:{}
+} | {
+    stable: {}
+}
+
+
 interface PairConfig{
     code_id: number,
-    pair_type: string,
+    pair_type: PairType,
     total_fee_bps: number,
     maker_fee_bps: number
 }

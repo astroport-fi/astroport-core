@@ -42,7 +42,7 @@ export class TransactionError extends CustomError {
 }
 
 export async function createTransaction(wallet: Wallet, msg: Msg) {
-    return await wallet.createTx({ msgs: [msg] })
+    return await wallet.createTx({ msgs: [msg]})
 }
 
 export async function broadcastTransaction(terra: LCDClient, signedTx: StdTx) {

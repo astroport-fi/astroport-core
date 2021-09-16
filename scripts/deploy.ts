@@ -12,7 +12,7 @@ import { LCDClient, LocalTerra, Wallet } from "@terra-money/terra.js"
 import {testnet, local} from './deploy_configs.js';
 import { join } from "path"
 
-const ARTIFACTS_PATH = "../artifacts"
+const ARTIFACTS_PATH = "../artifacts/"
 
 async function main() {
     let terra: LCDClient | LocalTerra
@@ -43,39 +43,109 @@ async function main() {
     /*************************************** Register Pairs Contract *****************************************/
     console.log("Register Pairs Contract...")
     let pairCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair.wasm')!)
-    deployConfig.pairConfig.code_id = pairCodeID;
-
-    let pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair.wasm')!)
-    deployConfig.pairStableConfig.code_id = pairStableCodeID;
+    // deployConfig.pairConfig.code_id = pairCodeID
+    //
+    let pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable.wasm')!)
+    // deployConfig.pairStableConfig.code_id = pairStableCodeID
     console.log("Code Pair Contract: " + pairCodeID + " Code Stable Pair Contract: " + pairStableCodeID)
 
     /*************************************** Deploy Factory Contract *****************************************/
-    console.log("Deploying Factory...")
-    const addressFactoryContract = await deployContract(
-        terra,
-        wallet,
-        join(ARTIFACTS_PATH, 'astroport_factory.wasm'),
-        {
-            "pair_configs": [deployConfig.pairConfig, deployConfig.pairStableConfig],
-            "token_code_id": process.env.CW20_CODE_ID,
-        },
-    )
-    console.log("Address Vesting Contract: " + addressFactoryContract)
-
-
-    /*************************************** Deploy Vesting Contract *****************************************/
-    // console.log("Deploying Vesting...")
-    // const addressVestingContract = await deployContract(
+    // console.log("Deploying Factory...")
+    // let CodeID = await uploadContract(terra, wallet, "../artifacts/astroport_factory.wasm"!)
+    // console.log(CodeID)
+    // const INIT_MSG = {
+    //     pair_configs: [
+    //         {
+    //             code_id: String(pairCodeID),
+    //             pair_type: {xyk:{}},
+    //             total_fee_bps: String(0),
+    //             maker_fee_bps: String(0),
+    //         },
+    //         {
+    //             code_id: String(pairStableCodeID),
+    //             pair_type: {stable:{}},
+    //             total_fee_bps: String(0),
+    //             maker_fee_bps: String(0),
+    //         }
+    //     ],
+    //     token_code_id: String(process.env.CW20_CODE_ID),
+    //     init_hook: undefined,
+    //     fee_address: undefined,
+    // }
+    // const addressFactoryContract = await instantiateContract(terra, wallet, CodeID, INIT_MSG)
+    const addressFactoryContract = deployConfig.astroTokenContractAddress;
+    // const addressFactoryContract = await deployContract(
     //     terra,
     //     wallet,
-    //     join(ARTIFACTS_PATH, 'astroport_vesting.wasm'),
+    //     join(ARTIFACTS_PATH, 'astroport_factory.wasm'),
     //     {
-    //         "owner": wallet.key.accAddress,
-    //         "token_addr": deployConfig.astroTokenContractAddress,
-    //         "genesis_time": Date.now()
+    //         pair_configs: [{
+    //             code_id: String(pairCodeID),
+    //             pair_type: { xyk: {} },
+    //             total_fee_bps: String(0),
+    //             maker_fee_bps: String(0),
+    //         } ],
+    //         token_code_id: String(process.env.CW20_CODE_ID),
+    //         fee_address: undefined,
+    //         init_hook: undefined,
     //     },
     // )
-    // console.log("Address Vesting Contract: " + addressVestingContract)
+    console.log("Address Factory Contract: " + addressFactoryContract)
+
+    // /*************************************** Deploy Router Contract *****************************************/
+    console.log("Deploying Router...")
+    const addressRouterContract = await deployContract(
+        terra,
+        wallet,
+        join(ARTIFACTS_PATH, 'astroport_router.wasm'),
+        {
+            astroport_factory: addressFactoryContract,
+        },
+    )
+    console.log("Address Vesting Contract: " + addressRouterContract)
+    /*************************************** Deploy Vesting Contract *****************************************/
+    console.log("Deploying Vesting...")
+    const addressVestingContract = await deployContract(
+        terra,
+        wallet,
+        join(ARTIFACTS_PATH, 'astroport_vesting.wasm'),
+        {
+            owner: wallet.key.accAddress,
+            token_addr: deployConfig.astroTokenContractAddress,
+            genesis_time: String(Date.now())
+        },
+    )
+    console.log("Address Vesting Contract: " + addressVestingContract)
+
+    /*************************************** Deploy Staking Contract *****************************************/
+    console.log("Deploying Staking...")
+    const addressStakingContract = await deployContract(
+        terra,
+        wallet,
+        join(ARTIFACTS_PATH, 'astroport_staking.wasm'),
+        {
+            token_code_id: String(process.env.CW20_CODE_ID),
+            deposit_token_addr: deployConfig.astroTokenContractAddress,
+        },
+    )
+    console.log("Address Staking Contract: " + addressStakingContract)
+
+
+    /*************************************** Deploy Gauge Contract *****************************************/
+    console.log("Deploying Gauge...")
+    const addressGaugeContract = await deployContract(
+        terra,
+        wallet,
+        join(ARTIFACTS_PATH, 'astroport_gauge.wasm'),
+        {
+            token: deployConfig.astroTokenContractAddress,
+            dev_addr: wallet.key.accAddress,
+            tokens_per_block: String(100),
+            start_block: String(100000),
+            bonus_end_block: String(500000),
+        }
+    )
+    console.log("Address Gauge Contract: " + addressGaugeContract)
 
     console.log("FINISH")
 }
