@@ -44,7 +44,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-vm",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "schemars",
  "serde",
  "thiserror",
@@ -56,7 +56,7 @@ version = "0.1.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "cw20",
  "schemars",
  "serde",
@@ -74,7 +74,7 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-vm",
  "cw-multi-test",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "cw20",
  "integer-sqrt",
  "schemars",
@@ -94,7 +94,7 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-vm",
  "cw-multi-test",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "cw20",
  "integer-sqrt",
  "proptest",
@@ -112,7 +112,7 @@ dependencies = [
  "astroport",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "cw20",
  "integer-sqrt",
  "schemars",
@@ -130,7 +130,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "cw2",
  "cw20",
  "schemars",
@@ -160,7 +160,7 @@ dependencies = [
  "astroport",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "cw20",
  "schemars",
  "serde",
@@ -549,13 +549,23 @@ dependencies = [
  "anyhow",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.8.1",
+ "cw0 0.8.1",
  "itertools",
  "prost",
  "schemars",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "cw-storage-plus"
+version = "0.8.0"
+source = "git+https://github.com/astroport-fi/terra-plus.git#78241c00b1b88a9b8b48e622feac574866d96476"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
 ]
 
 [[package]]
@@ -567,6 +577,17 @@ dependencies = [
  "cosmwasm-std",
  "schemars",
  "serde",
+]
+
+[[package]]
+name = "cw0"
+version = "0.8.0"
+source = "git+https://github.com/astroport-fi/terra-plus.git#78241c00b1b88a9b8b48e622feac574866d96476"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -588,7 +609,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d48454f96494aa1018556cd457977375cc8c57ef3e5c767cfa2ea5ec24b0258"
 dependencies = [
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.1",
  "schemars",
  "serde",
 ]
@@ -600,7 +621,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a11a2adbd52258f5b4ed5323f62bc6e559f2cefbe52ef0e58290016fde5bb083"
 dependencies = [
  "cosmwasm-std",
- "cw0",
+ "cw0 0.8.1",
  "schemars",
  "serde",
 ]
@@ -612,8 +633,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe3791e0f6b4a0a82b86541d48dcc67c2d607da8e5691a91b40b2c06ddf09c52"
 dependencies = [
  "cosmwasm-std",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.8.1",
+ "cw0 0.8.1",
  "cw2",
  "cw20",
  "schemars",
@@ -1086,6 +1107,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b823e83b2affd8f40a9ee8c29dbc56404c1e34cd2710921f2801e2cf29527afa"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "maker"
+version = "0.1.0"
+dependencies = [
+ "astroport",
+ "astroport-factory",
+ "astroport-pair",
+ "astroport-token",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-multi-test",
+ "thiserror",
 ]
 
 [[package]]
@@ -1821,6 +1860,35 @@ dependencies = [
  "cosmwasm-std",
  "schemars",
  "serde",
+]
+
+[[package]]
+name = "terra-mocks"
+version = "0.0.0"
+source = "git+https://github.com/terra-money/cosmwasm-contracts.git?branch=bombay#55f1eeb5de5c10ca535a927764af029a266b6657"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
+name = "terra-multi-test"
+version = "0.8.0"
+source = "git+https://github.com/astroport-fi/terra-plus.git#78241c00b1b88a9b8b48e622feac574866d96476"
+dependencies = [
+ "anyhow",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus 0.8.0",
+ "cw0 0.8.0",
+ "itertools",
+ "prost",
+ "schemars",
+ "serde",
+ "terra-mocks",
+ "thiserror",
 ]
 
 [[package]]

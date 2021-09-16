@@ -396,16 +396,19 @@ pub fn get_share_in_assets(
     pools: &[Asset; 2],
     amount: Uint128,
     total_share: Uint128,
-) -> Vec<Asset> {
+) -> [Asset; 2] {
     let share_ratio: Decimal = Decimal::from_ratio(amount, total_share);
 
-    pools
-        .iter()
-        .map(|a| Asset {
-            info: a.info.clone(),
-            amount: a.amount * share_ratio,
-        })
-        .collect()
+    [
+        Asset {
+            info: pools[0].info.clone(),
+            amount: pools[0].amount * share_ratio,
+        },
+        Asset {
+            info: pools[1].info.clone(),
+            amount: pools[1].amount * share_ratio,
+        },
+    ]
 }
 // CONTRACT - a user must do token approval
 #[allow(clippy::too_many_arguments)]
@@ -611,7 +614,7 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
     Ok(resp)
 }
 
-pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
+pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<[Asset; 2]> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (pools, total_share) = pool_info(deps, config)?;
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
