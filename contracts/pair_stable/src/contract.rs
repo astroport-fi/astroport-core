@@ -395,13 +395,16 @@ pub fn get_share_in_assets(
 ) -> [Asset; 2] {
     let share_ratio: Decimal = Decimal::from_ratio(amount, total_share);
 
-    pools
-        .iter()
-        .map(|a| Asset {
-            info: a.info.clone(),
-            amount: a.amount * share_ratio,
-        })
-        .collect()
+    [
+        Asset {
+            info: pools[0].info.clone(),
+            amount: pools[0].amount * share_ratio,
+        },
+        Asset {
+            info: pools[1].info.clone(),
+            amount: pools[1].amount * share_ratio,
+        },
+    ]
 }
 // CONTRACT - a user must do token approval
 #[allow(clippy::too_many_arguments)]
