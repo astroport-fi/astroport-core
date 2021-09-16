@@ -25,18 +25,3 @@ pub enum QueryMsg {
     Config {},
     Balances {},
 }
-
-// We define a custom struct for each query response
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct QueryConfigResponse {
-    pub owner: Addr,
-    pub factory_contract: Addr,
-    pub staking_contract: Addr,
-    pub astro_token_contract: Addr,
-}
-
-// We define a custom struct for each query response
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct QueryBalancesResponse {
-    pub balances: Vec<Asset>,
-}

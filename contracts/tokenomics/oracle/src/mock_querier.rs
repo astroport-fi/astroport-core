@@ -106,7 +106,7 @@ impl NativeQuerier {
 
 pub struct AstroMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,
-    native_querier: NativeQuerier,
+    //native_querier: NativeQuerier,
 }
 
 impl Querier for AstroMockQuerier {
@@ -134,21 +134,21 @@ impl AstroMockQuerier {
         }
     }
 
-    pub fn set_native_exchange_rates(
-        &mut self,
-        base_denom: String,
-        exchange_rates: &[(String, Decimal)],
-    ) {
-        self.native_querier
-            .exchange_rates
-            .insert(base_denom, exchange_rates.iter().cloned().collect());
-    }
+    // pub fn set_native_exchange_rates(
+    //     &mut self,
+    //     base_denom: String,
+    //     exchange_rates: &[(String, Decimal)],
+    // ) {
+    //     self.native_querier
+    //         .exchange_rates
+    //         .insert(base_denom, exchange_rates.iter().cloned().collect());
+    // }
 
     pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
         match &request {
-            QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
-                self.native_querier.handle_query(route, query_data)
-            }
+            // QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
+            //     self.native_querier.handle_query(route, query_data)
+            // }
             _ => self.base.handle_query(request),
         }
     }

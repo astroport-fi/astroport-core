@@ -1,4 +1,4 @@
-use cosmwasm_std::{StdError};
+use cosmwasm_std::StdError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -8,4 +8,10 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
+
+    #[error("Period not elapsed")]
+    WrongPeriod {},
+
+    #[error("Invalid token")]
+    InvalidToken {},
 }
