@@ -10,7 +10,8 @@ use crate::state::{
 };
 use astroport::{
     gauge::{
-        ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse, PoolLengthResponse, QueryMsg,
+        ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse,
+        PoolLengthResponse, QueryMsg,
     },
     vesting::ExecuteMsg as VestingExecuteMsg,
 };
@@ -108,6 +109,7 @@ pub fn execute(
             lp_token,
             amount,
         } => before_send_orphan_rewards(deps, info, recipient, lp_token, amount),
+        ExecuteMsg::SetTokensPerBlock { amount } => set_tokens_per_block(deps, amount),
     }
 }
 
@@ -135,7 +137,7 @@ pub fn add(
         .transpose()?;
 
     if let Some(proxy) = &reward_proxy {
-        if !cfg.allowed_reward_proxies.contains(&proxy) {
+        if !cfg.allowed_reward_proxies.contains(proxy) {
             return Err(ContractError::RewardProxyNotAllowed {});
         }
     }
@@ -414,7 +416,7 @@ pub fn update_pool_rewards(
 
     if env.block.height > pool.last_reward_block.u64() {
         if !lp_supply.is_zero() {
-            let token_rewards = calculate_rewards(&env, &pool, &cfg)?;
+            let token_rewards = calculate_rewards(env, pool, cfg)?;
 
             let share = Decimal::from_ratio(token_rewards, lp_supply);
             pool.acc_per_share = pool.acc_per_share + share;
@@ -424,31 +426,6 @@ pub fn update_pool_rewards(
     }
 
     Ok(())
-}
-
-// generates safe transfer msg: min(amount, astro_token amount)
-fn safe_reward_transfer_message(
-    deps: Deps,
-    env: &Env,
-    cfg: &Config,
-    to: String,
-    amount: Uint128,
-) -> StdResult<WasmMsg> {
-    let astro_balance: BalanceResponse = deps.querier.query_wasm_smart(
-        cfg.astro_token.to_string(),
-        &cw20::Cw20QueryMsg::Balance {
-            address: env.contract.address.to_string(),
-        },
-    )?;
-
-    Ok(WasmMsg::Execute {
-        contract_addr: cfg.astro_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: to,
-            amount: amount.min(astro_balance.balance),
-        })?,
-        funds: vec![],
-    })
 }
 
 // Deposit LP tokens to MasterChef for ASTRO allocation.
@@ -473,15 +450,14 @@ pub fn deposit(
     if !user.amount.is_zero() {
         let pending = (user.amount * pool.acc_per_share).checked_sub(user.reward_debt)?;
         if !pending.is_zero() {
-            response
-                .messages
-                .push(SubMsg::new(safe_reward_transfer_message(
-                    deps.as_ref(),
-                    &env,
-                    &cfg,
-                    account.to_string(),
-                    pending,
-                )?));
+            response.messages.push(SubMsg::new(WasmMsg::Execute {
+                contract_addr: cfg.astro_token.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: account.to_string(),
+                    amount: pending,
+                })?,
+                funds: vec![],
+            }));
         }
         if let Some(proxy) = &pool.reward_proxy {
             let pending_on_proxy =
@@ -562,15 +538,14 @@ pub fn withdraw(
 
     let pending = (user.amount * pool.acc_per_share).checked_sub(user.reward_debt)?;
     if !pending.is_zero() {
-        response
-            .messages
-            .push(SubMsg::new(safe_reward_transfer_message(
-                deps.as_ref(),
-                &env,
-                &cfg,
-                account.to_string(),
-                pending,
-            )?));
+        response.messages.push(SubMsg::new(WasmMsg::Execute {
+            contract_addr: cfg.astro_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: account.to_string(),
+                amount: pending,
+            })?,
+            funds: vec![],
+        }));
     }
 
     if let Some(proxy) = &pool.reward_proxy {
@@ -830,6 +805,15 @@ fn send_orphan_rewards(
     Ok(response)
 }
 
+fn set_tokens_per_block(deps: DepsMut, amount: Uint128) -> Result<Response, ContractError> {
+    CONFIG.update::<_, ContractError>(deps.storage, |mut v| {
+        v.tokens_per_block = amount;
+        Ok(v)
+    })?;
+    Ok(Response::new()
+        .add_event(Event::new("Set tokens per block").add_attribute("amount", amount)))
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -838,6 +822,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::PendingToken { lp_token, user } => {
             to_binary(&pending_token(deps, env, lp_token, user)?)
         }
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
     }
 }
 
@@ -915,6 +900,20 @@ pub fn pending_token(
     Ok(PendingTokenResponse {
         pending,
         pending_on_proxy,
+    })
+}
+
+fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let config = CONFIG.load(deps.storage)?;
+
+    Ok(ConfigResponse {
+        allowed_reward_proxies: config.allowed_reward_proxies,
+        astro_token: config.astro_token,
+        owner: config.owner,
+        start_block: config.start_block,
+        tokens_per_block: config.tokens_per_block,
+        total_alloc_point: config.total_alloc_point,
+        vesting_contract: config.vesting_contract,
     })
 }
 

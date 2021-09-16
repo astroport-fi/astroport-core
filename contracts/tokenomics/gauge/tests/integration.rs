@@ -1,7 +1,7 @@
 use astroport::{
     gauge::{
-        ExecuteMsg as GaugeExecuteMsg, InstantiateMsg as GaugeInstantiateMsg, PendingTokenResponse,
-        QueryMsg as GaugeQueryMsg,
+        ConfigResponse, ExecuteMsg as GaugeExecuteMsg, InstantiateMsg as GaugeInstantiateMsg,
+        PendingTokenResponse, QueryMsg as GaugeQueryMsg,
     },
     token::InstantiateMsg as TokenInstantiateMsg,
     vesting::{
@@ -929,19 +929,19 @@ fn instantiate_gauge(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
         astroport_vesting::contract::instantiate,
         astroport_vesting::contract::query,
     ));
-
+    let owner = Addr::unchecked(OWNER);
     let vesting_code_id = app.store_code(vesting_contract);
 
     let init_msg = VestingInstantiateMsg {
         genesis_time: app.block_info().time,
-        owner: Addr::unchecked(OWNER),
+        owner: owner.clone(),
         token_addr: astro_token_instance.clone(),
     };
 
     let vesting_instance = app
         .instantiate_contract(
             vesting_code_id,
-            Addr::unchecked(OWNER),
+            owner.clone(),
             &init_msg,
             &[],
             "Vesting",
@@ -972,20 +972,25 @@ fn instantiate_gauge(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
         allowed_reward_proxies: vec![],
         start_block: Uint64::from(app.block_info().height),
         astro_token: astro_token_instance.to_string(),
-        tokens_per_block: Uint128::from(10_000000u128),
+        tokens_per_block: Uint128::from(0_000000u128),
         vesting_contract: vesting_instance.to_string(),
     };
 
     let gauge_instance = app
-        .instantiate_contract(
-            gauge_code_id,
-            Addr::unchecked(OWNER),
-            &init_msg,
-            &[],
-            "Guage",
-            None,
-        )
+        .instantiate_contract(gauge_code_id, owner.clone(), &init_msg, &[], "Guage", None)
         .unwrap();
+
+    let tokens_per_block = Uint128::new(10_000000);
+
+    let msg = GaugeExecuteMsg::SetTokensPerBlock {
+        amount: tokens_per_block,
+    };
+    app.execute_contract(owner.clone(), gauge_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = GaugeQueryMsg::Config {};
+    let res: ConfigResponse = app.wrap().query_wasm_smart(&gauge_instance, &msg).unwrap();
+    assert_eq!(res.tokens_per_block, tokens_per_block);
 
     // vesting to gauge:
 
@@ -1002,7 +1007,7 @@ fn instantiate_gauge(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
         }],
     };
 
-    app.execute_contract(Addr::unchecked(OWNER), vesting_instance, &msg, &[])
+    app.execute_contract(owner, vesting_instance, &msg, &[])
         .unwrap();
 
     gauge_instance

@@ -48,6 +48,9 @@ pub enum ExecuteMsg {
         lp_token: Option<String>,
         amount: Uint128,
     },
+    SetTokensPerBlock {
+        amount: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -56,6 +59,7 @@ pub enum QueryMsg {
     PoolLength {},
     Deposit { lp_token: Addr, user: Addr },
     PendingToken { lp_token: Addr, user: Addr },
+    Config {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -67,6 +71,17 @@ pub struct PoolLengthResponse {
 pub struct PendingTokenResponse {
     pub pending: Uint128,
     pub pending_on_proxy: Option<Uint128>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ConfigResponse {
+    pub owner: Addr,
+    pub astro_token: Addr,
+    pub tokens_per_block: Uint128,
+    pub total_alloc_point: Uint64,
+    pub start_block: Uint64,
+    pub allowed_reward_proxies: Vec<Addr>,
+    pub vesting_contract: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
