@@ -3,16 +3,20 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "gauge_contract_addr",
+    "generator_contract_addr",
     "lp_token_addr",
+    "pair_addr",
     "reward_contract_addr",
     "reward_token_addr"
   ],
   "properties": {
-    "gauge_contract_addr": {
+    "generator_contract_addr": {
       "type": "string"
     },
     "lp_token_addr": {
+      "type": "string"
+    },
+    "pair_addr": {
       "type": "string"
     },
     "reward_contract_addr": {

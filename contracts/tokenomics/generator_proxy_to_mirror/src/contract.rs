@@ -6,7 +6,7 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
-use gauge_proxy_interface::msg::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use astroport::generator_proxy::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use mirror_protocol::staking::{
     Cw20HookMsg as MirrorCw20HookMsg, ExecuteMsg as MirrorExecuteMsg, QueryMsg as MirrorQueryMsg,
     RewardInfoResponse,
@@ -20,7 +20,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let config = Config {
-        gauge_contract_addr: deps.api.addr_validate(&msg.gauge_contract_addr)?,
+        generator_contract_addr: deps.api.addr_validate(&msg.generator_contract_addr)?,
         pair_addr: deps.api.addr_validate(&msg.pair_addr)?,
         lp_token_addr: deps.api.addr_validate(&msg.lp_token_addr)?,
         reward_contract_addr: deps.api.addr_validate(&msg.reward_contract_addr)?,
@@ -59,7 +59,7 @@ fn receive_cw20(
     let cfg = CONFIG.load(deps.storage)?;
 
     if let Ok(Cw20HookMsg::Deposit {}) = from_binary(&cw20_msg.msg) {
-        if cw20_msg.sender != cfg.gauge_contract_addr || info.sender != cfg.lp_token_addr {
+        if cw20_msg.sender != cfg.generator_contract_addr || info.sender != cfg.lp_token_addr {
             return Err(ContractError::Unauthorized {});
         }
         response
@@ -104,7 +104,7 @@ fn send_rewards(
 ) -> Result<Response, ContractError> {
     let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
-    if info.sender != cfg.gauge_contract_addr {
+    if info.sender != cfg.generator_contract_addr {
         return Err(ContractError::Unauthorized {});
     };
 
@@ -129,7 +129,7 @@ fn withdraw(
 ) -> Result<Response, ContractError> {
     let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
-    if info.sender != cfg.gauge_contract_addr {
+    if info.sender != cfg.generator_contract_addr {
         return Err(ContractError::Unauthorized {});
     };
 
@@ -163,7 +163,7 @@ fn emergency_withdraw(
 ) -> Result<Response, ContractError> {
     let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
-    if info.sender != cfg.gauge_contract_addr {
+    if info.sender != cfg.generator_contract_addr {
         return Err(ContractError::Unauthorized {});
     };
 

@@ -1,5 +1,5 @@
 [package]
-name = "astroport-gauge"
+name = "astroport-generator-proxy-to-mirror"
 version = "0.0.0"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"
@@ -21,20 +21,13 @@ backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 cosmwasm-std = { version = "0.16.0" }
-cw20 = { version = "0.8.0" }
-cw-storage-plus = { version = "0.8.0", features = ["iterator"] }
+cw-storage-plus = "0.8.0"
 schemars = "0.8.1"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
+cw20 = "0.8.0"
+mirror-protocol = {version = "2.1.1"}
 astroport = { path = "../../../packages/astroport", default-features = false, version = "2.4.0"}
-gauge-proxy-interface = { path = "../../../packages/gauge_proxy_interface"}
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
-astroport-token = {path = "../../token"}
-mirror-staking = {git = "https://github.com/Mirror-Protocol/mirror-contracts.git", tag = "v2.1.1", package = "mirror-staking"}
-mirror-protocol = {version = "2.1.1"}
-astroport-vesting = {path = "../vesting"}
-gauge-proxy-to-mirror = {path = "../gauge_proxy_to_mirror"}
-gauge-proxy-interface = {path = "../../../packages/gauge_proxy_interface"}

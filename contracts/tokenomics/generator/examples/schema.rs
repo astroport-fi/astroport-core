@@ -1,4 +1,4 @@
-use astroport::gauge::{
+use astroport::generator::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse, PoolLengthResponse, QueryMsg,
 };
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};

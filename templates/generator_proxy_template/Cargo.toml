@@ -1,5 +1,5 @@
 [package]
-name = "gauge-proxy-to-mirror"
+name = "astroport-generator-proxy-template"
 version = "0.0.0"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"
@@ -25,9 +25,8 @@ cw-storage-plus = "0.8.0"
 schemars = "0.8.1"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
-gauge-proxy-interface = { path = "../../../packages/gauge_proxy_interface"}
 cw20 = "0.8.0"
-mirror-protocol = {version = "2.1.1"}
+astroport = { path = "../../../packages/astroport", default-features = false, version = "2.4.0"}
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }

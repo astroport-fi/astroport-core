@@ -9,14 +9,14 @@ use crate::state::{
     Config, ExecuteOnReply, PoolInfo, CONFIG, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
 use astroport::{
-    gauge::{
+    generator::{
         ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse,
         PoolLengthResponse, QueryMsg,
     },
+    generator_proxy::{
+        Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
+    },
     vesting::ExecuteMsg as VestingExecuteMsg,
-};
-use gauge_proxy_interface::msg::{
-    Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
