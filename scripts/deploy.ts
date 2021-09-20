@@ -43,53 +43,39 @@ async function main() {
     /*************************************** Register Pairs Contract *****************************************/
     console.log("Register Pairs Contract...")
     let pairCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair.wasm')!)
-    // deployConfig.pairConfig.code_id = pairCodeID
-    //
+    deployConfig.pairConfig.code_id = pairCodeID
+
     let pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable.wasm')!)
-    // deployConfig.pairStableConfig.code_id = pairStableCodeID
+    deployConfig.pairStableConfig.code_id = pairStableCodeID
     console.log("Code Pair Contract: " + pairCodeID + " Code Stable Pair Contract: " + pairStableCodeID)
 
     /*************************************** Deploy Factory Contract *****************************************/
-    // console.log("Deploying Factory...")
-    // let CodeID = await uploadContract(terra, wallet, "../artifacts/astroport_factory.wasm"!)
-    // console.log(CodeID)
-    // const INIT_MSG = {
-    //     pair_configs: [
-    //         {
-    //             code_id: String(pairCodeID),
-    //             pair_type: {xyk:{}},
-    //             total_fee_bps: String(0),
-    //             maker_fee_bps: String(0),
-    //         },
-    //         {
-    //             code_id: String(pairStableCodeID),
-    //             pair_type: {stable:{}},
-    //             total_fee_bps: String(0),
-    //             maker_fee_bps: String(0),
-    //         }
-    //     ],
-    //     token_code_id: String(process.env.CW20_CODE_ID),
-    //     init_hook: undefined,
-    //     fee_address: undefined,
-    // }
-    // const addressFactoryContract = await instantiateContract(terra, wallet, CodeID, INIT_MSG)
-    const addressFactoryContract = deployConfig.astroTokenContractAddress;
-    // const addressFactoryContract = await deployContract(
-    //     terra,
-    //     wallet,
-    //     join(ARTIFACTS_PATH, 'astroport_factory.wasm'),
-    //     {
-    //         pair_configs: [{
-    //             code_id: String(pairCodeID),
-    //             pair_type: { xyk: {} },
-    //             total_fee_bps: String(0),
-    //             maker_fee_bps: String(0),
-    //         } ],
-    //         token_code_id: String(process.env.CW20_CODE_ID),
-    //         fee_address: undefined,
-    //         init_hook: undefined,
-    //     },
-    // )
+    console.log("Deploying Factory...")
+    const INIT_MSG = {
+        pair_configs: [
+            {
+                code_id: pairCodeID,
+                pair_type: { xyk: {}},
+                total_fee_bps: 0,
+                maker_fee_bps: 0
+            },
+            {
+                code_id: pairStableCodeID,
+                pair_type: {stable:{}},
+                total_fee_bps: 0,
+                maker_fee_bps: 0
+            }
+        ],
+        token_code_id: Number(process.env.CW20_CODE_ID)
+    }
+     // const addressFactoryContract = await instantiateContract(terra, wallet, CodeID, INIT_MSG)
+    // const addressFactoryContract = deployConfig.astroTokenContractAddress;
+    const addressFactoryContract = await deployContract(
+        terra,
+        wallet,
+        join(ARTIFACTS_PATH, 'astroport_factory.wasm'),
+        INIT_MSG
+    )
     console.log("Address Factory Contract: " + addressFactoryContract)
 
     // /*************************************** Deploy Router Contract *****************************************/
@@ -102,7 +88,7 @@ async function main() {
             astroport_factory: addressFactoryContract,
         },
     )
-    console.log("Address Vesting Contract: " + addressRouterContract)
+    console.log("Address Router Contract: " + addressRouterContract)
     /*************************************** Deploy Vesting Contract *****************************************/
     console.log("Deploying Vesting...")
     const addressVestingContract = await deployContract(
@@ -124,13 +110,11 @@ async function main() {
         wallet,
         join(ARTIFACTS_PATH, 'astroport_staking.wasm'),
         {
-            token_code_id: String(process.env.CW20_CODE_ID),
+            token_code_id: Number(process.env.CW20_CODE_ID),
             deposit_token_addr: deployConfig.astroTokenContractAddress,
         },
     )
     console.log("Address Staking Contract: " + addressStakingContract)
-
-
     /*************************************** Deploy Gauge Contract *****************************************/
     console.log("Deploying Gauge...")
     const addressGaugeContract = await deployContract(
@@ -140,9 +124,9 @@ async function main() {
         {
             token: deployConfig.astroTokenContractAddress,
             dev_addr: wallet.key.accAddress,
-            tokens_per_block: String(100),
-            start_block: String(100000),
-            bonus_end_block: String(500000),
+            tokens_per_block: 10000000,
+            start_block: 100000,
+            bonus_end_block: 500000,
         }
     )
     console.log("Address Gauge Contract: " + addressGaugeContract)

@@ -18,11 +18,3 @@ target/
 /scripts/node_modules/
 #/scripts/package-lock.json
 /artifacts/
-/contracts/factory/schema/
-/contracts/pair/schema/
-/contracts/pair_stable/schema/
-/contracts/router/schema/
-/contracts/token/schema/
-/contracts/tokenomics/gauge/schema/
-/contracts/tokenomics/staking/schema/
-/contracts/tokenomics/vesting/schema/

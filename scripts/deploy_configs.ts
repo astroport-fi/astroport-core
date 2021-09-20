@@ -47,7 +47,7 @@ export const local: Config = {
     stakingInitMsg: {
         "config": {
             token_code_id: 1,
-            deposit_token_addr: undefined,
+            deposit_token_addr: 'terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5',
         }
     },
     pairConfig : {
@@ -62,5 +62,5 @@ export const local: Config = {
         total_fee_bps: 0,
         maker_fee_bps: 0,
     },
-    astroTokenContractAddress: 'terra1pclllzxzua8xq9hstcsm4ly9ut2sk42s29l75c'
+    astroTokenContractAddress: 'terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5'
 }
