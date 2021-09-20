@@ -11,14 +11,14 @@ use std::ops::Mul;
 
 const PERIOD: u64 = 86400;
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let factory_contract = deps.api.addr_validate(msg.factory.as_ref())?;
+    let factory_contract = deps.api.addr_validate(msg.factory_contract.as_ref())?;
     let pair_info = query_pair_info(
         &deps.querier,
         factory_contract.clone(),
@@ -49,7 +49,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
     env: Env,
@@ -69,7 +69,7 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let time_elapsed = env.block.time.seconds() - price_last.block_timestamp_last; // overflow is desired
 
     // ensure that at least one full period has passed since the last update
-    if time_elapsed >= PERIOD {
+    if time_elapsed < PERIOD {
         return Err(ContractError::WrongPeriod {});
     }
 
@@ -95,7 +95,7 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Consult { token, amount } => to_binary(&consult(deps, token, amount)?),

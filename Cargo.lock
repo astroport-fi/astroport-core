@@ -64,23 +64,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "astroport-oracle"
-version = "0.1.0"
-dependencies = [
- "astroport",
- "astroport-token",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus 0.8.1",
- "cw20",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "thiserror",
-]
-
-[[package]]
 name = "astroport-pair"
 version = "0.0.0"
 dependencies = [
@@ -1228,6 +1211,25 @@ name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
+
+[[package]]
+name = "oracle"
+version = "0.1.0"
+dependencies = [
+ "astroport",
+ "astroport-factory",
+ "astroport-pair",
+ "astroport-token",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "terra-multi-test",
+ "thiserror",
+]
 
 [[package]]
 name = "parity-wasm"
