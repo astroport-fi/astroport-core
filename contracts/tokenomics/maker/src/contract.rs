@@ -4,12 +4,11 @@ use crate::msg::{
 };
 use crate::state::{Config, CONFIG};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::PairsResponse;
-use astroport::pair::{Cw20HookMsg, SimulationResponse};
-use astroport::querier::{query_pair_info, query_pairs_info};
+use astroport::pair::{Cw20HookMsg, QueryMsg as PairQueryMsg, SimulationResponse};
+use astroport::querier::query_pair_info;
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo,
-    Response, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    QueryRequest, Response, StdResult, SubMsg, Uint128, Uint64, WasmMsg, WasmQuery,
 };
 use std::collections::HashMap;
 
@@ -45,7 +44,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Collect { start_after, limit } => collect(deps, env, start_after, limit),
+        ExecuteMsg::Collect { pair_addresses } => collect(deps, env, pair_addresses),
         ExecuteMsg::SetConfig {
             staking_contract,
             governance_contract,
@@ -60,12 +59,7 @@ pub fn execute(
     }
 }
 
-fn collect(
-    deps: DepsMut,
-    env: Env,
-    start_after: Option<[AssetInfo; 2]>,
-    limit: Option<u32>,
-) -> Result<Response, ContractError> {
+fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
     let astro = AssetInfo::Token {
@@ -74,14 +68,15 @@ fn collect(
 
     let mut response = Response::default();
 
-    let assets = get_assets_from_factory(
-        deps.as_ref(),
-        cfg.factory_contract.clone(),
-        start_after,
-        limit,
-    )?;
+    // Collect assets
+    let mut assets_map: HashMap<String, AssetInfo> = HashMap::new();
+    for pair in pair_addresses {
+        let pair = query_pair(deps.as_ref(), pair)?;
+        assets_map.insert(pair[0].to_string(), pair[0].clone());
+        assets_map.insert(pair[1].to_string(), pair[1].clone());
+    }
 
-    for a in assets {
+    for a in assets_map.values().cloned() {
         // Get Balance
         let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
         if !balance.is_zero() {
@@ -248,7 +243,7 @@ fn set_config(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_get_config(deps)?),
-        QueryMsg::Balances {} => to_binary(&query_get_balances(deps, env)?),
+        QueryMsg::Balances { assets } => to_binary(&query_get_balances(deps, env, assets)?),
     }
 }
 
@@ -264,12 +259,13 @@ fn query_get_config(deps: Deps) -> StdResult<QueryConfigResponse> {
     })
 }
 
-fn query_get_balances(deps: Deps, env: Env) -> StdResult<QueryBalancesResponse> {
-    let cfg = CONFIG.load(deps.storage)?;
-
+fn query_get_balances(
+    deps: Deps,
+    env: Env,
+    assets: Vec<AssetInfo>,
+) -> StdResult<QueryBalancesResponse> {
     let mut resp = QueryBalancesResponse { balances: vec![] };
 
-    let assets = get_assets_from_factory(deps, cfg.factory_contract, None, None)?;
     for a in assets {
         // Get Balance
         let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
@@ -284,21 +280,11 @@ fn query_get_balances(deps: Deps, env: Env) -> StdResult<QueryBalancesResponse> 
     Ok(resp)
 }
 
-fn get_assets_from_factory(
-    deps: Deps,
-    factory_contract: Addr,
-    start_after: Option<[AssetInfo; 2]>,
-    limit: Option<u32>,
-) -> StdResult<Vec<AssetInfo>> {
-    let pairs_info: PairsResponse =
-        query_pairs_info(&deps.querier, factory_contract, start_after, limit)?;
+pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<[AssetInfo; 2]> {
+    let res: PairInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: String::from(contract_addr),
+        msg: to_binary(&PairQueryMsg::Pair {})?,
+    }))?;
 
-    // Deduplicate assets
-    let mut assets_map: HashMap<String, AssetInfo> = HashMap::new();
-    for pair in pairs_info.pairs {
-        assets_map.insert(pair.asset_infos[0].to_string(), pair.asset_infos[0].clone());
-        assets_map.insert(pair.asset_infos[1].to_string(), pair.asset_infos[1].clone());
-    }
-
-    Ok(assets_map.values().cloned().collect())
+    Ok(res.asset_infos)
 }

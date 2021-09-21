@@ -16,13 +16,7 @@ fn mock_app() -> App {
     let env = mock_env();
     let api = MockApi::default();
     let bank = BankKeeper::new();
-    let mut tmq = TerraMockQuerier::new(MockQuerier::new(&[]));
-
-    tmq.with_market(&[
-        // ("uusd", "astro", Decimal::percent(100)),
-        // ("luna", "astro", Decimal::percent(100)),
-        // ("uusd", "luna", Decimal::percent(100)),
-    ]);
+    let tmq = TerraMockQuerier::new(MockQuerier::new(&[]));
 
     App::new(api, env.block, bank, MockStorage::new(), tmq)
 }
@@ -382,6 +376,8 @@ fn collect_all() {
     let uluna_asset = String::from("uluna");
 
     // Mint all tokens for maker
+    let mut pair_addresses = vec![];
+
     for t in vec![
         [
             Asset {
@@ -468,13 +464,15 @@ fn collect_all() {
             },
         ],
     ] {
-        create_pair(
+        let pair_info = create_pair(
             &mut router,
             owner.clone(),
             user.clone(),
             &factory_instance,
             t,
         );
+
+        pair_addresses.push(pair_info.contract_addr);
     }
 
     // Mint all tokens for maker
@@ -517,15 +515,7 @@ fn collect_all() {
         )
         .unwrap();
 
-    let balances_resp: QueryBalancesResponse = router
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: maker_instance.to_string(),
-            msg: to_binary(&Balances {}).unwrap(),
-        }))
-        .unwrap();
-
-    for b in vec![
+    let expected_balances = vec![
         Asset {
             info: AssetInfo::NativeToken {
                 denom: uusd_asset.clone(),
@@ -556,7 +546,20 @@ fn collect_all() {
             },
             amount: Uint128::new(30),
         },
-    ] {
+    ];
+
+    let balances_resp: QueryBalancesResponse = router
+        .wrap()
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: maker_instance.to_string(),
+            msg: to_binary(&Balances {
+                assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
+            })
+            .unwrap(),
+        }))
+        .unwrap();
+
+    for b in expected_balances {
         let found = balances_resp
             .balances
             .iter()
@@ -566,13 +569,13 @@ fn collect_all() {
         assert_eq!(found, &b);
     }
 
-    let msg = ExecuteMsg::Collect {
-        start_after: None,
-        limit: None,
-    };
-
     router
-        .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
+        .execute_contract(
+            maker_instance.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect { pair_addresses },
+            &[],
+        )
         .unwrap();
 
     for t in vec![
@@ -625,6 +628,8 @@ fn collect_err_no_swap_pair() {
     let uusd_asset = String::from("uusd");
     let uluna_asset = String::from("uluna");
 
+    let mut pair_addresses = vec![];
+
     // Mint all tokens for maker
     for t in vec![
         [
@@ -656,13 +661,15 @@ fn collect_err_no_swap_pair() {
             },
         ],
     ] {
-        create_pair(
+        let pair_info = create_pair(
             &mut router,
             owner.clone(),
             user.clone(),
             &factory_instance,
             t,
         );
+
+        pair_addresses.push(pair_info.contract_addr);
     }
 
     // Mint all tokens for maker
@@ -701,10 +708,7 @@ fn collect_err_no_swap_pair() {
         )
         .unwrap();
 
-    let msg = ExecuteMsg::Collect {
-        start_after: None,
-        limit: None,
-    };
+    let msg = ExecuteMsg::Collect { pair_addresses };
 
     let e = router
         .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
