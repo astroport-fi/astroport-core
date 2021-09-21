@@ -13,17 +13,14 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    Collect {
-        start_after: Option<[AssetInfo; 2]>,
-        limit: Option<u32>,
-    },
+    Collect { pair_addresses: Vec<Addr> },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
-    Balances {},
+    Balances { assets: Vec<AssetInfo> },
 }
 
 // We define a custom struct for each query response
