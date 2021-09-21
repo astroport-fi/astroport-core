@@ -347,7 +347,11 @@ fn collect_all() {
 
     let governance_percent = Uint64::new(50);
 
-    let msg = ExecuteMsg::SetConfig { governance_percent };
+    let msg = ExecuteMsg::SetConfig {
+        governance_percent: Some(governance_percent),
+        governance_contract: None,
+        staking_contract: None,
+    };
 
     router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])

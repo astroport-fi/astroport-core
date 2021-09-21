@@ -8,8 +8,8 @@ use astroport::factory::PairsResponse;
 use astroport::pair::{Cw20HookMsg, SimulationResponse};
 use astroport::querier::{query_pair_info, query_pairs_info};
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo, Response,
-    StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    entry_point, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo,
+    Response, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use std::collections::HashMap;
 
@@ -26,11 +26,11 @@ pub fn instantiate(
 
     let cfg = Config {
         owner: info.sender,
+        astro_token_contract: deps.api.addr_validate(&msg.astro_token_contract)?,
         factory_contract: deps.api.addr_validate(&msg.factory_contract)?,
         staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
         governance_contract: deps.api.addr_validate(&msg.governance_contract)?,
         governance_percent: msg.governance_percent,
-        astro_token_contract: deps.api.addr_validate(&msg.astro_token_contract)?,
     };
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -46,7 +46,17 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Collect { start_after, limit } => collect(deps, env, start_after, limit),
-        ExecuteMsg::SetConfig { governance_percent } => set_config(deps, env, governance_percent),
+        ExecuteMsg::SetConfig {
+            staking_contract,
+            governance_contract,
+            governance_percent,
+        } => set_config(
+            deps,
+            env,
+            staking_contract,
+            governance_contract,
+            governance_percent,
+        ),
     }
 }
 
@@ -196,18 +206,42 @@ fn swap_to_and_transfer_astro(
 fn set_config(
     deps: DepsMut,
     _env: Env,
-    governance_percent: Uint64,
+    staking_contract: Option<String>,
+    governance_contract: Option<String>,
+    governance_percent: Option<Uint64>,
 ) -> Result<Response, ContractError> {
-    if governance_percent > Uint64::new(100) {
-        return Err(ContractError::IncorrectGovernancePercent {});
+    let mut event = Event::new("Set config".to_string());
+
+    let mut config = CONFIG.load(deps.storage)?;
+
+    if let Some(staking_contract) = staking_contract {
+        config.staking_contract = deps.api.addr_validate(&staking_contract)?;
+        event
+            .attributes
+            .push(Attribute::new("staking_contract", &staking_contract));
     };
 
-    CONFIG.update::<_, ContractError>(deps.storage, |mut v| {
-        v.governance_percent = governance_percent;
-        Ok(v)
-    })?;
+    if let Some(governance_contract) = governance_contract {
+        config.governance_contract = deps.api.addr_validate(&governance_contract)?;
+        event
+            .attributes
+            .push(Attribute::new("governance_contract", &governance_contract));
+    };
 
-    Ok(Response::new().add_event(Event::new("Set config")))
+    if let Some(governance_percent) = governance_percent {
+        if governance_percent > Uint64::new(100) {
+            return Err(ContractError::IncorrectGovernancePercent {});
+        };
+
+        config.governance_percent = governance_percent;
+        event
+            .attributes
+            .push(Attribute::new("governance_percent", governance_percent));
+    };
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new().add_event(event))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
