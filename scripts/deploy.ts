@@ -115,6 +115,21 @@ async function main() {
         },
     )
     console.log("Address Staking Contract: " + addressStakingContract)
+
+
+    /*************************************** Deploy Maker Contract *****************************************/
+    console.log("Deploying Maker...")
+    const addressMakerContract = await deployContract(
+        terra,
+        wallet,
+        join(ARTIFACTS_PATH, 'maker.wasm'),
+        {
+            factory_contract: String(addressFactoryContract),
+            staking_contract: String(addressStakingContract),
+            astro_token_contract: String(deployConfig.astroTokenContractAddress),
+        }
+    )
+    console.log("Address Gauge Contract: " + addressMakerContract)
     /*************************************** Deploy Gauge Contract *****************************************/
     console.log("Deploying Gauge...")
     const addressGaugeContract = await deployContract(
@@ -124,7 +139,7 @@ async function main() {
         {
             token: deployConfig.astroTokenContractAddress,
             dev_addr: wallet.key.accAddress,
-            tokens_per_block: 10000000,
+            tokens_per_block: String(10000000),
             start_block: 100000,
             bonus_end_block: 500000,
         }
