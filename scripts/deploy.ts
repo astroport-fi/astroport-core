@@ -89,6 +89,7 @@ async function main() {
         },
     )
     console.log("Address Router Contract: " + addressRouterContract)
+
     /*************************************** Deploy Vesting Contract *****************************************/
     console.log("Deploying Vesting...")
     const addressVestingContract = await deployContract(
@@ -145,6 +146,32 @@ async function main() {
         }
     )
     console.log("Address Gauge Contract: " + addressGaugeContract)
+
+
+    /*************************************** Setting tokens to Vesting Contract *****************************************/
+    console.log("Setting Vesting...")
+    await executeContract(
+        terra,
+        wallet,
+        addressVestingContract,
+        {register_vesting_accounts:{
+            vesting_accounts: [
+                {
+                    address: addressGaugeContract,
+                    schedules:[
+                        [ String(new Date( 2022, 1, 1).getTime()), String(new Date( 2023, 1, 1).getTime()), String(1)],
+                        [ String(new Date( 2022, 6, 1).getTime()), String(new Date( 2023, 1, 1).getTime()), String(1)],
+                        [ String(new Date( 2023, 1, 1).getTime()), String(new Date( 2024, 1, 1).getTime()), String(1)],
+                    ]
+                }
+            ]
+        }
+        })
+
+    // const addressVestingContract = "terra1kyl8f2xkd63cga8szgkejdyvxay7mc7qpdc3c5"
+    // const addressGaugeContract = "terra1qjrvlf27upqhqnrqmmu2y205ed2c3tc87dnku3"
+
+    //console.log("Vesting accounts setup: ", await queryContract(terra, addressVestingContract, { "vesting_accounts": { } }))
 
     console.log("FINISH")
 }
