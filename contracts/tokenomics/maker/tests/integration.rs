@@ -97,11 +97,14 @@ fn instantiate_contracts(
         )
         .unwrap();
 
-    let maker_contract = Box::new(ContractWrapper::new(
-        maker::contract::execute,
-        maker::contract::instantiate,
-        maker::contract::query,
-    ));
+    let maker_contract = Box::new(
+        ContractWrapper::new(
+            maker::contract::execute,
+            maker::contract::instantiate,
+            maker::contract::query,
+        )
+        .with_reply(maker::contract::reply),
+    );
     let market_code_id = router.store_code(maker_contract);
 
     let msg = InstantiateMsg {

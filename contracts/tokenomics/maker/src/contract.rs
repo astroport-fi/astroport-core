@@ -4,11 +4,11 @@ use crate::msg::{
 };
 use crate::state::{Config, CONFIG};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::pair::{Cw20HookMsg, QueryMsg as PairQueryMsg, SimulationResponse};
+use astroport::pair::{Cw20HookMsg, QueryMsg as PairQueryMsg};
 use astroport::querier::query_pair_info;
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo,
-    QueryRequest, Response, StdResult, SubMsg, Uint128, Uint64, WasmMsg, WasmQuery,
+    QueryRequest, Reply, ReplyOn, Response, StdResult, SubMsg, Uint128, Uint64, WasmMsg, WasmQuery,
 };
 use std::collections::HashMap;
 
@@ -59,6 +59,25 @@ pub fn execute(
     }
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
+    let astro = AssetInfo::Token {
+        contract_addr: cfg.astro_token_contract.clone(),
+    };
+
+    let mut resp = Response::new();
+
+    let balance = astro.query_pool(&deps.querier, env.contract.address.clone())?;
+    if !balance.is_zero() {
+        resp.messages
+            .append(&mut distribute_astro(deps.as_ref(), &cfg, balance)?);
+    }
+
+    Ok(resp)
+}
+
 fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -76,31 +95,31 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
         assets_map.insert(pair[1].to_string(), pair[1].clone());
     }
 
-    for a in assets_map.values().cloned() {
+    // Swap all non-astro tokens
+    for a in assets_map.values().cloned().filter(|a| a.ne(&astro)) {
         // Get Balance
         let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
         if !balance.is_zero() {
-            if a.equal(&astro) {
-                // Transfer astro directly
-                response
-                    .messages
-                    .append(&mut transfer_astro(deps.as_ref(), &cfg, balance)?);
-            } else {
-                // Swap to astro and transfer to staking and governance
-                response.messages.append(&mut swap_to_and_transfer_astro(
-                    deps.as_ref(),
-                    &cfg,
-                    a,
-                    balance,
-                )?);
-            };
+            // Swap to astro and transfer to staking and governance
+            response
+                .messages
+                .push(swap_to_astro(deps.as_ref(), &cfg, a, balance)?);
         }
+    }
+
+    // Use ReplyOn to have a proper amount of astro
+    if response.messages.len() > 0 {
+        response.messages.last_mut().unwrap().reply_on = ReplyOn::Success;
     }
 
     Ok(response)
 }
 
-fn transfer_astro(deps: Deps, cfg: &Config, amount: Uint128) -> Result<Vec<SubMsg>, ContractError> {
+fn distribute_astro(
+    deps: Deps,
+    cfg: &Config,
+    amount: Uint128,
+) -> Result<Vec<SubMsg>, ContractError> {
     let mut result = vec![];
 
     let info = AssetInfo::Token {
@@ -130,14 +149,12 @@ fn transfer_astro(deps: Deps, cfg: &Config, amount: Uint128) -> Result<Vec<SubMs
     Ok(result)
 }
 
-fn swap_to_and_transfer_astro(
+fn swap_to_astro(
     deps: Deps,
     cfg: &Config,
     from_token: AssetInfo,
     amount_in: Uint128,
-) -> Result<Vec<SubMsg>, ContractError> {
-    let mut result = vec![];
-
+) -> Result<SubMsg, ContractError> {
     let to_token = AssetInfo::Token {
         contract_addr: cfg.astro_token_contract.clone(),
     };
@@ -149,17 +166,8 @@ fn swap_to_and_transfer_astro(
     )
     .map_err(|_| ContractError::PairNotFound(from_token.clone(), to_token.clone()))?;
 
-    let msg = astroport::pair::QueryMsg::Simulation {
-        offer_asset: Asset {
-            info: from_token.clone(),
-            amount: amount_in,
-        },
-    };
-    let res: SimulationResponse = deps.querier.query_wasm_smart(&pair.contract_addr, &msg)?;
-    let amount_out = res.return_amount;
-
-    result.push(if from_token.is_native_token() {
-        SubMsg::new(WasmMsg::Execute {
+    if from_token.is_native_token() {
+        Ok(SubMsg::new(WasmMsg::Execute {
             contract_addr: pair.contract_addr.to_string(),
             msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
                 offer_asset: Asset {
@@ -174,9 +182,9 @@ fn swap_to_and_transfer_astro(
                 denom: from_token.to_string(),
                 amount: amount_in,
             }],
-        })
+        }))
     } else {
-        SubMsg::new(WasmMsg::Execute {
+        Ok(SubMsg::new(WasmMsg::Execute {
             contract_addr: from_token.to_string(),
             msg: to_binary(&cw20::Cw20ExecuteMsg::Send {
                 contract: pair.contract_addr.to_string(),
@@ -190,12 +198,8 @@ fn swap_to_and_transfer_astro(
             })
             .unwrap(),
             funds: vec![],
-        })
-    });
-
-    result.append(&mut transfer_astro(deps, cfg, amount_out)?);
-
-    Ok(result)
+        }))
+    }
 }
 
 fn set_config(
