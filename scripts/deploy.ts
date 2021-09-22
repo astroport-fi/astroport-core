@@ -21,10 +21,10 @@ async function main() {
 
     if (process.env.NETWORK === "testnet") {
         terra = new LCDClient({
-            URL: 'https://tequila-lcd.terra.dev',
-            chainID: 'tequila-0004'
+            URL: String(process.env.LCD_CLIENT_URL),
+            chainID: String(process.env.CHAIN_ID)
         })
-        wallet = recover(terra, process.env.TEST_MAIN!)
+        wallet = recover(terra, process.env.WALLET!)
         deployConfig = testnet
     } else {
         console.log("NETWORK:" +process.env.NETWORK)
