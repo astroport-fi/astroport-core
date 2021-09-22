@@ -1,7 +1,7 @@
 [package]
-name = "maker"
+name = "astroport-maker"
 version = "0.1.0"
-authors = ["Astroport"]
+authors = ["Terraform Labs, PTE."]
 edition = "2018"
 
 exclude = [

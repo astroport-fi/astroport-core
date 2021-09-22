@@ -1,5 +1,5 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Uint64};
 
 use crate::contract::instantiate;
 use crate::msg::InstantiateMsg;
@@ -13,11 +13,15 @@ fn proper_initialization() {
     let env = mock_env();
     let factory = Addr::unchecked("factory");
     let staking = Addr::unchecked("staking");
+    let governance_contract = Addr::unchecked("governance");
+    let governance_percent = Uint64::new(50);
     let astro_token_contract = Addr::unchecked("astro-token");
 
     let instantiate_msg = InstantiateMsg {
         factory_contract: factory.to_string(),
         staking_contract: staking.to_string(),
+        governance_contract: governance_contract.to_string(),
+        governance_percent: governance_percent,
         astro_token_contract: astro_token_contract.to_string(),
     };
     let res = instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
@@ -30,6 +34,8 @@ fn proper_initialization() {
             owner: Addr::unchecked("addr0000"),
             factory_contract: Addr::unchecked("factory"),
             staking_contract: Addr::unchecked("staking"),
+            governance_contract,
+            governance_percent: governance_percent,
             astro_token_contract: Addr::unchecked("astro-token"),
         }
     )
