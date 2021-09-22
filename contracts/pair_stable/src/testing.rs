@@ -1248,14 +1248,14 @@ fn test_accumulate_prices() {
         block_time_last: u64,
         last0: u128,
         last1: u128,
-        x: u128,
-        y: u128,
+        x_amount: u128,
+        y_amount: u128,
     }
 
     struct Result {
         block_time_last: u64,
-        price0: u128,
-        price1: u128,
+        price_x: u128,
+        price_y: u128,
         is_some: bool,
     }
 
@@ -1266,13 +1266,13 @@ fn test_accumulate_prices() {
                 block_time_last: 0,
                 last0: 0,
                 last1: 0,
-                x: 250,
-                y: 500,
+                x_amount: 250,
+                y_amount: 500,
             },
             Result {
                 block_time_last: 1000,
-                price0: 500,  // 250/500*1000
-                price1: 2000, // 500/250*1000
+                price_x: 2000, // 500/250*1000
+                price_y: 500,  // 250/500*1000
                 is_some: true,
             },
         ),
@@ -1283,13 +1283,13 @@ fn test_accumulate_prices() {
                 block_time_last: 1000,
                 last0: 1,
                 last1: 2,
-                x: 250,
-                y: 500,
+                x_amount: 250,
+                y_amount: 500,
             },
             Result {
                 block_time_last: 1000,
-                price0: 1,
-                price1: 2,
+                price_x: 2,
+                price_y: 1,
                 is_some: false,
             },
         ),
@@ -1299,13 +1299,13 @@ fn test_accumulate_prices() {
                 block_time_last: 1000,
                 last0: 500,
                 last1: 2000,
-                x: 250,
-                y: 500,
+                x_amount: 250,
+                y_amount: 500,
             },
             Result {
                 block_time_last: 1500,
-                price0: 750,  // 500 + (250/500*500)
-                price1: 3000, // 2000 + (500/250*500)
+                price_x: 1500, // 500 + (500/250*500)
+                price_y: 2250, // 2000 + (250/500*500)
                 is_some: true,
             },
         ),
@@ -1336,16 +1336,16 @@ fn test_accumulate_prices() {
                 price0_cumulative_last: Uint128::new(case.last0),
                 price1_cumulative_last: Uint128::new(case.last1),
             },
-            Uint128::new(case.x),
-            Uint128::new(case.y),
+            Uint128::new(case.x_amount),
+            Uint128::new(case.y_amount),
         );
 
         assert_eq!(result.is_some, config.is_some());
 
         if let Some(config) = config {
             assert_eq!(config.block_time_last, result.block_time_last);
-            assert_eq!(config.price0_cumulative_last, Uint128::new(result.price0));
-            assert_eq!(config.price1_cumulative_last, Uint128::new(result.price1));
+            assert_eq!(config.price0_cumulative_last, Uint128::new(result.price_x));
+            assert_eq!(config.price1_cumulative_last, Uint128::new(result.price_y));
         }
     }
 }
