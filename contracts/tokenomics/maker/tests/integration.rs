@@ -1,5 +1,5 @@
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, Uint64, WasmQuery};
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -7,8 +7,9 @@ use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use astroport::factory::{PairConfig, PairType};
-use astroport_maker::msg::QueryMsg::Balances;
-use astroport_maker::msg::{ExecuteMsg, InstantiateMsg, QueryBalancesResponse};
+use astroport_maker::msg::{
+    ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
+};
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -19,7 +20,13 @@ fn mock_app() -> App {
     App::new(api, env.block, bank, MockStorage::new(), tmq)
 }
 
-fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr, Addr, Addr) {
+fn instantiate_contracts(
+    router: &mut App,
+    owner: Addr,
+    staking: Addr,
+    governance: &Addr,
+    governance_percent: Uint64,
+) -> (Addr, Addr, Addr) {
     let astro_token_contract = Box::new(ContractWrapper::new(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
@@ -89,16 +96,21 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
         )
         .unwrap();
 
-    let maker_contract = Box::new(ContractWrapper::new(
-        astroport_maker::contract::execute,
-        astroport_maker::contract::instantiate,
-        astroport_maker::contract::query,
-    ));
+    let maker_contract = Box::new(
+        ContractWrapper::new(
+            astroport_maker::contract::execute,
+            astroport_maker::contract::instantiate,
+            astroport_maker::contract::query,
+        )
+        .with_reply(astroport_maker::contract::reply),
+    );
     let market_code_id = router.store_code(maker_contract);
 
     let msg = InstantiateMsg {
         factory_contract: factory_instance.to_string(),
         staking_contract: staking.to_string(),
+        governance_contract: governance.to_string(),
+        governance_percent: governance_percent,
         astro_token_contract: astro_token_instance.to_string(),
     };
     let maker_instance = router
@@ -311,9 +323,42 @@ fn collect_all() {
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
     let staking = Addr::unchecked("staking");
+    let governance = Addr::unchecked("governance");
+    let governance_percent = Uint64::new(10);
 
-    let (astro_token_instance, factory_instance, maker_instance) =
-        instantiate_contracts(&mut router, owner.clone(), staking.clone());
+    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
+        &mut router,
+        owner.clone(),
+        staking.clone(),
+        &governance,
+        governance_percent,
+    );
+
+    let msg = QueryMsg::Config {};
+    let res: QueryConfigResponse = router
+        .wrap()
+        .query_wasm_smart(&maker_instance, &msg)
+        .unwrap();
+    assert_eq!(res.governance_percent, governance_percent);
+
+    let governance_percent = Uint64::new(50);
+
+    let msg = ExecuteMsg::SetConfig {
+        governance_percent: Some(governance_percent),
+        governance_contract: None,
+        staking_contract: None,
+    };
+
+    router
+        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = QueryMsg::Config {};
+    let res: QueryConfigResponse = router
+        .wrap()
+        .query_wasm_smart(&maker_instance, &msg)
+        .unwrap();
+    assert_eq!(res.governance_percent, governance_percent);
 
     let usdc_token_instance = instantiate_token(
         &mut router,
@@ -509,7 +554,7 @@ fn collect_all() {
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: maker_instance.to_string(),
-            msg: to_binary(&Balances {
+            msg: to_binary(&QueryMsg::Balances {
                 assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
             })
             .unwrap(),
@@ -550,8 +595,18 @@ fn collect_all() {
             Uint128::zero(),
         );
 
-        // Check staking balance
-        check_balance(&mut router, staking.clone(), token, Uint128::new(amount));
+        // Check balances
+        let amount = Uint128::new(amount);
+        let governance_amount =
+            amount.multiply_ratio(Uint128::from(governance_percent), Uint128::new(100));
+        let staking_amount = amount - governance_amount;
+        check_balance(
+            &mut router,
+            governance.clone(),
+            token.clone(),
+            governance_amount,
+        );
+        check_balance(&mut router, staking.clone(), token, staking_amount);
     }
 }
 
@@ -561,9 +616,16 @@ fn collect_err_no_swap_pair() {
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
     let staking = Addr::unchecked("staking");
+    let governance = Addr::unchecked("governance");
+    let governance_percent = Uint64::new(50);
 
-    let (astro_token_instance, factory_instance, maker_instance) =
-        instantiate_contracts(&mut router, owner.clone(), staking.clone());
+    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
+        &mut router,
+        owner.clone(),
+        staking.clone(),
+        &governance,
+        governance_percent,
+    );
 
     let uusd_asset = String::from("uusd");
     let uluna_asset = String::from("uluna");
