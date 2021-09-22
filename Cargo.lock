@@ -41,12 +41,14 @@ name = "astroport-factory"
 version = "0.0.0"
 dependencies = [
  "astroport",
+ "astroport-pair",
+ "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cosmwasm-vm",
  "cw-storage-plus 0.8.1",
  "schemars",
  "serde",
+ "terra-multi-test",
  "thiserror",
 ]
 
