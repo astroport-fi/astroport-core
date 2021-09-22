@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import {
     deployContract,
-    executeContract,
+    executeContract, initialize,
     instantiateContract,
     queryContract,
     recover,
@@ -24,7 +24,12 @@ async function main() {
             URL: String(process.env.LCD_CLIENT_URL),
             chainID: String(process.env.CHAIN_ID)
         })
-        wallet = recover(terra, process.env.WALLET!)
+        // wallet = recover(terra, process.env.WALLET!)
+        // const mk = new MnemonicKey();
+        // const wallet = terra.wallet(mk);
+
+        wallet = initialize(terra)
+
         deployConfig = testnet
     } else {
         console.log("NETWORK:" +process.env.NETWORK)
@@ -34,6 +39,9 @@ async function main() {
         deployConfig = local
     }
     console.log(`Wallet address from seed: ${wallet.key.accAddress}`)
+
+    console.log(`Wallet address from seed: ${wallet.key.valPubKey}`)
+    console.log(`Wallet address from seed: ${wallet.key}`)
 
     if (!deployConfig.astroTokenContractAddress) {
         console.log(`Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...`)
