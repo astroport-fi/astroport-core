@@ -7,8 +7,7 @@ use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use astroport::factory::{PairConfig, PairType};
-use maker::msg::QueryMsg::Balances;
-use maker::msg::{
+use astroport_maker::msg::{
     ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
 };
 
@@ -99,11 +98,11 @@ fn instantiate_contracts(
 
     let maker_contract = Box::new(
         ContractWrapper::new(
-            maker::contract::execute,
-            maker::contract::instantiate,
-            maker::contract::query,
+            astroport_maker::contract::execute,
+            astroport_maker::contract::instantiate,
+            astroport_maker::contract::query,
         )
-        .with_reply(maker::contract::reply),
+        .with_reply(astroport_maker::contract::reply),
     );
     let market_code_id = router.store_code(maker_contract);
 
@@ -555,7 +554,7 @@ fn collect_all() {
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: maker_instance.to_string(),
-            msg: to_binary(&Balances {
+            msg: to_binary(&QueryMsg::Balances {
                 assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
             })
             .unwrap(),
