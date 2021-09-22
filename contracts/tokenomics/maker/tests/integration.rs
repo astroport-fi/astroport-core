@@ -7,14 +7,14 @@ use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use astroport::factory::{PairConfig, PairType};
-use maker::msg::QueryMsg::Balances;
-use maker::msg::{ExecuteMsg, InstantiateMsg, QueryBalancesResponse};
+use astroport_maker::msg::QueryMsg::Balances;
+use astroport_maker::msg::{ExecuteMsg, InstantiateMsg, QueryBalancesResponse};
 
 fn mock_app() -> App {
     let env = mock_env();
     let api = MockApi::default();
     let bank = BankKeeper::new();
-    let mut tmq = TerraMockQuerier::new(MockQuerier::new(&[]));
+    let tmq = TerraMockQuerier::new(MockQuerier::new(&[]));
 
     App::new(api, env.block, bank, MockStorage::new(), tmq)
 }
@@ -90,9 +90,9 @@ fn instantiate_contracts(router: &mut App, owner: Addr, staking: Addr) -> (Addr,
         .unwrap();
 
     let maker_contract = Box::new(ContractWrapper::new(
-        maker::contract::execute,
-        maker::contract::instantiate,
-        maker::contract::query,
+        astroport_maker::contract::execute,
+        astroport_maker::contract::instantiate,
+        astroport_maker::contract::query,
     ));
     let market_code_id = router.store_code(maker_contract);
 
