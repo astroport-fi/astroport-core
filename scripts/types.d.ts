@@ -9,10 +9,20 @@ interface StakingInitMsg{
 
 interface FactoryInitMsg{
     config: {
-        pair_configs: PairConfig[]
+        pair_configs: PairConfig[],
         token_code_id: number,
         init_hook?: string,
         fee_address?: string,
+    }
+}
+
+interface GaugeInitMsd{
+    config:{
+        token?: string,
+        dev_addr?: string,
+        tokens_per_block: string,
+        start_block: number,
+        bonus_end_block: number,
     }
 }
 
@@ -31,8 +41,10 @@ interface PairConfig{
 }
 
 interface Config {
+    factoryInitMsg: FactoryInitMsg,
     stakingInitMsg: StakingInitMsg
-    pairConfig: PairConfig,
-    pairStableConfig: PairConfig,
+    gaugeInitMsg: GaugeInitMsd,
+    // pairConfig: PairConfig,
+    // pairStableConfig: PairConfig,
     astroTokenContractAddress: string | undefined
 }
