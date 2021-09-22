@@ -20,7 +20,7 @@ crate-type = ["cdylib", "rlib"]
 [features]
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces", "cosmwasm-vm/backtraces"]
+backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 astroport = { path = "../../packages/astroport", default-features = false, version = "2.4.0"}
@@ -31,5 +31,7 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }
 
 [dev-dependencies]
-cosmwasm-vm = { version = "0.16.0", default-features = false, features = ["iterator"] }
 cosmwasm-schema = "0.16.0"
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch = "main"}
+astroport-token = {path = "../token"}
+astroport-pair = {path = "../pair"}

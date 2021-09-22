@@ -19,7 +19,7 @@ pub const PAIRS: Map<&[u8], PairInfo> = Map::new("pair_info");
 
 pub fn pair_key(asset_infos: &[AssetInfo; 2]) -> Vec<u8> {
     let mut asset_infos = asset_infos.to_vec();
-    asset_infos.sort_by(|a, b| a.as_bytes().cmp(&b.as_bytes()));
+    asset_infos.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
 
     [asset_infos[0].as_bytes(), asset_infos[1].as_bytes()].concat()
 }
@@ -51,7 +51,7 @@ pub fn read_pairs(
 fn calc_range_start(start_after: Option<[AssetInfo; 2]>) -> Option<Vec<u8>> {
     start_after.map(|asset_infos| {
         let mut asset_infos = asset_infos.to_vec();
-        asset_infos.sort_by(|a, b| a.as_bytes().cmp(&b.as_bytes()));
+        asset_infos.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
 
         let mut v = [asset_infos[0].as_bytes(), asset_infos[1].as_bytes()]
             .concat()

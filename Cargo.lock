@@ -41,12 +41,14 @@ name = "astroport-factory"
 version = "0.0.0"
 dependencies = [
  "astroport",
+ "astroport-pair",
+ "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cosmwasm-vm",
  "cw-storage-plus 0.8.1",
  "schemars",
  "serde",
+ "terra-multi-test",
  "thiserror",
 ]
 
@@ -579,7 +581,7 @@ dependencies = [
 [[package]]
 name = "cw-storage-plus"
 version = "0.8.0"
-source = "git+https://github.com/astroport-fi/terra-plus.git#78241c00b1b88a9b8b48e622feac574866d96476"
+source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#edab04fe04412eb55cde5b79132043a8c49c5df5"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -600,7 +602,7 @@ dependencies = [
 [[package]]
 name = "cw0"
 version = "0.8.0"
-source = "git+https://github.com/astroport-fi/terra-plus.git#78241c00b1b88a9b8b48e622feac574866d96476"
+source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#edab04fe04412eb55cde5b79132043a8c49c5df5"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -1865,7 +1867,7 @@ dependencies = [
 [[package]]
 name = "terra-mocks"
 version = "0.0.0"
-source = "git+https://github.com/terra-money/cosmwasm-contracts.git?branch=bombay#55f1eeb5de5c10ca535a927764af029a266b6657"
+source = "git+https://github.com/terra-money/cosmwasm-contracts.git?rev=b25f4ac2d7bddaa3a18838cfe51d18e1ae855dcd#b25f4ac2d7bddaa3a18838cfe51d18e1ae855dcd"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -1876,7 +1878,7 @@ dependencies = [
 [[package]]
 name = "terra-multi-test"
 version = "0.8.0"
-source = "git+https://github.com/astroport-fi/terra-plus.git#78241c00b1b88a9b8b48e622feac574866d96476"
+source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#edab04fe04412eb55cde5b79132043a8c49c5df5"
 dependencies = [
  "anyhow",
  "cosmwasm-std",

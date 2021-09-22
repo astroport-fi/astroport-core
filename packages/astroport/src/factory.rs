@@ -99,6 +99,7 @@ pub struct ConfigResponse {
     pub owner: Addr,
     pub pair_configs: Vec<PairConfig>,
     pub token_code_id: u64,
+    pub fee_address: Addr,
 }
 
 /// We currently take no arguments for migrations

@@ -323,6 +323,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
                 cfg
             })
             .collect(),
+        fee_address: config.fee_address,
     };
 
     Ok(resp)
