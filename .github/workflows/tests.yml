@@ -1,4 +1,4 @@
-name: Rust
+name: Contract tests and checks
 
 on:
   pull_request:
