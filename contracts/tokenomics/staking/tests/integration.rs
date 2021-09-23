@@ -53,9 +53,9 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
         .unwrap();
 
     let staking_contract = Box::new(ContractWrapper::new(
-        crate::contract::execute,
-        crate::contract::instantiate,
-        crate::contract::query,
+        astroport_staking::contract::execute,
+        astroport_staking::contract::instantiate,
+        astroport_staking::contract::query,
     ));
     let staking_code_id = router.store_code(staking_contract);
 

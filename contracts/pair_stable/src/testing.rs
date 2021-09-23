@@ -40,6 +40,7 @@ fn proper_initialization() {
             contract_addr: String::from("factory0000"),
             msg: to_binary(&Uint128::new(1000000u128)).unwrap(),
         }),
+        pair_type: PairType::Stable {},
     };
 
     // we can just call .unwrap() to assert this was a success
@@ -122,7 +123,7 @@ fn proper_initialization() {
 fn provide_liquidity() {
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
-        amount: Uint128::new(200u128),
+        amount: Uint128::new(200_000000000000000000u128),
     }]);
 
     deps.querier.with_token_balances(&[(
@@ -142,6 +143,7 @@ fn provide_liquidity() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Stable {},
     };
 
     let env = mock_env();
@@ -162,13 +164,13 @@ fn provide_liquidity() {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
                 },
-                amount: Uint128::from(100u128),
+                amount: Uint128::from(100_000000000000000000u128),
             },
             Asset {
                 info: AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
                 },
-                amount: Uint128::from(100u128),
+                amount: Uint128::from(100_000000000000000000u128),
             },
         ],
         slippage_tolerance: None,
@@ -179,7 +181,7 @@ fn provide_liquidity() {
         "addr0000",
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
+            amount: Uint128::from(100_000000000000000000u128),
         }],
     );
     let res = execute(deps.as_mut(), env.clone().clone(), info, msg).unwrap();
@@ -193,7 +195,7 @@ fn provide_liquidity() {
                 msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
                     owner: String::from("addr0000"),
                     recipient: String::from(MOCK_CONTRACT_ADDR),
-                    amount: Uint128::from(100u128),
+                    amount: Uint128::from(100_000000000000000000u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -211,7 +213,7 @@ fn provide_liquidity() {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(100u128),
+                    amount: Uint128::from(100_000000000000000000u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -229,18 +231,24 @@ fn provide_liquidity() {
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128::new(200 + 200 /* user deposit must be pre-applied */),
+            amount: Uint128::new(200_000000000000000000 + 200_000000000000000000 /* user deposit must be pre-applied */),
         }],
     )]);
 
     deps.querier.with_token_balances(&[
         (
             &String::from("liquidity0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(100))],
+            &[(
+                &String::from(MOCK_CONTRACT_ADDR),
+                &Uint128::new(100_000000000000000000),
+            )],
         ),
         (
             &String::from("asset0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(200))],
+            &[(
+                &String::from(MOCK_CONTRACT_ADDR),
+                &Uint128::new(200_000000000000000000),
+            )],
         ),
     ]);
 
@@ -250,13 +258,13 @@ fn provide_liquidity() {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
                 },
-                amount: Uint128::from(100u128),
+                amount: Uint128::from(100_000000000000000000u128),
             },
             Asset {
                 info: AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
                 },
-                amount: Uint128::from(200u128),
+                amount: Uint128::from(200_000000000000000000u128),
             },
         ],
         slippage_tolerance: None,
@@ -267,7 +275,7 @@ fn provide_liquidity() {
         "addr0000",
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128::from(200u128),
+            amount: Uint128::from(200_000000000000000000u128),
         }],
     );
 
@@ -283,7 +291,7 @@ fn provide_liquidity() {
                 msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
                     owner: String::from("addr0000"),
                     recipient: String::from(MOCK_CONTRACT_ADDR),
-                    amount: Uint128::from(100u128),
+                    amount: Uint128::from(100_000000000000000000u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -301,7 +309,7 @@ fn provide_liquidity() {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(50u128),
+                    amount: Uint128::from(50_000000000000000000u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -320,13 +328,13 @@ fn provide_liquidity() {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
                 },
-                amount: Uint128::from(100u128),
+                amount: Uint128::from(100_000000000000000000u128),
             },
             Asset {
                 info: AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
                 },
-                amount: Uint128::from(50u128),
+                amount: Uint128::from(50_000000000000000000u128),
             },
         ],
         slippage_tolerance: None,
@@ -337,7 +345,7 @@ fn provide_liquidity() {
         "addr0000",
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
+            amount: Uint128::from(100_000000000000000000u128),
         }],
     );
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
@@ -354,18 +362,24 @@ fn provide_liquidity() {
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128::new(100 + 100 /* user deposit must be pre-applied */),
+            amount: Uint128::new(100_000000000000000000 + 100_000000000000000000 /* user deposit must be pre-applied */),
         }],
     )]);
 
     deps.querier.with_token_balances(&[
         (
             &String::from("liquidity0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(100))],
+            &[(
+                &String::from(MOCK_CONTRACT_ADDR),
+                &Uint128::new(100_000000000000000000),
+            )],
         ),
         (
             &String::from("asset0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(100))],
+            &[(
+                &String::from(MOCK_CONTRACT_ADDR),
+                &Uint128::new(100_000000000000000000),
+            )],
         ),
     ]);
 
@@ -376,13 +390,13 @@ fn provide_liquidity() {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
                 },
-                amount: Uint128::from(98u128),
+                amount: Uint128::from(98_000000000000000000u128),
             },
             Asset {
                 info: AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
                 },
-                amount: Uint128::from(100u128),
+                amount: Uint128::from(100_000000000000000000u128),
             },
         ],
         slippage_tolerance: Some(Decimal::percent(1)),
@@ -393,7 +407,7 @@ fn provide_liquidity() {
         "addr0001",
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
+            amount: Uint128::from(100_000000000000000000u128),
         }],
     );
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
@@ -404,7 +418,7 @@ fn provide_liquidity() {
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128::new(100 + 98 /* user deposit must be pre-applied */),
+            amount: Uint128::new(100_000000000000000000 + 98_000000000000000000 /* user deposit must be pre-applied */),
         }],
     )]);
 
@@ -415,13 +429,13 @@ fn provide_liquidity() {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
                 },
-                amount: Uint128::from(100u128),
+                amount: Uint128::from(100_000000000000000000u128),
             },
             Asset {
                 info: AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
                 },
-                amount: Uint128::from(98u128),
+                amount: Uint128::from(98_000000000000000000u128),
             },
         ],
         slippage_tolerance: Some(Decimal::percent(1)),
@@ -432,7 +446,7 @@ fn provide_liquidity() {
         "addr0001",
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128::from(98u128),
+            amount: Uint128::from(98_000000000000000000u128),
         }],
     );
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
@@ -443,7 +457,7 @@ fn provide_liquidity() {
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128::new(100 + 100 /* user deposit must be pre-applied */),
+            amount: Uint128::new(100_000000000000000000 + 100_000000000000000000 /* user deposit must be pre-applied */),
         }],
     )]);
 
@@ -454,13 +468,13 @@ fn provide_liquidity() {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
                 },
-                amount: Uint128::from(99u128),
+                amount: Uint128::from(99_000000000000000000u128),
             },
             Asset {
                 info: AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
                 },
-                amount: Uint128::from(100u128),
+                amount: Uint128::from(100_000000000000000000u128),
             },
         ],
         slippage_tolerance: Some(Decimal::percent(1)),
@@ -471,7 +485,7 @@ fn provide_liquidity() {
         "addr0001",
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
+            amount: Uint128::from(100_000000000000000000u128),
         }],
     );
     let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -481,7 +495,7 @@ fn provide_liquidity() {
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128::new(100 + 99 /* user deposit must be pre-applied */),
+            amount: Uint128::new(100_000000000000000000 + 99_000000000000000000 /* user deposit must be pre-applied */),
         }],
     )]);
 
@@ -492,13 +506,13 @@ fn provide_liquidity() {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
                 },
-                amount: Uint128::from(100u128),
+                amount: Uint128::from(100_000000000000000000u128),
             },
             Asset {
                 info: AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
                 },
-                amount: Uint128::from(99u128),
+                amount: Uint128::from(99_000000000000000000u128),
             },
         ],
         slippage_tolerance: Some(Decimal::percent(1)),
@@ -509,7 +523,7 @@ fn provide_liquidity() {
         "addr0001",
         &[Coin {
             denom: "uusd".to_string(),
-            amount: Uint128::from(99u128),
+            amount: Uint128::from(99_000000000000000000u128),
         }],
     );
     let _res = execute(deps.as_mut(), env, info, msg).unwrap();
@@ -548,8 +562,8 @@ fn withdraw_liquidity() {
         ],
         token_code_id: 10u64,
         init_hook: None,
-
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Stable {},
     };
 
     let env = mock_env();
@@ -679,6 +693,7 @@ fn try_native_to_token() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Stable {},
     };
 
     let env = mock_env();
@@ -863,6 +878,7 @@ fn try_token_to_native() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Stable {},
     };
 
     let env = mock_env();
@@ -1136,6 +1152,7 @@ fn test_query_pool() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Stable {},
     };
 
     let env = mock_env();
@@ -1204,6 +1221,7 @@ fn test_query_share() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Stable {},
     };
 
     let env = mock_env();
@@ -1230,14 +1248,14 @@ fn test_accumulate_prices() {
         block_time_last: u64,
         last0: u128,
         last1: u128,
-        x: u128,
-        y: u128,
+        x_amount: u128,
+        y_amount: u128,
     }
 
     struct Result {
         block_time_last: u64,
-        price0: u128,
-        price1: u128,
+        price_x: u128,
+        price_y: u128,
         is_some: bool,
     }
 
@@ -1248,13 +1266,13 @@ fn test_accumulate_prices() {
                 block_time_last: 0,
                 last0: 0,
                 last1: 0,
-                x: 250,
-                y: 500,
+                x_amount: 250,
+                y_amount: 500,
             },
             Result {
                 block_time_last: 1000,
-                price0: 500,  // 250/500*1000
-                price1: 2000, // 500/250*1000
+                price_x: 2000, // 500/250*1000
+                price_y: 500,  // 250/500*1000
                 is_some: true,
             },
         ),
@@ -1265,13 +1283,13 @@ fn test_accumulate_prices() {
                 block_time_last: 1000,
                 last0: 1,
                 last1: 2,
-                x: 250,
-                y: 500,
+                x_amount: 250,
+                y_amount: 500,
             },
             Result {
                 block_time_last: 1000,
-                price0: 1,
-                price1: 2,
+                price_x: 2,
+                price_y: 1,
                 is_some: false,
             },
         ),
@@ -1281,13 +1299,13 @@ fn test_accumulate_prices() {
                 block_time_last: 1000,
                 last0: 500,
                 last1: 2000,
-                x: 250,
-                y: 500,
+                x_amount: 250,
+                y_amount: 500,
             },
             Result {
                 block_time_last: 1500,
-                price0: 750,  // 500 + (250/500*500)
-                price1: 3000, // 2000 + (500/250*500)
+                price_x: 1500, // 500 + (500/250*500)
+                price_y: 2250, // 2000 + (250/500*500)
                 is_some: true,
             },
         ),
@@ -1311,22 +1329,23 @@ fn test_accumulate_prices() {
                     ],
                     contract_addr: Addr::unchecked("pair"),
                     liquidity_token: Addr::unchecked("lp_token"),
+                    pair_type: PairType::Stable {},
                 },
                 factory_addr: Addr::unchecked("factory"),
                 block_time_last: case.block_time_last,
                 price0_cumulative_last: Uint128::new(case.last0),
                 price1_cumulative_last: Uint128::new(case.last1),
             },
-            Uint128::new(case.x),
-            Uint128::new(case.y),
+            Uint128::new(case.x_amount),
+            Uint128::new(case.y_amount),
         );
 
         assert_eq!(result.is_some, config.is_some());
 
         if let Some(config) = config {
             assert_eq!(config.block_time_last, result.block_time_last);
-            assert_eq!(config.price0_cumulative_last, Uint128::new(result.price0));
-            assert_eq!(config.price1_cumulative_last, Uint128::new(result.price1));
+            assert_eq!(config.price0_cumulative_last, Uint128::new(result.price_x));
+            assert_eq!(config.price1_cumulative_last, Uint128::new(result.price_y));
         }
     }
 }
@@ -1341,6 +1360,7 @@ fn mock_env_with_block_time(time: u64) -> Env {
     env
 }
 
+use astroport::factory::PairType;
 use proptest::prelude::*;
 use sim::StableSwapModel;
 

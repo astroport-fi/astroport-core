@@ -1,4 +1,5 @@
 use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::factory::PairType;
 use astroport::pair::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
@@ -41,6 +42,7 @@ fn instantiate_pair(router: &mut App, owner: Addr) -> Addr {
         token_code_id: token_contract_code_id,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
+        pair_type: PairType::Xyk {},
     };
 
     let pair = router

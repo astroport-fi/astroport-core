@@ -9,9 +9,12 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Pair code id is not allowed")]
-    PairCodeNotAllowed {},
-
     #[error("Pair was already registered")]
     PairWasRegistered {},
+
+    #[error("Duplicate of pair configs")]
+    PairConfigDuplicate {},
+
+    #[error("Pair config not found")]
+    PairConfigNotFound {},
 }

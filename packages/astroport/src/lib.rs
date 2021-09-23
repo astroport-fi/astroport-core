@@ -3,6 +3,7 @@ pub mod factory;
 pub mod generator;
 pub mod generator_proxy;
 pub mod hook;
+pub mod math;
 pub mod pair;
 pub mod querier;
 pub mod router;
@@ -15,3 +16,13 @@ mod mock_querier;
 
 #[cfg(test)]
 mod testing;
+
+#[allow(clippy::all)]
+mod uints {
+    use uint::construct_uint;
+    construct_uint! {
+        pub struct U256(4);
+    }
+}
+
+pub use uints::U256;

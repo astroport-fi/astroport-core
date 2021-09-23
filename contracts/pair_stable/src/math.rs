@@ -1,38 +1,11 @@
-use cosmwasm_std::{Decimal, StdResult, Uint128};
 use std::convert::TryFrom;
 
-use uint::construct_uint;
-
-construct_uint! {
-    pub struct U256(4);
-}
-
-/////////////////////////////////////////////////////////////
-const DECIMAL_FRACTIONAL: Uint128 = Uint128::new(1_000_000_000u128);
+use astroport::U256;
 
 pub const AMP: u64 = 100;
 const N_COINS: u8 = 2;
 const N_COINS_SQUARED: u8 = 4;
 const ITERATIONS: u8 = 32;
-
-pub fn reverse_decimal(decimal: Decimal) -> Decimal {
-    if decimal.is_zero() {
-        return Decimal::zero();
-    }
-
-    Decimal::from_ratio(DECIMAL_FRACTIONAL, decimal * DECIMAL_FRACTIONAL)
-}
-
-pub fn decimal_subtraction(a: Decimal, b: Decimal) -> StdResult<Decimal> {
-    Ok(Decimal::from_ratio(
-        (a * DECIMAL_FRACTIONAL).checked_sub(b * DECIMAL_FRACTIONAL)?,
-        DECIMAL_FRACTIONAL,
-    ))
-}
-
-pub fn decimal_multiplication(a: Decimal, b: Decimal) -> Decimal {
-    Decimal::from_ratio(a * DECIMAL_FRACTIONAL * b, DECIMAL_FRACTIONAL)
-}
 
 pub fn calc_amount(balance_in: u128, balance_out: u128, amount_in: u128, amp: u64) -> Option<u128> {
     let leverage = amp.checked_mul(u64::from(N_COINS)).unwrap();
@@ -85,12 +58,12 @@ fn compute_d(leverage: u64, amount_a: u128, amount_b: u128) -> Option<u128> {
 /// d = (leverage * sum_x + d_product * n_coins) * initial_d / ((leverage - 1) * initial_d + (n_coins + 1) * d_product)
 fn calculate_step(initial_d: &U256, leverage: u64, sum_x: u128, d_product: &U256) -> Option<U256> {
     let leverage_mul = U256::from(leverage).checked_mul(sum_x.into())?;
-    let d_p_mul = checked_u8_mul(&d_product, N_COINS)?;
+    let d_p_mul = checked_u8_mul(d_product, N_COINS)?;
 
     let l_val = leverage_mul.checked_add(d_p_mul)?.checked_mul(*initial_d)?;
 
     let leverage_sub = initial_d.checked_mul((leverage.checked_sub(1)?).into())?;
-    let n_coins_sum = checked_u8_mul(&d_product, N_COINS.checked_add(1)?)?;
+    let n_coins_sum = checked_u8_mul(d_product, N_COINS.checked_add(1)?)?;
 
     let r_val = leverage_sub.checked_add(n_coins_sum)?;
 

@@ -33,6 +33,7 @@ dependencies = [
  "schemars",
  "serde",
  "terra-cosmwasm",
+ "uint",
 ]
 
 [[package]]
@@ -40,12 +41,14 @@ name = "astroport-factory"
 version = "0.0.0"
 dependencies = [
  "astroport",
+ "astroport-pair",
+ "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cosmwasm-vm",
  "cw-storage-plus 0.8.1",
  "schemars",
  "serde",
+ "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git?branch=main)",
  "thiserror",
 ]
 
@@ -65,7 +68,7 @@ dependencies = [
  "mirror-staking",
  "schemars",
  "serde",
- "terra-multi-test",
+ "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
  "thiserror",
 ]
 
@@ -85,11 +88,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-maker"
+version = "0.1.0"
+dependencies = [
+ "astroport",
+ "astroport-factory",
+ "astroport-pair",
+ "astroport-token",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git?branch=main)",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-pair"
 version = "0.0.0"
 dependencies = [
  "astroport",
  "astroport-token",
+ "cosmwasm-bignumber",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-vm",
@@ -109,6 +131,7 @@ version = "0.0.0"
 dependencies = [
  "astroport",
  "astroport-token",
+ "cosmwasm-bignumber",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-vm",
@@ -122,7 +145,6 @@ dependencies = [
  "sim",
  "terra-cosmwasm",
  "thiserror",
- "uint 0.8.5",
 ]
 
 [[package]]
@@ -215,6 +237,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
+name = "bigint"
+version = "4.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0e8c8a600052b52482eff2cf4d810e462fdff1f656ac1ecb6232132a1ed7def"
+dependencies = [
+ "byteorder",
+ "crunchy 0.1.6",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -281,6 +313,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44c32f031ea41b4291d695026c023b95d59db2d8a2c7640800ed56bc8f510f22"
 
 [[package]]
+name = "cosmwasm-bignumber"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce94de6dd2b3d74cd8d9bc2bf5d6208ffed832ad946774ea9ed2a9ef7d95161f"
+dependencies = [
+ "bigint",
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "cosmwasm-crypto"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -325,7 +369,7 @@ dependencies = [
  "serde",
  "serde-json-wasm",
  "thiserror",
- "uint 0.9.1",
+ "uint",
 ]
 
 [[package]]
@@ -483,6 +527,12 @@ dependencies = [
 
 [[package]]
 name = "crunchy"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2f4a431c5c9f662e1200b7c7f02c34e91361150e382089a8f2dec3ba680cbda"
+
+[[package]]
+name = "crunchy"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
@@ -553,6 +603,16 @@ dependencies = [
 [[package]]
 name = "cw-storage-plus"
 version = "0.8.0"
+source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#edab04fe04412eb55cde5b79132043a8c49c5df5"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+]
+
+[[package]]
+name = "cw-storage-plus"
+version = "0.8.0"
 source = "git+https://github.com/astroport-fi/terra-plus.git#edab04fe04412eb55cde5b79132043a8c49c5df5"
 dependencies = [
  "cosmwasm-std",
@@ -569,6 +629,17 @@ dependencies = [
  "cosmwasm-std",
  "schemars",
  "serde",
+]
+
+[[package]]
+name = "cw0"
+version = "0.8.0"
+source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#edab04fe04412eb55cde5b79132043a8c49c5df5"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -1626,12 +1697,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
-name = "rustc-hex"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e75f6a532d0fd9f7f13144f392b6ad56a32696bfcd9c78f797f16bbb6f072d6"
-
-[[package]]
 name = "rustversion"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1897,13 +1962,31 @@ dependencies = [
 [[package]]
 name = "terra-multi-test"
 version = "0.8.0"
+source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#edab04fe04412eb55cde5b79132043a8c49c5df5"
+dependencies = [
+ "anyhow",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git?branch=main)",
+ "cw0 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git?branch=main)",
+ "itertools",
+ "prost",
+ "schemars",
+ "serde",
+ "terra-mocks",
+ "thiserror",
+]
+
+[[package]]
+name = "terra-multi-test"
+version = "0.8.0"
 source = "git+https://github.com/astroport-fi/terra-plus.git#edab04fe04412eb55cde5b79132043a8c49c5df5"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-storage-plus 0.8.0",
- "cw0 0.8.0",
+ "cw-storage-plus 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
+ "cw0 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
  "itertools",
  "prost",
  "schemars",
@@ -1986,24 +2069,12 @@ checksum = "b63708a265f51345575b27fe43f9500ad611579e764c79edbc2037b1121959ec"
 
 [[package]]
 name = "uint"
-version = "0.8.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9db035e67dfaf7edd9aebfe8676afcd63eed53c8a4044fed514c8cccf1835177"
-dependencies = [
- "byteorder",
- "crunchy",
- "rustc-hex",
- "static_assertions",
-]
-
-[[package]]
-name = "uint"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6470ab50f482bde894a037a57064480a246dbfdd5960bd65a44824693f08da5f"
 dependencies = [
  "byteorder",
- "crunchy",
+ "crunchy 0.2.2",
  "hex",
  "static_assertions",
 ]

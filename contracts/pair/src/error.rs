@@ -20,6 +20,9 @@ pub enum ContractError {
 
     #[error("Asset mismatch between the requested and stored in contract")]
     AssetMismatch {},
+
+    #[error("Pair type mismatch. Check factory pair configs")]
+    PairTypeMismatch {},
 }
 
 impl From<OverflowError> for ContractError {
