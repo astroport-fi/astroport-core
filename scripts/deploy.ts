@@ -58,7 +58,7 @@ async function main() {
     deployConfig.factoryInitMsg.config.pair_configs[0].code_id = pairCodeID
 
     let pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable.wasm')!)
-    deployConfig.factoryInitMsg.config.pair_configs[0].code_id = pairStableCodeID
+    deployConfig.factoryInitMsg.config.pair_configs[1].code_id = pairStableCodeID
     console.log("Code Pair Contract: " + pairCodeID + " Code Stable Pair Contract: " + pairStableCodeID)
 
     /*************************************** Deploy Factory Contract *****************************************/
@@ -113,7 +113,7 @@ async function main() {
     const addressMakerContract = await deployContract(
         terra,
         wallet,
-        join(ARTIFACTS_PATH, 'maker.wasm'),
+        join(ARTIFACTS_PATH, 'astroport_maker.wasm'),
         {
             factory_contract: String(addressFactoryContract),
             staking_contract: String(addressStakingContract),
@@ -160,7 +160,7 @@ async function main() {
     // const addressVestingContract = "terra1kyl8f2xkd63cga8szgkejdyvxay7mc7qpdc3c5"
     // const addressGaugeContract = "terra1qjrvlf27upqhqnrqmmu2y205ed2c3tc87dnku3"
 
-    //console.log("Vesting accounts setup: ", await queryContract(terra, addressVestingContract, { "vesting_accounts": { } }))
+    console.log(await queryContract(terra, addressVestingContract, { "vesting_accounts": { } }))
 
     console.log("FINISH")
 }

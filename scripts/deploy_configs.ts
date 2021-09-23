@@ -67,13 +67,13 @@ export const testnet: Config = {
 export const bombay: Config = {
     stakingInitMsg: {
         "config": {
-            token_code_id: 9537,
-            deposit_token_addr: 'terra1t6582h5kdj2cekgtzvuk4u0579jqawf0pz78tk',
+            token_code_id: 9652,
+            deposit_token_addr: 'terra1qqhw3t3p5349rs83m5mqjxft76c82yf99s9jjz',
         }
     },
     gaugeInitMsg: {
         "config": {
-            token: 'terra1t6582h5kdj2cekgtzvuk4u0579jqawf0pz78tk',
+            token: 'terra1qqhw3t3p5349rs83m5mqjxft76c82yf99s9jjz',
             dev_addr: 'terra1ulx8rulpwcx86v4v0awxgadhxhqz95v9s8jkhd',
             tokens_per_block: String(10000000),
             start_block: 100000,
@@ -96,12 +96,12 @@ export const bombay: Config = {
                     maker_fee_bps: 0
                 }
             ],
-            token_code_id: 1,
+            token_code_id: 9652,
             init_hook: undefined,
             fee_address: undefined
         }
     },
-    astroTokenContractAddress: 'terra1t6582h5kdj2cekgtzvuk4u0579jqawf0pz78tk',
+    astroTokenContractAddress: 'terra1qqhw3t3p5349rs83m5mqjxft76c82yf99s9jjz',
     registerVestingAccounts: {
         register_vesting_accounts:{
             vesting_accounts: [
