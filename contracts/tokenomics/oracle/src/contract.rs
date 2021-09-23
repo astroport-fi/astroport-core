@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::querier::{query_cumulative_prices, query_pair_info, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
 use astroport::asset::{Asset, AssetInfo};
@@ -137,4 +137,9 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint128, Std
         return Err(StdError::generic_err("Invalid Token"));
     };
     Ok(ret)
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

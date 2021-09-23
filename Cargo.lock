@@ -48,7 +48,7 @@ dependencies = [
  "cw-storage-plus 0.8.1",
  "schemars",
  "serde",
- "terra-multi-test",
+ "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git?branch=main)",
  "thiserror",
 ]
 
@@ -79,7 +79,26 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
- "terra-multi-test",
+ "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git?branch=main)",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-oracle"
+version = "0.1.0"
+dependencies = [
+ "astroport",
+ "astroport-factory",
+ "astroport-pair",
+ "astroport-token",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
  "thiserror",
 ]
 
@@ -590,6 +609,16 @@ dependencies = [
 
 [[package]]
 name = "cw-storage-plus"
+version = "0.8.0"
+source = "git+https://github.com/astroport-fi/terra-plus.git#edab04fe04412eb55cde5b79132043a8c49c5df5"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+]
+
+[[package]]
+name = "cw-storage-plus"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1e867b9972b83b32e00e878dfbff48299ba26618dabeb19b9c56fae176dc225"
@@ -603,6 +632,17 @@ dependencies = [
 name = "cw0"
 version = "0.8.0"
 source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#edab04fe04412eb55cde5b79132043a8c49c5df5"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "cw0"
+version = "0.8.0"
+source = "git+https://github.com/astroport-fi/terra-plus.git#edab04fe04412eb55cde5b79132043a8c49c5df5"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -1213,25 +1253,6 @@ name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
-
-[[package]]
-name = "oracle"
-version = "0.1.0"
-dependencies = [
- "astroport",
- "astroport-factory",
- "astroport-pair",
- "astroport-token",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw20",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "terra-multi-test",
- "thiserror",
-]
 
 [[package]]
 name = "parity-wasm"
@@ -1902,8 +1923,26 @@ dependencies = [
  "anyhow",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-storage-plus 0.8.0",
- "cw0 0.8.0",
+ "cw-storage-plus 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git?branch=main)",
+ "cw0 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git?branch=main)",
+ "itertools",
+ "prost",
+ "schemars",
+ "serde",
+ "terra-mocks",
+ "thiserror",
+]
+
+[[package]]
+name = "terra-multi-test"
+version = "0.8.0"
+source = "git+https://github.com/astroport-fi/terra-plus.git#edab04fe04412eb55cde5b79132043a8c49c5df5"
+dependencies = [
+ "anyhow",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
+ "cw0 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
  "itertools",
  "prost",
  "schemars",

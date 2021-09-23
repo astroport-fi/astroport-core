@@ -8,8 +8,8 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use astroport::factory::{PairConfig, PairType};
 
-use oracle::msg::QueryMsg::Consult;
-use oracle::msg::{ExecuteMsg, InstantiateMsg};
+use astroport_oracle::msg::QueryMsg::Consult;
+use astroport_oracle::msg::{ExecuteMsg, InstantiateMsg};
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -93,9 +93,9 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
         .unwrap();
 
     let oracle_contract = Box::new(ContractWrapper::new(
-        oracle::contract::execute,
-        oracle::contract::instantiate,
-        oracle::contract::query,
+        astroport_oracle::contract::execute,
+        astroport_oracle::contract::instantiate,
+        astroport_oracle::contract::query,
     ));
     let oracle_code_id = router.store_code(oracle_contract);
     (astro_token_instance, factory_instance, oracle_code_id)
@@ -620,12 +620,12 @@ fn consult2() {
         (
             astro_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(1333u128),
+            Uint128::from(750u128),
         ),
         (
             usdc_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(750u128),
+            Uint128::from(1333u128),
         ),
     ] {
         let msg = Consult {
@@ -673,12 +673,12 @@ fn consult2() {
         (
             astro_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(944u128),
+            Uint128::from(1058u128),
         ),
         (
             usdc_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(1058u128),
+            Uint128::from(944u128),
         ),
     ] {
         let msg = Consult {
