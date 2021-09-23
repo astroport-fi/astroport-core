@@ -147,8 +147,8 @@ pub fn try_leave(
 ) -> Result<Response, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
 
-    let total_deposit = get_total_deposit(&deps, env, config.clone())?;
-    let total_shares = get_total_shares(&deps, config.clone())?;
+    let total_deposit = get_total_deposit(deps, env, config.clone())?;
+    let total_shares = get_total_shares(deps, config.clone())?;
 
     let what = share
         .checked_mul(total_deposit)?
