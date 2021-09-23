@@ -25,10 +25,6 @@ async function main() {
             chainID: String(process.env.CHAIN_ID)
         })
         wallet = recover(terra, process.env.WALLET!)
-        //wallet = initialize(terra)
-        //Account Address: terra1ulx8rulpwcx86v4v0awxgadhxhqz95v9s8jkhd
-        //MnemonicKey: cradle similar beef van gift start afford blush cry tobacco angry tuna buzz purpose cloud silver atom behind crouch vault pill afraid huge risk
-
         deployConfig = testnet
 
     } else  if (process.env.NETWORK === "bombay") {
@@ -59,7 +55,7 @@ async function main() {
 
     let pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable.wasm')!)
     deployConfig.factoryInitMsg.config.pair_configs[1].code_id = pairStableCodeID
-    console.log("Code Pair Contract: " + pairCodeID + " Code Stable Pair Contract: " + pairStableCodeID)
+    console.log("CodeIs Pair Contract: " + pairCodeID + " CodeId Stable Pair Contract: " + pairStableCodeID)
 
     /*************************************** Deploy Factory Contract *****************************************/
     console.log("Deploying Factory...")
@@ -71,7 +67,7 @@ async function main() {
     )
     console.log("Address Factory Contract: " + addressFactoryContract)
 
-    // /*************************************** Deploy Router Contract *****************************************/
+    /*************************************** Deploy Router Contract *****************************************/
     console.log("Deploying Router...")
     const addressRouterContract = await deployContract(
         terra,
@@ -96,7 +92,6 @@ async function main() {
         },
     )
     console.log("Address Vesting Contract: " + addressVestingContract)
-
     /*************************************** Deploy Staking Contract *****************************************/
     console.log("Deploying Staking...")
     const addressStakingContract = await deployContract(
@@ -106,8 +101,6 @@ async function main() {
         deployConfig.stakingInitMsg.config
     )
     console.log("Address Staking Contract: " + addressStakingContract)
-
-
     /*************************************** Deploy Maker Contract *****************************************/
     console.log("Deploying Maker...")
     const addressMakerContract = await deployContract(
@@ -123,10 +116,7 @@ async function main() {
     console.log("Address Gauge Contract: " + addressMakerContract)
     /*************************************** Deploy Gauge Contract *****************************************/
     console.log("Deploying Gauge...")
-
-    //deployConfig.gaugeInitMsg.config.token = deployConfig.astroTokenContractAddress;
     deployConfig.gaugeInitMsg.config.dev_addr = wallet.key.accAddress;
-
     const addressGaugeContract = await deployContract(
         terra,
         wallet,
@@ -134,34 +124,22 @@ async function main() {
         deployConfig.gaugeInitMsg.config
     )
     console.log("Address Gauge Contract: " + addressGaugeContract)
-
-
     /*************************************** Setting tokens to Vesting Contract *****************************************/
-
+    console.log("Setting Vesting...")
     const vestingAccounts = (
         deployConfig.registerVestingAccounts.register_vesting_accounts.vesting_accounts
     ).map(account => ({
         ...account,
         address: addressGaugeContract,
     }));
-
     deployConfig.registerVestingAccounts.register_vesting_accounts.vesting_accounts = vestingAccounts
-
     const { registerVestingAccounts } = deployConfig;
-
-    console.log("Setting Vesting...")
     await executeContract(
         terra,
         wallet,
         addressVestingContract,
         registerVestingAccounts,
     )
-
-    // const addressVestingContract = "terra1kyl8f2xkd63cga8szgkejdyvxay7mc7qpdc3c5"
-    // const addressGaugeContract = "terra1qjrvlf27upqhqnrqmmu2y205ed2c3tc87dnku3"
-
-    console.log(await queryContract(terra, addressVestingContract, { "vesting_accounts": { } }))
-
     console.log("FINISH")
 }
 

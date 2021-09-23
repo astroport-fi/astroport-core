@@ -1,5 +1,3 @@
-//import * as pt from "./pairtype";
-
 interface StakingInitMsg{
     config: {
         token_code_id: number
@@ -40,11 +38,11 @@ interface PairConfig{
     maker_fee_bps: number
 }
 
-type FirstEl = string // TODO: rename type
-type SecondEl = string // TODO: rename type
-type ThirdEl = string // TODO: rename type
+type StartDate = string
+type EndDate = string
+type Amount = string
 
-type VestingAccountSchedule = [FirstEl, SecondEl, ThirdEl]
+type VestingAccountSchedule = [StartDate, EndDate, Amount]
 
 interface VestingAccount {
     address: string
@@ -63,8 +61,6 @@ interface Config {
     factoryInitMsg: FactoryInitMsg,
     stakingInitMsg: StakingInitMsg
     gaugeInitMsg: GaugeInitMsd,
-    // pairConfig: PairConfig,
-    // pairStableConfig: PairConfig,
     astroTokenContractAddress: string | undefined
     registerVestingAccounts: RegisterVestingAccounts
 }

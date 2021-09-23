@@ -36,13 +36,10 @@ const MULTISIG_THRESHOLD = parseInt(process.env.MULTISIG_THRESHOLD!)
 const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH
 
 // Testnet:
-const CHAIN_ID = process.env.CHAIN_ID
-const LCD_CLIENT_URL = process.env.LCD_CLIENT_URL
+const CHAIN_ID = String(process.env.CHAIN_ID)
+const LCD_CLIENT_URL = String(process.env.LCD_CLIENT_URL)
 const CW20_CODE_ID = process.env.CW20_CODE_ID
 // LocalTerra:
-
-
-
 
 // Main
 async function main() {
@@ -52,8 +49,8 @@ async function main() {
 
     if (process.env.NETWORK === "testnet" || process.env.NETWORK === "bombay") {
         terra = new LCDClient({
-            URL: String(process.env.LCD_CLIENT_URL),
-            chainID: String(process.env.CHAIN_ID)
+            URL: LCD_CLIENT_URL,
+            chainID: CHAIN_ID
         })
         wallet = recover(terra, process.env.WALLET!)
     } else{
@@ -63,7 +60,7 @@ async function main() {
     }
     // Upload contract code
     cw20CodeID = await uploadContract(terra, wallet, CW20_BINARY_PATH!)
-    console.log(cw20CodeID)
+    console.log( "Token codeId" + cw20CodeID)
     //const multisig = new Wallet(terra, new CLIKey({ keyName: MULTISIG_NAME }))
 
     // Token info
