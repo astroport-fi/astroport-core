@@ -696,5 +696,107 @@ fn consult2() {
             .unwrap();
         assert_eq!(res, amount_exp);
     }
+}
 
+#[test]
+fn consult_zero_price() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+    let user = Addr::unchecked("user0000");
+    let (astro_token_instance, factory_instance, oracle_code_id) =
+        instantiate_contracts(&mut router, owner.clone());
+
+    let usdc_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Usdc token".to_string(),
+        "USDC".to_string(),
+    );
+
+    let asset_infos = [
+        AssetInfo::Token {
+            contract_addr: usdc_token_instance.clone(),
+        },
+        AssetInfo::Token {
+            contract_addr: astro_token_instance.clone(),
+        },
+    ];
+    create_pair(
+        &mut router,
+        owner.clone(),
+        user.clone(),
+        &factory_instance,
+        [
+            Asset {
+                info: asset_infos[0].clone(),
+                amount: Uint128::from(100_000_u128),
+            },
+            Asset {
+                info: asset_infos[1].clone(),
+                amount: Uint128::from(100_000_u128),
+            },
+        ],
+    );
+    router.update_block(next_day);
+    let msg = InstantiateMsg {
+        factory_contract: factory_instance.to_string(),
+        asset_infos: asset_infos.clone(),
+    };
+    let oracle_instance = router
+        .instantiate_contract(
+            oracle_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("ORACLE"),
+            None,
+        )
+        .unwrap();
+
+    let e = router
+        .execute_contract(
+            owner.clone(),
+            oracle_instance.clone(),
+            &ExecuteMsg::Update {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(e.to_string(), "Period not elapsed",);
+    router.update_block(next_day);
+    router
+        .execute_contract(
+            owner.clone(),
+            oracle_instance.clone(),
+            &ExecuteMsg::Update {},
+            &[],
+        )
+        .unwrap();
+
+    for (addr, amount_in, amount_out) in [
+        (
+            astro_token_instance.clone(),
+            Uint128::from(100u128),
+            Uint128::from(100u128),
+        ),
+        (
+            usdc_token_instance.clone(),
+            Uint128::from(100u128),
+            Uint128::from(100u128),
+        ),
+    ] {
+        let msg = Consult {
+            token: AssetInfo::Token {
+                contract_addr: addr,
+            },
+            amount: amount_in,
+        };
+        let res: Uint128 = router
+            .wrap()
+            .query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: oracle_instance.to_string(),
+                msg: to_binary(&msg).unwrap(),
+            }))
+            .unwrap();
+        assert_eq!(res, amount_out);
+    }
 }

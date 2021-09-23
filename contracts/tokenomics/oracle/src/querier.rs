@@ -1,6 +1,6 @@
-use astroport::asset::{AssetInfo, PairInfo};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::QueryMsg as FactoryQueryMsg;
-use astroport::pair::{CumulativePricesResponse, QueryMsg as PairQueryMsg};
+use astroport::pair::{CumulativePricesResponse, QueryMsg as PairQueryMsg, SimulationResponse};
 use cosmwasm_std::{to_binary, Addr, QuerierWrapper, QueryRequest, StdResult, WasmQuery};
 
 pub fn query_pair_info(
@@ -21,5 +21,16 @@ pub fn query_cumulative_prices(
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: pair_contract.to_string(),
         msg: to_binary(&PairQueryMsg::CumulativePrices {})?,
+    }))
+}
+
+pub fn query_prices(
+    querier: &QuerierWrapper,
+    pair_contract: Addr,
+    asset: Asset,
+) -> StdResult<SimulationResponse> {
+    querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: pair_contract.to_string(),
+        msg: to_binary(&PairQueryMsg::Simulation { offer_asset: asset })?,
     }))
 }

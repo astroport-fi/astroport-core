@@ -1,8 +1,8 @@
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::querier::{query_cumulative_prices, query_pair_info};
+use crate::querier::{query_cumulative_prices, query_pair_info, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
-use astroport::asset::AssetInfo;
+use astroport::asset::{Asset, AssetInfo};
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
     StdResult, Uint128,
@@ -106,9 +106,33 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint128, Std
     let price_last = PRICE_LAST.load(deps.storage)?;
 
     let ret = if config.asset_infos[0].equal(&token) {
-        Uint128::from(price_last.price_0_average.mul(amount).u128())
+        if price_last.price_0_average.is_zero() {
+            let res = query_prices(
+                &deps.querier,
+                config.pair.contract_addr,
+                Asset {
+                    info: token,
+                    amount,
+                },
+            )?;
+            res.return_amount
+        } else {
+            Uint128::from(price_last.price_0_average.mul(amount).u128())
+        }
     } else if config.asset_infos[1].equal(&token) {
-        Uint128::from(price_last.price_1_average.mul(amount).u128())
+        if price_last.price_0_average.is_zero() {
+            let res = query_prices(
+                &deps.querier,
+                config.pair.contract_addr,
+                Asset {
+                    info: token,
+                    amount,
+                },
+            )?;
+            res.return_amount
+        } else {
+            Uint128::from(price_last.price_1_average.mul(amount).u128())
+        }
     } else {
         return Err(StdError::generic_err("Invalid Token"));
     };
