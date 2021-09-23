@@ -250,7 +250,7 @@ fn update_rewards_and_execute(
                 })
                 .collect();
             for (lp_token, mut pool) in pools {
-                if let Some(reward_proxy) = &pool.reward_proxy.clone() {
+                if let Some(reward_proxy) = pool.reward_proxy.clone() {
                     response.messages.append(&mut get_pool_rewards_from_proxy(
                         deps.branch(),
                         &lp_token,
@@ -286,7 +286,7 @@ fn get_pool_rewards_from_proxy(
         .query_wasm_smart(reward_proxy, &ProxyQueryMsg::Reward {})?;
 
     pool.proxy_reward_balance_before_update = reward_amount;
-    POOL_INFO.save(deps.storage, &lp_token, &pool)?;
+    POOL_INFO.save(deps.storage, lp_token, pool)?;
 
     let msg = ProxyQueryMsg::PendingToken {};
     let res: Option<Uint128> = deps.querier.query_wasm_smart(reward_proxy, &msg)?;
