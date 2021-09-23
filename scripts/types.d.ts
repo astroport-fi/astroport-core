@@ -40,6 +40,25 @@ interface PairConfig{
     maker_fee_bps: number
 }
 
+type FirstEl = string // TODO: rename type
+type SecondEl = string // TODO: rename type
+type ThirdEl = string // TODO: rename type
+
+type VestingAccountSchedule = [FirstEl, SecondEl, ThirdEl]
+
+interface VestingAccount {
+    address: string
+    schedules: VestingAccountSchedule[]
+}
+
+interface RegisterVestingAccountsType {
+    vesting_accounts: VestingAccount[]
+}
+
+interface RegisterVestingAccounts {
+    register_vesting_accounts: RegisterVestingAccountsType
+}
+
 interface Config {
     factoryInitMsg: FactoryInitMsg,
     stakingInitMsg: StakingInitMsg
@@ -47,4 +66,5 @@ interface Config {
     // pairConfig: PairConfig,
     // pairStableConfig: PairConfig,
     astroTokenContractAddress: string | undefined
+    registerVestingAccounts: RegisterVestingAccounts
 }
