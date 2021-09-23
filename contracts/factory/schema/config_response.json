@@ -3,11 +3,15 @@
   "title": "ConfigResponse",
   "type": "object",
   "required": [
+    "fee_address",
     "owner",
     "pair_configs",
     "token_code_id"
   ],
   "properties": {
+    "fee_address": {
+      "$ref": "#/definitions/Addr"
+    },
     "owner": {
       "$ref": "#/definitions/Addr"
     },

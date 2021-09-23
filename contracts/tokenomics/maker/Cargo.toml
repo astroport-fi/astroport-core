@@ -1,7 +1,7 @@
 [package]
-name = "maker"
+name = "astroport-maker"
 version = "0.1.0"
-authors = ["Astroport"]
+authors = ["Terraform Labs, PTE."]
 edition = "2018"
 
 exclude = [
@@ -25,7 +25,7 @@ cosmwasm-std = { version = "0.16.0" }
 cw20 = { version = "0.8.0" }
 cw-storage-plus = { version = "0.8.0", features = ["iterator"] }
 schemars = "0.8.1"
-astroport = { version = "2.1.0", path = "../../../packages/astroport" }
+astroport = { version = "2.4.0", path = "../../../packages/astroport" }
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
 
@@ -36,4 +36,4 @@ astroport-token = {path = "../../token"}
 astroport-factory = {path = "../../factory"}
 astroport-pair = {path = "../../pair"}
 #cw-multi-test = "0.8.0"
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch = "main"}
