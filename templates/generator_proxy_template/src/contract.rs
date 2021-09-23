@@ -60,8 +60,9 @@ fn receive_cw20(
         }
         // deposit to the end reward contract here
         unimplemented!()
-    };
-
+    } else {
+        return Err(ContractError::IncorrectCw20HookMessageVariant {});
+    }
     Ok(response)
 }
 

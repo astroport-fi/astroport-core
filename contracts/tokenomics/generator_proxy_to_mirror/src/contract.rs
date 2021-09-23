@@ -43,9 +43,7 @@ pub fn execute(
         ExecuteMsg::UpdateRewards {} => update_rewards(deps),
         ExecuteMsg::SendRewards { account, amount } => send_rewards(deps, info, account, amount),
         ExecuteMsg::Withdraw { account, amount } => withdraw(deps, info, account, amount),
-        ExecuteMsg::EmergencyWithdraw { account, amount } => {
-            emergency_withdraw(deps, info, account, amount)
-        }
+        ExecuteMsg::EmergencyWithdraw { account, amount } => withdraw(deps, info, account, amount),
     }
 }
 
@@ -75,6 +73,8 @@ fn receive_cw20(
                     })?,
                 })?,
             })));
+    } else {
+        return Err(ContractError::IncorrectCw20HookMessageVariant {});
     }
     Ok(response)
 }
@@ -134,39 +134,6 @@ fn withdraw(
     };
 
     // withdraw from the end reward contract
-    response.messages.push(SubMsg::new(WasmMsg::Execute {
-        contract_addr: cfg.reward_contract_addr.to_string(),
-        funds: vec![],
-        msg: to_binary(&MirrorExecuteMsg::Unbond {
-            asset_token: cfg.pair_addr.to_string(),
-            amount,
-        })?,
-    }));
-
-    response.messages.push(SubMsg::new(WasmMsg::Execute {
-        contract_addr: cfg.lp_token_addr.to_string(),
-        funds: vec![],
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: account.to_string(),
-            amount,
-        })?,
-    }));
-
-    Ok(response)
-}
-
-fn emergency_withdraw(
-    deps: DepsMut,
-    info: MessageInfo,
-    account: Addr,
-    amount: Uint128,
-) -> Result<Response, ContractError> {
-    let mut response = Response::new();
-    let cfg = CONFIG.load(deps.storage)?;
-    if info.sender != cfg.generator_contract_addr {
-        return Err(ContractError::Unauthorized {});
-    };
-
     response.messages.push(SubMsg::new(WasmMsg::Execute {
         contract_addr: cfg.reward_contract_addr.to_string(),
         funds: vec![],

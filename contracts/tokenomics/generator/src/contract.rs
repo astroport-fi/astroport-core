@@ -213,7 +213,7 @@ pub fn set(
 }
 
 fn update_rewards_and_execute(
-    deps: DepsMut,
+    mut deps: DepsMut,
     only_lp_token: Option<Addr>,
     on_reply: ExecuteOnReply,
 ) -> Result<Response, ContractError> {
@@ -232,30 +232,13 @@ fn update_rewards_and_execute(
     match only_lp_token {
         Some(lp_token) => {
             let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
-            if let Some(reward_proxy) = &pool.reward_proxy {
-                let reward_amount: Uint128 = deps
-                    .querier
-                    .query_wasm_smart(reward_proxy, &ProxyQueryMsg::Reward {})?;
-
-                pool.proxy_reward_balance_before_update = reward_amount;
-                POOL_INFO.save(deps.storage, &lp_token, &pool)?;
-
-                let msg = ProxyQueryMsg::PendingToken {};
-                let res: Option<Uint128> = deps.querier.query_wasm_smart(reward_proxy, &msg)?;
-
-                let update_rewards = if let Some(amount) = res {
-                    !amount.is_zero()
-                } else {
-                    true
-                };
-
-                if update_rewards {
-                    response.messages.push(SubMsg::new(WasmMsg::Execute {
-                        contract_addr: reward_proxy.to_string(),
-                        funds: vec![],
-                        msg: to_binary(&ProxyExecuteMsg::UpdateRewards {})?,
-                    }));
-                }
+            if let Some(reward_proxy) = pool.reward_proxy.clone() {
+                response.messages.append(&mut get_pool_rewards_from_proxy(
+                    deps.branch(),
+                    &lp_token,
+                    &mut pool,
+                    &reward_proxy,
+                )?);
             }
         }
         None => {
@@ -267,30 +250,13 @@ fn update_rewards_and_execute(
                 })
                 .collect();
             for (lp_token, mut pool) in pools {
-                if let Some(reward_proxy) = &pool.reward_proxy {
-                    let reward_amount: Uint128 = deps
-                        .querier
-                        .query_wasm_smart(reward_proxy, &ProxyQueryMsg::Reward {})?;
-
-                    pool.proxy_reward_balance_before_update = reward_amount;
-                    POOL_INFO.save(deps.storage, &lp_token, &pool)?;
-
-                    let msg = ProxyQueryMsg::PendingToken {};
-                    let res: Option<Uint128> = deps.querier.query_wasm_smart(reward_proxy, &msg)?;
-
-                    let update_rewards = if let Some(amount) = res {
-                        !amount.is_zero()
-                    } else {
-                        true
-                    };
-
-                    if update_rewards {
-                        response.messages.push(SubMsg::new(WasmMsg::Execute {
-                            contract_addr: reward_proxy.to_string(),
-                            funds: vec![],
-                            msg: to_binary(&ProxyExecuteMsg::UpdateRewards {})?,
-                        }));
-                    }
+                if let Some(reward_proxy) = &pool.reward_proxy.clone() {
+                    response.messages.append(&mut get_pool_rewards_from_proxy(
+                        deps.branch(),
+                        &lp_token,
+                        &mut pool,
+                        &reward_proxy,
+                    )?);
                 }
             }
         }
@@ -307,6 +273,39 @@ fn update_rewards_and_execute(
     ));
 
     Ok(response)
+}
+
+fn get_pool_rewards_from_proxy(
+    deps: DepsMut,
+    lp_token: &Addr,
+    pool: &mut PoolInfo,
+    reward_proxy: &Addr,
+) -> Result<Vec<SubMsg>, ContractError> {
+    let reward_amount: Uint128 = deps
+        .querier
+        .query_wasm_smart(reward_proxy, &ProxyQueryMsg::Reward {})?;
+
+    pool.proxy_reward_balance_before_update = reward_amount;
+    POOL_INFO.save(deps.storage, &lp_token, &pool)?;
+
+    let msg = ProxyQueryMsg::PendingToken {};
+    let res: Option<Uint128> = deps.querier.query_wasm_smart(reward_proxy, &msg)?;
+
+    let update_rewards = if let Some(amount) = res {
+        !amount.is_zero()
+    } else {
+        true
+    };
+
+    Ok(if update_rewards {
+        vec![SubMsg::new(WasmMsg::Execute {
+            contract_addr: reward_proxy.to_string(),
+            funds: vec![],
+            msg: to_binary(&ProxyExecuteMsg::UpdateRewards {})?,
+        })]
+    } else {
+        vec![]
+    })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
