@@ -9,7 +9,7 @@ import {
     uploadContract,
 } from "./helpers.js"
 import { LCDClient, LocalTerra, Wallet } from "@terra-money/terra.js"
-import {testnet, local} from './deploy_configs.js';
+import {testnet, bombay, local} from './deploy_configs.js';
 import { join } from "path"
 
 const ARTIFACTS_PATH = "../artifacts/"
@@ -24,13 +24,20 @@ async function main() {
             URL: String(process.env.LCD_CLIENT_URL),
             chainID: String(process.env.CHAIN_ID)
         })
-        // wallet = recover(terra, process.env.WALLET!)
-        // const mk = new MnemonicKey();
-        // const wallet = terra.wallet(mk);
-
-        wallet = initialize(terra)
+        wallet = recover(terra, process.env.WALLET!)
+        //wallet = initialize(terra)
+        //Account Address: terra1ulx8rulpwcx86v4v0awxgadhxhqz95v9s8jkhd
+        //MnemonicKey: cradle similar beef van gift start afford blush cry tobacco angry tuna buzz purpose cloud silver atom behind crouch vault pill afraid huge risk
 
         deployConfig = testnet
+
+    } else  if (process.env.NETWORK === "bombay") {
+        terra = new LCDClient({
+            URL: String(process.env.LCD_CLIENT_URL),
+            chainID: String(process.env.CHAIN_ID)
+        })
+        wallet = recover(terra, process.env.WALLET!)
+        deployConfig = bombay
     } else {
         console.log("NETWORK:" +process.env.NETWORK)
         terra = new LocalTerra()
@@ -39,9 +46,6 @@ async function main() {
         deployConfig = local
     }
     console.log(`Wallet address from seed: ${wallet.key.accAddress}`)
-
-    console.log(`Wallet address from seed: ${wallet.key.valPubKey}`)
-    console.log(`Wallet address from seed: ${wallet.key}`)
 
     if (!deployConfig.astroTokenContractAddress) {
         console.log(`Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...`)

@@ -22,6 +22,7 @@ import {
     setTimeoutDuration,
     uploadContract
 } from "./helpers.js"
+import {bombay, testnet} from "./deploy_configs";
 
 // Required environment variables:
 
@@ -48,14 +49,28 @@ async function main() {
     let wallet: Wallet
     let cw20CodeID: number
 
-    {
+    if (process.env.NETWORK === "testnet") {
+        terra = new LCDClient({
+            URL: String(process.env.LCD_CLIENT_URL),
+            chainID: String(process.env.CHAIN_ID)
+        })
+        wallet = recover(terra, process.env.WALLET!)
+
+
+    } else  if (process.env.NETWORK === "bombay") {
+        terra = new LCDClient({
+            URL: String(process.env.LCD_CLIENT_URL),
+            chainID: String(process.env.CHAIN_ID)
+        })
+        wallet = recover(terra, process.env.WALLET!)
+    } else{
         setTimeoutDuration(0)
         terra = new LocalTerra()
         wallet = (terra as LocalTerra).wallets.test1
-        // Upload contract code
-        cw20CodeID = await uploadContract(terra, wallet, CW20_BINARY_PATH!)
-        console.log(cw20CodeID)
     }
+    // Upload contract code
+    cw20CodeID = await uploadContract(terra, wallet, CW20_BINARY_PATH!)
+    console.log(cw20CodeID)
     //const multisig = new Wallet(terra, new CLIKey({ keyName: MULTISIG_NAME }))
 
     // Token info

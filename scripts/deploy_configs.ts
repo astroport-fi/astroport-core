@@ -41,14 +41,14 @@ export const testnet: Config = {
 export const bombay: Config = {
     stakingInitMsg: {
         "config": {
-            token_code_id: 1,
-            deposit_token_addr: undefined,
+            token_code_id: 9537,
+            deposit_token_addr: 'terra1t6582h5kdj2cekgtzvuk4u0579jqawf0pz78tk',
         }
     },
     gaugeInitMsg: {
         "config": {
-            token: undefined,
-            dev_addr: undefined,
+            token: 'terra1t6582h5kdj2cekgtzvuk4u0579jqawf0pz78tk',
+            dev_addr: 'terra1ulx8rulpwcx86v4v0awxgadhxhqz95v9s8jkhd',
             tokens_per_block: String(10000000),
             start_block: 100000,
             bonus_end_block: 500000,
@@ -75,7 +75,7 @@ export const bombay: Config = {
             fee_address: undefined
         }
     },
-    astroTokenContractAddress: undefined,
+    astroTokenContractAddress: 'terra1t6582h5kdj2cekgtzvuk4u0579jqawf0pz78tk',
 }
 
 export const local: Config = {
