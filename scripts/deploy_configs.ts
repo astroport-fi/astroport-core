@@ -36,6 +36,32 @@ export const testnet: Config = {
         }
     },
     astroTokenContractAddress: 'terra18x4r44npdzrk0k9pzvy7h4d38ep3rmadsewzsh',
+    registerVestingAccounts: {
+        register_vesting_accounts:{
+            vesting_accounts: [
+                {
+                    address: '', // dynamic field
+                    schedules:[
+                        [
+                            String(new Date( 2022, 1, 1).getTime()),
+                            String(new Date( 2023, 1, 1).getTime()),
+                            String(1),
+                        ],
+                        [
+                            String(new Date( 2022, 6, 1).getTime()),
+                            String(new Date( 2023, 1, 1).getTime()),
+                            String(1),
+                        ],
+                        [
+                            String(new Date( 2023, 1, 1).getTime()),
+                            String(new Date( 2024, 1, 1).getTime()),
+                            String(1),
+                        ],
+                    ]
+                }
+            ]
+        }
+    }
 }
 
 export const bombay: Config = {
@@ -76,6 +102,32 @@ export const bombay: Config = {
         }
     },
     astroTokenContractAddress: 'terra1t6582h5kdj2cekgtzvuk4u0579jqawf0pz78tk',
+    registerVestingAccounts: {
+        register_vesting_accounts:{
+            vesting_accounts: [
+                {
+                    address: '', // dynamic field
+                    schedules:[
+                        [
+                            String(new Date( 2022, 1, 1).getTime()),
+                            String(new Date( 2023, 1, 1).getTime()),
+                            String(1),
+                        ],
+                        [
+                            String(new Date( 2022, 6, 1).getTime()),
+                            String(new Date( 2023, 1, 1).getTime()),
+                            String(1),
+                        ],
+                        [
+                            String(new Date( 2023, 1, 1).getTime()),
+                            String(new Date( 2024, 1, 1).getTime()),
+                            String(1),
+                        ],
+                    ]
+                }
+            ]
+        }
+    }
 }
 
 export const local: Config = {
@@ -115,5 +167,31 @@ export const local: Config = {
             fee_address: undefined
         }
     },
-    astroTokenContractAddress: 'terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5'
+    astroTokenContractAddress: 'terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5',
+    registerVestingAccounts: {
+        register_vesting_accounts:{
+            vesting_accounts: [
+                {
+                    address: '', // dynamic field
+                    schedules:[
+                        [
+                            String(new Date( 2022, 1, 1).getTime()),
+                            String(new Date( 2023, 1, 1).getTime()),
+                            String(1),
+                        ],
+                        [
+                            String(new Date( 2022, 6, 1).getTime()),
+                            String(new Date( 2023, 1, 1).getTime()),
+                            String(1),
+                        ],
+                        [
+                            String(new Date( 2023, 1, 1).getTime()),
+                            String(new Date( 2024, 1, 1).getTime()),
+                            String(1),
+                        ],
+                    ]
+                }
+            ]
+        }
+    }
 }

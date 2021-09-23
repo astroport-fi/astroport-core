@@ -137,24 +137,25 @@ async function main() {
 
 
     /*************************************** Setting tokens to Vesting Contract *****************************************/
+
+    const vestingAccounts = (
+        deployConfig.registerVestingAccounts.register_vesting_accounts.vesting_accounts
+    ).map(account => ({
+        ...account,
+        address: addressGaugeContract,
+    }));
+
+    deployConfig.registerVestingAccounts.register_vesting_accounts.vesting_accounts = vestingAccounts
+
+    const { registerVestingAccounts } = deployConfig;
+
     console.log("Setting Vesting...")
     await executeContract(
         terra,
         wallet,
         addressVestingContract,
-        {register_vesting_accounts:{
-            vesting_accounts: [
-                {
-                    address: addressGaugeContract,
-                    schedules:[
-                        [ String(new Date( 2022, 1, 1).getTime()), String(new Date( 2023, 1, 1).getTime()), String(1)],
-                        [ String(new Date( 2022, 6, 1).getTime()), String(new Date( 2023, 1, 1).getTime()), String(1)],
-                        [ String(new Date( 2023, 1, 1).getTime()), String(new Date( 2024, 1, 1).getTime()), String(1)],
-                    ]
-                }
-            ]
-        }
-        })
+        registerVestingAccounts,
+    )
 
     // const addressVestingContract = "terra1kyl8f2xkd63cga8szgkejdyvxay7mc7qpdc3c5"
     // const addressGaugeContract = "terra1qjrvlf27upqhqnrqmmu2y205ed2c3tc87dnku3"
