@@ -33,31 +33,24 @@ const MULTISIG_NAME = process.env.MULTISIG_NAME!
 // Names of the multisig keys in terracli
 const MULTISIG_KEYS = process.env.MULTISIG_KEYS!.split(",")
 const MULTISIG_THRESHOLD = parseInt(process.env.MULTISIG_THRESHOLD!)
+const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH
 
 // Testnet:
 const CHAIN_ID = process.env.CHAIN_ID
 const LCD_CLIENT_URL = process.env.LCD_CLIENT_URL
 const CW20_CODE_ID = process.env.CW20_CODE_ID
-
 // LocalTerra:
-const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH
+
+
+
 
 // Main
-
 async function main() {
     let terra: LCDClient | LocalTerra
     let wallet: Wallet
     let cw20CodeID: number
 
-    if (process.env.NETWORK === "testnet") {
-        terra = new LCDClient({
-            URL: String(process.env.LCD_CLIENT_URL),
-            chainID: String(process.env.CHAIN_ID)
-        })
-        wallet = recover(terra, process.env.WALLET!)
-
-
-    } else  if (process.env.NETWORK === "bombay") {
+    if (process.env.NETWORK === "testnet" || process.env.NETWORK === "bombay") {
         terra = new LCDClient({
             URL: String(process.env.LCD_CLIENT_URL),
             chainID: String(process.env.CHAIN_ID)
