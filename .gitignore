@@ -14,3 +14,7 @@ target/
 
 # Auto-gen
 .cargo-ok
+/scripts/.env
+/scripts/node_modules/
+#/scripts/package-lock.json
+/artifacts/
