@@ -291,13 +291,7 @@ fn get_pool_rewards_from_proxy(
     let msg = ProxyQueryMsg::PendingToken {};
     let res: Option<Uint128> = deps.querier.query_wasm_smart(reward_proxy, &msg)?;
 
-    let update_rewards = if let Some(amount) = res {
-        !amount.is_zero()
-    } else {
-        true
-    };
-
-    Ok(if update_rewards {
+    Ok(if res.is_none() || !res.unwrap().is_zero() {
         vec![SubMsg::new(WasmMsg::Execute {
             contract_addr: reward_proxy.to_string(),
             funds: vec![],
