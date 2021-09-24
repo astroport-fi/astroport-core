@@ -46,7 +46,6 @@ pub enum ExecuteMsg {
     SendOrphanReward {
         recipient: String,
         lp_token: Option<String>,
-        amount: Uint128,
     },
     SetTokensPerBlock {
         amount: Uint128,
@@ -60,6 +59,7 @@ pub enum QueryMsg {
     Deposit { lp_token: Addr, user: Addr },
     PendingToken { lp_token: Addr, user: Addr },
     Config {},
+    OrphanRewards { lp_token: Option<Addr> },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

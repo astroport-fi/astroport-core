@@ -331,11 +331,18 @@ fn generator_without_reward_proxies() {
     );
     check_token_balance(&mut app, &astro_token_instance, &owner, 0_000000);
 
+    // Check if there are orphan astro rewards
+    let msg = GeneratorQueryMsg::OrphanRewards { lp_token: None };
+    let orphan_rewards: Uint128 = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg)
+        .unwrap();
+    assert_eq!(orphan_rewards, Uint128::new(5_000000));
+
     // Owner sends orphan astro rewards
     let msg = GeneratorExecuteMsg::SendOrphanReward {
         recipient: owner.to_string(),
         lp_token: None,
-        amount: Uint128::new(5_000000),
     };
 
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
@@ -353,7 +360,6 @@ fn generator_without_reward_proxies() {
     let msg = GeneratorExecuteMsg::SendOrphanReward {
         recipient: owner.to_string(),
         lp_token: None,
-        amount: Uint128::new(0_000001),
     };
 
     assert_eq!(
@@ -827,11 +833,18 @@ fn generator_with_mirror_reward_proxy() {
     );
     check_token_balance(&mut app, &astro_token_instance, &owner, 0_000000);
 
+    // Check if there are orphan astro rewards
+    let msg = GeneratorQueryMsg::OrphanRewards { lp_token: None };
+    let orphan_rewards: Uint128 = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg)
+        .unwrap();
+    assert_eq!(orphan_rewards, Uint128::new(5_000000));
+
     // Owner sends orphan astro rewards
     let msg = GeneratorExecuteMsg::SendOrphanReward {
         recipient: owner.to_string(),
         lp_token: None,
-        amount: Uint128::new(5_000000),
     };
 
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
@@ -849,7 +862,6 @@ fn generator_with_mirror_reward_proxy() {
     let msg = GeneratorExecuteMsg::SendOrphanReward {
         recipient: owner.to_string(),
         lp_token: None,
-        amount: Uint128::new(0_000001),
     };
 
     assert_eq!(
@@ -867,11 +879,20 @@ fn generator_with_mirror_reward_proxy() {
     );
     check_token_balance(&mut app, &mirror_token_instance, &owner, 0_000000);
 
+    // Check if there are orphan proxy rewards
+    let msg = GeneratorQueryMsg::OrphanRewards {
+        lp_token: Some(lp_cny_eur_instance.clone()),
+    };
+    let orphan_rewards: Uint128 = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg)
+        .unwrap();
+    assert_eq!(orphan_rewards, Uint128::new(50_000000));
+
     // Owner sends orphan proxy rewards
     let msg = GeneratorExecuteMsg::SendOrphanReward {
         recipient: owner.to_string(),
         lp_token: Some(lp_cny_eur_instance.to_string()),
-        amount: Uint128::new(50_000000),
     };
 
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
@@ -889,7 +910,6 @@ fn generator_with_mirror_reward_proxy() {
     let msg = GeneratorExecuteMsg::SendOrphanReward {
         recipient: owner.to_string(),
         lp_token: Some(lp_cny_eur_instance.to_string()),
-        amount: Uint128::new(0_000001),
     };
 
     assert_eq!(

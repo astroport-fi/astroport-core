@@ -107,8 +107,7 @@ pub fn execute(
         ExecuteMsg::SendOrphanReward {
             recipient,
             lp_token,
-            amount,
-        } => before_send_orphan_rewards(deps, info, recipient, lp_token, amount),
+        } => before_send_orphan_rewards(deps, info, recipient, lp_token),
         ExecuteMsg::SetTokensPerBlock { amount } => set_tokens_per_block(deps, amount),
     }
 }
@@ -323,8 +322,7 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractE
                 ExecuteOnReply::SendOrphanReward {
                     recipient,
                     lp_token,
-                    amount,
-                } => send_orphan_rewards(deps, env, recipient, lp_token, amount),
+                } => send_orphan_rewards(deps, env, recipient, lp_token),
             }
         }
         None => Ok(Response::default()),
@@ -664,7 +662,6 @@ fn before_send_orphan_rewards(
     info: MessageInfo,
     recipient: String,
     lp_token: Option<String>,
-    amount: Uint128,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -682,7 +679,6 @@ fn before_send_orphan_rewards(
         ExecuteOnReply::SendOrphanReward {
             recipient,
             lp_token,
-            amount,
         },
     )
 }
@@ -692,39 +688,29 @@ fn send_orphan_rewards(
     env: Env,
     recipient: Addr,
     lp_token: Option<Addr>,
-    amount: Uint128,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
-    let mut response = Response::new().add_event(
-        Event::new("Sent orphan rewards")
-            .add_attribute("recipient", recipient.to_string())
-            .add_attribute(
-                "lp_token",
-                match &lp_token {
-                    Some(s) => s.to_string(),
-                    None => "None".to_string(),
-                },
-            )
-            .add_attribute("amount", amount),
-    );
+    let mut response = Response::new();
 
-    if let Some(lp_token) = lp_token {
-        let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
+    let amount;
+
+    if let Some(lp_token) = &lp_token {
+        let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
         let proxy = match &pool.reward_proxy {
             Some(proxy) => proxy.clone(),
             None => return Err(ContractError::PoolDoesNotHaveAdditionalRewards {}),
         };
 
-        update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg)?;
-        POOL_INFO.save(deps.storage, &lp_token, &pool)?;
+        update_pool_rewards(deps.branch(), &env, lp_token, &mut pool, &cfg)?;
+        POOL_INFO.save(deps.storage, lp_token, &pool)?;
 
         let msg = ProxyQueryMsg::Reward {};
         let balance: Uint128 = deps.querier.query_wasm_smart(proxy.to_string(), &msg)?;
         let mut to_distribute = Uint128::zero();
 
         for (_, user_info) in USER_INFO
-            .prefix(&lp_token)
+            .prefix(lp_token)
             .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
             .filter_map(|v| v.ok())
         {
@@ -734,9 +720,10 @@ fn send_orphan_rewards(
             )?;
         }
 
-        if amount <= balance.checked_sub(to_distribute)? {
+        amount = balance.checked_sub(to_distribute)?;
+        if !amount.is_zero() {
             let msg = ProxyExecuteMsg::SendRewards {
-                account: recipient,
+                account: recipient.clone(),
                 amount,
             };
 
@@ -779,7 +766,9 @@ fn send_orphan_rewards(
                 )?;
             }
         }
-        if amount <= res.balance.checked_sub(to_distribute)? {
+
+        amount = res.balance.checked_sub(to_distribute)?;
+        if !amount.is_zero() {
             let msg = Cw20ExecuteMsg::Transfer {
                 recipient: recipient.to_string(),
                 amount,
@@ -795,7 +784,18 @@ fn send_orphan_rewards(
         }
     }
 
-    Ok(response)
+    Ok(response.add_event(
+        Event::new("Sent orphan rewards")
+            .add_attribute("recipient", recipient.to_string())
+            .add_attribute(
+                "lp_token",
+                match &lp_token {
+                    Some(s) => s.to_string(),
+                    None => "None".to_string(),
+                },
+            )
+            .add_attribute("amount", amount),
+    ))
 }
 
 fn set_tokens_per_block(deps: DepsMut, amount: Uint128) -> Result<Response, ContractError> {
@@ -808,29 +808,28 @@ fn set_tokens_per_block(deps: DepsMut, amount: Uint128) -> Result<Response, Cont
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::PoolLength {} => to_binary(&pool_length(deps)?),
-        QueryMsg::Deposit { lp_token, user } => to_binary(&query_deposit(deps, lp_token, user)),
-        QueryMsg::PendingToken { lp_token, user } => {
-            to_binary(&pending_token(deps, env, lp_token, user)?)
-        }
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::PoolLength {} => pool_length(deps),
+        QueryMsg::Deposit { lp_token, user } => query_deposit(deps, lp_token, user),
+        QueryMsg::PendingToken { lp_token, user } => pending_token(deps, env, lp_token, user),
+        QueryMsg::Config {} => query_config(deps),
+        QueryMsg::OrphanRewards { lp_token } => query_orphan_rewards(deps, env, lp_token),
     }
 }
 
-pub fn pool_length(deps: Deps) -> StdResult<PoolLengthResponse> {
+pub fn pool_length(deps: Deps) -> Result<Binary, ContractError> {
     let length = POOL_INFO
         .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
         .count();
-    Ok(PoolLengthResponse { length })
+    Ok(to_binary(&PoolLengthResponse { length })?)
 }
 
-pub fn query_deposit(deps: Deps, lp_token: Addr, user: Addr) -> Uint128 {
+pub fn query_deposit(deps: Deps, lp_token: Addr, user: Addr) -> Result<Binary, ContractError> {
     let user_info = USER_INFO
         .load(deps.storage, (&lp_token, &user))
         .unwrap_or_default();
-    user_info.amount
+    Ok(to_binary(&user_info.amount)?)
 }
 
 // View function to see pending ASTRO on frontend.
@@ -839,7 +838,7 @@ pub fn pending_token(
     env: Env,
     lp_token: Addr,
     user: Addr,
-) -> StdResult<PendingTokenResponse> {
+) -> Result<Binary, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let user_info = USER_INFO
@@ -890,16 +889,16 @@ pub fn pending_token(
     }
     let pending = (user_info.amount * acc_per_share).checked_sub(user_info.reward_debt)?;
 
-    Ok(PendingTokenResponse {
+    Ok(to_binary(&PendingTokenResponse {
         pending,
         pending_on_proxy,
-    })
+    })?)
 }
 
-fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+fn query_config(deps: Deps) -> Result<Binary, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    Ok(ConfigResponse {
+    Ok(to_binary(&ConfigResponse {
         allowed_reward_proxies: config.allowed_reward_proxies,
         astro_token: config.astro_token,
         owner: config.owner,
@@ -907,7 +906,74 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         tokens_per_block: config.tokens_per_block,
         total_alloc_point: config.total_alloc_point,
         vesting_contract: config.vesting_contract,
-    })
+    })?)
+}
+
+fn query_orphan_rewards(
+    deps: Deps,
+    env: Env,
+    lp_token: Option<Addr>,
+) -> Result<Binary, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
+    let amount;
+
+    if let Some(lp_token) = &lp_token {
+        let pool = POOL_INFO.load(deps.storage, lp_token)?;
+        let proxy = match &pool.reward_proxy {
+            Some(proxy) => proxy.clone(),
+            None => return Err(ContractError::PoolDoesNotHaveAdditionalRewards {}),
+        };
+
+        let msg = ProxyQueryMsg::Reward {};
+        let balance: Uint128 = deps.querier.query_wasm_smart(proxy.to_string(), &msg)?;
+        let mut to_distribute = Uint128::zero();
+
+        for (_, user_info) in USER_INFO
+            .prefix(lp_token)
+            .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+            .filter_map(|v| v.ok())
+        {
+            to_distribute = to_distribute.checked_add(
+                (user_info.amount * pool.acc_per_share_on_proxy)
+                    .checked_sub(user_info.reward_debt_proxy)?,
+            )?;
+        }
+
+        amount = balance.checked_sub(to_distribute)?;
+    } else {
+        let msg = Cw20QueryMsg::Balance {
+            address: env.contract.address.to_string(),
+        };
+        let res: BalanceResponse = deps
+            .querier
+            .query_wasm_smart(cfg.astro_token.to_string(), &msg)?;
+        let mut to_distribute = Uint128::zero();
+
+        let pools: Vec<(Addr, PoolInfo)> = POOL_INFO
+            .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+            .filter_map(|v| {
+                v.ok()
+                    .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
+            })
+            .collect();
+
+        for (lp_token, pool) in pools {
+            for (_, user_info) in USER_INFO
+                .prefix(&lp_token)
+                .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+                .filter_map(|v| v.ok())
+            {
+                to_distribute = to_distribute.checked_add(
+                    (user_info.amount * pool.acc_per_share).checked_sub(user_info.reward_debt)?,
+                )?;
+            }
+        }
+
+        amount = res.balance.checked_sub(to_distribute)?;
+    }
+
+    Ok(to_binary(&amount)?)
 }
 
 pub fn calculate_rewards(env: &Env, pool: &PoolInfo, cfg: &Config) -> StdResult<Uint128> {

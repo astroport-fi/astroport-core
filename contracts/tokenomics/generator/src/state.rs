@@ -58,7 +58,6 @@ pub enum ExecuteOnReply {
     SendOrphanReward {
         recipient: Addr,
         lp_token: Option<Addr>,
-        amount: Uint128,
     },
 }
 
