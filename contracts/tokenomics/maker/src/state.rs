@@ -8,7 +8,7 @@ pub struct Config {
     pub owner: Addr,
     pub factory_contract: Addr,
     pub staking_contract: Addr,
-    pub governance_contract: Addr,
+    pub governance_contract: Option<Addr>,
     pub governance_percent: Uint64,
     pub astro_token_contract: Addr,
 }

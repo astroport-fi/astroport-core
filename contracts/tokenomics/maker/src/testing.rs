@@ -34,7 +34,7 @@ fn proper_initialization() {
             owner: Addr::unchecked("addr0000"),
             factory_contract: Addr::unchecked("factory"),
             staking_contract: Addr::unchecked("staking"),
-            governance_contract,
+            governance_contract: Option::from(governance_contract),
             governance_percent,
             astro_token_contract: Addr::unchecked("astro-token"),
         }
