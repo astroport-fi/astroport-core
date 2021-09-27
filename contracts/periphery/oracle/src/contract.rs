@@ -3,9 +3,10 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::querier::{query_cumulative_prices, query_pair_info, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
 use astroport::asset::{Asset, AssetInfo};
+use astroport::factory::PairType;
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Uint128,
+    entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, QuerierWrapper,
+    Response, StdError, StdResult, Uint128,
 };
 use std::ops::Mul;
 
@@ -25,7 +26,7 @@ pub fn instantiate(
         msg.asset_infos.clone(),
     )?;
 
-    if pair_info.pair_type.to_string() != "xyk" {
+    if pair_info.pair_type != (PairType::Xyk {}) {
         return Err(ContractError::InvalidToken {});
     }
 
@@ -73,8 +74,6 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         return Err(ContractError::WrongPeriod {});
     }
 
-    // overflow is desired, casting never truncates
-    // cumulative price is in (Decimal price * seconds) units so we simply wrap it after division by time elapse
     let price_0_average = Decimal::from_ratio(
         prices.price0_cumulative_last - price_last.price0_cumulative_last,
         time_elapsed,
@@ -105,38 +104,43 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint128, Std
     let config = CONFIG.load(deps.storage)?;
     let price_last = PRICE_LAST.load(deps.storage)?;
 
-    let ret = if config.asset_infos[0].equal(&token) {
-        if price_last.price_0_average.is_zero() {
-            let res = query_prices(
-                &deps.querier,
-                config.pair.contract_addr,
-                Asset {
-                    info: token,
-                    amount,
-                },
-            )?;
-            res.return_amount
-        } else {
-            Uint128::from(price_last.price_0_average.mul(amount).u128())
-        }
+    let price_average = if config.asset_infos[0].equal(&token) {
+        price_last.price_0_average
     } else if config.asset_infos[1].equal(&token) {
-        if price_last.price_0_average.is_zero() {
-            let res = query_prices(
-                &deps.querier,
-                config.pair.contract_addr,
-                Asset {
-                    info: token,
-                    amount,
-                },
-            )?;
-            res.return_amount
-        } else {
-            Uint128::from(price_last.price_1_average.mul(amount).u128())
-        }
+        price_last.price_1_average
     } else {
         return Err(StdError::generic_err("Invalid Token"));
     };
-    Ok(ret)
+    Ok(query_current_prise(
+        &deps.querier,
+        token,
+        amount,
+        price_average,
+        config.pair.contract_addr,
+    ))
+}
+
+fn query_current_prise(
+    querier: &QuerierWrapper,
+    token: AssetInfo,
+    amount: Uint128,
+    price_average: Decimal,
+    contract_addr: Addr,
+) -> Uint128 {
+    if price_average.is_zero() {
+        query_prices(
+            querier,
+            contract_addr,
+            Asset {
+                info: token,
+                amount,
+            },
+        )
+        .unwrap()
+        .return_amount
+    } else {
+        Uint128::from(price_average.mul(amount).u128())
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
