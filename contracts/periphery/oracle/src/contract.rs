@@ -111,36 +111,20 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint128, Std
     } else {
         return Err(StdError::generic_err("Invalid Token"));
     };
-    Ok(query_current_prise(
-        &deps.querier,
-        token,
-        amount,
-        price_average,
-        config.pair.contract_addr,
-    ))
-}
-
-fn query_current_prise(
-    querier: &QuerierWrapper,
-    token: AssetInfo,
-    amount: Uint128,
-    price_average: Decimal,
-    contract_addr: Addr,
-) -> Uint128 {
-    if price_average.is_zero() {
+    Ok(if price_average.is_zero() {
         query_prices(
-            querier,
-            contract_addr,
+            &deps.querier,
+            config.pair.contract_addr,
             Asset {
                 info: token,
                 amount,
             },
         )
-        .unwrap()
-        .return_amount
+            .unwrap()
+            .return_amount
     } else {
         Uint128::from(price_average.mul(amount).u128())
-    }
+    })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
