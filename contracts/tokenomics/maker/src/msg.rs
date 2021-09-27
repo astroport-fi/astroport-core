@@ -8,8 +8,8 @@ pub struct InstantiateMsg {
     pub astro_token_contract: String,
     pub factory_contract: String,
     pub staking_contract: String,
-    pub governance_contract: String,
-    pub governance_percent: Uint64,
+    pub governance_contract: Option<String>,
+    pub governance_percent: Option<Uint64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -109,8 +109,8 @@ fn instantiate_contracts(
     let msg = InstantiateMsg {
         factory_contract: factory_instance.to_string(),
         staking_contract: staking.to_string(),
-        governance_contract: governance.to_string(),
-        governance_percent: governance_percent,
+        governance_contract: Option::from(governance.to_string()),
+        governance_percent: Option::from(governance_percent),
         astro_token_contract: astro_token_instance.to_string(),
     };
     let maker_instance = router

@@ -19,8 +19,19 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    if msg.governance_percent > Uint64::new(100) {
-        return Err(ContractError::IncorrectGovernancePercent {});
+    let governance_contract = if let Some(governance_contract) = msg.governance_contract {
+        deps.api.addr_validate(&governance_contract)?
+    } else {
+        deps.api.addr_validate(&msg.staking_contract)?
+    };
+
+    let governance_percent = if let Some(governance_percent) = msg.governance_percent {
+        if governance_percent > Uint64::new(100) {
+            return Err(ContractError::IncorrectGovernancePercent {});
+        };
+        governance_percent
+    } else {
+        Uint64::zero()
     };
 
     let cfg = Config {
@@ -28,8 +39,8 @@ pub fn instantiate(
         astro_token_contract: deps.api.addr_validate(&msg.astro_token_contract)?,
         factory_contract: deps.api.addr_validate(&msg.factory_contract)?,
         staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
-        governance_contract: deps.api.addr_validate(&msg.governance_contract)?,
-        governance_percent: msg.governance_percent,
+        governance_contract,
+        governance_percent,
     };
 
     CONFIG.save(deps.storage, &cfg)?;
