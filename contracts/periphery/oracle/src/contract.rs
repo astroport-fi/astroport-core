@@ -5,8 +5,8 @@ use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
 use astroport::asset::{Asset, AssetInfo};
 use astroport::factory::PairType;
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, QuerierWrapper,
-    Response, StdError, StdResult, Uint128,
+    entry_point, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
+    StdResult, Uint128,
 };
 use std::ops::Mul;
 
@@ -120,8 +120,8 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint128, Std
                 amount,
             },
         )
-            .unwrap()
-            .return_amount
+        .unwrap()
+        .return_amount
     } else {
         Uint128::from(price_average.mul(amount).u128())
     })
