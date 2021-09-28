@@ -67,7 +67,7 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let price_last = PRICE_LAST.load(deps.storage)?;
 
     let prices = query_cumulative_prices(&deps.querier, config.pair.contract_addr)?;
-    let time_elapsed = env.block.time.seconds() - price_last.block_timestamp_last; // overflow is desired
+    let time_elapsed = env.block.time.seconds() - price_last.block_timestamp_last;
 
     // ensure that at least one full period has passed since the last update
     if time_elapsed < PERIOD {
