@@ -110,6 +110,7 @@ name = "astroport-pair"
 version = "0.0.0"
 dependencies = [
  "astroport",
+ "astroport-factory",
  "astroport-token",
  "cosmwasm-bignumber",
  "cosmwasm-schema",
@@ -130,6 +131,7 @@ name = "astroport-pair-stable"
 version = "0.0.0"
 dependencies = [
  "astroport",
+ "astroport-factory",
  "astroport-token",
  "cosmwasm-bignumber",
  "cosmwasm-schema",

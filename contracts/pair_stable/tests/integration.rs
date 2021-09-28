@@ -1,9 +1,16 @@
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::PairType;
-use astroport::pair::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::factory::{
+    ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
+    QueryMsg as FactoryQueryMsg,
+};
+use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
+use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
+
+const OWNER: &str = "Owner";
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -13,22 +20,30 @@ fn mock_app() -> App {
     App::new(api, env.block, bank, MockStorage::new())
 }
 
-fn instantiate_pair(router: &mut App, owner: Addr) -> Addr {
-    let token_contract = Box::new(ContractWrapper::new(
+fn store_token_code(app: &mut App) -> u64 {
+    let astro_token_contract = Box::new(ContractWrapper::new(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
         astroport_token::contract::query,
     ));
 
-    let token_contract_code_id = router.store_code(token_contract);
+    app.store_code(astro_token_contract)
+}
 
+fn store_pair_code(app: &mut App) -> u64 {
     let pair_contract = Box::new(ContractWrapper::new(
         astroport_pair_stable::contract::execute,
         astroport_pair_stable::contract::instantiate,
         astroport_pair_stable::contract::query,
     ));
 
-    let pair_contract_code_id = router.store_code(pair_contract);
+    app.store_code(pair_contract)
+}
+
+fn instantiate_pair(mut router: &mut App, owner: Addr) -> Addr {
+    let token_contract_code_id = store_token_code(&mut router);
+
+    let pair_contract_code_id = store_pair_code(&mut router);
 
     let msg = InstantiateMsg {
         asset_infos: [
@@ -177,4 +192,207 @@ fn provide_liquidity_msg(uusd_amount: Uint128, uluna_amount: Uint128) -> (Execut
     ];
 
     (msg, coins)
+}
+
+#[test]
+fn test_compatibility_of_tokens_with_different_precision() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked(OWNER);
+
+    let token_code_id = store_token_code(&mut app);
+
+    let x_amount = Uint128::new(1000000_00000);
+    let y_amount = Uint128::new(1000000_0000000);
+    let x_offer = Uint128::new(1_00000);
+    let y_expected_return = Uint128::new(1_0000000);
+
+    let token_name = "Xtoken";
+
+    let init_msg = TokenInstantiateMsg {
+        name: token_name.to_string(),
+        symbol: token_name.to_string(),
+        decimals: 5,
+        initial_balances: vec![Cw20Coin {
+            address: OWNER.to_string(),
+            amount: x_amount + x_offer,
+        }],
+        mint: Some(MinterResponse {
+            minter: String::from(OWNER),
+            cap: None,
+        }),
+        init_hook: None,
+    };
+
+    let token_x_instance = app
+        .instantiate_contract(
+            token_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            token_name,
+            None,
+        )
+        .unwrap();
+
+    let token_name = "Ytoken";
+
+    let init_msg = TokenInstantiateMsg {
+        name: token_name.to_string(),
+        symbol: token_name.to_string(),
+        decimals: 7,
+        initial_balances: vec![Cw20Coin {
+            address: OWNER.to_string(),
+            amount: y_amount,
+        }],
+        mint: Some(MinterResponse {
+            minter: String::from(OWNER),
+            cap: None,
+        }),
+        init_hook: None,
+    };
+
+    let token_y_instance = app
+        .instantiate_contract(
+            token_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            token_name,
+            None,
+        )
+        .unwrap();
+
+    let pair_code_id = store_pair_code(&mut app);
+
+    let factory_contract = Box::new(ContractWrapper::new(
+        astroport_factory::contract::execute,
+        astroport_factory::contract::instantiate,
+        astroport_factory::contract::query,
+    ));
+
+    let factory_code_id = app.store_code(factory_contract);
+
+    let init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        init_hook: None,
+        pair_configs: vec![PairConfig {
+            code_id: pair_code_id,
+            maker_fee_bps: 0,
+            pair_type: PairType::Stable {},
+            total_fee_bps: 0,
+        }],
+        token_code_id,
+    };
+
+    let factory_instance = app
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
+
+    let msg = FactoryExecuteMsg::CreatePair {
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: token_x_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: token_y_instance.clone(),
+            },
+        ],
+        init_hook: None,
+        pair_type: PairType::Stable {},
+    };
+
+    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = FactoryQueryMsg::Pair {
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: token_x_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: token_y_instance.clone(),
+            },
+        ],
+    };
+
+    let res: PairInfo = app
+        .wrap()
+        .query_wasm_smart(&factory_instance, &msg)
+        .unwrap();
+
+    let pair_instance = res.contract_addr;
+
+    let msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: pair_instance.to_string(),
+        expires: None,
+        amount: x_amount + x_offer,
+    };
+
+    app.execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: pair_instance.to_string(),
+        expires: None,
+        amount: y_amount,
+    };
+
+    app.execute_contract(owner.clone(), token_y_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: [
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_x_instance.clone(),
+                },
+                amount: x_amount,
+            },
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_y_instance.clone(),
+                },
+                amount: y_amount,
+            },
+        ],
+        slippage_tolerance: None,
+    };
+
+    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let user = Addr::unchecked("User");
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Swap {
+            belief_price: None,
+            max_spread: None,
+            to: Some(user.to_string()),
+        })
+        .unwrap(),
+        amount: x_offer,
+    };
+
+    app.execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = Cw20QueryMsg::Balance {
+        address: user.to_string(),
+    };
+
+    let res: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(&token_y_instance, &msg)
+        .unwrap();
+
+    assert_eq!(res.balance, y_expected_return);
 }
