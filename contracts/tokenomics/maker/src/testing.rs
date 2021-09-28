@@ -20,8 +20,8 @@ fn proper_initialization() {
     let instantiate_msg = InstantiateMsg {
         factory_contract: factory.to_string(),
         staking_contract: staking.to_string(),
-        governance_contract: governance_contract.to_string(),
-        governance_percent: governance_percent,
+        governance_contract: Option::from(governance_contract.to_string()),
+        governance_percent: Option::from(governance_percent),
         astro_token_contract: astro_token_contract.to_string(),
     };
     let res = instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
@@ -34,8 +34,8 @@ fn proper_initialization() {
             owner: Addr::unchecked("addr0000"),
             factory_contract: Addr::unchecked("factory"),
             staking_contract: Addr::unchecked("staking"),
-            governance_contract,
-            governance_percent: governance_percent,
+            governance_contract: Option::from(governance_contract),
+            governance_percent,
             astro_token_contract: Addr::unchecked("astro-token"),
         }
     )

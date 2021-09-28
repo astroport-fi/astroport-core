@@ -19,8 +19,19 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    if msg.governance_percent > Uint64::new(100) {
-        return Err(ContractError::IncorrectGovernancePercent {});
+    let governance_contract = if let Some(governance_contract) = msg.governance_contract {
+        Option::from(deps.api.addr_validate(&governance_contract)?)
+    } else {
+        None
+    };
+
+    let governance_percent = if let Some(governance_percent) = msg.governance_percent {
+        if governance_percent > Uint64::new(100) {
+            return Err(ContractError::IncorrectGovernancePercent {});
+        };
+        governance_percent
+    } else {
+        Uint64::zero()
     };
 
     let cfg = Config {
@@ -28,8 +39,8 @@ pub fn instantiate(
         astro_token_contract: deps.api.addr_validate(&msg.astro_token_contract)?,
         factory_contract: deps.api.addr_validate(&msg.factory_contract)?,
         staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
-        governance_contract: deps.api.addr_validate(&msg.governance_contract)?,
-        governance_percent: msg.governance_percent,
+        governance_contract,
+        governance_percent,
     };
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -126,26 +137,28 @@ fn distribute_astro(
         contract_addr: cfg.astro_token_contract.clone(),
     };
 
-    let governance_amount =
-        amount.multiply_ratio(Uint128::from(cfg.governance_percent), Uint128::new(100));
+    let governance_amount = if let Some(governance_contract) = cfg.governance_contract.clone() {
+        let amount =
+            amount.multiply_ratio(Uint128::from(cfg.governance_percent), Uint128::new(100));
+        let to_governance_asset = Asset {
+            info: info.clone(),
+            amount,
+        };
+        result.push(SubMsg::new(
+            to_governance_asset.into_msg(&deps.querier, governance_contract)?,
+        ));
+        amount
+    } else {
+        Uint128::zero()
+    };
     let staking_amount = amount - governance_amount;
-
     let to_staking_asset = Asset {
-        info: info.clone(),
+        info,
         amount: staking_amount,
     };
     result.push(SubMsg::new(
         to_staking_asset.into_msg(&deps.querier, cfg.staking_contract.clone())?,
     ));
-
-    let to_governance_asset = Asset {
-        info,
-        amount: governance_amount,
-    };
-    result.push(SubMsg::new(
-        to_governance_asset.into_msg(&deps.querier, cfg.governance_contract.clone())?,
-    ));
-
     Ok(result)
 }
 
@@ -221,7 +234,7 @@ fn set_config(
     };
 
     if let Some(governance_contract) = governance_contract {
-        config.governance_contract = deps.api.addr_validate(&governance_contract)?;
+        config.governance_contract = Option::from(deps.api.addr_validate(&governance_contract)?);
         event
             .attributes
             .push(Attribute::new("governance_contract", &governance_contract));

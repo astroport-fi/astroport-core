@@ -5,7 +5,6 @@
   "required": [
     "astro_token_contract",
     "factory_contract",
-    "governance_contract",
     "governance_percent",
     "owner",
     "staking_contract"
@@ -18,7 +17,14 @@
       "$ref": "#/definitions/Addr"
     },
     "governance_contract": {
-      "$ref": "#/definitions/Addr"
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "governance_percent": {
       "$ref": "#/definitions/Uint64"
