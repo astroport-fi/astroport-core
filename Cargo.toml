@@ -6,7 +6,8 @@ members = [
     "contracts/pair_stable",
     "contracts/router",
     "contracts/token",
-    "contracts/tokenomics/*"
+    "contracts/tokenomics/*",
+    "contracts/periphery/*"
 ]
 
 [profile.release]

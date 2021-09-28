@@ -106,6 +106,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-oracle"
+version = "0.1.0"
+dependencies = [
+ "astroport",
+ "astroport-factory",
+ "astroport-pair",
+ "astroport-token",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-pair"
 version = "0.0.0"
 dependencies = [
