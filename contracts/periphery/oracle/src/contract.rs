@@ -4,9 +4,10 @@ use crate::querier::{query_cumulative_prices, query_pair_info, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
 use astroport::asset::{Asset, AssetInfo};
 use astroport::factory::PairType;
+use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Uint128,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    Uint128,
 };
 use std::ops::Mul;
 
@@ -42,8 +43,8 @@ pub fn instantiate(
     let price = PriceCumulativeLast {
         price0_cumulative_last: prices.price0_cumulative_last,
         price1_cumulative_last: prices.price1_cumulative_last,
-        price_0_average: Decimal::zero(),
-        price_1_average: Decimal::zero(),
+        price_0_average: Decimal256::zero(),
+        price_1_average: Decimal256::zero(),
         block_timestamp_last: env.block.time.seconds(),
     };
     PRICE_LAST.save(deps.storage, &price)?;
@@ -74,12 +75,18 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         return Err(ContractError::WrongPeriod {});
     }
 
-    let price_0_average = Decimal::from_ratio(
-        prices.price0_cumulative_last - price_last.price0_cumulative_last,
+    let price_0_average = Decimal256::from_ratio(
+        wrap_sub(
+            prices.price0_cumulative_last,
+            price_last.price0_cumulative_last,
+        ),
         time_elapsed,
     );
-    let price_1_average = Decimal::from_ratio(
-        prices.price1_cumulative_last - price_last.price1_cumulative_last,
+    let price_1_average = Decimal256::from_ratio(
+        wrap_sub(
+            prices.price1_cumulative_last,
+            price_last.price1_cumulative_last,
+        ),
         time_elapsed,
     );
 
@@ -92,6 +99,14 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     };
     PRICE_LAST.save(deps.storage, &prices)?;
     Ok(Response::default())
+}
+
+fn wrap_sub(a: Uint128, b: Uint128) -> Uint256 {
+    if a >= b {
+        Uint256::from(a) - Uint256::from(b)
+    } else {
+        Uint256::from(a) + Uint256::from(Uint128::MAX - b)
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -123,7 +138,7 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint128, Std
         .unwrap()
         .return_amount
     } else {
-        Uint128::from(price_average.mul(amount).u128())
+        Uint128::from(price_average.mul(Uint256::from(amount)))
     })
 }
 

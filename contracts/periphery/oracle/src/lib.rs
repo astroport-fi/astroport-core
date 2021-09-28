@@ -3,3 +3,6 @@ pub mod error;
 pub mod msg;
 mod querier;
 pub mod state;
+
+#[cfg(test)]
+mod testing;

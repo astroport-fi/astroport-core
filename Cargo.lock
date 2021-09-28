@@ -113,6 +113,7 @@ dependencies = [
  "astroport-factory",
  "astroport-pair",
  "astroport-token",
+ "cosmwasm-bignumber",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
