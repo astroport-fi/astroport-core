@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ExecuteMsg",
+  "anyOf": [
+    {
+      "description": "Update prices",
+      "type": "object",
+      "required": [
+        "update"
+      ],
+      "properties": {
+        "update": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}
