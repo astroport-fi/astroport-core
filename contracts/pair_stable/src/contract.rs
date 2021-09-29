@@ -319,7 +319,14 @@ pub fn provide_liquidity(
     });
 
     // Accumulate prices for oracle
-    if let Some(config) = accumulate_prices(env, config, pools[0].amount, pools[1].amount) {
+    if let Some(config) = accumulate_prices(
+        env,
+        config,
+        pools[0].amount,
+        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        pools[1].amount,
+        query_token_precision(&deps.querier, pools[1].info.clone())?,
+    )? {
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -349,7 +356,14 @@ pub fn withdraw_liquidity(
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
 
     // Accumulate prices for oracle
-    if let Some(config) = accumulate_prices(env, config.clone(), pools[0].amount, pools[1].amount) {
+    if let Some(config) = accumulate_prices(
+        env,
+        config.clone(),
+        pools[0].amount,
+        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        pools[1].amount,
+        query_token_precision(&deps.querier, pools[1].info.clone())?,
+    )? {
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -525,34 +539,76 @@ pub fn swap(
     }
 
     // Accumulate prices for oracle
-    if let Some(config) = accumulate_prices(env, config, pools[0].amount, pools[1].amount) {
+    if let Some(config) = accumulate_prices(
+        env,
+        config,
+        pools[0].amount,
+        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        pools[1].amount,
+        query_token_precision(&deps.querier, pools[1].info.clone())?,
+    )? {
         CONFIG.save(deps.storage, &config)?;
     }
 
     Ok(response.add_attribute("maker_fee_amount", maker_fee_amount.to_string()))
 }
 
-pub fn accumulate_prices(env: Env, config: Config, x: Uint128, y: Uint128) -> Option<Config> {
+pub fn accumulate_prices(
+    env: Env,
+    config: Config,
+    x: Uint128,
+    x_precision: u8,
+    y: Uint128,
+    y_precision: u8,
+) -> StdResult<Option<Config>> {
     let mut config = config;
 
     let block_time = env.block.time.seconds();
     if block_time <= config.block_time_last || x.is_zero() || y.is_zero() {
-        return None;
+        return Ok(None);
     }
+
+    let greater_precision = x_precision.max(y_precision);
+    let x = adjust_precision(x, x_precision, greater_precision)?;
+    let y = adjust_precision(y, y_precision, greater_precision)?;
 
     let time_elapsed = Uint128::new((block_time - config.block_time_last) as u128);
 
     config.price0_cumulative_last = warp_add(
         config.price0_cumulative_last,
-        time_elapsed * Decimal::from_ratio(y, x),
+        time_elapsed.checked_mul(adjust_precision(
+            Uint128::new(
+                calc_amount(
+                    x.u128(),
+                    y.u128(),
+                    adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
+                    AMP,
+                )
+                .unwrap(),
+            ),
+            greater_precision,
+            y_precision,
+        )?)?,
     );
     config.price1_cumulative_last = warp_add(
         config.price1_cumulative_last,
-        time_elapsed * Decimal::from_ratio(x, y),
+        time_elapsed.checked_mul(adjust_precision(
+            Uint128::new(
+                calc_amount(
+                    y.u128(),
+                    x.u128(),
+                    adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
+                    AMP,
+                )
+                .unwrap(),
+            ),
+            greater_precision,
+            x_precision,
+        )?)?,
     );
     config.block_time_last = block_time;
 
-    Some(config)
+    Ok(Some(config))
 }
 
 pub fn calculate_maker_fee(

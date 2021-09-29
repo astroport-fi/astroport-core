@@ -1326,8 +1326,8 @@ fn test_accumulate_prices() {
             },
             Result {
                 block_time_last: 1000,
-                price_x: 2,
-                price_y: 1,
+                price_x: 1,
+                price_y: 2,
                 is_some: false,
             },
         ),
