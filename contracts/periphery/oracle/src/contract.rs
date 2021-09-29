@@ -103,9 +103,9 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 
 fn wrap_sub(a: Uint128, b: Uint128) -> Uint256 {
     if a >= b {
-        Uint256::from(a) - Uint256::from(b)
+        Uint256::from(a - b)
     } else {
-        Uint256::from(a) + Uint256::from(Uint128::MAX - b)
+        Uint256::from(a + (Uint128::MAX - b))
     }
 }
 
