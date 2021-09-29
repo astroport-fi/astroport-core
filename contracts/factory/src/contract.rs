@@ -27,6 +27,7 @@ pub fn instantiate(
         owner: info.sender,
         token_code_id: msg.token_code_id,
         fee_address: msg.fee_address.unwrap_or_else(|| Addr::unchecked("")),
+        gov: msg.gov,
     };
 
     let config_set: HashSet<String> = msg
@@ -315,6 +316,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
         owner: config.owner,
+        gov: config.gov,
         token_code_id: config.token_code_id,
         pair_configs: PAIR_CONFIGS
             .range(deps.storage, None, None, Order::Ascending)
