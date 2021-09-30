@@ -76,17 +76,17 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     }
 
     let price_0_average = Decimal256::from_ratio(
-        wrap_sub(
+        Uint256::from(wrap_sub(
             prices.price0_cumulative_last,
             price_last.price0_cumulative_last,
-        ),
+        )),
         time_elapsed,
     );
     let price_1_average = Decimal256::from_ratio(
-        wrap_sub(
+        Uint256::from(wrap_sub(
             prices.price1_cumulative_last,
             price_last.price1_cumulative_last,
-        ),
+        )),
         time_elapsed,
     );
 
@@ -101,11 +101,11 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
 
-fn wrap_sub(a: Uint128, b: Uint128) -> Uint256 {
+fn wrap_sub(a: Uint128, b: Uint128) -> Uint128 {
     if a >= b {
-        Uint256::from(a - b)
+        a - b
     } else {
-        Uint256::from(a + (Uint128::MAX - b))
+        a + (Uint128::MAX - b)
     }
 }
 
