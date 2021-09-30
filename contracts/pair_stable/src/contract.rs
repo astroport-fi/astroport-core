@@ -12,7 +12,6 @@ use cosmwasm_std::{
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg};
 use astroport::hook::InitHook;
-use astroport::math::warp_add;
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
     QueryMsg, ReverseSimulationResponse, SimulationResponse,
@@ -574,8 +573,7 @@ pub fn accumulate_prices(
 
     let time_elapsed = Uint128::new((block_time - config.block_time_last) as u128);
 
-    config.price0_cumulative_last = warp_add(
-        config.price0_cumulative_last,
+    config.price0_cumulative_last = config.price0_cumulative_last.wrapping_add(
         time_elapsed.checked_mul(adjust_precision(
             Uint128::new(
                 calc_amount(
@@ -590,8 +588,8 @@ pub fn accumulate_prices(
             y_precision,
         )?)?,
     );
-    config.price1_cumulative_last = warp_add(
-        config.price1_cumulative_last,
+
+    config.price1_cumulative_last = config.price1_cumulative_last.wrapping_add(
         time_elapsed.checked_mul(adjust_precision(
             Uint128::new(
                 calc_amount(
@@ -606,6 +604,7 @@ pub fn accumulate_prices(
             x_precision,
         )?)?,
     );
+
     config.block_time_last = block_time;
 
     Ok(Some(config))

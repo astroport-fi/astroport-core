@@ -1,5 +1,4 @@
 use crate::asset::{Asset, AssetInfo, PairInfo};
-use crate::math::warp_add;
 use crate::mock_querier::mock_dependencies;
 use crate::querier::{
     query_all_balances, query_balance, query_pair_info, query_supply, query_token_balance,
@@ -9,19 +8,6 @@ use crate::factory::PairType;
 use cosmwasm_std::testing::MOCK_CONTRACT_ADDR;
 use cosmwasm_std::{to_binary, Addr, BankMsg, Coin, CosmosMsg, Decimal, Uint128, WasmMsg};
 use cw20::Cw20ExecuteMsg;
-
-#[test]
-fn test_warp_add() {
-    // If there's no overflow, addition should work like normal
-    let a = Uint128::new(12345);
-    let b = Uint128::new(69420);
-    assert_eq!(warp_add(a, b), Uint128::new(12345 + 69420));
-
-    // If there is overflow, number will be warped back to zero
-    let c = Uint128::MAX - Uint128::new(5);
-    let d = Uint128::new(42);
-    assert_eq!(warp_add(c, d), Uint128::new(42 - 5));
-}
 
 #[test]
 fn token_balance_querier() {
