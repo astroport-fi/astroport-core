@@ -3,7 +3,6 @@ pub mod factory;
 pub mod generator;
 pub mod generator_proxy;
 pub mod hook;
-pub mod math;
 pub mod pair;
 pub mod querier;
 pub mod router;
