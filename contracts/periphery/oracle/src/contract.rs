@@ -76,17 +76,19 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     }
 
     let price_0_average = Decimal256::from_ratio(
-        Uint256::from(wrap_sub(
-            prices.price0_cumulative_last,
-            price_last.price0_cumulative_last,
-        )),
+        Uint256::from(
+            prices
+                .price0_cumulative_last
+                .wrapping_sub(price_last.price0_cumulative_last),
+        ),
         time_elapsed,
     );
     let price_1_average = Decimal256::from_ratio(
-        Uint256::from(wrap_sub(
-            prices.price1_cumulative_last,
-            price_last.price1_cumulative_last,
-        )),
+        Uint256::from(
+            prices
+                .price1_cumulative_last
+                .wrapping_sub(price_last.price1_cumulative_last),
+        ),
         time_elapsed,
     );
 
@@ -99,14 +101,6 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     };
     PRICE_LAST.save(deps.storage, &prices)?;
     Ok(Response::default())
-}
-
-fn wrap_sub(a: Uint128, b: Uint128) -> Uint128 {
-    if a >= b {
-        a - b
-    } else {
-        a + (Uint128::MAX - b)
-    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

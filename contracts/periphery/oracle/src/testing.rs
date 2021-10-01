@@ -14,11 +14,7 @@ fn decimal_overflow() {
     let time_elapsed: u64 = 86400;
     let amount = Uint128::from(1000u128);
     let price_average = Decimal256::from_ratio(
-        if price_cumulative_current > price_cumulative_last {
-            Uint256::from(price_cumulative_current - price_cumulative_last)
-        } else {
-            Uint256::from(price_cumulative_current + (Uint128::MAX - price_cumulative_last))
-        },
+        Uint256::from(price_cumulative_current.wrapping_sub(price_cumulative_last)),
         time_elapsed,
     );
     println!("{}", price_average.to_string());
