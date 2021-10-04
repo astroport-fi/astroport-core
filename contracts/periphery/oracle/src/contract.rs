@@ -4,12 +4,12 @@ use crate::querier::{query_cumulative_prices, query_pair_info, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
 use astroport::asset::{Asset, AssetInfo};
 use astroport::factory::PairType;
+use astroport::querier::query_token_precision;
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
     Uint128,
 };
-use std::ops::Mul;
 
 const PERIOD: u64 = 86400;
 
@@ -83,6 +83,7 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         ),
         time_elapsed,
     );
+
     let price_1_average = Decimal256::from_ratio(
         Uint256::from(
             prices
@@ -109,7 +110,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Consult { token, amount } => to_binary(&consult(deps, token, amount)?),
     }
 }
-fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint128, StdError> {
+
+fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, StdError> {
     let config = CONFIG.load(deps.storage)?;
     let price_last = PRICE_LAST.load(deps.storage)?;
 
@@ -120,19 +122,26 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint128, Std
     } else {
         return Err(StdError::generic_err("Invalid Token"));
     };
+
     Ok(if price_average.is_zero() {
-        query_prices(
+        // get precision
+        let p = query_token_precision(&deps.querier, token.clone())?;
+        let one = Uint128::new(10_u128.pow(p.into()));
+
+        let price = query_prices(
             &deps.querier,
             config.pair.contract_addr,
             Asset {
                 info: token,
-                amount,
+                amount: one,
             },
         )
         .unwrap()
-        .return_amount
+        .return_amount;
+
+        Uint256::from(price) * Decimal256::from_ratio(Uint256::from(amount), Uint256::from(one))
     } else {
-        Uint128::from(price_average.mul(Uint256::from(amount)))
+        Uint256::from(amount) * price_average
     })
 }
 
