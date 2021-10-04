@@ -41,3 +41,4 @@ proptest = "1.0.0"
 sim =  { path = "./sim" }
 astroport-token = {path = "../token"}
 cw-multi-test = "0.8.0"
+astroport-factory = {path = "../factory"}

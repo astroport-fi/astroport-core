@@ -11,7 +11,6 @@ use cosmwasm_std::{
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg};
 use astroport::hook::InitHook;
-use astroport::math::warp_add;
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
     QueryMsg, ReverseSimulationResponse, SimulationResponse,
@@ -100,6 +99,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::UpdateConfig { amp: _ } => Err(ContractError::NonSupported {}),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::PostInitialize {} => post_initialize(deps, env, info),
         ExecuteMsg::ProvideLiquidity {
@@ -535,14 +535,14 @@ pub fn accumulate_prices(env: Env, config: Config, x: Uint128, y: Uint128) -> Op
 
     let time_elapsed = Uint128::new((block_time - config.block_time_last) as u128);
 
-    config.price0_cumulative_last = warp_add(
-        config.price0_cumulative_last,
-        time_elapsed * Decimal::from_ratio(y, x),
-    );
-    config.price1_cumulative_last = warp_add(
-        config.price1_cumulative_last,
-        time_elapsed * Decimal::from_ratio(x, y),
-    );
+    config.price0_cumulative_last = config
+        .price0_cumulative_last
+        .wrapping_add(time_elapsed * Decimal::from_ratio(y, x));
+
+    config.price1_cumulative_last = config
+        .price1_cumulative_last
+        .wrapping_add(time_elapsed * Decimal::from_ratio(x, y));
+
     config.block_time_last = block_time;
 
     Some(config)

@@ -11,6 +11,7 @@ pub struct Config {
     pub block_time_last: u64,
     pub price0_cumulative_last: Uint128,
     pub price1_cumulative_last: Uint128,
+    pub amp: u64,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

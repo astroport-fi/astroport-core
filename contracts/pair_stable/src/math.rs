@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use astroport::U256;
 
-pub const AMP: u64 = 100;
+pub const AMP_DEFAULT: u64 = 100;
 const N_COINS: u8 = 2;
 const N_COINS_SQUARED: u8 = 4;
 const ITERATIONS: u8 = 32;

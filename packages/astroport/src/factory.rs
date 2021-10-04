@@ -42,6 +42,7 @@ pub struct InstantiateMsg {
     pub init_hook: Option<InitHook>,
     // Contract address to send fees to
     pub fee_address: Option<Addr>,
+    pub gov: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -97,6 +98,7 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub owner: Addr,
+    pub gov: Addr,
     pub pair_configs: Vec<PairConfig>,
     pub token_code_id: u64,
     pub fee_address: Addr,

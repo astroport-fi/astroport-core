@@ -3,7 +3,8 @@ use crate::contract::{
     query_reverse_simulation, query_share, query_simulation,
 };
 use crate::error::ContractError;
-use crate::math::{calc_amount, AMP};
+use crate::math::calc_amount;
+use crate::math::AMP_DEFAULT;
 use crate::mock_querier::mock_dependencies;
 
 use crate::state::Config;
@@ -126,10 +127,16 @@ fn provide_liquidity() {
         amount: Uint128::new(200_000000000000000000u128),
     }]);
 
-    deps.querier.with_token_balances(&[(
-        &String::from("liquidity0000"),
-        &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(0))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &String::from("liquidity0000"),
+            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(0))],
+        ),
+        (
+            &String::from("asset0000"),
+            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(0))],
+        ),
+    ]);
 
     let msg = InstantiateMsg {
         asset_infos: [
@@ -732,7 +739,7 @@ fn try_native_to_token() {
     let msg_transfer = res.messages.get(0).expect("no message");
 
     let model: StableSwapModel = StableSwapModel::new(
-        AMP.into(),
+        AMP_DEFAULT.into(),
         vec![collateral_pool_amount.into(), asset_pool_amount.into()],
         2,
     );
@@ -785,7 +792,7 @@ fn try_native_to_token() {
     .unwrap();
 
     let model: StableSwapModel = StableSwapModel::new(
-        AMP.into(),
+        AMP_DEFAULT.into(),
         vec![collateral_pool_amount.into(), asset_pool_amount.into()],
         2,
     );
@@ -927,7 +934,7 @@ fn try_token_to_native() {
     let msg_transfer = res.messages.get(0).expect("no message");
 
     let model: StableSwapModel = StableSwapModel::new(
-        AMP.into(),
+        AMP_DEFAULT.into(),
         vec![collateral_pool_amount.into(), asset_pool_amount.into()],
         2,
     );
@@ -1254,8 +1261,8 @@ fn test_accumulate_prices() {
 
     struct Result {
         block_time_last: u64,
-        price_x: u128,
-        price_y: u128,
+        cumulative_price_x: u128,
+        cumulative_price_y: u128,
         is_some: bool,
     }
 
@@ -1266,13 +1273,13 @@ fn test_accumulate_prices() {
                 block_time_last: 0,
                 last0: 0,
                 last1: 0,
-                x_amount: 250,
-                y_amount: 500,
+                x_amount: 250_000000,
+                y_amount: 500_000000,
             },
             Result {
                 block_time_last: 1000,
-                price_x: 2000, // 500/250*1000
-                price_y: 500,  // 250/500*1000
+                cumulative_price_x: 1008_302000, // price x is a little more expensive
+                cumulative_price_y: 991_669000,
                 is_some: true,
             },
         ),
@@ -1283,13 +1290,13 @@ fn test_accumulate_prices() {
                 block_time_last: 1000,
                 last0: 1,
                 last1: 2,
-                x_amount: 250,
-                y_amount: 500,
+                x_amount: 250_000000,
+                y_amount: 500_000000,
             },
             Result {
                 block_time_last: 1000,
-                price_x: 2,
-                price_y: 1,
+                cumulative_price_x: 1,
+                cumulative_price_y: 2,
                 is_some: false,
             },
         ),
@@ -1299,13 +1306,13 @@ fn test_accumulate_prices() {
                 block_time_last: 1000,
                 last0: 500,
                 last1: 2000,
-                x_amount: 250,
-                y_amount: 500,
+                x_amount: 250_000000,
+                y_amount: 500_000000,
             },
             Result {
                 block_time_last: 1500,
-                price_x: 1500, // 500 + (500/250*500)
-                price_y: 2250, // 2000 + (250/500*500)
+                cumulative_price_x: 504_151500, // price x is a little more expensive
+                cumulative_price_y: 495_836500,
                 is_some: true,
             },
         ),
@@ -1335,17 +1342,27 @@ fn test_accumulate_prices() {
                 block_time_last: case.block_time_last,
                 price0_cumulative_last: Uint128::new(case.last0),
                 price1_cumulative_last: Uint128::new(case.last1),
+                amp: AMP_DEFAULT,
             },
             Uint128::new(case.x_amount),
+            6,
             Uint128::new(case.y_amount),
-        );
+            6,
+        )
+        .unwrap();
 
         assert_eq!(result.is_some, config.is_some());
 
         if let Some(config) = config {
             assert_eq!(config.block_time_last, result.block_time_last);
-            assert_eq!(config.price0_cumulative_last, Uint128::new(result.price_x));
-            assert_eq!(config.price1_cumulative_last, Uint128::new(result.price_y));
+            assert_eq!(
+                config.price0_cumulative_last,
+                Uint128::new(result.cumulative_price_x)
+            );
+            assert_eq!(
+                config.price1_cumulative_last,
+                Uint128::new(result.cumulative_price_y)
+            );
         }
     }
 }

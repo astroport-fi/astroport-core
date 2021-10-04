@@ -1,5 +1,6 @@
 use crate::error::ContractError;
-use crate::math::{calc_amount, AMP};
+use crate::math::calc_amount;
+use crate::math::AMP_DEFAULT;
 use crate::state::{Config, CONFIG};
 
 use cosmwasm_bignumber::{Decimal256, Uint256};
@@ -10,16 +11,17 @@ use cosmwasm_std::{
 };
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::factory::ConfigResponse;
 use astroport::factory::{FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg};
 use astroport::hook::InitHook;
-use astroport::math::warp_add;
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
     QueryMsg, ReverseSimulationResponse, SimulationResponse,
 };
-use astroport::querier::query_supply;
+use astroport::querier::{query_supply, query_token_precision};
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
+use std::cmp::Ordering;
 use std::vec;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -44,6 +46,7 @@ pub fn instantiate(
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
+        amp: AMP_DEFAULT,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -101,6 +104,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::UpdateConfig { amp } => update_config(deps, info, amp),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::PostInitialize {} => post_initialize(deps, env, info),
         ExecuteMsg::ProvideLiquidity {
@@ -318,7 +322,14 @@ pub fn provide_liquidity(
     });
 
     // Accumulate prices for oracle
-    if let Some(config) = accumulate_prices(env, config, pools[0].amount, pools[1].amount) {
+    if let Some(config) = accumulate_prices(
+        env,
+        config,
+        pools[0].amount,
+        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        pools[1].amount,
+        query_token_precision(&deps.querier, pools[1].info.clone())?,
+    )? {
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -348,7 +359,14 @@ pub fn withdraw_liquidity(
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
 
     // Accumulate prices for oracle
-    if let Some(config) = accumulate_prices(env, config.clone(), pools[0].amount, pools[1].amount) {
+    if let Some(config) = accumulate_prices(
+        env,
+        config.clone(),
+        pools[0].amount,
+        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        pools[1].amount,
+        query_token_precision(&deps.querier, pools[1].info.clone())?,
+    )? {
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -462,10 +480,13 @@ pub fn swap(
     let offer_amount = offer_asset.amount;
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
+        query_token_precision(&deps.querier, offer_pool.info)?,
         ask_pool.amount,
+        query_token_precision(&deps.querier, ask_pool.info.clone())?,
         offer_amount,
         fee_info.total_fee_rate,
-    );
+        config.amp,
+    )?;
 
     // check max spread limit if exist
     assert_max_spread(
@@ -522,34 +543,76 @@ pub fn swap(
     }
 
     // Accumulate prices for oracle
-    if let Some(config) = accumulate_prices(env, config, pools[0].amount, pools[1].amount) {
+    if let Some(config) = accumulate_prices(
+        env,
+        config,
+        pools[0].amount,
+        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        pools[1].amount,
+        query_token_precision(&deps.querier, pools[1].info.clone())?,
+    )? {
         CONFIG.save(deps.storage, &config)?;
     }
 
     Ok(response.add_attribute("maker_fee_amount", maker_fee_amount.to_string()))
 }
 
-pub fn accumulate_prices(env: Env, config: Config, x: Uint128, y: Uint128) -> Option<Config> {
+pub fn accumulate_prices(
+    env: Env,
+    config: Config,
+    x: Uint128,
+    x_precision: u8,
+    y: Uint128,
+    y_precision: u8,
+) -> StdResult<Option<Config>> {
     let mut config = config;
 
     let block_time = env.block.time.seconds();
     if block_time <= config.block_time_last || x.is_zero() || y.is_zero() {
-        return None;
+        return Ok(None);
     }
+
+    let greater_precision = x_precision.max(y_precision);
+    let x = adjust_precision(x, x_precision, greater_precision)?;
+    let y = adjust_precision(y, y_precision, greater_precision)?;
 
     let time_elapsed = Uint128::new((block_time - config.block_time_last) as u128);
 
-    config.price0_cumulative_last = warp_add(
-        config.price0_cumulative_last,
-        time_elapsed * Decimal::from_ratio(y, x),
+    config.price0_cumulative_last = config.price0_cumulative_last.wrapping_add(
+        time_elapsed.checked_mul(adjust_precision(
+            Uint128::new(
+                calc_amount(
+                    x.u128(),
+                    y.u128(),
+                    adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
+                    config.amp,
+                )
+                .unwrap(),
+            ),
+            greater_precision,
+            y_precision,
+        )?)?,
     );
-    config.price1_cumulative_last = warp_add(
-        config.price1_cumulative_last,
-        time_elapsed * Decimal::from_ratio(x, y),
+
+    config.price1_cumulative_last = config.price1_cumulative_last.wrapping_add(
+        time_elapsed.checked_mul(adjust_precision(
+            Uint128::new(
+                calc_amount(
+                    y.u128(),
+                    x.u128(),
+                    adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
+                    config.amp,
+                )
+                .unwrap(),
+            ),
+            greater_precision,
+            x_precision,
+        )?)?,
     );
+
     config.block_time_last = block_time;
 
-    Some(config)
+    Ok(Some(config))
 }
 
 pub fn calculate_maker_fee(
@@ -650,14 +713,17 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
     }
 
     // Get fee info from factory
-    let fee_info = get_fee_info(deps, config)?;
+    let fee_info = get_fee_info(deps, config.clone())?;
 
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
+        query_token_precision(&deps.querier, offer_pool.info)?,
         ask_pool.amount,
+        query_token_precision(&deps.querier, ask_pool.info)?,
         offer_asset.amount,
         fee_info.total_fee_rate,
-    );
+        config.amp,
+    )?;
 
     Ok(SimulationResponse {
         return_amount,
@@ -690,13 +756,16 @@ pub fn query_reverse_simulation(
     }
 
     // Get fee info from factory
-    let fee_info = get_fee_info(deps, config)?;
+    let fee_info = get_fee_info(deps, config.clone())?;
 
     let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
         offer_pool.amount,
+        query_token_precision(&deps.querier, offer_pool.info)?,
         ask_pool.amount,
+        query_token_precision(&deps.querier, ask_pool.info)?,
         ask_asset.amount,
         fee_info.total_fee_rate,
+        config.amp,
     )?;
 
     Ok(ReverseSimulationResponse {
@@ -729,15 +798,27 @@ pub fn amount_of(coins: &[Coin], denom: String) -> Uint128 {
 
 fn compute_swap(
     offer_pool: Uint128,
+    offer_precision: u8,
     ask_pool: Uint128,
+    ask_precision: u8,
     offer_amount: Uint128,
     commission_rate: Decimal,
-) -> (Uint128, Uint128, Uint128) {
+    amp: u64,
+) -> StdResult<(Uint128, Uint128, Uint128)> {
     // offer => ask
 
-    let return_amount = Uint128::new(
-        calc_amount(offer_pool.u128(), ask_pool.u128(), offer_amount.u128(), AMP).unwrap(),
-    );
+    let greater_precision = offer_precision.max(ask_precision);
+    let offer_pool = adjust_precision(offer_pool, offer_precision, greater_precision)?;
+    let ask_pool = adjust_precision(ask_pool, ask_precision, greater_precision)?;
+    let offer_amount = adjust_precision(offer_amount, offer_precision, greater_precision)?;
+
+    let return_amount = adjust_precision(
+        Uint128::new(
+            calc_amount(offer_pool.u128(), ask_pool.u128(), offer_amount.u128(), amp).unwrap(),
+        ),
+        greater_precision,
+        ask_precision,
+    )?;
 
     // TODO: add SPREAD_EPSILON constant to v2, and calculate the spread as the
     // difference between the prices for exchanging this SPREAD_EPSILON and the price for exchaning the amount provided by user in contract call
@@ -748,24 +829,35 @@ fn compute_swap(
     // commission will be absorbed to pool
     let return_amount: Uint128 = return_amount.checked_sub(commission_amount).unwrap();
 
-    (return_amount, spread_amount, commission_amount)
+    Ok((return_amount, spread_amount, commission_amount))
 }
 
 fn compute_offer_amount(
     offer_pool: Uint128,
+    offer_precision: u8,
     ask_pool: Uint128,
+    ask_precision: u8,
     ask_amount: Uint128,
     commission_rate: Decimal,
+    amp: u64,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
 
+    let greater_precision = offer_precision.max(ask_precision);
+    let offer_pool = adjust_precision(offer_pool, offer_precision, greater_precision)?;
+    let ask_pool = adjust_precision(ask_pool, ask_precision, greater_precision)?;
+    let ask_amount = adjust_precision(ask_amount, ask_precision, greater_precision)?;
+
+    let offer_amount = adjust_precision(
+        Uint128::new(
+            calc_amount(ask_pool.u128(), offer_pool.u128(), ask_amount.u128(), amp).unwrap(),
+        ),
+        greater_precision,
+        offer_precision,
+    )?;
+
     let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
     let inv_one_minus_commission = (Decimal256::one() / one_minus_commission).into();
-
-    let offer_amount = Uint128::new(
-        calc_amount(ask_pool.u128(), offer_pool.u128(), ask_amount.u128(), AMP).unwrap(),
-    );
-
     let before_commission_deduction = ask_amount * inv_one_minus_commission;
 
     // TODO: add SPREAD_EPSILON constant to v2, and calculate the spread as the
@@ -774,6 +866,22 @@ fn compute_offer_amount(
 
     let commission_amount = before_commission_deduction * commission_rate;
     Ok((offer_amount, spread_amount, commission_amount))
+}
+
+fn adjust_precision(
+    value: Uint128,
+    current_precision: u8,
+    new_precision: u8,
+) -> StdResult<Uint128> {
+    Ok(match current_precision.cmp(&new_precision) {
+        Ordering::Equal => value,
+        Ordering::Less => value.checked_mul(Uint128::new(
+            10_u128.pow((new_precision - current_precision) as u32),
+        ))?,
+        Ordering::Greater => value.checked_div(Uint128::new(
+            10_u128.pow((current_precision - new_precision) as u32),
+        ))?,
+    })
 }
 
 /// If `belief_price` and `max_spread` both are given,
@@ -846,4 +954,25 @@ pub fn pool_info(deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)>
     let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;
 
     Ok((pools, total_share))
+}
+
+pub fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    amp: Option<u64>,
+) -> Result<Response, ContractError> {
+    let querier = &deps.querier;
+    CONFIG.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        let factory_config: ConfigResponse =
+            querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: state.factory_addr.to_string(),
+                msg: to_binary(&FactoryQueryMsg::Config {})?,
+            }))?;
+        if info.sender != factory_config.gov {
+            return Err(ContractError::Unauthorized {});
+        }
+        state.amp = amp.unwrap_or(state.amp);
+        Ok(state)
+    })?;
+    Ok(Response::default())
 }

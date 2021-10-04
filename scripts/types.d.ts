@@ -11,6 +11,7 @@ interface FactoryInitMsg{
         token_code_id: number,
         init_hook?: string,
         fee_address?: string,
+        gov?: string,
     }
 }
 

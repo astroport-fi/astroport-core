@@ -59,6 +59,7 @@ async function main() {
 
     /*************************************** Deploy Factory Contract *****************************************/
     console.log("Deploying Factory...")
+    deployConfig.factoryInitMsg.config.gov = wallet.key.accAddress
     const addressFactoryContract = await deployContract(
         terra,
         wallet,
