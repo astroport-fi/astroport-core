@@ -1,7 +1,7 @@
 use crate::contract::{execute, instantiate, query};
 use astroport::vesting::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, OrderBy, QueryMsg, VestingAccount,
-    VestingAccountResponse, VestingAccountsResponse, VestingInfo,
+    VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
 };
 
 use crate::error::ContractError;
@@ -16,9 +16,8 @@ fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
-        owner: Addr::unchecked("owner"),
-        token_addr: Addr::unchecked("astro_token"),
-        genesis_time: Timestamp::from_seconds(12345),
+        owner: "owner".to_string(),
+        token_addr: "astro_token".to_string(),
     };
 
     let env = mock_env();
@@ -31,7 +30,6 @@ fn proper_initialization() {
         ConfigResponse {
             owner: Addr::unchecked("owner"),
             token_addr: Addr::unchecked("astro_token"),
-            genesis_time: Timestamp::from_seconds(12345),
         }
     );
 }
@@ -41,9 +39,8 @@ fn update_config() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
-        owner: Addr::unchecked("owner"),
-        token_addr: Addr::unchecked("astro_token"),
-        genesis_time: Timestamp::from_seconds(12345),
+        owner: "owner".to_string(),
+        token_addr: "astro_token".to_string(),
     };
 
     let env = mock_env();
@@ -51,9 +48,8 @@ fn update_config() {
     let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     let msg = ExecuteMsg::UpdateConfig {
-        owner: Some(Addr::unchecked("owner2")),
+        owner: Some("owner2".to_string()),
         token_addr: None,
-        genesis_time: None,
     };
 
     let info = mock_info("owner", &vec![]);
@@ -65,14 +61,12 @@ fn update_config() {
         ConfigResponse {
             owner: Addr::unchecked("owner2"),
             token_addr: Addr::unchecked("astro_token"),
-            genesis_time: Timestamp::from_seconds(12345),
         }
     );
 
     let msg = ExecuteMsg::UpdateConfig {
-        owner: Some(Addr::unchecked("owner")),
+        owner: Some("owner".to_string()),
         token_addr: None,
-        genesis_time: None,
     };
 
     let env = mock_env();
@@ -82,8 +76,7 @@ fn update_config() {
 
     let msg = ExecuteMsg::UpdateConfig {
         owner: None,
-        token_addr: Some(Addr::unchecked("token_addr2")),
-        genesis_time: Some(Timestamp::from_seconds(1u64)),
+        token_addr: Some("token_addr2".to_string()),
     };
     let info = mock_info("owner2", &vec![]);
     let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -96,7 +89,6 @@ fn update_config() {
         ConfigResponse {
             owner: Addr::unchecked("owner2"),
             token_addr: Addr::unchecked("token_addr2"),
-            genesis_time: Timestamp::from_seconds(1),
         }
     );
 }
@@ -106,9 +98,8 @@ fn register_vesting_accounts() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
-        owner: Addr::unchecked("owner"),
-        token_addr: Addr::unchecked("astro_token"),
-        genesis_time: Timestamp::from_seconds(100),
+        owner: "owner".to_string(),
+        token_addr: "astro_token".to_string(),
     };
 
     let env = mock_env();
@@ -118,40 +109,45 @@ fn register_vesting_accounts() {
     let msg = ExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![
             VestingAccount {
-                address: Addr::unchecked("addr0000"),
+                address: "addr0000".to_string(),
                 schedules: vec![
-                    (
-                        Timestamp::from_seconds(100),
-                        Timestamp::from_seconds(101),
-                        Uint128::from(100u128),
-                    ),
-                    (
-                        Timestamp::from_seconds(100),
-                        Timestamp::from_seconds(110),
-                        Uint128::from(100u128),
-                    ),
-                    (
-                        Timestamp::from_seconds(100),
-                        Timestamp::from_seconds(200),
-                        Uint128::from(100u128),
-                    ),
+                    VestingSchedule {
+                        starts_at: Timestamp::from_seconds(100),
+                        ends_at: Timestamp::from_seconds(101),
+                        amount_at_start: Uint128::zero(),
+                        total_amount: Uint128::new(100u128),
+                    },
+                    VestingSchedule {
+                        starts_at: Timestamp::from_seconds(100),
+                        ends_at: Timestamp::from_seconds(110),
+                        amount_at_start: Uint128::zero(),
+                        total_amount: Uint128::new(100u128),
+                    },
+                    VestingSchedule {
+                        starts_at: Timestamp::from_seconds(100),
+                        ends_at: Timestamp::from_seconds(200),
+                        amount_at_start: Uint128::zero(),
+                        total_amount: Uint128::new(100u128),
+                    },
                 ],
             },
             VestingAccount {
-                address: Addr::unchecked("addr0001"),
-                schedules: vec![(
-                    Timestamp::from_seconds(100),
-                    Timestamp::from_seconds(110),
-                    Uint128::from(100u128),
-                )],
+                address: "addr0001".to_string(),
+                schedules: vec![VestingSchedule {
+                    starts_at: Timestamp::from_seconds(100),
+                    ends_at: Timestamp::from_seconds(110),
+                    amount_at_start: Uint128::zero(),
+                    total_amount: Uint128::new(100u128),
+                }],
             },
             VestingAccount {
-                address: Addr::unchecked("addr0002"),
-                schedules: vec![(
-                    Timestamp::from_seconds(100),
-                    Timestamp::from_seconds(200),
-                    Uint128::from(100u128),
-                )],
+                address: "addr0002".to_string(),
+                schedules: vec![VestingSchedule {
+                    starts_at: Timestamp::from_seconds(100),
+                    ends_at: Timestamp::from_seconds(200),
+                    amount_at_start: Uint128::zero(),
+                    total_amount: Uint128::new(100u128),
+                }],
             },
         ],
     };
@@ -176,24 +172,27 @@ fn register_vesting_accounts() {
         VestingAccountResponse {
             address: Addr::unchecked("addr0000"),
             info: VestingInfo {
-                last_claim_time: Timestamp::from_seconds(100),
                 schedules: vec![
-                    (
-                        Timestamp::from_seconds(100),
-                        Timestamp::from_seconds(101),
-                        Uint128::from(100u128)
-                    ),
-                    (
-                        Timestamp::from_seconds(100),
-                        Timestamp::from_seconds(110),
-                        Uint128::from(100u128)
-                    ),
-                    (
-                        Timestamp::from_seconds(100),
-                        Timestamp::from_seconds(200),
-                        Uint128::from(100u128)
-                    ),
+                    VestingSchedule {
+                        starts_at: Timestamp::from_seconds(100),
+                        ends_at: Timestamp::from_seconds(101),
+                        amount_at_start: Uint128::zero(),
+                        total_amount: Uint128::new(100u128)
+                    },
+                    VestingSchedule {
+                        starts_at: Timestamp::from_seconds(100),
+                        ends_at: Timestamp::from_seconds(110),
+                        amount_at_start: Uint128::zero(),
+                        total_amount: Uint128::new(100u128)
+                    },
+                    VestingSchedule {
+                        starts_at: Timestamp::from_seconds(100),
+                        ends_at: Timestamp::from_seconds(200),
+                        amount_at_start: Uint128::zero(),
+                        total_amount: Uint128::new(100u128)
+                    },
                 ],
+                released_amount: Uint128::zero()
             }
         }
     );
@@ -217,46 +216,51 @@ fn register_vesting_accounts() {
                 VestingAccountResponse {
                     address: Addr::unchecked("addr0000"),
                     info: VestingInfo {
-                        last_claim_time: Timestamp::from_seconds(100),
                         schedules: vec![
-                            (
-                                Timestamp::from_seconds(100),
-                                Timestamp::from_seconds(101),
-                                Uint128::from(100u128)
-                            ),
-                            (
-                                Timestamp::from_seconds(100),
-                                Timestamp::from_seconds(110),
-                                Uint128::from(100u128)
-                            ),
-                            (
-                                Timestamp::from_seconds(100),
-                                Timestamp::from_seconds(200),
-                                Uint128::from(100u128)
-                            ),
+                            VestingSchedule {
+                                starts_at: Timestamp::from_seconds(100),
+                                ends_at: Timestamp::from_seconds(101),
+                                amount_at_start: Uint128::zero(),
+                                total_amount: Uint128::new(100u128)
+                            },
+                            VestingSchedule {
+                                starts_at: Timestamp::from_seconds(100),
+                                ends_at: Timestamp::from_seconds(110),
+                                amount_at_start: Uint128::zero(),
+                                total_amount: Uint128::new(100u128)
+                            },
+                            VestingSchedule {
+                                starts_at: Timestamp::from_seconds(100),
+                                ends_at: Timestamp::from_seconds(200),
+                                amount_at_start: Uint128::zero(),
+                                total_amount: Uint128::new(100u128)
+                            },
                         ],
+                        released_amount: Uint128::zero()
                     }
                 },
                 VestingAccountResponse {
                     address: Addr::unchecked("addr0001"),
                     info: VestingInfo {
-                        last_claim_time: Timestamp::from_seconds(100),
-                        schedules: vec![(
-                            Timestamp::from_seconds(100),
-                            Timestamp::from_seconds(110),
-                            Uint128::from(100u128)
-                        )],
+                        schedules: vec![VestingSchedule {
+                            starts_at: Timestamp::from_seconds(100),
+                            ends_at: Timestamp::from_seconds(110),
+                            amount_at_start: Uint128::zero(),
+                            total_amount: Uint128::new(100u128)
+                        },],
+                        released_amount: Uint128::zero()
                     }
                 },
                 VestingAccountResponse {
                     address: Addr::unchecked("addr0002"),
                     info: VestingInfo {
-                        last_claim_time: Timestamp::from_seconds(100),
-                        schedules: vec![(
-                            Timestamp::from_seconds(100),
-                            Timestamp::from_seconds(200),
-                            Uint128::from(100u128)
-                        )],
+                        schedules: vec![VestingSchedule {
+                            starts_at: Timestamp::from_seconds(100),
+                            ends_at: Timestamp::from_seconds(200),
+                            amount_at_start: Uint128::zero(),
+                            total_amount: Uint128::new(100u128)
+                        },],
+                        released_amount: Uint128::zero()
                     }
                 }
             ]
@@ -269,9 +273,8 @@ fn claim() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
-        owner: Addr::unchecked("owner"),
-        token_addr: Addr::unchecked("astro_token"),
-        genesis_time: Timestamp::from_seconds(100),
+        owner: "owner".to_string(),
+        token_addr: "astro_token".to_string(),
     };
 
     let mut env = mock_env();
@@ -280,23 +283,26 @@ fn claim() {
 
     let msg = ExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![VestingAccount {
-            address: Addr::unchecked("addr0000"),
+            address: "addr0000".to_string(),
             schedules: vec![
-                (
-                    Timestamp::from_seconds(100),
-                    Timestamp::from_seconds(101),
-                    Uint128::from(100u128),
-                ),
-                (
-                    Timestamp::from_seconds(100),
-                    Timestamp::from_seconds(110),
-                    Uint128::from(100u128),
-                ),
-                (
-                    Timestamp::from_seconds(100),
-                    Timestamp::from_seconds(200),
-                    Uint128::from(100u128),
-                ),
+                VestingSchedule {
+                    starts_at: Timestamp::from_seconds(100),
+                    ends_at: Timestamp::from_seconds(101),
+                    amount_at_start: Uint128::zero(),
+                    total_amount: Uint128::new(100u128),
+                },
+                VestingSchedule {
+                    starts_at: Timestamp::from_seconds(100),
+                    ends_at: Timestamp::from_seconds(110),
+                    amount_at_start: Uint128::zero(),
+                    total_amount: Uint128::new(100u128),
+                },
+                VestingSchedule {
+                    starts_at: Timestamp::from_seconds(100),
+                    ends_at: Timestamp::from_seconds(200),
+                    amount_at_start: Uint128::zero(),
+                    total_amount: Uint128::new(100u128),
+                },
             ],
         }],
     };
@@ -307,15 +313,17 @@ fn claim() {
     let info = mock_info("addr0000", &[]);
     env.block.time = Timestamp::from_seconds(100);
 
-    let msg = ExecuteMsg::Claim {};
+    let msg = ExecuteMsg::Claim {
+        recipient: None,
+        amount: None,
+    };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_eq!(
-        res.attributes,
+        res.events[0].attributes,
         vec![
-            attr("action", "claim"),
             attr("address", "addr0000"),
-            attr("claim_amount", "0"),
-            attr("last_claim_time", "100"),
+            attr("available_amount", "0"),
+            attr("claimed_amount", "0"),
         ]
     );
     assert_eq!(res.messages, vec![],);
@@ -323,12 +331,11 @@ fn claim() {
     env.block.time = Timestamp::from_seconds(101);
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_eq!(
-        res.attributes,
+        res.events[0].attributes,
         vec![
-            attr("action", "claim"),
             attr("address", "addr0000"),
-            attr("claim_amount", "111"),
-            attr("last_claim_time", "101"),
+            attr("available_amount", "111"),
+            attr("claimed_amount", "111"),
         ]
     );
     assert_eq!(
@@ -338,7 +345,7 @@ fn claim() {
                 contract_addr: String::from("astro_token"),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(111u128),
+                    amount: Uint128::new(111u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -353,12 +360,11 @@ fn claim() {
     env.block.time = Timestamp::from_seconds(102);
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_eq!(
-        res.attributes,
+        res.events[0].attributes,
         vec![
-            attr("action", "claim"),
             attr("address", "addr0000"),
-            attr("claim_amount", "11"),
-            attr("last_claim_time", "102"),
+            attr("available_amount", "11"),
+            attr("claimed_amount", "11"),
         ]
     );
     assert_eq!(
@@ -368,7 +374,7 @@ fn claim() {
                 contract_addr: String::from("astro_token"),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(11u128),
+                    amount: Uint128::new(11u128),
                 })
                 .unwrap(),
                 funds: vec![],

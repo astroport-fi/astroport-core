@@ -5,36 +5,45 @@ use cosmwasm_std::{Addr, Order, Timestamp, Uint128};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub owner: Addr,
-    pub token_addr: Addr,
-    pub genesis_time: Timestamp,
+    pub owner: String,
+    pub token_addr: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     UpdateConfig {
-        owner: Option<Addr>,
-        token_addr: Option<Addr>,
-        genesis_time: Option<Timestamp>,
+        owner: Option<String>,
+        token_addr: Option<String>,
     },
     RegisterVestingAccounts {
         vesting_accounts: Vec<VestingAccount>,
     },
-    Claim {},
+    Claim {
+        recipient: Option<String>,
+        amount: Option<Uint128>,
+    },
 }
 
 /// CONTRACT: end_time > start_time
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
-    pub address: Addr,
-    pub schedules: Vec<(Timestamp, Timestamp, Uint128)>,
+    pub address: String,
+    pub schedules: Vec<VestingSchedule>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingInfo {
-    pub schedules: Vec<(Timestamp, Timestamp, Uint128)>,
-    pub last_claim_time: Timestamp,
+    pub schedules: Vec<VestingSchedule>,
+    pub released_amount: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct VestingSchedule {
+    pub starts_at: Timestamp,
+    pub ends_at: Timestamp,
+    pub amount_at_start: Uint128,
+    pub total_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -56,7 +65,6 @@ pub enum QueryMsg {
 pub struct ConfigResponse {
     pub owner: Addr,
     pub token_addr: Addr,
-    pub genesis_time: Timestamp,
 }
 
 // We define a custom struct for each query response
