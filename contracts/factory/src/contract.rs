@@ -74,10 +74,11 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig {
+            gov,
             owner,
             token_code_id,
             fee_address,
-        } => execute_update_config(deps, env, info, owner, token_code_id, fee_address),
+        } => execute_update_config(deps, env, info, gov, owner, token_code_id, fee_address),
         ExecuteMsg::UpdatePairConfig { config } => execute_update_pair_config(deps, info, config),
         ExecuteMsg::RemovePairConfig { pair_type } => {
             execute_remove_pair_config(deps, info, pair_type)
@@ -97,6 +98,7 @@ pub fn execute_update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
+    gov: Option<Addr>,
     owner: Option<Addr>,
     token_code_id: Option<u64>,
     fee_address: Option<Addr>,
@@ -106,6 +108,11 @@ pub fn execute_update_config(
     // permission check
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(gov) = gov {
+        // validate address format
+        config.gov = deps.api.addr_validate(gov.as_str())?;
     }
 
     if let Some(owner) = owner {
