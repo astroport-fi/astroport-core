@@ -3,7 +3,10 @@
 set -e
 set -o pipefail
 
-docker run --rm -v "$(pwd)":/code \
-    --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-    --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-    cosmwasm/workspace-optimizer:0.11.5
+projectPath=$(cd "$(dirname "${0}")" && cd ../ && pwd)
+
+docker run --rm \
+    --volume "$projectPath":/code \
+    --volume "$(basename "$projectPath")-target":/code/target \
+    --volume cargo-registry:/usr/local/cargo/registry \
+    cosmwasm/workspace-optimizer:0.12.3

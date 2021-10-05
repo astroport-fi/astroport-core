@@ -5,13 +5,13 @@ export const testnet: Config = {
             deposit_token_addr: 'terra18x4r44npdzrk0k9pzvy7h4d38ep3rmadsewzsh',
         }
     },
-    gaugeInitMsg: {
-        "config": {
-            token: 'terra18x4r44npdzrk0k9pzvy7h4d38ep3rmadsewzsh',
-            dev_addr: 'terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v',
+    generatorInitMsg: {
+        config: {
+            allowed_reward_proxies: [],
+            astro_token: '',
+            start_block: '1',
             tokens_per_block: String(10000000),
-            start_block: 100000,
-            bonus_end_block: 500000,
+            vesting_contract: '',
         }
     },
     factoryInitMsg: {
@@ -71,13 +71,13 @@ export const bombay: Config = {
             deposit_token_addr: 'terra1qqhw3t3p5349rs83m5mqjxft76c82yf99s9jjz',
         }
     },
-    gaugeInitMsg: {
-        "config": {
-            token: 'terra1qqhw3t3p5349rs83m5mqjxft76c82yf99s9jjz',
-            dev_addr: 'terra1ulx8rulpwcx86v4v0awxgadhxhqz95v9s8jkhd',
+    generatorInitMsg: {
+        config: {
+            allowed_reward_proxies: [],
+            astro_token: '',
+            start_block: '1',
             tokens_per_block: String(10000000),
-            start_block: 100000,
-            bonus_end_block: 500000,
+            vesting_contract: '',
         }
     },
     factoryInitMsg: {
@@ -137,13 +137,13 @@ export const local: Config = {
             deposit_token_addr: 'terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5',
         }
     },
-    gaugeInitMsg: {
+    generatorInitMsg: {
         "config": {
-            token: 'terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5',
-            dev_addr: undefined,
+            astro_token: 'terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5',
+            allowed_reward_proxies: [],
+            start_block: '1',
             tokens_per_block: String(10000000),
-            start_block: 100000,
-            bonus_end_block: 500000,
+            vesting_contract: '',
         }
     },
     factoryInitMsg: {
