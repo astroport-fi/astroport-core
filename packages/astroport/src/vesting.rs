@@ -14,7 +14,6 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     UpdateConfig {
         owner: Option<String>,
-        token_addr: Option<String>,
     },
     RegisterVestingAccounts {
         vesting_accounts: Vec<VestingAccount>,

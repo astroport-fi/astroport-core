@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
     Response, StdError, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
@@ -39,11 +41,9 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Claim { recipient, amount } => claim(deps, env, info, recipient, amount),
-        ExecuteMsg::UpdateConfig { owner, token_addr } => {
-            update_config(deps, info, owner, token_addr)
-        }
+        ExecuteMsg::UpdateConfig { owner } => update_config(deps, info, owner),
         ExecuteMsg::RegisterVestingAccounts { vesting_accounts } => {
-            register_vesting_accounts(deps, info, vesting_accounts)
+            register_vesting_accounts(deps, env, info, vesting_accounts)
         }
     }
 }
@@ -52,7 +52,6 @@ pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     owner: Option<String>,
-    token_addr: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
@@ -62,10 +61,6 @@ pub fn update_config(
 
     if let Some(owner) = owner {
         config.owner = deps.api.addr_validate(&owner)?;
-    }
-
-    if let Some(token_addr) = token_addr {
-        config.token_addr = deps.api.addr_validate(&token_addr)?;
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -91,19 +86,48 @@ fn assert_vesting_schedules(
 
 pub fn register_vesting_accounts(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     vesting_accounts: Vec<VestingAccount>,
 ) -> Result<Response, ContractError> {
+    let mut response = Response::new();
+
+    let mut event = Event::new("Register vesting accounts".to_string());
+
     let config: Config = CONFIG.load(deps.storage)?;
 
     if config.owner != info.sender {
         return Err(ContractError::Unauthorized {});
     }
 
+    let mut to_deposit = Uint128::zero();
+    let mut to_receive = Uint128::zero();
+
     for vesting_account in vesting_accounts {
         let account_address = deps.api.addr_validate(&vesting_account.address)?;
 
         assert_vesting_schedules(&account_address, &vesting_account.schedules)?;
+
+        for sch in &vesting_account.schedules {
+            to_deposit += if let Some(end_point) = &sch.end_point {
+                end_point.amount
+            } else {
+                sch.start_point.amount
+            }
+        }
+
+        if let Some(old_info) = VESTING_INFO.may_load(deps.storage, &account_address)? {
+            let mut total = Uint128::zero();
+            for sch in &old_info.schedules {
+                total += if let Some(end_point) = &sch.end_point {
+                    end_point.amount
+                } else {
+                    sch.start_point.amount
+                }
+            }
+
+            to_receive += total - old_info.released_amount;
+        }
 
         VESTING_INFO.save(
             deps.storage,
@@ -115,7 +139,36 @@ pub fn register_vesting_accounts(
         )?;
     }
 
-    Ok(Response::new().add_event(Event::new("Register vesting accounts".to_string())))
+    match to_deposit.cmp(&to_receive) {
+        Ordering::Greater => {
+            let amount = to_deposit - to_receive;
+            response.messages.push(SubMsg::new(WasmMsg::Execute {
+                contract_addr: config.token_addr.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: config.owner.to_string(),
+                    recipient: env.contract.address.to_string(),
+                    amount,
+                })?,
+            }));
+            event.attributes.push(attr("deposited", amount));
+        }
+        Ordering::Less => {
+            let amount = to_receive - to_deposit;
+            response.messages.push(SubMsg::new(WasmMsg::Execute {
+                contract_addr: config.token_addr.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: config.owner.to_string(),
+                    amount,
+                })?,
+            }));
+            event.attributes.push(attr("received", amount));
+        }
+        Ordering::Equal => {}
+    }
+
+    Ok(response)
 }
 
 pub fn claim(

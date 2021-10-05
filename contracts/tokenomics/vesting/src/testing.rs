@@ -50,7 +50,6 @@ fn update_config() {
 
     let msg = ExecuteMsg::UpdateConfig {
         owner: Some("owner2".to_string()),
-        token_addr: None,
     };
 
     let info = mock_info("owner", &vec![]);
@@ -67,31 +66,12 @@ fn update_config() {
 
     let msg = ExecuteMsg::UpdateConfig {
         owner: Some("owner".to_string()),
-        token_addr: None,
     };
 
     let env = mock_env();
     let info = mock_info("owner", &vec![]);
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
-
-    let msg = ExecuteMsg::UpdateConfig {
-        owner: None,
-        token_addr: Some("token_addr2".to_string()),
-    };
-    let info = mock_info("owner2", &vec![]);
-    let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
-
-    assert_eq!(
-        from_binary::<ConfigResponse>(
-            &query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap()
-        )
-        .unwrap(),
-        ConfigResponse {
-            owner: Addr::unchecked("owner2"),
-            token_addr: Addr::unchecked("token_addr2"),
-        }
-    );
 }
 
 #[test]

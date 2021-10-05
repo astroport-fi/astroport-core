@@ -16,12 +16,6 @@
                 "string",
                 "null"
               ]
-            },
-            "token_addr": {
-              "type": [
-                "string",
-                "null"
-              ]
             }
           }
         }
