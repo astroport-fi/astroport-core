@@ -949,7 +949,7 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
     mint_tokens(
         &mut app,
         &astro_token_instance,
-        &vesting_instance,
+        &owner,
         1_000_000_000_000000,
     );
 
@@ -1003,13 +1003,24 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
 
     let current_block = app.block_info();
 
+    let amount = Uint128::new(63072000_000000);
+
+    let msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: vesting_instance.to_string(),
+        amount,
+        expires: None,
+    };
+
+    app.execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
+        .unwrap();
+
     let msg = VestingExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![VestingAccount {
             address: generator_instance.to_string(),
             schedules: vec![VestingSchedule {
                 start_point: VestingSchedulePoint {
                     time: current_block.time,
-                    amount: Uint128::new(63072000_000000),
+                    amount,
                 },
                 end_point: None,
             }],
