@@ -4,12 +4,16 @@
   "type": "object",
   "required": [
     "fee_address",
+    "gov",
     "owner",
     "pair_configs",
     "token_code_id"
   ],
   "properties": {
     "fee_address": {
+      "$ref": "#/definitions/Addr"
+    },
+    "gov": {
       "$ref": "#/definitions/Addr"
     },
     "owner": {

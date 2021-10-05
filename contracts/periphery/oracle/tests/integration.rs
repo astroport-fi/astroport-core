@@ -79,6 +79,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
         token_code_id: 1u64,
         init_hook: None,
         fee_address: None,
+        gov: Addr::unchecked("gov"),
     };
 
     let factory_instance = router
@@ -703,6 +704,7 @@ fn consult_zero_price() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
+
     let (astro_token_instance, factory_instance, oracle_code_id) =
         instantiate_contracts(&mut router, owner.clone());
 
@@ -729,11 +731,11 @@ fn consult_zero_price() {
         [
             Asset {
                 info: asset_infos[0].clone(),
-                amount: Uint128::from(100_000_u128),
+                amount: Uint128::from(100_000_000_000u128),
             },
             Asset {
                 info: asset_infos[1].clone(),
-                amount: Uint128::from(100_000_u128),
+                amount: Uint128::from(100_000_000_000u128),
             },
         ],
     );
@@ -776,12 +778,12 @@ fn consult_zero_price() {
         (
             astro_token_instance.clone(),
             Uint128::from(100u128),
-            Uint128::from(100u128),
+            Uint128::from(99u128),
         ),
         (
             usdc_token_instance.clone(),
             Uint128::from(100u128),
-            Uint128::from(100u128),
+            Uint128::from(99u128),
         ),
     ] {
         let msg = Consult {

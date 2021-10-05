@@ -9,6 +9,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
+    #[error("Operation non supported")]
+    NonSupported {},
+
     #[error("Event of zero transfer")]
     InvalidZeroAmount {},
 

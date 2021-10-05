@@ -1,9 +1,7 @@
 import 'dotenv/config'
 import {
     deployContract,
-    executeContract, initialize,
-    instantiateContract,
-    queryContract,
+    executeContract,
     recover,
     setTimeoutDuration,
     uploadContract,
@@ -59,6 +57,7 @@ async function main() {
 
     /*************************************** Deploy Factory Contract *****************************************/
     console.log("Deploying Factory...")
+    deployConfig.factoryInitMsg.config.gov = wallet.key.accAddress
     const addressFactoryContract = await deployContract(
         terra,
         wallet,
@@ -113,24 +112,27 @@ async function main() {
         }
     )
     console.log("Address Gauge Contract: " + addressMakerContract)
-    /*************************************** Deploy Gauge Contract *****************************************/
-    console.log("Deploying Gauge...")
-    deployConfig.gaugeInitMsg.config.dev_addr = wallet.key.accAddress;
-    const addressGaugeContract = await deployContract(
+    /*************************************** Deploy Generator Contract *****************************************/
+    console.log("Deploying Generator...")
+    deployConfig.generatorInitMsg.config.astro_token = deployConfig.astroTokenContractAddress;
+    deployConfig.generatorInitMsg.config.vesting_contract = addressVestingContract;
+    const addressGeneratorContract = await deployContract(
         terra,
         wallet,
-        join(ARTIFACTS_PATH, 'astroport_gauge.wasm'),
-        deployConfig.gaugeInitMsg.config
+        join(ARTIFACTS_PATH, 'astroport_generator.wasm'),
+        deployConfig.generatorInitMsg.config
     )
-    console.log("Address Gauge Contract: " + addressGaugeContract)
+    console.log("Address Generator Contract: " + addressGeneratorContract)
+
     /*************************************** Setting tokens to Vesting Contract *****************************************/
     console.log("Setting Vesting...")
     const vestingAccounts = (
         deployConfig.registerVestingAccounts.register_vesting_accounts.vesting_accounts
     ).map(account => ({
         ...account,
-        address: addressGaugeContract,
+        address: addressGeneratorContract,
     }));
+    console.log('vestingAccounts:', JSON.stringify(vestingAccounts))
     deployConfig.registerVestingAccounts.register_vesting_accounts.vesting_accounts = vestingAccounts
     const { registerVestingAccounts } = deployConfig;
     await executeContract(

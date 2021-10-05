@@ -11,16 +11,17 @@ interface FactoryInitMsg{
         token_code_id: number,
         init_hook?: string,
         fee_address?: string,
+        gov?: string,
     }
 }
 
-interface GaugeInitMsd{
+interface GeneratorInitMsd {
     config:{
-        token?: string,
-        dev_addr?: string,
+        allowed_reward_proxies: string[],
+        astro_token: string,
+        start_block: string,
         tokens_per_block: string,
-        start_block: number,
-        bonus_end_block: number,
+        vesting_contract: string,
     }
 }
 
@@ -60,7 +61,7 @@ interface RegisterVestingAccounts {
 interface Config {
     factoryInitMsg: FactoryInitMsg,
     stakingInitMsg: StakingInitMsg
-    gaugeInitMsg: GaugeInitMsd,
+    generatorInitMsg: GeneratorInitMsd,
     astroTokenContractAddress: string | undefined
     registerVestingAccounts: RegisterVestingAccounts
 }

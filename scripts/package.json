@@ -4,6 +4,11 @@
   "main": "index.js",
   "license": "MIT",
   "type": "module",
+  "scripts": {
+    "start": "npm run build-env",
+    "build-env": "bash build_env.sh",
+    "build-artifacts": "bash build_artifacts.sh"
+  },
   "dependencies": {
     "@terra-money/terra.js": "^2.0.5",
     "bignumber.js": "^9.0.1",
