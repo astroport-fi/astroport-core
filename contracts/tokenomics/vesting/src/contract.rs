@@ -78,10 +78,11 @@ fn assert_vesting_schedules(
     vesting_schedules: &[VestingSchedule],
 ) -> Result<(), ContractError> {
     for sch in vesting_schedules.iter() {
-        if !(sch.starts_at < sch.ends_at && sch.amount_at_start < sch.total_amount
-            || sch.starts_at == sch.ends_at && sch.amount_at_start == sch.total_amount)
-        {
-            return Err(ContractError::VestingScheduleError(addr.clone()));
+        if let Some(end_point) = &sch.end_point {
+            if !(sch.start_point.time < end_point.time && sch.start_point.amount < end_point.amount)
+            {
+                return Err(ContractError::VestingScheduleError(addr.clone()));
+            }
         }
     }
 
@@ -172,21 +173,24 @@ fn compute_available_amount(
 ) -> StdResult<Uint128> {
     let mut available_amount: Uint128 = Uint128::zero();
     for sch in vesting_info.schedules.iter() {
-        if sch.starts_at > current_time {
+        if sch.start_point.time > current_time {
             continue;
         }
 
-        available_amount = available_amount.checked_add(sch.amount_at_start)?;
+        available_amount = available_amount.checked_add(sch.start_point.amount)?;
 
-        let passed_time = current_time.min(sch.ends_at).seconds() - sch.starts_at.seconds();
-        let time_period = sch.ends_at.seconds() - sch.starts_at.seconds();
-        if passed_time != 0 && time_period != 0 {
-            let release_amount_per_time: Decimal = Decimal::from_ratio(
-                sch.total_amount.checked_sub(sch.amount_at_start)?,
-                time_period,
-            );
+        if let Some(end_point) = &sch.end_point {
+            let passed_time =
+                current_time.min(end_point.time).seconds() - sch.start_point.time.seconds();
+            let time_period = end_point.time.seconds() - sch.start_point.time.seconds();
+            if passed_time != 0 && time_period != 0 {
+                let release_amount_per_second: Decimal = Decimal::from_ratio(
+                    end_point.amount.checked_sub(sch.start_point.amount)?,
+                    time_period,
+                );
 
-            available_amount += Uint128::new(passed_time as u128) * release_amount_per_time;
+                available_amount += Uint128::new(passed_time as u128) * release_amount_per_second;
+            }
         }
     }
 
