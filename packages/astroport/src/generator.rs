@@ -43,9 +43,9 @@ pub enum ExecuteMsg {
     SetAllowedRewardProxies {
         proxies: Vec<String>,
     },
-    SendOrphanReward {
+    SendOrphanProxyReward {
         recipient: String,
-        lp_token: Option<String>,
+        lp_token: String,
     },
     SetTokensPerBlock {
         amount: Uint128,
@@ -59,7 +59,7 @@ pub enum QueryMsg {
     Deposit { lp_token: Addr, user: Addr },
     PendingToken { lp_token: Addr, user: Addr },
     Config {},
-    OrphanRewards { lp_token: Option<Addr> },
+    OrphanProxyRewards { lp_token: Addr },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

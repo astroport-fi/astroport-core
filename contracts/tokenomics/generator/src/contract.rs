@@ -1,8 +1,8 @@
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event, MessageInfo, Reply,
-    Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
-use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
+use cw20::{BalanceResponse, Cw20ExecuteMsg};
 
 use crate::error::ContractError;
 use crate::state::{
@@ -75,15 +75,17 @@ pub fn execute(
             with_update,
         } => set(deps, env, info, lp_token, alloc_point, with_update),
         ExecuteMsg::MassUpdatePools {} => {
-            update_rewards_and_execute(deps, None, ExecuteOnReply::MassUpdatePools {})
+            update_rewards_and_execute(deps, env, None, ExecuteOnReply::MassUpdatePools {})
         }
         ExecuteMsg::UpdatePool { lp_token } => update_rewards_and_execute(
             deps,
+            env,
             Some(lp_token.clone()),
             ExecuteOnReply::UpdatePool { lp_token },
         ),
         ExecuteMsg::Deposit { lp_token, amount } => update_rewards_and_execute(
             deps,
+            env,
             Some(lp_token.clone()),
             ExecuteOnReply::Deposit {
                 lp_token,
@@ -93,6 +95,7 @@ pub fn execute(
         ),
         ExecuteMsg::Withdraw { lp_token, amount } => update_rewards_and_execute(
             deps,
+            env,
             Some(lp_token.clone()),
             ExecuteOnReply::Withdraw {
                 lp_token,
@@ -104,10 +107,10 @@ pub fn execute(
         ExecuteMsg::SetAllowedRewardProxies { proxies } => {
             Ok(set_allowed_reward_proxies(deps, proxies)?)
         }
-        ExecuteMsg::SendOrphanReward {
+        ExecuteMsg::SendOrphanProxyReward {
             recipient,
             lp_token,
-        } => before_send_orphan_rewards(deps, info, recipient, lp_token),
+        } => before_send_orphan_proxy_rewards(deps, env, info, recipient, lp_token),
         ExecuteMsg::SetTokensPerBlock { amount } => set_tokens_per_block(deps, amount),
     }
 }
@@ -160,7 +163,7 @@ pub fn add(
 
     if with_update {
         response.messages.append(
-            &mut update_rewards_and_execute(deps, None, ExecuteOnReply::MassUpdatePools {})?
+            &mut update_rewards_and_execute(deps, env, None, ExecuteOnReply::MassUpdatePools {})?
                 .messages,
         );
     }
@@ -171,7 +174,7 @@ pub fn add(
 // Update the given pool's ASTRO allocation point. Can only be called by the owner.
 pub fn set(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     lp_token: Addr,
     alloc_point: Uint64,
@@ -201,6 +204,7 @@ pub fn set(
         response.messages.append(
             &mut update_rewards_and_execute(
                 deps,
+                env,
                 Some(lp_token.clone()),
                 ExecuteOnReply::UpdatePool { lp_token },
             )?
@@ -213,26 +217,27 @@ pub fn set(
 
 fn update_rewards_and_execute(
     mut deps: DepsMut,
+    env: Env,
     only_lp_token: Option<Addr>,
     on_reply: ExecuteOnReply,
 ) -> Result<Response, ContractError> {
     TMP_USER_ACTION.update(deps.storage, |v| {
         if v.is_some() {
             Err(StdError::GenericErr {
-                msg: String::from("Repeated reply definition!"),
+                msg: String::from("Repetitive reply definition!"),
             })
         } else {
             Ok(Some(on_reply))
         }
     })?;
 
-    let mut response = Response::default();
+    let mut messages: Vec<SubMsg> = vec![];
 
     match only_lp_token {
         Some(lp_token) => {
             let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
             if let Some(reward_proxy) = pool.reward_proxy.clone() {
-                response.messages.append(&mut get_pool_rewards_from_proxy(
+                messages.append(&mut get_pool_rewards_from_proxy(
                     deps.branch(),
                     &lp_token,
                     &mut pool,
@@ -250,7 +255,7 @@ fn update_rewards_and_execute(
                 .collect();
             for (lp_token, mut pool) in pools {
                 if let Some(reward_proxy) = pool.reward_proxy.clone() {
-                    response.messages.append(&mut get_pool_rewards_from_proxy(
+                    messages.append(&mut get_pool_rewards_from_proxy(
                         deps.branch(),
                         &lp_token,
                         &mut pool,
@@ -261,17 +266,12 @@ fn update_rewards_and_execute(
         }
     }
 
-    let cfg = CONFIG.load(deps.storage)?;
-    response.messages.push(SubMsg::reply_on_success(
-        WasmMsg::Execute {
-            contract_addr: cfg.vesting_contract.to_string(),
-            funds: vec![],
-            msg: to_binary(&VestingExecuteMsg::Claim {})?,
-        },
-        0,
-    ));
-
-    Ok(response)
+    if let Some(last) = messages.last_mut() {
+        last.reply_on = ReplyOn::Success;
+        Ok(Response::new().add_submessages(messages))
+    } else {
+        proccess_after_update(deps, env)
+    }
 }
 
 fn get_pool_rewards_from_proxy(
@@ -303,6 +303,10 @@ fn get_pool_rewards_from_proxy(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
+    proccess_after_update(deps, env)
+}
+
+fn proccess_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     match TMP_USER_ACTION.load(deps.storage)? {
         Some(action) => {
             TMP_USER_ACTION.save(deps.storage, &None)?;
@@ -319,10 +323,10 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractE
                     account,
                     amount,
                 } => withdraw(deps, env, lp_token, account, amount),
-                ExecuteOnReply::SendOrphanReward {
+                ExecuteOnReply::SendOrphanProxyReward {
                     recipient,
                     lp_token,
-                } => send_orphan_rewards(deps, env, recipient, lp_token),
+                } => send_orphan_proxy_rewards(deps, env, recipient, lp_token),
             }
         }
         None => Ok(Response::default()),
@@ -442,10 +446,10 @@ pub fn deposit(
         let pending = (user.amount * pool.acc_per_share).checked_sub(user.reward_debt)?;
         if !pending.is_zero() {
             response.messages.push(SubMsg::new(WasmMsg::Execute {
-                contract_addr: cfg.astro_token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: account.to_string(),
-                    amount: pending,
+                contract_addr: cfg.vesting_contract.to_string(),
+                msg: to_binary(&VestingExecuteMsg::Claim {
+                    recipient: Some(account.to_string()),
+                    amount: Some(pending),
                 })?,
                 funds: vec![],
             }));
@@ -530,10 +534,10 @@ pub fn withdraw(
     let pending = (user.amount * pool.acc_per_share).checked_sub(user.reward_debt)?;
     if !pending.is_zero() {
         response.messages.push(SubMsg::new(WasmMsg::Execute {
-            contract_addr: cfg.astro_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: account.to_string(),
-                amount: pending,
+            contract_addr: cfg.vesting_contract.to_string(),
+            msg: to_binary(&VestingExecuteMsg::Claim {
+                recipient: Some(account.to_string()),
+                amount: Some(pending),
             })?,
             funds: vec![],
         }));
@@ -654,14 +658,12 @@ fn set_allowed_reward_proxies(deps: DepsMut, proxies: Vec<String>) -> StdResult<
     Ok(Response::new().add_event(Event::new(String::from("Set allowed reward proxies"))))
 }
 
-// lp_token:
-//  None - for sending ASTRO
-//  Some(lp_token) - fo sending additional reward from the pool
-fn before_send_orphan_rewards(
+fn before_send_orphan_proxy_rewards(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     recipient: String,
-    lp_token: Option<String>,
+    lp_token: String,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -669,131 +671,77 @@ fn before_send_orphan_rewards(
         return Err(ContractError::Unauthorized {});
     };
 
-    let lp_token = lp_token.map(|v| deps.api.addr_validate(&v)).transpose()?;
+    let lp_token = deps.api.addr_validate(&lp_token)?;
 
     let recipient = deps.api.addr_validate(&recipient)?;
 
     update_rewards_and_execute(
         deps,
-        lp_token.clone(),
-        ExecuteOnReply::SendOrphanReward {
+        env,
+        Some(lp_token.clone()),
+        ExecuteOnReply::SendOrphanProxyReward {
             recipient,
             lp_token,
         },
     )
 }
 
-fn send_orphan_rewards(
+fn send_orphan_proxy_rewards(
     mut deps: DepsMut,
     env: Env,
     recipient: Addr,
-    lp_token: Option<Addr>,
+    lp_token: Addr,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
     let mut response = Response::new();
 
+    let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
+    let proxy = match &pool.reward_proxy {
+        Some(proxy) => proxy.clone(),
+        None => return Err(ContractError::PoolDoesNotHaveAdditionalRewards {}),
+    };
+
+    update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg)?;
+    POOL_INFO.save(deps.storage, &lp_token, &pool)?;
+
+    let msg = ProxyQueryMsg::Reward {};
+    let balance: Uint128 = deps.querier.query_wasm_smart(proxy.to_string(), &msg)?;
+    let mut to_distribute = Uint128::zero();
+
+    for (_, user_info) in USER_INFO
+        .prefix(&lp_token)
+        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+        .filter_map(|v| v.ok())
+    {
+        to_distribute = to_distribute.checked_add(
+            (user_info.amount * pool.acc_per_share_on_proxy)
+                .checked_sub(user_info.reward_debt_proxy)?,
+        )?;
+    }
+
     let amount;
 
-    if let Some(lp_token) = &lp_token {
-        let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
-        let proxy = match &pool.reward_proxy {
-            Some(proxy) => proxy.clone(),
-            None => return Err(ContractError::PoolDoesNotHaveAdditionalRewards {}),
-        };
-
-        update_pool_rewards(deps.branch(), &env, lp_token, &mut pool, &cfg)?;
-        POOL_INFO.save(deps.storage, lp_token, &pool)?;
-
-        let msg = ProxyQueryMsg::Reward {};
-        let balance: Uint128 = deps.querier.query_wasm_smart(proxy.to_string(), &msg)?;
-        let mut to_distribute = Uint128::zero();
-
-        for (_, user_info) in USER_INFO
-            .prefix(lp_token)
-            .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-            .filter_map(|v| v.ok())
-        {
-            to_distribute = to_distribute.checked_add(
-                (user_info.amount * pool.acc_per_share_on_proxy)
-                    .checked_sub(user_info.reward_debt_proxy)?,
-            )?;
-        }
-
+    if balance > to_distribute {
         amount = balance.checked_sub(to_distribute)?;
-        if !amount.is_zero() {
-            let msg = ProxyExecuteMsg::SendRewards {
-                account: recipient.clone(),
-                amount,
-            };
-
-            response.messages.push(SubMsg::new(WasmMsg::Execute {
-                contract_addr: proxy.to_string(),
-                funds: vec![],
-                msg: to_binary(&msg)?,
-            }));
-        } else {
-            return Err(ContractError::OrphanRewardsTooSmall {});
-        }
-    } else {
-        let msg = Cw20QueryMsg::Balance {
-            address: env.contract.address.to_string(),
+        let msg = ProxyExecuteMsg::SendRewards {
+            account: recipient.clone(),
+            amount,
         };
-        let res: BalanceResponse = deps
-            .querier
-            .query_wasm_smart(cfg.astro_token.to_string(), &msg)?;
-        let mut to_distribute = Uint128::zero();
 
-        let pools: Vec<(Addr, PoolInfo)> = POOL_INFO
-            .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-            .filter_map(|v| {
-                v.ok()
-                    .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
-            })
-            .collect();
-
-        for (lp_token, mut pool) in pools {
-            update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg)?;
-            POOL_INFO.save(deps.storage, &lp_token, &pool)?;
-
-            for (_, user_info) in USER_INFO
-                .prefix(&lp_token)
-                .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-                .filter_map(|v| v.ok())
-            {
-                to_distribute = to_distribute.checked_add(
-                    (user_info.amount * pool.acc_per_share).checked_sub(user_info.reward_debt)?,
-                )?;
-            }
-        }
-
-        amount = res.balance.checked_sub(to_distribute)?;
-        if !amount.is_zero() {
-            let msg = Cw20ExecuteMsg::Transfer {
-                recipient: recipient.to_string(),
-                amount,
-            };
-
-            response.messages.push(SubMsg::new(WasmMsg::Execute {
-                contract_addr: cfg.astro_token.to_string(),
-                funds: vec![],
-                msg: to_binary(&msg)?,
-            }));
-        } else {
-            return Err(ContractError::OrphanRewardsTooSmall {});
-        }
+        response.messages.push(SubMsg::new(WasmMsg::Execute {
+            contract_addr: proxy.to_string(),
+            funds: vec![],
+            msg: to_binary(&msg)?,
+        }));
+    } else {
+        return Err(ContractError::OrphanRewardsTooSmall {});
     }
 
     Ok(response.add_event(
         Event::new("Sent orphan rewards")
             .add_attribute("recipient", recipient.to_string())
-            .add_attribute(
-                "lp_token",
-                match &lp_token {
-                    Some(s) => s.to_string(),
-                    None => "None".to_string(),
-                },
-            )
+            .add_attribute("lp_token", lp_token)
             .add_attribute("amount", amount),
     ))
 }
@@ -814,7 +762,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::Deposit { lp_token, user } => query_deposit(deps, lp_token, user),
         QueryMsg::PendingToken { lp_token, user } => pending_token(deps, env, lp_token, user),
         QueryMsg::Config {} => query_config(deps),
-        QueryMsg::OrphanRewards { lp_token } => query_orphan_rewards(deps, env, lp_token),
+        QueryMsg::OrphanProxyRewards { lp_token } => query_orphan_proxy_rewards(deps, lp_token),
     }
 }
 
@@ -909,69 +857,29 @@ fn query_config(deps: Deps) -> Result<Binary, ContractError> {
     })?)
 }
 
-fn query_orphan_rewards(
-    deps: Deps,
-    env: Env,
-    lp_token: Option<Addr>,
-) -> Result<Binary, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
+fn query_orphan_proxy_rewards(deps: Deps, lp_token: Addr) -> Result<Binary, ContractError> {
+    let pool = POOL_INFO.load(deps.storage, &lp_token)?;
+    let proxy = match &pool.reward_proxy {
+        Some(proxy) => proxy.clone(),
+        None => return Err(ContractError::PoolDoesNotHaveAdditionalRewards {}),
+    };
 
-    let amount;
+    let msg = ProxyQueryMsg::Reward {};
+    let balance: Uint128 = deps.querier.query_wasm_smart(proxy.to_string(), &msg)?;
+    let mut to_distribute = Uint128::zero();
 
-    if let Some(lp_token) = &lp_token {
-        let pool = POOL_INFO.load(deps.storage, lp_token)?;
-        let proxy = match &pool.reward_proxy {
-            Some(proxy) => proxy.clone(),
-            None => return Err(ContractError::PoolDoesNotHaveAdditionalRewards {}),
-        };
-
-        let msg = ProxyQueryMsg::Reward {};
-        let balance: Uint128 = deps.querier.query_wasm_smart(proxy.to_string(), &msg)?;
-        let mut to_distribute = Uint128::zero();
-
-        for (_, user_info) in USER_INFO
-            .prefix(lp_token)
-            .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-            .filter_map(|v| v.ok())
-        {
-            to_distribute = to_distribute.checked_add(
-                (user_info.amount * pool.acc_per_share_on_proxy)
-                    .checked_sub(user_info.reward_debt_proxy)?,
-            )?;
-        }
-
-        amount = balance.checked_sub(to_distribute)?;
-    } else {
-        let msg = Cw20QueryMsg::Balance {
-            address: env.contract.address.to_string(),
-        };
-        let res: BalanceResponse = deps
-            .querier
-            .query_wasm_smart(cfg.astro_token.to_string(), &msg)?;
-        let mut to_distribute = Uint128::zero();
-
-        let pools: Vec<(Addr, PoolInfo)> = POOL_INFO
-            .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-            .filter_map(|v| {
-                v.ok()
-                    .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
-            })
-            .collect();
-
-        for (lp_token, pool) in pools {
-            for (_, user_info) in USER_INFO
-                .prefix(&lp_token)
-                .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-                .filter_map(|v| v.ok())
-            {
-                to_distribute = to_distribute.checked_add(
-                    (user_info.amount * pool.acc_per_share).checked_sub(user_info.reward_debt)?,
-                )?;
-            }
-        }
-
-        amount = res.balance.checked_sub(to_distribute)?;
+    for (_, user_info) in USER_INFO
+        .prefix(&lp_token)
+        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+        .filter_map(|v| v.ok())
+    {
+        to_distribute = to_distribute.checked_add(
+            (user_info.amount * pool.acc_per_share_on_proxy)
+                .checked_sub(user_info.reward_debt_proxy)?,
+        )?;
     }
+
+    let amount = balance.checked_sub(to_distribute)?;
 
     Ok(to_binary(&amount)?)
 }

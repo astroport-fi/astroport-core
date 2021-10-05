@@ -55,9 +55,9 @@ pub enum ExecuteOnReply {
         account: Addr,
         amount: Uint128,
     },
-    SendOrphanReward {
+    SendOrphanProxyReward {
         recipient: Addr,
-        lp_token: Option<Addr>,
+        lp_token: Addr,
     },
 }
 
