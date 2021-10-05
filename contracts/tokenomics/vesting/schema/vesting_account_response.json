@@ -38,31 +38,54 @@
     "VestingInfo": {
       "type": "object",
       "required": [
-        "last_claim_time",
+        "released_amount",
         "schedules"
       ],
       "properties": {
-        "last_claim_time": {
-          "$ref": "#/definitions/Timestamp"
+        "released_amount": {
+          "$ref": "#/definitions/Uint128"
         },
         "schedules": {
           "type": "array",
           "items": {
-            "type": "array",
-            "items": [
-              {
-                "$ref": "#/definitions/Timestamp"
-              },
-              {
-                "$ref": "#/definitions/Timestamp"
-              },
-              {
-                "$ref": "#/definitions/Uint128"
-              }
-            ],
-            "maxItems": 3,
-            "minItems": 3
+            "$ref": "#/definitions/VestingSchedule"
           }
+        }
+      }
+    },
+    "VestingSchedule": {
+      "type": "object",
+      "required": [
+        "start_point"
+      ],
+      "properties": {
+        "end_point": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/VestingSchedulePoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start_point": {
+          "$ref": "#/definitions/VestingSchedulePoint"
+        }
+      }
+    },
+    "VestingSchedulePoint": {
+      "type": "object",
+      "required": [
+        "amount",
+        "time"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "time": {
+          "$ref": "#/definitions/Timestamp"
         }
       }
     }

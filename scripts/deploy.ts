@@ -7,7 +7,7 @@ import {
     uploadContract,
 } from "./helpers.js"
 import { LCDClient, LocalTerra, Wallet } from "@terra-money/terra.js"
-import {testnet, bombay, local} from './deploy_configs.js';
+import { testnet, bombay, local } from './deploy_configs.js';
 import { join } from "path"
 
 const ARTIFACTS_PATH = "../artifacts/"
@@ -25,7 +25,7 @@ async function main() {
         wallet = recover(terra, process.env.WALLET!)
         deployConfig = testnet
 
-    } else  if (process.env.NETWORK === "bombay") {
+    } else if (process.env.NETWORK === "bombay") {
         terra = new LCDClient({
             URL: String(process.env.LCD_CLIENT_URL),
             chainID: String(process.env.CHAIN_ID)
@@ -33,7 +33,7 @@ async function main() {
         wallet = recover(terra, process.env.WALLET!)
         deployConfig = bombay
     } else {
-        console.log("NETWORK:" +process.env.NETWORK)
+        console.log("NETWORK:" + process.env.NETWORK)
         terra = new LocalTerra()
         wallet = (terra as LocalTerra).wallets.test1
         setTimeoutDuration(0)
@@ -87,7 +87,6 @@ async function main() {
         {
             owner: wallet.key.accAddress,
             token_addr: deployConfig.astroTokenContractAddress,
-            genesis_time: String(Date.now())
         },
     )
     console.log("Address Vesting Contract: " + addressVestingContract)

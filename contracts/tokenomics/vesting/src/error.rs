@@ -1,4 +1,4 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::{Addr, OverflowError, StdError};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -9,6 +9,15 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("end_time must bigger than start_time")]
-    EndTimeError {},
+    #[error("Amount is not available!")]
+    AmountIsNotAvailable {},
+
+    #[error("Vesting schedule error on addr: {0}. Should satisfy: (start < end and at_start < total) or (start = end and at_start = total)")]
+    VestingScheduleError(Addr),
+}
+
+impl From<OverflowError> for ContractError {
+    fn from(o: OverflowError) -> Self {
+        StdError::from(o).into()
+    }
 }

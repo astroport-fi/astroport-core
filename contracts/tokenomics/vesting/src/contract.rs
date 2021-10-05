@@ -1,6 +1,8 @@
+use std::cmp::Ordering;
+
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, ReplyOn,
-    Response, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
+    attr, entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
+    Response, StdError, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 
 use crate::state::{read_vesting_infos, Config, CONFIG, VESTING_INFO};
@@ -8,7 +10,7 @@ use crate::state::{read_vesting_infos, Config, CONFIG, VESTING_INFO};
 use crate::error::ContractError;
 use astroport::vesting::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg, VestingAccount,
-    VestingAccountResponse, VestingAccountsResponse, VestingInfo,
+    VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -22,9 +24,8 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: deps.api.addr_canonicalize(msg.owner.as_str())?,
-            token_addr: deps.api.addr_canonicalize(msg.token_addr.as_str())?,
-            genesis_time: msg.genesis_time,
+            owner: deps.api.addr_validate(&msg.owner)?,
+            token_addr: deps.api.addr_validate(&msg.token_addr)?,
         },
     )?;
 
@@ -38,51 +39,28 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    match msg.clone() {
-        ExecuteMsg::Claim {} => claim(deps, env, info),
-        _ => {
-            assert_owner_privilege(deps.as_ref(), env, info)?;
-            match msg {
-                ExecuteMsg::UpdateConfig {
-                    owner,
-                    token_addr,
-                    genesis_time,
-                } => update_config(deps, owner, token_addr, genesis_time),
-                ExecuteMsg::RegisterVestingAccounts { vesting_accounts } => {
-                    register_vesting_accounts(deps, vesting_accounts)
-                }
-                _ => panic!("DO NOT ENTER HERE"),
-            }
+    match msg {
+        ExecuteMsg::Claim { recipient, amount } => claim(deps, env, info, recipient, amount),
+        ExecuteMsg::UpdateConfig { owner } => update_config(deps, info, owner),
+        ExecuteMsg::RegisterVestingAccounts { vesting_accounts } => {
+            register_vesting_accounts(deps, env, info, vesting_accounts)
         }
     }
 }
 
-fn assert_owner_privilege(deps: Deps, _env: Env, info: MessageInfo) -> Result<(), ContractError> {
-    let config: Config = CONFIG.load(deps.storage)?;
-    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
+pub fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    owner: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut config: Config = CONFIG.load(deps.storage)?;
+
+    if config.owner != info.sender {
         return Err(ContractError::Unauthorized {});
     }
 
-    Ok(())
-}
-
-pub fn update_config(
-    deps: DepsMut,
-    owner: Option<Addr>,
-    token_addr: Option<Addr>,
-    genesis_time: Option<Timestamp>,
-) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
     if let Some(owner) = owner {
-        config.owner = deps.api.addr_canonicalize(owner.as_str())?;
-    }
-
-    if let Some(token_addr) = token_addr {
-        config.token_addr = deps.api.addr_canonicalize(token_addr.as_str())?;
-    }
-
-    if let Some(genesis_time) = genesis_time {
-        config.genesis_time = genesis_time;
+        config.owner = deps.api.addr_validate(&owner)?;
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -91,11 +69,15 @@ pub fn update_config(
 }
 
 fn assert_vesting_schedules(
-    vesting_schedules: &[(Timestamp, Timestamp, Uint128)],
+    addr: &Addr,
+    vesting_schedules: &[VestingSchedule],
 ) -> Result<(), ContractError> {
-    for vesting_schedule in vesting_schedules.iter() {
-        if vesting_schedule.0 >= vesting_schedule.1 {
-            return Err(ContractError::EndTimeError {});
+    for sch in vesting_schedules.iter() {
+        if let Some(end_point) = &sch.end_point {
+            if !(sch.start_point.time < end_point.time && sch.start_point.amount < end_point.amount)
+            {
+                return Err(ContractError::VestingScheduleError(addr.clone()));
+            }
         }
     }
 
@@ -104,86 +86,170 @@ fn assert_vesting_schedules(
 
 pub fn register_vesting_accounts(
     deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
     vesting_accounts: Vec<VestingAccount>,
 ) -> Result<Response, ContractError> {
+    let mut response = Response::new();
+
+    let mut event = Event::new("Register vesting accounts".to_string());
+
     let config: Config = CONFIG.load(deps.storage)?;
 
-    for vesting_account in vesting_accounts.iter() {
-        assert_vesting_schedules(&vesting_account.schedules)?;
+    if config.owner != info.sender {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut to_deposit = Uint128::zero();
+    let mut to_receive = Uint128::zero();
+
+    for vesting_account in vesting_accounts {
+        let account_address = deps.api.addr_validate(&vesting_account.address)?;
+
+        assert_vesting_schedules(&account_address, &vesting_account.schedules)?;
+
+        for sch in &vesting_account.schedules {
+            to_deposit += if let Some(end_point) = &sch.end_point {
+                end_point.amount
+            } else {
+                sch.start_point.amount
+            }
+        }
+
+        if let Some(old_info) = VESTING_INFO.may_load(deps.storage, &account_address)? {
+            let mut total = Uint128::zero();
+            for sch in &old_info.schedules {
+                total += if let Some(end_point) = &sch.end_point {
+                    end_point.amount
+                } else {
+                    sch.start_point.amount
+                }
+            }
+
+            to_receive += total - old_info.released_amount;
+        }
 
         VESTING_INFO.save(
             deps.storage,
-            vesting_account.address.to_string(),
+            &account_address,
             &VestingInfo {
-                last_claim_time: config.genesis_time,
-                schedules: vesting_account.schedules.clone(),
+                schedules: vesting_account.schedules,
+                released_amount: Uint128::zero(),
             },
         )?;
     }
 
-    Ok(Response::new().add_attribute("action", "register_vesting_accounts"))
+    match to_deposit.cmp(&to_receive) {
+        Ordering::Greater => {
+            let amount = to_deposit - to_receive;
+            response.messages.push(SubMsg::new(WasmMsg::Execute {
+                contract_addr: config.token_addr.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: config.owner.to_string(),
+                    recipient: env.contract.address.to_string(),
+                    amount,
+                })?,
+            }));
+            event.attributes.push(attr("deposited", amount));
+        }
+        Ordering::Less => {
+            let amount = to_receive - to_deposit;
+            response.messages.push(SubMsg::new(WasmMsg::Execute {
+                contract_addr: config.token_addr.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: config.owner.to_string(),
+                    amount,
+                })?,
+            }));
+            event.attributes.push(attr("received", amount));
+        }
+        Ordering::Equal => {}
+    }
+
+    Ok(response)
 }
 
-pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    let current_time = env.block.time;
-    let address = info.sender;
+pub fn claim(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    recipient: Option<String>,
+    amount: Option<Uint128>,
+) -> Result<Response, ContractError> {
+    let mut response = Response::new();
+    let mut event = Event::new("Claim".to_string()).add_attribute("address", info.sender.clone());
 
     let config: Config = CONFIG.load(deps.storage)?;
 
-    let mut vesting_info: VestingInfo = VESTING_INFO.load(deps.storage, address.to_string())?;
+    let mut vesting_info: VestingInfo = VESTING_INFO.load(deps.storage, &info.sender)?;
 
-    let claim_amount = compute_claim_amount(current_time, &vesting_info);
-    let messages: Vec<SubMsg> = if claim_amount.is_zero() {
-        vec![]
+    let available_amount = compute_available_amount(env.block.time, &vesting_info)?;
+
+    let claim_amount = if let Some(a) = amount {
+        if a > available_amount {
+            return Err(ContractError::AmountIsNotAvailable {});
+        };
+        a
     } else {
-        vec![SubMsg {
-            msg: WasmMsg::Execute {
-                contract_addr: deps.api.addr_humanize(&config.token_addr)?.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: address.to_string(),
-                    amount: claim_amount,
-                })?,
-            }
-            .into(),
-            id: 0,
-            gas_limit: None,
-            reply_on: ReplyOn::Never,
-        }]
+        available_amount
     };
 
-    vesting_info.last_claim_time = current_time;
-    VESTING_INFO.save(deps.storage, address.to_string(), &vesting_info)?;
+    event.attributes.append(&mut vec![
+        attr("available_amount", available_amount),
+        attr("claimed_amount", claim_amount),
+    ]);
 
-    Ok(Response::new()
-        .add_submessages(messages)
-        .add_attributes(vec![
-            attr("action", "claim"),
-            attr("address", address),
-            attr("claim_amount", claim_amount),
-            attr("last_claim_time", current_time.seconds().to_string()),
-        ]))
+    if !claim_amount.is_zero() {
+        response
+            .messages
+            .append(&mut vec![SubMsg::new(WasmMsg::Execute {
+                contract_addr: config.token_addr.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: recipient.unwrap_or_else(|| info.sender.to_string()),
+                    amount: claim_amount,
+                })?,
+            })]);
+
+        vesting_info.released_amount = vesting_info.released_amount.checked_add(claim_amount)?;
+        VESTING_INFO.save(deps.storage, &info.sender, &vesting_info)?;
+    };
+
+    Ok(response.add_event(event))
 }
 
-fn compute_claim_amount(current_time: Timestamp, vesting_info: &VestingInfo) -> Uint128 {
-    let mut claimable_amount: Uint128 = Uint128::zero();
-    for s in vesting_info.schedules.iter() {
-        if s.0 > current_time || s.1 < vesting_info.last_claim_time {
+fn compute_available_amount(
+    current_time: Timestamp,
+    vesting_info: &VestingInfo,
+) -> StdResult<Uint128> {
+    let mut available_amount: Uint128 = Uint128::zero();
+    for sch in vesting_info.schedules.iter() {
+        if sch.start_point.time > current_time {
             continue;
         }
 
-        // min(s.1, current_time) - max(s.0, last_claim_time)
-        let passed_time = std::cmp::min(s.1, current_time).seconds()
-            - std::cmp::max(s.0, vesting_info.last_claim_time).seconds();
+        available_amount = available_amount.checked_add(sch.start_point.amount)?;
 
-        // prevent zero time_period case
-        let time_period = s.1.seconds() - s.0.seconds();
-        let release_amount_per_time: Decimal = Decimal::from_ratio(s.2, time_period);
+        if let Some(end_point) = &sch.end_point {
+            let passed_time =
+                current_time.min(end_point.time).seconds() - sch.start_point.time.seconds();
+            let time_period = end_point.time.seconds() - sch.start_point.time.seconds();
+            if passed_time != 0 && time_period != 0 {
+                let release_amount_per_second: Decimal = Decimal::from_ratio(
+                    end_point.amount.checked_sub(sch.start_point.amount)?,
+                    time_period,
+                );
 
-        claimable_amount += Uint128::new(passed_time as u128) * release_amount_per_time;
+                available_amount += Uint128::new(passed_time as u128) * release_amount_per_second;
+            }
+        }
     }
 
-    claimable_amount
+    available_amount
+        .checked_sub(vesting_info.released_amount)
+        .map_err(StdError::from)
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -208,16 +274,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
-        owner: deps.api.addr_humanize(&config.owner)?,
-        token_addr: deps.api.addr_humanize(&config.token_addr)?,
-        genesis_time: config.genesis_time,
+        owner: config.owner,
+        token_addr: config.token_addr,
     };
 
     Ok(resp)
 }
 
 pub fn query_vesting_account(deps: Deps, address: Addr) -> StdResult<VestingAccountResponse> {
-    let info: VestingInfo = VESTING_INFO.load(deps.storage, address.to_string())?;
+    let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
 
     let resp = VestingAccountResponse { address, info };
 
@@ -230,78 +295,19 @@ pub fn query_vesting_accounts(
     limit: Option<u32>,
     order_by: Option<OrderBy>,
 ) -> StdResult<VestingAccountsResponse> {
-    let vesting_infos = if let Some(start_after) = start_after {
-        read_vesting_infos(
-            deps,
-            Some(deps.api.addr_canonicalize(start_after.as_str())?),
-            limit,
-            order_by,
-        )?
-    } else {
-        read_vesting_infos(deps, None, limit, order_by)?
-    };
+    let vesting_infos = read_vesting_infos(deps, start_after, limit, order_by)?;
 
-    let vesting_account_responses: StdResult<Vec<VestingAccountResponse>> = vesting_infos
-        .iter()
-        .map(|vesting_account| {
-            Ok(VestingAccountResponse {
-                address: vesting_account.0.clone(),
-                info: vesting_account.1.clone(),
-            })
-        })
+    let vesting_account_responses: Vec<VestingAccountResponse> = vesting_infos
+        .into_iter()
+        .map(|(address, info)| VestingAccountResponse { address, info })
         .collect();
 
     Ok(VestingAccountsResponse {
-        vesting_accounts: vesting_account_responses?,
+        vesting_accounts: vesting_account_responses,
     })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
-}
-
-#[test]
-fn test_assert_vesting_schedules() {
-    // valid
-    assert_vesting_schedules(&vec![
-        (
-            Timestamp::from_seconds(100),
-            Timestamp::from_seconds(101),
-            Uint128::from(100u128),
-        ),
-        (
-            Timestamp::from_seconds(100),
-            Timestamp::from_seconds(110),
-            Uint128::from(100u128),
-        ),
-        (
-            Timestamp::from_seconds(100),
-            Timestamp::from_seconds(200),
-            Uint128::from(100u128),
-        ),
-    ])
-    .unwrap();
-
-    // invalid
-    let res = assert_vesting_schedules(&vec![
-        (
-            Timestamp::from_seconds(100),
-            Timestamp::from_seconds(100),
-            Uint128::from(100u128),
-        ),
-        (
-            Timestamp::from_seconds(100),
-            Timestamp::from_seconds(110),
-            Uint128::from(100u128),
-        ),
-        (
-            Timestamp::from_seconds(100),
-            Timestamp::from_seconds(200),
-            Uint128::from(100u128),
-        ),
-    ])
-    .unwrap_err();
-
-    assert_eq!(res, ContractError::EndTimeError {});
 }

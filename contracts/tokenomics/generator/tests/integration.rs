@@ -8,6 +8,7 @@ use astroport::{
     token::InstantiateMsg as TokenInstantiateMsg,
     vesting::{
         ExecuteMsg as VestingExecuteMsg, InstantiateMsg as VestingInstantiateMsg, VestingAccount,
+        VestingSchedule, VestingSchedulePoint,
     },
 };
 use cosmwasm_std::{
@@ -178,13 +179,7 @@ fn generator_without_reward_proxies() {
     check_token_balance(&mut app, &lp_cny_eur_instance, &generator_instance, 20);
     check_token_balance(&mut app, &lp_eur_usd_instance, &generator_instance, 20);
 
-    // 10 distributed to generator contract after last deposit
-    check_token_balance(
-        &mut app,
-        &astro_token_instance,
-        &generator_instance,
-        10_000000,
-    );
+    // 10 distributed to depositors after last deposit
 
     check_pending_rewards(
         &mut app,
@@ -323,52 +318,6 @@ fn generator_without_reward_proxies() {
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
 
-    check_token_balance(
-        &mut app,
-        &astro_token_instance,
-        &generator_instance,
-        20_000000,
-    );
-    check_token_balance(&mut app, &astro_token_instance, &owner, 0_000000);
-
-    // Check if there are orphan astro rewards
-    let msg = GeneratorQueryMsg::OrphanRewards { lp_token: None };
-    let orphan_rewards: Uint128 = app
-        .wrap()
-        .query_wasm_smart(&generator_instance, &msg)
-        .unwrap();
-    assert_eq!(orphan_rewards, Uint128::new(5_000000));
-
-    // Owner sends orphan astro rewards
-    let msg = GeneratorExecuteMsg::SendOrphanReward {
-        recipient: owner.to_string(),
-        lp_token: None,
-    };
-
-    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap();
-
-    check_token_balance(
-        &mut app,
-        &astro_token_instance,
-        &generator_instance,
-        15_000000,
-    );
-    check_token_balance(&mut app, &astro_token_instance, &owner, 5_000000);
-
-    // Owner can't send astro rewards for distribution to users
-    let msg = GeneratorExecuteMsg::SendOrphanReward {
-        recipient: owner.to_string(),
-        lp_token: None,
-    };
-
-    assert_eq!(
-        app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-            .unwrap_err()
-            .to_string(),
-        "Insufficient amount of orphan rewards!"
-    );
-
     // User2 withdraw and get rewards
     let msg = GeneratorExecuteMsg::Withdraw {
         lp_token: lp_cny_eur_instance.clone(),
@@ -383,13 +332,7 @@ fn generator_without_reward_proxies() {
 
     check_token_balance(&mut app, &astro_token_instance, &user1, 0);
     check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000);
-    // Astro balance of the contract is 7 + 2 (for other pool) (5 left on emergency withdraw, 6 transfered to User2)
-    check_token_balance(
-        &mut app,
-        &astro_token_instance,
-        &generator_instance,
-        9_000000,
-    );
+    // Distributed Astro are 7 + 2 (for other pool) (5 left on emergency withdraw, 6 transfered to User2)
 
     // User1 withdraw and get rewards
     let msg = GeneratorExecuteMsg::Withdraw {
@@ -430,12 +373,6 @@ fn generator_without_reward_proxies() {
 
     check_token_balance(&mut app, &astro_token_instance, &user1, 7_000000);
     check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000 + 2_000000);
-    check_token_balance(
-        &mut app,
-        &astro_token_instance,
-        &generator_instance,
-        0_000000,
-    );
 }
 
 #[test]
@@ -660,13 +597,8 @@ fn generator_with_mirror_reward_proxy() {
     check_token_balance(&mut app, &lp_eur_usd_instance, &generator_instance, 20);
     check_token_balance(&mut app, &lp_eur_usd_instance, &mirror_staking_instance, 0);
 
-    // 10 distributed to generator contract after last deposit
-    check_token_balance(
-        &mut app,
-        &astro_token_instance,
-        &generator_instance,
-        10_000000,
-    );
+    // 10 distributed to depositors after last deposit
+
     // 5 distrubuted to proxy contract after last deposit
     check_token_balance(
         &mut app,
@@ -827,52 +759,6 @@ fn generator_with_mirror_reward_proxy() {
 
     check_token_balance(
         &mut app,
-        &astro_token_instance,
-        &generator_instance,
-        20_000000,
-    );
-    check_token_balance(&mut app, &astro_token_instance, &owner, 0_000000);
-
-    // Check if there are orphan astro rewards
-    let msg = GeneratorQueryMsg::OrphanRewards { lp_token: None };
-    let orphan_rewards: Uint128 = app
-        .wrap()
-        .query_wasm_smart(&generator_instance, &msg)
-        .unwrap();
-    assert_eq!(orphan_rewards, Uint128::new(5_000000));
-
-    // Owner sends orphan astro rewards
-    let msg = GeneratorExecuteMsg::SendOrphanReward {
-        recipient: owner.to_string(),
-        lp_token: None,
-    };
-
-    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap();
-
-    check_token_balance(
-        &mut app,
-        &astro_token_instance,
-        &generator_instance,
-        15_000000,
-    );
-    check_token_balance(&mut app, &astro_token_instance, &owner, 5_000000);
-
-    // Owner can't send astro rewards for distribution to users
-    let msg = GeneratorExecuteMsg::SendOrphanReward {
-        recipient: owner.to_string(),
-        lp_token: None,
-    };
-
-    assert_eq!(
-        app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-            .unwrap_err()
-            .to_string(),
-        "Insufficient amount of orphan rewards!"
-    );
-
-    check_token_balance(
-        &mut app,
         &mirror_token_instance,
         &proxy_to_mirror_instance,
         110_000000,
@@ -880,8 +766,8 @@ fn generator_with_mirror_reward_proxy() {
     check_token_balance(&mut app, &mirror_token_instance, &owner, 0_000000);
 
     // Check if there are orphan proxy rewards
-    let msg = GeneratorQueryMsg::OrphanRewards {
-        lp_token: Some(lp_cny_eur_instance.clone()),
+    let msg = GeneratorQueryMsg::OrphanProxyRewards {
+        lp_token: lp_cny_eur_instance.clone(),
     };
     let orphan_rewards: Uint128 = app
         .wrap()
@@ -890,9 +776,9 @@ fn generator_with_mirror_reward_proxy() {
     assert_eq!(orphan_rewards, Uint128::new(50_000000));
 
     // Owner sends orphan proxy rewards
-    let msg = GeneratorExecuteMsg::SendOrphanReward {
+    let msg = GeneratorExecuteMsg::SendOrphanProxyReward {
         recipient: owner.to_string(),
-        lp_token: Some(lp_cny_eur_instance.to_string()),
+        lp_token: lp_cny_eur_instance.to_string(),
     };
 
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
@@ -907,9 +793,9 @@ fn generator_with_mirror_reward_proxy() {
     check_token_balance(&mut app, &mirror_token_instance, &owner, 50_000000);
 
     // Owner can't send proxy rewards for distribution to users
-    let msg = GeneratorExecuteMsg::SendOrphanReward {
+    let msg = GeneratorExecuteMsg::SendOrphanProxyReward {
         recipient: owner.to_string(),
-        lp_token: Some(lp_cny_eur_instance.to_string()),
+        lp_token: lp_cny_eur_instance.to_string(),
     };
 
     assert_eq!(
@@ -936,13 +822,7 @@ fn generator_with_mirror_reward_proxy() {
     check_token_balance(&mut app, &mirror_token_instance, &user1, 0);
     check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000);
     check_token_balance(&mut app, &mirror_token_instance, &user2, 60_000000);
-    // Astro balance of the contract is 7 + 2 (for other pool) (5 left on emergency withdraw, 6 transfered to User2)
-    check_token_balance(
-        &mut app,
-        &astro_token_instance,
-        &generator_instance,
-        9_000000,
-    );
+    // Distributed Astro are 7 + 2 (for other pool) (5 left on emergency withdraw, 6 transfered to User2)
     check_token_balance(
         &mut app,
         &mirror_token_instance,
@@ -993,12 +873,6 @@ fn generator_with_mirror_reward_proxy() {
     check_token_balance(&mut app, &mirror_token_instance, &user1, 0_000000);
     check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000 + 2_000000);
     check_token_balance(&mut app, &mirror_token_instance, &user2, 60_000000);
-    check_token_balance(
-        &mut app,
-        &astro_token_instance,
-        &generator_instance,
-        0_000000,
-    );
     check_token_balance(
         &mut app,
         &mirror_token_instance,
@@ -1057,9 +931,8 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
     let vesting_code_id = app.store_code(vesting_contract);
 
     let init_msg = VestingInstantiateMsg {
-        genesis_time: app.block_info().time,
-        owner: owner.clone(),
-        token_addr: astro_token_instance.clone(),
+        owner: owner.to_string(),
+        token_addr: astro_token_instance.to_string(),
     };
 
     let vesting_instance = app
@@ -1076,7 +949,7 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
     mint_tokens(
         &mut app,
         &astro_token_instance,
-        &vesting_instance,
+        &owner,
         1_000_000_000_000000,
     );
 
@@ -1130,14 +1003,27 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
 
     let current_block = app.block_info();
 
+    let amount = Uint128::new(63072000_000000);
+
+    let msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: vesting_instance.to_string(),
+        amount,
+        expires: None,
+    };
+
+    app.execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
+        .unwrap();
+
     let msg = VestingExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![VestingAccount {
-            address: generator_instance.clone(),
-            schedules: vec![(
-                current_block.time,
-                current_block.time.plus_seconds(365 * 24 * 60 * 60),
-                Uint128::new(63072000_000000),
-            )],
+            address: generator_instance.to_string(),
+            schedules: vec![VestingSchedule {
+                start_point: VestingSchedulePoint {
+                    time: current_block.time,
+                    amount,
+                },
+                end_point: None,
+            }],
         }],
     };
 
