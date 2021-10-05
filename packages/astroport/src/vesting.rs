@@ -25,7 +25,6 @@ pub enum ExecuteMsg {
     },
 }
 
-/// CONTRACT: end_time > start_time
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
     pub address: String,
@@ -40,12 +39,15 @@ pub struct VestingInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingSchedule {
-    pub starts_at: Timestamp,
-    pub ends_at: Timestamp,
-    pub amount_at_start: Uint128,
-    pub total_amount: Uint128,
+    pub start_point: VestingSchedulePoint,
+    pub end_point: Option<VestingSchedulePoint>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct VestingSchedulePoint {
+    pub time: Timestamp,
+    pub amount: Uint128,
+}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {

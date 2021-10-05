@@ -2,6 +2,7 @@ use crate::contract::{execute, instantiate, query};
 use astroport::vesting::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, OrderBy, QueryMsg, VestingAccount,
     VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
+    VestingSchedulePoint,
 };
 
 use crate::error::ContractError;
@@ -112,41 +113,61 @@ fn register_vesting_accounts() {
                 address: "addr0000".to_string(),
                 schedules: vec![
                     VestingSchedule {
-                        starts_at: Timestamp::from_seconds(100),
-                        ends_at: Timestamp::from_seconds(101),
-                        amount_at_start: Uint128::zero(),
-                        total_amount: Uint128::new(100u128),
+                        start_point: VestingSchedulePoint {
+                            time: Timestamp::from_seconds(100),
+                            amount: Uint128::zero(),
+                        },
+                        end_point: Some(VestingSchedulePoint {
+                            time: Timestamp::from_seconds(101),
+                            amount: Uint128::new(100),
+                        }),
                     },
                     VestingSchedule {
-                        starts_at: Timestamp::from_seconds(100),
-                        ends_at: Timestamp::from_seconds(110),
-                        amount_at_start: Uint128::zero(),
-                        total_amount: Uint128::new(100u128),
+                        start_point: VestingSchedulePoint {
+                            time: Timestamp::from_seconds(100),
+                            amount: Uint128::zero(),
+                        },
+                        end_point: Some(VestingSchedulePoint {
+                            time: Timestamp::from_seconds(110),
+                            amount: Uint128::new(100),
+                        }),
                     },
                     VestingSchedule {
-                        starts_at: Timestamp::from_seconds(100),
-                        ends_at: Timestamp::from_seconds(200),
-                        amount_at_start: Uint128::zero(),
-                        total_amount: Uint128::new(100u128),
+                        start_point: VestingSchedulePoint {
+                            time: Timestamp::from_seconds(100),
+                            amount: Uint128::zero(),
+                        },
+                        end_point: Some(VestingSchedulePoint {
+                            time: Timestamp::from_seconds(200),
+                            amount: Uint128::new(100),
+                        }),
                     },
                 ],
             },
             VestingAccount {
                 address: "addr0001".to_string(),
                 schedules: vec![VestingSchedule {
-                    starts_at: Timestamp::from_seconds(100),
-                    ends_at: Timestamp::from_seconds(110),
-                    amount_at_start: Uint128::zero(),
-                    total_amount: Uint128::new(100u128),
+                    start_point: VestingSchedulePoint {
+                        time: Timestamp::from_seconds(100),
+                        amount: Uint128::zero(),
+                    },
+                    end_point: Some(VestingSchedulePoint {
+                        time: Timestamp::from_seconds(110),
+                        amount: Uint128::new(100),
+                    }),
                 }],
             },
             VestingAccount {
                 address: "addr0002".to_string(),
                 schedules: vec![VestingSchedule {
-                    starts_at: Timestamp::from_seconds(100),
-                    ends_at: Timestamp::from_seconds(200),
-                    amount_at_start: Uint128::zero(),
-                    total_amount: Uint128::new(100u128),
+                    start_point: VestingSchedulePoint {
+                        time: Timestamp::from_seconds(100),
+                        amount: Uint128::zero(),
+                    },
+                    end_point: Some(VestingSchedulePoint {
+                        time: Timestamp::from_seconds(200),
+                        amount: Uint128::new(100),
+                    }),
                 }],
             },
         ],
@@ -174,22 +195,34 @@ fn register_vesting_accounts() {
             info: VestingInfo {
                 schedules: vec![
                     VestingSchedule {
-                        starts_at: Timestamp::from_seconds(100),
-                        ends_at: Timestamp::from_seconds(101),
-                        amount_at_start: Uint128::zero(),
-                        total_amount: Uint128::new(100u128)
+                        start_point: VestingSchedulePoint {
+                            time: Timestamp::from_seconds(100),
+                            amount: Uint128::zero()
+                        },
+                        end_point: Some(VestingSchedulePoint {
+                            time: Timestamp::from_seconds(101),
+                            amount: Uint128::new(100)
+                        },)
                     },
                     VestingSchedule {
-                        starts_at: Timestamp::from_seconds(100),
-                        ends_at: Timestamp::from_seconds(110),
-                        amount_at_start: Uint128::zero(),
-                        total_amount: Uint128::new(100u128)
+                        start_point: VestingSchedulePoint {
+                            time: Timestamp::from_seconds(100),
+                            amount: Uint128::zero()
+                        },
+                        end_point: Some(VestingSchedulePoint {
+                            time: Timestamp::from_seconds(110),
+                            amount: Uint128::new(100)
+                        },)
                     },
                     VestingSchedule {
-                        starts_at: Timestamp::from_seconds(100),
-                        ends_at: Timestamp::from_seconds(200),
-                        amount_at_start: Uint128::zero(),
-                        total_amount: Uint128::new(100u128)
+                        start_point: VestingSchedulePoint {
+                            time: Timestamp::from_seconds(100),
+                            amount: Uint128::zero()
+                        },
+                        end_point: Some(VestingSchedulePoint {
+                            time: Timestamp::from_seconds(200),
+                            amount: Uint128::new(100)
+                        },)
                     },
                 ],
                 released_amount: Uint128::zero()
@@ -218,22 +251,34 @@ fn register_vesting_accounts() {
                     info: VestingInfo {
                         schedules: vec![
                             VestingSchedule {
-                                starts_at: Timestamp::from_seconds(100),
-                                ends_at: Timestamp::from_seconds(101),
-                                amount_at_start: Uint128::zero(),
-                                total_amount: Uint128::new(100u128)
+                                start_point: VestingSchedulePoint {
+                                    time: Timestamp::from_seconds(100),
+                                    amount: Uint128::zero()
+                                },
+                                end_point: Some(VestingSchedulePoint {
+                                    time: Timestamp::from_seconds(101),
+                                    amount: Uint128::new(100)
+                                },)
                             },
                             VestingSchedule {
-                                starts_at: Timestamp::from_seconds(100),
-                                ends_at: Timestamp::from_seconds(110),
-                                amount_at_start: Uint128::zero(),
-                                total_amount: Uint128::new(100u128)
+                                start_point: VestingSchedulePoint {
+                                    time: Timestamp::from_seconds(100),
+                                    amount: Uint128::zero()
+                                },
+                                end_point: Some(VestingSchedulePoint {
+                                    time: Timestamp::from_seconds(110),
+                                    amount: Uint128::new(100)
+                                },)
                             },
                             VestingSchedule {
-                                starts_at: Timestamp::from_seconds(100),
-                                ends_at: Timestamp::from_seconds(200),
-                                amount_at_start: Uint128::zero(),
-                                total_amount: Uint128::new(100u128)
+                                start_point: VestingSchedulePoint {
+                                    time: Timestamp::from_seconds(100),
+                                    amount: Uint128::zero()
+                                },
+                                end_point: Some(VestingSchedulePoint {
+                                    time: Timestamp::from_seconds(200),
+                                    amount: Uint128::new(100)
+                                },)
                             },
                         ],
                         released_amount: Uint128::zero()
@@ -243,10 +288,14 @@ fn register_vesting_accounts() {
                     address: Addr::unchecked("addr0001"),
                     info: VestingInfo {
                         schedules: vec![VestingSchedule {
-                            starts_at: Timestamp::from_seconds(100),
-                            ends_at: Timestamp::from_seconds(110),
-                            amount_at_start: Uint128::zero(),
-                            total_amount: Uint128::new(100u128)
+                            start_point: VestingSchedulePoint {
+                                time: Timestamp::from_seconds(100),
+                                amount: Uint128::zero()
+                            },
+                            end_point: Some(VestingSchedulePoint {
+                                time: Timestamp::from_seconds(110),
+                                amount: Uint128::new(100)
+                            },)
                         },],
                         released_amount: Uint128::zero()
                     }
@@ -255,10 +304,14 @@ fn register_vesting_accounts() {
                     address: Addr::unchecked("addr0002"),
                     info: VestingInfo {
                         schedules: vec![VestingSchedule {
-                            starts_at: Timestamp::from_seconds(100),
-                            ends_at: Timestamp::from_seconds(200),
-                            amount_at_start: Uint128::zero(),
-                            total_amount: Uint128::new(100u128)
+                            start_point: VestingSchedulePoint {
+                                time: Timestamp::from_seconds(100),
+                                amount: Uint128::zero()
+                            },
+                            end_point: Some(VestingSchedulePoint {
+                                time: Timestamp::from_seconds(200),
+                                amount: Uint128::new(100)
+                            },)
                         },],
                         released_amount: Uint128::zero()
                     }
@@ -286,22 +339,34 @@ fn claim() {
             address: "addr0000".to_string(),
             schedules: vec![
                 VestingSchedule {
-                    starts_at: Timestamp::from_seconds(100),
-                    ends_at: Timestamp::from_seconds(101),
-                    amount_at_start: Uint128::zero(),
-                    total_amount: Uint128::new(100u128),
+                    start_point: VestingSchedulePoint {
+                        time: Timestamp::from_seconds(100),
+                        amount: Uint128::zero(),
+                    },
+                    end_point: Some(VestingSchedulePoint {
+                        time: Timestamp::from_seconds(101),
+                        amount: Uint128::new(100),
+                    }),
                 },
                 VestingSchedule {
-                    starts_at: Timestamp::from_seconds(100),
-                    ends_at: Timestamp::from_seconds(110),
-                    amount_at_start: Uint128::zero(),
-                    total_amount: Uint128::new(100u128),
+                    start_point: VestingSchedulePoint {
+                        time: Timestamp::from_seconds(100),
+                        amount: Uint128::zero(),
+                    },
+                    end_point: Some(VestingSchedulePoint {
+                        time: Timestamp::from_seconds(110),
+                        amount: Uint128::new(100),
+                    }),
                 },
                 VestingSchedule {
-                    starts_at: Timestamp::from_seconds(100),
-                    ends_at: Timestamp::from_seconds(200),
-                    amount_at_start: Uint128::zero(),
-                    total_amount: Uint128::new(100u128),
+                    start_point: VestingSchedulePoint {
+                        time: Timestamp::from_seconds(100),
+                        amount: Uint128::zero(),
+                    },
+                    end_point: Some(VestingSchedulePoint {
+                        time: Timestamp::from_seconds(200),
+                        amount: Uint128::new(100),
+                    }),
                 },
             ],
         }],
