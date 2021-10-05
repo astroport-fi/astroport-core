@@ -1,22 +1,12 @@
 import {
-    isTxError,
     LCDClient,
     LocalTerra,
-    MsgExecuteContract,
-    MsgSend,
-    //MsgUpdateContractOwner,
-    StdTx,
     Wallet
 } from "@terra-money/terra.js"
-import { CLIKey } from "@terra-money/terra.js/dist/key/CLIKey.js"
 import { strictEqual } from "assert"
-import { execSync } from "child_process"
-import { unlinkSync, writeFileSync } from "fs"
 import 'dotenv/config'
 import {
-    createTransaction,
     instantiateContract,
-    performTransaction,
     queryContract,
     recover,
     setTimeoutDuration,
@@ -27,18 +17,12 @@ import {bombay, testnet} from "./deploy_configs";
 // Required environment variables:
 
 // All:
-const MULTISIG_ADDRESS = process.env.MULTISIG_ADDRESS!
-// Name of the multisig in terracli
-const MULTISIG_NAME = process.env.MULTISIG_NAME!
-// Names of the multisig keys in terracli
-const MULTISIG_KEYS = process.env.MULTISIG_KEYS!.split(",")
-const MULTISIG_THRESHOLD = parseInt(process.env.MULTISIG_THRESHOLD!)
-const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH
+const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH || '../artifacts/astroport_token.wasm'
 
 // Testnet:
 const CHAIN_ID = String(process.env.CHAIN_ID)
 const LCD_CLIENT_URL = String(process.env.LCD_CLIENT_URL)
-const CW20_CODE_ID = process.env.CW20_CODE_ID
+
 // LocalTerra:
 
 // Main
@@ -61,8 +45,6 @@ async function main() {
     // Upload contract code
     cw20CodeID = await uploadContract(terra, wallet, CW20_BINARY_PATH!)
     console.log( "Token codeId" + cw20CodeID)
-    //const multisig = new Wallet(terra, new CLIKey({ keyName: MULTISIG_NAME }))
-
     // Token info
     const TOKEN_NAME = "Astro"
     const TOKEN_SYMBOL = "ASTRO"

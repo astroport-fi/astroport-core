@@ -3,7 +3,8 @@ use crate::contract::{
     query_reverse_simulation, query_share, query_simulation,
 };
 use crate::error::ContractError;
-use crate::math::{calc_amount, AMP};
+use crate::math::calc_amount;
+use crate::math::AMP_DEFAULT;
 use crate::mock_querier::mock_dependencies;
 
 use crate::state::Config;
@@ -738,7 +739,7 @@ fn try_native_to_token() {
     let msg_transfer = res.messages.get(0).expect("no message");
 
     let model: StableSwapModel = StableSwapModel::new(
-        AMP.into(),
+        AMP_DEFAULT.into(),
         vec![collateral_pool_amount.into(), asset_pool_amount.into()],
         2,
     );
@@ -791,7 +792,7 @@ fn try_native_to_token() {
     .unwrap();
 
     let model: StableSwapModel = StableSwapModel::new(
-        AMP.into(),
+        AMP_DEFAULT.into(),
         vec![collateral_pool_amount.into(), asset_pool_amount.into()],
         2,
     );
@@ -933,7 +934,7 @@ fn try_token_to_native() {
     let msg_transfer = res.messages.get(0).expect("no message");
 
     let model: StableSwapModel = StableSwapModel::new(
-        AMP.into(),
+        AMP_DEFAULT.into(),
         vec![collateral_pool_amount.into(), asset_pool_amount.into()],
         2,
     );
@@ -1341,6 +1342,7 @@ fn test_accumulate_prices() {
                 block_time_last: case.block_time_last,
                 price0_cumulative_last: Uint128::new(case.last0),
                 price1_cumulative_last: Uint128::new(case.last1),
+                amp: AMP_DEFAULT,
             },
             Uint128::new(case.x_amount),
             6,

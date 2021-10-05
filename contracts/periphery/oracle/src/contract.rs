@@ -4,11 +4,12 @@ use crate::querier::{query_cumulative_prices, query_pair_info, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
 use astroport::asset::{Asset, AssetInfo};
 use astroport::factory::PairType;
+use astroport::querier::query_token_precision;
+use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Uint128,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    Uint128,
 };
-use std::ops::Mul;
 
 const PERIOD: u64 = 86400;
 
@@ -42,8 +43,8 @@ pub fn instantiate(
     let price = PriceCumulativeLast {
         price0_cumulative_last: prices.price0_cumulative_last,
         price1_cumulative_last: prices.price1_cumulative_last,
-        price_0_average: Decimal::zero(),
-        price_1_average: Decimal::zero(),
+        price_0_average: Decimal256::zero(),
+        price_1_average: Decimal256::zero(),
         block_timestamp_last: env.block.time.seconds(),
     };
     PRICE_LAST.save(deps.storage, &price)?;
@@ -74,12 +75,21 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         return Err(ContractError::WrongPeriod {});
     }
 
-    let price_0_average = Decimal::from_ratio(
-        prices.price0_cumulative_last - price_last.price0_cumulative_last,
+    let price_0_average = Decimal256::from_ratio(
+        Uint256::from(
+            prices
+                .price0_cumulative_last
+                .wrapping_sub(price_last.price0_cumulative_last),
+        ),
         time_elapsed,
     );
-    let price_1_average = Decimal::from_ratio(
-        prices.price1_cumulative_last - price_last.price1_cumulative_last,
+
+    let price_1_average = Decimal256::from_ratio(
+        Uint256::from(
+            prices
+                .price1_cumulative_last
+                .wrapping_sub(price_last.price1_cumulative_last),
+        ),
         time_elapsed,
     );
 
@@ -100,7 +110,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Consult { token, amount } => to_binary(&consult(deps, token, amount)?),
     }
 }
-fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint128, StdError> {
+
+fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, StdError> {
     let config = CONFIG.load(deps.storage)?;
     let price_last = PRICE_LAST.load(deps.storage)?;
 
@@ -111,19 +122,26 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint128, Std
     } else {
         return Err(StdError::generic_err("Invalid Token"));
     };
+
     Ok(if price_average.is_zero() {
-        query_prices(
+        // get precision
+        let p = query_token_precision(&deps.querier, token.clone())?;
+        let one = Uint128::new(10_u128.pow(p.into()));
+
+        let price = query_prices(
             &deps.querier,
             config.pair.contract_addr,
             Asset {
                 info: token,
-                amount,
+                amount: one,
             },
         )
         .unwrap()
-        .return_amount
+        .return_amount;
+
+        Uint256::from(price) * Decimal256::from_ratio(Uint256::from(amount), Uint256::from(one))
     } else {
-        Uint128::from(price_average.mul(amount).u128())
+        Uint256::from(amount) * price_average
     })
 }
 

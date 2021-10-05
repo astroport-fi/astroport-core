@@ -2,7 +2,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use astroport::asset::{AssetInfo, PairInfo};
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_bignumber::Decimal256;
+use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::Item;
 
 /// Stores config at the given key
@@ -13,8 +14,8 @@ pub const PRICE_LAST: Item<PriceCumulativeLast> = Item::new("price_last");
 pub struct PriceCumulativeLast {
     pub price0_cumulative_last: Uint128,
     pub price1_cumulative_last: Uint128,
-    pub price_0_average: Decimal,
-    pub price_1_average: Decimal,
+    pub price_0_average: Decimal256,
+    pub price_1_average: Decimal256,
     pub block_timestamp_last: u64,
 }
 

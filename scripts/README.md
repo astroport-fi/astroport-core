@@ -1,5 +1,12 @@
 ## Scripts
 
+### Build env local
+
+```shell
+npm install
+npm start
+```
+
 ### Build
 
 ```

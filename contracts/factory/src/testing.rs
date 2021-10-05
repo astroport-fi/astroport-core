@@ -51,6 +51,7 @@ fn proper_initialization() {
         token_code_id: 123u64,
         init_hook: None,
         fee_address: None,
+        gov: Addr::unchecked("gov"),
     };
 
     let env = mock_env();
@@ -79,6 +80,7 @@ fn proper_initialization() {
         token_code_id: 123u64,
         init_hook: None,
         fee_address: None,
+        gov: Addr::unchecked("gov"),
     };
 
     let env = mock_env();
@@ -109,6 +111,7 @@ fn update_config() {
         token_code_id: 123u64,
         init_hook: None,
         fee_address: None,
+        gov: Addr::unchecked("gov"),
     };
 
     let env = mock_env();
@@ -121,6 +124,7 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
+        gov: None,
         owner: Some(Addr::unchecked("addr0001")),
         token_code_id: None,
         fee_address: Some(Addr::unchecked("fee_addr")),
@@ -140,6 +144,7 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info("addr0001", &[]);
     let msg = ExecuteMsg::UpdateConfig {
+        gov: None,
         owner: None,
         token_code_id: Some(200u64),
         fee_address: None,
@@ -158,6 +163,7 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
+        gov: None,
         owner: None,
         token_code_id: None,
         fee_address: None,
@@ -203,6 +209,7 @@ fn update_pair_config() {
         token_code_id: 123u64,
         init_hook: None,
         fee_address: None,
+        gov: Addr::unchecked("gov"),
     };
 
     let env = mock_env();
@@ -302,6 +309,7 @@ fn create_pair() {
         token_code_id: 123u64,
         init_hook: None,
         fee_address: None,
+        gov: Addr::unchecked("gov"),
     };
 
     let env = mock_env();
@@ -404,6 +412,7 @@ fn register() {
         token_code_id: 123u64,
         init_hook: None,
         fee_address: None,
+        gov: Addr::unchecked("gov"),
     };
 
     let env = mock_env();
