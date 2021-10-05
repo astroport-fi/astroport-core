@@ -50,6 +50,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// UpdateConfig update relevant code IDs
     UpdateConfig {
+        gov: Option<Addr>,
         owner: Option<Addr>,
         token_code_id: Option<u64>,
         fee_address: Option<Addr>,

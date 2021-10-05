@@ -80,6 +80,7 @@ fn update_config() {
 
     // update owner
     let msg = ExecuteMsg::UpdateConfig {
+        gov: Some(new_owner.clone()),
         owner: Some(new_owner.clone()),
         token_code_id: None,
         fee_address: None,
@@ -99,6 +100,7 @@ fn update_config() {
     // update left items
     let fee_address = Addr::unchecked("fee");
     let msg = ExecuteMsg::UpdateConfig {
+        gov: None,
         owner: None,
         token_code_id: Some(200u64),
         fee_address: Some(fee_address.clone()),
@@ -117,6 +119,7 @@ fn update_config() {
 
     // Unauthorzied err
     let msg = ExecuteMsg::UpdateConfig {
+        gov: None,
         owner: None,
         token_code_id: None,
         fee_address: None,
