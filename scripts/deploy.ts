@@ -1,9 +1,7 @@
 import 'dotenv/config'
 import {
     deployContract,
-    executeContract, initialize,
-    instantiateContract,
-    queryContract,
+    executeContract,
     recover,
     setTimeoutDuration,
     uploadContract,
