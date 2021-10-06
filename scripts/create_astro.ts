@@ -54,7 +54,7 @@ async function main() {
     // The cap cannot be changed after the contract is instantiated
     const TOKEN_CAP = 1_000_000_000_000000
     // TODO check if we want initial balances in prod
-    const TOKEN_INITIAL_AMOUNT = 1_000_000_000000
+    const TOKEN_INITIAL_AMOUNT = 1_000_000_000_000000
     const TOKEN_INITIAL_AMOUNT_ADDRESS = TOKEN_MINTER
 
     const TOKEN_INFO = {
