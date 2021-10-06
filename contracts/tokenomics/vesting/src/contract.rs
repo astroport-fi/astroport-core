@@ -12,8 +12,8 @@ use astroport::vesting::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg, VestingAccount,
     VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
 };
-use cw20::Cw20ExecuteMsg;
 use cw2::set_contract_version;
+use cw20::Cw20ExecuteMsg;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-vesting";

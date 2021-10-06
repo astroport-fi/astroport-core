@@ -14,8 +14,8 @@ use astroport::factory::{
 };
 use astroport::hook::InitHook;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
-use std::collections::HashSet;
 use cw2::set_contract_version;
+use std::collections::HashSet;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-factory";

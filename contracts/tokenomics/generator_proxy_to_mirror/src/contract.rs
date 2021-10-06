@@ -7,11 +7,11 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 use astroport::generator_proxy::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use cw2::set_contract_version;
 use mirror_protocol::staking::{
     Cw20HookMsg as MirrorCw20HookMsg, ExecuteMsg as MirrorExecuteMsg, QueryMsg as MirrorQueryMsg,
     RewardInfoResponse,
 };
-use cw2::set_contract_version;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-generator-proxy-to-mirror";

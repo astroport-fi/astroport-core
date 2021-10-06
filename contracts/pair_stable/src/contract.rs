@@ -20,10 +20,10 @@ use astroport::pair::{
 };
 use astroport::querier::{query_supply, query_token_precision};
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
+use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use std::cmp::Ordering;
 use std::vec;
-use cw2::set_contract_version;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-pair-stable";

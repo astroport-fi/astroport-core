@@ -10,8 +10,8 @@ use cosmwasm_std::{
     entry_point, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo,
     QueryRequest, Reply, ReplyOn, Response, StdResult, SubMsg, Uint128, Uint64, WasmMsg, WasmQuery,
 };
-use std::collections::HashMap;
 use cw2::set_contract_version;
+use std::collections::HashMap;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-maker";

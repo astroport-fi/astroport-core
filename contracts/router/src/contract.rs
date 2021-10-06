@@ -15,10 +15,10 @@ use astroport::router::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
     SimulateSwapOperationsResponse, SwapOperation,
 };
+use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use std::collections::HashMap;
 use terra_cosmwasm::{SwapResponse, TerraMsgWrapper, TerraQuerier};
-use cw2::set_contract_version;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-router";
