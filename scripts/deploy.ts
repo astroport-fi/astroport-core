@@ -111,7 +111,7 @@ async function main() {
             astro_token_contract: String(deployConfig.astroTokenContractAddress),
         }
     )
-    console.log("Address Gauge Contract: " + addressMakerContract)
+    console.log("Address Maker Contract: " + addressMakerContract)
     /*************************************** Deploy Generator Contract *****************************************/
     console.log("Deploying Generator...")
     deployConfig.generatorInitMsg.config.astro_token = deployConfig.astroTokenContractAddress;
@@ -133,6 +133,13 @@ async function main() {
         address: addressGeneratorContract,
     }));
     console.log('vestingAccounts:', JSON.stringify(vestingAccounts))
+    // INCREASE ALLOWANCE
+    let out: any, msg: any
+    msg = { increase_allowance: { spender: addressVestingContract, amount: '63072000000000' } }
+    console.log('execute', deployConfig.astroTokenContractAddress, JSON.stringify(msg))
+    out = await executeContract(terra, wallet, deployConfig.astroTokenContractAddress, msg)
+    console.log(out.txhash)
+
     deployConfig.registerVestingAccounts.register_vesting_accounts.vesting_accounts = vestingAccounts
     const { registerVestingAccounts } = deployConfig;
     await executeContract(

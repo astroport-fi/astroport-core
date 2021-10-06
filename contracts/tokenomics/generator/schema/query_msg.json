@@ -77,21 +77,17 @@
     {
       "type": "object",
       "required": [
-        "orphan_rewards"
+        "orphan_proxy_rewards"
       ],
       "properties": {
-        "orphan_rewards": {
+        "orphan_proxy_rewards": {
           "type": "object",
+          "required": [
+            "lp_token"
+          ],
           "properties": {
             "lp_token": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Addr"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/definitions/Addr"
             }
           }
         }

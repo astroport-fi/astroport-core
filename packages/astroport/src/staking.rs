@@ -28,6 +28,4 @@ pub struct ConfigResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum MigrateMsg {
-    Upgrade { code_id: u64 },
-}
+pub enum MigrateMsg {}

@@ -5,7 +5,7 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
-use astroport::staking::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use astroport::staking::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
 
@@ -204,30 +204,4 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             share_token_addr: config.share_token_addr,
         })?),
     }
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(
-    _deps: DepsMut,
-    env: Env,
-    _info: MessageInfo,
-    msg: MigrateMsg,
-) -> Result<Response, ContractError> {
-    match msg {
-        MigrateMsg::Upgrade { code_id } => migration_upgrade(env.contract.address.to_string(), code_id, to_binary(&msg)?),
-    };
-    Ok(Response::default())
-}
-
-fn migration_upgrade(
-    contract_addr: String,
-    new_code_id: u64,
-    msg: Binary,
-) -> Result<Response, ContractError> {
-    let res = Response::new().add_message(CosmosMsg::Wasm(WasmMsg::Migrate {
-        contract_addr,
-        new_code_id,
-        msg,
-    }));
-    Ok(res)
 }
