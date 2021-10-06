@@ -23,7 +23,7 @@ const TOKEN_SYMBOL: &str = "xASTRO";
 pub fn instantiate(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -39,7 +39,7 @@ pub fn instantiate(
 
     // Create token
     let resp = Response::new().add_message(CosmosMsg::Wasm(WasmMsg::Instantiate {
-        admin: None,
+        admin: Some(info.sender.to_string()),
         code_id: msg.token_code_id,
         msg: to_binary(&TokenInstantiateMsg {
             name: TOKEN_NAME.to_string(),
@@ -207,6 +207,27 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(
+    _deps: DepsMut,
+    env: Env,
+    _info: MessageInfo,
+    msg: MigrateMsg,
+) -> Result<Response, ContractError> {
+    match msg {
+        MigrateMsg::Upgrade { code_id } => migration_upgrade(env.contract.address.to_string(), code_id, to_binary(&msg)?),
+    };
     Ok(Response::default())
+}
+
+fn migration_upgrade(
+    contract_addr: String,
+    new_code_id: u64,
+    msg: Binary,
+) -> Result<Response, ContractError> {
+    let res = Response::new().add_message(CosmosMsg::Wasm(WasmMsg::Migrate {
+        contract_addr,
+        new_code_id,
+        msg,
+    }));
+    Ok(res)
 }

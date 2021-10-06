@@ -221,6 +221,7 @@ pub fn execute_create_pair(
         msg: WasmMsg::Instantiate {
             code_id: pair_config.code_id,
             funds: vec![],
+            // todo: make sure set admin required here
             admin: None,
             label: String::from("Astroport pair"),
             msg: to_binary(&PairInstantiateMsg {
