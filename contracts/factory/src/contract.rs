@@ -94,7 +94,7 @@ pub fn execute(
             pair_type,
             asset_infos,
             init_hook,
-        } => execute_create_pair(deps, env, pair_type, asset_infos, init_hook),
+        } => execute_create_pair(deps, env, info, pair_type, asset_infos, init_hook),
         ExecuteMsg::Register { asset_infos } => register(deps, info, asset_infos),
         ExecuteMsg::Deregister { asset_infos } => deregister(deps, info, asset_infos),
     }
@@ -187,6 +187,7 @@ pub fn execute_remove_pair_config(
 pub fn execute_create_pair(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     pair_type: PairType,
     asset_infos: [AssetInfo; 2],
     init_hook: Option<InitHook>,
@@ -222,7 +223,7 @@ pub fn execute_create_pair(
             code_id: pair_config.code_id,
             funds: vec![],
             // todo: make sure set admin required here
-            admin: None,
+            admin: Some(info.sender.to_string()),
             label: String::from("Astroport pair"),
             msg: to_binary(&PairInstantiateMsg {
                 asset_infos: asset_infos.clone(),
