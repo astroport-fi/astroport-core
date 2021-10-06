@@ -11,6 +11,11 @@ use mirror_protocol::staking::{
     Cw20HookMsg as MirrorCw20HookMsg, ExecuteMsg as MirrorExecuteMsg, QueryMsg as MirrorQueryMsg,
     RewardInfoResponse,
 };
+use cw2::set_contract_version;
+
+// version info for migration info
+const CONTRACT_NAME: &str = "astroport-generator-proxy-to-mirror";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -19,6 +24,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     let config = Config {
         generator_contract_addr: deps.api.addr_validate(&msg.generator_contract_addr)?,
         pair_addr: deps.api.addr_validate(&msg.pair_addr)?,

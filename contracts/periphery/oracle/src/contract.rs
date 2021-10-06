@@ -10,6 +10,11 @@ use cosmwasm_std::{
     entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
     Uint128,
 };
+use cw2::set_contract_version;
+
+// version info for migration info
+const CONTRACT_NAME: &str = "astroport-oracle";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const PERIOD: u64 = 86400;
 
@@ -20,6 +25,8 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     let factory_contract = deps.api.addr_validate(msg.factory_contract.as_ref())?;
     let pair_info = query_pair_info(
         &deps.querier,
