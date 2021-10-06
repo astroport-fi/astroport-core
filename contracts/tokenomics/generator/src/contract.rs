@@ -218,7 +218,7 @@ pub fn set(
 fn update_rewards_and_execute(
     mut deps: DepsMut,
     env: Env,
-    only_lp_token: Option<Addr>,
+    update_single_pool: Option<Addr>,
     on_reply: ExecuteOnReply,
 ) -> Result<Response, ContractError> {
     TMP_USER_ACTION.update(deps.storage, |v| {
@@ -233,7 +233,7 @@ fn update_rewards_and_execute(
 
     let mut messages: Vec<SubMsg> = vec![];
 
-    match only_lp_token {
+    match update_single_pool {
         Some(lp_token) => {
             let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
             if let Some(reward_proxy) = pool.reward_proxy.clone() {
