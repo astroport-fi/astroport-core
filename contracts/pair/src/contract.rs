@@ -17,8 +17,13 @@ use astroport::pair::{
 };
 use astroport::querier::query_supply;
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
+use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use std::vec;
+
+// version info for migration info
+const CONTRACT_NAME: &str = "astroport-pair";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -27,6 +32,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     if msg.pair_type != (PairType::Xyk {}) {
         return Err(ContractError::PairTypeMismatch {});
     }

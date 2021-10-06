@@ -18,6 +18,11 @@ use astroport::{
     },
     vesting::ExecuteMsg as VestingExecuteMsg,
 };
+use cw2::set_contract_version;
+
+// version info for migration info
+const CONTRACT_NAME: &str = "astroport-generator";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -26,6 +31,8 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     let mut allowed_reward_proxies: Vec<Addr> = vec![];
     for proxy in msg.allowed_reward_proxies {
         allowed_reward_proxies.push(deps.api.addr_validate(&proxy)?);

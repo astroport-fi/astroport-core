@@ -25,6 +25,7 @@ cw-storage-plus = "0.8.0"
 schemars = "0.8.1"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
+cw2 = "0.8"
 cw20 = "0.8"
 astroport = { path = "../../../packages/astroport", default-features = false, version = "2.4.0"}
 terra-cosmwasm = "2.2.0"

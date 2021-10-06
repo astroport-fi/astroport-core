@@ -13,6 +13,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
+cw2 = { version = "0.8" }
 cw20 = { version = "0.8" }
 cosmwasm-std = { version = "0.16.0" }
 cw-storage-plus = {version = "0.8.0", features = ['iterator']}

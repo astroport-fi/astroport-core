@@ -10,7 +10,12 @@ use cosmwasm_std::{
     entry_point, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo,
     QueryRequest, Reply, ReplyOn, Response, StdResult, SubMsg, Uint128, Uint64, WasmMsg, WasmQuery,
 };
+use cw2::set_contract_version;
 use std::collections::HashMap;
+
+// version info for migration info
+const CONTRACT_NAME: &str = "astroport-maker";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -19,6 +24,8 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     let governance_contract = if let Some(governance_contract) = msg.governance_contract {
         Option::from(deps.api.addr_validate(&governance_contract)?)
     } else {
