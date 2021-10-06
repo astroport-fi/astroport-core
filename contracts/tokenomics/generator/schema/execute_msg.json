@@ -190,20 +190,18 @@
     {
       "type": "object",
       "required": [
-        "send_orphan_reward"
+        "send_orphan_proxy_reward"
       ],
       "properties": {
-        "send_orphan_reward": {
+        "send_orphan_proxy_reward": {
           "type": "object",
           "required": [
+            "lp_token",
             "recipient"
           ],
           "properties": {
             "lp_token": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             },
             "recipient": {
               "type": "string"
