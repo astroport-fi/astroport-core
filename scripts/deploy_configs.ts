@@ -15,17 +15,17 @@ export const testnet: Config = {
         }
     },
     factoryInitMsg: {
-        config:{
+        config: {
             pair_configs: [
                 {
                     code_id: 0,
-                    pair_type: { xyk: {}},
+                    pair_type: { xyk: {} },
                     total_fee_bps: 0,
                     maker_fee_bps: 0
                 },
                 {
                     code_id: 0,
-                    pair_type: {stable:{}},
+                    pair_type: { stable: {} },
                     total_fee_bps: 0,
                     maker_fee_bps: 0
                 }
@@ -37,26 +37,17 @@ export const testnet: Config = {
     },
     astroTokenContractAddress: 'terra18x4r44npdzrk0k9pzvy7h4d38ep3rmadsewzsh',
     registerVestingAccounts: {
-        register_vesting_accounts:{
+        register_vesting_accounts: {
             vesting_accounts: [
                 {
                     address: '', // dynamic field
-                    schedules:[
-                        [
-                            String(new Date( 2022, 1, 1).getTime()),
-                            String(new Date( 2023, 1, 1).getTime()),
-                            String(1),
-                        ],
-                        [
-                            String(new Date( 2022, 6, 1).getTime()),
-                            String(new Date( 2023, 1, 1).getTime()),
-                            String(1),
-                        ],
-                        [
-                            String(new Date( 2023, 1, 1).getTime()),
-                            String(new Date( 2024, 1, 1).getTime()),
-                            String(1),
-                        ],
+                    schedules: [
+                        {
+                            start_point: {
+                                time: String(new Date(2021, 10, 6).getTime()),
+                                amount: String("63072000000000")
+                            }
+                        }
                     ]
                 }
             ]
@@ -81,17 +72,17 @@ export const bombay: Config = {
         }
     },
     factoryInitMsg: {
-        config:{
+        config: {
             pair_configs: [
                 {
                     code_id: 0,
-                    pair_type: { xyk: {}},
+                    pair_type: { xyk: {} },
                     total_fee_bps: 0,
                     maker_fee_bps: 0
                 },
                 {
                     code_id: 0,
-                    pair_type: {stable:{}},
+                    pair_type: { stable: {} },
                     total_fee_bps: 0,
                     maker_fee_bps: 0
                 }
@@ -103,26 +94,17 @@ export const bombay: Config = {
     },
     astroTokenContractAddress: 'terra1qqhw3t3p5349rs83m5mqjxft76c82yf99s9jjz',
     registerVestingAccounts: {
-        register_vesting_accounts:{
+        register_vesting_accounts: {
             vesting_accounts: [
                 {
                     address: '', // dynamic field
-                    schedules:[
-                        [
-                            String(new Date( 2022, 1, 1).getTime()),
-                            String(new Date( 2023, 1, 1).getTime()),
-                            String(1),
-                        ],
-                        [
-                            String(new Date( 2022, 6, 1).getTime()),
-                            String(new Date( 2023, 1, 1).getTime()),
-                            String(1),
-                        ],
-                        [
-                            String(new Date( 2023, 1, 1).getTime()),
-                            String(new Date( 2024, 1, 1).getTime()),
-                            String(1),
-                        ],
+                    schedules: [
+                        {
+                            start_point: {
+                                time: String(new Date(2021, 10, 6).getTime()),
+                                amount: String("63072000000000")
+                            }
+                        }
                     ]
                 }
             ]
@@ -147,17 +129,17 @@ export const local: Config = {
         }
     },
     factoryInitMsg: {
-        config:{
+        config: {
             pair_configs: [
                 {
                     code_id: 0,
-                    pair_type: { xyk: {}},
+                    pair_type: { xyk: {} },
                     total_fee_bps: 0,
                     maker_fee_bps: 0
                 },
                 {
                     code_id: 0,
-                    pair_type: {stable:{}},
+                    pair_type: { stable: {} },
                     total_fee_bps: 0,
                     maker_fee_bps: 0
                 }
@@ -169,26 +151,17 @@ export const local: Config = {
     },
     astroTokenContractAddress: 'terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5',
     registerVestingAccounts: {
-        register_vesting_accounts:{
+        register_vesting_accounts: {
             vesting_accounts: [
                 {
                     address: '', // dynamic field
-                    schedules:[
-                        [
-                            String(new Date( 2022, 1, 1).getTime()),
-                            String(new Date( 2023, 1, 1).getTime()),
-                            String(1),
-                        ],
-                        [
-                            String(new Date( 2022, 6, 1).getTime()),
-                            String(new Date( 2023, 1, 1).getTime()),
-                            String(1),
-                        ],
-                        [
-                            String(new Date( 2023, 1, 1).getTime()),
-                            String(new Date( 2024, 1, 1).getTime()),
-                            String(1),
-                        ],
+                    schedules: [
+                        {
+                            start_point: {
+                                time: String(new Date(2021, 10, 6).getTime()),
+                                amount: String("63072000000000")
+                            }
+                        }
                     ]
                 }
             ]

@@ -111,7 +111,7 @@ async function main() {
             astro_token_contract: String(deployConfig.astroTokenContractAddress),
         }
     )
-    console.log("Address Gauge Contract: " + addressMakerContract)
+    console.log("Address Maker Contract: " + addressMakerContract)
     /*************************************** Deploy Generator Contract *****************************************/
     console.log("Deploying Generator...")
     deployConfig.generatorInitMsg.config.astro_token = deployConfig.astroTokenContractAddress;

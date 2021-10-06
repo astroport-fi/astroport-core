@@ -1,11 +1,11 @@
-interface StakingInitMsg{
+interface StakingInitMsg {
     config: {
         token_code_id: number
         deposit_token_addr?: string
     }
 }
 
-interface FactoryInitMsg{
+interface FactoryInitMsg {
     config: {
         pair_configs: PairConfig[],
         token_code_id: number,
@@ -16,7 +16,7 @@ interface FactoryInitMsg{
 }
 
 interface GeneratorInitMsd {
-    config:{
+    config: {
         allowed_reward_proxies: string[],
         astro_token: string,
         start_block: string,
@@ -26,24 +26,32 @@ interface GeneratorInitMsd {
 }
 
 type PairType = {
-    xyk:{}
+    xyk: {}
 } | {
     stable: {}
 }
 
 
-interface PairConfig{
+interface PairConfig {
     code_id: number,
     pair_type: PairType,
     total_fee_bps: number,
     maker_fee_bps: number
 }
 
-type StartDate = string
-type EndDate = string
+type PointDate = string
 type Amount = string
 
-type VestingAccountSchedule = [StartDate, EndDate, Amount]
+type VestingAccountSchedule = {
+    start_point: {
+        time: PointDate,
+        amount: Amount
+    },
+    end_point?: {
+        time: PointDate,
+        amount: Amount
+    }
+}
 
 interface VestingAccount {
     address: string
