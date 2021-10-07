@@ -18,7 +18,7 @@ pub enum AssetInfo {
 
 ### Asset
 
-It contains asset info with the amount of token. 
+It contains asset info with the amount of token.
 
 ```rust
 pub struct Asset {
@@ -37,6 +37,7 @@ pub struct PairInfo {
     pub asset_infos: [AssetInfo; 2],
 }
 ```
+
 ## Queriers
 
 ### Native Token Balance Querier
@@ -53,7 +54,8 @@ pub fn query_balance(
 
 ### Token Balance Querier
 
-It provides simliar query interface with [Native-Token-Balance-Querier](Native-Token-Balance-Querier) for CW20 token balance. 
+It provides simliar query interface with [Native-Token-Balance-Querier](Native-Token-Balance-Querier) for CW20 token
+balance.
 
 ```rust
 pub fn query_token_balance(
@@ -76,7 +78,8 @@ pub fn query_supply(
 
 ### Pair Info Querier
 
-It also provides the query interface to query available astroport pair contract info. Any contract can query pair info to astroport factory contract.
+It also provides the query interface to query available astroport pair contract info. Any contract can query pair info
+to astroport factory contract.
 
 ```rust
 pub fn query_pair_contract(
@@ -88,11 +91,37 @@ pub fn query_pair_contract(
 
 ### Liquidity Token Querier
 
-It returns liquidity token contract address of astroport pair contract. 
+It returns liquidity token contract address of astroport pair contract.
 
 ```rust
 pub fn query_liquidity_token(
     deps: &Extern<S, A, Q>,
     contract_addr: &Addr,
 ) -> StdResult<Addr>
+```
+
+## Swap Pairs Simulating
+
+### Simulate
+
+It returns simulation swap amounts: return, spread, commission.
+
+```rust
+pub fn simulate(
+    querier: &QuerierWrapper,
+    pair_contract: Addr,
+    offer_asset: &Asset,
+) -> StdResult<SimulationResponse>
+```
+
+### Reverse Simulate
+
+It returns simulation swap amounts: offer, spread, commission.
+
+```rust
+pub fn reverse_simulate(
+    querier: &QuerierWrapper,
+    pair_contract: Addr,
+    offer_asset: &Asset,
+) -> StdResult<ReverseSimulationResponse>
 ```

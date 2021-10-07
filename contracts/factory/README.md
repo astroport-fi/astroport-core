@@ -1,18 +1,21 @@
 # Astroport Factory
 
-The factory contract can perform creation of astroport pair contract and also be used as directory contract for all pairs.
-Code ID for a pair type can be provided when instantiating a new pair, allowing for different pool mechanisms (e.g. stableswap).
-Available pair types are managed via a whitelist. 
+The factory contract can perform creation of astroport pair contract and also be used as directory contract for all
+pairs. Code ID for a pair type can be provided when instantiating a new pair, allowing for different pool mechanisms (
+e.g. stableswap). Available pair types are managed via a whitelist.
 
-TODO: Update README with new messages (Terraswap v1 messages follow)
+README has updated with new messages (Astroport v1 messages follow)
+
 ---
 
-## InitMsg
+## InstantiateMsg
 
 ```json
 {
   "paid_code_id": "123",
   "token_code_id": "123",
+  "fee_address": "terra...",
+  "gov": "terra...",
   "init_hook": {
     "msg": "123",
     "contract_addr": "terra..."
@@ -20,16 +23,44 @@ TODO: Update README with new messages (Terraswap v1 messages follow)
 }
 ```
 
-## HandleMsg
+## ExecuteMsg
 
 ### `update_config`
 
 ```json
 {
   "update_config": {
+    "gov": "terra...",
     "owner": "terra...",
-    "token_id": "123",
-    "pair_code_id": "123"
+    "token_code_id": "123",
+    "fee_address": "123"
+  }
+}
+```
+
+### `update_pair_config`
+
+```json
+{
+  "update_pair_config": {
+    "config": {
+      "code_id": "123",
+      "pair_type": {
+        "xyk": {}
+      },
+      "total_fee_bps": "123",
+      "maker_fee_bps": "123"
+    }
+  }
+}
+```
+
+### `remove_pair_config`
+
+```json
+{
+  "pair_type": {
+    "stable": {}
   }
 }
 ```
@@ -39,6 +70,34 @@ TODO: Update README with new messages (Terraswap v1 messages follow)
 ```json
 {
   "create_pair": {
+    "pair_type": {
+      "xyk": {}
+    },
+    "asset_infos": [
+      {
+        "token": {
+          "contract_addr": "terra..."
+        }
+      },
+      {
+        "native_token": {
+          "denom": "uusd"
+        }
+      }
+    ]
+  },
+  "init_hook": {
+    "msg": "123",
+    "contract_addr": "terra..."
+  }
+}
+```
+
+### `register`
+
+```json
+{
+  "register": {
     "asset_infos": [
       {
         "token": {
@@ -55,11 +114,11 @@ TODO: Update README with new messages (Terraswap v1 messages follow)
 }
 ```
 
-### `register`
+### `deregister`
 
 ```json
 {
-  "register": {
+  "deregister": {
     "asset_infos": [
       {
         "token": {
@@ -107,43 +166,111 @@ TODO: Update README with new messages (Terraswap v1 messages follow)
 }
 ```
 
-Register verified pair contract and token contract for pair contract creation. The sender will be the owner of the factory contract.
+Register verified pair contract and token contract for pair contract creation. The sender will be the owner of the
+factory contract.
 
 ```rust
 {
-    /// Pair contract code ID, which is used to
-    pub pair_code_id: u64,
-    pub token_code_id: u64,
-    pub init_hook: Option<InitHook>,
+/// Pair contract code ID, which is used to
+pub pair_code_id: u64,
+pub token_code_id: u64,
+pub init_hook: Option<InitHook>,
+}
+```
+
+### `pairs`
+
+```json
+{
+  "pairs": {
+    "start_after": [
+      {
+        "token": {
+          "contract_address": "terra..."
+        }
+      },
+      {
+        "native_token": {
+          "denom": "uusd"
+        }
+      }
+    ],
+    "limit": "123"
+  }
+}
+```
+
+### `fee_info`
+
+```json
+{
+  "pair_type": {
+    "xyk": {}
+  }
 }
 ```
 
 ### UpdateConfig
 
-The factory contract owner can change relevant code IDs for future pair contract creation.
-
 ```json
 {
-    "update_config":
-    {
-        "owner": Option<Addr>,
-        "pair_code_id": Option<u64>,
-        "token_code_id": Option<u64>,
-    }
+  "update_config": {
+    "gov": "terra...",
+    "owner": "terra...",
+    "token_code_id": "123",
+    "fee_address": "123"
+  }
 }
 ```
 
 ### Create Pair
 
-When a user execute `CreatePair` operation, it creates `Pair` contract and `LP(liquidity provider)` token contract. It also creates not fully initialized `PairInfo`, which will be initialized with `Register` operation from the pair contract's `InitHook`.
+When a user execute `CreatePair` operation, it creates `Pair` contract and `LP(liquidity provider)` token contract. It
+also creates not fully initialized `PairInfo`, **_Discuss: which will be initialized with `Register` operation from the pair
+contract's `InitHook`._**
 
 ```json
 {
   "create_pair": {
+    "pair_type": {
+      "xyk": {}
+    },
     "asset_infos": [
       {
         "token": {
-          "contract_addr": "terra1~~"
+          "contract_addr": "terra..."
+        }
+      },
+      {
+        "native_token": {
+          "denom": "uusd"
+        }
+      }
+    ]
+  },
+  "init_hook": {
+    "msg": "123",
+    "contract_addr": "terra..."
+  }
+}
+```
+
+### Register
+
+When a user executes `CreatePair` operation, it passes `InitHook` to `Pair` contract and `Pair` contract will invoke
+passed `InitHook` registering created `Pair` contract to the factory. This operation is only allowed for a pair, which
+is not fully initialized.
+
+Once a `Pair` contract invokes it, the sender address is registered as `Pair` contract address for the given
+asset_infos.
+
+```json
+{
+  "register": {
+    "asset_infos": [
+      {
+        "token": {
+          "contract_address": "terra..."
         }
       },
       {
@@ -153,25 +280,5 @@ When a user execute `CreatePair` operation, it creates `Pair` contract and `LP(l
       }
     ]
   }
-}
-```
-
-### Register
-
-When a user executes `CreatePair` operation, it passes `InitHook` to `Pair` contract and `Pair` contract will invoke passed `InitHook` registering created `Pair` contract to the factory. This operation is only allowed for a pair, which is not fully initialized.
-
-Once a `Pair` contract invokes it, the sender address is registered as `Pair` contract address for the given asset_infos.
-
-```json
-{ "register":
-    "asset_infos": [{
-        "token": {
-            "contract_addr": "terra1~~",
-            }
-        }, {
-            "native_token": {
-                "denom": "uusd",
-            }
-    }],
 }
 ```

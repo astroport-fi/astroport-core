@@ -4,11 +4,12 @@
 
 ### Initialize
 
-The factory may instantiate this contract to create a new x*y=k pair. It initialize all swap created parameters which can be updated later with owner key.
+The factory may instantiate this contract to create a new x*y=k or stable pair. It initializes all swap created parameters which can be updated later with owner key.
 
 It creates liquidity token contract as init response, and execute init hook to register created liquidity token contract to self.
 
-TODO: Update documentation for Astroport. Terraswap v1 documentation follows
+README has updated with new messages (Astroport v1 messages follow)
+
 ---
 
 ```rust

@@ -648,7 +648,7 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
         ask_pool = pools[0].clone();
     } else {
         return Err(StdError::generic_err(
-            "Given offer asset does not belong to pairs",
+            "Given offer asset doesn't belong to pairs",
         ));
     }
 
@@ -688,7 +688,7 @@ pub fn query_reverse_simulation(
         offer_pool = pools[0].clone();
     } else {
         return Err(StdError::generic_err(
-            "Given ask asset is not blong to pairs",
+            "Given ask asset doesn't belong to pairs",
         ));
     }
 
