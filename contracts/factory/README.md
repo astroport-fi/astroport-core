@@ -226,8 +226,9 @@ pub init_hook: Option<InitHook>,
 ### Create Pair
 
 When a user execute `CreatePair` operation, it creates `Pair` contract and `LP(liquidity provider)` token contract. It
-also creates not fully initialized `PairInfo`, **_Discuss: which will be initialized with `Register` operation from the pair
-contract's `InitHook`._**
+also creates not fully initialized `PairInfo`,
+> TODO discussion: which will be initialized with `Register` operation from the pair
+contract's `InitHook`.
 
 ```json
 {

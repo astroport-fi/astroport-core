@@ -104,7 +104,7 @@ pub fn query_liquidity_token(
 
 ### Simulate
 
-It returns simulation swap amounts: return, spread, commission.
+It returns simulation swap return, spread, commission amounts.
 
 ```rust
 pub fn simulate(
@@ -116,7 +116,7 @@ pub fn simulate(
 
 ### Reverse Simulate
 
-It returns simulation swap amounts: offer, spread, commission.
+It returns simulation swap offer, spread, commission amounts.
 
 ```rust
 pub fn reverse_simulate(
