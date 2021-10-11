@@ -1,16 +1,16 @@
 # Astroport Pair
 
-The factory may instantiate this contract to create a new stable pair. It initializes all swap created parameters which can be updated later with owner key.
+The factory may instantiate this contract to create a new stable. It initializes all swap created parameters which can be updated later with owner key.
 
 It creates liquidity token contract as init response, and execute init hook to register created liquidity token contract to self.
 
-README has updated with new messages (Astroport v1 messages follow)
+README has updated with new messages (Astroport v1 messages follow).
 
 ---
 
 ### Liquidity Provider
 
-The contract has two types of pool, the one is collateral and the other is asset pool. A user can provide liquidity to each pool by sending `provide_liquidity` msg and also can withdraw with `withdraw_liquidity` msg.
+A user can provide liquidity to each pool by sending `provide_liquidity` msg and also can withdraw with `withdraw_liquidity` msg.
 
 Whenever liquidity is deposited into a pool, special tokens known as liquidity tokens are minted to the provider’s address, in proportion to how much liquidity they contributed to the pool. These tokens are a representation of a liquidity provider’s contribution to a pool. Whenever a trade occurs, the `lp_commission%` of fee is distributed pro-rata to all LPs in the pool at the moment of the trade. To receive the underlying liquidity back, plus commission fees that were accrued while their liquidity was locked, LPs must burn their liquidity tokens.
 
@@ -34,7 +34,7 @@ Inits a new stable pair.
   "token_code_id": "123",
   "factory_addr": "terra...",
   "pair_type": {
-    "stable": {}
+    "xyk": {}
   },
   "init_hook": {
     "msg": "123",
@@ -47,7 +47,7 @@ Inits a new stable pair.
 
 ### `receive`
 
-Withdrawing provided liquidity or swap assets (only for token contract)
+Withdrawing provided liquidity or swap assets (only for token contract).
 
 ```json
 {
@@ -67,7 +67,7 @@ LP token contract must execute it after creating.
 
 ### `provide_liquidity`
 
-Provides pool liquidity by sending native or token assets.
+Provides pool liquidity by sending user's native or token assets. It can be distinguished with the key under info: token or native_token. NOTE: You should increase token allowance before providing liquidity!
 
 1. Without Slippage Tolerance
 
@@ -125,6 +125,7 @@ Provides pool liquidity by sending native or token assets.
   ```
 
 - Withdraw Liquidity (must be sent to liquidity token contract)
+
   ```json
   {
     "withdraw_liquidity": {}
@@ -133,9 +134,9 @@ Provides pool liquidity by sending native or token assets.
 
 ### `swap`
 
-### Swap
+Swap between the given two tokens. offer_asset is your source asset and to is your destination token contract.
 
-Swaps an offer asset to the other.
+NOTE: You should increase token allowance before swap. This method is only used to swap to contract-based token as a destination.
 
   ```json
   {
@@ -157,7 +158,7 @@ Swaps an offer asset to the other.
 
 #### Commission
 
-The `lp_commission` remains in the swap pool, which is fixed to `0.3%`, causing a permanent increase in the constant product K. The value of this permanently increased pool goes to all LPs.
+The `lp_commission` remains in the swap pool. The value of this permanently increased pool goes to all LPs.
 
 ### `update_config`
 
@@ -169,7 +170,7 @@ The `lp_commission` remains in the swap pool, which is fixed to `0.3%`, causing 
 
 ## QueryMsg
 
-All query messages are described below. A custom struct is defined for each query response
+All query messages are described below. A custom struct is defined for each query response.
 
 ### `pair`
 

@@ -1,14 +1,14 @@
 # Astroport Factory
 
-The factory contract can perform creation of astroport pair contract and used as directory contract for all pairs. Code ID for a pair type can be provided when instantiating a new pair (e.g. stableswap). Available pair types are stable and xyk (TODO discussion custom managed via a whitelist).
+The factory contract can perform creation of astroport pair contract and used as directory contract for all pairs. Available pair types are stable and xyk (TODO discussion custom managed via a whitelist).
 
-README has updated with new messages (Astroport v1 messages follow)
+README has updated with new messages (Astroport v1 messages follow).
 
 ---
 
 ## InstantiateMsg
 
-Init contract. Set pair contract code IDs which are allowed to create pairs.
+Code ID for a pair type can be provided when instantiating a new pair. So, you don’t have to execute pair contract additionally.
 
 ```json
 {
@@ -40,7 +40,7 @@ Init contract. Set pair contract code IDs which are allowed to create pairs.
 
 ### `update_pair_config`
 
-Updating code id and fees for specified pair type
+Updating code id and fees for specified pair type.
 
 ```json
 {
@@ -59,7 +59,7 @@ Updating code id and fees for specified pair type
 
 ### `remove_pair_config`
 
-Removing config for specified pair type
+Removing config for specified pair type.
 
 ```json
 {
@@ -103,8 +103,7 @@ Anyone can execute it to create swap pair. When a user executes `CreatePair` ope
 
 When a user executes `CreatePair` operation, it passes `InitHook` to `Pair` contract and `Pair` contract will invoke passed `InitHook` registering created `Pair` contract to the factory. This operation is only allowed for a pair, which is not fully initialized.
 
-Once a `Pair` contract invokes it, the sender address is registered as `Pair` contract address for the given
-asset_infos.
+Once a `Pair` contract invokes it, the sender address is registered as `Pair` contract address for the given asset_infos.
 
 ```json
 {
@@ -150,7 +149,7 @@ Deregisters already registered pair (deletes pair).
 
 ## QueryMsg
 
-All query messages are described below. A custom struct is defined for each query response
+All query messages are described below. A custom struct is defined for each query response.
 
 ### `config`
 
@@ -209,7 +208,7 @@ Gives paginated pair infos using specified start_after and limit.
 
 ### `fee_info`
 
-Gives fees for specified pair type
+Gives fees for specified pair type.
 
 ```json
 {
