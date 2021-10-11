@@ -210,7 +210,7 @@ pub fn receive_cw20(
     }
 }
 
-// Must token contract execute it
+/// Token contract must execute it
 pub fn post_initialize(
     deps: DepsMut,
     _env: Env,

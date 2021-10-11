@@ -264,7 +264,7 @@ pub fn execute_create_pair(
         ]))
 }
 
-/// create pair execute this message
+/// create pair executes this message
 pub fn register(
     deps: DepsMut,
     info: MessageInfo,
@@ -293,7 +293,7 @@ pub fn register(
     ]))
 }
 
-/// create pair execute this message
+/// create pair executes this message
 pub fn deregister(
     deps: DepsMut,
     info: MessageInfo,

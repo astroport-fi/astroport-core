@@ -47,7 +47,7 @@ Inits a new x*y=k pair with msg
 
 ### `receive`
 
-Withdraws provided liquidity or swap assets (only for token contract)
+Withdrawing provided liquidity or swap assets (only for token contract)
 
 ```json
 {
@@ -59,7 +59,7 @@ Withdraws provided liquidity or swap assets (only for token contract)
 
 ### `post_initialize`
 
-Allows user to set controlled contract address after creating it
+LP token contract must execute it after creating.
 
 ```json
 {}
@@ -67,7 +67,7 @@ Allows user to set controlled contract address after creating it
 
 ### `provide_liquidity`
 
-Provides pool liquidity by sending native assets or tokens.
+Provides pool liquidity by sending native or token assets.
 
 1. Without Slippage Tolerance
 
@@ -172,7 +172,7 @@ product K. The value of this permanently increased pool goes to all LPs.
 
 ### `pair`
 
-Get pair info (assets, pair type, etc.)
+Get pair type, assets, etc.
 
 ```json
 {}
