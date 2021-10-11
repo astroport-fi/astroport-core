@@ -621,12 +621,12 @@ fn consult2() {
         (
             astro_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(750u128),
+            Uint128::from(625u128),
         ),
         (
             usdc_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(1333u128),
+            Uint128::from(1600u128),
         ),
     ] {
         let msg = Consult {
@@ -674,12 +674,12 @@ fn consult2() {
         (
             astro_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(1058u128),
+            Uint128::from(1444u128),
         ),
         (
             usdc_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(944u128),
+            Uint128::from(692u128),
         ),
     ] {
         let msg = Consult {
@@ -778,12 +778,12 @@ fn consult_zero_price() {
         (
             astro_token_instance.clone(),
             Uint128::from(100u128),
-            Uint128::from(99u128),
+            Uint128::from(100u128),
         ),
         (
             usdc_token_instance.clone(),
             Uint128::from(100u128),
-            Uint128::from(99u128),
+            Uint128::from(100u128),
         ),
     ] {
         let msg = Consult {
