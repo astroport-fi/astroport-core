@@ -1,7 +1,6 @@
 # Astroport Factory
 
-The factory contract can perform creation of astroport pair contract and used as directory contract for all
-pairs. Code ID for a pair type can be provided when instantiating a new pair (e.g. stableswap). Available pair types are stable and xyk (TODO discussion custom managed via a whitelist).
+The factory contract can perform creation of astroport pair contract and used as directory contract for all pairs. Code ID for a pair type can be provided when instantiating a new pair (e.g. stableswap). Available pair types are stable and xyk (TODO discussion custom managed via a whitelist).
 
 README has updated with new messages (Astroport v1 messages follow)
 
@@ -9,7 +8,7 @@ README has updated with new messages (Astroport v1 messages follow)
 
 ## InstantiateMsg
 
-Init contract. Set pair contract code IDs which are allowed to create pairs
+Init contract. Set pair contract code IDs which are allowed to create pairs.
 
 ```json
 {
@@ -72,9 +71,7 @@ Removing config for specified pair type
 
 ### `create_pair`
 
-Anyone can execute it to create swap pair. When a user executes `CreatePair` operation, it creates `Pair` contract and `LP(liquidity provider)` token contract. It
-also creates not fully initialized `PairInfo`, which will be initialized with `Register` operation from the pair
-contract's `InitHook`.
+Anyone can execute it to create swap pair. When a user executes `CreatePair` operation, it creates `Pair` contract and `LP(liquidity provider)` token contract. It also creates not fully initialized `PairInfo`, which will be initialized with `Register` operation from the pair contract's `InitHook`.
 
 ```json
 {
@@ -104,9 +101,7 @@ contract's `InitHook`.
 
 ### `register`
 
-When a user executes `CreatePair` operation, it passes `InitHook` to `Pair` contract and `Pair` contract will invoke
-passed `InitHook` registering created `Pair` contract to the factory. This operation is only allowed for a pair, which
-is not fully initialized.
+When a user executes `CreatePair` operation, it passes `InitHook` to `Pair` contract and `Pair` contract will invoke passed `InitHook` registering created `Pair` contract to the factory. This operation is only allowed for a pair, which is not fully initialized.
 
 Once a `Pair` contract invokes it, the sender address is registered as `Pair` contract address for the given
 asset_infos.
@@ -132,7 +127,7 @@ asset_infos.
 
 ### `deregister`
 
-> TODO discussion: description is similar to register one, but deregister old one pair.
+Deregisters already registered pair (deletes pair).
 
 ```json
 {

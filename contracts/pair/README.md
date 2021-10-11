@@ -26,7 +26,7 @@ So, at a 1% tolerance level, if a user sends a transaction with 200 UST and 1 AS
 
 ## InstantiateMsg
 
-Inits a new x*y=k pair with msg
+Inits a new x*y=k pair.
 
 ```json
 {
@@ -135,7 +135,7 @@ Provides pool liquidity by sending native or token assets.
 
 ### Swap
 
-Swap an offer asset to the other
+Swaps an offer asset to the other.
 
   ```json
   {
@@ -170,6 +170,8 @@ product K. The value of this permanently increased pool goes to all LPs.
 
 ## QueryMsg
 
+All query messages are described below. A custom struct is defined for each query response
+
 ### `pair`
 
 Get pair type, assets, etc.
@@ -180,7 +182,7 @@ Get pair type, assets, etc.
 
 ### `pool`
 
-Get pool assets and total share
+Get pool assets and total share.
 
 ```json
 {}
@@ -188,7 +190,7 @@ Get pool assets and total share
 
 ### `share`
 
-Query share in assets for given amount
+Query share in assets for given amount.
 
 ```json
 {
@@ -198,7 +200,7 @@ Query share in assets for given amount
 
 ### `simulation`
 
-Simulation swap amounts to get return, spread, commission amounts
+Simulation swap amounts to get return, spread, commission amounts.
 
 ```json
 {
@@ -215,7 +217,7 @@ Simulation swap amounts to get return, spread, commission amounts
 
 ### `reverse_simulation`
 
-Simulation swap to get offer, spread, commission amounts
+Simulation swap to get offer, spread, commission amounts.
 
 ```json
 {
@@ -232,7 +234,7 @@ Simulation swap to get offer, spread, commission amounts
 
 ### `cumulative_prices`
 
-Query assets last cumulative prices, total share
+Query assets last cumulative prices, total share.
 
 ```json
 {}
