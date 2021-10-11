@@ -54,8 +54,7 @@ pub fn query_balance(
 
 ### Token Balance Querier
 
-It provides simliar query interface with [Native-Token-Balance-Querier](Native-Token-Balance-Querier) for CW20 token
-balance.
+It provides simliar query interface with [Native-Token-Balance-Querier](Native-Token-Balance-Querier) for CW20 token balance.
 
 ```rust
 pub fn query_token_balance(
@@ -78,8 +77,7 @@ pub fn query_supply(
 
 ### Pair Info Querier
 
-It also provides the query interface to query available astroport pair contract info. Any contract can query pair info
-to astroport factory contract.
+It also provides the query interface to query available astroport pair contract info. Any contract can query pair info to astroport factory contract.
 
 ```rust
 pub fn query_pair_contract(
@@ -104,7 +102,7 @@ pub fn query_liquidity_token(
 
 ### Simulate
 
-It returns simulation swap return, spread, commission amounts.
+Returns simulation swap return, spread, commission amounts.
 
 ```rust
 pub fn simulate(
@@ -116,7 +114,7 @@ pub fn simulate(
 
 ### Reverse Simulate
 
-It returns simulation swap offer, spread, commission amounts.
+Returns simulation swap offer, spread, commission amounts.
 
 ```rust
 pub fn reverse_simulate(

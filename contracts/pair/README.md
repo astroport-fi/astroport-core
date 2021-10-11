@@ -157,8 +157,7 @@ Swaps an offer asset to the other.
 
 #### Commission
 
-The `lp_commission` remains in the swap pool, which is fixed to `0.3%`, causing a permanent increase in the constant
-product K. The value of this permanently increased pool goes to all LPs.
+The `lp_commission` remains in the swap pool, which is fixed to `0.3%`, causing a permanent increase in the constant product K. The value of this permanently increased pool goes to all LPs.
 
 ### `update_config`
 
