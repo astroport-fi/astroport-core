@@ -237,7 +237,7 @@ pub fn provide_liquidity(
         asset.assert_sent_native_token_balance(&info)?;
     }
 
-    let config: Config = CONFIG.load(deps.storage)?;
+    let mut config: Config = CONFIG.load(deps.storage)?;
     let mut pools: [Asset; 2] = config
         .pair_info
         .query_pools(&deps.querier, env.contract.address.clone())?;
@@ -324,7 +324,12 @@ pub fn provide_liquidity(
     });
 
     // Accumulate prices for oracle
-    if let Some(config) = accumulate_prices(env, config, pools[0].amount, pools[1].amount) {
+    if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
+        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)
+    {
+        config.price0_cumulative_last = price0_cumulative_new;
+        config.price1_cumulative_last = price1_cumulative_new;
+        config.block_time_last = block_time;
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -344,7 +349,7 @@ pub fn withdraw_liquidity(
     sender: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let config: Config = CONFIG.load(deps.storage).unwrap();
+    let mut config: Config = CONFIG.load(deps.storage).unwrap();
 
     if info.sender != config.pair_info.liquidity_token {
         return Err(ContractError::Unauthorized {});
@@ -354,7 +359,12 @@ pub fn withdraw_liquidity(
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
 
     // Accumulate prices for oracle
-    if let Some(config) = accumulate_prices(env, config.clone(), pools[0].amount, pools[1].amount) {
+    if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
+        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)
+    {
+        config.price0_cumulative_last = price0_cumulative_new;
+        config.price1_cumulative_last = price1_cumulative_new;
+        config.block_time_last = block_time;
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -428,7 +438,7 @@ pub fn swap(
 ) -> Result<Response, ContractError> {
     offer_asset.assert_sent_native_token_balance(&info)?;
 
-    let config: Config = CONFIG.load(deps.storage)?;
+    let mut config: Config = CONFIG.load(deps.storage)?;
 
     // If the asset balance is already increased
     // To calculated properly we should subtract user deposit from the pool
@@ -525,34 +535,46 @@ pub fn swap(
     }
 
     // Accumulate prices for oracle
-    if let Some(config) = accumulate_prices(env, config, pools[0].amount, pools[1].amount) {
+    if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
+        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)
+    {
+        config.price0_cumulative_last = price0_cumulative_new;
+        config.price1_cumulative_last = price1_cumulative_new;
+        config.block_time_last = block_time;
         CONFIG.save(deps.storage, &config)?;
     }
 
     Ok(response.add_attribute("maker_fee_amount", maker_fee_amount.to_string()))
 }
 
-pub fn accumulate_prices(env: Env, config: Config, x: Uint128, y: Uint128) -> Option<Config> {
-    let mut config = config;
-
+pub fn accumulate_prices(
+    env: Env,
+    config: &Config,
+    x: Uint128,
+    y: Uint128,
+) -> Option<(Uint128, Uint128, u64)> {
     let block_time = env.block.time.seconds();
-    if block_time <= config.block_time_last || x.is_zero() || y.is_zero() {
+    if block_time <= config.block_time_last {
         return None;
     }
 
+    // we have to shift block_time when any price is zero to not fill an accumulator with a new price to that period
+
     let time_elapsed = Uint128::new((block_time - config.block_time_last) as u128);
 
-    config.price0_cumulative_last = config
-        .price0_cumulative_last
-        .wrapping_add(time_elapsed * Decimal::from_ratio(y, x));
+    let mut pcl0 = config.price0_cumulative_last;
+    let mut pcl1 = config.price1_cumulative_last;
 
-    config.price1_cumulative_last = config
-        .price1_cumulative_last
-        .wrapping_add(time_elapsed * Decimal::from_ratio(x, y));
+    if !x.is_zero() && !y.is_zero() {
+        pcl0 = config
+            .price0_cumulative_last
+            .wrapping_add(time_elapsed * Decimal::from_ratio(y, x));
+        pcl1 = config
+            .price1_cumulative_last
+            .wrapping_add(time_elapsed * Decimal::from_ratio(x, y))
+    };
 
-    config.block_time_last = block_time;
-
-    Some(config)
+    Some((pcl0, pcl1, block_time))
 }
 
 pub fn calculate_maker_fee(
@@ -594,7 +616,7 @@ pub fn get_fee_info(deps: Deps, config: Config) -> StdResult<FeeInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Pair {} => to_binary(&query_pair_info(deps)?),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
@@ -603,7 +625,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::ReverseSimulation { ask_asset } => {
             to_binary(&query_reverse_simulation(deps, ask_asset)?)
         }
-        QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps)?),
+        QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
     }
 }
 
@@ -709,15 +731,25 @@ pub fn query_reverse_simulation(
     })
 }
 
-pub fn query_cumulative_prices(deps: Deps) -> StdResult<CumulativePricesResponse> {
+pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps, config.clone())?;
+
+    let mut price0_cumulative_last = config.price0_cumulative_last;
+    let mut price1_cumulative_last = config.price1_cumulative_last;
+
+    if let Some((price0_cumulative_new, price1_cumulative_new, _)) =
+        accumulate_prices(env, &config, assets[0].amount, assets[1].amount)
+    {
+        price0_cumulative_last = price0_cumulative_new;
+        price1_cumulative_last = price1_cumulative_new;
+    }
 
     let resp = CumulativePricesResponse {
         assets,
         total_share,
-        price0_cumulative_last: config.price0_cumulative_last,
-        price1_cumulative_last: config.price1_cumulative_last,
+        price0_cumulative_last,
+        price1_cumulative_last,
     };
 
     Ok(resp)
