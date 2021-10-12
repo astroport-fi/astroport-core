@@ -6,7 +6,7 @@ This is a collection of common types and the queriers which are commonly used in
 
 ### AssetInfo
 
-AssetInfo is a convience wrapper to represent the native token and the contract token as a single type.
+AssetInfo is a convenience wrapper to represent the native token and the contract token as a single type.
 
 ```rust
 #[serde(rename_all = "snake_case")]
@@ -54,7 +54,7 @@ pub fn query_balance(
 
 ### Token Balance Querier
 
-It provides simliar query interface with [Native-Token-Balance-Querier](Native-Token-Balance-Querier) for CW20 token balance.
+It provides similar query interface with [Native-Token-Balance-Querier](Native-Token-Balance-Querier) for CW20 token balance.
 
 ```rust
 pub fn query_token_balance(

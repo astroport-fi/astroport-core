@@ -51,9 +51,11 @@ Withdrawing provided liquidity or swap assets (only for token contract).
 
 ```json
 {
-  "sender": "terra...",
-  "amount": "123",
-  "msg": "123"
+  "receive": {
+    "sender": "terra...",
+    "amount": "123",
+    "msg": "123"
+  }
 }
 ```
 
@@ -62,7 +64,9 @@ Withdrawing provided liquidity or swap assets (only for token contract).
 LP token contract must execute it after creating.
 
 ```json
-{}
+{
+  "post_initialize": {}
+}
 ```
 
 ### `provide_liquidity`
@@ -73,55 +77,55 @@ Provides pool liquidity by sending user's native or token assets. It can be dist
 
   ```json
   {
-  "provide_liquidity": {
-    "assets": [
-      {
-        "info": {
-          "token": {
-            "contract_addr": "terra..."
-          }
+    "provide_liquidity": {
+      "assets": [
+        {
+          "info": {
+            "token": {
+              "contract_addr": "terra..."
+            }
+          },
+          "amount": "1000000"
         },
-        "amount": "1000000"
-      },
-      {
-        "info": {
-          "native_token": {
-            "denom": "uusd"
-          }
-        },
-        "amount": "1000000"
-      }
-    ]
+        {
+          "info": {
+            "native_token": {
+              "denom": "uusd"
+            }
+          },
+          "amount": "1000000"
+        }
+      ]
+    }
   }
-}
   ```
 
 2. With Slippage Tolerance
 
   ```json
   {
-  "provide_liquidity": {
-    "assets": [
-      {
-        "info": {
-          "token": {
-            "contract_addr": "terra..."
-          }
+    "provide_liquidity": {
+      "assets": [
+        {
+          "info": {
+            "token": {
+              "contract_addr": "terra..."
+            }
+          },
+          "amount": "1000000"
         },
-        "amount": "1000000"
-      },
-      {
-        "info": {
-          "native_token": {
-            "denom": "uusd"
-          }
-        },
-        "amount": "1000000"
-      }
-    ]
-  },
-  "slippage_tolerance": "0.01"
-}
+        {
+          "info": {
+            "native_token": {
+              "denom": "uusd"
+            }
+          },
+          "amount": "1000000"
+        }
+      ]
+    },
+    "slippage_tolerance": "0.01"
+  }
   ```
 
 - Withdraw Liquidity (must be sent to liquidity token contract)
@@ -140,19 +144,19 @@ NOTE: You should increase token allowance before swap. This method is only used 
 
   ```json
   {
-      "swap": {
-          "offer_asset": {
-              "info": {
-                  "native_token": {
-                      "denom": "uluna"
-                  }
-              },
-              "amount": "123"
-          },
-          "belief_price": "123",
-          "max_spread": "123",
-          "to": "terra..."
-      }
+    "swap": {
+      "offer_asset": {
+        "info": {
+          "native_token": {
+            "denom": "uluna"
+          }
+        },
+        "amount": "123"
+      },
+      "belief_price": "123",
+      "max_spread": "123",
+      "to": "terra..."
+    }
   }
   ```
 
@@ -164,7 +168,9 @@ The `lp_commission` remains in the swap pool. The value of this permanently incr
 
 ```json
 {
-  "amp": "123"
+  "update_config": {
+    "amp": "123"
+  }
 }
 ```
 
@@ -177,7 +183,9 @@ All query messages are described below. A custom struct is defined for each quer
 Get pair type, assets, etc.
 
 ```json
-{}
+{
+  "pair": {}
+}
 ```
 
 ### `pool`
@@ -185,7 +193,9 @@ Get pair type, assets, etc.
 Get pool assets and total share.
 
 ```json
-{}
+{
+  "pool": {}
+}
 ```
 
 ### `share`
@@ -194,7 +204,9 @@ Query share in assets for given amount.
 
 ```json
 {
-  "amount": "123"
+  "share": {
+    "amount": "123"
+  }
 }
 ```
 
@@ -204,13 +216,15 @@ Simulation swap amounts to get return, spread, commission amounts.
 
 ```json
 {
-  "offer_asset": {
-    "info": {
-      "native_token": {
-        "denom": "uusd"
-      }
-    },
-    "amount": "1000000"
+  "simulation": {
+    "offer_asset": {
+      "info": {
+        "native_token": {
+          "denom": "uusd"
+        }
+      },
+      "amount": "1000000"
+    }
   }
 }
 ```
@@ -221,13 +235,15 @@ Simulation swap to get offer, spread, commission amounts.
 
 ```json
 {
-  "ask_asset": {
-    "info": {
-      "token": {
-        "contract_addr": "terra..."
-      }
-    },
-    "amount": "1000000"
+  "reverse_simulation": {
+    "ask_asset": {
+      "info": {
+        "token": {
+          "contract_addr": "terra..."
+        }
+      },
+      "amount": "1000000"
+    }
   }
 }
 ```
@@ -237,5 +253,7 @@ Simulation swap to get offer, spread, commission amounts.
 Query assets last cumulative prices, total share.
 
 ```json
-{}
+{
+  "cumulative_prices": {}
+}
 ```

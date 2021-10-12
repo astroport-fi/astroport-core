@@ -1,10 +1,32 @@
 # Astroport Oracle
 
-The oracle contract can perform calculation pair assets average prices that consumed outside the astroport.
+The oracle contract performs calculation x*y=k pair assets average prices.
 
 README has updated with new messages (Astroport v1 messages follow)
 
 ---
+
+## InstantiateMsg
+
+Inits with factory contract to check asset pair type is x*y=k.
+
+```json
+{
+  "factory_contract": "terra...",
+  "asset_infos": [
+    {
+      "token": {
+        "contract_addr": "terra..."
+      }
+    },
+    {
+      "native_token": {
+        "denom": "uusd"
+      }
+    }
+  ]
+}
+```
 
 ## ExecuteMsg
 
@@ -13,7 +35,9 @@ README has updated with new messages (Astroport v1 messages follow)
 Updates pair average and cumulative prices.
 
 ```json
-{}
+{
+  "update": {}
+}
 ```
 
 ## QueryMsg
@@ -26,14 +50,15 @@ Multiplies a given amount and last average price in common.
 
 ```json
 {
-  "token":
-    {
+  "consult": {
+    "token": {
       "info": {
         "token": {
           "contract_addr": "terra..."
         }
       }
     },
-  "amount": "1000000"
+    "amount": "1000000"
+  }
 }
 ```

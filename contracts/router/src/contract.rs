@@ -73,7 +73,7 @@ pub fn execute(
             prev_balance,
             minimum_receive,
             receiver,
-        } => assert_minium_receive(
+        } => assert_minimum_receive(
             deps.as_ref(),
             asset_info,
             prev_balance,
@@ -185,19 +185,19 @@ pub fn execute_swap_operations(
     Ok(Response::new().add_submessages(messages))
 }
 
-fn assert_minium_receive(
+fn assert_minimum_receive(
     deps: Deps,
     asset_info: AssetInfo,
     prev_balance: Uint128,
-    minium_receive: Uint128,
+    minimum_receive: Uint128,
     receiver: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let receiver_balance = asset_info.query_pool(&deps.querier, receiver)?;
     let swap_amount = receiver_balance.checked_sub(prev_balance)?;
 
-    if swap_amount < minium_receive {
+    if swap_amount < minimum_receive {
         return Err(ContractError::AssertionMinimumReceive {
-            receive: minium_receive,
+            receive: minimum_receive,
             amount: swap_amount,
         });
     }
