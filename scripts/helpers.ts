@@ -1,7 +1,9 @@
+import 'dotenv/config'
 import {
-    Coin,
+    Coins,
     isTxError,
     LCDClient,
+    LocalTerra,
     MnemonicKey,
     Msg,
     MsgExecuteContract,
@@ -11,8 +13,47 @@ import {
     StdTx,
     Wallet
 } from '@terra-money/terra.js';
-import { readFileSync } from 'fs';
+import {
+    readFileSync,
+    writeFileSync,
+} from 'fs'
+import path from 'path'
 import { CustomError } from 'ts-custom-error'
+
+const ARTIFACTS_PATH = '../artifacts'
+
+export function readArtifact(name: string = 'artifact') {
+    try {
+        const data = readFileSync(path.join(ARTIFACTS_PATH, `${name}.json`), 'utf8')
+        return JSON.parse(data)
+    } catch (e) {
+        return {}
+    }
+}
+
+export interface Client {
+    wallet: Wallet
+    terra: LCDClient | LocalTerra
+}
+
+export function newClient(): Client {
+    const client = <Client>{}
+    if (process.env.WALLET) {
+        client.terra = new LCDClient({
+            URL: String(process.env.LCD_CLIENT_URL),
+            chainID: String(process.env.CHAIN_ID)
+        })
+        client.wallet = recover(client.terra, process.env.WALLET)
+    } else {
+        client.terra = new LocalTerra()
+        client.wallet = (client.terra as LocalTerra).wallets.test1
+    }
+    return client
+}
+
+export function writeArtifact(data: object, name: string = 'artifact') {
+    writeFileSync(path.join(ARTIFACTS_PATH, `${name}.json`), JSON.stringify(data, null, 2))
+}
 
 // Tequila lcd is load balanced, so txs can't be sent too fast, otherwise account sequence queries
 // may resolve an older state depending on which lcd you end up with. Generally 1000 ms is is enough
@@ -75,7 +116,7 @@ export async function instantiateContract(terra: LCDClient, wallet: Wallet, code
     return attributes[attributes.length - 1].value // contract address
 }
 
-export async function executeContract(terra: LCDClient, wallet: Wallet, contractAddress: string, msg: object, coins?: string) {
+export async function executeContract(terra: LCDClient, wallet: Wallet, contractAddress: string, msg: object, coins?: Coins.Input) {
     const executeMsg = new MsgExecuteContract(wallet.key.accAddress, contractAddress, msg, coins);
     return await performTransaction(terra, wallet, executeMsg);
 }

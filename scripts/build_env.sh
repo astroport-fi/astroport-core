@@ -18,5 +18,4 @@ docker-compose --project-directory "$terraLocalPath" rm --force --stop && docker
 
 sleep 5 # waite startup terra local
 
-cd "$projectPath/scripts" && node --loader ts-node/esm create_astro.ts
-cd "$projectPath/scripts" && node --loader ts-node/esm deploy.ts
+rm -fr "$projectPath/artifacts/localterra.json"
