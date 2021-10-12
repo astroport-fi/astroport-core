@@ -35,6 +35,8 @@ It is used to represent response data of [Pair-Info-Querier](#Pair-Info-Querier)
 pub struct PairInfo {
     pub contract_addr: Addr,
     pub asset_infos: [AssetInfo; 2],
+    pub liquidity_token: Addr,
+    pub pair_type: PairType,
 }
 ```
 

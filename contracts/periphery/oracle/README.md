@@ -1,8 +1,8 @@
 # Astroport Oracle
 
-The oracle contract performs calculation x*y=k pair assets average prices.
+The oracle contract performs calculation x*y=k pair assets average prices based on accumulations and time period (day).
 
-README has updated with new messages (Astroport v1 messages follow)
+README has updated with new messages (Astroport v1 messages follow).
 
 ---
 

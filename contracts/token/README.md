@@ -1,6 +1,6 @@
 # Astroport Token
 
-README has updated with new messages (Astroport v1 messages follow)
+README has updated with new messages (Astroport v1 messages follow).
 
 ---
 # CW20 based token contract

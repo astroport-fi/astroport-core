@@ -134,6 +134,8 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `config`
 
+Returns factory contract address.
+
 ```json
 {
   "config": {}

@@ -1,6 +1,6 @@
 # Astroport Factory
 
-The factory contract can perform creation of astroport pair contract and used as directory contract for all pairs. Available pair types are stable and xyk (TODO discussion custom managed via a whitelist).
+The factory contract can perform creation of astroport pair contract and used as directory contract for all pairs. Available pair types are stable and xyk only.
 
 README has updated with new messages (Astroport v1 messages follow).
 
