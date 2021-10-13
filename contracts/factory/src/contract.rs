@@ -33,8 +33,8 @@ pub fn instantiate(
     let config = Config {
         owner: info.sender,
         token_code_id: msg.token_code_id,
-        fee_address: Option::from(msg.fee_address.unwrap_or_else(|| Addr::unchecked(""))),
-        gov: Option::from(msg.gov.unwrap_or_else(|| Addr::unchecked(""))),
+        fee_address: msg.fee_address,
+        gov: msg.gov,
     };
 
     let config_set: HashSet<String> = msg
@@ -117,7 +117,7 @@ pub fn execute_update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(gov) = gov{
+    if let Some(gov) = gov {
         // validate address format
         config.gov = Option::from(deps.api.addr_validate(gov.as_str())?);
     }
