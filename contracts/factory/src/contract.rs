@@ -33,8 +33,8 @@ pub fn instantiate(
     let config = Config {
         owner: info.sender,
         token_code_id: msg.token_code_id,
-        fee_address: msg.fee_address.unwrap_or_else(|| Addr::unchecked("")),
-        gov: msg.gov.unwrap_or_else(|| Addr::unchecked("")),
+        fee_address: Option::from(msg.fee_address.unwrap_or_else(|| Addr::unchecked(""))),
+        gov: Option::from(msg.gov.unwrap_or_else(|| Addr::unchecked(""))),
     };
 
     let config_set: HashSet<String> = msg
@@ -117,9 +117,9 @@ pub fn execute_update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(gov) = gov {
+    if let Some(gov) = gov{
         // validate address format
-        config.gov = deps.api.addr_validate(gov.as_str())?;
+        config.gov = Option::from(deps.api.addr_validate(gov.as_str())?);
     }
 
     if let Some(owner) = owner {
@@ -129,7 +129,7 @@ pub fn execute_update_config(
 
     if let Some(fee_address) = fee_address {
         // validate address format
-        config.fee_address = deps.api.addr_validate(fee_address.as_str())?;
+        config.fee_address = Option::from(deps.api.addr_validate(fee_address.as_str())?);
     }
 
     if let Some(token_code_id) = token_code_id {
@@ -330,7 +330,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
         owner: config.owner,
-        gov: Option::from(config.gov),
+        gov: config.gov,
         token_code_id: config.token_code_id,
         pair_configs: PAIR_CONFIGS
             .range(deps.storage, None, None, Order::Ascending)
@@ -365,7 +365,7 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
     let pair_config = PAIR_CONFIGS.load(deps.storage, pair_type.to_string())?;
 
     Ok(FeeInfoResponse {
-        fee_address: Some(config.fee_address).filter(|a| a != &Addr::unchecked("")),
+        fee_address: config.fee_address,
         total_fee_bps: pair_config.total_fee_bps,
         maker_fee_bps: pair_config.maker_fee_bps,
     })

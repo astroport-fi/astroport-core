@@ -998,10 +998,8 @@ pub fn update_config(
                 msg: to_binary(&FactoryQueryMsg::Config {})?,
             }))?;
 
-        if let Some(gov) = factory_config.gov {
-            if info.sender != gov {
-                return Err(ContractError::Unauthorized {});
-            }
+        if info.sender != factory_config.gov.unwrap_or_else(|| Addr::unchecked("")) {
+            return Err(ContractError::Unauthorized {});
         }
 
         state.amp = amp.unwrap_or(state.amp);

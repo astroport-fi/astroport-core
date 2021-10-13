@@ -98,12 +98,12 @@ fn update_config() {
     assert_eq!(new_owner.clone(), config_res.owner);
 
     // update left items
-    let fee_address = Addr::unchecked("fee");
+    let fee_address = Some(Addr::unchecked("fee"));
     let msg = ExecuteMsg::UpdateConfig {
         gov: None,
         owner: None,
         token_code_id: Some(200u64),
-        fee_address: Some(fee_address.clone()),
+        fee_address: fee_address.clone(),
     };
 
     app.execute_contract(new_owner, factory_instance.clone(), &msg, &[])

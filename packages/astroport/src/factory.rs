@@ -102,7 +102,7 @@ pub struct ConfigResponse {
     pub gov: Option<Addr>,
     pub pair_configs: Vec<PairConfig>,
     pub token_code_id: u64,
-    pub fee_address: Addr,
+    pub fee_address: Option<Addr>,
 }
 
 /// We currently take no arguments for migrations
