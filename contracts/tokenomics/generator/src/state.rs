@@ -21,7 +21,6 @@ pub struct PoolInfo {
     // for calculation of new proxy rewards
     pub proxy_reward_balance_before_update: Uint128,
 }
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
