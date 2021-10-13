@@ -14,7 +14,7 @@ Inits with required contract addresses for depositing and reward distribution.
 {
   "astro_token": "terra...",
   "tokens_per_block": "123",
-  "start_block": 123,
+  "start_block": "123",
   "allowed_reward_proxies": [
     "terra..."
   ],
