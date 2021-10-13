@@ -31,7 +31,7 @@ CW20 receive msg.
   "receive": {
     "sender": "terra...",
     "amount": "123",
-    "msg": "123"
+    "msg": "<base64_encoded_json_string>"
   }
 }
 ```

@@ -30,14 +30,14 @@ Inits a new x*y=k pair.
 
 ```json
 {
-  "paid_code_id": "123",
-  "token_code_id": "123",
+  "paid_code_id": 123,
+  "token_code_id": 123,
   "factory_addr": "terra...",
   "pair_type": {
     "xyk": {}
   },
   "init_hook": {
-    "msg": "123",
+    "msg": "<base64_encoded_json_string>",
     "contract_addr": "terra..."
   }
 }
@@ -54,7 +54,7 @@ Withdrawing provided liquidity or swap assets (only for token contract).
   "receive": {
     "sender": "terra...",
     "amount": "123",
-    "msg": "123"
+    "msg": "<base64_encoded_json_string>"
   }
 }
 ```

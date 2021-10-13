@@ -34,7 +34,7 @@ CW20 receive msg.
   "receive": {
     "sender": "terra...",
     "amount": "123",
-    "msg": "123"
+    "msg": "<base64_encoded_json_string>"
   }
 }
 ```
@@ -122,7 +122,7 @@ Checks the swap amount is exceed minimum_receive. Msg is for internal use.
       }
     },
     "prev_balance": "123",
-    "minimum_receive": 123,
+    "minimum_receive": "123",
     "receiver": "terra..."
   }
 }

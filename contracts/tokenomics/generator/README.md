@@ -32,8 +32,8 @@ Adds support of a new LP with optional reward_proxy address. `with_update` for u
 {
   "add": {
     "lp_token": "terra...",
-    "alloc_point": "123",
-    "with_update": "true",
+    "alloc_point": "40",
+    "with_update": true,
     "reward_proxy": "terra..."
   }
 }
@@ -47,8 +47,8 @@ Updates LP token allocation point. `with_update` for updating pool reward only.
 {
   "set": {
     "lp_token": "terra...",
-    "alloc_point": "123",
-    "with_update": "true"
+    "alloc_point": "60",
+    "with_update": true
   }
 }
 ```

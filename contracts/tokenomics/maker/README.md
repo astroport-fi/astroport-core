@@ -16,7 +16,7 @@ Inits with required contract addresses and `governance_percent`.
   "factory_contract": "terra...",
   "staking_contract": "terra...",
   "governance_contract": "terra...",
-  "governance_percent": "123"
+  "governance_percent": "20"
 }
 ```
 
@@ -44,7 +44,7 @@ Updates config, all fields are optional.
 {
   "staking_contract": "terra...",
   "governance_contract": "terra...",
-  "governance_percent": "123"
+  "governance_percent": "20"
 }
 ```
 

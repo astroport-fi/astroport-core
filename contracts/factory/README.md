@@ -12,12 +12,12 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
 
 ```json
 {
-  "paid_code_id": "123",
-  "token_code_id": "123",
+  "paid_code_id": 123,
+  "token_code_id": 123,
   "fee_address": "terra...",
   "gov": "terra...",
   "init_hook": {
-    "msg": "123",
+    "msg": "<base64_encoded_json_string>",
     "contract_addr": "terra..."
   }
 }
@@ -32,8 +32,8 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
   "update_config": {
     "gov": "terra...",
     "owner": "terra...",
-    "token_code_id": "123",
-    "fee_address": "123"
+    "token_code_id": 123,
+    "fee_address": "terra..."
   }
 }
 ```
@@ -46,12 +46,12 @@ Updating code id and fees for specified pair type. All fields are optional.
 {
   "update_pair_config": {
     "config": {
-      "code_id": "123",
+      "code_id": 123,
       "pair_type": {
         "xyk": {}
       },
-      "total_fee_bps": "123",
-      "maker_fee_bps": "123"
+      "total_fee_bps": 100,
+      "maker_fee_bps": 10
     }
   }
 }
@@ -93,7 +93,7 @@ Anyone can execute it to create swap pair. When a user executes `CreatePair` ope
     ]
   },
   "init_hook": {
-    "msg": "123",
+    "msg": "<base64_encoded_json_string>",
     "contract_addr": "terra..."
   }
 }
@@ -201,7 +201,7 @@ Gives paginated pair infos using specified start_after and limit. Given fields a
         }
       }
     ],
-    "limit": "123"
+    "limit": 10
   }
 }
 ```
