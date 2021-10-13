@@ -23,7 +23,7 @@ Contract relative path is ../contracts/tokenomics.
 | [`generator_proxy_to_mirror`](generator_proxy_to_mirror)   | Rewards generator proxy for liquidity providers  |
 | [`maker`](maker)                                           | Assets collector and distributor                 |
 | [`staking`](staking)                                       | ASTRO staking contract                           |
-| [`staking`](vesting)                                       | ASTRO token distributor                          |
+| [`vesting`](vesting)                                       | ASTRO token distributor                          |
 
 ## Running this contract
 
