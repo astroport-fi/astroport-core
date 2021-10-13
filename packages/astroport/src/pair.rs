@@ -26,7 +26,7 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
-    /// Post initize step to allow user to set controlled contract address after creating it
+    /// Post initialize step to allow user to set controlled contract address after creating it
     PostInitialize {},
     /// ProvideLiquidity a user provides pool liquidity
     ProvideLiquidity {
