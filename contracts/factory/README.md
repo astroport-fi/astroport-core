@@ -8,7 +8,7 @@ README has updated with new messages (Astroport v1 messages follow).
 
 ## InstantiateMsg
 
-Code ID for a pair type can be provided when instantiating a new pair. So, you don’t have to execute pair contract additionally.
+Code ID for a pair type is provided when instantiating a new pair. So, you don’t have to execute pair contract additionally.
 
 ```json
 {
@@ -40,7 +40,7 @@ Code ID for a pair type can be provided when instantiating a new pair. So, you d
 
 ### `update_pair_config`
 
-Updating code id and fees for specified pair type.
+Updating code id and fees for specified pair type. All fields are optional.
 
 ```json
 {
@@ -184,7 +184,7 @@ Gives info for specified assets pair.
 
 ### `pairs`
 
-Gives paginated pair infos using specified start_after and limit.
+Gives paginated pair infos using specified start_after and limit. Given fields are optional.
 
 ```json
 {

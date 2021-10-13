@@ -6,11 +6,24 @@ Uniswap-inspired automated market-maker (AMM) protocol powered by Smart Contract
 
 | Name                                                       | Description                                  |
 | ---------------------------------------------------------- | -------------------------------------------- |
-| [`factory`](contracts/factory)                             |                                              |
+| [`factory`](contracts/factory)                             | Pool creation factory                        |
 | [`pair`](contracts/pair)                                   | Pair with x*y=k curve                        |
 | [`pair_stable`](contracts/pair_stable)                     | Pair with stableswap invariant curve         |
 | [`token`](contracts/token)                                 | CW20 (ERC20 equivalent) token implementation |
 | [`router`](contracts/router)                               | Multi-hop trade router                       |
+| [`oracle`](contracts/periphery/oracle)                     | Average prices calculator for x*y=k pairs    |
+
+## Tokenomics contracts
+
+Contract relative path is ../contracts/tokenomics.
+
+| Name                                                       | Description                                      |
+| ---------------------------------------------------------- | ------------------------------------------------ |
+| [`generator`](generator)                                   | Rewards generator for liquidity providers        |
+| [`generator_proxy_to_mirror`](generator_proxy_to_mirror)   | Rewards generator proxy for liquidity providers  |
+| [`maker`](maker)                                           | Assets collector and distributor                 |
+| [`staking`](staking)                                       | ASTRO staking contract                           |
+| [`staking`](vesting)                                       | ASTRO token distributor                          |
 
 ## Running this contract
 

@@ -27,7 +27,7 @@ The contract will check whether the resulting token is swapped into one token, c
 
 ### `receive`
 
-Updates pair average and cumulative prices.
+CW20 receive msg.
 
 ```json
 {

@@ -8,8 +8,6 @@ README has updated with new messages (Astroport v1 messages follow).
 
 ## InstantiateMsg
 
-Inits with token address.
-
 ```json
 {
   "owner": "terra...",
@@ -59,7 +57,7 @@ Registers account vesting schedules for future token distributions.
 
 ### `claim`
 
-Releases amount if claimed amount of tokens is available.
+Releases amount if claimed amount of tokens is available. Fields are optional.
 
 ```json
 {
@@ -98,7 +96,7 @@ Gives vesting schedules for specified account.
 
 ### `vesting_accounts`
 
-Gives paginated vesting schedules using specified parameters.
+Gives paginated vesting schedules using specified parameters. Given fields are optional.
 
 ```json
 {

@@ -47,7 +47,7 @@ Inits a new stable pair.
 
 ### `receive`
 
-Withdrawing provided liquidity or swap assets (only for token contract).
+CW20 receive msg.
 
 ```json
 {
@@ -75,7 +75,7 @@ Provides pool liquidity by sending user's native or token assets. It can be dist
 
 1. Without Slippage Tolerance
 
-  ```json
+```json
   {
     "provide_liquidity": {
       "assets": [
@@ -98,11 +98,11 @@ Provides pool liquidity by sending user's native or token assets. It can be dist
       ]
     }
   }
-  ```
+```
 
 2. With Slippage Tolerance
 
-  ```json
+```json
   {
     "provide_liquidity": {
       "assets": [
@@ -126,23 +126,23 @@ Provides pool liquidity by sending user's native or token assets. It can be dist
     },
     "slippage_tolerance": "0.01"
   }
-  ```
+```
 
 - Withdraw Liquidity (must be sent to liquidity token contract)
 
-  ```json
+```json
   {
     "withdraw_liquidity": {}
   }
-  ```
+```
 
 ### `swap`
 
-Swap between the given two tokens. offer_asset is your source asset and to is your destination token contract.
+Swap between the given two tokens. `offer_asset` is your source asset and `to` is your destination token contract. Fields are optional except `offer_asset`.
 
 NOTE: You should increase token allowance before swap. This method is only used to swap to contract-based token as a destination.
 
-  ```json
+```json
   {
     "swap": {
       "offer_asset": {
@@ -158,7 +158,7 @@ NOTE: You should increase token allowance before swap. This method is only used 
       "to": "terra..."
     }
   }
-  ```
+```
 
 #### Commission
 
