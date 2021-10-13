@@ -1278,8 +1278,8 @@ fn test_accumulate_prices() {
             },
             Result {
                 block_time_last: 1000,
-                cumulative_price_x: 1008_302000, // price x is a little more expensive
-                cumulative_price_y: 991_669000,
+                cumulative_price_x: 1008,
+                cumulative_price_y: 991,
                 is_some: true,
             },
         ),
@@ -1311,8 +1311,8 @@ fn test_accumulate_prices() {
             },
             Result {
                 block_time_last: 1500,
-                cumulative_price_x: 504_151500, // price x is a little more expensive
-                cumulative_price_y: 495_836500,
+                cumulative_price_x: 1004,
+                cumulative_price_y: 2495,
                 is_some: true,
             },
         ),
@@ -1324,7 +1324,7 @@ fn test_accumulate_prices() {
         let env = mock_env_with_block_time(case.block_time);
         let config = accumulate_prices(
             env,
-            Config {
+            &Config {
                 pair_info: PairInfo {
                     asset_infos: [
                         AssetInfo::NativeToken {
@@ -1354,15 +1354,9 @@ fn test_accumulate_prices() {
         assert_eq!(result.is_some, config.is_some());
 
         if let Some(config) = config {
-            assert_eq!(config.block_time_last, result.block_time_last);
-            assert_eq!(
-                config.price0_cumulative_last,
-                Uint128::new(result.cumulative_price_x)
-            );
-            assert_eq!(
-                config.price1_cumulative_last,
-                Uint128::new(result.cumulative_price_y)
-            );
+            assert_eq!(config.2, result.block_time_last);
+            assert_eq!(config.0, Uint128::new(result.cumulative_price_x));
+            assert_eq!(config.1, Uint128::new(result.cumulative_price_y));
         }
     }
 }

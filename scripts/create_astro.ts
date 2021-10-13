@@ -1,50 +1,24 @@
-import {
-    LCDClient,
-    LocalTerra,
-    Wallet
-} from "@terra-money/terra.js"
 import { strictEqual } from "assert"
-import 'dotenv/config'
 import {
+    newClient,
+    writeArtifact,
+    readArtifact,
     instantiateContract,
     queryContract,
-    recover,
-    setTimeoutDuration,
     uploadContract
-} from "./helpers.js"
-import {bombay, testnet} from "./deploy_configs";
+} from './helpers.js'
 
-// Required environment variables:
-
-// All:
 const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH || '../artifacts/astroport_token.wasm'
-
-// Testnet:
-const CHAIN_ID = String(process.env.CHAIN_ID)
-const LCD_CLIENT_URL = String(process.env.LCD_CLIENT_URL)
-
-// LocalTerra:
 
 // Main
 async function main() {
-    let terra: LCDClient | LocalTerra
-    let wallet: Wallet
-    let cw20CodeID: number
+    const {terra, wallet} = newClient()
+    const network = readArtifact(terra.config.chainID)
+    console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
 
-    if (process.env.NETWORK === "testnet" || process.env.NETWORK === "bombay") {
-        terra = new LCDClient({
-            URL: LCD_CLIENT_URL,
-            chainID: CHAIN_ID
-        })
-        wallet = recover(terra, process.env.WALLET!)
-    } else{
-        setTimeoutDuration(0)
-        terra = new LocalTerra()
-        wallet = (terra as LocalTerra).wallets.test1
-    }
     // Upload contract code
-    cw20CodeID = await uploadContract(terra, wallet, CW20_BINARY_PATH!)
-    console.log( "Token codeId" + cw20CodeID)
+    network.tokenCodeID = await uploadContract(terra, wallet, CW20_BINARY_PATH!)
+    console.log(`Token codeId: ${network.tokenCodeID}`)
     // Token info
     const TOKEN_NAME = "Astro"
     const TOKEN_SYMBOL = "ASTRO"
@@ -74,14 +48,15 @@ async function main() {
     }
 
     // Instantiate Astro token contract
-    const astroAddress = await instantiateContract(terra, wallet, cw20CodeID, TOKEN_INFO)
-    console.log("astro:", astroAddress)
-    console.log(await queryContract(terra, astroAddress, { token_info: {} }))
-    console.log(await queryContract(terra, astroAddress, { minter: {} }))
+    network.tokenAddress = await instantiateContract(terra, wallet, network.tokenCodeID, TOKEN_INFO)
+    console.log("astro:", network.tokenAddress)
+    console.log(await queryContract(terra, network.tokenAddress, { token_info: {} }))
+    console.log(await queryContract(terra, network.tokenAddress, { minter: {} }))
 
-    let balance = await queryContract(terra, astroAddress, { balance: { address: TOKEN_INFO.initial_balances[0].address } })
+    let balance = await queryContract(terra, network.tokenAddress, { balance: { address: TOKEN_INFO.initial_balances[0].address } })
     strictEqual(balance.balance, TOKEN_INFO.initial_balances[0].amount)
 
-    console.log("OK")
+    writeArtifact(network, terra.config.chainID)
+    console.log('FINISH')
 }
 main().catch(console.log)
