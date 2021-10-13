@@ -30,12 +30,20 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let config = Config {
+    let mut config = Config {
+        gov: None,
         owner: info.sender,
         token_code_id: msg.token_code_id,
-        fee_address: Some(msg.fee_address.unwrap_or_else(|| Addr::unchecked(""))),
-        gov: Some(msg.gov.unwrap_or_else(|| Addr::unchecked(""))),
+        fee_address: None
     };
+
+    if let Some(fee_address) = msg.fee_address {
+        config.fee_address = Some(deps.api.addr_validate(fee_address.as_str())?);
+    }
+
+    if let Some(gov) = msg.gov {
+        config.gov = Some(deps.api.addr_validate(gov.as_str())?);
+    }
 
     let config_set: HashSet<String> = msg
         .pair_configs
