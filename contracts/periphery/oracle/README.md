@@ -58,7 +58,7 @@ Multiplies a given amount and last average price in common.
         }
       }
     },
-    "amount": 1000000
+    "amount": "1000000"
   }
 }
 ```

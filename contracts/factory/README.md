@@ -17,7 +17,7 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
   "fee_address": "terra...",
   "gov": "terra...",
   "init_hook": {
-    "msg": 123,
+    "msg": "<base64_encoded_json_string>",
     "contract_addr": "terra..."
   }
 }
@@ -93,7 +93,7 @@ Anyone can execute it to create swap pair. When a user executes `CreatePair` ope
     ]
   },
   "init_hook": {
-    "msg": 123,
+    "msg": "<base64_encoded_json_string>",
     "contract_addr": "terra..."
   }
 }

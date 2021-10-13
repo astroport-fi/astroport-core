@@ -34,7 +34,7 @@ Deposits token to get share token amount.
 ```json
 {
   "enter": {
-    "amount": 123
+    "amount": "123"
   }
 }
 ```
@@ -46,7 +46,7 @@ Unstakes share token to move back deposit token amount. Burns share.
 ```json
 {
   "leave": {
-    "share": 123
+    "share": "123"
   }
 }
 ```

@@ -37,7 +37,7 @@ Inits a new x*y=k pair.
     "xyk": {}
   },
   "init_hook": {
-    "msg": 123,
+    "msg": "<base64_encoded_json_string>",
     "contract_addr": "terra..."
   }
 }
@@ -53,8 +53,8 @@ Withdrawing provided liquidity or swap assets (only for token contract).
 {
   "receive": {
     "sender": "terra...",
-    "amount": 123,
-    "msg": 123
+    "amount": "123",
+    "msg": "<base64_encoded_json_string>"
   }
 }
 ```
@@ -85,7 +85,7 @@ Provides pool liquidity by sending user's native or token assets. It can be dist
               "contract_addr": "terra..."
             }
           },
-          "amount": 1000000
+          "amount": "1000000"
         },
         {
           "info": {
@@ -93,7 +93,7 @@ Provides pool liquidity by sending user's native or token assets. It can be dist
               "denom": "uusd"
             }
           },
-          "amount": 1000000
+          "amount": "1000000"
         }
       ]
     }
@@ -112,7 +112,7 @@ Provides pool liquidity by sending user's native or token assets. It can be dist
               "contract_addr": "terra..."
             }
           },
-          "amount": 1000000
+          "amount": "1000000"
         },
         {
           "info": {
@@ -120,7 +120,7 @@ Provides pool liquidity by sending user's native or token assets. It can be dist
               "denom": "uusd"
             }
           },
-          "amount": 1000000
+          "amount": "1000000"
         }
       ]
     },
@@ -151,7 +151,7 @@ NOTE: You should increase token allowance before swap. This method is only used 
             "denom": "uluna"
           }
         },
-        "amount": 123
+        "amount": "123"
       },
       "belief_price": 123,
       "max_spread": 123,
@@ -195,7 +195,7 @@ Query share in assets for given amount.
 ```json
 {
   "share": {
-    "amount": 123
+    "amount": "123"
   }
 }
 ```
@@ -213,7 +213,7 @@ Simulation swap amounts to get return, spread, commission amounts.
           "denom": "uusd"
         }
       },
-      "amount": 1000000
+      "amount": "1000000"
     }
   }
 }
@@ -232,7 +232,7 @@ Simulation swap to get offer, spread, commission amounts.
           "contract_addr": "terra..."
         }
       },
-      "amount": 1000000
+      "amount": "1000000"
     }
   }
 }
