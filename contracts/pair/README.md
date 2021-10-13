@@ -153,8 +153,8 @@ NOTE: You should increase token allowance before swap. This method is only used 
         },
         "amount": "123"
       },
-      "belief_price": 123,
-      "max_spread": 123,
+      "belief_price": "123",
+      "max_spread": "123",
       "to": "terra..."
     }
   }
