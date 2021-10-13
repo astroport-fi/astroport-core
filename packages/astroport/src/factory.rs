@@ -36,7 +36,7 @@ pub struct PairConfig {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// Pair contract code IDs which are allowed for pair creation
+    /// Pair contract code IDs which are allowed to create pairs
     pub pair_configs: Vec<PairConfig>,
     pub token_code_id: u64,
     pub init_hook: Option<InitHook>,
@@ -48,7 +48,7 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// UpdateConfig update relevant code IDs
+    /// UpdateConfig updates relevant code IDs
     UpdateConfig {
         gov: Option<Addr>,
         owner: Option<Addr>,
@@ -70,7 +70,7 @@ pub enum ExecuteMsg {
         /// Init hook for after works
         init_hook: Option<InitHook>,
     },
-    /// Register is invoked from created pair contract after initialzation
+    /// Register is invoked from created pair contract after initialization
     Register {
         asset_infos: [AssetInfo; 2],
     },

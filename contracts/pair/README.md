@@ -1,30 +1,16 @@
 # Astroport Pair
 
-## Handlers
-
-### Initialize
-
-The factory may instantiate this contract to create a new x*y=k pair. It initialize all swap created parameters which can be updated later with owner key.
+The factory may instantiate this contract to create a new x*y=k. It initializes all swap created parameters which can be updated later with owner key.
 
 It creates liquidity token contract as init response, and execute init hook to register created liquidity token contract to self.
 
-TODO: Update documentation for Astroport. Terraswap v1 documentation follows
----
+README has updated with new messages (Astroport v1 messages follow).
 
-```rust
-{
-    /// Asset infos
-    pub asset_infos: [AssetInfo; 2],
-    /// Token code ID for liqudity token creation
-    pub token_code_id: u64,
-    /// Hook for post initalization
-    pub init_hook: Option<InitHook>,
-}
-```
+---
 
 ### Liquidity Provider
 
-The contract has two types of pool, the one is collateral and the other is asset pool. A user can provide liquidity to each pool by sending `provide_liquidity` msgs and also can withdraw with `withdraw_liquidity` msgs.
+A user can provide liquidity to each pool by sending `provide_liquidity` msg and also can withdraw with `withdraw_liquidity` msg.
 
 Whenever liquidity is deposited into a pool, special tokens known as liquidity tokens are minted to the provider’s address, in proportion to how much liquidity they contributed to the pool. These tokens are a representation of a liquidity provider’s contribution to a pool. Whenever a trade occurs, the `lp_commission%` of fee is distributed pro-rata to all LPs in the pool at the moment of the trade. To receive the underlying liquidity back, plus commission fees that were accrued while their liquidity was locked, LPs must burn their liquidity tokens.
 
@@ -32,26 +18,71 @@ When providing liquidity from a smart contract, the most important thing to keep
 
 > Note before executing the `provide_liqudity` operation, a user must allow the contract to use the liquidity amount of asset in the token contract.
 
-#### Slipage Tolerance
+#### Slippage Tolerance
 
-If a user specify the slipage tolerance at provide liquidity msg, the contract restricts the operation when the exchange rate is dropped more than the tolerance.
+If a user specify the slippage tolerance at provide liquidity msg, the contract restricts the operation when the exchange rate is dropped more than the tolerance.
 
 So, at a 1% tolerance level, if a user sends a transaction with 200 UST and 1 ASSET, amountUSTMin should be set to e.g. 198 UST, and amountASSETMin should be set to .99 ASSET. This means that, at worst, liquidity will be added at a rate between 198 ASSET/1 UST and 202.02 UST/1 ASSET (200 UST/.99 ASSET).
 
-#### Request Format
+## InstantiateMsg
 
-- Provide Liquidity
+Inits a new x*y=k pair.
 
-  1. Without Slippage Tolerance
+```json
+{
+  "paid_code_id": "123",
+  "token_code_id": "123",
+  "factory_addr": "terra...",
+  "pair_type": {
+    "xyk": {}
+  },
+  "init_hook": {
+    "msg": "123",
+    "contract_addr": "terra..."
+  }
+}
+```
 
-  ```json
+## ExecuteMsg
+
+### `receive`
+
+Withdrawing provided liquidity or swap assets (only for token contract).
+
+```json
+{
+  "receive": {
+    "sender": "terra...",
+    "amount": "123",
+    "msg": "123"
+  }
+}
+```
+
+### `post_initialize`
+
+LP token contract must execute it after creating.
+
+```json
+{
+  "post_initialize": {}
+}
+```
+
+### `provide_liquidity`
+
+Provides pool liquidity by sending user's native or token assets. It can be distinguished with the key under info: token or native_token. NOTE: You should increase token allowance before providing liquidity!
+
+1. Without Slippage Tolerance
+
+```json
   {
     "provide_liquidity": {
       "assets": [
         {
           "info": {
             "token": {
-              "contract_addr": "terra~~"
+              "contract_addr": "terra..."
             }
           },
           "amount": "1000000"
@@ -67,9 +98,9 @@ So, at a 1% tolerance level, if a user sends a transaction with 200 UST and 1 AS
       ]
     }
   }
-  ```
+```
 
-  2. With Slippage Tolerance
+2. With Slippage Tolerance
 
   ```json
   {
@@ -78,7 +109,7 @@ So, at a 1% tolerance level, if a user sends a transaction with 200 UST and 1 AS
         {
           "info": {
             "token": {
-              "contract_addr": "terra~~"
+              "contract_addr": "terra..."
             }
           },
           "amount": "1000000"
@@ -95,84 +126,124 @@ So, at a 1% tolerance level, if a user sends a transaction with 200 UST and 1 AS
     },
     "slippage_tolerance": "0.01"
   }
-  ```
+```
 
 - Withdraw Liquidity (must be sent to liquidity token contract)
-  ```json
+
+```json
   {
     "withdraw_liquidity": {}
   }
-  ```
+ ```
 
-### Swap
+### `swap`
 
-Any user can swap an asset by sending `swap` or invoking `send` msg to token contract with `swap` hook message.
+Swap between the given two tokens. `offer_asset` is your source asset and `to` is your destination token contract. Fields are optional except `offer_asset`.
 
-- Native Token => Token
+NOTE: You should increase token allowance before swap. This method is only used to swap to contract-based token as a destination.
 
-  ```json
+```json
   {
-      "swap": {
-          "offer_asset": {
-              "info": {
-                  "native_token": {
-                      "denom": String
-                  }
-              },
-              "amount": Uint128
-          },
-          "belief_price": Option<Decimal>,
-          "max_spread": Option<Decimal>,
-          "to": Option<Addr>
-      }
+    "swap": {
+      "offer_asset": {
+        "info": {
+          "native_token": {
+            "denom": "uluna"
+          }
+        },
+        "amount": "123"
+      },
+      "belief_price": "123",
+      "max_spread": "123",
+      "to": "terra..."
+    }
   }
-  ```
-
-- Token => Native Token
-
-  **Must be sent to token contract**
-
-  ```json
-  {
-      "send": {
-          "contract": Addr,
-          "amount": Uint128,
-          "msg": Binary({
-              "swap": {
-                  "belief_price": Option<Decimal>,
-                  "max_spread": Option<Decimal>,
-                  "to": Option<Addr>
-              }
-          })
-      }
-  }
-  ```
-
-#### Swap Spread
-
-The spread is determined with following uniswap mechanism:
-
-```rust
-// -max_minus_spread < spread < max_spread
-// minus_spread means discount rate.
-// Ensure `asset pool * collateral pool = constant product`
-let cp = Uint128::new(offer_pool.u128() * ask_pool.u128());
-let return_amount = offer_amount * exchange_rate;
-let return_amount = (ask_pool - cp.multiply_ratio(1u128, offer_pool + offer_amount))?;
-
-
-// calculate spread & commission
-let spread_amount: Uint128 =
-    (offer_amount * Decimal::from_ratio(ask_pool, offer_pool) - return_amount)?;
-let lp_commission: Uint128 = return_amount * config.lp_commission;
-let owner_commission: Uint128 = return_amount * config.owner_commission;
-
-// commission will be absorbed to pool
-let return_amount: Uint128 =
-    (return_amount - (lp_commission + owner_commission)).unwrap();
 ```
 
 #### Commission
 
-The `lp_commission` remains in the swap pool, which is fixed to `0.3%`, causing a permanent increase in the constant product K. The value of this permanently increased pool goes to all LPs.
+The `lp_commission` remains in the swap pool. The value of this permanently increased pool goes to all LPs.
 
+## QueryMsg
+
+All query messages are described below. A custom struct is defined for each query response.
+
+### `pair`
+
+Get pair type, assets, etc.
+
+```json
+{
+  "pair": {}
+}
+```
+
+### `pool`
+
+Get pool assets and total share.
+
+```json
+{
+  "pool": {}
+}
+```
+
+### `share`
+
+Query share in assets for given amount.
+
+```json
+{
+  "share": {
+    "amount": "123"
+  }
+}
+```
+
+### `simulation`
+
+Simulation swap amounts to get return, spread, commission amounts.
+
+```json
+{
+  "simulation": {
+    "offer_asset": {
+      "info": {
+        "native_token": {
+          "denom": "uusd"
+        }
+      },
+      "amount": "1000000"
+    }
+  }
+}
+```
+
+### `reverse_simulation`
+
+Simulation swap to get offer, spread, commission amounts.
+
+```json
+{
+  "reverse_simulation": {
+    "ask_asset": {
+      "info": {
+        "token": {
+          "contract_addr": "terra..."
+        }
+      },
+      "amount": "1000000"
+    }
+  }
+}
+```
+
+### `cumulative_prices`
+
+Query assets last cumulative prices, total share.
+
+```json
+{
+  "cumulative_prices": {}
+}
+```

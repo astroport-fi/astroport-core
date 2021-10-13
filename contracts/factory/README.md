@@ -1,18 +1,21 @@
 # Astroport Factory
 
-The factory contract can perform creation of astroport pair contract and also be used as directory contract for all pairs.
-Code ID for a pair type can be provided when instantiating a new pair, allowing for different pool mechanisms (e.g. stableswap).
-Available pair types are managed via a whitelist. 
+The factory contract can perform creation of astroport pair contract and used as directory contract for all pairs. Available pair types are stable and xyk only.
 
-TODO: Update README with new messages (Terraswap v1 messages follow)
+README has updated with new messages (Astroport v1 messages follow).
+
 ---
 
-## InitMsg
+## InstantiateMsg
+
+Code ID for a pair type is provided when instantiating a new pair. So, you don’t have to execute pair contract additionally.
 
 ```json
 {
   "paid_code_id": "123",
   "token_code_id": "123",
+  "fee_address": "terra...",
+  "gov": "terra...",
   "init_hook": {
     "msg": "123",
     "contract_addr": "terra..."
@@ -20,29 +23,66 @@ TODO: Update README with new messages (Terraswap v1 messages follow)
 }
 ```
 
-## HandleMsg
+## ExecuteMsg
 
 ### `update_config`
 
 ```json
 {
   "update_config": {
+    "gov": "terra...",
     "owner": "terra...",
-    "token_id": "123",
-    "pair_code_id": "123"
+    "token_code_id": "123",
+    "fee_address": "123"
+  }
+}
+```
+
+### `update_pair_config`
+
+Updating code id and fees for specified pair type. All fields are optional.
+
+```json
+{
+  "update_pair_config": {
+    "config": {
+      "code_id": "123",
+      "pair_type": {
+        "xyk": {}
+      },
+      "total_fee_bps": "123",
+      "maker_fee_bps": "123"
+    }
+  }
+}
+```
+
+### `remove_pair_config`
+
+Removing config for specified pair type.
+
+```json
+{
+  "pair_type": {
+    "stable": {}
   }
 }
 ```
 
 ### `create_pair`
 
+Anyone can execute it to create swap pair. When a user executes `CreatePair` operation, it creates `Pair` contract and `LP(liquidity provider)` token contract. It also creates not fully initialized `PairInfo`, which will be initialized with `Register` operation from the pair contract's `InitHook`.
+
 ```json
 {
   "create_pair": {
+    "pair_type": {
+      "xyk": {}
+    },
     "asset_infos": [
       {
         "token": {
-          "contract_address": "terra..."
+          "contract_addr": "terra..."
         }
       },
       {
@@ -51,11 +91,19 @@ TODO: Update README with new messages (Terraswap v1 messages follow)
         }
       }
     ]
+  },
+  "init_hook": {
+    "msg": "123",
+    "contract_addr": "terra..."
   }
 }
 ```
 
 ### `register`
+
+When a user executes `CreatePair` operation, it passes `InitHook` to `Pair` contract and `Pair` contract will invoke passed `InitHook` registering created `Pair` contract to the factory. This operation is only allowed for a pair, which is not fully initialized.
+
+Once a `Pair` contract invokes it, the sender address is registered as `Pair` contract address for the given asset_infos.
 
 ```json
 {
@@ -76,7 +124,32 @@ TODO: Update README with new messages (Terraswap v1 messages follow)
 }
 ```
 
+### `deregister`
+
+Deregisters already registered pair (deletes pair).
+
+```json
+{
+  "deregister": {
+    "asset_infos": [
+      {
+        "token": {
+          "contract_address": "terra..."
+        }
+      },
+      {
+        "native_token": {
+          "denom": "uusd"
+        }
+      }
+    ]
+  }
+}
+```
+
 ## QueryMsg
+
+All query messages are described below. A custom struct is defined for each query response.
 
 ### `config`
 
@@ -87,6 +160,8 @@ TODO: Update README with new messages (Terraswap v1 messages follow)
 ```
 
 ### `pair`
+
+Gives info for specified assets pair.
 
 ```json
 {
@@ -107,43 +182,17 @@ TODO: Update README with new messages (Terraswap v1 messages follow)
 }
 ```
 
-Register verified pair contract and token contract for pair contract creation. The sender will be the owner of the factory contract.
+### `pairs`
 
-```rust
-{
-    /// Pair contract code ID, which is used to
-    pub pair_code_id: u64,
-    pub token_code_id: u64,
-    pub init_hook: Option<InitHook>,
-}
-```
-
-### UpdateConfig
-
-The factory contract owner can change relevant code IDs for future pair contract creation.
+Gives paginated pair infos using specified start_after and limit. Given fields are optional.
 
 ```json
 {
-    "update_config":
-    {
-        "owner": Option<Addr>,
-        "pair_code_id": Option<u64>,
-        "token_code_id": Option<u64>,
-    }
-}
-```
-
-### Create Pair
-
-When a user execute `CreatePair` operation, it creates `Pair` contract and `LP(liquidity provider)` token contract. It also creates not fully initialized `PairInfo`, which will be initialized with `Register` operation from the pair contract's `InitHook`.
-
-```json
-{
-  "create_pair": {
-    "asset_infos": [
+  "pairs": {
+    "start_after": [
       {
         "token": {
-          "contract_addr": "terra1~~"
+          "contract_address": "terra..."
         }
       },
       {
@@ -151,27 +200,20 @@ When a user execute `CreatePair` operation, it creates `Pair` contract and `LP(l
           "denom": "uusd"
         }
       }
-    ]
+    ],
+    "limit": "123"
   }
 }
 ```
 
-### Register
+### `fee_info`
 
-When a user executes `CreatePair` operation, it passes `InitHook` to `Pair` contract and `Pair` contract will invoke passed `InitHook` registering created `Pair` contract to the factory. This operation is only allowed for a pair, which is not fully initialized.
-
-Once a `Pair` contract invokes it, the sender address is registered as `Pair` contract address for the given asset_infos.
+Gives fees for specified pair type.
 
 ```json
-{ "register":
-    "asset_infos": [{
-        "token": {
-            "contract_addr": "terra1~~",
-            }
-        }, {
-            "native_token": {
-                "denom": "uusd",
-            }
-    }],
+{
+  "pair_type": {
+    "xyk": {}
+  }
 }
 ```

@@ -6,7 +6,7 @@ This is a collection of common types and the queriers which are commonly used in
 
 ### AssetInfo
 
-AssetInfo is a convience wrapper to represent the native token and the contract token as a single type.
+AssetInfo is a convenience wrapper to represent the native token and the contract token as a single type.
 
 ```rust
 #[serde(rename_all = "snake_case")]
@@ -18,7 +18,7 @@ pub enum AssetInfo {
 
 ### Asset
 
-It contains asset info with the amount of token. 
+It contains asset info with the amount of token.
 
 ```rust
 pub struct Asset {
@@ -35,8 +35,11 @@ It is used to represent response data of [Pair-Info-Querier](#Pair-Info-Querier)
 pub struct PairInfo {
     pub contract_addr: Addr,
     pub asset_infos: [AssetInfo; 2],
+    pub liquidity_token: Addr,
+    pub pair_type: PairType,
 }
 ```
+
 ## Queriers
 
 ### Native Token Balance Querier
@@ -53,7 +56,7 @@ pub fn query_balance(
 
 ### Token Balance Querier
 
-It provides simliar query interface with [Native-Token-Balance-Querier](Native-Token-Balance-Querier) for CW20 token balance. 
+It provides similar query interface with [Native-Token-Balance-Querier](Native-Token-Balance-Querier) for CW20 token balance.
 
 ```rust
 pub fn query_token_balance(
@@ -88,11 +91,37 @@ pub fn query_pair_contract(
 
 ### Liquidity Token Querier
 
-It returns liquidity token contract address of astroport pair contract. 
+It returns liquidity token contract address of astroport pair contract.
 
 ```rust
 pub fn query_liquidity_token(
     deps: &Extern<S, A, Q>,
     contract_addr: &Addr,
 ) -> StdResult<Addr>
+```
+
+## Swap Pairs Simulating
+
+### Simulate
+
+Returns simulation swap return, spread, commission amounts.
+
+```rust
+pub fn simulate(
+    querier: &QuerierWrapper,
+    pair_contract: Addr,
+    offer_asset: &Asset,
+) -> StdResult<SimulationResponse>
+```
+
+### Reverse Simulate
+
+Returns simulation swap offer, spread, commission amounts.
+
+```rust
+pub fn reverse_simulate(
+    querier: &QuerierWrapper,
+    pair_contract: Addr,
+    offer_asset: &Asset,
+) -> StdResult<ReverseSimulationResponse>
 ```
