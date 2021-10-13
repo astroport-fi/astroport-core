@@ -41,12 +41,12 @@ Registers account vesting schedules for future token distributions.
         "address": "terra...",
         "schedules": {
           "start_point": {
-            "time": "123",
-            "amount": "123"
+            "time": 1634125119000000000,
+            "amount": 123
           },
           "end_point": {
-            "time": "123",
-            "amount": "123"
+            "time": 1664125119000000000,
+            "amount": 123
           }
         }
       }
@@ -63,7 +63,7 @@ Releases amount if claimed amount of tokens is available. Fields are optional.
 {
   "claim": {
     "recipient": "terra...",
-    "amount": "123"
+    "amount": 123
   }
 }
 ```
@@ -102,7 +102,7 @@ Gives paginated vesting schedules using specified parameters. Given fields are o
 {
   "vesting_accounts": {
     "start_after": "terra...",
-    "limit": "123",
+    "limit": 10,
     "order_by": {
       "desc": {}
     }

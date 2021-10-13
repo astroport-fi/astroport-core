@@ -13,8 +13,8 @@ Inits with required contract addresses for depositing and reward distribution.
 ```json
 {
   "astro_token": "terra...",
-  "tokens_per_block": "123",
-  "start_block": "123",
+  "tokens_per_block": 123,
+  "start_block": 123,
   "allowed_reward_proxies": [
     "terra..."
   ],
@@ -32,8 +32,8 @@ Adds support of a new LP with optional reward_proxy address. `with_update` for u
 {
   "add": {
     "lp_token": "terra...",
-    "alloc_point": "123",
-    "with_update": "true",
+    "alloc_point": 40,
+    "with_update": true,
     "reward_proxy": "terra..."
   }
 }
@@ -47,8 +47,8 @@ Updates LP token allocation point. `with_update` for updating pool reward only.
 {
   "set": {
     "lp_token": "terra...",
-    "alloc_point": "123",
-    "with_update": "true"
+    "alloc_point": 60,
+    "with_update": true
   }
 }
 ```
@@ -83,7 +83,7 @@ Deposits given lp amount and allocates ASTRO.
 {
   "deposit": {
     "lp_token": "terra...",
-    "amount": "123"
+    "amount": 123
   }
 }
 ```
@@ -96,7 +96,7 @@ Withdraws given lp amount and rewards.
 {
   "withdraw": {
     "lp_token": "terra...",
-    "amount": "123"
+    "amount": 123
   }
 }
 ```
@@ -121,7 +121,7 @@ Updates allowed proxies whitelist for 3-d party staking.
 {
   "set_allowed_reward_proxies": {
     "lp_token": "terra...",
-    "amount": "123"
+    "amount": 123
   }
 }
 ```
@@ -146,7 +146,7 @@ Sets reward amount that will be generated per block.
 ```json
 {
   "set_tokens_per_block": {
-    "amount": "123"
+    "amount": 123
   }
 }
 ```

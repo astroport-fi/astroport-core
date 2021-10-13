@@ -33,8 +33,8 @@ CW20 receive msg.
 {
   "receive": {
     "sender": "terra...",
-    "amount": "123",
-    "msg": "123"
+    "amount": 123,
+    "msg": 123
   }
 }
 ```
@@ -64,7 +64,7 @@ Swap UST => mABNB
           }
         }
       },
-     "minimum_receive": "123",
+     "minimum_receive": 123,
      "to": "terra..."
    }
 }
@@ -103,7 +103,7 @@ Swap KRT => UST => mABNB
         }
       }
     ],
-    "minimum_receive": "123",
+    "minimum_receive": 123,
     "to": "terra..."
   }
 }
@@ -121,7 +121,7 @@ Checks the swap amount is exceed minimum_receive. Msg is for internal use.
         "contract_addr": "terra..."
       }
     },
-    "prev_balance": "123",
+    "prev_balance": 123,
     "minimum_receive": 123,
     "receiver": "terra..."
   }
@@ -150,7 +150,7 @@ Simulates multi-hop swap operations (execute_swap_operations), examples:
 
 ```json
 {
-  "offer_amount": "123",
+  "offer_amount": 123,
   "operations": [
     {
       "native_swap": {
@@ -180,7 +180,7 @@ Simulates multi-hop swap operations (execute_swap_operations), examples:
 
 ```json
 {
-  "offer_amount": "123",
+  "offer_amount": 123,
   "operations": [
     {
       "native_swap": {

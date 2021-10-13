@@ -30,8 +30,8 @@ CW20 receive msg.
 {
   "receive": {
     "sender": "terra...",
-    "amount": "123",
-    "msg": "123"
+    "amount": 123,
+    "msg": 123
   }
 }
 ```
@@ -54,7 +54,7 @@ Sends token rewards amount for given address.
 {
   "send_rewards": {
     "account": "terra...",
-    "amount": "123"
+    "amount": 123
   }
 }
 ```
@@ -67,7 +67,7 @@ Withdraws token rewards amount for given address.
 {
   "withdraw": {
     "account": "terra...",
-    "amount": "123"
+    "amount": 123
   }
 }
 ```
@@ -80,7 +80,7 @@ Withdraws token rewards amount for given address.
 {
   "emergency_withdraw": {
     "account": "terra...",
-    "amount": "123"
+    "amount": 123
   }
 }
 ```
