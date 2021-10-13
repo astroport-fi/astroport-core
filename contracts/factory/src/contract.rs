@@ -34,7 +34,7 @@ pub fn instantiate(
         gov: None,
         owner: info.sender,
         token_code_id: msg.token_code_id,
-        fee_address: None
+        fee_address: None,
     };
 
     if let Some(fee_address) = msg.fee_address {
