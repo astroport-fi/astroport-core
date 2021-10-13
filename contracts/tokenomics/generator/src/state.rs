@@ -39,6 +39,7 @@ pub struct Config {
     pub vesting_contract: Addr,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ExecuteOnReply {
     MassUpdatePools {},
     UpdatePool {
