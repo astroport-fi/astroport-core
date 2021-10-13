@@ -33,8 +33,8 @@ pub fn instantiate(
     let config = Config {
         owner: info.sender,
         token_code_id: msg.token_code_id,
-        fee_address: msg.fee_address,
-        gov: msg.gov,
+        fee_address: Some(msg.fee_address.unwrap_or_else(|| Addr::unchecked(""))),
+        gov: Some(msg.gov.unwrap_or_else(|| Addr::unchecked(""))),
     };
 
     let config_set: HashSet<String> = msg
@@ -119,7 +119,7 @@ pub fn execute_update_config(
 
     if let Some(gov) = gov {
         // validate address format
-        config.gov = Option::from(deps.api.addr_validate(gov.as_str())?);
+        config.gov = Some(deps.api.addr_validate(gov.as_str())?);
     }
 
     if let Some(owner) = owner {
@@ -129,7 +129,7 @@ pub fn execute_update_config(
 
     if let Some(fee_address) = fee_address {
         // validate address format
-        config.fee_address = Option::from(deps.api.addr_validate(fee_address.as_str())?);
+        config.fee_address = Some(deps.api.addr_validate(fee_address.as_str())?);
     }
 
     if let Some(token_code_id) = token_code_id {
