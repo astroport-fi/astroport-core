@@ -1,151 +1,215 @@
 import 'dotenv/config'
+import { strictEqual } from "assert"
 import {
+    Client,
     newClient,
-    writeArtifact,
-    readArtifact,
-    deployContract,
-    executeContract,
-    uploadContract,
+    instantiateContract,
+    queryContract,
+    uploadContract, writeNetworkConfig, readNetworkConfig, executeContract,
 } from './helpers.js'
-import {configDefault} from './deploy_configs.js'
-import {join} from 'path'
+import {configDefault} from "./deploy_configs.js";
+import {join} from "path";
+import {
+    readdirSync,
+} from 'fs'
 
-const ARTIFACTS_PATH = '../artifacts'
+async function uploadContracts(cl: Client) {
+    const artifacts = readdirSync(process.env.ARTIFACTS_PATH!);
+    const networkConfig = readNetworkConfig(cl.terra.config.chainID);
 
-async function main() {
-    const {terra, wallet} = newClient()
-    console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
-    let deployConfig: Config = configDefault
-    const network = readArtifact(terra.config.chainID)
-    console.log('network:', network)
-
-    if (!network.tokenAddress) {
-        console.log(`Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...`)
-        return
+    for(let i=0; i<artifacts.length; i++){
+        if (artifacts[i].split('.').pop() == process.env.ARTIFACTS_EXTENSIONS!) {
+            let codeID = await uploadContract(cl.terra, cl.wallet,
+                join(process.env.ARTIFACTS_PATH!, artifacts[i])
+            );
+            console.log(`Contract: ${artifacts[i].split('.')[0]} was uploaded.\nStore code: ${codeID}`);
+            networkConfig[`${artifacts[i].split('.')[0].split('_').pop()}`] = {}
+            networkConfig[`${artifacts[i].split('.')[0].split('_').pop()}`][`ID`] = codeID;
+        }
     }
-
-    /*************************************** Register Pairs Contract *****************************************/
-    if (!network.pairCodeID) {
-        console.log('Register Pair Contract...')
-        network.pairCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair.wasm')!)
-    }
-    if (!network.pairStableCodeID) {
-        console.log('Register Stable Pair Contract...')
-        network.pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable.wasm')!)
-    }
-    /*************************************** Deploy Factory Contract *****************************************/
-    if (!network.factoryAddress) {
-        console.log('Deploying Factory...')
-        deployConfig.factoryInitMsg.config.pair_configs[0].code_id = network.pairCodeID
-        deployConfig.factoryInitMsg.config.pair_configs[1].code_id = network.pairStableCodeID
-        deployConfig.factoryInitMsg.config.token_code_id = network.tokenCodeID
-        console.log(`CodeIs Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID}`)
-        deployConfig.factoryInitMsg.config.gov = wallet.key.accAddress
-        network.factoryAddress = await deployContract(
-            terra,
-            wallet,
-            join(ARTIFACTS_PATH, 'astroport_factory.wasm'),
-            deployConfig.factoryInitMsg.config
-        )
-        console.log(`Address Factory Contract: ${network.factoryAddress}`)
-    }
-    /*************************************** Deploy Router Contract *****************************************/
-    if (!network.routerAddress) {
-        console.log('Deploying Router...')
-        network.routerAddress = await deployContract(
-            terra,
-            wallet,
-            join(ARTIFACTS_PATH, 'astroport_router.wasm'),
-            {
-                astroport_factory: network.factoryAddress,
-            },
-        )
-        console.log(`Address Router Contract: ${network.routerAddress}`)
-    }
-
-    /*************************************** Deploy Vesting Contract *****************************************/
-    if (!network.vestingAddress) {
-        console.log('Deploying Vesting...')
-        network.vestingAddress = await deployContract(
-            terra,
-            wallet,
-            join(ARTIFACTS_PATH, 'astroport_vesting.wasm'),
-            {
-                owner: wallet.key.accAddress,
-                token_addr: network.tokenAddress,
-            },
-        )
-        console.log(`Address Vesting Contract: ${network.vestingAddress}`)
-    }
-
-    /*************************************** Deploy Staking Contract *****************************************/
-    if (!network.stakingAddress) {
-        console.log('Deploying Staking...')
-        deployConfig.stakingInitMsg.config.token_code_id = network.tokenCodeID
-        network.stakingAddress = await deployContract(
-            terra,
-            wallet,
-            join(ARTIFACTS_PATH, 'astroport_staking.wasm'),
-            deployConfig.stakingInitMsg.config
-        )
-        console.log(`Address Staking Contract: ${network.stakingAddress}`)
-    }
-    /*************************************** Deploy Maker Contract *****************************************/
-    if (!network.makerAddress) {
-        console.log('Deploying Maker...')
-        network.makerAddress = await deployContract(
-            terra,
-            wallet,
-            join(ARTIFACTS_PATH, 'astroport_maker.wasm'),
-            {
-                factory_contract: String(network.factoryAddress),
-                staking_contract: String(network.stakingAddress),
-                astro_token_contract: String(network.tokenAddress),
-            }
-        )
-        console.log(`Address Maker Contract: ${network.makerAddress}`)
-    }
-
-    /*************************************** Deploy Generator Contract *****************************************/
-    if (!network.generatorAddress) {
-        console.log('Deploying Generator...')
-        deployConfig.generatorInitMsg.config.astro_token = network.tokenAddress;
-        deployConfig.generatorInitMsg.config.vesting_contract = network.vestingAddress;
-        network.generatorAddress = await deployContract(
-            terra,
-            wallet,
-            join(ARTIFACTS_PATH, 'astroport_generator.wasm'),
-            deployConfig.generatorInitMsg.config
-        )
-        console.log(`Address Generator Contract: ${network.generatorAddress}`)
-
-        /*************************************** Setting tokens to Vesting Contract *****************************************/
-        console.log('Setting Vesting...')
-        const vestingAccounts = (
-            deployConfig.registerVestingAccounts.register_vesting_accounts.vesting_accounts
-        ).map(account => ({
-            ...account,
-            address: network.generatorAddress,
-        }));
-        console.log('vestingAccounts:', JSON.stringify(vestingAccounts))
-        // INCREASE ALLOWANCE
-        let out: any, msg: any
-        msg = { increase_allowance: { spender: network.vestingAddress, amount: '63072000000000' } }
-        console.log('execute', network.tokenAddress, JSON.stringify(msg))
-        out = await executeContract(terra, wallet, network.tokenAddress, msg)
-        console.log(out.txhash)
-
-        deployConfig.registerVestingAccounts.register_vesting_accounts.vesting_accounts = vestingAccounts
-        const { registerVestingAccounts } = deployConfig;
-        await executeContract(
-            terra,
-            wallet,
-            network.vestingAddress,
-            registerVestingAccounts,
-        )
-    }
-    writeArtifact(network, terra.config.chainID)
-    console.log('FINISH')
+    writeNetworkConfig(networkConfig, cl.terra.config.chainID)
+    console.log('upload contracts ---> FINISH')
 }
 
+async function setupToken(cl: Client, cfg: Config) {
+    const networkConfig = readNetworkConfig(cl.terra.config.chainID);
+
+    if (!networkConfig.token.Addr) {
+        if (!cfg.tokenConfig.configInitMsg.initial_balances[0].address) {
+            cfg.tokenConfig.configInitMsg.initial_balances[0].address = cl.wallet.key.accAddress
+        }
+
+        if (!cfg.tokenConfig.configInitMsg.mint.minter) {
+            cfg.tokenConfig.configInitMsg.mint.minter = cl.wallet.key.accAddress
+        }
+
+        networkConfig.token.Addr = await instantiateContract(
+            cl.terra,
+            cl.wallet,
+            networkConfig.token.ID,
+            cfg.tokenConfig.configInitMsg
+        );
+
+        let balance = await queryContract(cl.terra, networkConfig.token.Addr, {
+            balance: {address: cl.wallet.key.accAddress}
+        })
+
+        // Validate token balance
+        strictEqual(balance.balance, process.env.TOKEN_INITIAL_AMOUNT!)
+        writeNetworkConfig(networkConfig, cl.terra.config.chainID)
+        console.log('setup token ---> FINISH')
+    }
+}
+
+async function setupFactory(cl: Client, cfg: Config) {
+    const networkConfig = readNetworkConfig(cl.terra.config.chainID);
+
+    if (!networkConfig.factory.Addr) {
+        cfg.factoryConfig.configInitMsg.pair_configs[0].code_id = networkConfig.pair.ID
+        cfg.factoryConfig.configInitMsg.pair_configs[1].code_id = networkConfig.stable.ID
+        cfg.factoryConfig.configInitMsg.token_code_id = networkConfig.token.ID
+
+        networkConfig.factory.Addr = await instantiateContract(
+            cl.terra,
+            cl.wallet,
+            networkConfig.factory.ID,
+            cfg.factoryConfig.configInitMsg
+        );
+        writeNetworkConfig(networkConfig, cl.terra.config.chainID)
+        console.log('setup factory ---> FINISH')
+    }
+}
+
+async function setupRouter(cl: Client, cfg: Config) {
+    const networkConfig = readNetworkConfig(cl.terra.config.chainID);
+
+    if (!networkConfig.router.Addr) {
+        cfg.routerConfig.configInitMsg.astroport_factory = networkConfig.factory.Addr
+
+        networkConfig.router.Addr = await instantiateContract(
+            cl.terra,
+            cl.wallet,
+            networkConfig.router.ID,
+            cfg.routerConfig.configInitMsg
+        );
+        writeNetworkConfig(networkConfig, cl.terra.config.chainID)
+        console.log('setup router ---> FINISH')
+    }
+}
+
+async function setupVesting(cl: Client, cfg: Config) {
+    const networkConfig = readNetworkConfig(cl.terra.config.chainID);
+
+    if (!networkConfig.vesting.Addr) {
+        cfg.vestingConfig.configInitMsg.token_addr = networkConfig.token.Addr
+        cfg.vestingConfig.configInitMsg.owner = cl.wallet.key.accAddress
+
+        networkConfig.vesting.Addr = await instantiateContract(
+            cl.terra,
+            cl.wallet,
+            networkConfig.vesting.ID,
+            cfg.vestingConfig.configInitMsg
+        );
+        writeNetworkConfig(networkConfig, cl.terra.config.chainID)
+        console.log('setup vesting ---> FINISH')
+    }
+}
+
+async function setupStaking(cl: Client, cfg: Config) {
+    const networkConfig = readNetworkConfig(cl.terra.config.chainID);
+
+    if (!networkConfig.staking.Addr) {
+        cfg.stakingConfig.configInitMsg.config.token_code_id = networkConfig.token.ID
+        cfg.stakingConfig.configInitMsg.config.deposit_token_addr = process.env.TOKEN_DEPOSIT_ADDRESS! || networkConfig.token.Addr
+
+        networkConfig.staking.Addr = await instantiateContract(
+            cl.terra,
+            cl.wallet,
+            networkConfig.staking.ID,
+            cfg.stakingConfig.configInitMsg.config
+        );
+        writeNetworkConfig(networkConfig, cl.terra.config.chainID)
+        console.log('setup staking ---> FINISH')
+    }
+}
+
+async function setupMaker(cl: Client, cfg: Config) {
+    const networkConfig = readNetworkConfig(cl.terra.config.chainID);
+
+    if (!networkConfig.maker.Addr) {
+        cfg.makerConfig.configInitMsg.factory_contract = networkConfig.factory.Addr
+        cfg.makerConfig.configInitMsg.staking_contract = networkConfig.staking.Addr
+        cfg.makerConfig.configInitMsg.astro_token_contract = networkConfig.token.Addr
+
+        networkConfig.maker.Addr = await instantiateContract(
+            cl.terra,
+            cl.wallet,
+            networkConfig.maker.ID,
+            cfg.makerConfig.configInitMsg
+        );
+        writeNetworkConfig(networkConfig, cl.terra.config.chainID)
+        console.log('setup maker ---> FINISH')
+    }
+}
+
+async function setupGenerator(cl: Client, cfg: Config) {
+    const networkConfig = readNetworkConfig(cl.terra.config.chainID);
+
+    if (!networkConfig.generator.Addr) {
+        cfg.generatorConfig.configInitMsg.config.astro_token = networkConfig.token.Addr
+        cfg.generatorConfig.configInitMsg.config.vesting_contract = networkConfig.vesting.Addr
+
+        networkConfig.generator.Addr = await instantiateContract(
+            cl.terra,
+            cl.wallet,
+            networkConfig.generator.ID,
+            cfg.generatorConfig.configInitMsg.config
+        );
+        writeNetworkConfig(networkConfig, cl.terra.config.chainID)
+        console.log('setup generator ---> FINISH')
+    }
+}
+
+async function settingTokensToVesting(cl: Client, cfg: Config) {
+    const networkConfig = readNetworkConfig(cl.terra.config.chainID);
+
+    const vestingAccounts = (
+        cfg.registerVestingAccounts.register_vesting_accounts.vesting_accounts
+    ).map((account: any) => ({
+        ...account,
+        address: networkConfig.generator.Addr,
+    }));
+
+    console.log('vestingAccounts:', JSON.stringify(vestingAccounts))
+    // INCREASE ALLOWANCE
+    let msg = { increase_allowance: { spender: networkConfig.vesting.Addr, amount: '63072000000000' } }
+    let out = await executeContract(cl.terra, cl.wallet, networkConfig.token.Addr, msg)
+    console.log(out.txhash)
+
+    cfg.registerVestingAccounts.register_vesting_accounts.vesting_accounts = vestingAccounts
+    const { registerVestingAccounts } = cfg;
+    await executeContract(
+        cl.terra,
+        cl.wallet,
+        networkConfig.vesting.Addr,
+        registerVestingAccounts,
+    )
+
+    console.log('setting tokens to vesting ---> FINISH')
+}
+
+async function main() {
+    const client = newClient();
+    let config: Config = configDefault
+
+    await uploadContracts(client);
+    await setupToken(client, config);
+    await setupFactory(client, config);
+    await setupRouter(client, config);
+    await setupVesting(client, config);
+    await setupStaking(client, config);
+    await setupMaker(client, config);
+    await setupGenerator(client, config);
+    await settingTokensToVesting(client, config);
+}
 main().catch(console.log)

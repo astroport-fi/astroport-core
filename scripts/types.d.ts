@@ -1,12 +1,14 @@
-interface StakingInitMsg {
-    config: {
-        token_code_id: number
-        deposit_token_addr?: string
+interface StakingConfig {
+    configInitMsg: {
+        config: {
+            token_code_id: number
+            deposit_token_addr?: string
+        }
     }
 }
 
-interface FactoryInitMsg {
-    config: {
+interface FactoryConfig {
+    configInitMsg: {
         pair_configs: PairConfig[],
         token_code_id: number,
         init_hook?: string,
@@ -15,13 +17,15 @@ interface FactoryInitMsg {
     }
 }
 
-interface GeneratorInitMsd {
-    config: {
-        allowed_reward_proxies: string[],
-        astro_token: string,
-        start_block: string,
-        tokens_per_block: string,
-        vesting_contract: string,
+interface GeneratorConfig {
+    configInitMsg: {
+        config: {
+            allowed_reward_proxies: string[],
+            astro_token: string,
+            start_block: string,
+            tokens_per_block: string,
+            vesting_contract: string,
+        }
     }
 }
 
@@ -66,10 +70,53 @@ interface RegisterVestingAccounts {
     register_vesting_accounts: RegisterVestingAccountsType
 }
 
+interface VestingConfig {
+    configInitMsg: {
+        owner: string,
+        token_addr: string,
+    }
+}
+
+interface RouterConfig {
+    configInitMsg: {
+        astroport_factory: string
+    }
+}
+
+interface MakerConfig {
+    configInitMsg: {
+        factory_contract: string,
+        staking_contract: string,
+        astro_token_contract: string,
+    }
+}
+
+interface TokenConfig {
+    configInitMsg: {
+        name: string,
+        symbol: string,
+        decimals: number,
+        initial_balances: [
+            {
+                address: string,
+                amount: string
+            }
+        ],
+        mint: {
+            minter: string,
+            cap: string
+        }
+    }
+}
+
 interface Config {
-    factoryInitMsg: FactoryInitMsg,
-    stakingInitMsg: StakingInitMsg
-    generatorInitMsg: GeneratorInitMsd,
-    astroTokenContractAddress: string | undefined
-    registerVestingAccounts: RegisterVestingAccounts
+    factoryConfig: FactoryConfig,
+    stakingConfig: StakingConfig,
+    generatorConfig: GeneratorConfig,
+    astroTokenContractAddress: string | undefined,
+    registerVestingAccounts: RegisterVestingAccounts,
+    tokenConfig: TokenConfig,
+    routerConfig: RouterConfig,
+    vestingConfig: VestingConfig,
+    makerConfig: MakerConfig,
 }
