@@ -79,7 +79,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
         token_code_id: 1u64,
         init_hook: None,
         fee_address: None,
-        gov: Addr::unchecked("gov"),
+        gov: None,
     };
 
     let factory_instance = router

@@ -30,12 +30,20 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let config = Config {
+    let mut config = Config {
+        gov: None,
         owner: info.sender,
         token_code_id: msg.token_code_id,
-        fee_address: msg.fee_address.unwrap_or_else(|| Addr::unchecked("")),
-        gov: msg.gov,
+        fee_address: None,
     };
+
+    if let Some(fee_address) = msg.fee_address {
+        config.fee_address = Some(deps.api.addr_validate(fee_address.as_str())?);
+    }
+
+    if let Some(gov) = msg.gov {
+        config.gov = Some(deps.api.addr_validate(gov.as_str())?);
+    }
 
     let config_set: HashSet<String> = msg
         .pair_configs
@@ -119,7 +127,7 @@ pub fn execute_update_config(
 
     if let Some(gov) = gov {
         // validate address format
-        config.gov = deps.api.addr_validate(gov.as_str())?;
+        config.gov = Some(deps.api.addr_validate(gov.as_str())?);
     }
 
     if let Some(owner) = owner {
@@ -129,7 +137,7 @@ pub fn execute_update_config(
 
     if let Some(fee_address) = fee_address {
         // validate address format
-        config.fee_address = deps.api.addr_validate(fee_address.as_str())?;
+        config.fee_address = Some(deps.api.addr_validate(fee_address.as_str())?);
     }
 
     if let Some(token_code_id) = token_code_id {
@@ -365,7 +373,7 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
     let pair_config = PAIR_CONFIGS.load(deps.storage, pair_type.to_string())?;
 
     Ok(FeeInfoResponse {
-        fee_address: Some(config.fee_address).filter(|a| a != &Addr::unchecked("")),
+        fee_address: config.fee_address,
         total_fee_bps: pair_config.total_fee_bps,
         maker_fee_bps: pair_config.maker_fee_bps,
     })

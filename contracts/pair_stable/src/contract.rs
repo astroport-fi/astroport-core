@@ -997,9 +997,11 @@ pub fn update_config(
                 contract_addr: state.factory_addr.to_string(),
                 msg: to_binary(&FactoryQueryMsg::Config {})?,
             }))?;
-        if info.sender != factory_config.gov {
+
+        if info.sender != factory_config.gov.unwrap_or_else(|| Addr::unchecked("")) {
             return Err(ContractError::Unauthorized {});
         }
+
         state.amp = amp.unwrap_or(state.amp);
         Ok(state)
     })?;

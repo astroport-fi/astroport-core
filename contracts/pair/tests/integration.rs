@@ -282,7 +282,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             total_fee_bps: 0,
         }],
         token_code_id,
-        gov: Addr::unchecked("gov"),
+        gov: None,
     };
 
     let factory_instance = app
