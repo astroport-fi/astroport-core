@@ -22,6 +22,16 @@
                 }
               ]
             },
+            "generator_address": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "gov": {
               "anyOf": [
                 {

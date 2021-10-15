@@ -123,6 +123,34 @@
     {
       "type": "object",
       "required": [
+        "deposit_for"
+      ],
+      "properties": {
+        "deposit_for": {
+          "type": "object",
+          "required": [
+            "amount",
+            "beneficiary",
+            "lp_token"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "beneficiary": {
+              "$ref": "#/definitions/Addr"
+            },
+            "lp_token": {
+              "$ref": "#/definitions/Addr"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "withdraw"
       ],
       "properties": {

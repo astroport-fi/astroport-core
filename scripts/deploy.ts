@@ -33,35 +33,6 @@ async function main() {
         console.log('Register Stable Pair Contract...')
         network.pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable.wasm')!)
     }
-    /*************************************** Deploy Factory Contract *****************************************/
-    if (!network.factoryAddress) {
-        console.log('Deploying Factory...')
-        deployConfig.factoryInitMsg.config.pair_configs[0].code_id = network.pairCodeID
-        deployConfig.factoryInitMsg.config.pair_configs[1].code_id = network.pairStableCodeID
-        deployConfig.factoryInitMsg.config.token_code_id = network.tokenCodeID
-        console.log(`CodeIs Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID}`)
-        deployConfig.factoryInitMsg.config.gov = wallet.key.accAddress
-        network.factoryAddress = await deployContract(
-            terra,
-            wallet,
-            join(ARTIFACTS_PATH, 'astroport_factory.wasm'),
-            deployConfig.factoryInitMsg.config
-        )
-        console.log(`Address Factory Contract: ${network.factoryAddress}`)
-    }
-    /*************************************** Deploy Router Contract *****************************************/
-    if (!network.routerAddress) {
-        console.log('Deploying Router...')
-        network.routerAddress = await deployContract(
-            terra,
-            wallet,
-            join(ARTIFACTS_PATH, 'astroport_router.wasm'),
-            {
-                astroport_factory: network.factoryAddress,
-            },
-        )
-        console.log(`Address Router Contract: ${network.routerAddress}`)
-    }
 
     /*************************************** Deploy Vesting Contract *****************************************/
     if (!network.vestingAddress) {
@@ -90,21 +61,6 @@ async function main() {
             deployConfig.stakingInitMsg.config
         )
         console.log(`Address Staking Contract: ${network.stakingAddress}`)
-    }
-    /*************************************** Deploy Maker Contract *****************************************/
-    if (!network.makerAddress) {
-        console.log('Deploying Maker...')
-        network.makerAddress = await deployContract(
-            terra,
-            wallet,
-            join(ARTIFACTS_PATH, 'astroport_maker.wasm'),
-            {
-                factory_contract: String(network.factoryAddress),
-                staking_contract: String(network.stakingAddress),
-                astro_token_contract: String(network.tokenAddress),
-            }
-        )
-        console.log(`Address Maker Contract: ${network.makerAddress}`)
     }
 
     /*************************************** Deploy Generator Contract *****************************************/
@@ -145,6 +101,55 @@ async function main() {
             registerVestingAccounts,
         )
     }
+
+    /*************************************** Deploy Factory Contract *****************************************/
+    if (!network.factoryAddress) {
+        console.log('Deploying Factory...')
+        deployConfig.factoryInitMsg.config.generator_address = network.generatorAddress
+        deployConfig.factoryInitMsg.config.pair_configs[0].code_id = network.pairCodeID
+        deployConfig.factoryInitMsg.config.pair_configs[1].code_id = network.pairStableCodeID
+        deployConfig.factoryInitMsg.config.token_code_id = network.tokenCodeID
+        console.log(`CodeIs Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID}`)
+        deployConfig.factoryInitMsg.config.gov = wallet.key.accAddress
+        network.factoryAddress = await deployContract(
+            terra,
+            wallet,
+            join(ARTIFACTS_PATH, 'astroport_factory.wasm'),
+            deployConfig.factoryInitMsg.config
+        )
+        console.log(`Address Factory Contract: ${network.factoryAddress}`)
+    }
+
+    /*************************************** Deploy Router Contract *****************************************/
+    if (!network.routerAddress) {
+        console.log('Deploying Router...')
+        network.routerAddress = await deployContract(
+            terra,
+            wallet,
+            join(ARTIFACTS_PATH, 'astroport_router.wasm'),
+            {
+                astroport_factory: network.factoryAddress,
+            },
+        )
+        console.log(`Address Router Contract: ${network.routerAddress}`)
+    }
+
+    /*************************************** Deploy Maker Contract *****************************************/
+    if (!network.makerAddress) {
+        console.log('Deploying Maker...')
+        network.makerAddress = await deployContract(
+            terra,
+            wallet,
+            join(ARTIFACTS_PATH, 'astroport_maker.wasm'),
+            {
+                factory_contract: String(network.factoryAddress),
+                staking_contract: String(network.stakingAddress),
+                astro_token_contract: String(network.tokenAddress),
+            }
+        )
+        console.log(`Address Maker Contract: ${network.makerAddress}`)
+    }
+
     writeArtifact(network, terra.config.chainID)
     console.log('FINISH')
 }
