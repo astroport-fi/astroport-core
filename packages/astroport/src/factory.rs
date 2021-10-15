@@ -1,6 +1,6 @@
 use crate::asset::{AssetInfo, PairInfo};
 use crate::hook::InitHook;
-use cosmwasm_std::Addr;
+use cosmwasm_std::{to_binary, Addr, DepsMut, QueryRequest, StdResult, WasmQuery};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result};
@@ -42,6 +42,7 @@ pub struct InstantiateMsg {
     pub init_hook: Option<InitHook>,
     // Contract address to send fees to
     pub fee_address: Option<Addr>,
+    pub generator_address: Addr,
     pub gov: Option<Addr>,
 }
 
@@ -54,6 +55,7 @@ pub enum ExecuteMsg {
         owner: Option<Addr>,
         token_code_id: Option<u64>,
         fee_address: Option<Addr>,
+        generator_address: Option<Addr>,
     },
     UpdatePairConfig {
         config: PairConfig,
@@ -103,6 +105,7 @@ pub struct ConfigResponse {
     pub pair_configs: Vec<PairConfig>,
     pub token_code_id: u64,
     pub fee_address: Option<Addr>,
+    pub generator_address: Addr,
 }
 
 /// We currently take no arguments for migrations
@@ -121,4 +124,12 @@ pub struct FeeInfoResponse {
     pub fee_address: Option<Addr>,
     pub total_fee_bps: u16,
     pub maker_fee_bps: u16,
+}
+
+/// External query factory config
+pub fn factory_config(factory_addr: Addr, deps: &DepsMut) -> StdResult<ConfigResponse> {
+    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: factory_addr.to_string(),
+        msg: to_binary(&QueryMsg::Config {})?,
+    }))
 }
