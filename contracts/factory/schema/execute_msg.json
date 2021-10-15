@@ -3,7 +3,7 @@
   "title": "ExecuteMsg",
   "anyOf": [
     {
-      "description": "UpdateConfig update relevant code IDs",
+      "description": "UpdateConfig updates relevant code IDs",
       "type": "object",
       "required": [
         "update_config"
@@ -13,6 +13,16 @@
           "type": "object",
           "properties": {
             "fee_address": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gov": {
               "anyOf": [
                 {
                   "$ref": "#/definitions/Addr"
@@ -133,7 +143,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Register is invoked from created pair contract after initialzation",
+      "description": "Register is invoked from created pair contract after initialization",
       "type": "object",
       "required": [
         "register"

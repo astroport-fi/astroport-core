@@ -3,7 +3,6 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "gov",
     "pair_configs",
     "token_code_id"
   ],
@@ -19,7 +18,14 @@
       ]
     },
     "gov": {
-      "$ref": "#/definitions/Addr"
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "init_hook": {
       "anyOf": [
@@ -32,7 +38,7 @@
       ]
     },
     "pair_configs": {
-      "description": "Pair contract code IDs which are allowed for pair creation",
+      "description": "Pair contract code IDs which are allowed to create pairs",
       "type": "array",
       "items": {
         "$ref": "#/definitions/PairConfig"
