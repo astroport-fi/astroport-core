@@ -3,7 +3,9 @@ use astroport::factory::{
     ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
     QueryMsg as FactoryQueryMsg,
 };
-use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::pair::{
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
+};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
@@ -40,7 +42,7 @@ fn store_pair_code(app: &mut App) -> u64 {
     app.store_code(pair_contract)
 }
 
-fn instantiate_pair(mut router: &mut App, owner: Addr) -> Addr {
+fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
     let token_contract_code_id = store_token_code(&mut router);
 
     let pair_contract_code_id = store_pair_code(&mut router);
@@ -98,7 +100,7 @@ fn test_provide_and_withdraw_liquidity() {
         .unwrap();
 
     // Init pair
-    let pair_instance = instantiate_pair(&mut router, owner.clone());
+    let pair_instance = instantiate_pair(&mut router, &owner);
 
     let res: Result<PairInfo, _> = router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: pair_instance.to_string(),
@@ -396,4 +398,74 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .unwrap();
 
     assert_eq!(res.balance, y_expected_return);
+}
+
+#[test]
+fn test_if_twap_is_calculated_correctly_when_pool_idles() {
+    let mut app = mock_app();
+
+    let user1 = Addr::unchecked("USER1");
+
+    app.init_bank_balance(
+        &user1,
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(4000000_000000),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(2000000_000000),
+            },
+        ],
+    )
+    .unwrap();
+
+    // instantiate pair
+    let pair_instance = instantiate_pair(&mut app, &user1);
+
+    // provide liquidity, accumulators are empty
+    let (msg, coins) =
+        provide_liquidity_msg(Uint128::new(1000000_000000), Uint128::new(1000000_000000));
+    app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap();
+
+    const BLOCKS_PER_DAY: u64 = 17280;
+    const ELAPSED_SECONDS: u64 = BLOCKS_PER_DAY * 5;
+
+    // a day later
+    app.update_block(|b| {
+        b.height += BLOCKS_PER_DAY;
+        b.time = b.time.plus_seconds(ELAPSED_SECONDS);
+    });
+
+    // provide liquidity, accumulators firstly filled with the same prices
+    let (msg, coins) =
+        provide_liquidity_msg(Uint128::new(3000000_000000), Uint128::new(1000000_000000));
+    app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap();
+
+    // get current twap accumulator values
+    let msg = QueryMsg::CumulativePrices {};
+    let cpr_old: CumulativePricesResponse =
+        app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
+
+    // a day later
+    app.update_block(|b| {
+        b.height += BLOCKS_PER_DAY;
+        b.time = b.time.plus_seconds(ELAPSED_SECONDS);
+    });
+
+    // get current twap accumulator values, it should be added up by the query method with new 2/1 ratio
+    let msg = QueryMsg::CumulativePrices {};
+    let cpr_new: CumulativePricesResponse =
+        app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
+
+    let twap0 = cpr_new.price0_cumulative_last - cpr_old.price0_cumulative_last;
+    let twap1 = cpr_new.price1_cumulative_last - cpr_old.price1_cumulative_last;
+
+    // Prices weren't changed for the last day, uusd amount in pool = 4000000_000000, uluna = 2000000_000000
+    // In accumulators we don't have any precision so we rely on elapsed time to not consider it
+    assert_eq!(twap0, Uint128::new(85684)); // 1.008356286 * ELAPSED_SECONDS (86400)
+    assert_eq!(twap1, Uint128::new(87121)); //   0.991712963 * ELAPSED_SECONDS
 }

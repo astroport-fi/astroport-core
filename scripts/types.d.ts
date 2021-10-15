@@ -15,7 +15,7 @@ interface FactoryInitMsg {
     }
 }
 
-interface GeneratorInitMsg {
+interface GeneratorInitMsd {
     config: {
         allowed_reward_proxies: string[],
         astro_token: string,
@@ -69,7 +69,7 @@ interface RegisterVestingAccounts {
 interface Config {
     factoryInitMsg: FactoryInitMsg,
     stakingInitMsg: StakingInitMsg
-    generatorInitMsg: GeneratorInitMsg,
+    generatorInitMsg: GeneratorInitMsd,
     astroTokenContractAddress: string | undefined
     registerVestingAccounts: RegisterVestingAccounts
 }

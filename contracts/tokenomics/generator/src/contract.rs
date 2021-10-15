@@ -277,7 +277,7 @@ fn update_rewards_and_execute(
         last.reply_on = ReplyOn::Success;
         Ok(Response::new().add_submessages(messages))
     } else {
-        proccess_after_update(deps, env)
+        process_after_update(deps, env)
     }
 }
 
@@ -310,10 +310,10 @@ fn get_pool_rewards_from_proxy(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
-    proccess_after_update(deps, env)
+    process_after_update(deps, env)
 }
 
-fn proccess_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     match TMP_USER_ACTION.load(deps.storage)? {
         Some(action) => {
             TMP_USER_ACTION.save(deps.storage, &None)?;
