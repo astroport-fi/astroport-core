@@ -81,6 +81,7 @@ async function main() {
     /*************************************** Deploy Staking Contract *****************************************/
     if (!network.stakingAddress) {
         console.log('Deploying Staking...')
+        deployConfig.stakingInitMsg.config.deposit_token_addr = network.tokenAddress
         deployConfig.stakingInitMsg.config.token_code_id = network.tokenCodeID
         network.stakingAddress = await deployContract(
             terra,
