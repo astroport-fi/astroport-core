@@ -32,7 +32,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            deposit_token_addr: msg.deposit_token_addr,
+            deposit_token_addr: deps.api.addr_validate(&msg.deposit_token_addr)?,
             share_token_addr: Addr::unchecked(""),
         },
     )?;
