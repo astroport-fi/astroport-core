@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import {ARTIFACTS_PATH, migrate, newClient, readArtifact, uploadContract} from "./helpers.js"
 import { join } from "path"
-import {config} from "./migrate_configs";
+import {config} from "./migrate_configs.js";
 
 async function main() {
     const {terra, wallet} = newClient()
