@@ -77,5 +77,5 @@ interface Config {
 interface MigrationConfig {
     contract_address: string,
     file_path: string,
-    message: string
+    message: object
 }

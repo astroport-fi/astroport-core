@@ -1,56 +1,23 @@
-import {
-    LCDClient,
-    LocalTerra,
-    Wallet
-} from "@terra-money/terra.js"
 import 'dotenv/config'
-import {
-    recover,
-    setTimeoutDuration,
-    migrate,
-    uploadContract
-} from "./helpers.js"
+import {ARTIFACTS_PATH, migrate, newClient, readArtifact, uploadContract} from "./helpers.js"
 import { join } from "path"
-
-import {testnet, bombay, local} from './migrate_configs.js';
-
-const ARTIFACTS_PATH = "../artifacts/"
+import {config} from "./migrate_configs";
 
 async function main() {
-    let terra: LCDClient | LocalTerra
-    let wallet: Wallet
-    let deployConfig: Migrate = testnet
-    let contractAddress = String(process.env.CONTRACT_ADDRESS)
+    const {terra, wallet} = newClient()
+    console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
+    const network = readArtifact(terra.config.chainID)
+    console.log('network:', network)
 
-    if (process.env.NETWORK === "testnet" || process.env.NETWORK === "bombay") {
-        terra = new LCDClient({
-            URL: String( process.env.LCD_CLIENT_URL),
-            chainID: String( process.env.CHAIN_ID)
-        })
-        wallet = recover(terra, process.env.WALLET!)
-        if (process.env.NETWORK === "bombay"){
-            deployConfig = bombay
-        }
-    } else {
-        setTimeoutDuration(0)
-        terra = new LocalTerra()
-        wallet = (terra as LocalTerra).wallets.test1
-        deployConfig = local
-    }
-    for (const el of deployConfig.contracts) {
-        if ( el.migrate ) {
-            console.log("uploading...");
-            const newCodeId = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, el.filepath)!);
+    console.log("uploading...");
+    const newCodeId = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, config.file_path)!);
 
-            console.log('migrating...');
-            const migrateResult = await migrate(terra, wallet, el.address, newCodeId);
+    console.log('migrating...');
+    const migrateResult = await migrate(terra, wallet, config.contract_address, newCodeId, config.message);
 
-            console.log("migration complete: ");
-            console.log(migrateResult);
-        } else {
-            console.log( `contract ${el.filepath} skip migrate` )
-        }
-    }
-    console.log("OK")
+    console.log("migration complete: ");
+    console.log(migrateResult);
+
 }
+
 main().catch(console.log)

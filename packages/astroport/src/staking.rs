@@ -28,4 +28,4 @@ pub struct ConfigResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum MigrateMsg {}
+pub struct MigrateMsg {}
