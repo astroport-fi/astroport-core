@@ -6,6 +6,7 @@ pub mod hook;
 pub mod pair;
 pub mod querier;
 pub mod router;
+pub mod maker;
 pub mod staking;
 pub mod token;
 pub mod vesting;

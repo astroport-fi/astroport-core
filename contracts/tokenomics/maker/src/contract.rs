@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::msg::{
+use astroport::maker::{
     ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
 };
 use crate::state::{Config, CONFIG};
