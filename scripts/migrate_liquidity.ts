@@ -3,8 +3,10 @@ import {Buffer} from 'buffer';
 
 const terraSwapFactoryAddr = "terra18qpjm4zkvqnpjpw0zn0tdr8gdzvt8au35v45xf"
 const astroTokenAddr = "terra1swfvqw3t3xchsscpy35zqhl0edf65wyvws7v83"
-const terraSwapPairAddr = "terra18um88jh26gwq5varc570ze8m24q79q9n02sd33"
-const astroportPairAddr = "terra18um88jh26gwq5varc570ze8m24q79q9n02sd33"
+
+const terraSwapPairAddr = String(process.env.TERRA_SWAP_PAIR)
+const astroportPairAddr = String(process.env.ASTROPORT_PAIR)
+const liquidityAmount = String(process.env.LIQUIDITY_AMOUNT)
 
 async function createPair(cl: Client) {
     let response = await executeContract(cl.terra,
@@ -67,7 +69,7 @@ async function msgProvideLiquidity(cl: Client, pairAddr: string, msg: Object, wi
         "provide_liquidity": {
             "assets": [{
                 "info": {},
-                "amount": "1000"
+                "amount": "100"
             }, {
                 "info": {},
                 "amount": "1000"
@@ -113,10 +115,10 @@ async function migrateLiquidity(cl: Client, fromPairAddr: string, toPairAddr: st
 
 async function main() {
     const client = newClient();
-    let response = await migrateLiquidity(client, terraSwapPairAddr, astroportPairAddr, "100");
+    let response = await migrateLiquidity(client, terraSwapPairAddr, astroportPairAddr, liquidityAmount);
     console.log(response);
 
-    response = await queryContract(client.terra, terraSwapPairAddr, {"pool": {}});
+    response = await queryContract(client.terra, astroportPairAddr, {"pool": {}});
     console.log(response);
 }
 main().catch(console.log)
