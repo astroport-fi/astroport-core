@@ -36,7 +36,7 @@ export interface Client {
     terra: LCDClient | LocalTerra
 }
 
-export function newClient(): Client {
+export function newClient(url?: string, chainID?: string, mnemonic?: string): Client {
     const client = <Client>{}
     if (process.env.WALLET) {
         client.terra = new LCDClient({
