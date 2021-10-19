@@ -15,7 +15,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Post initize step to allow user to set controlled contract address after creating it",
+      "description": "Post initialize step to allow user to set controlled contract address after creating it",
       "type": "object",
       "required": [
         "post_initialize"

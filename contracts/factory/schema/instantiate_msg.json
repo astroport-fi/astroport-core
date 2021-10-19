@@ -32,7 +32,7 @@
       ]
     },
     "pair_configs": {
-      "description": "Pair contract code IDs which are allowed for pair creation",
+      "description": "Pair contract code IDs which are allowed to create pairs",
       "type": "array",
       "items": {
         "$ref": "#/definitions/PairConfig"
