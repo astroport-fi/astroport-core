@@ -16,6 +16,9 @@ pub struct InstantiateMsg {
     pub init_hook: Option<InitHook>,
 }
 
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct MigrateMsg {}
+
 impl InstantiateMsg {
     pub fn get_cap(&self) -> Option<Uint128> {
         self.mint.as_ref().and_then(|v| v.cap)

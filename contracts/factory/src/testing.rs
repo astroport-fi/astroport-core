@@ -327,8 +327,9 @@ fn create_pair() {
         },
     ];
 
+    let sender = "addr0000";
     let env = mock_env();
-    let info = mock_info("addr0000", &[]);
+    let info = mock_info(sender, &[]);
 
     // Check creating pair using non-whitelisted pair ID
     let res = execute(
@@ -383,7 +384,7 @@ fn create_pair() {
                 .unwrap(),
                 code_id: pair_config.code_id,
                 funds: vec![],
-                admin: None,
+                admin: Some(sender.to_string()),
                 label: String::from("Astroport pair"),
             }
             .into(),
