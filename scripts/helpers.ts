@@ -38,16 +38,13 @@ export interface Client {
 
 export function newClient(url?: string, chainID?: string, mnemonic?: string): Client {
     const client = <Client>{}
-    if (process.env.WALLET) {
-        client.terra = new LCDClient({
-            URL: String(process.env.LCD_CLIENT_URL),
-            chainID: String(process.env.CHAIN_ID)
-        })
-        client.wallet = recover(client.terra, process.env.WALLET)
-    } else {
-        client.terra = new LocalTerra()
-        client.wallet = (client.terra as LocalTerra).wallets.test1
-    }
+
+    client.terra = new LCDClient({
+        URL: url! || String(process.env.LCD_CLIENT_URL),
+        chainID: chainID! || String(process.env.CHAIN_ID)
+    });
+    client.wallet = recover(client.terra, mnemonic! || String(process.env.WALLET));
+
     return client
 }
 
