@@ -1,4 +1,4 @@
-use astroport::asset::AssetInfo;
+use crate::asset::AssetInfo;
 use cosmwasm_std::Uint128;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

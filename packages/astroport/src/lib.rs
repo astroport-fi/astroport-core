@@ -5,6 +5,7 @@ pub mod generator_proxy;
 pub mod hook;
 pub mod pair;
 pub mod querier;
+pub mod oracle;
 pub mod router;
 pub mod maker;
 pub mod staking;
