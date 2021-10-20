@@ -335,7 +335,7 @@ fn create_pair() {
         },
     ];
 
-    let config = CONFIG.load(&deps.storage)?;
+    let config = CONFIG.load(&deps.storage);
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
 
@@ -392,7 +392,7 @@ fn create_pair() {
                 .unwrap(),
                 code_id: pair_config.code_id,
                 funds: vec![],
-                admin: Some(config.owner.to_string()),
+                admin: Some(config.unwrap().owner.to_string()),
                 label: String::from("Astroport pair"),
             }
             .into(),
