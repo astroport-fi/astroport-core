@@ -881,3 +881,24 @@ pub fn pool_info(deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)>
 
     Ok((pools, total_share))
 }
+
+#[test]
+fn compute_swap_rounding() {
+    // let offer_weight = FixedFloat::from_num(1);
+    // let ask_weight = FixedFloat::from_num(1);
+    let offer_pool = Uint128::from(5_000_000_000_000_u128);
+    let ask_pool = Uint128::from(1_000_000_000_u128);
+    let offer_amount = Uint128::from(1_u128);
+
+    let return_amount = Uint128::from(0_u128);
+    let spread_amount = Uint128::from(0_u128);
+
+    let commission_amount = Uint128::from(0_u128);
+    // commission_amount = return_amount * commission_rate;
+    let commission_rate = Decimal::zero();
+
+    assert_eq!(
+        compute_swap(offer_pool, ask_pool, offer_amount, commission_rate),
+        Ok((return_amount, spread_amount, commission_amount))
+    );
+}
