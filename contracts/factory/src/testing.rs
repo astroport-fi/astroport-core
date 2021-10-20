@@ -51,7 +51,8 @@ fn proper_initialization() {
         token_code_id: 123u64,
         init_hook: None,
         fee_address: None,
-        gov: Addr::unchecked("gov"),
+        gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let env = mock_env();
@@ -80,7 +81,8 @@ fn proper_initialization() {
         token_code_id: 123u64,
         init_hook: None,
         fee_address: None,
-        gov: Addr::unchecked("gov"),
+        gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let env = mock_env();
@@ -111,7 +113,8 @@ fn update_config() {
         token_code_id: 123u64,
         init_hook: None,
         fee_address: None,
-        gov: Addr::unchecked("gov"),
+        gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let env = mock_env();
@@ -128,6 +131,7 @@ fn update_config() {
         owner: Some(Addr::unchecked("addr0001")),
         token_code_id: None,
         fee_address: Some(Addr::unchecked("fee_addr")),
+        generator_address: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -148,6 +152,7 @@ fn update_config() {
         owner: None,
         token_code_id: Some(200u64),
         fee_address: None,
+        generator_address: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -167,6 +172,7 @@ fn update_config() {
         owner: None,
         token_code_id: None,
         fee_address: None,
+        generator_address: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
@@ -209,7 +215,8 @@ fn update_pair_config() {
         token_code_id: 123u64,
         init_hook: None,
         fee_address: None,
-        gov: Addr::unchecked("gov"),
+        gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let env = mock_env();
@@ -309,7 +316,8 @@ fn create_pair() {
         token_code_id: 123u64,
         init_hook: None,
         fee_address: None,
-        gov: Addr::unchecked("gov"),
+        gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let env = mock_env();
@@ -413,7 +421,8 @@ fn register() {
         token_code_id: 123u64,
         init_hook: None,
         fee_address: None,
-        gov: Addr::unchecked("gov"),
+        gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let env = mock_env();

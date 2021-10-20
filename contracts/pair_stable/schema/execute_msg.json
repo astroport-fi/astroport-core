@@ -48,6 +48,12 @@
               "maxItems": 2,
               "minItems": 2
             },
+            "auto_stack": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "slippage_tolerance": {
               "anyOf": [
                 {

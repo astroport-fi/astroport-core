@@ -3,7 +3,7 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "gov",
+    "generator_address",
     "pair_configs",
     "token_code_id"
   ],
@@ -18,8 +18,18 @@
         }
       ]
     },
-    "gov": {
+    "generator_address": {
       "$ref": "#/definitions/Addr"
+    },
+    "gov": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "init_hook": {
       "anyOf": [

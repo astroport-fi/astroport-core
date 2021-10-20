@@ -11,6 +11,7 @@ use cosmwasm_std::{
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg};
 use astroport::hook::InitHook;
+use astroport::pair::{generator_address, mint_liquidity_token_message};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
     QueryMsg, ReverseSimulationResponse, SimulationResponse,
@@ -112,7 +113,8 @@ pub fn execute(
         ExecuteMsg::ProvideLiquidity {
             assets,
             slippage_tolerance,
-        } => provide_liquidity(deps, env, info, assets, slippage_tolerance),
+            auto_stack,
+        } => provide_liquidity(deps, env, info, assets, slippage_tolerance, auto_stack),
         ExecuteMsg::Swap {
             offer_asset,
             belief_price,
@@ -232,7 +234,9 @@ pub fn provide_liquidity(
     info: MessageInfo,
     assets: [Asset; 2],
     slippage_tolerance: Option<Decimal>,
+    auto_stack: Option<bool>,
 ) -> Result<Response, ContractError> {
+    let auto_stack = auto_stack.unwrap_or(false);
     for asset in assets.iter() {
         asset.assert_sent_native_token_balance(&info)?;
     }
@@ -307,21 +311,13 @@ pub fn provide_liquidity(
         )
     };
 
-    // mint LP token to sender
-    messages.push(SubMsg {
-        msg: WasmMsg::Execute {
-            contract_addr: config.pair_info.liquidity_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Mint {
-                recipient: info.sender.to_string(),
-                amount: share,
-            })?,
-            funds: vec![],
-        }
-        .into(),
-        id: 0,
-        gas_limit: None,
-        reply_on: ReplyOn::Never,
-    });
+    messages.extend(mint_liquidity_token_message(
+        env.contract.address.clone(),
+        config.pair_info.liquidity_token.clone(),
+        info.sender,
+        share,
+        generator_address(auto_stack, config.factory_addr.clone(), &deps)?,
+    )?);
 
     // Accumulate prices for oracle
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =

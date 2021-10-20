@@ -83,7 +83,8 @@ fn instantiate_contracts(
         token_code_id: 1u64,
         init_hook: None,
         fee_address: None,
-        gov: Addr::unchecked("gov"),
+        gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let factory_instance = router
@@ -310,6 +311,7 @@ fn create_pair(
             &astroport::pair::ExecuteMsg::ProvideLiquidity {
                 assets,
                 slippage_tolerance: None,
+                auto_stack: None,
             },
             &funds,
         )

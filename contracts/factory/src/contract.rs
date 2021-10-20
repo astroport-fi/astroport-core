@@ -30,12 +30,22 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let config = Config {
+    let generator_address = deps.api.addr_validate(msg.generator_address.as_str())?;
+    let mut config = Config {
+        gov: None,
         owner: info.sender,
         token_code_id: msg.token_code_id,
-        fee_address: msg.fee_address.unwrap_or_else(|| Addr::unchecked("")),
-        gov: msg.gov,
+        fee_address: None,
+        generator_address,
     };
+
+    if let Some(fee_address) = msg.fee_address {
+        config.fee_address = Some(deps.api.addr_validate(fee_address.as_str())?);
+    }
+
+    if let Some(gov) = msg.gov {
+        config.gov = Some(deps.api.addr_validate(gov.as_str())?);
+    }
 
     let config_set: HashSet<String> = msg
         .pair_configs
@@ -72,6 +82,14 @@ pub fn instantiate(
     Ok(Response::new().add_submessages(messages))
 }
 
+pub struct UpdateConfig {
+    gov: Option<Addr>,
+    owner: Option<Addr>,
+    token_code_id: Option<u64>,
+    fee_address: Option<Addr>,
+    generator_address: Option<Addr>,
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -85,7 +103,19 @@ pub fn execute(
             owner,
             token_code_id,
             fee_address,
-        } => execute_update_config(deps, env, info, gov, owner, token_code_id, fee_address),
+            generator_address,
+        } => execute_update_config(
+            deps,
+            env,
+            info,
+            UpdateConfig {
+                gov,
+                owner,
+                token_code_id,
+                fee_address,
+                generator_address,
+            },
+        ),
         ExecuteMsg::UpdatePairConfig { config } => execute_update_pair_config(deps, info, config),
         ExecuteMsg::RemovePairConfig { pair_type } => {
             execute_remove_pair_config(deps, info, pair_type)
@@ -105,10 +135,7 @@ pub fn execute_update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    gov: Option<Addr>,
-    owner: Option<Addr>,
-    token_code_id: Option<u64>,
-    fee_address: Option<Addr>,
+    param: UpdateConfig,
 ) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
@@ -117,22 +144,27 @@ pub fn execute_update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(gov) = gov {
+    if let Some(gov) = param.gov {
         // validate address format
-        config.gov = deps.api.addr_validate(gov.as_str())?;
+        config.gov = Some(deps.api.addr_validate(gov.as_str())?);
     }
 
-    if let Some(owner) = owner {
+    if let Some(owner) = param.owner {
         // validate address format
         config.owner = deps.api.addr_validate(owner.as_str())?;
     }
 
-    if let Some(fee_address) = fee_address {
+    if let Some(fee_address) = param.fee_address {
         // validate address format
-        config.fee_address = deps.api.addr_validate(fee_address.as_str())?;
+        config.fee_address = Some(deps.api.addr_validate(fee_address.as_str())?);
     }
 
-    if let Some(token_code_id) = token_code_id {
+    if let Some(generator_address) = param.generator_address {
+        // validate address format
+        config.generator_address = deps.api.addr_validate(generator_address.as_str())?;
+    }
+
+    if let Some(token_code_id) = param.token_code_id {
         config.token_code_id = token_code_id;
     }
 
@@ -340,6 +372,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
             })
             .collect(),
         fee_address: config.fee_address,
+        generator_address: config.generator_address,
     };
 
     Ok(resp)
@@ -365,7 +398,7 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
     let pair_config = PAIR_CONFIGS.load(deps.storage, pair_type.to_string())?;
 
     Ok(FeeInfoResponse {
-        fee_address: Some(config.fee_address).filter(|a| a != &Addr::unchecked("")),
+        fee_address: config.fee_address,
         total_fee_bps: pair_config.total_fee_bps,
         maker_fee_bps: pair_config.maker_fee_bps,
     })

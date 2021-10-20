@@ -5,10 +5,10 @@
     {
       "type": "object",
       "required": [
-        "Config"
+        "config"
       ],
       "properties": {
-        "Config": {
+        "config": {
           "type": "object"
         }
       },
