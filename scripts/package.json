@@ -8,7 +8,8 @@
     "start": "npm run build-env && npm run build-app",
     "build-app": "bash build_app.sh",
     "build-env": "bash build_env.sh",
-    "build-artifacts": "bash build_artifacts.sh"
+    "build-artifacts": "bash build_artifacts.sh",
+    "migrate": "bash migrate.sh "
   },
   "dependencies": {
     "@terra-money/terra.js": "^2.0.5",

@@ -8,8 +8,8 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use astroport::factory::{PairConfig, PairType};
 
-use astroport_oracle::msg::QueryMsg::Consult;
-use astroport_oracle::msg::{ExecuteMsg, InstantiateMsg};
+use astroport::oracle::QueryMsg::Consult;
+use astroport::oracle::{ExecuteMsg, InstantiateMsg};
 
 fn mock_app() -> App {
     let env = mock_env();

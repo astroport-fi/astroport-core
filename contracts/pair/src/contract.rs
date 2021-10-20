@@ -30,7 +30,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn instantiate(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -73,7 +73,7 @@ pub fn instantiate(
                 }),
             })?,
             funds: vec![],
-            admin: None,
+            admin: Some(info.sender.to_string()),
             label: String::from("Astroport LP token"),
         }
         .into(),

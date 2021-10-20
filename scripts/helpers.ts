@@ -20,7 +20,7 @@ import {
 import path from 'path'
 import { CustomError } from 'ts-custom-error'
 
-const ARTIFACTS_PATH = '../artifacts'
+export const ARTIFACTS_PATH = '../artifacts'
 
 export function readArtifact(name: string = 'artifact') {
     try {
@@ -130,8 +130,8 @@ export async function deployContract(terra: LCDClient, wallet: Wallet, filepath:
     return await instantiateContract(terra, wallet, codeId, initMsg);
 }
 
-export async function migrate(terra: LCDClient, wallet: Wallet, contractAddress: string, newCodeId: number) {
-    const migrateMsg = new MsgMigrateContract(wallet.key.accAddress, contractAddress, newCodeId, {});
+export async function migrate(terra: LCDClient, wallet: Wallet, contractAddress: string, newCodeId: number, msg: object) {
+    const migrateMsg = new MsgMigrateContract(wallet.key.accAddress, contractAddress, newCodeId, msg);
     return await performTransaction(terra, wallet, migrateMsg);
 }
 

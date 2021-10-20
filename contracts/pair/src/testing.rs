@@ -76,9 +76,10 @@ fn proper_initialization() {
         pair_type: PairType::Xyk {},
     };
 
+    let sender = "addr0000";
     // we can just call .unwrap() to assert this was a success
     let env = mock_env();
-    let info = mock_info("addr0000", &[]);
+    let info = mock_info(sender, &[]);
     let res = instantiate(deps.as_mut(), env, info, msg).unwrap();
     assert_eq!(
         res.messages,
@@ -102,7 +103,7 @@ fn proper_initialization() {
                     })
                     .unwrap(),
                     funds: vec![],
-                    admin: None,
+                    admin: Some(sender.to_string()),
                     label: String::from("Astroport LP token"),
                 }
                 .into(),

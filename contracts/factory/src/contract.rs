@@ -253,7 +253,7 @@ pub fn execute_create_pair(
         msg: WasmMsg::Instantiate {
             code_id: pair_config.code_id,
             funds: vec![],
-            admin: None,
+            admin: Some(config.owner.to_string()),
             label: String::from("Astroport pair"),
             msg: to_binary(&PairInstantiateMsg {
                 asset_infos: asset_infos.clone(),

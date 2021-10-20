@@ -5,7 +5,7 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
-use astroport::staking::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use astroport::staking::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
 
@@ -23,7 +23,7 @@ const TOKEN_SYMBOL: &str = "xASTRO";
 pub fn instantiate(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -39,7 +39,7 @@ pub fn instantiate(
 
     // Create token
     let resp = Response::new().add_message(CosmosMsg::Wasm(WasmMsg::Instantiate {
-        admin: None,
+        admin: Some(info.sender.to_string()),
         code_id: msg.token_code_id,
         msg: to_binary(&TokenInstantiateMsg {
             name: TOKEN_NAME.to_string(),
@@ -204,9 +204,4 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             share_token_addr: config.share_token_addr,
         })?),
     }
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
 }
