@@ -1,7 +1,7 @@
 use cosmwasm_std::{attr, from_binary, to_binary, Addr, ReplyOn, SubMsg, WasmMsg};
 
 use crate::mock_querier::mock_dependencies;
-use crate::state::{pair_key, PAIRS};
+use crate::state::{pair_key, CONFIG, PAIRS};
 use crate::{
     contract::{execute, instantiate, query},
     error::ContractError,
@@ -327,9 +327,9 @@ fn create_pair() {
         },
     ];
 
-    let sender = "addr0000";
+    let config = CONFIG.load(&deps.storage)?;
     let env = mock_env();
-    let info = mock_info(sender, &[]);
+    let info = mock_info("addr0000", &[]);
 
     // Check creating pair using non-whitelisted pair ID
     let res = execute(
@@ -384,7 +384,7 @@ fn create_pair() {
                 .unwrap(),
                 code_id: pair_config.code_id,
                 funds: vec![],
-                admin: Some(sender.to_string()),
+                admin: Some(config.owner.to_string()),
                 label: String::from("Astroport pair"),
             }
             .into(),
