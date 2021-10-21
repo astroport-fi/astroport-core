@@ -118,8 +118,8 @@ pub fn execute(
         ExecuteMsg::ProvideLiquidity {
             assets,
             slippage_tolerance,
-            auto_stack,
-        } => provide_liquidity(deps, env, info, assets, slippage_tolerance, auto_stack),
+            auto_stake,
+        } => provide_liquidity(deps, env, info, assets, slippage_tolerance, auto_stake),
         ExecuteMsg::Swap {
             offer_asset,
             belief_price,
@@ -239,9 +239,9 @@ pub fn provide_liquidity(
     info: MessageInfo,
     assets: [Asset; 2],
     slippage_tolerance: Option<Decimal>,
-    auto_stack: Option<bool>,
+    auto_stake: Option<bool>,
 ) -> Result<Response, ContractError> {
-    let auto_stack = auto_stack.unwrap_or(false);
+    let auto_stake = auto_stake.unwrap_or(false);
     for asset in assets.iter() {
         asset.assert_sent_native_token_balance(&info)?;
     }
@@ -321,7 +321,7 @@ pub fn provide_liquidity(
         config.pair_info.liquidity_token.clone(),
         info.sender.clone(),
         share,
-        generator_address(auto_stack, config.factory_addr.clone(), &deps)?,
+        generator_address(auto_stake, config.factory_addr.clone(), &deps)?,
     )?);
 
     // Accumulate prices for oracle

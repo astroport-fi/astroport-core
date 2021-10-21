@@ -287,7 +287,7 @@ fn create_pair(
             &astroport::pair::ExecuteMsg::ProvideLiquidity {
                 assets,
                 slippage_tolerance: None,
-                auto_stack: None,
+                auto_stake: None,
             },
             &funds,
         )
@@ -356,7 +356,7 @@ fn change_provide_liquidity(
                     },
                 ],
                 slippage_tolerance: None,
-                auto_stack: None,
+                auto_stake: None,
             },
             &vec![],
         )

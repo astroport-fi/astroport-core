@@ -41,3 +41,4 @@ terra-cosmwasm = { version = "2.2.0" }
 astroport-token = {path = "../token"}
 cw-multi-test = "0.8.0"
 astroport-factory = {path = "../factory"}
+proptest = "0.10.1"
