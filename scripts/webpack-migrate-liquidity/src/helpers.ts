@@ -6,16 +6,10 @@ import {
     MnemonicKey,
     Msg,
     MsgExecuteContract,
-    MsgInstantiateContract,
-    MsgMigrateContract,
-    MsgStoreCode,
     StdTx,
     Wallet
 } from '@terra-money/terra.js';
-
 import { CustomError } from 'ts-custom-error'
-
-const ARTIFACTS_PATH = '../artifacts'
 
 export interface Client {
     wallet: Wallet
@@ -82,13 +76,7 @@ export async function queryContract(terra: LCDClient, contractAddress: string, q
     return await terra.wasm.contractQuery(contractAddress, query)
 }
 
-export async function migrate(terra: LCDClient, wallet: Wallet, contractAddress: string, newCodeId: number) {
-    const migrateMsg = new MsgMigrateContract(wallet.key.accAddress, contractAddress, newCodeId, {});
-    return await performTransaction(terra, wallet, migrateMsg);
-}
-
 export function recover(terra: LCDClient, mnemonic: string) {
     const mk = new MnemonicKey({ mnemonic: mnemonic });
     return terra.wallet(mk);
 }
-

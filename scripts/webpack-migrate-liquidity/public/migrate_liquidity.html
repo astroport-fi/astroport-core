@@ -10,7 +10,7 @@
 
     <title>Hello, world!</title>
 </head>
-<body>
+<body onload="document.body.style.display='none';">
 <div class="container">
     <h1 style="text-align: center">Migrate liquidity</h1>
     <form id="formID">
@@ -22,14 +22,15 @@
         </div>
         <div class="form-group">
             <label for="pair_to">To a pair address</label>
-            <input type="text" class="form-control" id="pair_to" placeholder="Enter a pair address where is migrate to...">
+            <select class="form-select" id="pair_to" aria-label="Default select example">
+                <option selected>Open this select menu</option>
+            </select>
         </div>
         <div class="form-group">
             <label for="amount">Amount</label>
             <input type="number" class="form-control" id="amount" placeholder="Enter an amount of migrate...">
         </div>
-        <button type="submit" class="btn btn-primary">Submit</button>
-        <button type="button" class="btn btn-primary" onclick="getType()">click</button>
+        <button type="button" class="btn btn-primary" onclick="submitMigration()">Submit</button>
     </form>
 </div>
 
@@ -39,24 +40,63 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
 
-<script src="bundle-main.js"></script>
+<script src="./bundle-main.js"></script>
 <script type="text/javascript">
-    import {newClient} from "../../helpers";
-    import {pairs} from "../../migrate_liquidity";
-    let cl = newClient();
-    let pairsList = pairs(cl, "", {"pairs": {}});
-    console.log("pairs: ", pairsList);
-    function getType() {
+    const chainID="bombay-12"
+    const nodeURL ="https://bombay-lcd.terra.dev"
+    const walletMnemonic="quality vacuum heart guard buzz spike sight swarm shove special gym robust assume sudden deposit grid alcohol choice devote leader tilt noodle tide penalty"
+    const terraSwapFactoryAddr = "terra18qpjm4zkvqnpjpw0zn0tdr8gdzvt8au35v45xf"
 
+    let cl = EntryPoint.newClient(nodeURL, chainID, walletMnemonic);
+
+    async function getAllPairs() {
+        let totalPairs = []
+        let response = await EntryPoint.pairs(cl, terraSwapFactoryAddr, {"pairs": {"limit": 30}});
+        totalPairs.push(...response.pairs);
+
+        do {
+            response = await EntryPoint.pairs(cl, terraSwapFactoryAddr, {"pairs": {"limit": 30, "start_after": totalPairs[totalPairs.length - 1].asset_infos}});
+            totalPairs.push(...response.pairs);
+        } while ( response.pairs.length > 0);
+
+        return totalPairs;
+    }
+
+    async function getType() {
+        let pairs = await getAllPairs();
+        console.log("pairsList: ", pairs);
 
         const sb = document.querySelector('#pair_from');
-        for (const pairsListKey in pairsList) {
-            console.log("pair: ", pairsListKey);
-            // const option = new Option(pairsListKey, name.value);
-            // sb.appendChild(option);
+        const sb2 = document.querySelector('#pair_to');
+
+        for (let i=0; i<pairs.length; i++) {
+            let optionName = [];
+            try {
+                for (let j=0; j<pairs[i].asset_infos.length; j++){
+                    if (pairs[i].asset_infos[j].hasOwnProperty("token")) {
+                        let tokenInfo = await EntryPoint.tokenInfo(cl, pairs[i].asset_infos[j].token.contract_addr, {"token_info": {}});
+                        optionName.push(tokenInfo.name);
+                    } else {
+                        optionName.push(pairs[i].asset_infos[j].native_token.denom);
+                    }
+                }
+                const option = new Option(optionName[0] + " -- " + optionName[1], pairs[i].contract_addr);
+                const option1 = new Option(optionName[0] + "--" + optionName[1], pairs[i].contract_addr);
+                sb.appendChild(option);
+                sb2.appendChild(option1);
+            } catch (e) {}
         }
+    }
+    window.onload = getType();
 
+    async function submitMigration(){
+        let pairFrom = document.getElementById("pair_from").value;
+        let amount = document.getElementById("amount").value;
+        console.log("Pair from: ", pairFrom);
+        console.log("amount: ", amount);
 
+        let response = await EntryPoint.migrateLiquidity(cl, pairFrom, pairFrom, amount);
+        console.log("response: ", response)
     }
 </script>
 </body>

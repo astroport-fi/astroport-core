@@ -9,14 +9,19 @@ module.exports = {
     output: {
         path: path.resolve(__dirname, "./public"),
         filename: 'bundle-[name].js',
-        publicPath: 'public'
+        publicPath: 'public',
+        library: 'EntryPoint',
+        libraryTarget: 'var'
     },
     resolve: {
         extensions: ['', '.js', '.ts'],
         fallback: {
             "buffer": require.resolve("buffer/"),
             "events": require.resolve("events/"),
-            "stream": require.resolve("stream-browserify/")
+            "stream": require.resolve("stream-browserify/"),
+            "os": false,
+            "path": false,
+            "fs": false,
         },
     },
     module: {

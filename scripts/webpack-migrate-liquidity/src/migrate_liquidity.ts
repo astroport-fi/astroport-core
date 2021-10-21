@@ -6,15 +6,7 @@ const astroportFactoryAddr = "terra18qpjm4zkvqnpjpw0zn0tdr8gdzvt8au35v45xf"
 const terraSwapPairAddr = "terra18um88jh26gwq5varc570ze8m24q79q9n02sd33"
 const astroportPairAddr = "terra18um88jh26gwq5varc570ze8m24q79q9n02sd33"
 
-const chainID="bombay-12"
-const nodeURL ="https://bombay-lcd.terra.dev"
-const walletMnemonic="quality vacuum heart guard buzz spike sight swarm shove special gym robust assume sudden deposit grid alcohol choice devote leader tilt noodle tide penalty"
-
-
-async function migrateLiquidity(fromPairAddr: string, toPairAddr: string, amount: string) {
-    const cl = newClient(nodeURL, chainID, walletMnemonic);
-    //const cl = newClient();
-
+async function migrateLiquidity(cl: Client, fromPairAddr: string, toPairAddr: string, amount: string) {
     if (!await isAllowedAmountInPool(cl, fromPairAddr, amount, {"pool": {}})) {
         console.log("This amount not allowed in pool");
         return
@@ -150,15 +142,41 @@ async function provideLiquidity(cl: Client, pairAddr: string, msg: any) {
     }
 }
 
-export async function pairs(cl: Client, factoryAddr: string, msg: Object) {
-    return await queryContract(cl.terra, factoryAddr, msg);
+async function pairs(cl: Client, factoryAddress: string, msg: Object) {
+    return await queryContract(cl.terra, factoryAddress, msg);
 }
 
-async function main() {
-    try {
-        await migrateLiquidity(terraSwapPairAddr, astroportPairAddr, "10");
-    } catch (e: any) {
-        console.log(e);
-    }
+async function tokenInfo(cl: Client, tokenAddress: string, msg: Object) {
+    return  await queryContract(cl.terra, tokenAddress, msg);
 }
-main().catch(console.log);
+
+module.exports = {
+    newClient,
+    pairs,
+    tokenInfo,
+    migrateLiquidity,
+};
+
+async function main() {
+    const chainID="bombay-12"
+    const nodeURL ="https://bombay-lcd.terra.dev"
+    const walletMnemonic="quality vacuum heart guard buzz spike sight swarm shove special gym robust assume sudden deposit grid alcohol choice devote leader tilt noodle tide penalty"
+
+    let cl = newClient(nodeURL, chainID, walletMnemonic);
+
+
+    let totalPairs = []
+    let response = await pairs(cl, terraSwapFactoryAddr, {"pairs": {"limit": 30}});
+    totalPairs.push(...response.pairs);
+
+    do {
+        response = await pairs(cl, terraSwapFactoryAddr, {"pairs": {"limit": 30, "start_after": totalPairs[totalPairs.length - 1].asset_infos}});
+        totalPairs.push(...response.pairs);
+    } while ( response.pairs.length > 0);
+
+
+    console.log(totalPairs);
+    console.log(totalPairs.length);
+}
+
+main().catch();
