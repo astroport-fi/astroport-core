@@ -16,21 +16,20 @@
     <form id="formID">
         <div class="form-group">
             <label for="pair_from">From a pair address</label>
-            <select class="form-select" id="pair_from" aria-label="Default select example">
+            <select class="form-select" id="pair_from" aria-label="Default select example" onchange="getPairPool()">
                 <option selected>Open this select menu</option>
             </select>
         </div>
         <div class="form-group">
-            <label for="pair_to">To a pair address</label>
-            <select class="form-select" id="pair_to" aria-label="Default select example">
-                <option selected>Open this select menu</option>
-            </select>
+            <label for="poolID">Allowed pool</label>
+            <input type="text" value="0" id="poolID" readonly>
         </div>
         <div class="form-group">
             <label for="amount">Amount</label>
             <input type="number" class="form-control" id="amount" placeholder="Enter an amount of migrate...">
         </div>
         <button type="button" class="btn btn-primary" onclick="submitMigration()">Submit</button>
+
     </form>
 </div>
 
@@ -62,13 +61,20 @@
         return totalPairs;
     }
 
+    async function getPairPool() {
+        let pairFrom = document.getElementById("pair_from").value;
+        let poolElement = document.getElementById("poolID");
+
+        let response = await EntryPoint.pairPool(cl, pairFrom, {"pool": {}});
+        console.log("pool:", response);
+        poolElement.value = response;
+    }
+
     async function getType() {
         let pairs = await getAllPairs();
         console.log("pairsList: ", pairs);
 
         const sb = document.querySelector('#pair_from');
-        const sb2 = document.querySelector('#pair_to');
-
         for (let i=0; i<pairs.length; i++) {
             let optionName = [];
             try {
@@ -81,9 +87,7 @@
                     }
                 }
                 const option = new Option(optionName[0] + " -- " + optionName[1], pairs[i].contract_addr);
-                const option1 = new Option(optionName[0] + "--" + optionName[1], pairs[i].contract_addr);
                 sb.appendChild(option);
-                sb2.appendChild(option1);
             } catch (e) {}
         }
     }
@@ -95,8 +99,36 @@
         console.log("Pair from: ", pairFrom);
         console.log("amount: ", amount);
 
-        let response = await EntryPoint.migrateLiquidity(cl, pairFrom, pairFrom, amount);
-        console.log("response: ", response)
+        let assetsInf = await EntryPoint.assetsInfo(cl, pairFrom, {"pair": {}});
+        console.log("assetInf: ", assetsInf);
+
+        let pairTo = "";
+        try {
+            let response = await EntryPoint.isExistsPair(cl, terraSwapFactoryAddr, assetsInf);
+            console.log("exists pair: ", response);
+            pairTo = response.contract_addr;
+        } catch (e) {}
+
+        if (pairTo === "") {
+           if (!confirm('Are you sure you want to create a new pair?')) {
+               console.log('Operation was canceled.');
+               return
+           }
+
+           try {
+               await EntryPoint.createPair(cl, terraSwapFactoryAddr, assetsInf);
+               let response = await EntryPoint.isExistsPair(cl, terraSwapFactoryAddr, assetsInf);
+               console.log("exists pair: ", response);
+               pairTo = response.contract_addr;
+           } catch (e){}
+        }
+
+        try {
+            let response = await EntryPoint.migrateLiquidity(cl, pairFrom, pairTo, amount);
+            console.log("response: ", response)
+        } catch (e){
+            console.log(e);
+        }
     }
 </script>
 </body>

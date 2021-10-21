@@ -7,7 +7,8 @@ const terraSwapPairAddr = "terra18um88jh26gwq5varc570ze8m24q79q9n02sd33"
 const astroportPairAddr = "terra18um88jh26gwq5varc570ze8m24q79q9n02sd33"
 
 async function migrateLiquidity(cl: Client, fromPairAddr: string, toPairAddr: string, amount: string) {
-    if (!await isAllowedAmountInPool(cl, fromPairAddr, amount, {"pool": {}})) {
+    let response = await pairPool(cl, fromPairAddr, {"pool": {}});
+    if (!isAllowedAmountInPool(response, amount)) {
         console.log("This amount not allowed in pool");
         return
     }
@@ -25,9 +26,6 @@ async function migrateLiquidity(cl: Client, fromPairAddr: string, toPairAddr: st
     console.log("withdrawResp: ", withdrawResponse);
 
     let assetsInf = await assetsInfo(cl, fromPairAddr, {"pair": {}});
-    if (!await isExistsPair(cl, assetsInf)) {
-        await createPair(cl, assetsInf);
-    }
     console.log("assetInf: ", assetsInf);
 
     let assetsAmount = withdrawAssetsAmount(withdrawResponse);
@@ -36,15 +34,18 @@ async function migrateLiquidity(cl: Client, fromPairAddr: string, toPairAddr: st
     let msgPL = msgProvideLiquidity(assetsInf, assetsAmount);
     console.log("msgPL: ", msgPL.provide_liquidity.assets);
 
-    let response = await provideLiquidity(cl, toPairAddr, msgPL);
+    response = await provideLiquidity(cl, toPairAddr, msgPL);
     console.log("provide: ", response);
     return response
 }
 
-async function isAllowedAmountInPool(cl: Client, pairAddr: string, amount: string, msg: Object) {
+function isAllowedAmountInPool(totalShare: string, amount: string) {
+    return parseFloat(amount) <= parseFloat(totalShare);
+}
+
+async function pairPool(cl: Client, pairAddr: string, msg: Object) {
     let response = await queryContract(cl.terra, pairAddr, msg);
-    console.log("pool:", response);
-    return parseFloat(amount) <= parseFloat(response.total_share);
+    return response.total_share
 }
 
 async function liquidityToken(cl: Client, pairAddr: string, msg: Object) {
@@ -60,18 +61,12 @@ async function assetsInfo(cl: Client, pairAddr: string, msg: Object) {
     return await queryContract(cl.terra, pairAddr, msg);
 }
 
-async function isExistsPair(cl: Client, assetInfo: any) {
-    try {
-        await queryContract(cl.terra, astroportFactoryAddr, {"pair": {"asset_infos": assetInfo.asset_infos}});
-        return true
-    } catch (e: any) {
-        console.log(e.response);
-    }
-    return false
+async function isExistsPair(cl: Client, factoryAddr: string, assetInfo: any) {
+    return await queryContract(cl.terra, factoryAddr, {"pair": {"asset_infos": assetInfo.asset_infos}});
 }
 
-async function createPair(cl: Client, assetsInfo: any) {
-    return await executeContract(cl.terra, cl.wallet, terraSwapFactoryAddr,
+async function createPair(cl: Client, factoryAddr: string, assetsInfo: any) {
+    return await executeContract(cl.terra, cl.wallet, factoryAddr,
         {
             "create_pair": {
                 "asset_infos": assetsInfo.asset_infos,
@@ -151,6 +146,10 @@ async function tokenInfo(cl: Client, tokenAddress: string, msg: Object) {
 }
 
 module.exports = {
+    assetsInfo,
+    isExistsPair,
+    pairPool,
+    createPair,
     newClient,
     pairs,
     tokenInfo,
@@ -163,20 +162,16 @@ async function main() {
     const walletMnemonic="quality vacuum heart guard buzz spike sight swarm shove special gym robust assume sudden deposit grid alcohol choice devote leader tilt noodle tide penalty"
 
     let cl = newClient(nodeURL, chainID, walletMnemonic);
+    let assetsInf = await assetsInfo(cl, terraSwapPairAddr, {"pair": {}});
+    console.log("assetInf: ", assetsInf);
+    //assetsInf.asset_infos[0].token.contract_addr = "hello";
+    assetsInf.asset_infos[1] = assetsInf.asset_infos[0];
 
+    let response = await isExistsPair(cl, terraSwapFactoryAddr, assetsInf);
+    console.log("exists pair: ", response);
 
-    let totalPairs = []
-    let response = await pairs(cl, terraSwapFactoryAddr, {"pairs": {"limit": 30}});
-    totalPairs.push(...response.pairs);
-
-    do {
-        response = await pairs(cl, terraSwapFactoryAddr, {"pairs": {"limit": 30, "start_after": totalPairs[totalPairs.length - 1].asset_infos}});
-        totalPairs.push(...response.pairs);
-    } while ( response.pairs.length > 0);
-
-
-    console.log(totalPairs);
-    console.log(totalPairs.length);
+    // let response = await createPair(cl, terraSwapFactoryAddr, assetsInf);
+    // console.log("response: ", response);
 }
 
-main().catch();
+//main().catch();
