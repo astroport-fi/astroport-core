@@ -1,11 +1,6 @@
 import {Client, executeContract, newClient, queryContract} from "./helpers";
 import {Buffer} from 'buffer';
 
-const terraSwapFactoryAddr = "terra18qpjm4zkvqnpjpw0zn0tdr8gdzvt8au35v45xf"
-const astroportFactoryAddr = "terra18qpjm4zkvqnpjpw0zn0tdr8gdzvt8au35v45xf"
-const terraSwapPairAddr = "terra18um88jh26gwq5varc570ze8m24q79q9n02sd33"
-const astroportPairAddr = "terra18um88jh26gwq5varc570ze8m24q79q9n02sd33"
-
 async function migrateLiquidity(cl: Client, fromPairAddr: string, toPairAddr: string, amount: string) {
     let response = await pairPool(cl, fromPairAddr, {"pool": {}});
     if (!isAllowedAmountInPool(response, amount)) {
@@ -39,13 +34,13 @@ async function migrateLiquidity(cl: Client, fromPairAddr: string, toPairAddr: st
     return response
 }
 
-function isAllowedAmountInPool(totalShare: string, amount: string) {
-    return parseFloat(amount) <= parseFloat(totalShare);
-}
-
 async function pairPool(cl: Client, pairAddr: string, msg: Object) {
     let response = await queryContract(cl.terra, pairAddr, msg);
     return response.total_share
+}
+
+function isAllowedAmountInPool(totalShare: string, amount: string) {
+    return parseFloat(amount) <= parseFloat(totalShare);
 }
 
 async function liquidityToken(cl: Client, pairAddr: string, msg: Object) {
@@ -59,19 +54,6 @@ async function withdraw(cl: Client, liquidityTokenAddr: string, msg: Object) {
 
 async function assetsInfo(cl: Client, pairAddr: string, msg: Object) {
     return await queryContract(cl.terra, pairAddr, msg);
-}
-
-async function isExistsPair(cl: Client, factoryAddr: string, assetInfo: any) {
-    return await queryContract(cl.terra, factoryAddr, {"pair": {"asset_infos": assetInfo.asset_infos}});
-}
-
-async function createPair(cl: Client, factoryAddr: string, assetsInfo: any) {
-    return await executeContract(cl.terra, cl.wallet, factoryAddr,
-        {
-            "create_pair": {
-                "asset_infos": assetsInfo.asset_infos,
-            }
-        });
 }
 
 function withdrawAssetsAmount(withdrawResponse: any) {
@@ -145,9 +127,22 @@ async function tokenInfo(cl: Client, tokenAddress: string, msg: Object) {
     return  await queryContract(cl.terra, tokenAddress, msg);
 }
 
+async function pair(cl: Client, factoryAddr: string, assetInfo: any) {
+    return await queryContract(cl.terra, factoryAddr, {"pair": {"asset_infos": assetInfo.asset_infos}});
+}
+
+async function createPair(cl: Client, factoryAddr: string, assetsInfo: any) {
+    return await executeContract(cl.terra, cl.wallet, factoryAddr,
+        {
+            "create_pair": {
+                "asset_infos": assetsInfo.asset_infos,
+            }
+        });
+}
+
 module.exports = {
     assetsInfo,
-    isExistsPair,
+    pair,
     pairPool,
     createPair,
     newClient,
@@ -155,23 +150,3 @@ module.exports = {
     tokenInfo,
     migrateLiquidity,
 };
-
-async function main() {
-    const chainID="bombay-12"
-    const nodeURL ="https://bombay-lcd.terra.dev"
-    const walletMnemonic="quality vacuum heart guard buzz spike sight swarm shove special gym robust assume sudden deposit grid alcohol choice devote leader tilt noodle tide penalty"
-
-    let cl = newClient(nodeURL, chainID, walletMnemonic);
-    let assetsInf = await assetsInfo(cl, terraSwapPairAddr, {"pair": {}});
-    console.log("assetInf: ", assetsInf);
-    //assetsInf.asset_infos[0].token.contract_addr = "hello";
-    assetsInf.asset_infos[1] = assetsInf.asset_infos[0];
-
-    let response = await isExistsPair(cl, terraSwapFactoryAddr, assetsInf);
-    console.log("exists pair: ", response);
-
-    // let response = await createPair(cl, terraSwapFactoryAddr, assetsInf);
-    // console.log("response: ", response);
-}
-
-//main().catch();

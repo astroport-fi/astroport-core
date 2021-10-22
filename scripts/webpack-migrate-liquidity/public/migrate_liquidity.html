@@ -8,28 +8,64 @@
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
 
-    <title>Hello, world!</title>
+    <title>Migrate Liquidity</title>
 </head>
-<body onload="document.body.style.display='none';">
+<body onload="clearFields()">
 <div class="container">
     <h1 style="text-align: center">Migrate liquidity</h1>
     <form id="formID">
-        <div class="form-group">
-            <label for="pair_from">From a pair address</label>
-            <select class="form-select" id="pair_from" aria-label="Default select example" onchange="getPairPool()">
-                <option selected>Open this select menu</option>
-            </select>
+        <div class="form-group row" style='font-size: 18px;'>
+            <label for="wallet_mnemonic_ID" class="col-md-2">Wallet mnemonic: </label>
+            <div class="col-md-8">
+                <input type="text" class="form-control" id="wallet_mnemonic_ID" placeholder="Enter your wallet mnemonic...">
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-primary form-control" onclick="createClient()">Connect a wallet</button>
+            </div>
         </div>
-        <div class="form-group">
-            <label for="poolID">Allowed pool</label>
-            <input type="text" value="0" id="poolID" readonly>
+        <div class="form-group row" style='font-size: 18px;'>
+            <label for="factory_from" class="col-md-2">TerraSwap factory: </label>
+            <div class="col-md-8">
+                <input type="text" class="form-control" id="factory_from" placeholder="Enter a address factory...">
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-primary form-control" onclick="setDefaultTerraSwapFactoryAddr()">Set default</button>
+            </div>
         </div>
-        <div class="form-group">
-            <label for="amount">Amount</label>
-            <input type="number" class="form-control" id="amount" placeholder="Enter an amount of migrate...">
+        <div class="form-group row" style='font-size: 18px;'>
+            <label for="factory_to" class="col-md-2">Astroport factory: </label>
+            <div class="col-md-8">
+                <input type="text" class="form-control" id="factory_to" placeholder="Enter a address factory...">
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-primary form-control" onclick="setDefaultAstroportFactoryAddr()">Set default</button>
+            </div>
         </div>
-        <button type="button" class="btn btn-primary" onclick="submitMigration()">Submit</button>
-
+        <div class="form-group row" style='font-size: 18px;'>
+            <label for="pair_from" class="col-md-2">From a pair</label>
+            <div class="col-md-10">
+                <select class="form-select" id="pair_from" aria-label="Default select example" onchange="getPairPool()">
+                    <option selected>Select a pair from</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group row" style='font-size: 18px;'>
+            <label for="poolID" class="col-md-2">Pool balance</label>
+            <div class="col-md-10">
+                <input type="text" class="form-control" value="0" id="poolID" readonly>
+            </div>
+        </div>
+        <div class="form-group row" style='font-size: 18px;'>
+            <label for="amount" class="col-md-2">Amount</label>
+            <div class="col-md-10">
+                <input type="number" class="form-control" id="amount" placeholder="Enter an amount of migrate...">
+            </div>
+        </div>
+        <div class="form-group row">
+            <div class="col-md-6">
+                <button type="button" class="btn btn-primary col-md-4" onclick="submitMigration()">Submit</button>
+            </div>
+        </div>
     </form>
 </div>
 
@@ -41,20 +77,83 @@
 
 <script src="./bundle-main.js"></script>
 <script type="text/javascript">
-    const chainID="bombay-12"
-    const nodeURL ="https://bombay-lcd.terra.dev"
-    const walletMnemonic="quality vacuum heart guard buzz spike sight swarm shove special gym robust assume sudden deposit grid alcohol choice devote leader tilt noodle tide penalty"
-    const terraSwapFactoryAddr = "terra18qpjm4zkvqnpjpw0zn0tdr8gdzvt8au35v45xf"
+    const chainID="bombay-12";
+    const nodeURL ="https://bombay-lcd.terra.dev";
 
-    let cl = EntryPoint.newClient(nodeURL, chainID, walletMnemonic);
+    let walletMnemonic = "";
+    let astroportFactoryAddress = "";
+    let terraSwapFactoryAddress = "";
+    let clientLCD = undefined;
+
+    function clearFields(){
+        let elementIDs = ['amount', 'poolID', 'factory_from', 'factory_to', 'wallet_mnemonic_ID'];
+        for (const id of elementIDs) {
+            let element = document.getElementById(id);
+            if (id === 'amount') {
+                element.value = 0;
+            } else {
+                element.value = "";
+            }
+        }
+    }
+
+    function setDefaultTerraSwapFactoryAddr(){
+        let element = document.getElementById("factory_from");
+        element.value = "terra18qpjm4zkvqnpjpw0zn0tdr8gdzvt8au35v45xf";
+    }
+
+    function setDefaultAstroportFactoryAddr(){
+        let element = document.getElementById("factory_to");
+        element.value = "terra18qpjm4zkvqnpjpw0zn0tdr8gdzvt8au35v45xf";
+    }
+
+    function validateData(){
+        walletMnemonic = document.getElementById("wallet_mnemonic_ID").value;
+        if (walletMnemonic === "") {
+            alert("Enter a wallet mnemonic please.");
+            return false
+        }
+        console.log("mnemonic: ", walletMnemonic);
+
+        terraSwapFactoryAddress = document.getElementById("factory_from").value;
+        if (terraSwapFactoryAddress === "") {
+            alert("Enter a Terraswap factory address.")
+            return false
+        }
+
+        astroportFactoryAddress = document.getElementById("factory_to").value;
+        if (astroportFactoryAddress === "") {
+            alert("Enter a Astroport factory address.")
+            return false
+        }
+
+        return true
+    }
+
+    async function createClient(){
+        if (!validateData()) {
+            return
+        }
+
+        try {
+            clientLCD = await EntryPoint.newClient(nodeURL, chainID, walletMnemonic);
+        } catch (e){
+            alert("Can't recover wallet. Check entered a wallet mnemonic and try again.");
+            return
+        }
+
+        alert("Wait for synchronization all available pairs. You got a message when it's done.")
+        await getType();
+        alert("Pairs synchronization is completed.")
+    }
 
     async function getAllPairs() {
         let totalPairs = []
-        let response = await EntryPoint.pairs(cl, terraSwapFactoryAddr, {"pairs": {"limit": 30}});
+        let response = await EntryPoint.pairs(clientLCD, terraSwapFactoryAddress, {"pairs": {"limit": 30}});
         totalPairs.push(...response.pairs);
 
         do {
-            response = await EntryPoint.pairs(cl, terraSwapFactoryAddr, {"pairs": {"limit": 30, "start_after": totalPairs[totalPairs.length - 1].asset_infos}});
+            response = await EntryPoint.pairs(clientLCD, terraSwapFactoryAddress, {"pairs": {"limit": 30, "start_after": totalPairs[totalPairs.length - 1].asset_infos}});
             totalPairs.push(...response.pairs);
         } while ( response.pairs.length > 0);
 
@@ -62,10 +161,13 @@
     }
 
     async function getPairPool() {
+        if (clientLCD === undefined) {
+            return
+        }
         let pairFrom = document.getElementById("pair_from").value;
         let poolElement = document.getElementById("poolID");
 
-        let response = await EntryPoint.pairPool(cl, pairFrom, {"pool": {}});
+        let response = await EntryPoint.pairPool(clientLCD, pairFrom, {"pool": {}});
         console.log("pool:", response);
         poolElement.value = response;
     }
@@ -80,7 +182,7 @@
             try {
                 for (let j=0; j<pairs[i].asset_infos.length; j++){
                     if (pairs[i].asset_infos[j].hasOwnProperty("token")) {
-                        let tokenInfo = await EntryPoint.tokenInfo(cl, pairs[i].asset_infos[j].token.contract_addr, {"token_info": {}});
+                        let tokenInfo = await EntryPoint.tokenInfo(clientLCD, pairs[i].asset_infos[j].token.contract_addr, {"token_info": {}});
                         optionName.push(tokenInfo.name);
                     } else {
                         optionName.push(pairs[i].asset_infos[j].native_token.denom);
@@ -91,20 +193,37 @@
             } catch (e) {}
         }
     }
-    window.onload = getType();
 
     async function submitMigration(){
         let pairFrom = document.getElementById("pair_from").value;
-        let amount = document.getElementById("amount").value;
+        let element = document.getElementById("amount");
+        let amount = element.value;
+        element.value = 0;
+
         console.log("Pair from: ", pairFrom);
         console.log("amount: ", amount);
 
-        let assetsInf = await EntryPoint.assetsInfo(cl, pairFrom, {"pair": {}});
+        if (clientLCD === undefined){
+            alert("Connect a wallet, please.")
+            return
+        }
+
+        if (pairFrom === "Select a pair from"){
+            alert("Please, select a valid pair address.");
+            return
+        }
+
+        if (amount === "") {
+            alert("Please, enter a amount.");
+            return
+        }
+
+        let assetsInf = await EntryPoint.assetsInfo(clientLCD, pairFrom, {"pair": {}});
         console.log("assetInf: ", assetsInf);
 
         let pairTo = "";
         try {
-            let response = await EntryPoint.isExistsPair(cl, terraSwapFactoryAddr, assetsInf);
+            let response = await EntryPoint.pair(clientLCD, astroportFactoryAddress, assetsInf);
             console.log("exists pair: ", response);
             pairTo = response.contract_addr;
         } catch (e) {}
@@ -116,18 +235,20 @@
            }
 
            try {
-               await EntryPoint.createPair(cl, terraSwapFactoryAddr, assetsInf);
-               let response = await EntryPoint.isExistsPair(cl, terraSwapFactoryAddr, assetsInf);
+               await EntryPoint.createPair(clientLCD, astroportFactoryAddress, assetsInf);
+               let response = await EntryPoint.pair(clientLCD, astroportFactoryAddress, assetsInf);
                console.log("exists pair: ", response);
                pairTo = response.contract_addr;
            } catch (e){}
         }
 
         try {
-            let response = await EntryPoint.migrateLiquidity(cl, pairFrom, pairTo, amount);
+            let response = await EntryPoint.migrateLiquidity(clientLCD, pairFrom, pairTo, amount);
             console.log("response: ", response)
+            alert("The operation completed successfully.");
         } catch (e){
             console.log(e);
+            alert("Can't migrate liquidity tokens. Check entered data, and try again.")
         }
     }
 </script>
