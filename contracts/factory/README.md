@@ -12,10 +12,11 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
 
 ```json
 {
-  "paid_code_id": 123,
+  "pair_code_id": 123,
   "token_code_id": 123,
   "fee_address": "terra...",
   "gov": "terra...",
+  "generator_address": "terra...",
   "init_hook": {
     "msg": "<base64_encoded_json_string>",
     "contract_addr": "terra..."
@@ -33,7 +34,8 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
     "gov": "terra...",
     "owner": "terra...",
     "token_code_id": 123,
-    "fee_address": "terra..."
+    "fee_address": "terra...",
+    "generator_address": "terra..."
   }
 }
 ```
