@@ -100,6 +100,21 @@ pub fn execute(
                 amount,
             },
         ),
+        ExecuteMsg::DepositFor {
+            lp_token,
+            beneficiary,
+            amount,
+        } => update_rewards_and_execute(
+            deps,
+            env,
+            Some(lp_token.clone()),
+            ExecuteOnReply::DepositFor {
+                lp_token,
+                beneficiary,
+                amount,
+                sender: info.sender,
+            },
+        ),
         ExecuteMsg::Withdraw { lp_token, amount } => update_rewards_and_execute(
             deps,
             env,
@@ -324,7 +339,13 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                     lp_token,
                     account,
                     amount,
-                } => deposit(deps, env, lp_token, account, amount),
+                } => deposit(deps, env, lp_token, account, amount, None),
+                ExecuteOnReply::DepositFor {
+                    lp_token,
+                    beneficiary,
+                    amount,
+                    sender,
+                } => deposit(deps, env, lp_token, beneficiary, amount, Some(sender)),
                 ExecuteOnReply::Withdraw {
                     lp_token,
                     account,
@@ -435,13 +456,18 @@ pub fn deposit(
     mut deps: DepsMut,
     env: Env,
     lp_token: Addr,
-    account: Addr,
+    beneficiary: Addr,
     amount: Uint128,
+    sender: Option<Addr>,
 ) -> Result<Response, ContractError> {
+    let sender = match sender {
+        Some(sender) => sender,
+        None => beneficiary.clone(),
+    };
     let mut response = Response::new().add_attribute("Action", "Deposit");
 
     let mut user = USER_INFO
-        .load(deps.storage, (&lp_token, &account))
+        .load(deps.storage, (&lp_token, &beneficiary))
         .unwrap_or_default();
 
     let cfg = CONFIG.load(deps.storage)?;
@@ -455,7 +481,7 @@ pub fn deposit(
             response.messages.push(SubMsg::new(WasmMsg::Execute {
                 contract_addr: cfg.vesting_contract.to_string(),
                 msg: to_binary(&VestingExecuteMsg::Claim {
-                    recipient: Some(account.to_string()),
+                    recipient: Some(beneficiary.to_string()),
                     amount: Some(pending),
                 })?,
                 funds: vec![],
@@ -469,7 +495,7 @@ pub fn deposit(
                     contract_addr: proxy.to_string(),
                     funds: vec![],
                     msg: to_binary(&ProxyExecuteMsg::SendRewards {
-                        account: account.clone(),
+                        account: beneficiary.clone(),
                         amount: pending_on_proxy,
                     })?,
                 }));
@@ -483,7 +509,7 @@ pub fn deposit(
                 response.messages.push(SubMsg::new(WasmMsg::Execute {
                     contract_addr: lp_token.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::SendFrom {
-                        owner: account.to_string(),
+                        owner: sender.to_string(),
                         contract: proxy.to_string(),
                         msg: to_binary(&ProxyCw20HookMsg::Deposit {})?,
                         amount,
@@ -495,7 +521,7 @@ pub fn deposit(
                 response.messages.push(SubMsg::new(WasmMsg::Execute {
                     contract_addr: lp_token.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                        owner: account.to_string(),
+                        owner: sender.to_string(),
                         recipient: env.contract.address.to_string(),
                         amount,
                     })?,
@@ -514,7 +540,7 @@ pub fn deposit(
     };
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
-    USER_INFO.save(deps.storage, (&lp_token, &account), &user)?;
+    USER_INFO.save(deps.storage, (&lp_token, &beneficiary), &user)?;
 
     Ok(response.add_event(Event::new(String::from("Deposit")).add_attribute("amount", amount)))
 }

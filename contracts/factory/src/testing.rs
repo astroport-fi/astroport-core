@@ -1,7 +1,7 @@
 use cosmwasm_std::{attr, from_binary, to_binary, Addr, ReplyOn, SubMsg, WasmMsg};
 
 use crate::mock_querier::mock_dependencies;
-use crate::state::{pair_key, PAIRS};
+use crate::state::{pair_key, CONFIG, PAIRS};
 use crate::{
     contract::{execute, instantiate, query},
     error::ContractError,
@@ -52,6 +52,7 @@ fn proper_initialization() {
         init_hook: None,
         fee_address: None,
         gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let env = mock_env();
@@ -81,6 +82,7 @@ fn proper_initialization() {
         init_hook: None,
         fee_address: None,
         gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let env = mock_env();
@@ -112,6 +114,7 @@ fn update_config() {
         init_hook: None,
         fee_address: None,
         gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let env = mock_env();
@@ -128,6 +131,7 @@ fn update_config() {
         owner: Some(Addr::unchecked("addr0001")),
         token_code_id: None,
         fee_address: Some(Addr::unchecked("fee_addr")),
+        generator_address: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -148,6 +152,7 @@ fn update_config() {
         owner: None,
         token_code_id: Some(200u64),
         fee_address: None,
+        generator_address: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -167,6 +172,7 @@ fn update_config() {
         owner: None,
         token_code_id: None,
         fee_address: None,
+        generator_address: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
@@ -210,6 +216,7 @@ fn update_pair_config() {
         init_hook: None,
         fee_address: None,
         gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let env = mock_env();
@@ -310,6 +317,7 @@ fn create_pair() {
         init_hook: None,
         fee_address: None,
         gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let env = mock_env();
@@ -327,6 +335,7 @@ fn create_pair() {
         },
     ];
 
+    let config = CONFIG.load(&deps.storage);
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
 
@@ -383,7 +392,7 @@ fn create_pair() {
                 .unwrap(),
                 code_id: pair_config.code_id,
                 funds: vec![],
-                admin: None,
+                admin: Some(config.unwrap().owner.to_string()),
                 label: String::from("Astroport pair"),
             }
             .into(),
@@ -413,6 +422,7 @@ fn register() {
         init_hook: None,
         fee_address: None,
         gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let env = mock_env();

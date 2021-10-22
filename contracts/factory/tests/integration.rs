@@ -44,6 +44,7 @@ fn proper_initialization() {
         init_hook: None,
         fee_address: None,
         gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let factory_instance = app
@@ -84,6 +85,7 @@ fn update_config() {
         owner: Some(new_owner.clone()),
         token_code_id: None,
         fee_address: None,
+        generator_address: None,
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
@@ -104,6 +106,7 @@ fn update_config() {
         owner: None,
         token_code_id: Some(200u64),
         fee_address: fee_address.clone(),
+        generator_address: None,
     };
 
     app.execute_contract(new_owner, factory_instance.clone(), &msg, &[])
@@ -123,6 +126,7 @@ fn update_config() {
         owner: None,
         token_code_id: None,
         fee_address: None,
+        generator_address: None,
     };
 
     let res = app
@@ -161,6 +165,7 @@ fn instantiate_contract(app: &mut App, owner: &Addr, token_code_id: u64) -> Addr
         init_hook: None,
         fee_address: None,
         gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     app.instantiate_contract(

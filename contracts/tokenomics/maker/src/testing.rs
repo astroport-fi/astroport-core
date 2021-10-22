@@ -2,8 +2,8 @@ use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{Addr, Uint64};
 
 use crate::contract::instantiate;
-use crate::msg::InstantiateMsg;
 use crate::state::{Config, CONFIG};
+use astroport::maker::InstantiateMsg;
 
 #[test]
 fn proper_initialization() {

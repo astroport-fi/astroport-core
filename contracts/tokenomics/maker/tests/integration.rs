@@ -7,7 +7,7 @@ use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use astroport::factory::{PairConfig, PairType};
-use astroport_maker::msg::{
+use astroport::maker::{
     ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
 };
 
@@ -84,6 +84,7 @@ fn instantiate_contracts(
         init_hook: None,
         fee_address: None,
         gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let factory_instance = router
@@ -310,6 +311,7 @@ fn create_pair(
             &astroport::pair::ExecuteMsg::ProvideLiquidity {
                 assets,
                 slippage_tolerance: None,
+                auto_stack: None,
             },
             &funds,
         )

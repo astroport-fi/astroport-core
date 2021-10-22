@@ -8,8 +8,8 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use astroport::factory::{PairConfig, PairType};
 
-use astroport_oracle::msg::QueryMsg::Consult;
-use astroport_oracle::msg::{ExecuteMsg, InstantiateMsg};
+use astroport::oracle::QueryMsg::Consult;
+use astroport::oracle::{ExecuteMsg, InstantiateMsg};
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -80,6 +80,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
         init_hook: None,
         fee_address: None,
         gov: None,
+        generator_address: Addr::unchecked("generator"),
     };
 
     let factory_instance = router
@@ -285,6 +286,7 @@ fn create_pair(
             &astroport::pair::ExecuteMsg::ProvideLiquidity {
                 assets,
                 slippage_tolerance: None,
+                auto_stack: None,
             },
             &funds,
         )
@@ -353,6 +355,7 @@ fn change_provide_liquidity(
                     },
                 ],
                 slippage_tolerance: None,
+                auto_stack: None,
             },
             &vec![],
         )

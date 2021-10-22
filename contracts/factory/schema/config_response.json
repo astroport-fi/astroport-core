@@ -3,18 +3,34 @@
   "title": "ConfigResponse",
   "type": "object",
   "required": [
-    "fee_address",
-    "gov",
+    "generator_address",
     "owner",
     "pair_configs",
     "token_code_id"
   ],
   "properties": {
     "fee_address": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "generator_address": {
       "$ref": "#/definitions/Addr"
     },
     "gov": {
-      "$ref": "#/definitions/Addr"
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "owner": {
       "$ref": "#/definitions/Addr"
