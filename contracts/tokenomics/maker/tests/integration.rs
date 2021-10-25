@@ -84,6 +84,7 @@ fn instantiate_contracts(
         init_hook: None,
         fee_address: None,
         gov: None,
+        owner: owner.to_string(),
         generator_address: Addr::unchecked("generator"),
     };
 
