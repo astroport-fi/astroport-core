@@ -109,3 +109,12 @@ Gives paginated vesting schedules using specified parameters. Given fields are o
   }
 }
 ```
+
+### `available amount`
+```json
+{
+  "available_amount": {
+    "address": "terra..."
+  }
+}
+```

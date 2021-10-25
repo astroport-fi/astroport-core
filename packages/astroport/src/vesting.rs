@@ -59,6 +59,9 @@ pub enum QueryMsg {
         limit: Option<u32>,
         order_by: Option<OrderBy>,
     },
+    AvailableAmount {
+        address: Addr,
+    },
 }
 
 // We define a custom struct for each query response

@@ -276,6 +276,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             order_by,
         )?)?),
+        QueryMsg::AvailableAmount { address } => Ok(to_binary(&query_vesting_available_amount(
+            deps, _env, address,
+        )?)?),
     }
 }
 
@@ -313,6 +316,12 @@ pub fn query_vesting_accounts(
     Ok(VestingAccountsResponse {
         vesting_accounts: vesting_account_responses,
     })
+}
+
+pub fn query_vesting_available_amount(deps: Deps, env: Env, address: Addr) -> StdResult<Uint128> {
+    let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
+    let available_amount = compute_available_amount(env.block.time, &info)?;
+    Ok(available_amount)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
