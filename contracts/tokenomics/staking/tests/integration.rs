@@ -248,7 +248,7 @@ fn should_not_allow_enter_if_not_enough_approve() {
 }
 
 #[test]
-fn should_not_allow_withraw_more_than_what_you_have() {
+fn should_not_allow_withdraw_more_than_what_you_have() {
     let mut router = mock_app();
 
     let owner = Addr::unchecked("owner");

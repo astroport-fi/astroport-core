@@ -12,7 +12,7 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
 
 ```json
 {
-  "paid_code_id": 123,
+  "pair_code_id": 123,
   "token_code_id": 123,
   "fee_address": "terra...",
   "gov": "terra...",

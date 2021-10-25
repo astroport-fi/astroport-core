@@ -71,7 +71,7 @@ fn proper_initialization() {
                     })
                     .unwrap(),
                     funds: vec![],
-                    admin: Some(sender.to_string()),
+                    admin: None,
                     label: String::from("Astroport LP token"),
                 }
                 .into(),

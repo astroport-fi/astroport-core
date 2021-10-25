@@ -23,7 +23,7 @@ const TOKEN_SYMBOL: &str = "xASTRO";
 pub fn instantiate(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -39,7 +39,7 @@ pub fn instantiate(
 
     // Create token
     let resp = Response::new().add_message(CosmosMsg::Wasm(WasmMsg::Instantiate {
-        admin: Some(info.sender.to_string()),
+        admin: None,
         code_id: msg.token_code_id,
         msg: to_binary(&TokenInstantiateMsg {
             name: TOKEN_NAME.to_string(),

@@ -30,7 +30,7 @@ Inits a new stable pair.
 
 ```json
 {
-  "paid_code_id": 123,
+  "pair_code_id": 123,
   "token_code_id": 123,
   "factory_addr": "terra...",
   "pair_type": {

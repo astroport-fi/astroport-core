@@ -285,6 +285,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         token_code_id,
         gov: None,
         generator_address: Addr::unchecked("generator"),
+        owner: owner.to_string(),
     };
 
     let factory_instance = app
