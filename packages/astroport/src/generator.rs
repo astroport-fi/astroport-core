@@ -64,6 +64,7 @@ pub enum QueryMsg {
     Deposit { lp_token: Addr, user: Addr },
     PendingToken { lp_token: Addr, user: Addr },
     Config {},
+    RewardInfo { lp_token: Addr },
     OrphanProxyRewards { lp_token: Addr },
 }
 
@@ -76,6 +77,12 @@ pub struct PoolLengthResponse {
 pub struct PendingTokenResponse {
     pub pending: Uint128,
     pub pending_on_proxy: Option<Uint128>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct RewardInfoResponse {
+    pub base_reward_token: Addr,
+    pub proxy_reward_token: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

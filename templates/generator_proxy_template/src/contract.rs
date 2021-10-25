@@ -7,6 +7,11 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 use astroport::generator_proxy::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use cw2::set_contract_version;
+
+// version info for migration info
+const CONTRACT_NAME: &str = "astroport-generator-proxy-template";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -15,6 +20,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     let config = Config {
         generator_contract_addr: deps.api.addr_validate(&msg.generator_contract_addr)?,
         pair_addr: deps.api.addr_validate(&msg.pair_addr)?,
@@ -187,6 +194,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             unimplemented!();
 
             // return amount (Some(Uint128) or None)
+        }
+        QueryMsg::RewardInfo {} => {
+            let config = CONFIG.load(deps.storage)?;
+            to_binary(&config.reward_token_addr)
         }
     }
 }

@@ -34,6 +34,7 @@ pub enum QueryMsg {
     Deposit {},
     Reward {},
     PendingToken {},
+    RewardInfo {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
