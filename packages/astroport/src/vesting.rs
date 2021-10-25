@@ -59,7 +59,7 @@ pub enum QueryMsg {
         limit: Option<u32>,
         order_by: Option<OrderBy>,
     },
-    VestingAccountAvailableAmount {
+    AvailableAmount {
         address: Addr,
     },
 }

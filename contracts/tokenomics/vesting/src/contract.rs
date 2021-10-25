@@ -276,9 +276,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             order_by,
         )?)?),
-        QueryMsg::VestingAccountAvailableAmount { address } => Ok(to_binary(
-            &query_vesting_account_available_amount(deps, _env, address)?,
-        )?),
+        QueryMsg::AvailableAmount { address } => Ok(to_binary(&query_vesting_available_amount(
+            deps, _env, address,
+        )?)?),
     }
 }
 
@@ -318,23 +318,10 @@ pub fn query_vesting_accounts(
     })
 }
 
-pub fn query_vesting_account_available_amount(
-    deps: Deps,
-    env: Env,
-    address: Addr,
-) -> StdResult<Response> {
-    let response = Response::new();
-    let mut event = Event::new("Vesting account available amount".to_string())
-        .add_attribute("address", address.clone());
-
+pub fn query_vesting_available_amount(deps: Deps, env: Env, address: Addr) -> StdResult<Uint128> {
     let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
-
     let available_amount = compute_available_amount(env.block.time, &info)?;
-    event
-        .attributes
-        .append(&mut vec![attr("available_amount", available_amount)]);
-
-    Ok(response.add_event(event))
+    Ok(available_amount)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

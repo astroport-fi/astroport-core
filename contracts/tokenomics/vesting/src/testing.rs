@@ -8,7 +8,7 @@ use astroport::vesting::{
 use crate::error::ContractError;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, ReplyOn, Response, SubMsg, Timestamp, Uint128, WasmMsg,
+    attr, from_binary, to_binary, Addr, ReplyOn, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -448,38 +448,16 @@ fn vesting_account_available_amount() {
     let msg = ExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![VestingAccount {
             address: "addr0000".to_string(),
-            schedules: vec![
-                VestingSchedule {
-                    start_point: VestingSchedulePoint {
-                        time: Timestamp::from_seconds(100),
-                        amount: Uint128::zero(),
-                    },
-                    end_point: Some(VestingSchedulePoint {
-                        time: Timestamp::from_seconds(101),
-                        amount: Uint128::new(100),
-                    }),
+            schedules: vec![VestingSchedule {
+                start_point: VestingSchedulePoint {
+                    time: Timestamp::from_seconds(100),
+                    amount: Uint128::zero(),
                 },
-                VestingSchedule {
-                    start_point: VestingSchedulePoint {
-                        time: Timestamp::from_seconds(100),
-                        amount: Uint128::zero(),
-                    },
-                    end_point: Some(VestingSchedulePoint {
-                        time: Timestamp::from_seconds(110),
-                        amount: Uint128::new(100),
-                    }),
-                },
-                VestingSchedule {
-                    start_point: VestingSchedulePoint {
-                        time: Timestamp::from_seconds(100),
-                        amount: Uint128::zero(),
-                    },
-                    end_point: Some(VestingSchedulePoint {
-                        time: Timestamp::from_seconds(200),
-                        amount: Uint128::new(100),
-                    }),
-                },
-            ],
+                end_point: Some(VestingSchedulePoint {
+                    time: Timestamp::from_seconds(101),
+                    amount: Uint128::new(100),
+                }),
+            }],
         }],
     };
 
@@ -491,31 +469,12 @@ fn vesting_account_available_amount() {
     let query_res = query(
         deps.as_ref(),
         env.clone(),
-        QueryMsg::VestingAccountAvailableAmount {
+        QueryMsg::AvailableAmount {
             address: Addr::unchecked("addr0000"),
         },
     )
     .unwrap();
 
-    let vesting_res: Response = from_binary(&query_res).unwrap();
-    assert_eq!(
-        vesting_res.events[0].attributes,
-        vec![attr("address", "addr0000"), attr("available_amount", "0"),]
-    );
-
-    env.block.time = Timestamp::from_seconds(102);
-    let query_res = query(
-        deps.as_ref(),
-        env.clone(),
-        QueryMsg::VestingAccountAvailableAmount {
-            address: Addr::unchecked("addr0000"),
-        },
-    )
-    .unwrap();
-
-    let vesting_res: Response = from_binary(&query_res).unwrap();
-    assert_eq!(
-        vesting_res.events[0].attributes,
-        vec![attr("address", "addr0000"), attr("available_amount", "122"),]
-    );
+    let vesting_res: Uint128 = from_binary(&query_res).unwrap();
+    assert_eq!(vesting_res, Uint128::new(0u128));
 }
