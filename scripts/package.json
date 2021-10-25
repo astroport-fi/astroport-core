@@ -9,7 +9,7 @@
     "build-app": "bash build_app.sh",
     "build-env": "bash build_env.sh",
     "build-artifacts": "bash build_artifacts.sh",
-    "migrate": "bash migrate.sh "
+    "migrate": "bash migrate.sh"
   },
   "dependencies": {
     "@terra-money/terra.js": "^2.0.14",
