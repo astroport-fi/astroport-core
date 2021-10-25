@@ -7,7 +7,9 @@ use astroport::vesting::{
 
 use crate::error::ContractError;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{attr, from_binary, to_binary, Addr, ReplyOn, SubMsg, Timestamp, Uint128, WasmMsg, Response};
+use cosmwasm_std::{
+    attr, from_binary, to_binary, Addr, ReplyOn, Response, SubMsg, Timestamp, Uint128, WasmMsg,
+};
 use cw20::Cw20ExecuteMsg;
 
 #[test]
@@ -431,7 +433,7 @@ fn claim() {
 }
 
 #[test]
-fn vesting_account_available_amount(){
+fn vesting_account_available_amount() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
@@ -486,28 +488,34 @@ fn vesting_account_available_amount(){
 
     env.block.time = Timestamp::from_seconds(100);
 
-    let query_res = query(deps.as_ref(), env.clone(), QueryMsg::VestingAccountAvailableAmount {
-        address: Addr::unchecked("addr0000"),
-    }).unwrap();
-
-    let vesting_res: Response = from_binary(&query_res).unwrap();
-    assert_eq!(vesting_res.events[0].attributes,
-        vec![
-            attr("address", "addr0000"),
-            attr("available_amount", "0"),
-        ]);
-
-    env.block.time = Timestamp::from_seconds(102);
-    let query_res = query(deps.as_ref(), env.clone(), QueryMsg::VestingAccountAvailableAmount {
-        address: Addr::unchecked("addr0000")
-    }).unwrap();
+    let query_res = query(
+        deps.as_ref(),
+        env.clone(),
+        QueryMsg::VestingAccountAvailableAmount {
+            address: Addr::unchecked("addr0000"),
+        },
+    )
+    .unwrap();
 
     let vesting_res: Response = from_binary(&query_res).unwrap();
     assert_eq!(
         vesting_res.events[0].attributes,
-        vec![
-            attr("address", "addr0000"),
-            attr("available_amount", "122"),
-        ]
+        vec![attr("address", "addr0000"), attr("available_amount", "0"),]
+    );
+
+    env.block.time = Timestamp::from_seconds(102);
+    let query_res = query(
+        deps.as_ref(),
+        env.clone(),
+        QueryMsg::VestingAccountAvailableAmount {
+            address: Addr::unchecked("addr0000"),
+        },
+    )
+    .unwrap();
+
+    let vesting_res: Response = from_binary(&query_res).unwrap();
+    assert_eq!(
+        vesting_res.events[0].attributes,
+        vec![attr("address", "addr0000"), attr("available_amount", "122"),]
     );
 }

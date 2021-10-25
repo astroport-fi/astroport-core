@@ -61,7 +61,7 @@ pub enum QueryMsg {
     },
     VestingAccountAvailableAmount {
         address: Addr,
-    }
+    },
 }
 
 // We define a custom struct for each query response
