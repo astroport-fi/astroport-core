@@ -32,6 +32,7 @@ fn pair_type_to_string() {
 #[test]
 fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
+    let owner = "owner0000".to_string();
 
     let msg = InstantiateMsg {
         pair_configs: vec![
@@ -53,6 +54,7 @@ fn proper_initialization() {
         fee_address: None,
         gov: None,
         generator_address: Addr::unchecked("generator"),
+        owner: owner.clone(),
     };
 
     let env = mock_env();
@@ -83,6 +85,7 @@ fn proper_initialization() {
         fee_address: None,
         gov: None,
         generator_address: Addr::unchecked("generator"),
+        owner: owner.clone(),
     };
 
     let env = mock_env();
@@ -94,12 +97,13 @@ fn proper_initialization() {
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(123u64, config_res.token_code_id);
     assert_eq!(msg.pair_configs, config_res.pair_configs);
-    assert_eq!(String::from("addr0000"), config_res.owner);
+    assert_eq!(Addr::unchecked(owner), config_res.owner);
 }
 
 #[test]
 fn update_config() {
     let mut deps = mock_dependencies(&[]);
+    let owner = "owner0000";
 
     let pair_configs = vec![PairConfig {
         code_id: 123u64,
@@ -114,21 +118,23 @@ fn update_config() {
         init_hook: None,
         fee_address: None,
         gov: None,
+        owner: owner.to_string(),
         generator_address: Addr::unchecked("generator"),
     };
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
+    let new_owner = "addr0001";
 
     // we can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // update owner
     let env = mock_env();
-    let info = mock_info("addr0000", &[]);
+    let info = mock_info(owner.clone(), &[]);
     let msg = ExecuteMsg::UpdateConfig {
         gov: None,
-        owner: Some(Addr::unchecked("addr0001")),
+        owner: Some(Addr::unchecked(new_owner)),
         token_code_id: None,
         fee_address: Some(Addr::unchecked("fee_addr")),
         generator_address: None,
@@ -142,11 +148,11 @@ fn update_config() {
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(123u64, config_res.token_code_id);
     assert_eq!(pair_configs.clone(), config_res.pair_configs);
-    assert_eq!(String::from("addr0001"), config_res.owner);
+    assert_eq!(Addr::unchecked(new_owner), config_res.owner);
 
     // update left items
     let env = mock_env();
-    let info = mock_info("addr0001", &[]);
+    let info = mock_info(new_owner, &[]);
     let msg = ExecuteMsg::UpdateConfig {
         gov: None,
         owner: None,
@@ -202,7 +208,7 @@ fn update_config() {
 #[test]
 fn update_pair_config() {
     let mut deps = mock_dependencies(&[]);
-
+    let owner = "owner0000";
     let pair_configs = vec![PairConfig {
         code_id: 123u64,
         pair_type: PairType::Xyk {},
@@ -216,6 +222,7 @@ fn update_pair_config() {
         init_hook: None,
         fee_address: None,
         gov: None,
+        owner: owner.to_string(),
         generator_address: Addr::unchecked("generator"),
     };
 
@@ -248,7 +255,7 @@ fn update_pair_config() {
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
 
-    let info = mock_info("addr0000", &[]);
+    let info = mock_info(owner.clone(), &[]);
     let msg = ExecuteMsg::UpdatePairConfig {
         config: pair_config.clone(),
     };
@@ -271,7 +278,7 @@ fn update_pair_config() {
         maker_fee_bps: 20,
     };
 
-    let info = mock_info("addr0000", &[]);
+    let info = mock_info(owner.clone(), &[]);
     let msg = ExecuteMsg::UpdatePairConfig {
         config: pair_config_custom.clone(),
     };
@@ -287,7 +294,7 @@ fn update_pair_config() {
     );
 
     // Remove pair config
-    let info = mock_info("addr0000", &[]);
+    let info = mock_info(owner, &[]);
     let msg = ExecuteMsg::RemovePairConfig {
         pair_type: pair_config_custom.pair_type,
     };
@@ -317,6 +324,7 @@ fn create_pair() {
         init_hook: None,
         fee_address: None,
         gov: None,
+        owner: "owner0000".to_string(),
         generator_address: Addr::unchecked("generator"),
     };
 
@@ -410,6 +418,7 @@ fn create_pair() {
 #[test]
 fn register() {
     let mut deps = mock_dependencies(&[]);
+    let owner = "owner0000";
 
     let msg = InstantiateMsg {
         pair_configs: vec![PairConfig {
@@ -423,6 +432,7 @@ fn register() {
         fee_address: None,
         gov: None,
         generator_address: Addr::unchecked("generator"),
+        owner: owner.to_string(),
     };
 
     let env = mock_env();
@@ -625,7 +635,7 @@ fn register() {
 
     // Proper deregister
     let env = mock_env();
-    let info = mock_info("addr0000", &[]);
+    let info = mock_info(owner.clone(), &[]);
     let res = execute(
         deps.as_mut(),
         env.clone(),

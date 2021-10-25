@@ -44,6 +44,7 @@ fn proper_initialization() {
         init_hook: None,
         fee_address: None,
         gov: None,
+        owner: owner.to_string(),
         generator_address: Addr::unchecked("generator"),
     };
 
@@ -165,6 +166,7 @@ fn instantiate_contract(app: &mut App, owner: &Addr, token_code_id: u64) -> Addr
         init_hook: None,
         fee_address: None,
         gov: None,
+        owner: owner.to_string(),
         generator_address: Addr::unchecked("generator"),
     };
 
