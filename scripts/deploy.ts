@@ -11,6 +11,7 @@ import {configDefault} from './deploy_configs.js'
 import {join} from 'path'
 
 const ARTIFACTS_PATH = '../artifacts'
+const VESTING_INCREASE_ALLOWANCE = String(1_000_000_000_000000) || process.env.VESTING_INCREASE_ALLOWANCE
 
 async function main() {
     const {terra, wallet} = newClient()
@@ -87,7 +88,7 @@ async function main() {
         console.log('vestingAccounts:', JSON.stringify(vestingAccounts))
         // INCREASE ALLOWANCE
         let out: any, msg: any
-        msg = { increase_allowance: { spender: network.vestingAddress, amount: '63072000000000' } }
+        msg = { increase_allowance: { spender: network.vestingAddress, amount: VESTING_INCREASE_ALLOWANCE } }
         console.log('execute', network.tokenAddress, JSON.stringify(msg))
         out = await executeContract(terra, wallet, network.tokenAddress, msg)
         console.log(out.txhash)

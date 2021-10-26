@@ -19,6 +19,7 @@ Create `.env`:
 WALLET="mnemonic"
 LCD_CLIENT_URL=https://bombay-lcd.terra.dev
 CHAIN_ID=bombay-12
+VESTING_INCREASE_ALLOWANCE="1000000000000000"
 ```
 
 Deploy contract:

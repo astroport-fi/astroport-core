@@ -41,10 +41,6 @@ async function main() {
                 amount: String(TOKEN_INITIAL_AMOUNT)
             }
         ],
-        mint: {
-            minter: TOKEN_MINTER,
-            cap: String(TOKEN_CAP)
-        }
     }
 
     // Instantiate Astro token contract
