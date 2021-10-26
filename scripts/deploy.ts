@@ -111,6 +111,7 @@ async function main() {
         deployConfig.factoryInitMsg.config.token_code_id = network.tokenCodeID
         console.log(`CodeIs Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID}`)
         deployConfig.factoryInitMsg.config.gov = wallet.key.accAddress
+        deployConfig.factoryInitMsg.config.owner = wallet.key.accAddress
         network.factoryAddress = await deployContract(
             terra,
             wallet,
