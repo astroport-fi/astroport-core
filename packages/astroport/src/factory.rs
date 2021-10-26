@@ -44,6 +44,7 @@ pub struct InstantiateMsg {
     pub fee_address: Option<Addr>,
     pub generator_address: Addr,
     pub gov: Option<Addr>,
+    pub owner: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -13,6 +13,7 @@ interface FactoryInitMsg {
         fee_address?: string,
         generator_address?: string,
         gov?: string,
+        owner: string,
     }
 }
 

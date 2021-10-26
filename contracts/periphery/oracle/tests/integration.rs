@@ -81,6 +81,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
         fee_address: None,
         gov: None,
         generator_address: Addr::unchecked("generator"),
+        owner: owner.to_string(),
     };
 
     let factory_instance = router

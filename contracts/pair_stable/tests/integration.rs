@@ -287,6 +287,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         }],
         token_code_id,
         gov: None,
+        owner: "owner0000".to_string(),
         generator_address: Addr::unchecked("generator"),
     };
 

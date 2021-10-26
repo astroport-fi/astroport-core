@@ -25,15 +25,16 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let owner = deps.api.addr_validate(&msg.owner)?;
 
     let generator_address = deps.api.addr_validate(msg.generator_address.as_str())?;
     let mut config = Config {
+        owner,
         gov: None,
-        owner: info.sender,
         token_code_id: msg.token_code_id,
         fee_address: None,
         generator_address,
