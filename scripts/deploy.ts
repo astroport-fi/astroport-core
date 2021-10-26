@@ -5,13 +5,22 @@ import {
     readArtifact,
     deployContract,
     executeContract,
-    uploadContract,
+    uploadContract, Client,
 } from './helpers.js'
 import {configDefault} from './deploy_configs.js'
 import {join} from 'path'
 
 const ARTIFACTS_PATH = '../artifacts'
-const VESTING_INCREASE_ALLOWANCE = String(1_000_000_000_000000) || process.env.VESTING_INCREASE_ALLOWANCE
+const VESTING_TRANSFER_AMOUNT = String(500_000_000_000000) || process.env.VESTING_TRANSFER_AMOUNT!
+const AIRDROP_TRANSFER_AMOUNT = String(500_000_000_000000) || process.env.AIRDROP_TRANSFER_AMOUNT!
+
+async function transferAmount(cl: Client, sender: string, recipient: string, amount: String) {
+    let out: any, msg: any
+    msg = { transfer: { recipient: recipient, amount: amount } }
+    console.log('execute', sender, JSON.stringify(msg))
+    out = await executeContract(cl.terra, cl.wallet, sender, msg)
+    console.log(out.txhash)
+}
 
 async function main() {
     const {terra, wallet} = newClient()
@@ -86,12 +95,6 @@ async function main() {
             address: network.generatorAddress,
         }));
         console.log('vestingAccounts:', JSON.stringify(vestingAccounts))
-        // INCREASE ALLOWANCE
-        let out: any, msg: any
-        msg = { increase_allowance: { spender: network.vestingAddress, amount: VESTING_INCREASE_ALLOWANCE } }
-        console.log('execute', network.tokenAddress, JSON.stringify(msg))
-        out = await executeContract(terra, wallet, network.tokenAddress, msg)
-        console.log(out.txhash)
 
         deployConfig.registerVestingAccounts.register_vesting_accounts.vesting_accounts = vestingAccounts
         const { registerVestingAccounts } = deployConfig;
@@ -101,6 +104,16 @@ async function main() {
             network.vestingAddress,
             registerVestingAccounts,
         )
+    }
+
+    /*************************************** Transfer tokens to Vesting Contract *****************************/
+    if (!network.vestingAddress) {
+        await transferAmount({terra, wallet}, network.tokenAddress, network.vestingAddress, VESTING_TRANSFER_AMOUNT)
+    }
+
+    /*************************************** Transfer tokens to Airdrop Contract *****************************/
+    if (!network.airdropAddress) {
+        await transferAmount({terra, wallet}, network.tokenAddress, network.airdropAddress, AIRDROP_TRANSFER_AMOUNT)
     }
 
     /*************************************** Deploy Factory Contract *****************************************/
