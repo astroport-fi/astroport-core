@@ -211,6 +211,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
             to_binary(&Some(pending_reward))
         }
+        QueryMsg::RewardInfo {} => {
+            let config = CONFIG.load(deps.storage)?;
+            to_binary(&config.reward_token_addr)
+        }
     }
 }
 

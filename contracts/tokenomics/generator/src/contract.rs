@@ -11,7 +11,7 @@ use crate::state::{
 use astroport::{
     generator::{
         ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse,
-        PoolLengthResponse, QueryMsg,
+        PoolLengthResponse, QueryMsg, RewardInfoResponse,
     },
     generator_proxy::{
         Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
@@ -795,6 +795,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::Deposit { lp_token, user } => query_deposit(deps, lp_token, user),
         QueryMsg::PendingToken { lp_token, user } => pending_token(deps, env, lp_token, user),
         QueryMsg::Config {} => query_config(deps),
+        QueryMsg::RewardInfo { lp_token } => query_reward_info(deps, lp_token),
         QueryMsg::OrphanProxyRewards { lp_token } => query_orphan_proxy_rewards(deps, lp_token),
     }
 }
@@ -887,6 +888,27 @@ fn query_config(deps: Deps) -> Result<Binary, ContractError> {
         tokens_per_block: config.tokens_per_block,
         total_alloc_point: config.total_alloc_point,
         vesting_contract: config.vesting_contract,
+    })?)
+}
+
+fn query_reward_info(deps: Deps, lp_token: Addr) -> Result<Binary, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let pool = POOL_INFO.load(deps.storage, &lp_token)?;
+
+    let proxy_reward_token = match pool.reward_proxy {
+        Some(proxy) => {
+            let res: Addr = deps
+                .querier
+                .query_wasm_smart(&proxy, &ProxyQueryMsg::RewardInfo {})?;
+            Some(res)
+        }
+        None => None,
+    };
+
+    Ok(to_binary(&RewardInfoResponse {
+        base_reward_token: config.astro_token,
+        proxy_reward_token,
     })?)
 }
 
