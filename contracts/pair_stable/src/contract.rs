@@ -882,7 +882,7 @@ fn compute_offer_amount(
     )?;
 
     let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
-    let inv_one_minus_commission = (Decimal256::one() / one_minus_commission).into();
+    let inv_one_minus_commission: Decimal = (Decimal256::one() / one_minus_commission).into();
     let before_commission_deduction = ask_amount * inv_one_minus_commission;
 
     // TODO: add SPREAD_EPSILON constant to v2, and calculate the spread as the
