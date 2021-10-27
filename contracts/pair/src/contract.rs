@@ -794,7 +794,7 @@ fn compute_offer_amount(
     // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
     let cp = Uint256::from(offer_pool) * Uint256::from(ask_pool);
     let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
-    let inv_one_minus_commission = (Decimal256::one() / one_minus_commission).into();
+    let inv_one_minus_commission: Decimal = (Decimal256::one() / one_minus_commission).into();
 
     let offer_amount: Uint128 = Uint128::from(cp.multiply_ratio(
         Uint256::one(),
