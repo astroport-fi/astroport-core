@@ -1,4 +1,4 @@
-# Astroport Generator proxy to Mirror Protocol Rewards
+# Astroport Generator proxy to MARS LP Staking Rewards
 
 The generator proxy contract interacts with MARS LP staking contract (dual rewards feature). [Staking via proxy](https://miro.medium.com/max/1400/0*8hn2NSnZJZTa9YGV)
 

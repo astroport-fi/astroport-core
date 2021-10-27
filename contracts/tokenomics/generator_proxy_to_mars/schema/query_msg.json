@@ -37,6 +37,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "reward_info"
+      ],
+      "properties": {
+        "reward_info": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }
