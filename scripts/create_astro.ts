@@ -8,8 +8,8 @@ import {
     uploadContract
 } from './helpers.js'
 
-const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH || '../artifacts/astroport_token.wasm'
-const TOKEN_INITIAL_AMOUNT = String(1_000_000_000_000000) || process.env.TOKEN_INITIAL_AMOUNT!
+const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH! || '../artifacts/astroport_token.wasm'
+const TOKEN_INITIAL_AMOUNT = process.env.TOKEN_INITIAL_AMOUNT! || String(1_000_000_000_000000)
 
 // Main
 async function main() {

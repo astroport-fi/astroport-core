@@ -11,8 +11,8 @@ import {configDefault} from './deploy_configs.js'
 import {join} from 'path'
 
 const ARTIFACTS_PATH = '../artifacts'
-const VESTING_TRANSFER_AMOUNT = String(500_000_000_000000) || process.env.VESTING_TRANSFER_AMOUNT!
-const AIRDROP_TRANSFER_AMOUNT = String(500_000_000_000000) || process.env.AIRDROP_TRANSFER_AMOUNT!
+const VESTING_TRANSFER_AMOUNT = process.env.VESTING_TRANSFER_AMOUNT! || String(500_000_000_000000)
+const AIRDROP_TRANSFER_AMOUNT = process.env.AIRDROP_TRANSFER_AMOUNT! || String(500_000_000_000000)
 
 async function transferAmount(cl: Client, sender: string, recipient: string, amount: String) {
     let out: any, msg: any
