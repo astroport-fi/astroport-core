@@ -8,7 +8,8 @@ import {
     uploadContract
 } from './helpers.js'
 
-const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH || '../artifacts/astroport_token.wasm'
+const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH! || '../artifacts/astroport_token.wasm'
+const TOKEN_INITIAL_AMOUNT = process.env.TOKEN_INITIAL_AMOUNT! || String(1_000_000_000_000000)
 
 // Main
 async function main() {
@@ -23,13 +24,6 @@ async function main() {
     const TOKEN_NAME = "Astro"
     const TOKEN_SYMBOL = "ASTRO"
     const TOKEN_DECIMALS = 6
-    // The minter address cannot be changed after the contract is instantiated
-    const TOKEN_MINTER =  wallet.key.accAddress
-    // The cap cannot be changed after the contract is instantiated
-    const TOKEN_CAP = 1_000_000_000_000000
-    // TODO check if we want initial balances in prod
-    const TOKEN_INITIAL_AMOUNT = 1_000_000_000_000000
-    const TOKEN_INITIAL_AMOUNT_ADDRESS = TOKEN_MINTER
 
     const TOKEN_INFO = {
         name: TOKEN_NAME,
@@ -37,14 +31,10 @@ async function main() {
         decimals: TOKEN_DECIMALS,
         initial_balances: [
             {
-                address: TOKEN_INITIAL_AMOUNT_ADDRESS,
-                amount: String(TOKEN_INITIAL_AMOUNT)
+                address: wallet.key.accAddress,
+                amount: TOKEN_INITIAL_AMOUNT
             }
-        ],
-        mint: {
-            minter: TOKEN_MINTER,
-            cap: String(TOKEN_CAP)
-        }
+        ]
     }
 
     // Instantiate Astro token contract
