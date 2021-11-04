@@ -629,8 +629,8 @@ fn withdraw_liquidity() {
     let env = mock_env();
     let info = mock_info("liquidity0000", &[]);
     let res = execute(deps.as_mut(), env, info, msg).unwrap();
-    let log_withdrawn_share = res.attributes.get(1).expect("no log");
-    let log_refund_assets = res.attributes.get(2).expect("no log");
+    let log_withdrawn_share = res.attributes.get(2).expect("no log");
+    let log_refund_assets = res.attributes.get(3).expect("no log");
     let msg_refund_0 = res.messages.get(0).expect("no message");
     let msg_refund_1 = res.messages.get(1).expect("no message");
     let msg_burn_liquidity = res.messages.get(2).expect("no message");
@@ -847,6 +847,8 @@ fn try_native_to_token() {
         res.attributes,
         vec![
             attr("action", "swap"),
+            attr("sender", "addr0000"),
+            attr("receiver", "addr0000"),
             attr("offer_asset", "uusd"),
             attr("ask_asset", "asset0000"),
             attr("offer_amount", offer_amount.to_string()),
@@ -1050,6 +1052,8 @@ fn try_token_to_native() {
         res.attributes,
         vec![
             attr("action", "swap"),
+            attr("sender", "addr0000"),
+            attr("receiver", "addr0000"),
             attr("offer_asset", "asset0000"),
             attr("ask_asset", "uusd"),
             attr("offer_amount", offer_amount.to_string()),

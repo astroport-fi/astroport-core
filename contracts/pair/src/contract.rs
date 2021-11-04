@@ -314,7 +314,7 @@ pub fn provide_liquidity(
     messages.extend(mint_liquidity_token_message(
         env.contract.address.clone(),
         config.pair_info.liquidity_token.clone(),
-        info.sender,
+        info.sender.clone(),
         share,
         generator_address(auto_stack, config.factory_addr.clone(), &deps)?,
     )?);
@@ -333,6 +333,7 @@ pub fn provide_liquidity(
         .add_submessages(messages)
         .add_attributes(vec![
             attr("action", "provide_liquidity"),
+            attr("sender", info.sender.as_str()),
             attr("assets", format!("{}, {}", assets[0], assets[1])),
             attr("share", share.to_string()),
         ]))
@@ -377,7 +378,7 @@ pub fn withdraw_liquidity(
                 reply_on: ReplyOn::Never,
             },
             SubMsg {
-                msg: refund_assets[1].clone().into_msg(&deps.querier, sender)?,
+                msg: refund_assets[1].clone().into_msg(&deps.querier, sender.clone())?,
                 id: 0,
                 gas_limit: None,
                 reply_on: ReplyOn::Never,
@@ -397,6 +398,7 @@ pub fn withdraw_liquidity(
         ])
         .add_attributes(vec![
             attr("action", "withdraw_liquidity"),
+            attr("sender", sender.as_str()),
             attr("withdrawn_share", &amount.to_string()),
             attr(
                 "refund_assets",
@@ -493,18 +495,22 @@ pub fn swap(
 
     let tax_amount = return_asset.compute_tax(&deps.querier)?;
 
+    let receiver = to.unwrap_or(sender.clone());
+
     let mut response = Response::new()
         .add_submessage(
             // 1. send collateral token from the contract to a user
             // 2. send inactive commission to collector
             SubMsg {
-                msg: return_asset.into_msg(&deps.querier, to.unwrap_or(sender))?,
+                msg: return_asset.into_msg(&deps.querier, receiver.clone())?,
                 id: 0,
                 gas_limit: None,
                 reply_on: ReplyOn::Never,
             },
         )
         .add_attribute("action", "swap")
+        .add_attribute("sender", sender.as_str())
+        .add_attribute("receiver", receiver.as_str())
         .add_attribute("offer_asset", offer_asset.info.to_string())
         .add_attribute("ask_asset", ask_pool.info.to_string())
         .add_attribute("offer_amount", offer_amount.to_string())

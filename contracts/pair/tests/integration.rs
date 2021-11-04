@@ -148,11 +148,11 @@ fn test_provide_and_withdraw_liquidity() {
         attr("action", "provide_liquidity")
     );
     assert_eq!(
-        res.events[1].attributes[2],
+        res.events[1].attributes[3],
         attr("assets", "100uusd, 100uluna")
     );
     assert_eq!(
-        res.events[1].attributes[3],
+        res.events[1].attributes[4],
         attr("share", 100u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
