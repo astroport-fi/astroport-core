@@ -398,7 +398,7 @@ pub fn withdraw_liquidity(
         ])
         .add_attributes(vec![
             attr("action", "withdraw_liquidity"),
-            attr("sender", info.sender.as_str()),
+            attr("sender", sender.as_str()),
             attr("withdrawn_share", &amount.to_string()),
             attr(
                 "refund_assets",
