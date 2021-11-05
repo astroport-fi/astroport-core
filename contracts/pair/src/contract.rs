@@ -11,7 +11,7 @@ use cosmwasm_std::{
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg};
 use astroport::hook::InitHook;
-use astroport::pair::{generator_address, mint_liquidity_token_message};
+use astroport::pair::{generator_address, mint_liquidity_token_message, ConfigResponse};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
     QueryMsg, ReverseSimulationResponse, SimulationResponse,
@@ -591,6 +591,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_reverse_simulation(deps, ask_asset)?)
         }
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
     }
 }
 
@@ -718,6 +719,14 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
     };
 
     Ok(resp)
+}
+
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let config: Config = CONFIG.load(deps.storage)?;
+    Ok(ConfigResponse {
+        block_time_last: config.block_time_last,
+        amp: None,
+    })
 }
 
 pub fn amount_of(coins: &[Coin], denom: String) -> Uint128 {

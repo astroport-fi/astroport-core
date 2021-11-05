@@ -76,6 +76,7 @@ pub enum Cw20HookMsg {
 pub enum QueryMsg {
     Pair {},
     Pool {},
+    Config {},
     Share { amount: Uint128 },
     Simulation { offer_asset: Asset },
     ReverseSimulation { ask_asset: Asset },
@@ -87,6 +88,13 @@ pub enum QueryMsg {
 pub struct PoolResponse {
     pub assets: [Asset; 2],
     pub total_share: Uint128,
+}
+
+// We define a custom struct for each query response
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ConfigResponse {
+    pub block_time_last: u64,
+    pub amp: Option<u64>,
 }
 
 /// SimulationResponse returns swap simulation response

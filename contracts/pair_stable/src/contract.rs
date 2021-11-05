@@ -10,10 +10,13 @@ use cosmwasm_std::{
 };
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::ConfigResponse;
-use astroport::factory::{FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg};
+use astroport::factory::{
+    ConfigResponse as FactoryConfigResponse, FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg,
+};
 use astroport::hook::InitHook;
-use astroport::pair::{generator_address, mint_liquidity_token_message, InstantiateMsgStable};
+use astroport::pair::{
+    generator_address, mint_liquidity_token_message, ConfigResponse, InstantiateMsgStable,
+};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse,
@@ -643,6 +646,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_reverse_simulation(deps, ask_asset)?)
         }
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
     }
 }
 
@@ -781,6 +785,14 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
     };
 
     Ok(resp)
+}
+
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let config: Config = CONFIG.load(deps.storage)?;
+    Ok(ConfigResponse {
+        block_time_last: config.block_time_last,
+        amp: Some(config.amp),
+    })
 }
 
 pub fn amount_of(coins: &[Coin], denom: String) -> Uint128 {
@@ -955,20 +967,23 @@ pub fn update_config(
     info: MessageInfo,
     amp: Option<u64>,
 ) -> Result<Response, ContractError> {
-    let querier = &deps.querier;
-    CONFIG.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        let factory_config: ConfigResponse =
-            querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: state.factory_addr.to_string(),
-                msg: to_binary(&FactoryQueryMsg::Config {})?,
-            }))?;
+    let mut config = CONFIG.load(deps.storage)?;
 
-        if info.sender != factory_config.gov.unwrap_or_else(|| Addr::unchecked("")) {
-            return Err(ContractError::Unauthorized {});
-        }
+    let factory_config: FactoryConfigResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.factory_addr.to_string(),
+            msg: to_binary(&FactoryQueryMsg::Config {})?,
+        }))?;
 
-        state.amp = amp.unwrap_or(state.amp);
-        Ok(state)
-    })?;
+    if info.sender != factory_config.gov.unwrap_or_else(|| Addr::unchecked("")) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(amp) = amp {
+        config.amp = amp
+    }
+
+    CONFIG.save(deps.storage, &config)?;
+
     Ok(Response::default())
 }
