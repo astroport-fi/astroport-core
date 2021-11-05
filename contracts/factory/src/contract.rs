@@ -13,7 +13,9 @@ use astroport::factory::{
     PairsResponse, QueryMsg,
 };
 use astroport::hook::InitHook;
-use astroport::pair::InstantiateMsg as PairInstantiateMsg;
+use astroport::pair::{
+    InstantiateMsg as PairInstantiateMsg, InstantiateMsgStable as PairInstantiateMsgStable,
+};
 use cw2::set_contract_version;
 use std::collections::HashSet;
 
@@ -117,10 +119,14 @@ pub fn execute(
             execute_remove_pair_config(deps, info, pair_type)
         }
         ExecuteMsg::CreatePair {
-            pair_type,
             asset_infos,
             init_hook,
-        } => execute_create_pair(deps, env, pair_type, asset_infos, init_hook),
+        } => execute_create_pair(deps, env, asset_infos, init_hook),
+        ExecuteMsg::CreatePairStable {
+            asset_infos,
+            init_hook,
+            amp,
+        } => execute_create_pair_stable(deps, env, asset_infos, amp, init_hook),
         ExecuteMsg::Register { asset_infos } => register(deps, info, asset_infos),
         ExecuteMsg::Deregister { asset_infos } => deregister(deps, info, asset_infos),
     }
@@ -215,7 +221,6 @@ pub fn execute_remove_pair_config(
 pub fn execute_create_pair(
     deps: DepsMut,
     env: Env,
-    pair_type: PairType,
     asset_infos: [AssetInfo; 2],
     init_hook: Option<InitHook>,
 ) -> Result<Response, ContractError> {
@@ -229,6 +234,8 @@ pub fn execute_create_pair(
         return Err(StdError::generic_err("Pair already exists").into());
     }
 
+    let pair_type = PairType::Xyk {};
+
     // Get pair type from config
     let pair_config = PAIR_CONFIGS
         .load(deps.storage, pair_type.to_string())
@@ -241,7 +248,7 @@ pub fn execute_create_pair(
             liquidity_token: Addr::unchecked(""),
             contract_addr: Addr::unchecked(""),
             asset_infos: [asset_infos[0].clone(), asset_infos[1].clone()],
-            pair_type: pair_type.clone(),
+            pair_type,
         },
     )?;
 
@@ -258,10 +265,9 @@ pub fn execute_create_pair(
                 })?,
             }),
             factory_addr: env.contract.address,
-            pair_type,
         })?,
         funds: vec![],
-        label: "Astroport pair".to_string(),
+        label: String::from("Astroport pair"),
     })];
 
     if let Some(hook) = init_hook {
@@ -274,6 +280,75 @@ pub fn execute_create_pair(
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "create_pair"),
+        attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
+    ]))
+}
+
+// Anyone can execute it to create swap stable pair
+pub fn execute_create_pair_stable(
+    deps: DepsMut,
+    env: Env,
+    asset_infos: [AssetInfo; 2],
+    amp: u64,
+    init_hook: Option<InitHook>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if PAIRS
+        .may_load(deps.storage, &pair_key(&asset_infos))
+        .unwrap_or(None)
+        .is_some()
+    {
+        return Err(StdError::generic_err("Pair already exists").into());
+    }
+
+    let pair_type = PairType::Stable {};
+
+    // Get pair type from config
+    let pair_config = PAIR_CONFIGS
+        .load(deps.storage, pair_type.to_string())
+        .map_err(|_| ContractError::PairConfigNotFound {})?;
+
+    PAIRS.save(
+        deps.storage,
+        &pair_key(&asset_infos),
+        &PairInfo {
+            liquidity_token: Addr::unchecked(""),
+            contract_addr: Addr::unchecked(""),
+            asset_infos: [asset_infos[0].clone(), asset_infos[1].clone()],
+            pair_type,
+        },
+    )?;
+
+    let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
+        admin: Some(config.owner.to_string()),
+        code_id: pair_config.code_id,
+        msg: to_binary(&PairInstantiateMsgStable {
+            asset_infos: asset_infos.clone(),
+            token_code_id: config.token_code_id,
+            init_hook: Some(InitHook {
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::Register {
+                    asset_infos: asset_infos.clone(),
+                })?,
+            }),
+            factory_addr: env.contract.address,
+            amp,
+        })?,
+        funds: vec![],
+        label: String::from("Astroport pair"),
+    })];
+
+    if let Some(hook) = init_hook {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: hook.contract_addr.to_string(),
+            msg: hook.msg,
+            funds: vec![],
+        }));
+    }
+
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "create_pair_stable"),
         attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
     ]))
 }

@@ -223,7 +223,6 @@ fn create_pair(
             owner.clone(),
             factory_instance.clone(),
             &astroport::factory::ExecuteMsg::CreatePair {
-                pair_type: PairType::Xyk {},
                 asset_infos: asset_infos.clone(),
                 init_hook: None,
             },

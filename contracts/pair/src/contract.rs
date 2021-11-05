@@ -35,16 +35,12 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    if msg.pair_type != (PairType::Xyk {}) {
-        return Err(ContractError::PairTypeMismatch {});
-    }
-
     let config = Config {
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
             asset_infos: msg.asset_infos,
-            pair_type: msg.pair_type,
+            pair_type: PairType::Xyk {},
         },
         factory_addr: msg.factory_addr,
         block_time_last: 0,

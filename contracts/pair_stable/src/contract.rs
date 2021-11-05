@@ -1,6 +1,5 @@
 use crate::error::ContractError;
 use crate::math::calc_amount;
-use crate::math::AMP_DEFAULT;
 use crate::state::{Config, CONFIG};
 
 use cosmwasm_bignumber::{Decimal256, Uint256};
@@ -14,10 +13,10 @@ use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::ConfigResponse;
 use astroport::factory::{FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg};
 use astroport::hook::InitHook;
-use astroport::pair::{generator_address, mint_liquidity_token_message};
+use astroport::pair::{generator_address, mint_liquidity_token_message, InstantiateMsgStable};
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
-    QueryMsg, ReverseSimulationResponse, SimulationResponse,
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
+    ReverseSimulationResponse, SimulationResponse,
 };
 use astroport::querier::{query_supply, query_token_precision};
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
@@ -35,26 +34,22 @@ pub fn instantiate(
     deps: DepsMut,
     env: Env,
     _info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: InstantiateMsgStable,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    if msg.pair_type != (PairType::Stable {}) {
-        return Err(ContractError::PairTypeMismatch {});
-    }
 
     let config = Config {
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
             asset_infos: msg.asset_infos,
-            pair_type: msg.pair_type,
+            pair_type: PairType::Stable {},
         },
         factory_addr: msg.factory_addr,
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
-        amp: AMP_DEFAULT,
+        amp: msg.amp,
     };
 
     CONFIG.save(deps.storage, &config)?;

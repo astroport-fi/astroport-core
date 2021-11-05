@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::asset::{Asset, AssetInfo};
 use crate::hook::InitHook;
 
-use crate::factory::{factory_config, PairType};
+use crate::factory::factory_config;
 use crate::generator::ExecuteMsg as GeneratorExecuteMsg;
 use cosmwasm_std::{to_binary, Addr, CosmosMsg, Decimal, DepsMut, StdResult, Uint128, WasmMsg};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -19,8 +19,20 @@ pub struct InstantiateMsg {
     pub init_hook: Option<InitHook>,
     /// Factory contract address
     pub factory_addr: Addr,
-    /// Pair type
-    pub pair_type: PairType,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct InstantiateMsgStable {
+    /// Asset infos
+    pub asset_infos: [AssetInfo; 2],
+    /// Token contract code id for initialization
+    pub token_code_id: u64,
+    /// Hook for post initialization
+    pub init_hook: Option<InitHook>,
+    /// Factory contract address
+    pub factory_addr: Addr,
+    /// Amplification point
+    pub amp: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
