@@ -393,7 +393,9 @@ pub fn withdraw_liquidity(
                 reply_on: ReplyOn::Never,
             },
             SubMsg {
-                msg: refund_assets[1].clone().into_msg(&deps.querier, sender.clone())?,
+                msg: refund_assets[1]
+                    .clone()
+                    .into_msg(&deps.querier, sender.clone())?,
                 id: 0,
                 gas_limit: None,
                 reply_on: ReplyOn::Never,
@@ -516,7 +518,7 @@ pub fn swap(
 
     let tax_amount = return_asset.compute_tax(&deps.querier)?;
 
-    let receiver = to.unwrap_or(sender.clone());
+    let receiver = to.unwrap_or_else(|| sender.clone());
 
     let mut response = Response::new()
         .add_submessage(
