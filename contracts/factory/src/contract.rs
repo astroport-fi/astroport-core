@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, ReplyOn,
-    Response, StdError, StdResult, SubMsg, WasmMsg,
+    attr, entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order,
+    Response, StdError, StdResult, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -65,22 +65,17 @@ pub fn instantiate(
 
     CONFIG.save(deps.storage, &config)?;
 
-    let mut messages: Vec<SubMsg> = vec![];
     if let Some(hook) = msg.init_hook {
-        messages.push(SubMsg {
-            msg: WasmMsg::Execute {
-                contract_addr: hook.contract_addr,
+        Ok(
+            Response::new().add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: hook.contract_addr.to_string(),
                 msg: hook.msg,
                 funds: vec![],
-            }
-            .into(),
-            id: 0,
-            gas_limit: None,
-            reply_on: ReplyOn::Never,
-        });
+            })),
+        )
+    } else {
+        Ok(Response::new())
     }
-
-    Ok(Response::new().add_submessages(messages))
 }
 
 pub struct UpdateConfig {
@@ -250,51 +245,37 @@ pub fn execute_create_pair(
         },
     )?;
 
-    let mut messages: Vec<SubMsg> = vec![SubMsg {
-        msg: WasmMsg::Instantiate {
-            code_id: pair_config.code_id,
-            funds: vec![],
-            admin: Some(config.owner.to_string()),
-            label: String::from("Astroport pair"),
-            msg: to_binary(&PairInstantiateMsg {
-                asset_infos: asset_infos.clone(),
-                token_code_id: config.token_code_id,
-                init_hook: Some(InitHook {
-                    contract_addr: env.contract.address.to_string(),
-                    msg: to_binary(&ExecuteMsg::Register {
-                        asset_infos: asset_infos.clone(),
-                    })?,
-                }),
-                factory_addr: env.contract.address,
-                pair_type,
-            })?,
-        }
-        .into(),
-        id: 0,
-        gas_limit: None,
-        reply_on: ReplyOn::Never,
-    }];
+    let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
+        admin: Some(config.owner.to_string()),
+        code_id: pair_config.code_id,
+        msg: to_binary(&PairInstantiateMsg {
+            asset_infos: asset_infos.clone(),
+            token_code_id: config.token_code_id,
+            init_hook: Some(InitHook {
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::Register {
+                    asset_infos: asset_infos.clone(),
+                })?,
+            }),
+            factory_addr: env.contract.address,
+            pair_type,
+        })?,
+        funds: vec![],
+        label: "Astroport pair".to_string(),
+    })];
 
     if let Some(hook) = init_hook {
-        messages.push(SubMsg {
-            msg: WasmMsg::Execute {
-                contract_addr: hook.contract_addr,
-                msg: hook.msg,
-                funds: vec![],
-            }
-            .into(),
-            id: 0,
-            gas_limit: None,
-            reply_on: ReplyOn::Never,
-        });
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: hook.contract_addr.to_string(),
+            msg: hook.msg,
+            funds: vec![],
+        }));
     }
 
-    Ok(Response::new()
-        .add_submessages(messages)
-        .add_attributes(vec![
-            attr("action", "create_pair"),
-            attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
-        ]))
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "create_pair"),
+        attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
+    ]))
 }
 
 /// create pair executes this message

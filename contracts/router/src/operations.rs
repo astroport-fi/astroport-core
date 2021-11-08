@@ -1,6 +1,5 @@
 use cosmwasm_std::{
-    to_binary, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, ReplyOn, Response, StdResult,
-    SubMsg, WasmMsg,
+    to_binary, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdResult, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -27,7 +26,7 @@ pub fn execute_swap_operation(
         return Err(ContractError::Unauthorized {});
     }
 
-    let messages: Vec<SubMsg<TerraMsgWrapper>> = match operation {
+    let messages: Vec<CosmosMsg<TerraMsgWrapper>> = match operation {
         SwapOperation::NativeSwap {
             offer_denom,
             ask_denom,
@@ -39,32 +38,22 @@ pub fn execute_swap_operation(
                 // deduct tax from the offer_coin
                 let amount =
                     amount.checked_sub(compute_tax(deps.as_ref(), amount, offer_denom.clone())?)?;
-                vec![SubMsg {
-                    msg: create_swap_send_msg(
-                        to,
-                        Coin {
-                            denom: offer_denom,
-                            amount,
-                        },
-                        ask_denom,
-                    ),
-                    id: 0,
-                    gas_limit: None,
-                    reply_on: ReplyOn::Never,
-                }]
+                vec![create_swap_send_msg(
+                    to,
+                    Coin {
+                        denom: offer_denom,
+                        amount,
+                    },
+                    ask_denom,
+                )]
             } else {
-                vec![SubMsg {
-                    msg: create_swap_msg(
-                        Coin {
-                            denom: offer_denom,
-                            amount,
-                        },
-                        ask_denom,
-                    ),
-                    id: 0,
-                    gas_limit: None,
-                    reply_on: ReplyOn::Never,
-                }]
+                vec![create_swap_msg(
+                    Coin {
+                        denom: offer_denom,
+                        amount,
+                    },
+                    ask_denom,
+                )]
             }
         }
         SwapOperation::AstroSwap {
@@ -92,22 +81,17 @@ pub fn execute_swap_operation(
                 amount,
             };
 
-            vec![SubMsg {
-                msg: asset_into_swap_msg(
-                    deps,
-                    pair_info.contract_addr.to_string(),
-                    offer_asset,
-                    None,
-                    to,
-                )?,
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never,
-            }]
+            vec![asset_into_swap_msg(
+                deps,
+                pair_info.contract_addr.to_string(),
+                offer_asset,
+                None,
+                to,
+            )?]
         }
     };
 
-    Ok(Response::new().add_submessages(messages))
+    Ok(Response::new().add_messages(messages))
 }
 
 pub fn asset_into_swap_msg(

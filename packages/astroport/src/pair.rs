@@ -6,9 +6,7 @@ use crate::hook::InitHook;
 
 use crate::factory::{factory_config, PairType};
 use crate::generator::ExecuteMsg as GeneratorExecuteMsg;
-use cosmwasm_std::{
-    to_binary, Addr, Decimal, DepsMut, ReplyOn, StdResult, SubMsg, Uint128, WasmMsg,
-};
+use cosmwasm_std::{to_binary, Addr, CosmosMsg, Decimal, DepsMut, StdResult, Uint128, WasmMsg};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -128,54 +126,40 @@ pub fn mint_liquidity_token_message(
     beneficiary: Addr,
     amount: Uint128,
     generator: Option<Addr>,
-) -> StdResult<Vec<SubMsg>> {
+) -> StdResult<Vec<CosmosMsg>> {
     let recipient = if generator.is_some() {
         pair.to_string()
     } else {
         beneficiary.to_string()
     };
-    let mut messages: Vec<SubMsg> = vec![SubMsg {
-        msg: WasmMsg::Execute {
-            contract_addr: lp_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Mint { recipient, amount })?,
-            funds: vec![],
-        }
-        .into(),
-        id: 0,
-        gas_limit: None,
-        reply_on: ReplyOn::Never,
-    }];
+
+    let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: lp_token.to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Mint { recipient, amount })?,
+        funds: vec![],
+    })];
+
     if let Some(generator) = generator {
-        messages.push(SubMsg {
-            msg: WasmMsg::Execute {
-                contract_addr: lp_token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: generator.to_string(),
-                    amount,
-                    expires: None,
-                })?,
-                funds: vec![],
-            }
-            .into(),
-            id: 0,
-            gas_limit: None,
-            reply_on: ReplyOn::Never,
-        });
-        messages.push(SubMsg {
-            msg: WasmMsg::Execute {
-                contract_addr: generator.to_string(),
-                msg: to_binary(&GeneratorExecuteMsg::DepositFor {
-                    lp_token,
-                    beneficiary,
-                    amount,
-                })?,
-                funds: vec![],
-            }
-            .into(),
-            id: 0,
-            gas_limit: None,
-            reply_on: ReplyOn::Never,
-        });
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: lp_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                spender: generator.to_string(),
+                amount,
+                expires: None,
+            })?,
+            funds: vec![],
+        }));
+
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: generator.to_string(),
+            msg: to_binary(&GeneratorExecuteMsg::DepositFor {
+                lp_token,
+                beneficiary,
+                amount,
+            })?,
+            funds: vec![],
+        }));
     }
+
     Ok(messages)
 }
