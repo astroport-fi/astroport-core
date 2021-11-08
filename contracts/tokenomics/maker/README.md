@@ -12,6 +12,7 @@ Inits with required contract addresses and `governance_percent`.
 
 ```json
 {
+  "owner": "terra...",
   "astro_token_contract": "terra...",
   "factory_contract": "terra...",
   "staking_contract": "terra...",
