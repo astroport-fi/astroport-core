@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "QueryMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "type": "object",
       "required": [
@@ -99,7 +99,7 @@
       "type": "string"
     },
     "AssetInfo": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [
@@ -143,7 +143,7 @@
       ]
     },
     "PairType": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [

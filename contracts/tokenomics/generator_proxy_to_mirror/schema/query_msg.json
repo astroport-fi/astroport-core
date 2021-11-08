@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "QueryMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "type": "object",
       "required": [
@@ -33,6 +33,18 @@
       ],
       "properties": {
         "pending_token": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "reward_info"
+      ],
+      "properties": {
+        "reward_info": {
           "type": "object"
         }
       },

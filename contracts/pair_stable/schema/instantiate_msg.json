@@ -58,7 +58,7 @@
       "type": "string"
     },
     "AssetInfo": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [
@@ -121,7 +121,7 @@
       }
     },
     "PairType": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [

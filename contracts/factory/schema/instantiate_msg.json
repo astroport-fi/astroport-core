@@ -4,6 +4,7 @@
   "type": "object",
   "required": [
     "generator_address",
+    "owner",
     "pair_configs",
     "token_code_id"
   ],
@@ -40,6 +41,9 @@
           "type": "null"
         }
       ]
+    },
+    "owner": {
+      "type": "string"
     },
     "pair_configs": {
       "description": "Pair contract code IDs which are allowed to create pairs",
@@ -108,7 +112,7 @@
       }
     },
     "PairType": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [

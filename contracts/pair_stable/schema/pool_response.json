@@ -40,7 +40,7 @@
       }
     },
     "AssetInfo": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [
