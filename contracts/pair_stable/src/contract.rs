@@ -5,9 +5,9 @@ use crate::state::{Config, CONFIG};
 
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env,
-    MessageInfo, QueryRequest, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
-    WasmQuery,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, MessageInfo, QueryRequest, ReplyOn, Response, StdError, StdResult, SubMsg,
+    Uint128, WasmMsg, WasmQuery,
 };
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
@@ -60,7 +60,7 @@ pub fn instantiate(
     CONFIG.save(deps.storage, &config)?;
 
     // Create LP token
-    let mut messages: Vec<SubMsg> = vec![SubMsg {
+    let sub_msg: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
             code_id: msg.token_code_id,
             msg: to_binary(&TokenInstantiateMsg {
@@ -88,20 +88,16 @@ pub fn instantiate(
     }];
 
     if let Some(hook) = msg.init_hook {
-        messages.push(SubMsg {
-            msg: WasmMsg::Execute {
+        Ok(Response::new()
+            .add_submessages(sub_msg)
+            .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: hook.contract_addr,
                 msg: hook.msg,
                 funds: vec![],
-            }
-            .into(),
-            id: 0,
-            gas_limit: None,
-            reply_on: ReplyOn::Never,
-        });
+            })))
+    } else {
+        Ok(Response::new().add_submessages(sub_msg))
     }
-
-    Ok(Response::new().add_submessages(messages))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -267,25 +263,19 @@ pub fn provide_liquidity(
         return Err(ContractError::InvalidZeroAmount {});
     }
 
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
     for (i, pool) in pools.iter_mut().enumerate() {
         // If the pool is token contract, then we need to execute TransferFrom msg to receive funds
         if let AssetInfo::Token { contract_addr, .. } = &pool.info {
-            messages.push(SubMsg {
-                msg: WasmMsg::Execute {
-                    contract_addr: contract_addr.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                        owner: info.sender.to_string(),
-                        recipient: env.contract.address.to_string(),
-                        amount: deposits[i],
-                    })?,
-                    funds: vec![],
-                }
-                .into(),
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never,
-            });
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: contract_addr.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: info.sender.to_string(),
+                    recipient: env.contract.address.to_string(),
+                    amount: deposits[i],
+                })?,
+                funds: vec![],
+            }))
         } else {
             // If the asset is native token, balance is already increased
             // To calculated properly we should subtract user deposit from the pool
@@ -339,14 +329,12 @@ pub fn provide_liquidity(
         CONFIG.save(deps.storage, &config)?;
     }
 
-    Ok(Response::new()
-        .add_submessages(messages)
-        .add_attributes(vec![
-            attr("action", "provide_liquidity"),
-            attr("sender", info.sender.as_str()),
-            attr("assets", format!("{}, {}", assets[0], assets[1])),
-            attr("share", share.to_string()),
-        ]))
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "provide_liquidity"),
+        attr("sender", info.sender.as_str()),
+        attr("assets", format!("{}, {}", assets[0], assets[1])),
+        attr("share", share.to_string()),
+    ]))
 }
 
 pub fn withdraw_liquidity(
@@ -380,48 +368,33 @@ pub fn withdraw_liquidity(
         CONFIG.save(deps.storage, &config)?;
     }
 
-    // update pool info
+    let messages: Vec<CosmosMsg> = vec![
+        refund_assets[0]
+            .clone()
+            .into_msg(&deps.querier, sender.clone())?,
+        refund_assets[1]
+            .clone()
+            .into_msg(&deps.querier, sender.clone())?,
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: config.pair_info.liquidity_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
+            funds: vec![],
+        }),
+    ];
+
+    let attributes = vec![
+        attr("action", "withdraw_liquidity"),
+        attr("sender", sender.as_str()),
+        attr("withdrawn_share", &amount.to_string()),
+        attr(
+            "refund_assets",
+            format!("{}, {}", refund_assets[0], refund_assets[1]),
+        ),
+    ];
+
     Ok(Response::new()
-        .add_submessages(vec![
-            // refund asset tokens
-            SubMsg {
-                msg: refund_assets[0]
-                    .clone()
-                    .into_msg(&deps.querier, sender.clone())?,
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never,
-            },
-            SubMsg {
-                msg: refund_assets[1]
-                    .clone()
-                    .into_msg(&deps.querier, sender.clone())?,
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never,
-            },
-            // burn liquidity token
-            SubMsg {
-                msg: WasmMsg::Execute {
-                    contract_addr: config.pair_info.liquidity_token.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
-                    funds: vec![],
-                }
-                .into(),
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never,
-            },
-        ])
-        .add_attributes(vec![
-            attr("action", "withdraw_liquidity"),
-            attr("sender", sender.as_str()),
-            attr("withdrawn_share", &amount.to_string()),
-            attr(
-                "refund_assets",
-                format!("{}, {}", refund_assets[0], refund_assets[1]),
-            ),
-        ]))
+        .add_messages(messages)
+        .add_attributes(attributes))
 }
 
 pub fn get_share_in_assets(
@@ -520,41 +493,18 @@ pub fn swap(
 
     let receiver = to.unwrap_or_else(|| sender.clone());
 
-    let mut response = Response::new()
-        .add_submessage(
-            // 1. send collateral token from the contract to a user
-            // 2. send inactive commission to collector
-            SubMsg {
-                msg: return_asset.into_msg(&deps.querier, receiver.clone())?,
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never,
-            },
-        )
-        .add_attribute("action", "swap")
-        .add_attribute("sender", sender.as_str())
-        .add_attribute("receiver", receiver.as_str())
-        .add_attribute("offer_asset", offer_asset.info.to_string())
-        .add_attribute("ask_asset", ask_pool.info.to_string())
-        .add_attribute("offer_amount", offer_amount.to_string())
-        .add_attribute("return_amount", return_amount.to_string())
-        .add_attribute("tax_amount", tax_amount.to_string())
-        .add_attribute("spread_amount", spread_amount.to_string())
-        .add_attribute("commission_amount", commission_amount.to_string());
+    let mut messages: Vec<CosmosMsg> =
+        vec![return_asset.into_msg(&deps.querier, receiver.clone())?];
 
     // Maker fee
     let mut maker_fee_amount = Uint128::new(0);
     if let Some(fee_address) = fee_info.fee_address {
-        if let Some(f) =
-            calculate_maker_fee(ask_pool.info, commission_amount, fee_info.maker_fee_rate)
-        {
-            response.messages.push(SubMsg {
-                msg: f.clone().into_msg(&deps.querier, fee_address)?,
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never,
-            });
-
+        if let Some(f) = calculate_maker_fee(
+            ask_pool.info.clone(),
+            commission_amount,
+            fee_info.maker_fee_rate,
+        ) {
+            messages.push(f.clone().into_msg(&deps.querier, fee_address)?);
             maker_fee_amount = f.amount;
         }
     }
@@ -574,7 +524,23 @@ pub fn swap(
         CONFIG.save(deps.storage, &config)?;
     }
 
-    Ok(response.add_attribute("maker_fee_amount", maker_fee_amount.to_string()))
+    Ok(Response::new()
+        .add_messages(
+            // 1. send collateral token from the contract to a user
+            // 2. send inactive commission to collector
+            messages,
+        )
+        .add_attribute("action", "swap")
+        .add_attribute("sender", sender.as_str())
+        .add_attribute("receiver", receiver.as_str())
+        .add_attribute("offer_asset", offer_asset.info.to_string())
+        .add_attribute("ask_asset", ask_pool.info.to_string())
+        .add_attribute("offer_amount", offer_amount.to_string())
+        .add_attribute("return_amount", return_amount.to_string())
+        .add_attribute("tax_amount", tax_amount.to_string())
+        .add_attribute("spread_amount", spread_amount.to_string())
+        .add_attribute("commission_amount", commission_amount.to_string())
+        .add_attribute("maker_fee_amount", maker_fee_amount.to_string()))
 }
 
 pub fn accumulate_prices(
