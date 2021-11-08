@@ -1390,8 +1390,8 @@ use sim::StableSwapModel;
 proptest! {
     #[test]
     fn constant_product_swap_no_fee(
-        balance_in in 100..1_000_000_000_000_000_000u128,
-        balance_out in 100..1_000_000_000_000_000_000u128,
+        balance_in in 100..1_000_000_000_000_000u128,
+        balance_out in 100..1_000_000_000_000_000u128,
         amount_in in 100..100_000_000_000u128,
         amp in 1..150u64
     ) {
