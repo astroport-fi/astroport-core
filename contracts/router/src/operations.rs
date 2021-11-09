@@ -61,7 +61,7 @@ pub fn execute_swap_operation(
             ask_asset_info,
         } => {
             let config: Config = CONFIG.load(deps.storage)?;
-            let astroport_factory = deps.api.addr_humanize(&config.astroport_factory)?;
+            let astroport_factory = config.astroport_factory;
             let pair_info: PairInfo = query_pair_info(
                 &deps.querier,
                 astroport_factory,

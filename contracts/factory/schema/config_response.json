@@ -82,7 +82,7 @@
       }
     },
     "PairType": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [
