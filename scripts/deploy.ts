@@ -157,6 +157,7 @@ async function main() {
             wallet,
             join(ARTIFACTS_PATH, 'astroport_maker.wasm'),
             {
+                owner: wallet.key.accAddress,
                 factory_contract: String(network.factoryAddress),
                 staking_contract: String(network.stakingAddress),
                 astro_token_contract: String(network.tokenAddress),

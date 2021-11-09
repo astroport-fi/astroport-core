@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    pub owner: String,
     pub astro_token_contract: String,
     pub factory_contract: String,
     pub staking_contract: String,
@@ -19,6 +20,7 @@ pub enum ExecuteMsg {
         pair_addresses: Vec<Addr>,
     },
     SetConfig {
+        owner: Option<String>,
         staking_contract: Option<String>,
         governance_contract: Option<String>,
         governance_percent: Option<Uint64>,

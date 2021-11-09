@@ -110,6 +110,7 @@ fn instantiate_contracts(
     let market_code_id = router.store_code(maker_contract);
 
     let msg = InstantiateMsg {
+        owner: String::from("owner"),
         factory_contract: factory_instance.to_string(),
         staking_contract: staking.to_string(),
         governance_contract: Option::from(governance.to_string()),
@@ -347,6 +348,7 @@ fn collect_all() {
     let governance_percent = Uint64::new(50);
 
     let msg = ExecuteMsg::SetConfig {
+        owner: None,
         governance_percent: Some(governance_percent),
         governance_contract: None,
         staking_contract: None,

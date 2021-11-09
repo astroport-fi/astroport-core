@@ -21,10 +21,11 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let owner = deps.api.addr_validate(&msg.owner)?;
 
     let governance_contract = if let Some(governance_contract) = msg.governance_contract {
         Option::from(deps.api.addr_validate(&governance_contract)?)
@@ -42,7 +43,7 @@ pub fn instantiate(
     };
 
     let cfg = Config {
-        owner: info.sender,
+        owner,
         astro_token_contract: deps.api.addr_validate(&msg.astro_token_contract)?,
         factory_contract: deps.api.addr_validate(&msg.factory_contract)?,
         staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
@@ -58,18 +59,20 @@ pub fn instantiate(
 pub fn execute(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Collect { pair_addresses } => collect(deps, env, pair_addresses),
         ExecuteMsg::SetConfig {
+            owner,
             staking_contract,
             governance_contract,
             governance_percent,
         } => set_config(
             deps,
-            env,
+            info,
+            owner,
             staking_contract,
             governance_contract,
             governance_percent,
@@ -224,7 +227,8 @@ fn swap_to_astro(
 
 fn set_config(
     deps: DepsMut,
-    _env: Env,
+    info: MessageInfo,
+    owner: Option<String>,
     staking_contract: Option<String>,
     governance_contract: Option<String>,
     governance_percent: Option<Uint64>,
@@ -232,6 +236,16 @@ fn set_config(
     let mut event = Event::new("Set config".to_string());
 
     let mut config = CONFIG.load(deps.storage)?;
+
+    // permission check
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(owner) = owner {
+        // validate address format
+        config.owner = deps.api.addr_validate(owner.as_str())?;
+    }
 
     if let Some(staking_contract) = staking_contract {
         config.staking_contract = deps.api.addr_validate(&staking_contract)?;
