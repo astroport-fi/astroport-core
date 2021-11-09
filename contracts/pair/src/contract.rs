@@ -105,8 +105,8 @@ pub fn execute(
         ExecuteMsg::ProvideLiquidity {
             assets,
             slippage_tolerance,
-            auto_stack,
-        } => provide_liquidity(deps, env, info, assets, slippage_tolerance, auto_stack),
+            auto_stake,
+        } => provide_liquidity(deps, env, info, assets, slippage_tolerance, auto_stake),
         ExecuteMsg::Swap {
             offer_asset,
             belief_price,
@@ -226,9 +226,9 @@ pub fn provide_liquidity(
     info: MessageInfo,
     assets: [Asset; 2],
     slippage_tolerance: Option<Decimal>,
-    auto_stack: Option<bool>,
+    auto_stake: Option<bool>,
 ) -> Result<Response, ContractError> {
-    let auto_stack = auto_stack.unwrap_or(false);
+    let auto_stake = auto_stake.unwrap_or(false);
     for asset in assets.iter() {
         asset.assert_sent_native_token_balance(&info)?;
     }
@@ -302,7 +302,7 @@ pub fn provide_liquidity(
         config.pair_info.liquidity_token.clone(),
         info.sender.clone(),
         share,
-        generator_address(auto_stack, config.factory_addr.clone(), &deps)?,
+        generator_address(auto_stake, config.factory_addr.clone(), &deps)?,
     )?);
 
     // Accumulate prices for oracle
@@ -736,30 +736,36 @@ pub fn amount_of(coins: &[Coin], denom: String) -> Uint128 {
     }
 }
 
-fn compute_swap(
+pub fn compute_swap(
     offer_pool: Uint128,
     ask_pool: Uint128,
     offer_amount: Uint128,
     commission_rate: Decimal,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
+    let offer_pool: Uint256 = offer_pool.into();
+    let ask_pool: Uint256 = ask_pool.into();
+    let offer_amount: Uint256 = offer_amount.into();
+    let commission_rate: Decimal256 = commission_rate.into();
+
     // offer => ask
-    // ask_amount = (ask_pool - cp / (offer_pool + offer_amount)) * (1 - commission_rate)
-    let cp = Uint256::from(offer_pool) * Uint256::from(ask_pool);
-    let return_amount = ask_pool.checked_sub(
-        cp.multiply_ratio(Uint256::one(), Uint256::from(offer_pool + offer_amount))
-            .into(),
-    )?;
+    // ask_amount = (ask_pool - cp / (offer_pool + offer_amount))
+    let cp: Uint256 = offer_pool * ask_pool;
+    let return_amount: Uint256 = (Decimal256::from_uint256(ask_pool)
+        - Decimal256::from_ratio(cp, offer_pool + offer_amount))
+        * Uint256::one();
 
     // calculate spread & commission
-    let spread_amount: Uint128 = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool))
-        .checked_sub(return_amount)
-        .unwrap_or_else(|_| Uint128::zero());
-    let commission_amount: Uint128 = return_amount * commission_rate;
+    let spread_amount: Uint256 =
+        (offer_amount * Decimal256::from_ratio(ask_pool, offer_pool)) - return_amount;
+    let commission_amount: Uint256 = return_amount * commission_rate;
 
     // commission will be absorbed to pool
-    let return_amount: Uint128 = return_amount.checked_sub(commission_amount).unwrap();
-
-    Ok((return_amount, spread_amount, commission_amount))
+    let return_amount: Uint256 = return_amount - commission_amount;
+    Ok((
+        return_amount.into(),
+        spread_amount.into(),
+        commission_amount.into(),
+    ))
 }
 
 fn compute_offer_amount(

@@ -312,7 +312,7 @@ fn create_pair(
             &astroport::pair::ExecuteMsg::ProvideLiquidity {
                 assets,
                 slippage_tolerance: None,
-                auto_stack: None,
+                auto_stake: None,
             },
             &funds,
         )
@@ -586,7 +586,7 @@ fn collect_all() {
         .unwrap();
 
     for t in vec![
-        (astro_token_instance.clone(), 270u128), // 10 astro + 20 usdc + 30 luna + 100 uusd + 110 uluna
+        (astro_token_instance.clone(), 266u128), // 10 astro + 19 usdc + 29 luna + 99 uusd + 109 uluna
         (usdc_token_instance.clone(), 0u128),
         (luna_token_instance.clone(), 0u128),
     ] {
