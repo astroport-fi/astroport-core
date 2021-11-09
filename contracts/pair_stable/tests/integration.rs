@@ -4,7 +4,7 @@ use astroport::factory::{
     QueryMsg as FactoryQueryMsg,
 };
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsgStable, QueryMsg,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
@@ -47,7 +47,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
 
     let pair_contract_code_id = store_pair_code(&mut router);
 
-    let msg = InstantiateMsg {
+    let msg = InstantiateMsgStable {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -59,7 +59,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         token_code_id: token_contract_code_id,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Stable {},
+        amp: 100,
     };
 
     let pair = router
@@ -302,7 +302,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         )
         .unwrap();
 
-    let msg = FactoryExecuteMsg::CreatePair {
+    let msg = FactoryExecuteMsg::CreatePairStable {
         asset_infos: [
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
@@ -312,7 +312,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             },
         ],
         init_hook: None,
-        pair_type: PairType::Stable {},
+        amp: 100,
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])

@@ -352,9 +352,9 @@ fn create_pair() {
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        ExecuteMsg::CreatePair {
-            pair_type: PairType::Stable {},
+        ExecuteMsg::CreatePairStable {
             asset_infos: asset_infos.clone(),
+            amp: 100,
             init_hook: None,
         },
     )
@@ -366,7 +366,6 @@ fn create_pair() {
         env,
         info,
         ExecuteMsg::CreatePair {
-            pair_type: PairType::Xyk {},
             asset_infos: asset_infos.clone(),
             init_hook: None,
         },
@@ -395,7 +394,6 @@ fn create_pair() {
                         })
                         .unwrap(),
                     }),
-                    pair_type: PairType::Xyk {},
                 })
                 .unwrap(),
                 code_id: pair_config.code_id,
@@ -449,7 +447,6 @@ fn register() {
     ];
 
     let msg = ExecuteMsg::CreatePair {
-        pair_type: PairType::Xyk {},
         asset_infos: asset_infos.clone(),
         init_hook: None,
     };
@@ -524,7 +521,6 @@ fn register() {
     ];
 
     let msg = ExecuteMsg::CreatePair {
-        pair_type: PairType::Xyk {},
         asset_infos: asset_infos_2.clone(),
         init_hook: None,
     };

@@ -4,14 +4,13 @@ use crate::contract::{
 };
 use crate::error::ContractError;
 use crate::math::calc_amount;
-use crate::math::AMP_DEFAULT;
 use crate::mock_querier::mock_dependencies;
 
 use crate::state::Config;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::hook::InitHook;
 use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
+    Cw20HookMsg, ExecuteMsg, InstantiateMsgStable, PoolResponse, ReverseSimulationResponse,
     SimulationResponse,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
@@ -26,7 +25,7 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
 
-    let msg = InstantiateMsg {
+    let msg = InstantiateMsgStable {
         factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
@@ -41,7 +40,7 @@ fn proper_initialization() {
             contract_addr: String::from("factory0000"),
             msg: to_binary(&Uint128::new(1000000u128)).unwrap(),
         }),
-        pair_type: PairType::Stable {},
+        amp: 100,
     };
 
     let sender = "addr0000";
@@ -139,7 +138,7 @@ fn provide_liquidity() {
         ),
     ]);
 
-    let msg = InstantiateMsg {
+    let msg = InstantiateMsgStable {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -151,7 +150,7 @@ fn provide_liquidity() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Stable {},
+        amp: 100,
     };
 
     let env = mock_env();
@@ -566,7 +565,7 @@ fn withdraw_liquidity() {
         ),
     ]);
 
-    let msg = InstantiateMsg {
+    let msg = InstantiateMsgStable {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -578,7 +577,7 @@ fn withdraw_liquidity() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Stable {},
+        amp: 100,
     };
 
     let env = mock_env();
@@ -696,7 +695,7 @@ fn try_native_to_token() {
         ),
     ]);
 
-    let msg = InstantiateMsg {
+    let msg = InstantiateMsgStable {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -708,7 +707,7 @@ fn try_native_to_token() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Stable {},
+        amp: 100,
     };
 
     let env = mock_env();
@@ -747,7 +746,7 @@ fn try_native_to_token() {
     let msg_transfer = res.messages.get(0).expect("no message");
 
     let model: StableSwapModel = StableSwapModel::new(
-        AMP_DEFAULT.into(),
+        100,
         vec![collateral_pool_amount.into(), asset_pool_amount.into()],
         2,
     );
@@ -800,7 +799,7 @@ fn try_native_to_token() {
     .unwrap();
 
     let model: StableSwapModel = StableSwapModel::new(
-        AMP_DEFAULT.into(),
+        100,
         vec![collateral_pool_amount.into(), asset_pool_amount.into()],
         2,
     );
@@ -883,7 +882,7 @@ fn try_token_to_native() {
         ),
     ]);
 
-    let msg = InstantiateMsg {
+    let msg = InstantiateMsgStable {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -895,7 +894,7 @@ fn try_token_to_native() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Stable {},
+        amp: 100,
     };
 
     let env = mock_env();
@@ -944,7 +943,7 @@ fn try_token_to_native() {
     let msg_transfer = res.messages.get(0).expect("no message");
 
     let model: StableSwapModel = StableSwapModel::new(
-        AMP_DEFAULT.into(),
+        100,
         vec![collateral_pool_amount.into(), asset_pool_amount.into()],
         2,
     );
@@ -1159,7 +1158,7 @@ fn test_query_pool() {
         ),
     ]);
 
-    let msg = InstantiateMsg {
+    let msg = InstantiateMsgStable {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1171,7 +1170,7 @@ fn test_query_pool() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Stable {},
+        amp: 100,
     };
 
     let env = mock_env();
@@ -1228,7 +1227,7 @@ fn test_query_share() {
         ),
     ]);
 
-    let msg = InstantiateMsg {
+    let msg = InstantiateMsgStable {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1240,7 +1239,7 @@ fn test_query_share() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Stable {},
+        amp: 100,
     };
 
     let env = mock_env();
@@ -1354,7 +1353,7 @@ fn test_accumulate_prices() {
                 block_time_last: case.block_time_last,
                 price0_cumulative_last: Uint128::new(case.last0),
                 price1_cumulative_last: Uint128::new(case.last1),
-                amp: AMP_DEFAULT,
+                amp: 100,
             },
             Uint128::new(case.x_amount),
             6,

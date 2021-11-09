@@ -66,10 +66,16 @@ pub enum ExecuteMsg {
     },
     /// CreatePair instantiates pair contract
     CreatePair {
-        /// Type of pair contract
-        pair_type: PairType,
         /// Asset infos
         asset_infos: [AssetInfo; 2],
+        /// Init hook for after works
+        init_hook: Option<InitHook>,
+    },
+    CreatePairStable {
+        /// Asset infos
+        asset_infos: [AssetInfo; 2],
+        /// Amplification point
+        amp: u64,
         /// Init hook for after works
         init_hook: Option<InitHook>,
     },

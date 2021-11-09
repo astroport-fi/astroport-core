@@ -59,7 +59,6 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         token_code_id: token_contract_code_id,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Xyk {},
     };
 
     let pair = router
@@ -309,7 +308,6 @@ fn test_compatibility_of_tokens_with_different_precision() {
             },
         ],
         init_hook: None,
-        pair_type: PairType::Xyk {},
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
