@@ -975,7 +975,7 @@ pub fn update_config(
             msg: to_binary(&FactoryQueryMsg::Config {})?,
         }))?;
 
-    if info.sender != factory_config.gov.unwrap_or_else(|| Addr::unchecked("")) {
+    if factory_config.gov.is_none() || info.sender != factory_config.gov.unwrap() {
         return Err(ContractError::Unauthorized {});
     }
 
