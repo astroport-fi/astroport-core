@@ -1,12 +1,13 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order,
-    Response, StdError, StdResult, WasmMsg,
+    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 
 use crate::error::ContractError;
 use crate::querier::query_liquidity_token;
-use crate::state::{pair_key, read_pairs, Config, CONFIG, PAIRS, PAIR_CONFIGS};
+use crate::state::{pair_key, read_pairs, Config, TmpPairInfo, CONFIG, PAIRS, PAIR_CONFIGS};
 
+use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
@@ -20,6 +21,7 @@ use std::collections::HashSet;
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-factory";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const INSTANTIATE_PAIR_REPLY_ID: u64 = 1;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -121,7 +123,6 @@ pub fn execute(
             asset_infos,
             init_hook,
         } => execute_create_pair(deps, env, pair_type, asset_infos, init_hook),
-        ExecuteMsg::Register { asset_infos } => register(deps, info, asset_infos),
         ExecuteMsg::Deregister { asset_infos } => deregister(deps, info, asset_infos),
     }
 }
@@ -245,25 +246,27 @@ pub fn execute_create_pair(
         },
     )?;
 
-    let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
-        admin: Some(config.owner.to_string()),
-        code_id: pair_config.code_id,
-        msg: to_binary(&PairInstantiateMsg {
-            asset_infos: asset_infos.clone(),
-            token_code_id: config.token_code_id,
-            init_hook: Some(InitHook {
-                contract_addr: env.contract.address.to_string(),
-                msg: to_binary(&ExecuteMsg::Register {
-                    asset_infos: asset_infos.clone(),
-                })?,
-            }),
-            factory_addr: env.contract.address,
-            pair_type,
-        })?,
-        funds: vec![],
-        label: "Astroport pair".to_string(),
-    })];
+    let mut sub_msg: Vec<SubMsg> = vec![SubMsg {
+        id: INSTANTIATE_PAIR_REPLY_ID,
+        msg: WasmMsg::Instantiate {
+            admin: Some(config.owner.to_string()),
+            code_id: pair_config.code_id,
+            msg: to_binary(&PairInstantiateMsg {
+                asset_infos: asset_infos.clone(),
+                token_code_id: config.token_code_id,
+                init_hook: None,
+                factory_addr: env.contract.address,
+                pair_type,
+            })?,
+            funds: vec![],
+            label: "Astroport pair".to_string(),
+        }
+        .into(),
+        gas_limit: None,
+        reply_on: ReplyOn::Success,
+    }];
 
+    let mut messages: Vec<CosmosMsg> = vec![];
     if let Some(hook) = init_hook {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: hook.contract_addr.to_string(),
@@ -272,24 +275,30 @@ pub fn execute_create_pair(
         }));
     }
 
-    Ok(Response::new().add_messages(messages).add_attributes(vec![
-        attr("action", "create_pair"),
-        attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
-    ]))
+    Ok(Response::new()
+        .add_submessages(sub_msg)
+        .add_messages(messages)
+        .add_attributes(vec![
+            attr("action", "create_pair"),
+            attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
+        ]))
 }
 
-/// create pair executes this message
-pub fn register(
-    deps: DepsMut,
-    info: MessageInfo,
-    asset_infos: [AssetInfo; 2],
-) -> Result<Response, ContractError> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let pair_info: PairInfo = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     if pair_info.contract_addr != Addr::unchecked("") {
         return Err(ContractError::PairWasRegistered {});
     }
 
-    let pair_contract = info.sender;
+    let data = msg.result.unwrap().data.unwrap();
+    let res: MsgInstantiateContractResponse =
+        Message::parse_from_bytes(data.as_slice()).map_err(|_| {
+            StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
+        })?;
+
+    let pair_contract = deps.api.addr_validate(res.get_contract_address())?;
+
     let liquidity_token = query_liquidity_token(deps.as_ref(), pair_contract.clone())?;
     PAIRS.save(
         deps.storage,
