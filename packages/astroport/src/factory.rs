@@ -34,6 +34,12 @@ pub struct PairConfig {
     pub maker_fee_bps: u16,
 }
 
+impl PairConfig {
+    pub fn valid_fee_bps(&self) -> bool {
+        self.total_fee_bps <= 10_000 && self.maker_fee_bps <= 10_000
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     /// Pair contract code IDs which are allowed to create pairs

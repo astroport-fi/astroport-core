@@ -63,6 +63,38 @@ fn proper_initialization() {
     let res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap_err();
     assert_eq!(res, ContractError::PairConfigDuplicate {});
 
+    // check validation of total and maker fee bps
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InstantiateMsg {
+        pair_configs: vec![
+            PairConfig {
+                code_id: 325u64,
+                pair_type: PairType::Stable {},
+                total_fee_bps: 10_001,
+                maker_fee_bps: 10,
+            },
+            PairConfig {
+                code_id: 123u64,
+                pair_type: PairType::Xyk {},
+                total_fee_bps: 100,
+                maker_fee_bps: 10,
+            },
+        ],
+        token_code_id: 123u64,
+        init_hook: None,
+        fee_address: None,
+        gov: None,
+        generator_address: Addr::unchecked("generator"),
+        owner: owner.clone(),
+    };
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+
+    let res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap_err();
+    assert_eq!(res, ContractError::PairConfigInvalidFeeBps {});
+
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
@@ -236,6 +268,24 @@ fn update_pair_config() {
     let query_res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(pair_configs, config_res.pair_configs);
+
+    // check validation of total and maker fee bps
+    let pair_config = PairConfig {
+        code_id: 800,
+        pair_type: PairType::Xyk {},
+        total_fee_bps: 1,
+        maker_fee_bps: 10_001,
+    };
+
+    // Invalid fee bps err
+    let env = mock_env();
+    let info = mock_info(owner.clone(), &[]);
+    let msg = ExecuteMsg::UpdatePairConfig {
+        config: pair_config.clone(),
+    };
+
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
+    assert_eq!(res, ContractError::PairConfigInvalidFeeBps {});
 
     // update config
     let pair_config = PairConfig {

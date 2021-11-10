@@ -62,6 +62,10 @@ pub fn instantiate(
     }
 
     for pc in msg.pair_configs.iter() {
+        // validate total and maker fee bps
+        if !pc.valid_fee_bps() {
+            return Err(ContractError::PairConfigInvalidFeeBps {});
+        }
         PAIR_CONFIGS.save(deps.storage, pc.clone().pair_type.to_string(), pc)?;
     }
 
@@ -185,6 +189,11 @@ pub fn execute_update_pair_config(
     // permission check
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
+    }
+
+    // validate total and maker fee bps
+    if !pair_config.valid_fee_bps() {
+        return Err(ContractError::PairConfigInvalidFeeBps {});
     }
 
     PAIR_CONFIGS.save(
