@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Config_for_String",
+  "type": "object",
+  "required": [
+    "astro_token",
+    "default_unlock_schedule",
+    "owner",
+    "refund_recipient"
+  ],
+  "properties": {
+    "astro_token": {
+      "description": "Address of ASTRO token",
+      "type": "string"
+    },
+    "default_unlock_schedule": {
+      "description": "By default, unlocking starts at Astroport launch, with a cliff of 6 months and a duration of 36 months. If not specified, all allocations use this default schedule",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Schedule"
+        }
+      ]
+    },
+    "owner": {
+      "description": "Account who can create new allocations",
+      "type": "string"
+    },
+    "refund_recipient": {
+      "description": "Account to receive the refund of unvested tokens if a user terminates allocation",
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "Schedule": {
+      "type": "object",
+      "required": [
+        "cliff",
+        "duration",
+        "start_time"
+      ],
+      "properties": {
+        "cliff": {
+          "description": "Number of seconds starting UST during which no token will be vested/unlocked",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "duration": {
+          "description": "Number of seconds taken since UST for tokens to be fully vested/unlocked",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "start_time": {
+          "description": "Timestamp of when vesting/unlocking is to be started (in seconds)",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    }
+  }
+}

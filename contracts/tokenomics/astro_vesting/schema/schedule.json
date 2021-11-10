@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Schedule",
+  "type": "object",
+  "required": [
+    "cliff",
+    "duration",
+    "start_time"
+  ],
+  "properties": {
+    "cliff": {
+      "description": "Number of seconds starting UST during which no token will be vested/unlocked",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "duration": {
+      "description": "Number of seconds taken since UST for tokens to be fully vested/unlocked",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "start_time": {
+      "description": "Timestamp of when vesting/unlocking is to be started (in seconds)",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    }
+  }
+}

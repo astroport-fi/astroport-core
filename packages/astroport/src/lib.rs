@@ -1,4 +1,5 @@
 pub mod asset;
+pub mod astro_vesting;
 pub mod factory;
 pub mod generator;
 pub mod generator_proxy;

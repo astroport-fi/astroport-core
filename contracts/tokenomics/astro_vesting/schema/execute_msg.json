@@ -1,0 +1,155 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ExecuteMsg",
+  "oneOf": [
+    {
+      "description": "Implementation of cw20 receive msg",
+      "type": "object",
+      "required": [
+        "receive"
+      ],
+      "properties": {
+        "receive": {
+          "$ref": "#/definitions/Cw20ReceiveMsg"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Claim withdrawable ASTRO",
+      "type": "object",
+      "required": [
+        "withdraw"
+      ],
+      "properties": {
+        "withdraw": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Give up allocation, refund all unvested tokens to `config.fallback_recipient`",
+      "type": "object",
+      "required": [
+        "terminate"
+      ],
+      "properties": {
+        "terminate": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Update addresses of owner and fallback_recipient",
+      "type": "object",
+      "required": [
+        "transfer_ownership"
+      ],
+      "properties": {
+        "transfer_ownership": {
+          "type": "object",
+          "required": [
+            "new_owner",
+            "new_refund_recipient"
+          ],
+          "properties": {
+            "new_owner": {
+              "type": "string"
+            },
+            "new_refund_recipient": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Allows users to change the receiver address of their allocations etc",
+      "type": "object",
+      "required": [
+        "propose_new_receiver"
+      ],
+      "properties": {
+        "propose_new_receiver": {
+          "type": "object",
+          "required": [
+            "new_receiver"
+          ],
+          "properties": {
+            "new_receiver": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Allows users to remove the previously proposed new receiver for their allocations",
+      "type": "object",
+      "required": [
+        "drop_new_receiver"
+      ],
+      "properties": {
+        "drop_new_receiver": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Allows new receivers to claim the allocations",
+      "type": "object",
+      "required": [
+        "claim_receiver"
+      ],
+      "properties": {
+        "claim_receiver": {
+          "type": "object",
+          "required": [
+            "prev_receiver"
+          ],
+          "properties": {
+            "prev_receiver": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  ],
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "Cw20ReceiveMsg": {
+      "description": "Cw20ReceiveMsg should be de/serialized under `Receive()` variant in a ExecuteMsg",
+      "type": "object",
+      "required": [
+        "amount",
+        "msg",
+        "sender"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "msg": {
+          "$ref": "#/definitions/Binary"
+        },
+        "sender": {
+          "type": "string"
+        }
+      }
+    },
+    "Uint128": {
+      "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
+      "type": "string"
+    }
+  }
+}
