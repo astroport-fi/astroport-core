@@ -460,7 +460,7 @@ fn register() {
         asset_infos: asset_infos.clone(),
         contract_addr: Addr::unchecked("pair0000"),
         liquidity_token: Addr::unchecked("liquidity0000"),
-        pair_type: PairType::Xyk{}
+        pair_type: PairType::Xyk {},
     };
 
     let mut deployed_pairs = vec![(&pair0_addr, &pair0_info)];
@@ -529,7 +529,7 @@ fn register() {
         asset_infos: asset_infos_2.clone(),
         contract_addr: Addr::unchecked("pair0001"),
         liquidity_token: Addr::unchecked("liquidity0001"),
-        pair_type: PairType::Xyk{}
+        pair_type: PairType::Xyk {},
     };
 
     deployed_pairs.push((&pair1_addr, &pair1_info));
