@@ -6,10 +6,11 @@ use crate::state::{Config, CONFIG};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, QueryRequest, ReplyOn, Response, StdError, StdResult, SubMsg,
+    DepsMut, Env, MessageInfo, QueryRequest, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
     Uint128, WasmMsg, WasmQuery,
 };
 
+use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::ConfigResponse;
 use astroport::factory::{FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg};
@@ -29,6 +30,7 @@ use std::vec;
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-pair-stable";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -72,19 +74,16 @@ pub fn instantiate(
                     minter: env.contract.address.to_string(),
                     cap: None,
                 }),
-                init_hook: Some(InitHook {
-                    msg: to_binary(&ExecuteMsg::PostInitialize {})?,
-                    contract_addr: env.contract.address.to_string(),
-                }),
+                init_hook: None,
             })?,
             funds: vec![],
             admin: None,
             label: String::from("Astroport LP token"),
         }
         .into(),
-        id: 0,
+        id: INSTANTIATE_TOKEN_REPLY_ID,
         gas_limit: None,
-        reply_on: ReplyOn::Never,
+        reply_on: ReplyOn::Success,
     }];
 
     if let Some(hook) = msg.init_hook {
@@ -101,6 +100,23 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+    let mut config: Config = CONFIG.load(deps.storage)?;
+
+    let data = msg.result.unwrap().data.unwrap();
+    let res: MsgInstantiateContractResponse =
+        Message::parse_from_bytes(data.as_slice()).map_err(|_| {
+            StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
+        })?;
+
+    config.pair_info.liquidity_token = deps.api.addr_validate(res.get_contract_address())?;
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new().add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
     env: Env,
@@ -110,7 +126,6 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig { amp } => update_config(deps, info, amp),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::PostInitialize {} => post_initialize(deps, env, info),
         ExecuteMsg::ProvideLiquidity {
             assets,
             slippage_tolerance,
@@ -206,26 +221,6 @@ pub fn receive_cw20(
         ),
         Err(err) => Err(ContractError::Std(err)),
     }
-}
-
-/// Token contract must execute it
-pub fn post_initialize(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
-
-    // permission check
-    if config.pair_info.liquidity_token != Addr::unchecked("") {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    config.pair_info.liquidity_token = info.sender.clone();
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new().add_attribute("liquidity_token_addr", info.sender.as_str()))
 }
 
 /// CONTRACT - should approve contract to use the amount of token
