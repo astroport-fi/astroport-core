@@ -10,7 +10,6 @@ use std::fmt::{Display, Formatter, Result};
 pub enum PairType {
     Xyk {},
     Stable {},
-    Custom { pair_type: String },
 }
 
 // Provide a string version of this to raw encode strings
@@ -19,9 +18,6 @@ impl Display for PairType {
         match self {
             PairType::Xyk {} => fmt.write_str("xyk"),
             PairType::Stable {} => fmt.write_str("stable"),
-            PairType::Custom { pair_type } => {
-                fmt.write_str(format!("custom-{}", pair_type).as_str())
-            }
         }
     }
 }
@@ -29,7 +25,6 @@ impl Display for PairType {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairConfig {
     pub code_id: u64,
-    pub pair_type: PairType,
     pub total_fee_bps: u16,
     pub maker_fee_bps: u16,
 }
@@ -43,7 +38,8 @@ impl PairConfig {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     /// Pair contract code IDs which are allowed to create pairs
-    pub pair_configs: Vec<PairConfig>,
+    pub pair_xyk_config: Option<PairConfig>,
+    pub pair_stable_config: Option<PairConfig>,
     pub token_code_id: u64,
     pub init_hook: Option<InitHook>,
     // Contract address to send fees to
@@ -63,12 +59,8 @@ pub enum ExecuteMsg {
         token_code_id: Option<u64>,
         fee_address: Option<Addr>,
         generator_address: Option<Addr>,
-    },
-    UpdatePairConfig {
-        config: PairConfig,
-    },
-    RemovePairConfig {
-        pair_type: PairType,
+        pair_xyk_config: Option<PairConfig>,
+        pair_stable_config: Option<PairConfig>,
     },
     /// CreatePair instantiates pair contract
     CreatePair {
@@ -115,7 +107,8 @@ pub enum QueryMsg {
 pub struct ConfigResponse {
     pub owner: Addr,
     pub gov: Option<Addr>,
-    pub pair_configs: Vec<PairConfig>,
+    pub pair_xyk_config: Option<PairConfig>,
+    pub pair_stable_config: Option<PairConfig>,
     pub token_code_id: u64,
     pub fee_address: Option<Addr>,
     pub generator_address: Addr,

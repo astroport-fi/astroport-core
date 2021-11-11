@@ -15,9 +15,6 @@ pub enum ContractError {
     #[error("Pair was already registered")]
     PairWasRegistered {},
 
-    #[error("Duplicate of pair configs")]
-    PairConfigDuplicate {},
-
     #[error("Fee bps in pair config must be smaller than or equal to 10,000")]
     PairConfigInvalidFeeBps {},
 

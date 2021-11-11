@@ -2,9 +2,7 @@ use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, Addr};
 
 use astroport::asset::AssetInfo;
-use astroport::factory::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, PairType, QueryMsg,
-};
+use astroport::factory::{ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, QueryMsg};
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
 fn mock_app() -> App {
@@ -31,15 +29,15 @@ fn proper_initialization() {
 
     let factory_code_id = app.store_code(factory_contract);
 
-    let pair_configs = vec![PairConfig {
+    let pair_config = PairConfig {
         code_id: 321,
-        pair_type: PairType::Xyk {},
         total_fee_bps: 100,
         maker_fee_bps: 10,
-    }];
+    };
 
     let msg = InstantiateMsg {
-        pair_configs: pair_configs.clone(),
+        pair_xyk_config: Some(pair_config.clone()),
+        pair_stable_config: None,
         token_code_id: 123,
         init_hook: None,
         fee_address: None,
@@ -59,7 +57,8 @@ fn proper_initialization() {
         .unwrap();
 
     assert_eq!(123, config_res.token_code_id);
-    assert_eq!(pair_configs, config_res.pair_configs);
+    assert_eq!(Some(pair_config), config_res.pair_xyk_config);
+    assert_eq!(None, config_res.pair_stable_config);
     assert_eq!(owner, config_res.owner);
 }
 
@@ -80,6 +79,12 @@ fn update_config() {
 
     let factory_instance = instantiate_contract(&mut app, &owner, token_code_id);
 
+    let pair_config = PairConfig {
+        code_id: 321,
+        total_fee_bps: 100,
+        maker_fee_bps: 10,
+    };
+
     // update owner
     let msg = ExecuteMsg::UpdateConfig {
         gov: Some(new_owner.clone()),
@@ -87,6 +92,8 @@ fn update_config() {
         token_code_id: None,
         fee_address: None,
         generator_address: None,
+        pair_xyk_config: None,
+        pair_stable_config: Some(pair_config.clone()),
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
@@ -99,6 +106,7 @@ fn update_config() {
         .unwrap();
     assert_eq!(token_code_id, config_res.token_code_id);
     assert_eq!(new_owner.clone(), config_res.owner);
+    assert_eq!(Some(pair_config), config_res.pair_stable_config);
 
     // update left items
     let fee_address = Some(Addr::unchecked("fee"));
@@ -108,6 +116,8 @@ fn update_config() {
         token_code_id: Some(200u64),
         fee_address: fee_address.clone(),
         generator_address: None,
+        pair_xyk_config: None,
+        pair_stable_config: None,
     };
 
     app.execute_contract(new_owner, factory_instance.clone(), &msg, &[])
@@ -128,6 +138,8 @@ fn update_config() {
         token_code_id: None,
         fee_address: None,
         generator_address: None,
+        pair_xyk_config: None,
+        pair_stable_config: None,
     };
 
     let res = app
@@ -153,15 +165,15 @@ fn instantiate_contract(app: &mut App, owner: &Addr, token_code_id: u64) -> Addr
 
     let factory_code_id = app.store_code(factory_contract);
 
-    let pair_configs = vec![PairConfig {
+    let pair_config = PairConfig {
         code_id: pair_code_id,
-        pair_type: PairType::Xyk {},
         total_fee_bps: 100,
         maker_fee_bps: 10,
-    }];
+    };
 
     let msg = InstantiateMsg {
-        pair_configs: pair_configs.clone(),
+        pair_xyk_config: Some(pair_config),
+        pair_stable_config: None,
         token_code_id,
         init_hook: None,
         fee_address: None,

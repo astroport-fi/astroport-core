@@ -6,7 +6,7 @@ use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuer
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
-use astroport::factory::{PairConfig, PairType};
+use astroport::factory::PairConfig;
 use astroport::maker::{
     ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
 };
@@ -74,12 +74,12 @@ fn instantiate_contracts(
 
     let factory_code_id = router.store_code(factory_contract);
     let msg = astroport::factory::InstantiateMsg {
-        pair_configs: vec![PairConfig {
+        pair_xyk_config: Some(PairConfig {
             code_id: pair_code_id,
-            pair_type: PairType::Xyk {},
             total_fee_bps: 0,
             maker_fee_bps: 0,
-        }],
+        }),
+        pair_stable_config: None,
         token_code_id: 1u64,
         init_hook: None,
         fee_address: None,
