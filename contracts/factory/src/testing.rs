@@ -1,4 +1,4 @@
-use cosmwasm_std::{attr, from_binary, to_binary, Addr, ReplyOn, StdError, SubMsg, WasmMsg};
+use cosmwasm_std::{attr, from_binary, to_binary, Addr, ReplyOn, SubMsg, WasmMsg};
 
 use crate::mock_querier::mock_dependencies;
 use crate::state::CONFIG;
