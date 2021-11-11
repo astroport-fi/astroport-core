@@ -338,8 +338,7 @@ pub fn register(
     asset_infos: [AssetInfo; 2],
 ) -> Result<Response, ContractError> {
     if PAIRS
-        .may_load(deps.storage, &pair_key(&asset_infos))
-        .unwrap_or(None)
+        .may_load(deps.storage, &pair_key(&asset_infos))?
         .is_some()
     {
         return Err(ContractError::PairWasRegistered {});
