@@ -1,7 +1,7 @@
 use cosmwasm_std::{attr, from_binary, to_binary, Addr, ReplyOn, SubMsg, WasmMsg};
 
 use crate::mock_querier::mock_dependencies;
-use crate::state::{pair_key, CONFIG, PAIRS};
+use crate::state::CONFIG;
 use crate::{
     contract::{execute, instantiate, query},
     error::ContractError,
@@ -457,10 +457,6 @@ fn create_pair() {
             reply_on: ReplyOn::Never
         }]
     );
-
-    let pair_info = PAIRS.load(&deps.storage, &pair_key(&asset_infos)).unwrap();
-
-    assert_eq!(pair_info.contract_addr, Addr::unchecked(""),);
 }
 
 #[test]
@@ -505,23 +501,18 @@ fn register() {
     let info = mock_info("addr0000", &[]);
     let _res = execute(deps.as_mut(), env, info, msg).unwrap();
 
-    // register astroport pair querier
-    deps.querier.with_astroport_pairs(&[(
-        &String::from("pair0000"),
-        &PairInfo {
-            asset_infos: [
-                AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-                AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-            ],
-            contract_addr: Addr::unchecked("pair0000"),
-            liquidity_token: Addr::unchecked("liquidity0000"),
-            pair_type: PairType::Xyk {},
-        },
-    )]);
+    let pair0_addr = "pair0000".to_string();
+    let pair0_info = PairInfo {
+        asset_infos: asset_infos.clone(),
+        contract_addr: Addr::unchecked("pair0000"),
+        liquidity_token: Addr::unchecked("liquidity0000"),
+        pair_type: PairType::Xyk {},
+    };
+
+    let mut deployed_pairs = vec![(&pair0_addr, &pair0_info)];
+
+    // register terraswap pair querier
+    deps.querier.with_astroport_pairs(&deployed_pairs);
 
     let msg = ExecuteMsg::Register {
         asset_infos: asset_infos.clone(),
@@ -579,23 +570,18 @@ fn register() {
     let info = mock_info("addr0000", &[]);
     let _res = execute(deps.as_mut(), env, info, msg).unwrap();
 
-    // register astroport pair querier
-    deps.querier.with_astroport_pairs(&[(
-        &String::from("pair0001"),
-        &PairInfo {
-            asset_infos: [
-                AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-                AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-            ],
-            contract_addr: Addr::unchecked("pair0001"),
-            liquidity_token: Addr::unchecked("liquidity0001"),
-            pair_type: PairType::Xyk {},
-        },
-    )]);
+    let pair1_addr = "pair0001".to_string();
+    let pair1_info = PairInfo {
+        asset_infos: asset_infos_2.clone(),
+        contract_addr: Addr::unchecked("pair0001"),
+        liquidity_token: Addr::unchecked("liquidity0001"),
+        pair_type: PairType::Xyk {},
+    };
+
+    deployed_pairs.push((&pair1_addr, &pair1_info));
+
+    // register terraswap pair querier
+    deps.querier.with_astroport_pairs(&deployed_pairs);
 
     let msg = ExecuteMsg::Register {
         asset_infos: asset_infos_2.clone(),

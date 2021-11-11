@@ -1,12 +1,12 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order,
-    Response, StdError, StdResult, WasmMsg,
+    Response, StdResult, WasmMsg,
 };
 
 use crate::error::ContractError;
-use crate::querier::query_liquidity_token;
 use crate::state::{pair_key, read_pairs, Config, CONFIG, PAIRS, PAIR_CONFIGS};
 
+use crate::querier::query_pair_info;
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
@@ -236,11 +236,10 @@ pub fn execute_create_pair(
     let config = CONFIG.load(deps.storage)?;
 
     if PAIRS
-        .may_load(deps.storage, &pair_key(&asset_infos))
-        .unwrap_or(None)
+        .may_load(deps.storage, &pair_key(&asset_infos))?
         .is_some()
     {
-        return Err(StdError::generic_err("Pair already exists").into());
+        return Err(ContractError::PairWasCreated {});
     }
 
     let pair_type = PairType::Xyk {};
@@ -249,17 +248,6 @@ pub fn execute_create_pair(
     let pair_config = PAIR_CONFIGS
         .load(deps.storage, pair_type.to_string())
         .map_err(|_| ContractError::PairConfigNotFound {})?;
-
-    PAIRS.save(
-        deps.storage,
-        &pair_key(&asset_infos),
-        &PairInfo {
-            liquidity_token: Addr::unchecked(""),
-            contract_addr: Addr::unchecked(""),
-            asset_infos: [asset_infos[0].clone(), asset_infos[1].clone()],
-            pair_type,
-        },
-    )?;
 
     let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
         admin: Some(config.owner.to_string()),
@@ -304,11 +292,10 @@ pub fn execute_create_pair_stable(
     let config = CONFIG.load(deps.storage)?;
 
     if PAIRS
-        .may_load(deps.storage, &pair_key(&asset_infos))
-        .unwrap_or(None)
+        .may_load(deps.storage, &pair_key(&asset_infos))?
         .is_some()
     {
-        return Err(StdError::generic_err("Pair already exists").into());
+        return Err(ContractError::PairWasCreated {});
     }
 
     let pair_type = PairType::Stable {};
@@ -317,17 +304,6 @@ pub fn execute_create_pair_stable(
     let pair_config = PAIR_CONFIGS
         .load(deps.storage, pair_type.to_string())
         .map_err(|_| ContractError::PairConfigNotFound {})?;
-
-    PAIRS.save(
-        deps.storage,
-        &pair_key(&asset_infos),
-        &PairInfo {
-            liquidity_token: Addr::unchecked(""),
-            contract_addr: Addr::unchecked(""),
-            asset_infos: [asset_infos[0].clone(), asset_infos[1].clone()],
-            pair_type,
-        },
-    )?;
 
     let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
         admin: Some(config.owner.to_string()),
@@ -368,22 +344,15 @@ pub fn register(
     info: MessageInfo,
     asset_infos: [AssetInfo; 2],
 ) -> Result<Response, ContractError> {
-    let pair_info: PairInfo = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
-    if pair_info.contract_addr != Addr::unchecked("") {
+    if PAIRS
+        .may_load(deps.storage, &pair_key(&asset_infos))?
+        .is_some()
+    {
         return Err(ContractError::PairWasRegistered {});
     }
 
     let pair_contract = info.sender;
-    let liquidity_token = query_liquidity_token(deps.as_ref(), pair_contract.clone())?;
-    PAIRS.save(
-        deps.storage,
-        &pair_key(&asset_infos),
-        &PairInfo {
-            contract_addr: pair_contract.clone(),
-            liquidity_token,
-            ..pair_info
-        },
-    )?;
+    PAIRS.save(deps.storage, &pair_key(&asset_infos), &pair_contract)?;
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "register"),
@@ -403,12 +372,12 @@ pub fn deregister(
         return Err(ContractError::Unauthorized {});
     }
 
-    let pair_info: PairInfo = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
+    let pair_addr: Addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     PAIRS.remove(deps.storage, &pair_key(&asset_infos));
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "deregister"),
-        attr("pair_contract_addr", pair_info.contract_addr),
+        attr("pair_contract_addr", pair_addr),
     ]))
 }
 
@@ -445,7 +414,8 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
-    PAIRS.load(deps.storage, &pair_key(&asset_infos))
+    let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
+    query_pair_info(deps, &pair_addr)
 }
 
 pub fn query_pairs(
@@ -453,10 +423,12 @@ pub fn query_pairs(
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
 ) -> StdResult<PairsResponse> {
-    let pairs: Vec<PairInfo> = read_pairs(deps, start_after, limit);
-    let resp = PairsResponse { pairs };
+    let pairs: Vec<PairInfo> = read_pairs(deps, start_after, limit)
+        .iter()
+        .map(|pair_addr| query_pair_info(deps, pair_addr).unwrap())
+        .collect();
 
-    Ok(resp)
+    Ok(PairsResponse { pairs })
 }
 
 pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoResponse> {
