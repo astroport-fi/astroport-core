@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order,
-    Response, StdError, StdResult, WasmMsg,
+    Response, StdResult, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -231,7 +231,7 @@ pub fn execute_create_pair(
         .unwrap_or(None)
         .is_some()
     {
-        return Err(StdError::generic_err("Pair already exists").into());
+        return Err(ContractError::PairWasCreated {});
     }
 
     let pair_type = PairType::Xyk {};
@@ -240,8 +240,6 @@ pub fn execute_create_pair(
     let pair_config = PAIR_CONFIGS
         .load(deps.storage, pair_type.to_string())
         .map_err(|_| ContractError::PairConfigNotFound {})?;
-
-    PAIRS.save(deps.storage, &pair_key(&asset_infos), &Addr::unchecked(""))?;
 
     let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
         admin: Some(config.owner.to_string()),
@@ -290,7 +288,7 @@ pub fn execute_create_pair_stable(
         .unwrap_or(None)
         .is_some()
     {
-        return Err(StdError::generic_err("Pair already exists").into());
+        return Err(ContractError::PairWasCreated {});
     }
 
     let pair_type = PairType::Stable {};
@@ -299,8 +297,6 @@ pub fn execute_create_pair_stable(
     let pair_config = PAIR_CONFIGS
         .load(deps.storage, pair_type.to_string())
         .map_err(|_| ContractError::PairConfigNotFound {})?;
-
-    PAIRS.save(deps.storage, &pair_key(&asset_infos), &Addr::unchecked(""))?;
 
     let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
         admin: Some(config.owner.to_string()),
@@ -341,8 +337,11 @@ pub fn register(
     info: MessageInfo,
     asset_infos: [AssetInfo; 2],
 ) -> Result<Response, ContractError> {
-    let pair_addr: Addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
-    if pair_addr != Addr::unchecked("") {
+    if PAIRS
+        .may_load(deps.storage, &pair_key(&asset_infos))
+        .unwrap_or(None)
+        .is_some()
+    {
         return Err(ContractError::PairWasRegistered {});
     }
 
