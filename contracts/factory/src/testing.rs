@@ -1,7 +1,7 @@
 use cosmwasm_std::{attr, from_binary, to_binary, Addr, ReplyOn, SubMsg, WasmMsg};
 
 use crate::mock_querier::mock_dependencies;
-use crate::state::{pair_key, CONFIG, PAIRS};
+use crate::state::CONFIG;
 use crate::{
     contract::{execute, instantiate, query},
     error::ContractError,
@@ -407,10 +407,6 @@ fn create_pair() {
             reply_on: ReplyOn::Never
         }]
     );
-
-    let pair_addr = PAIRS.load(&deps.storage, &pair_key(&asset_infos)).unwrap();
-
-    assert_eq!(pair_addr, Addr::unchecked(""));
 }
 
 #[test]
