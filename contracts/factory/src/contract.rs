@@ -326,6 +326,15 @@ pub fn execute_create_pair_stable(
         .load(deps.storage, pair_type.to_string())
         .map_err(|_| ContractError::PairConfigNotFound {})?;
 
+    let pair_key = pair_key(&asset_infos);
+    TMP_PAIR_INFO.save(
+        deps.storage,
+        &TmpPairInfo {
+            pair_key,
+            owner: env.contract.address.clone(), // TODO: is the factory is the owner of the pair?
+        },
+    )?;
+
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         id: INSTANTIATE_PAIR_STABLE_REPLY_ID,
         msg: WasmMsg::Instantiate {

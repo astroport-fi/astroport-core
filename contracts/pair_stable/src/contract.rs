@@ -14,7 +14,7 @@ use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse as FactoryConfigResponse, FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg,
 };
-use astroport::hook::InitHook;
+
 use astroport::pair::{
     generator_address, mint_liquidity_token_message, ConfigResponse, InstantiateMsgStable,
 };

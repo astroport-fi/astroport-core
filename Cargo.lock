@@ -210,6 +210,7 @@ dependencies = [
  "cw-storage-plus 0.8.1",
  "cw2",
  "cw20",
+ "protobuf",
  "schemars",
  "serde",
  "thiserror",
