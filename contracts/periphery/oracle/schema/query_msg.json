@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "QueryMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "description": "Consult",
       "type": "object",
@@ -34,7 +34,7 @@
       "type": "string"
     },
     "AssetInfo": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [

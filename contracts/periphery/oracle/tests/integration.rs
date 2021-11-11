@@ -223,7 +223,6 @@ fn create_pair(
             owner.clone(),
             factory_instance.clone(),
             &astroport::factory::ExecuteMsg::CreatePair {
-                pair_type: PairType::Xyk {},
                 asset_infos: asset_infos.clone(),
                 init_hook: None,
             },
@@ -287,7 +286,7 @@ fn create_pair(
             &astroport::pair::ExecuteMsg::ProvideLiquidity {
                 assets,
                 slippage_tolerance: None,
-                auto_stack: None,
+                auto_stake: None,
             },
             &funds,
         )
@@ -356,7 +355,7 @@ fn change_provide_liquidity(
                     },
                 ],
                 slippage_tolerance: None,
-                auto_stack: None,
+                auto_stake: None,
             },
             &vec![],
         )

@@ -59,7 +59,6 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         token_code_id: token_contract_code_id,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Xyk {},
     };
 
     let pair = router
@@ -177,7 +176,7 @@ fn provide_liquidity_msg(uusd_amount: Uint128, uluna_amount: Uint128) -> (Execut
             },
         ],
         slippage_tolerance: None,
-        auto_stack: None,
+        auto_stake: None,
     };
 
     let coins = [
@@ -309,7 +308,6 @@ fn test_compatibility_of_tokens_with_different_precision() {
             },
         ],
         init_hook: None,
-        pair_type: PairType::Xyk {},
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
@@ -367,7 +365,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             },
         ],
         slippage_tolerance: None,
-        auto_stack: None,
+        auto_stake: None,
     };
 
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
@@ -398,7 +396,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .query_wasm_smart(&token_y_instance, &msg)
         .unwrap();
 
-    let acceptable_spread_amount = Uint128::new(0_0000009);
+    let acceptable_spread_amount = Uint128::new(10);
 
     assert_eq!(res.balance, y_expected_return - acceptable_spread_amount);
 }

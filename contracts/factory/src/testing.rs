@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 
 use crate::mock_querier::mock_dependencies;
-use crate::state::{pair_key, CONFIG, PAIRS};
+use crate::state::CONFIG;
 use crate::{
     contract::{execute, instantiate, query},
     error::ContractError,
@@ -68,6 +68,38 @@ fn proper_initialization() {
 
     let res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap_err();
     assert_eq!(res, ContractError::PairConfigDuplicate {});
+
+    // check validation of total and maker fee bps
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InstantiateMsg {
+        pair_configs: vec![
+            PairConfig {
+                code_id: 325u64,
+                pair_type: PairType::Stable {},
+                total_fee_bps: 10_001,
+                maker_fee_bps: 10,
+            },
+            PairConfig {
+                code_id: 123u64,
+                pair_type: PairType::Xyk {},
+                total_fee_bps: 100,
+                maker_fee_bps: 10,
+            },
+        ],
+        token_code_id: 123u64,
+        init_hook: None,
+        fee_address: None,
+        gov: None,
+        generator_address: Addr::unchecked("generator"),
+        owner: owner.clone(),
+    };
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+
+    let res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap_err();
+    assert_eq!(res, ContractError::PairConfigInvalidFeeBps {});
 
     let mut deps = mock_dependencies(&[]);
 
@@ -243,6 +275,24 @@ fn update_pair_config() {
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(pair_configs, config_res.pair_configs);
 
+    // check validation of total and maker fee bps
+    let pair_config = PairConfig {
+        code_id: 800,
+        pair_type: PairType::Xyk {},
+        total_fee_bps: 1,
+        maker_fee_bps: 10_001,
+    };
+
+    // Invalid fee bps err
+    let env = mock_env();
+    let info = mock_info(owner.clone(), &[]);
+    let msg = ExecuteMsg::UpdatePairConfig {
+        config: pair_config.clone(),
+    };
+
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
+    assert_eq!(res, ContractError::PairConfigInvalidFeeBps {});
+
     // update config
     let pair_config = PairConfig {
         code_id: 800,
@@ -358,9 +408,9 @@ fn create_pair() {
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        ExecuteMsg::CreatePair {
-            pair_type: PairType::Stable {},
+        ExecuteMsg::CreatePairStable {
             asset_infos: asset_infos.clone(),
+            amp: 100,
             init_hook: None,
         },
     )
@@ -372,7 +422,6 @@ fn create_pair() {
         env,
         info,
         ExecuteMsg::CreatePair {
-            pair_type: PairType::Xyk {},
             asset_infos: asset_infos.clone(),
             init_hook: None,
         },
@@ -395,7 +444,6 @@ fn create_pair() {
                     asset_infos: asset_infos.clone(),
                     token_code_id: msg.token_code_id,
                     init_hook: None,
-                    pair_type: PairType::Xyk {},
                 })
                 .unwrap(),
                 code_id: pair_config.code_id,
@@ -409,10 +457,6 @@ fn create_pair() {
             reply_on: ReplyOn::Success
         }]
     );
-
-    let pair_info = PAIRS.load(&deps.storage, &pair_key(&asset_infos)).unwrap();
-
-    assert_eq!(pair_info.contract_addr, Addr::unchecked(""),);
 }
 
 #[test]
@@ -449,7 +493,6 @@ fn register() {
     ];
 
     let msg = ExecuteMsg::CreatePair {
-        pair_type: PairType::Xyk {},
         asset_infos: asset_infos.clone(),
         init_hook: None,
     };
@@ -458,23 +501,18 @@ fn register() {
     let info = mock_info("addr0000", &[]);
     let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    // register astroport pair querier
-    deps.querier.with_astroport_pairs(&[(
-        &String::from("pair0000"),
-        &PairInfo {
-            asset_infos: [
-                AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-                AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-            ],
-            contract_addr: Addr::unchecked("pair0000"),
-            liquidity_token: Addr::unchecked("liquidity0000"),
-            pair_type: PairType::Xyk {},
-        },
-    )]);
+    let pair0_addr = "pair0000".to_string();
+    let pair0_info = PairInfo {
+        asset_infos: asset_infos.clone(),
+        contract_addr: Addr::unchecked("pair0000"),
+        liquidity_token: Addr::unchecked("liquidity0000"),
+        pair_type: PairType::Xyk {},
+    };
+
+    let mut deployed_pairs = vec![(&pair0_addr, &pair0_info)];
+
+    // register terraswap pair querier
+    deps.querier.with_astroport_pairs(&deployed_pairs);
 
     let data = MsgInstantiateContractResponse {
         contract_address: String::from("pair0000"),
@@ -530,7 +568,6 @@ fn register() {
     ];
 
     let msg = ExecuteMsg::CreatePair {
-        pair_type: PairType::Xyk {},
         asset_infos: asset_infos_2.clone(),
         init_hook: None,
     };
@@ -539,23 +576,18 @@ fn register() {
     let info = mock_info("addr0000", &[]);
     let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    // register astroport pair querier
-    deps.querier.with_astroport_pairs(&[(
-        &String::from("pair0001"),
-        &PairInfo {
-            asset_infos: [
-                AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-                AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-            ],
-            contract_addr: Addr::unchecked("pair0001"),
-            liquidity_token: Addr::unchecked("liquidity0001"),
-            pair_type: PairType::Xyk {},
-        },
-    )]);
+    let pair1_addr = "pair0001".to_string();
+    let pair1_info = PairInfo {
+        asset_infos: asset_infos_2.clone(),
+        contract_addr: Addr::unchecked("pair0001"),
+        liquidity_token: Addr::unchecked("liquidity0001"),
+        pair_type: PairType::Xyk {},
+    };
+
+    deployed_pairs.push((&pair1_addr, &pair1_info));
+
+    // register terraswap pair querier
+    deps.querier.with_astroport_pairs(&deployed_pairs);
 
     let data = MsgInstantiateContractResponse {
         contract_address: String::from("pair0001"),

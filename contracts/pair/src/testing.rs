@@ -1,10 +1,9 @@
 use crate::contract::{
-    accumulate_prices, assert_max_spread, execute, get_fee_info, instantiate, query_pair_info,
-    query_pool, query_reverse_simulation, query_share, query_simulation,
+    accumulate_prices, assert_max_spread, compute_swap, execute, get_fee_info, instantiate,
+    query_pair_info, query_pool, query_reverse_simulation, query_share, query_simulation,
 };
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
-
 use crate::state::Config;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
@@ -14,13 +13,13 @@ use astroport::pair::{
     SimulationResponse,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, Env, ReplyOn, Response,
     StdError, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
+use proptest::prelude::*;
 use std::str::FromStr;
 
 #[test]
@@ -73,7 +72,6 @@ fn proper_initialization() {
             contract_addr: String::from("factory0000"),
             msg: to_binary(&Uint128::new(1000000u128)).unwrap(),
         }),
-        pair_type: PairType::Xyk {},
     };
 
     let sender = "addr0000";
@@ -177,7 +175,6 @@ fn provide_liquidity() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Xyk {},
     };
 
     let env = mock_env();
@@ -208,7 +205,7 @@ fn provide_liquidity() {
             },
         ],
         slippage_tolerance: None,
-        auto_stack: None,
+        auto_stake: None,
     };
 
     let env = mock_env();
@@ -303,7 +300,7 @@ fn provide_liquidity() {
             },
         ],
         slippage_tolerance: None,
-        auto_stack: None,
+        auto_stake: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -374,7 +371,7 @@ fn provide_liquidity() {
             },
         ],
         slippage_tolerance: None,
-        auto_stack: None,
+        auto_stake: None,
     };
 
     let env = mock_env();
@@ -437,7 +434,7 @@ fn provide_liquidity() {
             },
         ],
         slippage_tolerance: Some(Decimal::percent(1)),
-        auto_stack: None,
+        auto_stake: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -477,7 +474,7 @@ fn provide_liquidity() {
             },
         ],
         slippage_tolerance: Some(Decimal::percent(1)),
-        auto_stack: None,
+        auto_stake: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -517,7 +514,7 @@ fn provide_liquidity() {
             },
         ],
         slippage_tolerance: Some(Decimal::percent(1)),
-        auto_stack: None,
+        auto_stake: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -556,7 +553,7 @@ fn provide_liquidity() {
             },
         ],
         slippage_tolerance: Some(Decimal::percent(1)),
-        auto_stack: None,
+        auto_stake: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -605,7 +602,6 @@ fn withdraw_liquidity() {
         init_hook: None,
 
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Xyk {},
     };
 
     let env = mock_env();
@@ -700,8 +696,6 @@ fn try_native_to_token() {
     let total_share = Uint128::new(30000000000u128);
     let asset_pool_amount = Uint128::new(20000000000u128);
     let collateral_pool_amount = Uint128::new(30000000000u128);
-    let price = Decimal::from_ratio(collateral_pool_amount, asset_pool_amount);
-    let exchange_rate = Decimal::from(Decimal256::one() / Decimal256::from(price));
     let offer_amount = Uint128::new(1500000000u128);
 
     let mut deps = mock_dependencies(&[Coin {
@@ -737,7 +731,6 @@ fn try_native_to_token() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Xyk {},
     };
 
     let env = mock_env();
@@ -776,11 +769,12 @@ fn try_native_to_token() {
     let msg_transfer = res.messages.get(0).expect("no message");
 
     // current price is 1.5, so expected return without spread is 1000
-    // 952.380953 = 20000 - 20000 * 30000 / (30000 + 1500)
-    let expected_ret_amount = Uint128::new(952_380_953u128);
-    let expected_spread_amount = (offer_amount * exchange_rate)
-        .checked_sub(expected_ret_amount)
-        .unwrap();
+    // 952380952 = 20000000000 - (30000000000 * 20000000000) / (30000000000 + 1500000000)
+    let expected_ret_amount = Uint128::new(952_380_952u128);
+
+    // 47619047 = 1500000000 * (20000000000 / 30000000000) - 952380952
+    let expected_spread_amount = Uint128::new(47619047u128);
+
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
     let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128); // 0.166
 
@@ -885,8 +879,6 @@ fn try_token_to_native() {
     let total_share = Uint128::new(20000000000u128);
     let asset_pool_amount = Uint128::new(30000000000u128);
     let collateral_pool_amount = Uint128::new(20000000000u128);
-    let price = Decimal::from_ratio(collateral_pool_amount, asset_pool_amount);
-    let exchange_rate = price;
     let offer_amount = Uint128::new(1500000000u128);
 
     let mut deps = mock_dependencies(&[Coin {
@@ -923,7 +915,6 @@ fn try_token_to_native() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Xyk {},
     };
 
     let env = mock_env();
@@ -972,11 +963,12 @@ fn try_token_to_native() {
     let msg_transfer = res.messages.get(0).expect("no message");
 
     // current price is 1.5, so expected return without spread is 1000
-    // 952.380953 = 20000 - 20000 * 30000 / (30000 + 1500)
-    let expected_ret_amount = Uint128::new(952_380_953u128);
-    let expected_spread_amount = (offer_amount * exchange_rate)
-        .checked_sub(expected_ret_amount)
-        .unwrap();
+    // 952380952,3809524 = 20000000000 - (30000000000 * 20000000000) / (30000000000 + 1500000000)
+    let expected_ret_amount = Uint128::new(952_380_952u128);
+
+    // 47619047 = 1500000000 * (20000000000 / 30000000000) - 952380952,3809524
+    let expected_spread_amount = Uint128::new(47619047u128);
+
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
     let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
     let expected_return_amount = expected_ret_amount
@@ -1202,7 +1194,6 @@ fn test_query_pool() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Xyk {},
     };
 
     let env = mock_env();
@@ -1271,7 +1262,6 @@ fn test_query_share() {
         token_code_id: 10u64,
         init_hook: None,
         factory_addr: Addr::unchecked("factory"),
-        pair_type: PairType::Xyk {},
     };
 
     let env = mock_env();
@@ -1408,4 +1398,43 @@ fn mock_env_with_block_time(time: u64) -> Env {
         chain_id: "columbus".to_string(),
     };
     env
+}
+
+#[test]
+fn compute_swap_rounding() {
+    let offer_pool = Uint128::from(5_000_000_000_000_u128);
+    let ask_pool = Uint128::from(1_000_000_000_u128);
+    let return_amount = Uint128::from(0_u128);
+    let spread_amount = Uint128::from(0_u128);
+    let commission_amount = Uint128::from(0_u128);
+    let offer_amount = Uint128::from(1_u128);
+
+    assert_eq!(
+        compute_swap(offer_pool, ask_pool, offer_amount, Decimal::zero()),
+        Ok((return_amount, spread_amount, commission_amount))
+    );
+}
+
+proptest! {
+    #[test]
+    fn compute_swap_overflow_test(
+        offer_pool in 1_000_000..9_000_000_000_000_000_000u128,
+        ask_pool in 1_000_000..9_000_000_000_000_000_000u128,
+        offer_amount in 1..100_000_000000u128,
+    ) {
+
+        let offer_pool = Uint128::from(offer_pool);
+        let ask_pool = Uint128::from(ask_pool);
+        let offer_amount = Uint128::from(offer_amount);
+        let commission_amount = Decimal::zero();
+
+
+        // Make sure there are no overflows
+        compute_swap(
+            offer_pool,
+            ask_pool,
+            offer_amount,
+            commission_amount,
+        ).unwrap();
+    }
 }

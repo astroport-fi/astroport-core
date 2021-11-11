@@ -11,6 +11,7 @@ fn proper_initialization() {
     let info = mock_info("addr0000", &[]);
 
     let env = mock_env();
+    let owner = Addr::unchecked("owner");
     let factory = Addr::unchecked("factory");
     let staking = Addr::unchecked("staking");
     let governance_contract = Addr::unchecked("governance");
@@ -18,6 +19,7 @@ fn proper_initialization() {
     let astro_token_contract = Addr::unchecked("astro-token");
 
     let instantiate_msg = InstantiateMsg {
+        owner: owner.to_string(),
         factory_contract: factory.to_string(),
         staking_contract: staking.to_string(),
         governance_contract: Option::from(governance_contract.to_string()),
@@ -31,7 +33,7 @@ fn proper_initialization() {
     assert_eq!(
         state,
         Config {
-            owner: Addr::unchecked("addr0000"),
+            owner: Addr::unchecked("owner"),
             factory_contract: Addr::unchecked("factory"),
             staking_contract: Addr::unchecked("staking"),
             governance_contract: Option::from(governance_contract),

@@ -17,6 +17,7 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
   "fee_address": "terra...",
   "owner": "terra...",
   "gov": "terra...",
+  "generator_address": "terra...",
   "init_hook": {
     "msg": "<base64_encoded_json_string>",
     "contract_addr": "terra..."
@@ -34,7 +35,8 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
     "gov": "terra...",
     "owner": "terra...",
     "token_code_id": 123,
-    "fee_address": "terra..."
+    "fee_address": "terra...",
+    "generator_address": "terra..."
   }
 }
 ```

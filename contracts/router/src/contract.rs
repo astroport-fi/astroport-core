@@ -36,7 +36,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            astroport_factory: deps.api.addr_canonicalize(&msg.astroport_factory)?,
+            astroport_factory: deps.api.addr_validate(&msg.astroport_factory)?,
         },
     )?;
 
@@ -211,10 +211,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 pub fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
     let state = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
-        astroport_factory: deps
-            .api
-            .addr_humanize(&state.astroport_factory)?
-            .to_string(),
+        astroport_factory: state.astroport_factory.into_string(),
     };
 
     Ok(resp)
@@ -231,7 +228,7 @@ fn simulate_swap_operations(
     operations: Vec<SwapOperation>,
 ) -> Result<SimulateSwapOperationsResponse, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
-    let astroport_factory = deps.api.addr_humanize(&config.astroport_factory)?;
+    let astroport_factory = config.astroport_factory;
     let terra_querier = TerraQuerier::new(&deps.querier);
 
     assert_operations(&operations)?;

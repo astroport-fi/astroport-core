@@ -110,6 +110,7 @@ fn instantiate_contracts(
     let market_code_id = router.store_code(maker_contract);
 
     let msg = InstantiateMsg {
+        owner: String::from("owner"),
         factory_contract: factory_instance.to_string(),
         staking_contract: staking.to_string(),
         governance_contract: Option::from(governance.to_string()),
@@ -248,7 +249,6 @@ fn create_pair(
             owner.clone(),
             factory_instance.clone(),
             &astroport::factory::ExecuteMsg::CreatePair {
-                pair_type: PairType::Xyk {},
                 asset_infos: asset_infos.clone(),
                 init_hook: None,
             },
@@ -312,7 +312,7 @@ fn create_pair(
             &astroport::pair::ExecuteMsg::ProvideLiquidity {
                 assets,
                 slippage_tolerance: None,
-                auto_stack: None,
+                auto_stake: None,
             },
             &funds,
         )
@@ -348,6 +348,7 @@ fn collect_all() {
     let governance_percent = Uint64::new(50);
 
     let msg = ExecuteMsg::SetConfig {
+        owner: None,
         governance_percent: Some(governance_percent),
         governance_contract: None,
         staking_contract: None,
@@ -585,7 +586,7 @@ fn collect_all() {
         .unwrap();
 
     for t in vec![
-        (astro_token_instance.clone(), 270u128), // 10 astro + 20 usdc + 30 luna + 100 uusd + 110 uluna
+        (astro_token_instance.clone(), 266u128), // 10 astro + 19 usdc + 29 luna + 99 uusd + 109 uluna
         (usdc_token_instance.clone(), 0u128),
         (luna_token_instance.clone(), 0u128),
     ] {

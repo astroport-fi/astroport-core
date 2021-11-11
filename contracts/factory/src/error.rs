@@ -9,11 +9,17 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
+    #[error("Pair was already created")]
+    PairWasCreated {},
+
     #[error("Pair was already registered")]
     PairWasRegistered {},
 
     #[error("Duplicate of pair configs")]
     PairConfigDuplicate {},
+
+    #[error("Fee bps in pair config must be smaller than or equal to 10,000")]
+    PairConfigInvalidFeeBps {},
 
     #[error("Pair config not found")]
     PairConfigNotFound {},

@@ -1,6 +1,5 @@
 use crate::error::ContractError;
 use crate::math::calc_amount;
-use crate::math::AMP_DEFAULT;
 use crate::state::{Config, CONFIG};
 
 use cosmwasm_bignumber::{Decimal256, Uint256};
@@ -12,13 +11,16 @@ use cosmwasm_std::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::ConfigResponse;
-use astroport::factory::{FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg};
+use astroport::factory::{
+    ConfigResponse as FactoryConfigResponse, FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg,
+};
 use astroport::hook::InitHook;
-use astroport::pair::{generator_address, mint_liquidity_token_message};
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
-    QueryMsg, ReverseSimulationResponse, SimulationResponse,
+    generator_address, mint_liquidity_token_message, ConfigResponse, InstantiateMsgStable,
+};
+use astroport::pair::{
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
+    ReverseSimulationResponse, SimulationResponse,
 };
 use astroport::querier::{query_supply, query_token_precision};
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
@@ -38,26 +40,22 @@ pub fn instantiate(
     deps: DepsMut,
     env: Env,
     _info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: InstantiateMsgStable,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    if msg.pair_type != (PairType::Stable {}) {
-        return Err(ContractError::PairTypeMismatch {});
-    }
 
     let config = Config {
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
             asset_infos: msg.asset_infos,
-            pair_type: msg.pair_type,
+            pair_type: PairType::Stable {},
         },
         factory_addr: msg.factory_addr,
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
-        amp: AMP_DEFAULT,
+        amp: msg.amp,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -130,8 +128,8 @@ pub fn execute(
         ExecuteMsg::ProvideLiquidity {
             assets,
             slippage_tolerance,
-            auto_stack,
-        } => provide_liquidity(deps, env, info, assets, slippage_tolerance, auto_stack),
+            auto_stake,
+        } => provide_liquidity(deps, env, info, assets, slippage_tolerance, auto_stake),
         ExecuteMsg::Swap {
             offer_asset,
             belief_price,
@@ -178,11 +176,9 @@ pub fn receive_cw20(
             // only asset contract can execute this message
             let mut authorized: bool = false;
             let config: Config = CONFIG.load(deps.storage)?;
-            let pools: [Asset; 2] = config
-                .pair_info
-                .query_pools(&deps.querier, env.contract.address.clone())?;
-            for pool in pools.iter() {
-                if let AssetInfo::Token { contract_addr, .. } = &pool.info {
+
+            for pool in config.pair_info.asset_infos {
+                if let AssetInfo::Token { contract_addr, .. } = &pool {
                     if contract_addr == &info.sender {
                         authorized = true;
                     }
@@ -231,9 +227,9 @@ pub fn provide_liquidity(
     info: MessageInfo,
     assets: [Asset; 2],
     slippage_tolerance: Option<Decimal>,
-    auto_stack: Option<bool>,
+    auto_stake: Option<bool>,
 ) -> Result<Response, ContractError> {
-    let auto_stack = auto_stack.unwrap_or(false);
+    let auto_stake = auto_stake.unwrap_or(false);
     for asset in assets.iter() {
         asset.assert_sent_native_token_balance(&info)?;
     }
@@ -307,7 +303,7 @@ pub fn provide_liquidity(
         config.pair_info.liquidity_token.clone(),
         info.sender.clone(),
         share,
-        generator_address(auto_stack, config.factory_addr.clone(), &deps)?,
+        generator_address(auto_stake, config.factory_addr.clone(), &deps)?,
     )?);
 
     // Accumulate prices for oracle
@@ -644,6 +640,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_reverse_simulation(deps, ask_asset)?)
         }
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
     }
 }
 
@@ -782,6 +779,14 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
     };
 
     Ok(resp)
+}
+
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let config: Config = CONFIG.load(deps.storage)?;
+    Ok(ConfigResponse {
+        block_time_last: config.block_time_last,
+        amp: Some(config.amp),
+    })
 }
 
 pub fn amount_of(coins: &[Coin], denom: String) -> Uint128 {
@@ -956,20 +961,23 @@ pub fn update_config(
     info: MessageInfo,
     amp: Option<u64>,
 ) -> Result<Response, ContractError> {
-    let querier = &deps.querier;
-    CONFIG.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        let factory_config: ConfigResponse =
-            querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: state.factory_addr.to_string(),
-                msg: to_binary(&FactoryQueryMsg::Config {})?,
-            }))?;
+    let mut config = CONFIG.load(deps.storage)?;
 
-        if info.sender != factory_config.gov.unwrap_or_else(|| Addr::unchecked("")) {
-            return Err(ContractError::Unauthorized {});
-        }
+    let factory_config: FactoryConfigResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.factory_addr.to_string(),
+            msg: to_binary(&FactoryQueryMsg::Config {})?,
+        }))?;
 
-        state.amp = amp.unwrap_or(state.amp);
-        Ok(state)
-    })?;
+    if factory_config.gov.is_none() || info.sender != factory_config.gov.unwrap() {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(amp) = amp {
+        config.amp = amp
+    }
+
+    CONFIG.save(deps.storage, &config)?;
+
     Ok(Response::default())
 }

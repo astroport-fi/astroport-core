@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ExecuteMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "description": "UpdateConfig updates relevant code IDs",
       "type": "object",
@@ -210,7 +210,7 @@
       "type": "string"
     },
     "AssetInfo": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [
@@ -302,7 +302,7 @@
       }
     },
     "PairType": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [

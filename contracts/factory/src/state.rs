@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Deps, Order};
 
 use crate::error::ContractError;
-use astroport::asset::{AssetInfo, PairInfo};
+use astroport::asset::AssetInfo;
+
 use astroport::factory::PairConfig;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -26,7 +27,7 @@ pub struct TmpPairInfo {
 pub const TMP_PAIR_INFO: Item<TmpPairInfo> = Item::new("tmp_pair_info");
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const PAIRS: Map<&[u8], PairInfo> = Map::new("pair_info");
+pub const PAIRS: Map<&[u8], Addr> = Map::new("pair_info");
 
 pub fn pair_key(asset_infos: &[AssetInfo; 2]) -> Vec<u8> {
     let mut asset_infos = asset_infos.to_vec();
@@ -44,7 +45,7 @@ pub fn read_pairs(
     deps: Deps,
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
-) -> Vec<PairInfo> {
+) -> Vec<Addr> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = calc_range_start(start_after).map(Bound::exclusive);
 
@@ -52,8 +53,8 @@ pub fn read_pairs(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (_, pair_info) = item.unwrap();
-            pair_info
+            let (_, pair_addr) = item.unwrap();
+            pair_addr
         })
         .collect()
 }
