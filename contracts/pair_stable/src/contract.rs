@@ -160,11 +160,9 @@ pub fn receive_cw20(
             // only asset contract can execute this message
             let mut authorized: bool = false;
             let config: Config = CONFIG.load(deps.storage)?;
-            let pools: [Asset; 2] = config
-                .pair_info
-                .query_pools(&deps.querier, env.contract.address.clone())?;
-            for pool in pools.iter() {
-                if let AssetInfo::Token { contract_addr, .. } = &pool.info {
+
+            for pool in config.pair_info.asset_infos {
+                if let AssetInfo::Token { contract_addr, .. } = &pool {
                     if contract_addr == &info.sender {
                         authorized = true;
                     }
