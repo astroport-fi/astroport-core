@@ -227,8 +227,7 @@ pub fn execute_create_pair(
     let config = CONFIG.load(deps.storage)?;
 
     if PAIRS
-        .may_load(deps.storage, &pair_key(&asset_infos))
-        .unwrap_or(None)
+        .may_load(deps.storage, &pair_key(&asset_infos))?
         .is_some()
     {
         return Err(ContractError::PairWasCreated {});
@@ -284,8 +283,7 @@ pub fn execute_create_pair_stable(
     let config = CONFIG.load(deps.storage)?;
 
     if PAIRS
-        .may_load(deps.storage, &pair_key(&asset_infos))
-        .unwrap_or(None)
+        .may_load(deps.storage, &pair_key(&asset_infos))?
         .is_some()
     {
         return Err(ContractError::PairWasCreated {});
