@@ -1,6 +1,6 @@
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{
-    ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
+    ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig,
     QueryMsg as FactoryQueryMsg,
 };
 use astroport::pair::{
@@ -275,12 +275,12 @@ fn test_compatibility_of_tokens_with_different_precision() {
     let init_msg = FactoryInstantiateMsg {
         fee_address: None,
         init_hook: None,
-        pair_configs: vec![PairConfig {
+        pair_xyk_config: Some(PairConfig {
             code_id: pair_code_id,
             maker_fee_bps: 0,
-            pair_type: PairType::Xyk {},
             total_fee_bps: 0,
-        }],
+        }),
+        pair_stable_config: None,
         token_code_id,
         gov: None,
         generator_address: Addr::unchecked("generator"),

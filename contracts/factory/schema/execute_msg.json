@@ -52,6 +52,26 @@
                 }
               ]
             },
+            "pair_stable_config": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/PairConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pair_xyk_config": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/PairConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "token_code_id": {
               "type": [
                 "integer",
@@ -59,46 +79,6 @@
               ],
               "format": "uint64",
               "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "update_pair_config"
-      ],
-      "properties": {
-        "update_pair_config": {
-          "type": "object",
-          "required": [
-            "config"
-          ],
-          "properties": {
-            "config": {
-              "$ref": "#/definitions/PairConfig"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "remove_pair_config"
-      ],
-      "properties": {
-        "remove_pair_config": {
-          "type": "object",
-          "required": [
-            "pair_type"
-          ],
-          "properties": {
-            "pair_type": {
-              "$ref": "#/definitions/PairType"
             }
           }
         }
@@ -115,8 +95,7 @@
         "create_pair": {
           "type": "object",
           "required": [
-            "asset_infos",
-            "pair_type"
+            "asset_infos"
           ],
           "properties": {
             "asset_infos": {
@@ -138,12 +117,48 @@
                   "type": "null"
                 }
               ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "create_pair_stable"
+      ],
+      "properties": {
+        "create_pair_stable": {
+          "type": "object",
+          "required": [
+            "amp",
+            "asset_infos"
+          ],
+          "properties": {
+            "amp": {
+              "description": "Amplification point",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
             },
-            "pair_type": {
-              "description": "Type of pair contract",
-              "allOf": [
+            "asset_infos": {
+              "description": "Asset infos",
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/AssetInfo"
+              },
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "init_hook": {
+              "description": "Init hook for after works",
+              "anyOf": [
                 {
-                  "$ref": "#/definitions/PairType"
+                  "$ref": "#/definitions/InitHook"
+                },
+                {
+                  "type": "null"
                 }
               ]
             }
@@ -277,7 +292,6 @@
       "required": [
         "code_id",
         "maker_fee_bps",
-        "pair_type",
         "total_fee_bps"
       ],
       "properties": {
@@ -291,63 +305,12 @@
           "format": "uint16",
           "minimum": 0.0
         },
-        "pair_type": {
-          "$ref": "#/definitions/PairType"
-        },
         "total_fee_bps": {
           "type": "integer",
           "format": "uint16",
           "minimum": 0.0
         }
       }
-    },
-    "PairType": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "xyk"
-          ],
-          "properties": {
-            "xyk": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "stable"
-          ],
-          "properties": {
-            "stable": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "custom"
-          ],
-          "properties": {
-            "custom": {
-              "type": "object",
-              "required": [
-                "pair_type"
-              ],
-              "properties": {
-                "pair_type": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
     }
   }
 }
