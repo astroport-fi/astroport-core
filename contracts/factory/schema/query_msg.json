@@ -167,26 +167,6 @@
             }
           },
           "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "custom"
-          ],
-          "properties": {
-            "custom": {
-              "type": "object",
-              "required": [
-                "pair_type"
-              ],
-              "properties": {
-                "pair_type": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "additionalProperties": false
         }
       ]
     }

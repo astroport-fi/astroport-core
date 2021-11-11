@@ -5,7 +5,6 @@
   "required": [
     "generator_address",
     "owner",
-    "pair_configs",
     "token_code_id"
   ],
   "properties": {
@@ -35,11 +34,25 @@
     "owner": {
       "$ref": "#/definitions/Addr"
     },
-    "pair_configs": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/PairConfig"
-      }
+    "pair_stable_config": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/PairConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pair_xyk_config": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/PairConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "token_code_id": {
       "type": "integer",
@@ -57,7 +70,6 @@
       "required": [
         "code_id",
         "maker_fee_bps",
-        "pair_type",
         "total_fee_bps"
       ],
       "properties": {
@@ -71,63 +83,12 @@
           "format": "uint16",
           "minimum": 0.0
         },
-        "pair_type": {
-          "$ref": "#/definitions/PairType"
-        },
         "total_fee_bps": {
           "type": "integer",
           "format": "uint16",
           "minimum": 0.0
         }
       }
-    },
-    "PairType": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "xyk"
-          ],
-          "properties": {
-            "xyk": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "stable"
-          ],
-          "properties": {
-            "stable": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "custom"
-          ],
-          "properties": {
-            "custom": {
-              "type": "object",
-              "required": [
-                "pair_type"
-              ],
-              "properties": {
-                "pair_type": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
     }
   }
 }

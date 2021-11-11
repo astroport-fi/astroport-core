@@ -1,13 +1,12 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order,
-    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
+    attr, entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply,
+    ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 
 use crate::error::ContractError;
 use crate::querier::query_pair_info;
-use crate::state::{
-    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, PAIRS, PAIR_CONFIGS, TMP_PAIR_INFO,
-};
+
+use crate::state::{pair_key, read_pairs, Config, TmpPairInfo, CONFIG, PAIRS, TMP_PAIR_INFO};
 
 use crate::response::MsgInstantiateContractResponse;
 
@@ -21,8 +20,8 @@ use astroport::pair::{
     InstantiateMsg as PairInstantiateMsg, InstantiateMsgStable as PairInstantiateMsgStable,
 };
 use cw2::set_contract_version;
+
 use protobuf::Message;
-use std::collections::HashSet;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-factory";
@@ -48,6 +47,8 @@ pub fn instantiate(
         token_code_id: msg.token_code_id,
         fee_address: None,
         generator_address,
+        pair_xyk_config: None,
+        pair_stable_config: None,
     };
 
     if let Some(fee_address) = msg.fee_address {
@@ -58,23 +59,20 @@ pub fn instantiate(
         config.gov = Some(deps.api.addr_validate(gov.as_str())?);
     }
 
-    let config_set: HashSet<String> = msg
-        .pair_configs
-        .clone()
-        .into_iter()
-        .map(|pc| pc.pair_type.to_string())
-        .collect();
-
-    if config_set.len() != msg.pair_configs.len() {
-        return Err(ContractError::PairConfigDuplicate {});
-    }
-
-    for pc in msg.pair_configs.iter() {
-        // validate total and maker fee bps
-        if !pc.valid_fee_bps() {
+    if let Some(pair_xyk_config) = msg.pair_xyk_config {
+        if pair_xyk_config.valid_fee_bps() {
+            config.pair_xyk_config = Some(pair_xyk_config);
+        } else {
             return Err(ContractError::PairConfigInvalidFeeBps {});
         }
-        PAIR_CONFIGS.save(deps.storage, pc.clone().pair_type.to_string(), pc)?;
+    }
+
+    if let Some(pair_stable_config) = msg.pair_stable_config {
+        if pair_stable_config.valid_fee_bps() {
+            config.pair_stable_config = Some(pair_stable_config);
+        } else {
+            return Err(ContractError::PairConfigInvalidFeeBps {});
+        }
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -98,6 +96,8 @@ pub struct UpdateConfig {
     token_code_id: Option<u64>,
     fee_address: Option<Addr>,
     generator_address: Option<Addr>,
+    pair_xyk_config: Option<PairConfig>,
+    pair_stable_config: Option<PairConfig>,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -114,6 +114,8 @@ pub fn execute(
             token_code_id,
             fee_address,
             generator_address,
+            pair_xyk_config,
+            pair_stable_config,
         } => execute_update_config(
             deps,
             env,
@@ -124,12 +126,10 @@ pub fn execute(
                 token_code_id,
                 fee_address,
                 generator_address,
+                pair_xyk_config,
+                pair_stable_config,
             },
         ),
-        ExecuteMsg::UpdatePairConfig { config } => execute_update_pair_config(deps, info, config),
-        ExecuteMsg::RemovePairConfig { pair_type } => {
-            execute_remove_pair_config(deps, info, pair_type)
-        }
         ExecuteMsg::CreatePair {
             asset_infos,
             init_hook,
@@ -181,56 +181,25 @@ pub fn execute_update_config(
         config.token_code_id = token_code_id;
     }
 
+    if let Some(pair_xyk_config) = param.pair_xyk_config {
+        if pair_xyk_config.valid_fee_bps() {
+            config.pair_xyk_config = Some(pair_xyk_config);
+        } else {
+            return Err(ContractError::PairConfigInvalidFeeBps {});
+        }
+    }
+
+    if let Some(pair_stable_config) = param.pair_stable_config {
+        if pair_stable_config.valid_fee_bps() {
+            config.pair_stable_config = Some(pair_stable_config);
+        } else {
+            return Err(ContractError::PairConfigInvalidFeeBps {});
+        }
+    }
+
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_attribute("action", "update_config"))
-}
-
-pub fn execute_update_pair_config(
-    deps: DepsMut,
-    info: MessageInfo,
-    pair_config: PairConfig,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    // permission check
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    // validate total and maker fee bps
-    if !pair_config.valid_fee_bps() {
-        return Err(ContractError::PairConfigInvalidFeeBps {});
-    }
-
-    PAIR_CONFIGS.save(
-        deps.storage,
-        pair_config.pair_type.to_string(),
-        &pair_config,
-    )?;
-
-    Ok(Response::new().add_attribute("action", "update_pair_config"))
-}
-
-pub fn execute_remove_pair_config(
-    deps: DepsMut,
-    info: MessageInfo,
-    pair_type: PairType,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    // permission check
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    if !PAIR_CONFIGS.has(deps.storage, pair_type.to_string()) {
-        return Err(ContractError::PairConfigNotFound {});
-    }
-
-    PAIR_CONFIGS.remove(deps.storage, pair_type.to_string());
-
-    Ok(Response::new().add_attribute("action", "remove_pair_config"))
 }
 
 // Anyone can execute it to create swap pair
@@ -242,6 +211,10 @@ pub fn execute_create_pair(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
+    if config.pair_xyk_config.is_none() {
+        return Err(ContractError::PairConfigNotFound {});
+    }
+
     if PAIRS
         .may_load(deps.storage, &pair_key(&asset_infos))?
         .is_some()
@@ -249,12 +222,7 @@ pub fn execute_create_pair(
         return Err(ContractError::PairWasCreated {});
     }
 
-    let pair_type = PairType::Xyk {};
-
-    // Get pair type from config
-    let pair_config = PAIR_CONFIGS
-        .load(deps.storage, pair_type.to_string())
-        .map_err(|_| ContractError::PairConfigNotFound {})?;
+    let pair_config = config.pair_xyk_config.unwrap();
 
     let pair_key = pair_key(&asset_infos);
     TMP_PAIR_INFO.save(
@@ -312,6 +280,10 @@ pub fn execute_create_pair_stable(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
+    if config.pair_stable_config.is_none() {
+        return Err(ContractError::PairConfigNotFound {});
+    }
+
     if PAIRS
         .may_load(deps.storage, &pair_key(&asset_infos))?
         .is_some()
@@ -319,12 +291,7 @@ pub fn execute_create_pair_stable(
         return Err(ContractError::PairWasCreated {});
     }
 
-    let pair_type = PairType::Stable {};
-
-    // Get pair type from config
-    let pair_config = PAIR_CONFIGS
-        .load(deps.storage, pair_type.to_string())
-        .map_err(|_| ContractError::PairConfigNotFound {})?;
+    let pair_config = config.pair_stable_config.unwrap();
 
     let pair_key = pair_key(&asset_infos);
     TMP_PAIR_INFO.save(
@@ -434,14 +401,9 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let resp = ConfigResponse {
         owner: config.owner,
         gov: config.gov,
+        pair_xyk_config: config.pair_xyk_config,
+        pair_stable_config: config.pair_stable_config,
         token_code_id: config.token_code_id,
-        pair_configs: PAIR_CONFIGS
-            .range(deps.storage, None, None, Order::Ascending)
-            .map(|item| {
-                let (_, cfg) = item.unwrap();
-                cfg
-            })
-            .collect(),
         fee_address: config.fee_address,
         generator_address: config.generator_address,
     };
@@ -469,7 +431,17 @@ pub fn query_pairs(
 
 pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let pair_config = PAIR_CONFIGS.load(deps.storage, pair_type.to_string())?;
+
+    let pair_config = match pair_type {
+        PairType::Xyk {} => config.pair_xyk_config,
+        PairType::Stable {} => config.pair_stable_config,
+    };
+
+    if pair_config.is_none() {
+        return Err(StdError::generic_err("Pair config not found"));
+    }
+
+    let pair_config = pair_config.unwrap();
 
     Ok(FeeInfoResponse {
         fee_address: config.fee_address,
