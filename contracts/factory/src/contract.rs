@@ -5,7 +5,9 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::querier::query_liquidity_token;
-use crate::state::{pair_key, read_pairs, Config, TmpPairInfo, CONFIG, PAIRS, PAIR_CONFIGS};
+use crate::state::{
+    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, PAIRS, PAIR_CONFIGS, TMP_PAIR_INFO,
+};
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{AssetInfo, PairInfo};
@@ -16,6 +18,7 @@ use astroport::factory::{
 use astroport::hook::InitHook;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cw2::set_contract_version;
+use protobuf::Message;
 use std::collections::HashSet;
 
 // version info for migration info
@@ -235,18 +238,16 @@ pub fn execute_create_pair(
         .load(deps.storage, pair_type.to_string())
         .map_err(|_| ContractError::PairConfigNotFound {})?;
 
-    PAIRS.save(
+    let pair_key = pair_key(&asset_infos);
+    TMP_PAIR_INFO.save(
         deps.storage,
-        &pair_key(&asset_infos),
-        &PairInfo {
-            liquidity_token: Addr::unchecked(""),
-            contract_addr: Addr::unchecked(""),
-            asset_infos: [asset_infos[0].clone(), asset_infos[1].clone()],
-            pair_type: pair_type.clone(),
+        &TmpPairInfo {
+            pair_key,
+            owner: env.contract.address.clone(), // TODO: is the factory is the owner of the pair?
         },
     )?;
 
-    let mut sub_msg: Vec<SubMsg> = vec![SubMsg {
+    let sub_msg: Vec<SubMsg> = vec![SubMsg {
         id: INSTANTIATE_PAIR_REPLY_ID,
         msg: WasmMsg::Instantiate {
             admin: Some(config.owner.to_string()),
@@ -286,8 +287,8 @@ pub fn execute_create_pair(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    let pair_info: PairInfo = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
-    if pair_info.contract_addr != Addr::unchecked("") {
+    let tmp = TMP_PAIR_INFO.load(deps.storage)?;
+    if PAIRS.may_load(deps.storage, &tmp.pair_key)?.is_some() {
         return Err(ContractError::PairWasRegistered {});
     }
 
@@ -298,11 +299,12 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
         })?;
 
     let pair_contract = deps.api.addr_validate(res.get_contract_address())?;
-
     let liquidity_token = query_liquidity_token(deps.as_ref(), pair_contract.clone())?;
+    let pair_info: PairInfo = PAIRS.load(deps.storage, &tmp.pair_key)?;
+
     PAIRS.save(
         deps.storage,
-        &pair_key(&asset_infos),
+        &tmp.pair_key,
         &PairInfo {
             contract_addr: pair_contract.clone(),
             liquidity_token,

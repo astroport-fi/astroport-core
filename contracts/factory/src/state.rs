@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Deps, Order};
 
+use crate::error::ContractError;
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::PairConfig;
 
@@ -15,6 +16,14 @@ pub struct Config {
     pub generator_address: Addr,
     pub fee_address: Option<Addr>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TmpPairInfo {
+    pub pair_key: Vec<u8>,
+    pub owner: Addr,
+}
+
+pub const TMP_PAIR_INFO: Item<TmpPairInfo> = Item::new("tmp_pair_info");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const PAIRS: Map<&[u8], PairInfo> = Map::new("pair_info");
@@ -62,4 +71,8 @@ fn calc_range_start(start_after: Option<[AssetInfo; 2]>) -> Option<Vec<u8>> {
         v.push(1);
         v
     })
+}
+
+pub fn read_tmp_pair(deps: Deps) -> Result<TmpPairInfo, ContractError> {
+    Ok(TMP_PAIR_INFO.load(deps.storage)?)
 }

@@ -11,7 +11,7 @@ use cosmwasm_std::{
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg};
-use astroport::hook::InitHook;
+
 use astroport::pair::{generator_address, mint_liquidity_token_message};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
@@ -21,6 +21,7 @@ use astroport::querier::query_supply;
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
+use protobuf::Message;
 use std::vec;
 
 // version info for migration info
