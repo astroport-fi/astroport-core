@@ -169,10 +169,7 @@ fn test_provide_and_withdraw_liquidity() {
         res.events[1].attributes[1],
         attr("action", "provide_liquidity")
     );
-    assert_eq!(
-        res.events[1].attributes[3],
-        attr("receiver", "alice"),
-    );
+    assert_eq!(res.events[1].attributes[3], attr("receiver", "alice"),);
     assert_eq!(
         res.events[1].attributes[4],
         attr("assets", "100uusd, 100uluna")
@@ -202,10 +199,7 @@ fn test_provide_and_withdraw_liquidity() {
         res.events[1].attributes[1],
         attr("action", "provide_liquidity")
     );
-    assert_eq!(
-        res.events[1].attributes[3],
-        attr("receiver", "bob"),
-    );
+    assert_eq!(res.events[1].attributes[3], attr("receiver", "bob"),);
     assert_eq!(
         res.events[1].attributes[4],
         attr("assets", "100uusd, 100uluna")
