@@ -72,7 +72,3 @@ fn calc_range_start(start_after: Option<[AssetInfo; 2]>) -> Option<Vec<u8>> {
         v
     })
 }
-
-pub fn read_tmp_pair(deps: Deps) -> Result<TmpPairInfo, ContractError> {
-    Ok(TMP_PAIR_INFO.load(deps.storage)?)
-}
