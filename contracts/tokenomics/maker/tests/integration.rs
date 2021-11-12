@@ -313,6 +313,7 @@ fn create_pair(
                 assets,
                 slippage_tolerance: None,
                 auto_stake: None,
+                receiver: None,
             },
             &funds,
         )

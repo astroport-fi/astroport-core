@@ -287,6 +287,7 @@ fn create_pair(
                 assets,
                 slippage_tolerance: None,
                 auto_stake: None,
+                receiver: None,
             },
             &funds,
         )
@@ -356,6 +357,7 @@ fn change_provide_liquidity(
                 ],
                 slippage_tolerance: None,
                 auto_stake: None,
+                receiver: None,
             },
             &vec![],
         )
