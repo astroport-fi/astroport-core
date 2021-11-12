@@ -12,7 +12,6 @@ use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType,
     PairsResponse, QueryMsg,
 };
-use astroport::hook::InitHook;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 
