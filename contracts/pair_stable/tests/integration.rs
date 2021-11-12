@@ -171,10 +171,14 @@ fn test_provide_and_withdraw_liquidity() {
     );
     assert_eq!(
         res.events[1].attributes[3],
-        attr("assets", "100uusd, 100uluna")
+        attr("receiver", "alice"),
     );
     assert_eq!(
         res.events[1].attributes[4],
+        attr("assets", "100uusd, 100uluna")
+    );
+    assert_eq!(
+        res.events[1].attributes[5],
         attr("share", 100u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
@@ -200,10 +204,14 @@ fn test_provide_and_withdraw_liquidity() {
     );
     assert_eq!(
         res.events[1].attributes[3],
-        attr("assets", "100uusd, 100uluna")
+        attr("receiver", "bob"),
     );
     assert_eq!(
         res.events[1].attributes[4],
+        attr("assets", "100uusd, 100uluna")
+    );
+    assert_eq!(
+        res.events[1].attributes[5],
         attr("share", 50u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));

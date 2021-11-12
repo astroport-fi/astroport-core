@@ -329,6 +329,7 @@ pub fn provide_liquidity(
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "provide_liquidity"),
         attr("sender", info.sender.as_str()),
+        attr("receiver", receiver.as_str()),
         attr("assets", format!("{}, {}", assets[0], assets[1])),
         attr("share", share.to_string()),
     ]))
