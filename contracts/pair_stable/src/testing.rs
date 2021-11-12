@@ -9,7 +9,7 @@ use crate::mock_querier::mock_dependencies;
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::Config;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::hook::InitHook;
+
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsgStable, PoolResponse, ReverseSimulationResponse,
     SimulationResponse,
@@ -60,10 +60,6 @@ fn proper_initialization() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: Some(InitHook {
-            contract_addr: String::from("factory0000"),
-            msg: to_binary(&Uint128::new(1000000u128)).unwrap(),
-        }),
         amp: 100,
     };
 
@@ -74,43 +70,30 @@ fn proper_initialization() {
     let res = instantiate(deps.as_mut(), env, info, msg).unwrap();
     assert_eq!(
         res.messages,
-        vec![
-            SubMsg {
-                msg: WasmMsg::Instantiate {
-                    code_id: 10u64,
-                    msg: to_binary(&TokenInstantiateMsg {
-                        name: "Astroport LP token".to_string(),
-                        symbol: "uLP".to_string(),
-                        decimals: 6,
-                        initial_balances: vec![],
-                        mint: Some(MinterResponse {
-                            minter: String::from(MOCK_CONTRACT_ADDR),
-                            cap: None,
-                        }),
-                        init_hook: None,
-                    })
-                    .unwrap(),
-                    funds: vec![],
-                    admin: None,
-                    label: String::from("Astroport LP token"),
-                }
-                .into(),
-                id: 1,
-                gas_limit: None,
-                reply_on: ReplyOn::Success
-            },
-            SubMsg {
-                msg: WasmMsg::Execute {
-                    contract_addr: String::from("factory0000"),
-                    msg: to_binary(&Uint128::new(1000000u128)).unwrap(),
-                    funds: vec![],
-                }
-                .into(),
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never
+        vec![SubMsg {
+            msg: WasmMsg::Instantiate {
+                code_id: 10u64,
+                msg: to_binary(&TokenInstantiateMsg {
+                    name: "Astroport LP token".to_string(),
+                    symbol: "uLP".to_string(),
+                    decimals: 6,
+                    initial_balances: vec![],
+                    mint: Some(MinterResponse {
+                        minter: String::from(MOCK_CONTRACT_ADDR),
+                        cap: None,
+                    }),
+                    init_hook: None,
+                })
+                .unwrap(),
+                funds: vec![],
+                admin: None,
+                label: String::from("Astroport LP token"),
             }
-        ]
+            .into(),
+            id: 1,
+            gas_limit: None,
+            reply_on: ReplyOn::Success
+        },]
     );
 
     // store liquidity token
@@ -160,7 +143,6 @@ fn provide_liquidity() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
         amp: 100,
     };
@@ -584,7 +566,6 @@ fn withdraw_liquidity() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
         amp: 100,
     };
@@ -711,7 +692,6 @@ fn try_native_to_token() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
         amp: 100,
     };
@@ -895,7 +875,6 @@ fn try_token_to_native() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
         amp: 100,
     };
@@ -1168,7 +1147,6 @@ fn test_query_pool() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
         amp: 100,
     };
@@ -1234,7 +1212,6 @@ fn test_query_share() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
         amp: 100,
     };

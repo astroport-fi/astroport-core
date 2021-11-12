@@ -85,22 +85,16 @@ pub fn instantiate(
         reply_on: ReplyOn::Success,
     }];
 
-    if let Some(hook) = msg.init_hook {
-        Ok(Response::new()
-            .add_submessages(sub_msg)
-            .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: hook.contract_addr,
-                msg: hook.msg,
-                funds: vec![],
-            })))
-    } else {
-        Ok(Response::new().add_submessages(sub_msg))
-    }
+    Ok(Response::new().add_submessages(sub_msg))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
+
+    if config.pair_info.liquidity_token != Addr::unchecked("") {
+        return Err(ContractError::Unauthorized {});
+    }
 
     let data = msg.result.unwrap().data.unwrap();
     let res: MsgInstantiateContractResponse =

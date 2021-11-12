@@ -85,6 +85,10 @@ pub fn execute(
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
+    if config.share_token_addr != Addr::unchecked("") {
+        return Err(ContractError::Unauthorized {});
+    }
+
     let data = msg.result.unwrap().data.unwrap();
     let res: MsgInstantiateContractResponse =
         Message::parse_from_bytes(data.as_slice()).map_err(|_| {

@@ -318,7 +318,6 @@ fn create_pair() {
                     factory_addr: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     asset_infos: asset_infos.clone(),
                     token_code_id: msg.token_code_id,
-                    init_hook: None,
                 })
                 .unwrap(),
                 code_id: pair_config.code_id,

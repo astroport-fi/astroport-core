@@ -28,7 +28,6 @@ const CONTRACT_NAME: &str = "astroport-factory";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const INSTANTIATE_PAIR_REPLY_ID: u64 = 1;
-const INSTANTIATE_PAIR_STABLE_REPLY_ID: u64 = 2;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -235,7 +234,6 @@ pub fn execute_create_pair(
             msg: to_binary(&PairInstantiateMsg {
                 asset_infos: asset_infos.clone(),
                 token_code_id: config.token_code_id,
-                init_hook: None,
                 factory_addr: env.contract.address,
             })?,
             funds: vec![],
@@ -291,14 +289,13 @@ pub fn execute_create_pair_stable(
     TMP_PAIR_INFO.save(deps.storage, &TmpPairInfo { pair_key })?;
 
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
-        id: INSTANTIATE_PAIR_STABLE_REPLY_ID,
+        id: INSTANTIATE_PAIR_REPLY_ID,
         msg: WasmMsg::Instantiate {
             admin: Some(config.owner.to_string()),
             code_id: pair_config.code_id,
             msg: to_binary(&PairInstantiateMsgStable {
                 asset_infos: asset_infos.clone(),
                 token_code_id: config.token_code_id,
-                init_hook: None,
                 factory_addr: env.contract.address,
                 amp,
             })?,

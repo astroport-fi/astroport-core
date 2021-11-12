@@ -73,7 +73,6 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
             },
         ],
         token_code_id: token_contract_code_id,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
     };
 
