@@ -8,7 +8,6 @@ use crate::mock_querier::mock_dependencies;
 
 use crate::state::Config;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::hook::InitHook;
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsgStable, PoolResponse, ReverseSimulationResponse,
     SimulationResponse,
