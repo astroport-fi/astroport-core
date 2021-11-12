@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 
 use crate::mock_querier::mock_dependencies;
-use crate::state::CONFIG;
+use crate::state::{pair_key, read_tmp_pair, CONFIG};
 use crate::{
     contract::{execute, instantiate, query},
     error::ContractError,
@@ -332,6 +332,10 @@ fn create_pair() {
             reply_on: ReplyOn::Success
         }]
     );
+
+    let pair_info = read_tmp_pair(deps.as_ref()).unwrap();
+
+    assert_eq!(pair_info.pair_key, pair_key(&asset_infos.clone()));
 }
 
 #[test]
