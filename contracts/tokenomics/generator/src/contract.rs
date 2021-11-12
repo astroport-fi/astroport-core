@@ -152,6 +152,8 @@ pub fn add(
         return Err(ContractError::Unauthorized {});
     }
 
+    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+
     if POOL_INFO.load(deps.storage, &lp_token).is_ok() {
         return Err(ContractError::TokenPoolAlreadyExists {});
     }
@@ -207,6 +209,8 @@ pub fn set(
         return Err(ContractError::Unauthorized {});
     }
 
+    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_token)?;
 
     cfg.total_alloc_point = cfg
@@ -257,6 +261,8 @@ fn update_rewards_and_execute(
 
     match update_single_pool {
         Some(lp_token) => {
+            let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+
             let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
             if let Some(reward_proxy) = pool.reward_proxy.clone() {
                 messages.append(&mut get_pool_rewards_from_proxy(
@@ -460,6 +466,9 @@ pub fn deposit(
     amount: Uint128,
     sender: Option<Addr>,
 ) -> Result<Response, ContractError> {
+    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+    let beneficiary = deps.api.addr_validate(beneficiary.as_str())?;
+
     let sender = match sender {
         Some(sender) => sender,
         None => beneficiary.clone(),
@@ -554,6 +563,9 @@ pub fn withdraw(
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let mut response = Response::new().add_attribute("Action", "Withdraw");
+
+    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+
     let mut user = USER_INFO
         .load(deps.storage, (&lp_token, &account))
         .unwrap_or_default();
@@ -644,6 +656,8 @@ pub fn emergency_withdraw(
     lp_token: Addr,
 ) -> Result<Response, ContractError> {
     let mut response = Response::new().add_attribute("Action", "EmergencyWithdraw");
+
+    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let user = USER_INFO.load(deps.storage, (&lp_token, &info.sender))?;
@@ -808,6 +822,9 @@ pub fn pool_length(deps: Deps) -> Result<Binary, ContractError> {
 }
 
 pub fn query_deposit(deps: Deps, lp_token: Addr, user: Addr) -> Result<Binary, ContractError> {
+    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+    let user = deps.api.addr_validate(user.as_str())?;
+
     let user_info = USER_INFO
         .load(deps.storage, (&lp_token, &user))
         .unwrap_or_default();
@@ -822,6 +839,10 @@ pub fn pending_token(
     user: Addr,
 ) -> Result<Binary, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
+
+    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+    let user = deps.api.addr_validate(user.as_str())?;
+
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let user_info = USER_INFO
         .load(deps.storage, (&lp_token, &user))
@@ -894,6 +915,8 @@ fn query_config(deps: Deps) -> Result<Binary, ContractError> {
 fn query_reward_info(deps: Deps, lp_token: Addr) -> Result<Binary, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
+    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
     let proxy_reward_token = match pool.reward_proxy {
@@ -913,6 +936,8 @@ fn query_reward_info(deps: Deps, lp_token: Addr) -> Result<Binary, ContractError
 }
 
 fn query_orphan_proxy_rewards(deps: Deps, lp_token: Addr) -> Result<Binary, ContractError> {
+    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let proxy = match &pool.reward_proxy {
         Some(proxy) => proxy.clone(),

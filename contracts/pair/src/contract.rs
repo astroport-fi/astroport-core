@@ -42,7 +42,7 @@ pub fn instantiate(
             asset_infos: msg.asset_infos,
             pair_type: PairType::Xyk {},
         },
-        factory_addr: msg.factory_addr,
+        factory_addr: deps.api.addr_validate(msg.factory_addr.as_str())?,
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),

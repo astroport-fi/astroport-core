@@ -132,7 +132,12 @@ pub fn execute_swap_operations(
     // Assert the operations are properly set
     assert_operations(&operations)?;
 
-    let to = if let Some(to) = to { to } else { sender };
+    let to = if let Some(to) = to {
+        deps.api.addr_validate(to.as_str())?
+    } else {
+        sender
+    };
+
     let target_asset_info = operations.last().unwrap().get_target_asset_info();
 
     let mut operation_index = 0;

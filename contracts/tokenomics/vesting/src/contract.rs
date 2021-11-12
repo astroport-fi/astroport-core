@@ -293,6 +293,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 pub fn query_vesting_account(deps: Deps, address: Addr) -> StdResult<VestingAccountResponse> {
+    let address = deps.api.addr_validate(address.as_str())?;
     let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
 
     let resp = VestingAccountResponse { address, info };
@@ -319,6 +320,8 @@ pub fn query_vesting_accounts(
 }
 
 pub fn query_vesting_available_amount(deps: Deps, env: Env, address: Addr) -> StdResult<Uint128> {
+    let address = deps.api.addr_validate(address.as_str())?;
+
     let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
     let available_amount = compute_available_amount(env.block.time, &info)?;
     Ok(available_amount)
