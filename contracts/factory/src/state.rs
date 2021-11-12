@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Deps, Order};
 
 use astroport::asset::AssetInfo;
+
 use astroport::factory::PairConfig;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -17,6 +18,13 @@ pub struct Config {
     pub pair_xyk_config: Option<PairConfig>,
     pub pair_stable_config: Option<PairConfig>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TmpPairInfo {
+    pub pair_key: Vec<u8>,
+}
+
+pub const TMP_PAIR_INFO: Item<TmpPairInfo> = Item::new("tmp_pair_info");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const PAIRS: Map<&[u8], Addr> = Map::new("pair_info");

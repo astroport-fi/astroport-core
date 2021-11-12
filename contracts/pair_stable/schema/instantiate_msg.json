@@ -5,7 +5,6 @@
   "required": [
     "asset_infos",
     "factory_addr",
-    "pair_type",
     "token_code_id"
   ],
   "properties": {
@@ -23,25 +22,6 @@
       "allOf": [
         {
           "$ref": "#/definitions/Addr"
-        }
-      ]
-    },
-    "init_hook": {
-      "description": "Hook for post initialization",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/InitHook"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "pair_type": {
-      "description": "Pair type",
-      "allOf": [
-        {
-          "$ref": "#/definitions/PairType"
         }
       ]
     },
@@ -92,73 +72,6 @@
               ],
               "properties": {
                 "denom": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "Binary": {
-      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
-      "type": "string"
-    },
-    "InitHook": {
-      "type": "object",
-      "required": [
-        "contract_addr",
-        "msg"
-      ],
-      "properties": {
-        "contract_addr": {
-          "type": "string"
-        },
-        "msg": {
-          "$ref": "#/definitions/Binary"
-        }
-      }
-    },
-    "PairType": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "xyk"
-          ],
-          "properties": {
-            "xyk": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "stable"
-          ],
-          "properties": {
-            "stable": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "custom"
-          ],
-          "properties": {
-            "custom": {
-              "type": "object",
-              "required": [
-                "pair_type"
-              ],
-              "properties": {
-                "pair_type": {
                   "type": "string"
                 }
               }

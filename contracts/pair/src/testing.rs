@@ -1,13 +1,15 @@
+use crate::contract::reply;
 use crate::contract::{
     accumulate_prices, assert_max_spread, compute_swap, execute, get_fee_info, instantiate,
     query_pair_info, query_pool, query_reverse_simulation, query_share, query_simulation,
 };
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
+use crate::response::MsgInstantiateContractResponse;
 use crate::state::Config;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
-use astroport::hook::InitHook;
+
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
     SimulationResponse,
@@ -15,12 +17,35 @@ use astroport::pair::{
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, Env, ReplyOn, Response,
-    StdError, SubMsg, Timestamp, Uint128, WasmMsg,
+    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, ContractResult, CosmosMsg, Decimal, DepsMut,
+    Env, Reply, ReplyOn, Response, StdError, SubMsg, SubMsgExecutionResponse, Timestamp, Uint128,
+    WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use proptest::prelude::*;
+use protobuf::Message;
 use std::str::FromStr;
+
+fn store_liquidity_token(deps: DepsMut, msg_id: u64, contract_addr: String) {
+    let data = MsgInstantiateContractResponse {
+        contract_address: contract_addr,
+        data: vec![],
+        unknown_fields: Default::default(),
+        cached_size: Default::default(),
+    }
+    .write_to_bytes()
+    .unwrap();
+
+    let reply_msg = Reply {
+        id: msg_id,
+        result: ContractResult::Ok(SubMsgExecutionResponse {
+            events: vec![],
+            data: Some(data.into()),
+        }),
+    };
+
+    let _res = reply(deps, mock_env(), reply_msg.clone()).unwrap();
+}
 
 #[test]
 fn test_get_fee_info() {
@@ -68,10 +93,6 @@ fn proper_initialization() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: Some(InitHook {
-            contract_addr: String::from("factory0000"),
-            msg: to_binary(&Uint128::new(1000000u128)).unwrap(),
-        }),
     };
 
     let sender = "addr0000";
@@ -81,59 +102,33 @@ fn proper_initialization() {
     let res = instantiate(deps.as_mut(), env, info, msg).unwrap();
     assert_eq!(
         res.messages,
-        vec![
-            SubMsg {
-                msg: WasmMsg::Instantiate {
-                    code_id: 10u64,
-                    msg: to_binary(&TokenInstantiateMsg {
-                        name: "Astroport LP token".to_string(),
-                        symbol: "uLP".to_string(),
-                        decimals: 6,
-                        initial_balances: vec![],
-                        mint: Some(MinterResponse {
-                            minter: String::from(MOCK_CONTRACT_ADDR),
-                            cap: None,
-                        }),
-                        init_hook: Some(InitHook {
-                            msg: to_binary(&ExecuteMsg::PostInitialize {}).unwrap(),
-                            contract_addr: String::from(MOCK_CONTRACT_ADDR),
-                        }),
-                    })
-                    .unwrap(),
-                    funds: vec![],
-                    admin: None,
-                    label: String::from("Astroport LP token"),
-                }
-                .into(),
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never
-            },
-            SubMsg {
-                msg: WasmMsg::Execute {
-                    contract_addr: String::from("factory0000"),
-                    msg: to_binary(&Uint128::new(1000000u128)).unwrap(),
-                    funds: vec![],
-                }
-                .into(),
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never
+        vec![SubMsg {
+            msg: WasmMsg::Instantiate {
+                code_id: 10u64,
+                msg: to_binary(&TokenInstantiateMsg {
+                    name: "Astroport LP token".to_string(),
+                    symbol: "uLP".to_string(),
+                    decimals: 6,
+                    initial_balances: vec![],
+                    mint: Some(MinterResponse {
+                        minter: String::from(MOCK_CONTRACT_ADDR),
+                        cap: None,
+                    }),
+                })
+                .unwrap(),
+                funds: vec![],
+                admin: None,
+                label: String::from("Astroport LP token"),
             }
-        ]
+            .into(),
+            id: 1,
+            gas_limit: None,
+            reply_on: ReplyOn::Success
+        },]
     );
 
-    // post initalize
-    let msg = ExecuteMsg::PostInitialize {};
-    let env = mock_env();
-    let info = mock_info("liquidity0000", &[]);
-    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
-
-    // cannot change it after post intialization
-    let msg = ExecuteMsg::PostInitialize {};
-    let env = mock_env();
-    let info = mock_info("liquidity0001", &[]);
-    let _res = execute(deps.as_mut(), env, info, msg).unwrap_err();
+    // store liquidity token
+    store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     // // it worked, let's query the state
     let pair_info: PairInfo = query_pair_info(deps.as_ref()).unwrap();
@@ -173,7 +168,6 @@ fn provide_liquidity() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
     };
 
@@ -182,11 +176,8 @@ fn provide_liquidity() {
     // we can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // post initalize
-    let msg = ExecuteMsg::PostInitialize {};
-    let env = mock_env();
-    let info = mock_info("liquidity0000", &[]);
-    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
+    // store liquidity token
+    store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     // successfully provide liquidity for the exist pool
     let msg = ExecuteMsg::ProvideLiquidity {
@@ -599,8 +590,6 @@ fn withdraw_liquidity() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
-
         factory_addr: Addr::unchecked("factory"),
     };
 
@@ -609,11 +598,8 @@ fn withdraw_liquidity() {
     // we can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // post initalize
-    let msg = ExecuteMsg::PostInitialize {};
-    let env = mock_env();
-    let info = mock_info("liquidity0000", &[]);
-    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
+    // store liquidity token
+    store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     // withdraw liquidity
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -729,7 +715,6 @@ fn try_native_to_token() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
     };
 
@@ -738,11 +723,8 @@ fn try_native_to_token() {
     // we can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // post initalize
-    let msg = ExecuteMsg::PostInitialize {};
-    let env = mock_env();
-    let info = mock_info("liquidity0000", &[]);
-    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
+    // store liquidity token
+    store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     // normal swap
     let msg = ExecuteMsg::Swap {
@@ -913,7 +895,6 @@ fn try_token_to_native() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
     };
 
@@ -922,11 +903,8 @@ fn try_token_to_native() {
     // we can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // post initalize
-    let msg = ExecuteMsg::PostInitialize {};
-    let env = mock_env();
-    let info = mock_info("liquidity0000", &[]);
-    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
+    // store liquidity token
+    store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     // unauthorized access; can not execute swap directy for token swap
     let msg = ExecuteMsg::Swap {
@@ -1192,7 +1170,6 @@ fn test_query_pool() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
     };
 
@@ -1201,11 +1178,8 @@ fn test_query_pool() {
     // we can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // post initalize
-    let msg = ExecuteMsg::PostInitialize {};
-    let env = mock_env();
-    let info = mock_info("liquidity0000", &[]);
-    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
+    // store liquidity token
+    store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     let res: PoolResponse = query_pool(deps.as_ref()).unwrap();
 
@@ -1260,7 +1234,6 @@ fn test_query_share() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
     };
 
@@ -1269,11 +1242,8 @@ fn test_query_share() {
     // we can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // post initalize
-    let msg = ExecuteMsg::PostInitialize {};
-    let env = mock_env();
-    let info = mock_info("liquidity0000", &[]);
-    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
+    // store liquidity token
+    store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     let res = query_share(deps.as_ref(), Uint128::new(250)).unwrap();
 

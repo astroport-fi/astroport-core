@@ -30,6 +30,7 @@ cw2 = "0.8"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }
+protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.0"

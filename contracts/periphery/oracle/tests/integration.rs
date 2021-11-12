@@ -40,7 +40,6 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
             minter: owner.to_string(),
             cap: None,
         }),
-        init_hook: None,
     };
 
     let astro_token_instance = router
@@ -54,19 +53,25 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
         )
         .unwrap();
 
-    let pair_contract = Box::new(ContractWrapper::new(
-        astroport_pair::contract::execute,
-        astroport_pair::contract::instantiate,
-        astroport_pair::contract::query,
-    ));
+    let pair_contract = Box::new(
+        ContractWrapper::new(
+            astroport_pair::contract::execute,
+            astroport_pair::contract::instantiate,
+            astroport_pair::contract::query,
+        )
+        .with_reply(astroport_pair::contract::reply),
+    );
 
     let pair_code_id = router.store_code(pair_contract);
 
-    let factory_contract = Box::new(ContractWrapper::new(
-        astroport_factory::contract::execute,
-        astroport_factory::contract::instantiate,
-        astroport_factory::contract::query,
-    ));
+    let factory_contract = Box::new(
+        ContractWrapper::new(
+            astroport_factory::contract::execute,
+            astroport_factory::contract::instantiate,
+            astroport_factory::contract::query,
+        )
+        .with_reply(astroport_factory::contract::reply),
+    );
 
     let factory_code_id = router.store_code(factory_contract);
     let msg = astroport::factory::InstantiateMsg {
@@ -123,7 +128,6 @@ fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String
             cap: None,
         }),
         //marketing: None,
-        init_hook: None,
     };
 
     let token_instance = router

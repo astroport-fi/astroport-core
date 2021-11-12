@@ -1,8 +1,9 @@
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, Addr};
 
-use astroport::asset::AssetInfo;
+use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, QueryMsg};
+
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
 fn mock_app() -> App {
@@ -15,19 +16,49 @@ fn mock_app() -> App {
     App::new(api, env.block, bank, storage, tmq)
 }
 
+fn store_factory_code(app: &mut App) -> u64 {
+    let factory_contract = Box::new(
+        ContractWrapper::new(
+            astroport_factory::contract::execute,
+            astroport_factory::contract::instantiate,
+            astroport_factory::contract::query,
+        )
+        .with_reply(astroport_factory::contract::reply),
+    );
+
+    app.store_code(factory_contract)
+}
+
+fn store_pair_code(app: &mut App) -> u64 {
+    let pair_contract = Box::new(
+        ContractWrapper::new(
+            astroport_pair::contract::execute,
+            astroport_pair::contract::instantiate,
+            astroport_pair::contract::query,
+        )
+        .with_reply(astroport_pair::contract::reply),
+    );
+
+    app.store_code(pair_contract)
+}
+
+fn store_token_code(app: &mut App) -> u64 {
+    let token_contract = Box::new(ContractWrapper::new(
+        astroport_token::contract::execute,
+        astroport_token::contract::instantiate,
+        astroport_token::contract::query,
+    ));
+
+    app.store_code(token_contract)
+}
+
 #[test]
 fn proper_initialization() {
     let mut app = mock_app();
 
     let owner = Addr::unchecked("Owner");
 
-    let factory_contract = Box::new(ContractWrapper::new(
-        astroport_factory::contract::execute,
-        astroport_factory::contract::instantiate,
-        astroport_factory::contract::query,
-    ));
-
-    let factory_code_id = app.store_code(factory_contract);
+    let factory_code_id = store_factory_code(&mut app);
 
     let pair_config = PairConfig {
         code_id: 321,
@@ -69,14 +100,7 @@ fn update_config() {
     let owner = Addr::unchecked("Owner");
     let new_owner = Addr::unchecked("NewOnwer");
 
-    let token_contract = Box::new(ContractWrapper::new(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
-
-    let token_code_id = app.store_code(token_contract);
-
+    let token_code_id = store_token_code(&mut app);
     let factory_instance = instantiate_contract(&mut app, &owner, token_code_id);
 
     let pair_config = PairConfig {
@@ -149,21 +173,8 @@ fn update_config() {
 }
 
 fn instantiate_contract(app: &mut App, owner: &Addr, token_code_id: u64) -> Addr {
-    let pair_contract = Box::new(ContractWrapper::new(
-        astroport_pair::contract::execute,
-        astroport_pair::contract::instantiate,
-        astroport_pair::contract::query,
-    ));
-
-    let pair_code_id = app.store_code(pair_contract);
-
-    let factory_contract = Box::new(ContractWrapper::new(
-        astroport_factory::contract::execute,
-        astroport_factory::contract::instantiate,
-        astroport_factory::contract::query,
-    ));
-
-    let factory_code_id = app.store_code(factory_contract);
+    let pair_code_id = store_pair_code(app);
+    let factory_code_id = store_factory_code(app);
 
     let pair_config = PairConfig {
         code_id: pair_code_id,
@@ -199,13 +210,7 @@ fn create_pair() {
 
     let owner = Addr::unchecked("Owner");
 
-    let token_contract = Box::new(ContractWrapper::new(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
-
-    let token_code_id = app.store_code(token_contract);
+    let token_code_id = store_token_code(&mut app);
 
     let factory_instance = instantiate_contract(&mut app, &owner, token_code_id);
 
@@ -223,7 +228,7 @@ fn create_pair() {
     };
 
     let res = app
-        .execute_contract(owner, factory_instance, &msg, &[])
+        .execute_contract(owner, factory_instance.clone(), &msg, &[])
         .unwrap();
 
     assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
@@ -231,4 +236,19 @@ fn create_pair() {
         res.events[1].attributes[2],
         attr("pair", "asset0000-asset0001")
     );
+
+    let res: PairInfo = app
+        .wrap()
+        .query_wasm_smart(
+            factory_instance.clone(),
+            &QueryMsg::Pair {
+                asset_infos: asset_infos.clone(),
+            },
+        )
+        .unwrap();
+
+    // in multitest, contract names are named in the order in which contracts are created.
+    assert_eq!("Contract #0", factory_instance.to_string());
+    assert_eq!("Contract #1", res.contract_addr.to_string());
+    assert_eq!("Contract #2", res.liquidity_token.to_string());
 }

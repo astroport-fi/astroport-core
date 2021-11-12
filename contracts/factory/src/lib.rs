@@ -5,6 +5,8 @@ mod error;
 
 mod querier;
 
+mod response;
+
 #[cfg(test)]
 mod testing;
 

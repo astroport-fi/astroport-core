@@ -47,6 +47,7 @@ dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2",
+ "protobuf",
  "schemars",
  "serde",
  "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git?branch=main)",
@@ -148,6 +149,7 @@ dependencies = [
  "cw20",
  "integer-sqrt",
  "proptest 0.10.1",
+ "protobuf",
  "schemars",
  "serde",
  "terra-cosmwasm",
@@ -171,6 +173,7 @@ dependencies = [
  "cw20",
  "integer-sqrt",
  "proptest 1.0.0",
+ "protobuf",
  "schemars",
  "serde",
  "sim",
@@ -207,6 +210,7 @@ dependencies = [
  "cw-storage-plus 0.8.1",
  "cw2",
  "cw20",
+ "protobuf",
  "schemars",
  "serde",
  "thiserror",
@@ -1503,6 +1507,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "protobuf"
+version = "2.25.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47c327e191621a2158159df97cdbc2e7074bb4e940275e35abf38eb3d2595754"
+dependencies = [
+ "bytes",
 ]
 
 [[package]]

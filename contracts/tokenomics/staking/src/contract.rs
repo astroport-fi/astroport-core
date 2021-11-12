@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, Uint128, WasmMsg,
+    entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply,
+    ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -9,8 +9,9 @@ use astroport::staking::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
 
-use astroport::hook::InitHook;
+use crate::response::MsgInstantiateContractResponse;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use protobuf::Message;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-staking";
@@ -18,6 +19,8 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const TOKEN_NAME: &str = "astroport-staking-token";
 const TOKEN_SYMBOL: &str = "xASTRO";
+
+const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -38,28 +41,30 @@ pub fn instantiate(
     )?;
 
     // Create token
-    let resp = Response::new().add_message(CosmosMsg::Wasm(WasmMsg::Instantiate {
-        admin: None,
-        code_id: msg.token_code_id,
-        msg: to_binary(&TokenInstantiateMsg {
-            name: TOKEN_NAME.to_string(),
-            symbol: TOKEN_SYMBOL.to_string(),
-            decimals: 6,
-            initial_balances: vec![],
-            mint: Some(MinterResponse {
-                minter: env.contract.address.to_string(),
-                cap: None,
-            }),
-            init_hook: Some(InitHook {
-                msg: to_binary(&ExecuteMsg::PostInitialize {})?,
-                contract_addr: env.contract.address.to_string(),
-            }),
-        })?,
-        funds: vec![],
-        label: String::from("Astroport Staking Token"),
-    }));
+    let sub_msg: Vec<SubMsg> = vec![SubMsg {
+        msg: WasmMsg::Instantiate {
+            admin: None,
+            code_id: msg.token_code_id,
+            msg: to_binary(&TokenInstantiateMsg {
+                name: TOKEN_NAME.to_string(),
+                symbol: TOKEN_SYMBOL.to_string(),
+                decimals: 6,
+                initial_balances: vec![],
+                mint: Some(MinterResponse {
+                    minter: env.contract.address.to_string(),
+                    cap: None,
+                }),
+            })?,
+            funds: vec![],
+            label: String::from("Astroport Staking Token"),
+        }
+        .into(),
+        id: INSTANTIATE_TOKEN_REPLY_ID,
+        gas_limit: None,
+        reply_on: ReplyOn::Success,
+    }];
 
-    Ok(resp)
+    Ok(Response::new().add_submessages(sub_msg))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -70,26 +75,27 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::PostInitialize {} => try_post_initialize(deps, env, info),
         ExecuteMsg::Enter { amount } => try_enter(&deps, env, info, amount),
         ExecuteMsg::Leave { share } => try_leave(&deps, env, info, share),
     }
 }
 
-pub fn try_post_initialize(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-) -> Result<Response, ContractError> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
-    // permission check
     if config.share_token_addr != Addr::unchecked("") {
         return Err(ContractError::Unauthorized {});
     }
 
+    let data = msg.result.unwrap().data.unwrap();
+    let res: MsgInstantiateContractResponse =
+        Message::parse_from_bytes(data.as_slice()).map_err(|_| {
+            StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
+        })?;
+
     // Set token addr
-    config.share_token_addr = info.sender;
+    config.share_token_addr = deps.api.addr_validate(res.get_contract_address())?;
 
     CONFIG.save(deps.storage, &config)?;
 

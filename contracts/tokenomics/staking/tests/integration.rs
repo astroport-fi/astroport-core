@@ -38,7 +38,6 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
             minter: owner.to_string(),
             cap: None,
         }),
-        init_hook: None,
     };
 
     let astro_token_instance = router
@@ -52,11 +51,15 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
         )
         .unwrap();
 
-    let staking_contract = Box::new(ContractWrapper::new(
-        astroport_staking::contract::execute,
-        astroport_staking::contract::instantiate,
-        astroport_staking::contract::query,
-    ));
+    let staking_contract = Box::new(
+        ContractWrapper::new(
+            astroport_staking::contract::execute,
+            astroport_staking::contract::instantiate,
+            astroport_staking::contract::query,
+        )
+        .with_reply(astroport_staking::contract::reply),
+    );
+
     let staking_code_id = router.store_code(staking_contract);
 
     let msg = xInstatiateMsg {
@@ -75,14 +78,20 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
         .unwrap();
 
     let msg = QueryMsg::Config {};
-    let x_astro_token_instance = router
+    let res = router
         .wrap()
         .query::<ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: staking_instance.to_string(),
             msg: to_binary(&msg).unwrap(),
         }))
-        .unwrap()
-        .share_token_addr;
+        .unwrap();
+
+    // in multitest, contract names are named in the order in which contracts are created.
+    assert_eq!("Contract #0", astro_token_instance);
+    assert_eq!("Contract #1", staking_instance);
+    assert_eq!("Contract #2", res.share_token_addr);
+
+    let x_astro_token_instance = res.share_token_addr;
 
     (
         astro_token_instance,

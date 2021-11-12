@@ -33,13 +33,29 @@ fn store_token_code(app: &mut App) -> u64 {
 }
 
 fn store_pair_code(app: &mut App) -> u64 {
-    let pair_contract = Box::new(ContractWrapper::new(
-        astroport_pair_stable::contract::execute,
-        astroport_pair_stable::contract::instantiate,
-        astroport_pair_stable::contract::query,
-    ));
+    let pair_contract = Box::new(
+        ContractWrapper::new(
+            astroport_pair_stable::contract::execute,
+            astroport_pair_stable::contract::instantiate,
+            astroport_pair_stable::contract::query,
+        )
+        .with_reply(astroport_pair_stable::contract::reply),
+    );
 
     app.store_code(pair_contract)
+}
+
+fn store_factory_code(app: &mut App) -> u64 {
+    let factory_contract = Box::new(
+        ContractWrapper::new(
+            astroport_factory::contract::execute,
+            astroport_factory::contract::instantiate,
+            astroport_factory::contract::query,
+        )
+        .with_reply(astroport_factory::contract::reply),
+    );
+
+    app.store_code(factory_contract)
 }
 
 fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
@@ -57,7 +73,6 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
             },
         ],
         token_code_id: token_contract_code_id,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
         amp: 100,
     };
@@ -72,6 +87,13 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
             None,
         )
         .unwrap();
+
+    let res: PairInfo = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
+        .unwrap();
+    assert_eq!("Contract #0", res.contract_addr);
+    assert_eq!("Contract #1", res.liquidity_token);
 
     pair
 }
@@ -224,7 +246,6 @@ fn test_compatibility_of_tokens_with_different_precision() {
             minter: String::from(OWNER),
             cap: None,
         }),
-        init_hook: None,
     };
 
     let token_x_instance = app
@@ -252,7 +273,6 @@ fn test_compatibility_of_tokens_with_different_precision() {
             minter: String::from(OWNER),
             cap: None,
         }),
-        init_hook: None,
     };
 
     let token_y_instance = app
@@ -267,14 +287,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .unwrap();
 
     let pair_code_id = store_pair_code(&mut app);
-
-    let factory_contract = Box::new(ContractWrapper::new(
-        astroport_factory::contract::execute,
-        astroport_factory::contract::instantiate,
-        astroport_factory::contract::query,
-    ));
-
-    let factory_code_id = app.store_code(factory_contract);
+    let factory_code_id = store_factory_code(&mut app);
 
     let init_msg = FactoryInstantiateMsg {
         fee_address: None,

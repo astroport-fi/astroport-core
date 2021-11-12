@@ -2,7 +2,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::asset::{Asset, AssetInfo};
-use crate::hook::InitHook;
 
 use crate::factory::factory_config;
 use crate::generator::ExecuteMsg as GeneratorExecuteMsg;
@@ -15,8 +14,6 @@ pub struct InstantiateMsg {
     pub asset_infos: [AssetInfo; 2],
     /// Token contract code id for initialization
     pub token_code_id: u64,
-    /// Hook for post initialization
-    pub init_hook: Option<InitHook>,
     /// Factory contract address
     pub factory_addr: Addr,
 }
@@ -27,8 +24,6 @@ pub struct InstantiateMsgStable {
     pub asset_infos: [AssetInfo; 2],
     /// Token contract code id for initialization
     pub token_code_id: u64,
-    /// Hook for post initialization
-    pub init_hook: Option<InitHook>,
     /// Factory contract address
     pub factory_addr: Addr,
     /// Amplification point
@@ -39,8 +34,6 @@ pub struct InstantiateMsgStable {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
-    /// Post initialize step to allow user to set controlled contract address after creating it
-    PostInitialize {},
     /// ProvideLiquidity a user provides pool liquidity
     ProvideLiquidity {
         assets: [Asset; 2],

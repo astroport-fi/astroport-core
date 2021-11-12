@@ -30,16 +30,20 @@ Inits a new x*y=k pair.
 
 ```json
 {
-  "pair_code_id": 123,
   "token_code_id": 123,
   "factory_addr": "terra...",
-  "pair_type": {
-    "xyk": {}
-  },
-  "init_hook": {
-    "msg": "<base64_encoded_json_string>",
-    "contract_addr": "terra..."
-  }
+  "asset_infos": [
+    {
+      "token": {
+        "contract_addr": "terra..."
+      }
+    },
+    {
+      "native_token": {
+        "denom": "uusd"
+      }
+    }
+  ]
 }
 ```
 
@@ -56,16 +60,6 @@ Withdrawing provided liquidity or swap assets (only for token contract).
     "amount": "123",
     "msg": "<base64_encoded_json_string>"
   }
-}
-```
-
-### `post_initialize`
-
-LP token contract must execute it after creating.
-
-```json
-{
-  "post_initialize": {}
 }
 ```
 

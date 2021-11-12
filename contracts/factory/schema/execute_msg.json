@@ -168,32 +168,6 @@
       "additionalProperties": false
     },
     {
-      "description": "Register is invoked from created pair contract after initialization",
-      "type": "object",
-      "required": [
-        "register"
-      ],
-      "properties": {
-        "register": {
-          "type": "object",
-          "required": [
-            "asset_infos"
-          ],
-          "properties": {
-            "asset_infos": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/AssetInfo"
-              },
-              "maxItems": 2,
-              "minItems": 2
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
       "type": "object",
       "required": [
         "deregister"
