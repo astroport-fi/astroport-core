@@ -68,10 +68,6 @@ fn proper_initialization() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: Some(InitHook {
-            contract_addr: String::from("factory0000"),
-            msg: to_binary(&Uint128::new(1000000u128)).unwrap(),
-        }),
     };
 
     let sender = "addr0000";
@@ -93,10 +89,6 @@ fn proper_initialization() {
                         mint: Some(MinterResponse {
                             minter: String::from(MOCK_CONTRACT_ADDR),
                             cap: None,
-                        }),
-                        init_hook: Some(InitHook {
-                            msg: to_binary(&ExecuteMsg::PostInitialize {}).unwrap(),
-                            contract_addr: String::from(MOCK_CONTRACT_ADDR),
                         }),
                     })
                     .unwrap(),
@@ -173,7 +165,6 @@ fn provide_liquidity() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
     };
 
@@ -606,7 +597,6 @@ fn withdraw_liquidity() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
 
         factory_addr: Addr::unchecked("factory"),
     };
@@ -736,7 +726,6 @@ fn try_native_to_token() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
     };
 
@@ -920,7 +909,6 @@ fn try_token_to_native() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
     };
 
@@ -1199,7 +1187,6 @@ fn test_query_pool() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
     };
 
@@ -1267,7 +1254,6 @@ fn test_query_share() {
             },
         ],
         token_code_id: 10u64,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
     };
 

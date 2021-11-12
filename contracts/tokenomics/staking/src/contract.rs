@@ -9,7 +9,6 @@ use astroport::staking::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
 
-use astroport::hook::InitHook;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 // version info for migration info
@@ -49,10 +48,6 @@ pub fn instantiate(
             mint: Some(MinterResponse {
                 minter: env.contract.address.to_string(),
                 cap: None,
-            }),
-            init_hook: Some(InitHook {
-                msg: to_binary(&ExecuteMsg::PostInitialize {})?,
-                contract_addr: env.contract.address.to_string(),
             }),
         })?,
         funds: vec![],

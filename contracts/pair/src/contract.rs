@@ -10,7 +10,6 @@ use cosmwasm_std::{
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg};
-use astroport::hook::InitHook;
 use astroport::pair::{generator_address, mint_liquidity_token_message, ConfigResponse};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
@@ -63,10 +62,6 @@ pub fn instantiate(
                     minter: env.contract.address.to_string(),
                     cap: None,
                 }),
-                init_hook: Some(InitHook {
-                    msg: to_binary(&ExecuteMsg::PostInitialize {})?,
-                    contract_addr: env.contract.address.to_string(),
-                }),
             })?,
             funds: vec![],
             admin: None,
@@ -78,17 +73,7 @@ pub fn instantiate(
         reply_on: ReplyOn::Never,
     }];
 
-    if let Some(hook) = msg.init_hook {
-        Ok(Response::new()
-            .add_submessages(sub_msg)
-            .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: hook.contract_addr.to_string(),
-                msg: hook.msg,
-                funds: vec![],
-            })))
-    } else {
-        Ok(Response::new().add_submessages(sub_msg))
-    }
+    Ok(Response::new().add_submessages(sub_msg))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

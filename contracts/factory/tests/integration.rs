@@ -39,7 +39,6 @@ fn proper_initialization() {
         pair_xyk_config: Some(pair_config.clone()),
         pair_stable_config: None,
         token_code_id: 123,
-        init_hook: None,
         fee_address: None,
         gov: None,
         owner: owner.to_string(),
@@ -175,7 +174,6 @@ fn instantiate_contract(app: &mut App, owner: &Addr, token_code_id: u64) -> Addr
         pair_xyk_config: Some(pair_config),
         pair_stable_config: None,
         token_code_id,
-        init_hook: None,
         fee_address: None,
         gov: None,
         owner: owner.to_string(),
@@ -219,7 +217,6 @@ fn create_pair() {
     ];
     let msg = ExecuteMsg::CreatePair {
         asset_infos: asset_infos.clone(),
-        init_hook: None,
     };
 
     let res = app

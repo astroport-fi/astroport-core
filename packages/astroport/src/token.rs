@@ -1,7 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::hook::InitHook;
 use cosmwasm_std::{StdError, StdResult, Uint128};
 use cw20::{Cw20Coin, MinterResponse};
 
@@ -13,7 +12,6 @@ pub struct InstantiateMsg {
     pub decimals: u8,
     pub initial_balances: Vec<Cw20Coin>,
     pub mint: Option<MinterResponse>,
-    pub init_hook: Option<InitHook>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]

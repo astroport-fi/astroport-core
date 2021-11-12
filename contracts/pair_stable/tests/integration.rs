@@ -57,7 +57,6 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
             },
         ],
         token_code_id: token_contract_code_id,
-        init_hook: None,
         factory_addr: Addr::unchecked("factory"),
         amp: 100,
     };
@@ -255,7 +254,6 @@ fn test_compatibility_of_tokens_with_different_precision() {
             minter: String::from(OWNER),
             cap: None,
         }),
-        init_hook: None,
     };
 
     let token_x_instance = app
@@ -283,7 +281,6 @@ fn test_compatibility_of_tokens_with_different_precision() {
             minter: String::from(OWNER),
             cap: None,
         }),
-        init_hook: None,
     };
 
     let token_y_instance = app
@@ -309,7 +306,6 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
     let init_msg = FactoryInstantiateMsg {
         fee_address: None,
-        init_hook: None,
         pair_xyk_config: None,
         pair_stable_config: Some(PairConfig {
             code_id: pair_code_id,
@@ -342,7 +338,6 @@ fn test_compatibility_of_tokens_with_different_precision() {
                 contract_addr: token_y_instance.clone(),
             },
         ],
-        init_hook: None,
         amp: 100,
     };
 

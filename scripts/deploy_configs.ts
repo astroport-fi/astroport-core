@@ -31,7 +31,6 @@ export const configDefault: Config = {
                 }
             ],
             token_code_id: 0,
-            init_hook: undefined,
             fee_address: undefined
         }
     },

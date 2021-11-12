@@ -913,7 +913,6 @@ fn instantiate_token(app: &mut App, token_code_id: u64, name: &str, cap: Option<
             minter: String::from(OWNER),
             cap: cap.map(|v| Uint128::from(v)),
         }),
-        init_hook: None,
     };
 
     app.instantiate_contract(token_code_id, Addr::unchecked(OWNER), &msg, &[], name, None)
