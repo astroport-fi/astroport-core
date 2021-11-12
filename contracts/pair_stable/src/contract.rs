@@ -302,11 +302,11 @@ pub fn provide_liquidity(
     };
 
     // mint LP token for sender or receiver if set
-    let beneficiary = receiver.unwrap_or_else(|| info.sender.to_string());
+    let receiver = receiver.unwrap_or_else(|| info.sender.to_string());
     messages.extend(mint_liquidity_token_message(
         env.contract.address.clone(),
         config.pair_info.liquidity_token.clone(),
-        deps.api.addr_validate(beneficiary.as_str())?,
+        deps.api.addr_validate(receiver.as_str())?,
         share,
         generator_address(auto_stake, config.factory_addr.clone(), &deps)?,
     )?);

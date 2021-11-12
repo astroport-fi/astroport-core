@@ -106,17 +106,6 @@
               },
               "maxItems": 2,
               "minItems": 2
-            },
-            "init_hook": {
-              "description": "Init hook for after works",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/InitHook"
-                },
-                {
-                  "type": "null"
-                }
-              ]
             }
           }
         }
@@ -150,17 +139,6 @@
               },
               "maxItems": 2,
               "minItems": 2
-            },
-            "init_hook": {
-              "description": "Init hook for after works",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/InitHook"
-                },
-                {
-                  "type": "null"
-                }
-              ]
             }
           }
         }
@@ -241,25 +219,6 @@
           "additionalProperties": false
         }
       ]
-    },
-    "Binary": {
-      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
-      "type": "string"
-    },
-    "InitHook": {
-      "type": "object",
-      "required": [
-        "contract_addr",
-        "msg"
-      ],
-      "properties": {
-        "contract_addr": {
-          "type": "string"
-        },
-        "msg": {
-          "$ref": "#/definitions/Binary"
-        }
-      }
     },
     "PairConfig": {
       "type": "object",
