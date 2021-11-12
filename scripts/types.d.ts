@@ -9,7 +9,6 @@ interface FactoryInitMsg {
     config: {
         pair_configs: PairConfig[],
         token_code_id: number,
-        init_hook?: string,
         fee_address?: string,
         generator_address?: string,
         gov?: string,

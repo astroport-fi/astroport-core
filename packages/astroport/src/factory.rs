@@ -1,5 +1,4 @@
 use crate::asset::{AssetInfo, PairInfo};
-use crate::hook::InitHook;
 use cosmwasm_std::{to_binary, Addr, DepsMut, QueryRequest, StdResult, WasmQuery};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -41,7 +40,6 @@ pub struct InstantiateMsg {
     pub pair_xyk_config: Option<PairConfig>,
     pub pair_stable_config: Option<PairConfig>,
     pub token_code_id: u64,
-    pub init_hook: Option<InitHook>,
     // Contract address to send fees to
     pub fee_address: Option<Addr>,
     pub generator_address: Addr,
@@ -66,16 +64,12 @@ pub enum ExecuteMsg {
     CreatePair {
         /// Asset infos
         asset_infos: [AssetInfo; 2],
-        /// Init hook for after works
-        init_hook: Option<InitHook>,
     },
     CreatePairStable {
         /// Asset infos
         asset_infos: [AssetInfo; 2],
         /// Amplification point
         amp: u64,
-        /// Init hook for after works
-        init_hook: Option<InitHook>,
     },
     Deregister {
         asset_infos: [AssetInfo; 2],

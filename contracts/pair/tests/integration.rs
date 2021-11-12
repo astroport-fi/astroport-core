@@ -159,7 +159,7 @@ fn test_provide_and_withdraw_liquidity() {
         .unwrap();
 
     // Provide liquidity
-    let (msg, coins) = provide_liquidity_msg(Uint128::new(100), Uint128::new(100));
+    let (msg, coins) = provide_liquidity_msg(Uint128::new(100), Uint128::new(100), None);
     let res = router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
@@ -168,20 +168,52 @@ fn test_provide_and_withdraw_liquidity() {
         res.events[1].attributes[1],
         attr("action", "provide_liquidity")
     );
+    assert_eq!(res.events[1].attributes[3], attr("receiver", "alice"),);
     assert_eq!(
-        res.events[1].attributes[3],
+        res.events[1].attributes[4],
         attr("assets", "100uusd, 100uluna")
     );
     assert_eq!(
-        res.events[1].attributes[4],
+        res.events[1].attributes[5],
         attr("share", 100u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "alice"));
     assert_eq!(res.events[3].attributes[3], attr("amount", 100.to_string()));
+
+    // Provide liquidity for receiver
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(100),
+        Uint128::new(100),
+        Some("bob".to_string()),
+    );
+    let res = router
+        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap();
+
+    assert_eq!(
+        res.events[1].attributes[1],
+        attr("action", "provide_liquidity")
+    );
+    assert_eq!(res.events[1].attributes[3], attr("receiver", "bob"),);
+    assert_eq!(
+        res.events[1].attributes[4],
+        attr("assets", "100uusd, 100uluna")
+    );
+    assert_eq!(
+        res.events[1].attributes[5],
+        attr("share", 50u128.to_string())
+    );
+    assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
+    assert_eq!(res.events[3].attributes[2], attr("to", "bob"));
+    assert_eq!(res.events[3].attributes[3], attr("amount", 50.to_string()));
 }
 
-fn provide_liquidity_msg(uusd_amount: Uint128, uluna_amount: Uint128) -> (ExecuteMsg, [Coin; 2]) {
+fn provide_liquidity_msg(
+    uusd_amount: Uint128,
+    uluna_amount: Uint128,
+    receiver: Option<String>,
+) -> (ExecuteMsg, [Coin; 2]) {
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [
             Asset {
@@ -199,6 +231,7 @@ fn provide_liquidity_msg(uusd_amount: Uint128, uluna_amount: Uint128) -> (Execut
         ],
         slippage_tolerance: None,
         auto_stake: None,
+        receiver,
     };
 
     let coins = [
@@ -287,7 +320,6 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
     let init_msg = FactoryInstantiateMsg {
         fee_address: None,
-        init_hook: None,
         pair_xyk_config: Some(PairConfig {
             code_id: pair_code_id,
             maker_fee_bps: 0,
@@ -320,7 +352,6 @@ fn test_compatibility_of_tokens_with_different_precision() {
                 contract_addr: token_y_instance.clone(),
             },
         ],
-        init_hook: None,
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
@@ -379,6 +410,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         ],
         slippage_tolerance: None,
         auto_stake: None,
+        receiver: None,
     };
 
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
@@ -439,8 +471,11 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     let pair_instance = instantiate_pair(&mut app, &user1);
 
     // provide liquidity, accumulators are empty
-    let (msg, coins) =
-        provide_liquidity_msg(Uint128::new(1000000_000000), Uint128::new(1000000_000000));
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(1000000_000000),
+        Uint128::new(1000000_000000),
+        None,
+    );
     app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
 
@@ -454,8 +489,11 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     });
 
     // provide liquidity, accumulators firstly filled with the same prices
-    let (msg, coins) =
-        provide_liquidity_msg(Uint128::new(3000000_000000), Uint128::new(1000000_000000));
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(3000000_000000),
+        Uint128::new(1000000_000000),
+        None,
+    );
     app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
 

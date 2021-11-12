@@ -116,7 +116,16 @@ pub fn execute(
             assets,
             slippage_tolerance,
             auto_stake,
-        } => provide_liquidity(deps, env, info, assets, slippage_tolerance, auto_stake),
+            receiver,
+        } => provide_liquidity(
+            deps,
+            env,
+            info,
+            assets,
+            slippage_tolerance,
+            auto_stake,
+            receiver,
+        ),
         ExecuteMsg::Swap {
             offer_asset,
             belief_price,
@@ -215,6 +224,7 @@ pub fn provide_liquidity(
     assets: [Asset; 2],
     slippage_tolerance: Option<Decimal>,
     auto_stake: Option<bool>,
+    receiver: Option<String>,
 ) -> Result<Response, ContractError> {
     let auto_stake = auto_stake.unwrap_or(false);
     for asset in assets.iter() {
@@ -285,10 +295,12 @@ pub fn provide_liquidity(
         )
     };
 
+    // mint LP token for sender or receiver if set
+    let receiver = receiver.unwrap_or_else(|| info.sender.to_string());
     messages.extend(mint_liquidity_token_message(
         env.contract.address.clone(),
         config.pair_info.liquidity_token.clone(),
-        info.sender.clone(),
+        deps.api.addr_validate(receiver.as_str())?,
         share,
         generator_address(auto_stake, config.factory_addr.clone(), &deps)?,
     )?);
@@ -306,6 +318,7 @@ pub fn provide_liquidity(
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "provide_liquidity"),
         attr("sender", info.sender.as_str()),
+        attr("receiver", receiver.as_str()),
         attr("assets", format!("{}, {}", assets[0], assets[1])),
         attr("share", share.to_string()),
     ]))

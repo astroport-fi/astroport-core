@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply,
-    ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
+    attr, entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn,
+    Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -15,7 +15,7 @@ use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
     PairsResponse, QueryMsg,
 };
-use astroport::hook::InitHook;
+
 use astroport::pair::{
     InstantiateMsg as PairInstantiateMsg, InstantiateMsgStable as PairInstantiateMsgStable,
 };
@@ -76,17 +76,7 @@ pub fn instantiate(
 
     CONFIG.save(deps.storage, &config)?;
 
-    if let Some(hook) = msg.init_hook {
-        Ok(
-            Response::new().add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: hook.contract_addr.to_string(),
-                msg: hook.msg,
-                funds: vec![],
-            })),
-        )
-    } else {
-        Ok(Response::new())
-    }
+    Ok(Response::new())
 }
 
 pub struct UpdateConfig {
@@ -129,15 +119,10 @@ pub fn execute(
                 pair_stable_config,
             },
         ),
-        ExecuteMsg::CreatePair {
-            asset_infos,
-            init_hook,
-        } => execute_create_pair(deps, env, asset_infos, init_hook),
-        ExecuteMsg::CreatePairStable {
-            asset_infos,
-            init_hook,
-            amp,
-        } => execute_create_pair_stable(deps, env, asset_infos, amp, init_hook),
+        ExecuteMsg::CreatePair { asset_infos } => execute_create_pair(deps, env, asset_infos),
+        ExecuteMsg::CreatePairStable { asset_infos, amp } => {
+            execute_create_pair_stable(deps, env, asset_infos, amp)
+        }
         ExecuteMsg::Deregister { asset_infos } => deregister(deps, info, asset_infos),
     }
 }
@@ -206,7 +191,6 @@ pub fn execute_create_pair(
     deps: DepsMut,
     env: Env,
     asset_infos: [AssetInfo; 2],
-    init_hook: Option<InitHook>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -244,18 +228,8 @@ pub fn execute_create_pair(
         reply_on: ReplyOn::Success,
     }];
 
-    let mut messages: Vec<CosmosMsg> = vec![];
-    if let Some(hook) = init_hook {
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: hook.contract_addr.to_string(),
-            msg: hook.msg,
-            funds: vec![],
-        }));
-    }
-
     Ok(Response::new()
         .add_submessages(sub_msg)
-        .add_messages(messages)
         .add_attributes(vec![
             attr("action", "create_pair"),
             attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
@@ -268,7 +242,6 @@ pub fn execute_create_pair_stable(
     env: Env,
     asset_infos: [AssetInfo; 2],
     amp: u64,
-    init_hook: Option<InitHook>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -307,18 +280,8 @@ pub fn execute_create_pair_stable(
         reply_on: ReplyOn::Success,
     }];
 
-    let mut messages: Vec<CosmosMsg> = vec![];
-    if let Some(hook) = init_hook {
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: hook.contract_addr.to_string(),
-            msg: hook.msg,
-            funds: vec![],
-        }));
-    }
-
     Ok(Response::new()
         .add_submessages(sub_msg)
-        .add_messages(messages)
         .add_attributes(vec![
             attr("action", "create_pair_stable"),
             attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),

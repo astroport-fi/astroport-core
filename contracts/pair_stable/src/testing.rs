@@ -172,6 +172,7 @@ fn provide_liquidity() {
         ],
         slippage_tolerance: None,
         auto_stake: None,
+        receiver: None,
     };
 
     let env = mock_env();
@@ -267,6 +268,7 @@ fn provide_liquidity() {
         ],
         slippage_tolerance: None,
         auto_stake: None,
+        receiver: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -338,6 +340,7 @@ fn provide_liquidity() {
         ],
         slippage_tolerance: None,
         auto_stake: None,
+        receiver: None,
     };
 
     let env = mock_env();
@@ -401,6 +404,7 @@ fn provide_liquidity() {
         ],
         slippage_tolerance: Some(Decimal::percent(1)),
         auto_stake: None,
+        receiver: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -441,6 +445,7 @@ fn provide_liquidity() {
         ],
         slippage_tolerance: Some(Decimal::percent(1)),
         auto_stake: None,
+        receiver: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -481,6 +486,7 @@ fn provide_liquidity() {
         ],
         slippage_tolerance: Some(Decimal::percent(1)),
         auto_stake: None,
+        receiver: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -520,6 +526,7 @@ fn provide_liquidity() {
         ],
         slippage_tolerance: Some(Decimal::percent(1)),
         auto_stake: None,
+        receiver: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);

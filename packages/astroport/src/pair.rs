@@ -39,6 +39,7 @@ pub enum ExecuteMsg {
         assets: [Asset; 2],
         slippage_tolerance: Option<Decimal>,
         auto_stake: Option<bool>,
+        receiver: Option<String>,
     },
     /// Swap an offer asset to the other
     Swap {
@@ -132,7 +133,7 @@ pub fn generator_address(
     })
 }
 
-/// Mint LP token to sender or auto deposit into generator if set
+/// Mint LP token to beneficiary or auto deposit into generator if set
 pub fn mint_liquidity_token_message(
     pair: Addr,
     lp_token: Addr,

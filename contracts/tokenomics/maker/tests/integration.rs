@@ -86,7 +86,6 @@ fn instantiate_contracts(
         }),
         pair_stable_config: None,
         token_code_id: 1u64,
-        init_hook: None,
         fee_address: None,
         gov: None,
         owner: owner.to_string(),
@@ -153,7 +152,6 @@ fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String
             minter: owner.to_string(),
             cap: None,
         }),
-        //marketing: None,
     };
 
     let token_instance = router
@@ -254,7 +252,6 @@ fn create_pair(
             factory_instance.clone(),
             &astroport::factory::ExecuteMsg::CreatePair {
                 asset_infos: asset_infos.clone(),
-                init_hook: None,
             },
             &[],
         )
@@ -317,6 +314,7 @@ fn create_pair(
                 assets,
                 slippage_tolerance: None,
                 auto_stake: None,
+                receiver: None,
             },
             &funds,
         )
