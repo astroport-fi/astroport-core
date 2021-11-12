@@ -67,7 +67,6 @@ pub fn instantiate(
                     minter: env.contract.address.to_string(),
                     cap: None,
                 }),
-                init_hook: None,
             })?,
             funds: vec![],
             admin: None,

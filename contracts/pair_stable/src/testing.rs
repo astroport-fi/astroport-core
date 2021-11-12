@@ -82,7 +82,6 @@ fn proper_initialization() {
                         minter: String::from(MOCK_CONTRACT_ADDR),
                         cap: None,
                     }),
-                    init_hook: None,
                 })
                 .unwrap(),
                 funds: vec![],

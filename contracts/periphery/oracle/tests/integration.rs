@@ -40,7 +40,6 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
             minter: owner.to_string(),
             cap: None,
         }),
-        init_hook: None,
     };
 
     let astro_token_instance = router
@@ -129,7 +128,6 @@ fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String
             cap: None,
         }),
         //marketing: None,
-        init_hook: None,
     };
 
     let token_instance = router
