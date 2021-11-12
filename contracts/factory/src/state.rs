@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Deps, Order};
 
-use crate::error::ContractError;
 use astroport::asset::AssetInfo;
 
 use astroport::factory::PairConfig;

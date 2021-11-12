@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 
 use crate::mock_querier::mock_dependencies;
-use crate::state::{pair_key, read_tmp_pair, CONFIG};
+use crate::state::CONFIG;
 use crate::{
     contract::{execute, instantiate, query},
     error::ContractError,
