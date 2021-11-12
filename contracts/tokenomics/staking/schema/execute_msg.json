@@ -5,18 +5,6 @@
     {
       "type": "object",
       "required": [
-        "post_initialize"
-      ],
-      "properties": {
-        "post_initialize": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "enter"
       ],
       "properties": {

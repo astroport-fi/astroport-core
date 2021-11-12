@@ -15,19 +15,6 @@
       "additionalProperties": false
     },
     {
-      "description": "Post initialize step to allow user to set controlled contract address after creating it",
-      "type": "object",
-      "required": [
-        "post_initialize"
-      ],
-      "properties": {
-        "post_initialize": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
       "description": "ProvideLiquidity a user provides pool liquidity",
       "type": "object",
       "required": [
@@ -48,7 +35,7 @@
               "maxItems": 2,
               "minItems": 2
             },
-            "auto_stack": {
+            "auto_stake": {
               "type": [
                 "boolean",
                 "null"
