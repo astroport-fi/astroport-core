@@ -30,16 +30,20 @@ Inits a new x*y=k pair.
 
 ```json
 {
-  "pair_code_id": 123,
   "token_code_id": 123,
   "factory_addr": "terra...",
-  "pair_type": {
-    "xyk": {}
-  },
-  "init_hook": {
-    "msg": "<base64_encoded_json_string>",
-    "contract_addr": "terra..."
-  }
+  "asset_infos": [
+    {
+      "token": {
+        "contract_addr": "terra..."
+      }
+    },
+    {
+      "native_token": {
+        "denom": "uusd"
+      }
+    }
+  ]
 }
 ```
 
