@@ -17,11 +17,7 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
   "fee_address": "terra...",
   "owner": "terra...",
   "gov": "terra...",
-  "generator_address": "terra...",
-  "init_hook": {
-    "msg": "<base64_encoded_json_string>",
-    "contract_addr": "terra..."
-  }
+  "generator_address": "terra..."
 }
 ```
 
@@ -74,7 +70,7 @@ Removing config for specified pair type.
 
 ### `create_pair`
 
-Anyone can execute it to create swap pair. When a user executes `CreatePair` operation, it creates `Pair` contract and `LP(liquidity provider)` token contract. It also creates not fully initialized `PairInfo`, which will be initialized with `Register` operation from the pair contract's `InitHook`.
+Anyone can execute it to create swap pair. When a user executes `CreatePair` operation, it creates `Pair` contract and `LP(liquidity provider)` token contract. It also creates not fully initialized `PairInfo`. Pair `contract_address` for the given asset_infos will be initialized with reply, which is only allowed for a pair, which is not fully initialized.
 
 ```json
 {
@@ -94,10 +90,6 @@ Anyone can execute it to create swap pair. When a user executes `CreatePair` ope
         }
       }
     ]
-  },
-  "init_hook": {
-    "msg": "<base64_encoded_json_string>",
-    "contract_addr": "terra..."
   }
 }
 ```

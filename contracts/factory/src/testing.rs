@@ -42,7 +42,6 @@ fn proper_initialization() {
             maker_fee_bps: 10,
         }),
         token_code_id: 123u64,
-        init_hook: None,
         fee_address: None,
         gov: None,
         generator_address: Addr::unchecked("generator"),
@@ -69,7 +68,6 @@ fn proper_initialization() {
             maker_fee_bps: 10,
         }),
         token_code_id: 123u64,
-        init_hook: None,
         fee_address: None,
         gov: None,
         generator_address: Addr::unchecked("generator"),
@@ -104,7 +102,6 @@ fn update_config() {
         pair_xyk_config: Some(pair_config.clone()),
         pair_stable_config: None,
         token_code_id: 123u64,
-        init_hook: None,
         fee_address: None,
         gov: None,
         owner: owner.to_string(),
@@ -252,7 +249,6 @@ fn create_pair() {
         pair_xyk_config: Some(pair_config.clone()),
         pair_stable_config: None,
         token_code_id: 123u64,
-        init_hook: None,
         fee_address: None,
         gov: None,
         owner: "owner0000".to_string(),
@@ -286,7 +282,6 @@ fn create_pair() {
         ExecuteMsg::CreatePairStable {
             asset_infos: asset_infos.clone(),
             amp: 100,
-            init_hook: None,
         },
     )
     .unwrap_err();
@@ -298,7 +293,6 @@ fn create_pair() {
         info,
         ExecuteMsg::CreatePair {
             asset_infos: asset_infos.clone(),
-            init_hook: None,
         },
     )
     .unwrap();
@@ -346,7 +340,6 @@ fn register() {
         }),
         pair_stable_config: None,
         token_code_id: 123u64,
-        init_hook: None,
         fee_address: None,
         gov: None,
         generator_address: Addr::unchecked("generator"),
@@ -368,7 +361,6 @@ fn register() {
 
     let msg = ExecuteMsg::CreatePair {
         asset_infos: asset_infos.clone(),
-        init_hook: None,
     };
 
     let env = mock_env();
@@ -443,7 +435,6 @@ fn register() {
 
     let msg = ExecuteMsg::CreatePair {
         asset_infos: asset_infos_2.clone(),
-        init_hook: None,
     };
 
     let env = mock_env();
