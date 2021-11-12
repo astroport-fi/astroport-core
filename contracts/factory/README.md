@@ -102,31 +102,6 @@ Anyone can execute it to create swap pair. When a user executes `CreatePair` ope
 }
 ```
 
-### `register`
-
-When a user executes `CreatePair` operation, it passes `InitHook` to `Pair` contract and `Pair` contract will invoke passed `InitHook` registering created `Pair` contract to the factory. This operation is only allowed for a pair, which is not fully initialized.
-
-Once a `Pair` contract invokes it, the sender address is registered as `Pair` contract address for the given asset_infos.
-
-```json
-{
-  "register": {
-    "asset_infos": [
-      {
-        "token": {
-          "contract_address": "terra..."
-        }
-      },
-      {
-        "native_token": {
-          "denom": "uusd"
-        }
-      }
-    ]
-  }
-}
-```
-
 ### `deregister`
 
 Deregisters already registered pair (deletes pair).

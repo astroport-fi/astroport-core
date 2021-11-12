@@ -17,16 +17,6 @@ README has updated with new messages (Astroport v1 messages follow).
 
 ## ExecuteMsg
 
-### `post_initialize`
-
-Token contract must execute it after creating.
-
-```json
-{
-  "post_initialize": {}
-}
-```
-
 ### `enter`
 
 Deposits token to get share token amount.

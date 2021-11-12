@@ -59,16 +59,6 @@ Withdrawing provided liquidity or swap assets (only for token contract).
 }
 ```
 
-### `post_initialize`
-
-LP token contract must execute it after creating.
-
-```json
-{
-  "post_initialize": {}
-}
-```
-
 ### `provide_liquidity`
 
 Provides pool liquidity by sending user's native or token assets. It can be distinguished with the key under info: token or native_token. NOTE: You should increase token allowance before providing liquidity!
