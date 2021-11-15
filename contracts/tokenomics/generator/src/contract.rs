@@ -70,7 +70,7 @@ pub fn execute(
         } => update_rewards_and_execute(
             deps,
             env,
-            Some(lp_token.clone()),
+            None,
             ExecuteOnReply::Add {
                 sender: info.sender,
                 lp_token,
