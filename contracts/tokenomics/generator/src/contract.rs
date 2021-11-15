@@ -67,14 +67,17 @@ pub fn execute(
             alloc_point,
             with_update,
             reward_proxy,
-        } => add(
+        } => update_rewards_and_execute(
             deps,
             env,
-            info,
-            lp_token,
-            alloc_point,
-            with_update,
-            reward_proxy,
+            Some(lp_token.clone()),
+            ExecuteOnReply::Add {
+                sender: info.sender,
+                lp_token,
+                alloc_point,
+                with_update,
+                reward_proxy,
+            },
         ),
         ExecuteMsg::Set {
             lp_token,
@@ -139,19 +142,20 @@ pub fn execute(
 
 // Add a new lp to the pool. Can only be called by the owner.
 pub fn add(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    sender: Addr,
     lp_token: Addr,
     alloc_point: Uint64,
     with_update: bool,
     reward_proxy: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
-    if info.sender != cfg.owner {
+    if sender != cfg.owner {
         return Err(ContractError::Unauthorized {});
     }
 
+    mass_update_pools(deps.branch(), env.clone())?;
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
 
     if POOL_INFO.load(deps.storage, &lp_token).is_ok() {
@@ -338,6 +342,21 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
             TMP_USER_ACTION.save(deps.storage, &None)?;
             match action {
                 ExecuteOnReply::MassUpdatePools {} => mass_update_pools(deps, env),
+                ExecuteOnReply::Add {
+                    sender,
+                    lp_token,
+                    alloc_point,
+                    with_update,
+                    reward_proxy,
+                } => add(
+                    deps,
+                    env,
+                    sender,
+                    lp_token,
+                    alloc_point,
+                    with_update,
+                    reward_proxy,
+                ),
                 ExecuteOnReply::UpdatePool { lp_token } => update_pool(deps, env, lp_token),
                 ExecuteOnReply::Deposit {
                     lp_token,

@@ -42,6 +42,14 @@ pub struct Config {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ExecuteOnReply {
     MassUpdatePools {},
+    Add {
+        sender: Addr,
+        lp_token: Addr,
+        alloc_point: Uint64,
+        with_update: bool,
+        reward_proxy: Option<String>,
+    },
+    // Set {},
     UpdatePool {
         lp_token: Addr,
     },
