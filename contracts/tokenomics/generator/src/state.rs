@@ -49,7 +49,12 @@ pub enum ExecuteOnReply {
         with_update: bool,
         reward_proxy: Option<String>,
     },
-    // Set {},
+    Set {
+        sender: Addr,
+        lp_token: Addr,
+        alloc_point: Uint64,
+        with_update: bool,
+    },
     UpdatePool {
         lp_token: Addr,
     },

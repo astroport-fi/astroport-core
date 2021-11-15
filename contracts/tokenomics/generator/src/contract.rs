@@ -83,7 +83,17 @@ pub fn execute(
             lp_token,
             alloc_point,
             with_update,
-        } => set(deps, env, info, lp_token, alloc_point, with_update),
+        } => update_rewards_and_execute(
+            deps,
+            env,
+            None,
+            ExecuteOnReply::Set {
+                sender: info.sender,
+                lp_token,
+                alloc_point,
+                with_update,
+            },
+        ),
         ExecuteMsg::MassUpdatePools {} => {
             update_rewards_and_execute(deps, env, None, ExecuteOnReply::MassUpdatePools {})
         }
@@ -203,13 +213,13 @@ pub fn add(
 pub fn set(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    sender: Addr,
     lp_token: Addr,
     alloc_point: Uint64,
     with_update: bool,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
-    if info.sender != cfg.owner {
+    if sender != cfg.owner {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -357,6 +367,12 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                     with_update,
                     reward_proxy,
                 ),
+                ExecuteOnReply::Set {
+                    sender,
+                    lp_token,
+                    alloc_point,
+                    with_update,
+                } => set(deps, env, sender, lp_token, alloc_point, with_update),
                 ExecuteOnReply::UpdatePool { lp_token } => update_pool(deps, env, lp_token),
                 ExecuteOnReply::Deposit {
                     lp_token,
