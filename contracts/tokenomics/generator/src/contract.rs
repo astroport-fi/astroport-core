@@ -697,7 +697,7 @@ fn set_allowed_reward_proxies(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    if config.owner != info.sender {
+    if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -808,7 +808,7 @@ fn set_tokens_per_block(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    if config.owner != info.sender {
+    if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
