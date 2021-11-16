@@ -211,7 +211,7 @@ pub fn add(
 
 // Update the given pool's ASTRO allocation point. Can only be called by the owner.
 pub fn set(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     sender: Addr,
     lp_token: Addr,
@@ -223,6 +223,7 @@ pub fn set(
         return Err(ContractError::Unauthorized {});
     }
 
+    mass_update_pools(deps.branch(), env.clone())?;
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
 
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_token)?;
