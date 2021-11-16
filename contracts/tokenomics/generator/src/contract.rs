@@ -165,7 +165,6 @@ pub fn add(
         return Err(ContractError::Unauthorized {});
     }
 
-    mass_update_pools(deps.branch(), env.clone())?;
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
 
     if POOL_INFO.load(deps.storage, &lp_token).is_ok() {
@@ -181,6 +180,8 @@ pub fn add(
             return Err(ContractError::RewardProxyNotAllowed {});
         }
     }
+
+    mass_update_pools(deps.branch(), env.clone())?;
 
     cfg.total_alloc_point = cfg.total_alloc_point.checked_add(alloc_point)?;
 
