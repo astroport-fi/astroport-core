@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
     Response, StdError, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
@@ -108,7 +106,7 @@ pub fn register_vesting_accounts(
     }
 
     let mut to_deposit = Uint128::zero();
-    let mut to_receive = Uint128::zero();
+    let mut unclaimed_amount = Uint128::zero();
 
     for vesting_account in vesting_accounts {
         let account_address = deps.api.addr_validate(&vesting_account.address)?;
@@ -133,8 +131,18 @@ pub fn register_vesting_accounts(
                 }
             }
 
-            to_receive += total - old_info.released_amount;
+            unclaimed_amount += total - old_info.released_amount;
         }
+
+        response.messages.push(SubMsg::new(WasmMsg::Execute {
+            contract_addr: config.token_addr.to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: vesting_account.address,
+                amount: unclaimed_amount,
+            })?,
+        }));
+        event.attributes.push(attr("received", unclaimed_amount));
 
         VESTING_INFO.save(
             deps.storage,
@@ -146,34 +154,16 @@ pub fn register_vesting_accounts(
         )?;
     }
 
-    match to_deposit.cmp(&to_receive) {
-        Ordering::Greater => {
-            let amount = to_deposit - to_receive;
-            response.messages.push(SubMsg::new(WasmMsg::Execute {
-                contract_addr: config.token_addr.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                    owner: config.owner.to_string(),
-                    recipient: env.contract.address.to_string(),
-                    amount,
-                })?,
-            }));
-            event.attributes.push(attr("deposited", amount));
-        }
-        Ordering::Less => {
-            let amount = to_receive - to_deposit;
-            response.messages.push(SubMsg::new(WasmMsg::Execute {
-                contract_addr: config.token_addr.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: config.owner.to_string(),
-                    amount,
-                })?,
-            }));
-            event.attributes.push(attr("received", amount));
-        }
-        Ordering::Equal => {}
-    }
+    response.messages.push(SubMsg::new(WasmMsg::Execute {
+        contract_addr: config.token_addr.to_string(),
+        funds: vec![],
+        msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+            owner: config.owner.to_string(),
+            recipient: env.contract.address.to_string(),
+            amount: to_deposit,
+        })?,
+    }));
+    event.attributes.push(attr("deposited", to_deposit));
 
     Ok(response)
 }
