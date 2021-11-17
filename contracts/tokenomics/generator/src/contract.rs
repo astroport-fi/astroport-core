@@ -224,10 +224,11 @@ pub fn set(
         return Err(ContractError::Unauthorized {});
     }
 
-    mass_update_pools(deps.branch(), env.clone())?;
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
 
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_token)?;
+
+    mass_update_pools(deps.branch(), env.clone())?;
 
     cfg.total_alloc_point = cfg
         .total_alloc_point
