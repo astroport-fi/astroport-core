@@ -7,10 +7,11 @@ interface StakingInitMsg {
 
 interface FactoryInitMsg {
     config: {
-        pair_configs: PairConfig[],
+        pair_xyk_config: PairConfig,
+        pair_stable_config: PairConfig,
         token_code_id: number,
         fee_address?: string,
-        generator_address?: string,
+        generator_address: string,
         gov?: string,
         owner: string,
     }
@@ -26,16 +27,8 @@ interface GeneratorInitMsg {
     }
 }
 
-type PairType = {
-    xyk: {}
-} | {
-    stable: {}
-}
-
-
 interface PairConfig {
     code_id: number,
-    pair_type: PairType,
     total_fee_bps: number,
     maker_fee_bps: number
 }
@@ -71,7 +64,6 @@ interface Config {
     factoryInitMsg: FactoryInitMsg,
     stakingInitMsg: StakingInitMsg,
     generatorInitMsg: GeneratorInitMsg,
-    astroTokenContractAddress: string | undefined
     registerVestingAccounts: RegisterVestingAccounts
 }
 
