@@ -743,7 +743,7 @@ fn try_native_to_token() {
     let sim_result = model.sim_exchange(0, 1, offer_amount.into());
 
     let expected_ret_amount = Uint128::new(sim_result);
-    let expected_spread_amount = Uint128::zero();
+    let expected_spread_amount = offer_amount.saturating_sub(expected_ret_amount);
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
     let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
 
@@ -793,7 +793,9 @@ fn try_native_to_token() {
         2,
     );
 
-    let sim_result = model.sim_exchange(1, 0, expected_return_amount.into());
+    let sim_result = model.sim_exchange(1, 0, expected_ret_amount.into());
+    let reverse_expected_spread_amount =
+        Uint128::new(sim_result).saturating_sub(expected_ret_amount);
 
     assert_eq!(
         Uint128::new(sim_result),
@@ -803,7 +805,10 @@ fn try_native_to_token() {
         expected_commission_amount,
         reverse_simulation_res.commission_amount
     );
-    assert_eq!(expected_spread_amount, reverse_simulation_res.spread_amount);
+    assert_eq!(
+        reverse_expected_spread_amount,
+        reverse_simulation_res.spread_amount
+    );
 
     assert_eq!(
         res.attributes,
@@ -936,9 +941,10 @@ fn try_token_to_native() {
     let sim_result = model.sim_exchange(1, 0, offer_amount.into());
 
     let expected_ret_amount = Uint128::new(sim_result);
-    let expected_spread_amount = Uint128::zero();
+    let expected_spread_amount = offer_amount.saturating_sub(expected_ret_amount);
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
     let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
+
     let expected_return_amount = expected_ret_amount
         .checked_sub(expected_commission_amount)
         .unwrap();
@@ -989,7 +995,9 @@ fn try_token_to_native() {
     )
     .unwrap();
 
-    let sim_result = model.sim_exchange(0, 1, expected_return_amount.into());
+    let sim_result = model.sim_exchange(0, 1, expected_ret_amount.into());
+    let reverse_expected_spread_amount =
+        Uint128::new(sim_result).saturating_sub(expected_ret_amount);
 
     assert_eq!(
         Uint128::new(sim_result),
@@ -999,7 +1007,10 @@ fn try_token_to_native() {
         expected_commission_amount,
         reverse_simulation_res.commission_amount
     );
-    assert_eq!(expected_spread_amount, reverse_simulation_res.spread_amount);
+    assert_eq!(
+        reverse_expected_spread_amount,
+        reverse_simulation_res.spread_amount
+    );
 
     assert_eq!(
         res.attributes,
