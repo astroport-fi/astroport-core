@@ -826,9 +826,8 @@ fn compute_swap(
         ask_precision,
     )?;
 
-    // TODO: add SPREAD_EPSILON constant to v2, and calculate the spread as the
-    // difference between the prices for exchanging this SPREAD_EPSILON and the price for exchaning the amount provided by user in contract call
-    let spread_amount = Uint128::zero();
+    // We assume the assets should stay in a 1:1 ratio, the true exchange rate is 1. So any exchange rate <1 could be considered the spread
+    let spread_amount = offer_amount.saturating_sub(return_amount);
 
     let commission_amount: Uint128 = return_amount * commission_rate;
 
@@ -854,23 +853,29 @@ fn compute_offer_amount(
     let ask_pool = adjust_precision(ask_pool, ask_precision, greater_precision)?;
     let ask_amount = adjust_precision(ask_amount, ask_precision, greater_precision)?;
 
+    let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
+    let inv_one_minus_commission: Decimal = (Decimal256::one() / one_minus_commission).into();
+    let before_commission_deduction = ask_amount * inv_one_minus_commission;
+
     let offer_amount = adjust_precision(
         Uint128::new(
-            calc_amount(ask_pool.u128(), offer_pool.u128(), ask_amount.u128(), amp).unwrap(),
+            calc_amount(
+                ask_pool.u128(),
+                offer_pool.u128(),
+                before_commission_deduction.u128(),
+                amp,
+            )
+            .unwrap(),
         ),
         greater_precision,
         offer_precision,
     )?;
 
-    let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
-    let inv_one_minus_commission: Decimal = (Decimal256::one() / one_minus_commission).into();
-    let before_commission_deduction = ask_amount * inv_one_minus_commission;
-
-    // TODO: add SPREAD_EPSILON constant to v2, and calculate the spread as the
-    // difference between the prices for exchanging this SPREAD_EPSILON and the price for exchaning the amount provided by user in contract call
-    let spread_amount = Uint128::zero();
+    // We assume the assets should stay in a 1:1 ratio, the true exchange rate is 1. So any exchange rate <1 could be considered the spread
+    let spread_amount = offer_amount.saturating_sub(before_commission_deduction);
 
     let commission_amount = before_commission_deduction * commission_rate;
+
     Ok((offer_amount, spread_amount, commission_amount))
 }
 
