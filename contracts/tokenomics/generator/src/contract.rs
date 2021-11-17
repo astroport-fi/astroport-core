@@ -67,33 +67,45 @@ pub fn execute(
             alloc_point,
             with_update,
             reward_proxy,
-        } => update_rewards_and_execute(
-            deps,
-            env,
-            None,
-            ExecuteOnReply::Add {
-                sender: info.sender,
-                lp_token,
-                alloc_point,
-                with_update,
-                reward_proxy,
-            },
-        ),
+        } => {
+            let cfg = CONFIG.load(deps.storage)?;
+            if info.sender != cfg.owner {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            update_rewards_and_execute(
+                deps,
+                env,
+                None,
+                ExecuteOnReply::Add {
+                    lp_token,
+                    alloc_point,
+                    with_update,
+                    reward_proxy,
+                },
+            )
+        }
         ExecuteMsg::Set {
             lp_token,
             alloc_point,
             with_update,
-        } => update_rewards_and_execute(
-            deps,
-            env,
-            None,
-            ExecuteOnReply::Set {
-                sender: info.sender,
-                lp_token,
-                alloc_point,
-                with_update,
-            },
-        ),
+        } => {
+            let cfg = CONFIG.load(deps.storage)?;
+            if info.sender != cfg.owner {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            update_rewards_and_execute(
+                deps,
+                env,
+                None,
+                ExecuteOnReply::Set {
+                    lp_token,
+                    alloc_point,
+                    with_update,
+                },
+            )
+        }
         ExecuteMsg::MassUpdatePools {} => {
             update_rewards_and_execute(deps, env, None, ExecuteOnReply::MassUpdatePools {})
         }
@@ -154,16 +166,12 @@ pub fn execute(
 pub fn add(
     mut deps: DepsMut,
     env: Env,
-    sender: Addr,
     lp_token: Addr,
     alloc_point: Uint64,
     with_update: bool,
     reward_proxy: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
-    if sender != cfg.owner {
-        return Err(ContractError::Unauthorized {});
-    }
 
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
 
@@ -214,15 +222,11 @@ pub fn add(
 pub fn set(
     mut deps: DepsMut,
     env: Env,
-    sender: Addr,
     lp_token: Addr,
     alloc_point: Uint64,
     with_update: bool,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
-    if sender != cfg.owner {
-        return Err(ContractError::Unauthorized {});
-    }
 
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
 
@@ -356,26 +360,16 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
             match action {
                 ExecuteOnReply::MassUpdatePools {} => mass_update_pools(deps, env),
                 ExecuteOnReply::Add {
-                    sender,
                     lp_token,
                     alloc_point,
                     with_update,
                     reward_proxy,
-                } => add(
-                    deps,
-                    env,
-                    sender,
-                    lp_token,
-                    alloc_point,
-                    with_update,
-                    reward_proxy,
-                ),
+                } => add(deps, env, lp_token, alloc_point, with_update, reward_proxy),
                 ExecuteOnReply::Set {
-                    sender,
                     lp_token,
                     alloc_point,
                     with_update,
-                } => set(deps, env, sender, lp_token, alloc_point, with_update),
+                } => set(deps, env, lp_token, alloc_point, with_update),
                 ExecuteOnReply::UpdatePool { lp_token } => update_pool(deps, env, lp_token),
                 ExecuteOnReply::Deposit {
                     lp_token,

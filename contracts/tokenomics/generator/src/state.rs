@@ -43,14 +43,12 @@ pub struct Config {
 pub enum ExecuteOnReply {
     MassUpdatePools {},
     Add {
-        sender: Addr,
         lp_token: Addr,
         alloc_point: Uint64,
         with_update: bool,
         reward_proxy: Option<String>,
     },
     Set {
-        sender: Addr,
         lp_token: Addr,
         alloc_point: Uint64,
         with_update: bool,
