@@ -127,13 +127,13 @@ pub fn execute(
         ),
         ExecuteMsg::EmergencyWithdraw { lp_token } => emergency_withdraw(deps, env, info, lp_token),
         ExecuteMsg::SetAllowedRewardProxies { proxies } => {
-            Ok(set_allowed_reward_proxies(deps, proxies)?)
+            set_allowed_reward_proxies(deps, info, proxies)
         }
         ExecuteMsg::SendOrphanProxyReward {
             recipient,
             lp_token,
         } => before_send_orphan_proxy_rewards(deps, env, info, recipient, lp_token),
-        ExecuteMsg::SetTokensPerBlock { amount } => set_tokens_per_block(deps, amount),
+        ExecuteMsg::SetTokensPerBlock { amount } => set_tokens_per_block(deps, info, amount),
     }
 }
 
@@ -249,9 +249,7 @@ fn update_rewards_and_execute(
 ) -> Result<Response, ContractError> {
     TMP_USER_ACTION.update(deps.storage, |v| {
         if v.is_some() {
-            Err(StdError::GenericErr {
-                msg: String::from("Repetitive reply definition!"),
-            })
+            Err(StdError::generic_err("Repetitive reply definition!"))
         } else {
             Ok(Some(on_reply))
         }
@@ -692,7 +690,17 @@ pub fn emergency_withdraw(
     ))
 }
 
-fn set_allowed_reward_proxies(deps: DepsMut, proxies: Vec<String>) -> StdResult<Response> {
+fn set_allowed_reward_proxies(
+    deps: DepsMut,
+    info: MessageInfo,
+    proxies: Vec<String>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
     let mut allowed_reward_proxies: Vec<Addr> = vec![];
     for proxy in proxies {
         allowed_reward_proxies.push(deps.api.addr_validate(&proxy)?);
@@ -793,7 +801,17 @@ fn send_orphan_proxy_rewards(
     ))
 }
 
-fn set_tokens_per_block(deps: DepsMut, amount: Uint128) -> Result<Response, ContractError> {
+fn set_tokens_per_block(
+    deps: DepsMut,
+    info: MessageInfo,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
     CONFIG.update::<_, ContractError>(deps.storage, |mut v| {
         v.tokens_per_block = amount;
         Ok(v)

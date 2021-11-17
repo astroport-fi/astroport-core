@@ -436,6 +436,26 @@ fn generator_with_mirror_reward_proxy() {
     let msg = GeneratorExecuteMsg::SetAllowedRewardProxies {
         proxies: vec![proxy_to_mirror_instance.to_string()],
     };
+    assert_eq!(
+        app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+            .unwrap_err()
+            .to_string(),
+        String::from("Unauthorized")
+    );
+
+    let msg = GeneratorExecuteMsg::SetTokensPerBlock {
+        amount: Uint128::from(100u64),
+    };
+    assert_eq!(
+        app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+            .unwrap_err()
+            .to_string(),
+        String::from("Unauthorized")
+    );
+
+    let msg = GeneratorExecuteMsg::SetAllowedRewardProxies {
+        proxies: vec![proxy_to_mirror_instance.to_string()],
+    };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
 
