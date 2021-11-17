@@ -67,20 +67,45 @@ pub fn execute(
             alloc_point,
             with_update,
             reward_proxy,
-        } => add(
-            deps,
-            env,
-            info,
-            lp_token,
-            alloc_point,
-            with_update,
-            reward_proxy,
-        ),
+        } => {
+            let cfg = CONFIG.load(deps.storage)?;
+            if info.sender != cfg.owner {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            update_rewards_and_execute(
+                deps,
+                env,
+                None,
+                ExecuteOnReply::Add {
+                    lp_token,
+                    alloc_point,
+                    with_update,
+                    reward_proxy,
+                },
+            )
+        }
         ExecuteMsg::Set {
             lp_token,
             alloc_point,
             with_update,
-        } => set(deps, env, info, lp_token, alloc_point, with_update),
+        } => {
+            let cfg = CONFIG.load(deps.storage)?;
+            if info.sender != cfg.owner {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            update_rewards_and_execute(
+                deps,
+                env,
+                None,
+                ExecuteOnReply::Set {
+                    lp_token,
+                    alloc_point,
+                    with_update,
+                },
+            )
+        }
         ExecuteMsg::MassUpdatePools {} => {
             update_rewards_and_execute(deps, env, None, ExecuteOnReply::MassUpdatePools {})
         }
@@ -139,18 +164,14 @@ pub fn execute(
 
 // Add a new lp to the pool. Can only be called by the owner.
 pub fn add(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     lp_token: Addr,
     alloc_point: Uint64,
     with_update: bool,
     reward_proxy: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
-    if info.sender != cfg.owner {
-        return Err(ContractError::Unauthorized {});
-    }
 
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
 
@@ -167,6 +188,8 @@ pub fn add(
             return Err(ContractError::RewardProxyNotAllowed {});
         }
     }
+
+    mass_update_pools(deps.branch(), env.clone())?;
 
     cfg.total_alloc_point = cfg.total_alloc_point.checked_add(alloc_point)?;
 
@@ -197,21 +220,19 @@ pub fn add(
 
 // Update the given pool's ASTRO allocation point. Can only be called by the owner.
 pub fn set(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     lp_token: Addr,
     alloc_point: Uint64,
     with_update: bool,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
-    if info.sender != cfg.owner {
-        return Err(ContractError::Unauthorized {});
-    }
 
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
 
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_token)?;
+
+    mass_update_pools(deps.branch(), env.clone())?;
 
     cfg.total_alloc_point = cfg
         .total_alloc_point
@@ -338,6 +359,17 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
             TMP_USER_ACTION.save(deps.storage, &None)?;
             match action {
                 ExecuteOnReply::MassUpdatePools {} => mass_update_pools(deps, env),
+                ExecuteOnReply::Add {
+                    lp_token,
+                    alloc_point,
+                    with_update,
+                    reward_proxy,
+                } => add(deps, env, lp_token, alloc_point, with_update, reward_proxy),
+                ExecuteOnReply::Set {
+                    lp_token,
+                    alloc_point,
+                    with_update,
+                } => set(deps, env, lp_token, alloc_point, with_update),
                 ExecuteOnReply::UpdatePool { lp_token } => update_pool(deps, env, lp_token),
                 ExecuteOnReply::Deposit {
                     lp_token,
