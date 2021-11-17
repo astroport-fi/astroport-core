@@ -2,10 +2,10 @@ use astroport::{
     token::InstantiateMsg as TokenInstantiateMsg,
     vesting::{ExecuteMsg, InstantiateMsg, VestingAccount, VestingSchedule, VestingSchedulePoint},
 };
-use cosmwasm_std::{testing::{mock_env, MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR}, to_binary, Addr, StdResult, Uint128, Uint64, Timestamp, from_binary};
+use cosmwasm_std::{testing::{mock_env, MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR}, to_binary, Addr, StdResult, Uint128, Uint64, Timestamp, from_binary, attr, WasmMsg, SubMsg, ReplyOn, BlockInfo};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{next_block, App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
-use astroport::vesting::QueryMsg;
+use astroport::vesting::{QueryMsg, VestingAccountResponse, VestingInfo};
 use astroport_vesting::state::Config;
 
 const OWNER: &str = "Owner";
@@ -45,7 +45,7 @@ fn register_vesting_accounts() {
                     amount: Uint128::zero(),
                 },
                 end_point: Some(VestingSchedulePoint {
-                    time: Timestamp::from_seconds(200),
+                    time: Timestamp::from_seconds(150),
                     amount: Uint128::new(100),
                 }),
             }],
@@ -67,6 +67,27 @@ fn register_vesting_accounts() {
         .unwrap();
 
     assert_eq!(vesting_res, Uint128::new(100u128));
+
+    let msg = ExecuteMsg::Claim {
+        recipient: None,
+        amount: None,
+    };
+    let res = app.execute_contract(user1.clone(), vesting_instance.clone(), &msg, &[]).unwrap();
+
+    let msg = QueryMsg::VestingAccount {
+        address: user1.clone(),
+    };
+
+    let vesting_res: VestingAccountResponse = app
+        .wrap()
+        .query_wasm_smart(vesting_instance.clone(), &msg)
+        .unwrap();
+    assert_eq!(vesting_res.info.released_amount, Uint128::from(100u128));
+
+    // Timestamp::from_seconds(101);
+
+    app.update_block(|bi| next_block(bi));
+    let res = app.execute_contract(owner.clone(), vesting_instance.clone(), &msg, &[]).unwrap();
 
     let msg = ExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![VestingAccount {
