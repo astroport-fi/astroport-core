@@ -209,7 +209,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 Uint128::zero()
             };
 
-            to_binary(&Some(pending_reward))
+            to_binary(&pending_reward)
         }
         QueryMsg::RewardInfo {} => {
             let config = CONFIG.load(deps.storage)?;
