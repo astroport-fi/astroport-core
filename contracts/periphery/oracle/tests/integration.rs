@@ -64,6 +64,17 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
 
     let pair_code_id = router.store_code(pair_contract);
 
+    let pair_stable_contract = Box::new(
+        ContractWrapper::new(
+            astroport_pair_stable::contract::execute,
+            astroport_pair_stable::contract::instantiate,
+            astroport_pair_stable::contract::query,
+        )
+        .with_reply(astroport_pair_stable::contract::reply),
+    );
+
+    let pair_stable_code_id = router.store_code(pair_stable_contract);
+
     let factory_contract = Box::new(
         ContractWrapper::new(
             astroport_factory::contract::execute,
@@ -80,7 +91,11 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
             total_fee_bps: 0,
             maker_fee_bps: 0,
         }),
-        pair_stable_config: None,
+        pair_stable_config: Some(PairConfig {
+            code_id: pair_stable_code_id,
+            total_fee_bps: 0,
+            maker_fee_bps: 0,
+        }),
         token_code_id: 1u64,
         fee_address: None,
         gov: None,
@@ -232,6 +247,113 @@ fn create_pair(
         .unwrap();
 
     assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr(
+            "pair",
+            format!(
+                "{}-{}",
+                asset_infos[0].to_string(),
+                asset_infos[1].to_string()
+            ),
+        )
+    );
+
+    // Get pair
+    let pair_info: PairInfo = router
+        .wrap()
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: factory_instance.clone().to_string(),
+            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+                asset_infos: asset_infos.clone(),
+            })
+            .unwrap(),
+        }))
+        .unwrap();
+
+    let mut funds = vec![];
+
+    for a in assets.clone() {
+        match a.info {
+            AssetInfo::Token { contract_addr } => {
+                allowance_token(
+                    &mut router,
+                    user.clone(),
+                    pair_info.contract_addr.clone(),
+                    contract_addr.clone(),
+                    a.amount.clone(),
+                );
+            }
+            AssetInfo::NativeToken { denom } => {
+                funds.push(Coin {
+                    denom,
+                    amount: a.amount,
+                });
+            }
+        }
+    }
+
+    router.init_bank_balance(&user, funds.clone()).unwrap();
+
+    router
+        .execute_contract(
+            user.clone(),
+            pair_info.contract_addr.clone(),
+            &astroport::pair::ExecuteMsg::ProvideLiquidity {
+                assets,
+                slippage_tolerance: None,
+                auto_stake: None,
+                receiver: None,
+            },
+            &funds,
+        )
+        .unwrap();
+
+    pair_info
+}
+
+fn create_pair_stable(
+    mut router: &mut App,
+    owner: Addr,
+    user: Addr,
+    factory_instance: &Addr,
+    assets: [Asset; 2],
+) -> PairInfo {
+    for a in assets.clone() {
+        match a.info {
+            AssetInfo::Token { contract_addr } => {
+                mint_some_token(
+                    &mut router,
+                    owner.clone(),
+                    contract_addr.clone(),
+                    user.clone(),
+                    a.amount,
+                );
+            }
+
+            _ => {}
+        }
+    }
+
+    let asset_infos = [assets[0].info.clone(), assets[1].info.clone()];
+
+    // Create pair in factory
+    let res = router
+        .execute_contract(
+            owner.clone(),
+            factory_instance.clone(),
+            &astroport::factory::ExecuteMsg::CreatePairStable {
+                asset_infos: asset_infos.clone(),
+                amp: 100,
+            },
+            &[],
+        )
+        .unwrap();
+
+    assert_eq!(
+        res.events[1].attributes[1],
+        attr("action", "create_pair_stable")
+    );
     assert_eq!(
         res.events[1].attributes[2],
         attr(
@@ -469,6 +591,137 @@ fn consult() {
         usdc_token_instance.clone(),
         Uint128::from(10_000_u128),
         Uint128::from(10_000_u128),
+    );
+    router.update_block(next_day);
+    router
+        .execute_contract(
+            owner.clone(),
+            oracle_instance.clone(),
+            &ExecuteMsg::Update {},
+            &[],
+        )
+        .unwrap();
+
+    for (addr, amount) in [
+        (astro_token_instance.clone(), Uint128::from(1000u128)),
+        (usdc_token_instance.clone(), Uint128::from(100u128)),
+    ] {
+        let msg = Consult {
+            token: AssetInfo::Token {
+                contract_addr: addr,
+            },
+            amount,
+        };
+        let res: Uint128 = router
+            .wrap()
+            .query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: oracle_instance.to_string(),
+                msg: to_binary(&msg).unwrap(),
+            }))
+            .unwrap();
+        assert_eq!(res, amount);
+    }
+}
+
+#[test]
+fn consult_pair_stable() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+    let user = Addr::unchecked("user0000");
+    let (astro_token_instance, factory_instance, oracle_code_id) =
+        instantiate_contracts(&mut router, owner.clone());
+
+    let usdc_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Usdc token".to_string(),
+        "USDC".to_string(),
+    );
+
+    let asset_infos = [
+        AssetInfo::Token {
+            contract_addr: usdc_token_instance.clone(),
+        },
+        AssetInfo::Token {
+            contract_addr: astro_token_instance.clone(),
+        },
+    ];
+    create_pair_stable(
+        &mut router,
+        owner.clone(),
+        user.clone(),
+        &factory_instance,
+        [
+            Asset {
+                info: asset_infos[0].clone(),
+                amount: Uint128::from(100_000_000000u128),
+            },
+            Asset {
+                info: asset_infos[1].clone(),
+                amount: Uint128::from(100_000_000000u128),
+            },
+        ],
+    );
+    router.update_block(next_day);
+    let pair_info: PairInfo = router
+        .wrap()
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: factory_instance.clone().to_string(),
+            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+                asset_infos: asset_infos.clone(),
+            })
+            .unwrap(),
+        }))
+        .unwrap();
+
+    change_provide_liquidity(
+        &mut router,
+        owner.clone(),
+        user.clone(),
+        pair_info.contract_addr.clone(),
+        astro_token_instance.clone(),
+        usdc_token_instance.clone(),
+        Uint128::from(500_000_000000u128),
+        Uint128::from(500_000_000000u128),
+    );
+    router.update_block(next_day);
+
+    let msg = InstantiateMsg {
+        factory_contract: factory_instance.to_string(),
+        asset_infos: asset_infos.clone(),
+    };
+    let oracle_instance = router
+        .instantiate_contract(
+            oracle_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("ORACLE"),
+            None,
+        )
+        .unwrap();
+
+    let e = router
+        .execute_contract(
+            owner.clone(),
+            oracle_instance.clone(),
+            &ExecuteMsg::Update {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(e.to_string(), "Period not elapsed",);
+    router.update_block(next_day);
+
+    // Change pair liquidity
+    change_provide_liquidity(
+        &mut router,
+        owner.clone(),
+        user,
+        pair_info.contract_addr,
+        astro_token_instance.clone(),
+        usdc_token_instance.clone(),
+        Uint128::from(100_000_000000u128),
+        Uint128::from(100_000_000000u128),
     );
     router.update_block(next_day);
     router

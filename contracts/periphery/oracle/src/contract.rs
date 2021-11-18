@@ -2,7 +2,6 @@ use crate::error::ContractError;
 use crate::querier::{query_cumulative_prices, query_pair_info, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
 use astroport::asset::{Asset, AssetInfo};
-use astroport::factory::PairType;
 use astroport::oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use astroport::querier::query_token_precision;
 use cosmwasm_bignumber::{Decimal256, Uint256};
@@ -33,10 +32,6 @@ pub fn instantiate(
         factory_contract.clone(),
         msg.asset_infos.clone(),
     )?;
-
-    if pair_info.pair_type != (PairType::Xyk {}) {
-        return Err(ContractError::InvalidToken {});
-    }
 
     let config = Config {
         owner: info.sender,

@@ -118,6 +118,7 @@ dependencies = [
  "astroport",
  "astroport-factory",
  "astroport-pair",
+ "astroport-pair-stable",
  "astroport-token",
  "cosmwasm-bignumber",
  "cosmwasm-schema",
