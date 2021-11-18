@@ -11,7 +11,4 @@ pub enum ContractError {
 
     #[error("Period not elapsed")]
     WrongPeriod {},
-
-    #[error("Invalid token")]
-    InvalidToken {},
 }
