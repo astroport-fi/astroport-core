@@ -193,7 +193,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             // query the end reward contract for pending token amount if possible
             unimplemented!();
 
-            // return amount (Some(Uint128) or None)
+            // return pending token amount if possible or non-zero amount Uint128
         }
         QueryMsg::RewardInfo {} => {
             let config = CONFIG.load(deps.storage)?;
