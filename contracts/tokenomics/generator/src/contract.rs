@@ -450,11 +450,11 @@ pub fn update_pool_rewards(
                 .querier
                 .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?;
 
-            let reward_amount: Uint128 = deps
-                .querier
-                .query_wasm_smart(proxy, &ProxyQueryMsg::Reward {})?;
-
             if !lp_supply.is_zero() {
+                let reward_amount: Uint128 = deps
+                    .querier
+                    .query_wasm_smart(proxy, &ProxyQueryMsg::Reward {})?;
+
                 let token_rewards =
                     reward_amount.checked_sub(pool.proxy_reward_balance_before_update)?;
 
