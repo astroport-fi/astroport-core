@@ -237,6 +237,7 @@ name = "astroport-vesting"
 version = "1.0.0"
 dependencies = [
  "astroport",
+ "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -244,6 +245,7 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
+ "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
  "thiserror",
 ]
 
