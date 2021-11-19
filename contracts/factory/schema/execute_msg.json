@@ -35,7 +35,7 @@
             "gov": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/Addr"
+                  "$ref": "#/definitions/GovAddrAction"
                 },
                 {
                   "type": "null"
@@ -214,6 +214,42 @@
                   "type": "string"
                 }
               }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "GovAddrAction": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "set"
+          ],
+          "properties": {
+            "set": {
+              "type": "object",
+              "required": [
+                "address"
+              ],
+              "properties": {
+                "address": {
+                  "$ref": "#/definitions/Addr"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "remove"
+          ],
+          "properties": {
+            "remove": {
+              "type": "object"
             }
           },
           "additionalProperties": false

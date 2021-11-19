@@ -8,7 +8,7 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use astroport::factory::PairConfig;
 use astroport::maker::{
-    ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
+    ExecuteMsg, GovAddrAction, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
 };
 
 fn mock_app() -> App {
@@ -366,6 +366,45 @@ fn collect_all() {
         .query_wasm_smart(&maker_instance, &msg)
         .unwrap();
     assert_eq!(res.governance_percent, governance_percent);
+    assert_eq!(res.governance_contract, Some(governance.clone()));
+
+    let msg = ExecuteMsg::SetConfig {
+        owner: None,
+        governance_percent: Some(governance_percent),
+        governance_contract: Some(GovAddrAction::Remove {}),
+        staking_contract: None,
+    };
+
+    router
+        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = QueryMsg::Config {};
+    let res: QueryConfigResponse = router
+        .wrap()
+        .query_wasm_smart(&maker_instance, &msg)
+        .unwrap();
+    assert_eq!(res.governance_contract, None);
+
+    let msg = ExecuteMsg::SetConfig {
+        owner: None,
+        governance_percent: Some(governance_percent),
+        governance_contract: Some(GovAddrAction::Set {
+            address: governance.to_string(),
+        }),
+        staking_contract: None,
+    };
+
+    router
+        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = QueryMsg::Config {};
+    let res: QueryConfigResponse = router
+        .wrap()
+        .query_wasm_smart(&maker_instance, &msg)
+        .unwrap();
+    assert_eq!(res.governance_contract, Some(governance.clone()));
 
     let usdc_token_instance = instantiate_token(
         &mut router,

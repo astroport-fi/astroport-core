@@ -22,7 +22,8 @@ pub enum ExecuteMsg {
     SetConfig {
         owner: Option<String>,
         staking_contract: Option<String>,
-        governance_contract: Option<String>,
+
+        governance_contract: Option<GovAddrAction>,
         governance_percent: Option<Uint64>,
     },
 }
@@ -49,4 +50,11 @@ pub struct QueryConfigResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct QueryBalancesResponse {
     pub balances: Vec<Asset>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum GovAddrAction {
+    Set { address: String },
+    Remove {},
 }

@@ -5,6 +5,7 @@
   "required": [
     "astro_token_contract",
     "factory_contract",
+    "owner",
     "staking_contract"
   ],
   "properties": {
@@ -29,6 +30,9 @@
           "type": "null"
         }
       ]
+    },
+    "owner": {
+      "type": "string"
     },
     "staking_contract": {
       "type": "string"
