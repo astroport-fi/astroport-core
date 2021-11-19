@@ -142,7 +142,8 @@ fn register_vesting_accounts() {
         &vesting_instance.clone(),
         300u128,
     );
-    // new schedule have been added successfully and old one haven't changed
+    // A new schedule have been added successfully and an old one haven't changed.
+    // The new one doesn't have the same value as old one.
     assert_eq!(user2_vesting_amount, Uint128::new(200u128));
     assert_eq!(user1_vesting_amount, Uint128::from(100u128));
 
