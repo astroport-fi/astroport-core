@@ -35,9 +35,13 @@
           "type": "object",
           "properties": {
             "governance_contract": {
-              "type": [
-                "string",
-                "null"
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/UpdateAddr"
+                },
+                {
+                  "type": "null"
+                }
               ]
             },
             "governance_percent": {
@@ -48,6 +52,12 @@
                 {
                   "type": "null"
                 }
+              ]
+            },
+            "owner": {
+              "type": [
+                "string",
+                "null"
               ]
             },
             "staking_contract": {
@@ -70,6 +80,42 @@
     "Uint64": {
       "description": "A thin wrapper around u64 that is using strings for JSON encoding/decoding, such that the full u64 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u64` to get the value out:\n\n``` # use cosmwasm_std::Uint64; let a = Uint64::from(42u64); assert_eq!(a.u64(), 42);\n\nlet b = Uint64::from(70u32); assert_eq!(b.u64(), 70); ```",
       "type": "string"
+    },
+    "UpdateAddr": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "set"
+          ],
+          "properties": {
+            "set": {
+              "type": "object",
+              "required": [
+                "address"
+              ],
+              "properties": {
+                "address": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "remove"
+          ],
+          "properties": {
+            "remove": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     }
   }
 }

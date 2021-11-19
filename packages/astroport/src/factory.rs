@@ -52,7 +52,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// UpdateConfig updates relevant code IDs
     UpdateConfig {
-        gov: Option<Addr>,
+        gov: Option<UpdateAddr>,
         owner: Option<Addr>,
         token_code_id: Option<u64>,
         fee_address: Option<Addr>,
@@ -128,4 +128,11 @@ pub fn factory_config(factory_addr: Addr, deps: &DepsMut) -> StdResult<ConfigRes
         contract_addr: factory_addr.to_string(),
         msg: to_binary(&QueryMsg::Config {})?,
     }))
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateAddr {
+    Set { address: String },
+    Remove {},
 }

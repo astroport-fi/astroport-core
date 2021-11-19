@@ -35,7 +35,7 @@
             "gov": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/Addr"
+                  "$ref": "#/definitions/UpdateAddr"
                 },
                 {
                   "type": "null"
@@ -244,6 +244,42 @@
           "minimum": 0.0
         }
       }
+    },
+    "UpdateAddr": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "set"
+          ],
+          "properties": {
+            "set": {
+              "type": "object",
+              "required": [
+                "address"
+              ],
+              "properties": {
+                "address": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "remove"
+          ],
+          "properties": {
+            "remove": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     }
   }
 }

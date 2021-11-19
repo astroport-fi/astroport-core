@@ -1,4 +1,5 @@
 use crate::asset::{Asset, AssetInfo};
+use crate::factory::UpdateAddr;
 use cosmwasm_std::{Addr, Uint64};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -22,7 +23,8 @@ pub enum ExecuteMsg {
     SetConfig {
         owner: Option<String>,
         staking_contract: Option<String>,
-        governance_contract: Option<String>,
+
+        governance_contract: Option<UpdateAddr>,
         governance_percent: Option<Uint64>,
     },
 }

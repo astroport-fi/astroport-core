@@ -2,7 +2,9 @@ use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, Addr};
 
 use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::{ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, QueryMsg};
+use astroport::factory::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, QueryMsg, UpdateAddr,
+};
 
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -110,7 +112,9 @@ fn update_config() {
 
     // update owner
     let msg = ExecuteMsg::UpdateConfig {
-        gov: Some(new_owner.clone()),
+        gov: Some(UpdateAddr::Set {
+            address: new_owner.to_string(),
+        }),
         owner: Some(new_owner.clone()),
         token_code_id: None,
         fee_address: None,
@@ -128,8 +132,49 @@ fn update_config() {
         .query_wasm_smart(&factory_instance, &msg)
         .unwrap();
     assert_eq!(token_code_id, config_res.token_code_id);
+    assert_eq!(new_owner.clone(), config_res.gov.unwrap());
     assert_eq!(new_owner.clone(), config_res.owner);
-    assert_eq!(Some(pair_config), config_res.pair_stable_config);
+    assert_eq!(Some(pair_config.clone()), config_res.pair_stable_config);
+
+    let msg = ExecuteMsg::UpdateConfig {
+        gov: None,
+        owner: Some(new_owner.clone()),
+        token_code_id: None,
+        fee_address: None,
+        generator_address: None,
+        pair_xyk_config: None,
+        pair_stable_config: Some(pair_config.clone()),
+    };
+
+    app.execute_contract(new_owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = QueryMsg::Config {};
+    let config_res: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&factory_instance, &msg)
+        .unwrap();
+    assert_eq!(new_owner.clone(), config_res.gov.unwrap());
+
+    let msg = ExecuteMsg::UpdateConfig {
+        gov: Some(UpdateAddr::Remove {}),
+        owner: Some(new_owner.clone()),
+        token_code_id: None,
+        fee_address: None,
+        generator_address: None,
+        pair_xyk_config: None,
+        pair_stable_config: Some(pair_config.clone()),
+    };
+
+    app.execute_contract(new_owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = QueryMsg::Config {};
+    let config_res: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&factory_instance, &msg)
+        .unwrap();
+    assert_eq!(None, config_res.gov);
 
     // update left items
     let fee_address = Some(Addr::unchecked("fee"));
