@@ -35,7 +35,7 @@
             "gov": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/GovAddrAction"
+                  "$ref": "#/definitions/UpdateAddr"
                 },
                 {
                   "type": "null"
@@ -220,42 +220,6 @@
         }
       ]
     },
-    "GovAddrAction": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "set"
-          ],
-          "properties": {
-            "set": {
-              "type": "object",
-              "required": [
-                "address"
-              ],
-              "properties": {
-                "address": {
-                  "$ref": "#/definitions/Addr"
-                }
-              }
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "remove"
-          ],
-          "properties": {
-            "remove": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
     "PairConfig": {
       "type": "object",
       "required": [
@@ -280,6 +244,42 @@
           "minimum": 0.0
         }
       }
+    },
+    "UpdateAddr": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "set"
+          ],
+          "properties": {
+            "set": {
+              "type": "object",
+              "required": [
+                "address"
+              ],
+              "properties": {
+                "address": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "remove"
+          ],
+          "properties": {
+            "remove": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     }
   }
 }

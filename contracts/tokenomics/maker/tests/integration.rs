@@ -6,9 +6,9 @@ use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuer
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
-use astroport::factory::PairConfig;
+use astroport::factory::{PairConfig, UpdateAddr};
 use astroport::maker::{
-    ExecuteMsg, GovAddrAction, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
+    ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
 };
 
 fn mock_app() -> App {
@@ -371,7 +371,7 @@ fn collect_all() {
     let msg = ExecuteMsg::SetConfig {
         owner: None,
         governance_percent: Some(governance_percent),
-        governance_contract: Some(GovAddrAction::Remove {}),
+        governance_contract: Some(UpdateAddr::Remove {}),
         staking_contract: None,
     };
 
@@ -389,7 +389,7 @@ fn collect_all() {
     let msg = ExecuteMsg::SetConfig {
         owner: None,
         governance_percent: Some(governance_percent),
-        governance_contract: Some(GovAddrAction::Set {
+        governance_contract: Some(UpdateAddr::Set {
             address: governance.to_string(),
         }),
         staking_contract: None,

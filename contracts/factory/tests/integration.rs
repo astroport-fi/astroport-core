@@ -3,7 +3,7 @@ use cosmwasm_std::{attr, Addr};
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
-    ConfigResponse, ExecuteMsg, GovAddrAction, InstantiateMsg, PairConfig, QueryMsg,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, QueryMsg, UpdateAddr,
 };
 
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
@@ -112,8 +112,8 @@ fn update_config() {
 
     // update owner
     let msg = ExecuteMsg::UpdateConfig {
-        gov: Some(GovAddrAction::Set {
-            address: new_owner.clone(),
+        gov: Some(UpdateAddr::Set {
+            address: new_owner.to_string(),
         }),
         owner: Some(new_owner.clone()),
         token_code_id: None,
@@ -157,7 +157,7 @@ fn update_config() {
     assert_eq!(new_owner.clone(), config_res.gov.unwrap());
 
     let msg = ExecuteMsg::UpdateConfig {
-        gov: Some(GovAddrAction::Remove {}),
+        gov: Some(UpdateAddr::Remove {}),
         owner: Some(new_owner.clone()),
         token_code_id: None,
         fee_address: None,

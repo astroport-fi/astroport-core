@@ -1,4 +1,5 @@
 use crate::asset::{Asset, AssetInfo};
+use crate::factory::UpdateAddr;
 use cosmwasm_std::{Addr, Uint64};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -23,7 +24,7 @@ pub enum ExecuteMsg {
         owner: Option<String>,
         staking_contract: Option<String>,
 
-        governance_contract: Option<GovAddrAction>,
+        governance_contract: Option<UpdateAddr>,
         governance_percent: Option<Uint64>,
     },
 }
@@ -50,11 +51,4 @@ pub struct QueryConfigResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct QueryBalancesResponse {
     pub balances: Vec<Asset>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum GovAddrAction {
-    Set { address: String },
-    Remove {},
 }

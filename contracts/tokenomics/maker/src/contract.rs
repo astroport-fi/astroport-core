@@ -1,8 +1,9 @@
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::factory::UpdateAddr;
 use astroport::maker::{
-    ExecuteMsg, GovAddrAction, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
+    ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
 };
 use astroport::pair::{Cw20HookMsg, QueryMsg as PairQueryMsg};
 use astroport::querier::query_pair_info;
@@ -230,7 +231,7 @@ fn set_config(
     info: MessageInfo,
     owner: Option<String>,
     staking_contract: Option<String>,
-    governance_contract: Option<GovAddrAction>,
+    governance_contract: Option<UpdateAddr>,
     governance_percent: Option<Uint64>,
 ) -> Result<Response, ContractError> {
     let mut event = Event::new("Set config".to_string());
@@ -254,20 +255,18 @@ fn set_config(
             .push(Attribute::new("staking_contract", &staking_contract));
     };
 
-    match governance_contract {
-        Some(GovAddrAction::Set {
-            address: governance_contract,
-        }) => {
-            config.governance_contract =
-                Option::from(deps.api.addr_validate(&governance_contract)?);
-            event
-                .attributes
-                .push(Attribute::new("governance_contract", &governance_contract));
+    if let Some(action) = governance_contract {
+        match action {
+            UpdateAddr::Set { address: gov } => {
+                config.governance_contract = Option::from(deps.api.addr_validate(&gov)?);
+                event
+                    .attributes
+                    .push(Attribute::new("governance_contract", &gov));
+            }
+            UpdateAddr::Remove {} => {
+                config.governance_contract = None;
+            }
         }
-        Some(GovAddrAction::Remove {}) => {
-            config.governance_contract = None;
-        }
-        _ => {}
     }
 
     if let Some(governance_percent) = governance_percent {

@@ -12,8 +12,8 @@ use crate::response::MsgInstantiateContractResponse;
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
-    ConfigResponse, ExecuteMsg, FeeInfoResponse, GovAddrAction, InstantiateMsg, MigrateMsg,
-    PairConfig, PairType, PairsResponse, QueryMsg,
+    ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
+    PairsResponse, QueryMsg, UpdateAddr,
 };
 
 use astroport::pair::{
@@ -80,7 +80,7 @@ pub fn instantiate(
 }
 
 pub struct UpdateConfig {
-    gov: Option<GovAddrAction>,
+    gov: Option<UpdateAddr>,
     owner: Option<Addr>,
     token_code_id: Option<u64>,
     fee_address: Option<Addr>,
@@ -141,16 +141,15 @@ pub fn execute_update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    match param.gov {
-        Some(GovAddrAction::Set {
-            address: governance_contract,
-        }) => {
-            config.gov = Option::from(deps.api.addr_validate(governance_contract.as_str())?);
+    if let Some(action) = param.gov {
+        match action {
+            UpdateAddr::Set { address: gov } => {
+                config.gov = Option::from(deps.api.addr_validate(&gov)?);
+            }
+            UpdateAddr::Remove {} => {
+                config.gov = None;
+            }
         }
-        Some(GovAddrAction::Remove {}) => {
-            config.gov = None;
-        }
-        _ => {}
     }
 
     if let Some(owner) = param.owner {
