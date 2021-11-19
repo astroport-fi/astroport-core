@@ -281,8 +281,15 @@ fn instantiate_token(app: &mut App, token_code_id: u64, name: &str, cap: Option<
         }),
     };
 
-    app.instantiate_contract(token_code_id, Addr::unchecked(OWNER1), &msg, &[], name, None)
-        .unwrap()
+    app.instantiate_contract(
+        token_code_id,
+        Addr::unchecked(OWNER1),
+        &msg,
+        &[],
+        name,
+        None,
+    )
+    .unwrap()
 }
 
 fn instantiate_vesting(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
