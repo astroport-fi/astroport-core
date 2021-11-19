@@ -106,9 +106,9 @@ pub fn register_vesting_accounts(
     }
 
     let mut to_deposit = Uint128::zero();
-    let mut released_amount = Uint128::zero();
 
     for mut vesting_account in vesting_accounts {
+        let mut released_amount = Uint128::zero();
         let account_address = deps.api.addr_validate(&vesting_account.address)?;
 
         assert_vesting_schedules(&account_address, &vesting_account.schedules)?;

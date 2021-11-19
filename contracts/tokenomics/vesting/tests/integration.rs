@@ -11,15 +11,17 @@ use cosmwasm_std::{
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
-const OWNER: &str = "Owner";
-const USER1: &str = "User1";
 const OWNER1: &str = "Owner1";
+const OWNER2: &str = "Owner2";
+const USER1: &str = "User1";
+const USER2: &str = "User2";
 const TOKEN_INITIAL_AMOUNT: u128 = 1_000_000_000_000000;
 
 #[test]
 fn register_vesting_accounts() {
     let user1 = Addr::unchecked(USER1);
-    let owner = Addr::unchecked(OWNER);
+    let user2 = Addr::unchecked(USER2);
+    let owner = Addr::unchecked(OWNER1);
 
     let mut app = mock_app();
 
@@ -79,12 +81,12 @@ fn register_vesting_accounts() {
         address: user1.clone(),
     };
 
-    let vesting_res: Uint128 = app
+    let user1_vesting_amount: Uint128 = app
         .wrap()
         .query_wasm_smart(vesting_instance.clone(), &msg)
         .unwrap();
 
-    assert_eq!(vesting_res, Uint128::new(100u128));
+    assert_eq!(user1_vesting_amount.clone(), Uint128::new(100u128));
     check_token_balance(
         &mut app,
         &astro_token_instance,
@@ -98,7 +100,53 @@ fn register_vesting_accounts() {
         100u128,
     );
 
-    // add one more vesting schedule for account, final vesting amount must increase only
+    // let's check user1 final vesting amount after add schedule for a new one
+    let msg = ExecuteMsg::RegisterVestingAccounts {
+        vesting_accounts: vec![VestingAccount {
+            address: user2.to_string(),
+            schedules: vec![VestingSchedule {
+                start_point: VestingSchedulePoint {
+                    time: Timestamp::from_seconds(100),
+                    amount: Uint128::zero(),
+                },
+                end_point: Some(VestingSchedulePoint {
+                    time: Timestamp::from_seconds(150),
+                    amount: Uint128::new(200),
+                }),
+            }],
+        }],
+    };
+
+    let _res = app
+        .execute_contract(owner.clone(), vesting_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = QueryMsg::AvailableAmount {
+        address: user2.clone(),
+    };
+
+    let user2_vesting_amount: Uint128 = app
+        .wrap()
+        .query_wasm_smart(vesting_instance.clone(), &msg)
+        .unwrap();
+
+    check_token_balance(
+        &mut app,
+        &astro_token_instance,
+        &owner.clone(),
+        TOKEN_INITIAL_AMOUNT - 300u128,
+    );
+    check_token_balance(
+        &mut app,
+        &astro_token_instance,
+        &vesting_instance.clone(),
+        300u128,
+    );
+    // new schedule have been added successfully and old one haven't changed
+    assert_eq!(user2_vesting_amount, Uint128::new(200u128));
+    assert_eq!(user1_vesting_amount, Uint128::from(100u128));
+
+    // add one more vesting schedule account, final vesting amount must increase only
     let msg = ExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![VestingAccount {
             address: user1.to_string(),
@@ -133,13 +181,13 @@ fn register_vesting_accounts() {
         &mut app,
         &astro_token_instance,
         &owner.clone(),
-        TOKEN_INITIAL_AMOUNT - 110u128,
+        TOKEN_INITIAL_AMOUNT - 310u128,
     );
     check_token_balance(
         &mut app,
         &astro_token_instance,
         &vesting_instance.clone(),
-        110u128,
+        310u128,
     );
 
     let msg = ExecuteMsg::Claim {
@@ -163,7 +211,7 @@ fn register_vesting_accounts() {
         &mut app,
         &astro_token_instance,
         &vesting_instance.clone(),
-        0u128,
+        200u128,
     );
     check_token_balance(&mut app, &astro_token_instance, &user1.clone(), 110u128);
     // owner balance mustn't change after claim
@@ -171,7 +219,7 @@ fn register_vesting_accounts() {
         &mut app,
         &astro_token_instance,
         &owner.clone(),
-        TOKEN_INITIAL_AMOUNT - 110u128,
+        TOKEN_INITIAL_AMOUNT - 310u128,
     );
 
     let msg = ExecuteMsg::UpdateConfig {
@@ -184,7 +232,7 @@ fn register_vesting_accounts() {
     assert_eq!(res.to_string(), "Unauthorized");
 
     let msg = ExecuteMsg::UpdateConfig {
-        owner: Some(OWNER1.to_string()),
+        owner: Some(OWNER2.to_string()),
     };
 
     let _res = app
@@ -196,7 +244,7 @@ fn register_vesting_accounts() {
         .wrap()
         .query_wasm_smart(vesting_instance.clone(), &msg)
         .unwrap();
-    assert_eq!(OWNER1, config.owner);
+    assert_eq!(OWNER2, config.owner);
 }
 
 fn mock_app() -> App {
@@ -228,12 +276,12 @@ fn instantiate_token(app: &mut App, token_code_id: u64, name: &str, cap: Option<
         decimals: 6,
         initial_balances: vec![],
         mint: Some(MinterResponse {
-            minter: String::from(OWNER),
+            minter: String::from(OWNER1),
             cap: cap.map(|v| Uint128::from(v)),
         }),
     };
 
-    app.instantiate_contract(token_code_id, Addr::unchecked(OWNER), &msg, &[], name, None)
+    app.instantiate_contract(token_code_id, Addr::unchecked(OWNER1), &msg, &[], name, None)
         .unwrap()
 }
 
@@ -243,7 +291,7 @@ fn instantiate_vesting(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
         astroport_vesting::contract::instantiate,
         astroport_vesting::contract::query,
     ));
-    let owner = Addr::unchecked(OWNER);
+    let owner = Addr::unchecked(OWNER1);
     let vesting_code_id = app.store_code(vesting_contract);
 
     let init_msg = InstantiateMsg {
@@ -266,7 +314,7 @@ fn instantiate_vesting(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
         .wrap()
         .query_wasm_smart(vesting_instance.clone(), &QueryMsg::Config {})
         .unwrap();
-    assert_eq!(OWNER.clone(), res.owner);
+    assert_eq!(OWNER1.clone(), res.owner);
     assert_eq!(astro_token_instance.to_string(), res.token_addr.to_string());
 
     mint_tokens(
@@ -279,7 +327,7 @@ fn instantiate_vesting(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
     allow_tokens(
         &mut app,
         &astro_token_instance,
-        OWNER,
+        OWNER1,
         &vesting_instance.clone(),
         TOKEN_INITIAL_AMOUNT,
     );
@@ -300,7 +348,7 @@ fn mint_tokens(app: &mut App, token: &Addr, recipient: &Addr, amount: u128) {
         amount: Uint128::from(amount),
     };
 
-    app.execute_contract(Addr::unchecked(OWNER), token.to_owned(), &msg, &[])
+    app.execute_contract(Addr::unchecked(OWNER1), token.to_owned(), &msg, &[])
         .unwrap();
 }
 
