@@ -116,12 +116,18 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
         assets_map.insert(pair[1].to_string(), pair[1].clone());
     }
 
-    // Swap all non-astro tokens
-    for a in assets_map.values().cloned().filter(|a| a.ne(&astro)) {
+    for a in assets_map.values().cloned() {
         // Get Balance
         let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
         if !balance.is_zero() {
-            // Swap to astro and transfer to staking and governance
+            // Direct send astro tokens to staking and governance
+            if a.eq(&astro) {
+                response
+                    .messages
+                    .append(&mut distribute_astro(deps.as_ref(), &cfg, balance)?);
+                continue;
+            }
+            // Swap all non-astro tokens to astro and transfer to staking and governance
             response
                 .messages
                 .push(swap_to_astro(deps.as_ref(), &cfg, a, balance)?);
