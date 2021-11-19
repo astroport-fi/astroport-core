@@ -8,5 +8,10 @@
   "generatorAddress": "terra1sat6slc7ecwtgwequz46j8cmqt0fxl40gynnlp",
   "factoryAddress": "terra15g5gj857u7su26cnff787xkuhgej70r6qwmf8v",
   "routerAddress": "terra1rcjtcn0jxl8y9nzjdj97sj5eq7dlp2yrew9dsz",
-  "makerAddress": "terra14njj9xr8ggefpelfgqs9xy7rdf5hcnf02eunpp"
+  "makerAddress": "terra14njj9xr8ggefpelfgqs9xy7rdf5hcnf02eunpp",
+  "astro_ust_pair": "terra1y0g7hj0g7ygmq5dg9544cdkh5pdvaza8e2cg8g",
+  "ancAddress": "terra10zutpsay8h35rhq7rr7qjah4gngy5vuvnu99wf",
+  "anc_ust_pair": "terra12cmds0q7lxl5z25cvk4rdrhadkf30qa38kcttg",
+  "psiAddress": "terra1hsezcsgmsmh70dp03jltnl4wtklcxsl9g42q2d",
+  "psi_ust_pair": "terra1eehp0c5ngp4fmty8g5rayuxaqjmu96z8chv389"
 }
