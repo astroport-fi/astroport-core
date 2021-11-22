@@ -116,6 +116,7 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
         assets_map.insert(pair[1].to_string(), pair[1].clone());
     }
 
+    // Swap all non-astro tokens
     for a in assets_map.values().cloned().filter(|a| a.ne(&astro)) {
         // Get Balance
         let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
