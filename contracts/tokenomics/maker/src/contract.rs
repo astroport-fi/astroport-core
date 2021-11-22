@@ -121,7 +121,7 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
         // Get Balance
         let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
         if !balance.is_zero() {
-            // Swap all non-astro tokens to astro and transfer to staking and governance
+            // Swap to astro and transfer to staking and governance
             response
                 .messages
                 .push(swap_to_astro(deps.as_ref(), &cfg, a, balance)?);
