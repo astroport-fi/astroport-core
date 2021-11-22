@@ -216,14 +216,12 @@ fn generator_without_reward_proxies() {
     let msg = GeneratorExecuteMsg::Set {
         alloc_point: Uint64::new(60),
         lp_token: lp_cny_eur_instance.clone(),
-        with_update: true,
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
     let msg = GeneratorExecuteMsg::Set {
         alloc_point: Uint64::new(40),
         lp_token: lp_eur_usd_instance.clone(),
-        with_update: true,
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
@@ -419,7 +417,6 @@ fn generator_with_mirror_reward_proxy() {
         alloc_point: Uint64::from(100u64),
         reward_proxy: Some(proxy_to_mirror_instance.to_string()),
         lp_token: lp_cny_eur_instance.clone(),
-        with_update: true,
     };
     assert_eq!(
         app.execute_contract(
@@ -662,14 +659,12 @@ fn generator_with_mirror_reward_proxy() {
     let msg = GeneratorExecuteMsg::Set {
         alloc_point: Uint64::new(60),
         lp_token: lp_cny_eur_instance.clone(),
-        with_update: true,
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
     let msg = GeneratorExecuteMsg::Set {
         alloc_point: Uint64::new(40),
         lp_token: lp_eur_usd_instance.clone(),
-        with_update: true,
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
@@ -1156,7 +1151,6 @@ fn register_lp_tokens_in_generator(
             alloc_point: Uint64::from(100u64),
             reward_proxy: reward_proxy.map(|v| v.to_string()),
             lp_token: (*lp).clone(),
-            with_update: true,
         };
         app.execute_contract(
             Addr::unchecked(OWNER),

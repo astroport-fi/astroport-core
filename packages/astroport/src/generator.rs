@@ -17,13 +17,11 @@ pub enum ExecuteMsg {
     Add {
         lp_token: Addr,
         alloc_point: Uint64,
-        with_update: bool,
         reward_proxy: Option<String>,
     },
     Set {
         lp_token: Addr,
         alloc_point: Uint64,
-        with_update: bool,
     },
     MassUpdatePools {},
     UpdatePool {
