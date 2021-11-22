@@ -1,5 +1,5 @@
 use astroport::asset::AssetInfo;
-use cosmwasm_std::StdError;
+use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -24,4 +24,10 @@ pub enum ContractError {
 
     #[error("Incorrect governance percent of its share")]
     IncorrectGovernancePercent {},
+}
+
+impl From<OverflowError> for ContractError {
+    fn from(o: OverflowError) -> Self {
+        StdError::from(o).into()
+    }
 }
