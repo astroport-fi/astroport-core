@@ -191,13 +191,20 @@ fn swap_to_astro(
     .map_err(|_| ContractError::PairNotFound(from_token.clone(), to_token.clone()))?;
 
     if from_token.is_native_token() {
+        let mut offer_asset = Asset {
+            info: from_token.clone(),
+            amount: amount_in,
+        };
+
+        // deduct tax first
+        let amount_in = amount_in.checked_sub(offer_asset.compute_tax(&deps.querier)?)?;
+
+        offer_asset.amount = amount_in;
+
         Ok(SubMsg::new(WasmMsg::Execute {
             contract_addr: pair.contract_addr.to_string(),
             msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
-                offer_asset: Asset {
-                    info: from_token.clone(),
-                    amount: amount_in,
-                },
+                offer_asset,
                 belief_price: None,
                 max_spread: None,
                 to: None,
