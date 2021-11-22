@@ -45,13 +45,11 @@ pub enum ExecuteOnReply {
     Add {
         lp_token: Addr,
         alloc_point: Uint64,
-        with_update: bool,
         reward_proxy: Option<String>,
     },
     Set {
         lp_token: Addr,
         alloc_point: Uint64,
-        with_update: bool,
     },
     UpdatePool {
         lp_token: Addr,

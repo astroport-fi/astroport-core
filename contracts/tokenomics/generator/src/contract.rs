@@ -65,7 +65,6 @@ pub fn execute(
         ExecuteMsg::Add {
             lp_token,
             alloc_point,
-            with_update,
             reward_proxy,
         } => {
             let cfg = CONFIG.load(deps.storage)?;
@@ -80,7 +79,6 @@ pub fn execute(
                 ExecuteOnReply::Add {
                     lp_token,
                     alloc_point,
-                    with_update,
                     reward_proxy,
                 },
             )
@@ -88,7 +86,6 @@ pub fn execute(
         ExecuteMsg::Set {
             lp_token,
             alloc_point,
-            with_update,
         } => {
             let cfg = CONFIG.load(deps.storage)?;
             if info.sender != cfg.owner {
@@ -102,7 +99,6 @@ pub fn execute(
                 ExecuteOnReply::Set {
                     lp_token,
                     alloc_point,
-                    with_update,
                 },
             )
         }
@@ -168,7 +164,6 @@ pub fn add(
     env: Env,
     lp_token: Addr,
     alloc_point: Uint64,
-    with_update: bool,
     reward_proxy: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
@@ -205,17 +200,8 @@ pub fn add(
     CONFIG.save(deps.storage, &cfg)?;
     POOL_INFO.save(deps.storage, &lp_token, &pool_info)?;
 
-    let mut response = Response::new()
-        .add_event(Event::new(String::from("Added pool")).add_attribute("lp_token", lp_token));
-
-    if with_update {
-        response.messages.append(
-            &mut update_rewards_and_execute(deps, env, None, ExecuteOnReply::MassUpdatePools {})?
-                .messages,
-        );
-    }
-
-    Ok(response)
+    Ok(Response::new()
+        .add_event(Event::new(String::from("Added pool")).add_attribute("lp_token", lp_token)))
 }
 
 // Update the given pool's ASTRO allocation point. Can only be called by the owner.
@@ -224,7 +210,6 @@ pub fn set(
     env: Env,
     lp_token: Addr,
     alloc_point: Uint64,
-    with_update: bool,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
@@ -232,7 +217,7 @@ pub fn set(
 
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_token)?;
 
-    mass_update_pools(deps.branch(), env.clone())?;
+    mass_update_pools(deps.branch(), env)?;
 
     cfg.total_alloc_point = cfg
         .total_alloc_point
@@ -243,23 +228,9 @@ pub fn set(
     CONFIG.save(deps.storage, &cfg)?;
     POOL_INFO.save(deps.storage, &lp_token, &pool_info)?;
 
-    let mut response = Response::new().add_event(
+    Ok(Response::new().add_event(
         Event::new(String::from("Set pool")).add_attribute("lp_token", lp_token.clone()),
-    );
-
-    if with_update {
-        response.messages.append(
-            &mut update_rewards_and_execute(
-                deps,
-                env,
-                Some(lp_token.clone()),
-                ExecuteOnReply::UpdatePool { lp_token },
-            )?
-            .messages,
-        )
-    }
-
-    Ok(response)
+    ))
 }
 
 fn update_rewards_and_execute(
@@ -362,14 +333,12 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                 ExecuteOnReply::Add {
                     lp_token,
                     alloc_point,
-                    with_update,
                     reward_proxy,
-                } => add(deps, env, lp_token, alloc_point, with_update, reward_proxy),
+                } => add(deps, env, lp_token, alloc_point, reward_proxy),
                 ExecuteOnReply::Set {
                     lp_token,
                     alloc_point,
-                    with_update,
-                } => set(deps, env, lp_token, alloc_point, with_update),
+                } => set(deps, env, lp_token, alloc_point),
                 ExecuteOnReply::UpdatePool { lp_token } => update_pool(deps, env, lp_token),
                 ExecuteOnReply::Deposit {
                     lp_token,
