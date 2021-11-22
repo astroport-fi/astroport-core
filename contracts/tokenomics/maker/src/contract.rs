@@ -116,21 +116,10 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
         assets_map.insert(pair[1].to_string(), pair[1].clone());
     }
 
-    // at least one asset swapped
-    let mut swapped_assets = false;
-
-    for a in assets_map.values().cloned() {
+    for a in assets_map.values().cloned().filter(|a| a.ne(&astro)) {
         // Get Balance
         let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
         if !balance.is_zero() {
-            // Direct send astro tokens to staking and governance
-            if a.eq(&astro) {
-                response
-                    .messages
-                    .append(&mut distribute_astro(deps.as_ref(), &cfg, balance)?);
-                continue;
-            }
-            swapped_assets = true;
             // Swap all non-astro tokens to astro and transfer to staking and governance
             response
                 .messages
@@ -139,8 +128,15 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
     }
 
     // Use ReplyOn to have a proper amount of astro
-    if !response.messages.is_empty() && swapped_assets {
+    if !response.messages.is_empty() {
         response.messages.last_mut().unwrap().reply_on = ReplyOn::Success;
+    } else {
+        let balance = astro.query_pool(&deps.querier, env.contract.address)?;
+        if !balance.is_zero() {
+            response
+                .messages
+                .append(&mut distribute_astro(deps.as_ref(), &cfg, balance)?);
+        }
     }
 
     Ok(response)
