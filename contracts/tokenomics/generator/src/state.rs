@@ -20,6 +20,8 @@ pub struct PoolInfo {
     pub acc_per_share_on_proxy: Decimal,
     // for calculation of new proxy rewards
     pub proxy_reward_balance_before_update: Uint128,
+    /// Orphan proxy rewards which are left by emergency withdrawals
+    pub orphan_proxy_rewards: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -69,10 +71,6 @@ pub enum ExecuteOnReply {
         lp_token: Addr,
         account: Addr,
         amount: Uint128,
-    },
-    SendOrphanProxyReward {
-        recipient: Addr,
-        lp_token: Addr,
     },
 }
 

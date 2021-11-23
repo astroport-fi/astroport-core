@@ -153,7 +153,7 @@ pub fn execute(
         ExecuteMsg::SendOrphanProxyReward {
             recipient,
             lp_token,
-        } => before_send_orphan_proxy_rewards(deps, env, info, recipient, lp_token),
+        } => send_orphan_proxy_rewards(deps, info, recipient, lp_token),
         ExecuteMsg::SetTokensPerBlock { amount } => set_tokens_per_block(deps, info, amount),
     }
 }
@@ -195,6 +195,7 @@ pub fn add(
         reward_proxy,
         acc_per_share_on_proxy: Decimal::zero(),
         proxy_reward_balance_before_update: Uint128::zero(),
+        orphan_proxy_rewards: Uint128::zero(),
     };
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -356,10 +357,6 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                     account,
                     amount,
                 } => withdraw(deps, env, lp_token, account, amount),
-                ExecuteOnReply::SendOrphanProxyReward {
-                    recipient,
-                    lp_token,
-                } => send_orphan_proxy_rewards(deps, env, recipient, lp_token),
             }
         }
         None => Ok(Response::default()),
@@ -658,8 +655,11 @@ pub fn emergency_withdraw(
 
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
 
-    let pool = POOL_INFO.load(deps.storage, &lp_token)?;
+    let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let user = USER_INFO.load(deps.storage, (&lp_token, &info.sender))?;
+
+    pool.orphan_proxy_rewards +=
+        (user.amount * pool.acc_per_share_on_proxy).saturating_sub(user.reward_debt_proxy);
 
     //call to transfer function for lp token
     response
@@ -686,6 +686,7 @@ pub fn emergency_withdraw(
 
     // Change user balance
     USER_INFO.remove(deps.storage, (&lp_token, &info.sender));
+    POOL_INFO.save(deps.storage, &lp_token, &pool)?;
     Ok(response.add_event(
         Event::new(String::from("Emergency withdraw")).add_attribute("amount", user.amount),
     ))
@@ -714,9 +715,8 @@ fn set_allowed_reward_proxies(
     Ok(Response::new().add_event(Event::new(String::from("Set allowed reward proxies"))))
 }
 
-fn before_send_orphan_proxy_rewards(
+fn send_orphan_proxy_rewards(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     recipient: String,
     lp_token: String,
@@ -731,25 +731,6 @@ fn before_send_orphan_proxy_rewards(
 
     let recipient = deps.api.addr_validate(&recipient)?;
 
-    update_rewards_and_execute(
-        deps,
-        env,
-        Some(lp_token.clone()),
-        ExecuteOnReply::SendOrphanProxyReward {
-            recipient,
-            lp_token,
-        },
-    )
-}
-
-fn send_orphan_proxy_rewards(
-    mut deps: DepsMut,
-    env: Env,
-    recipient: Addr,
-    lp_token: Addr,
-) -> Result<Response, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
-
     let mut response = Response::new();
 
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
@@ -758,41 +739,24 @@ fn send_orphan_proxy_rewards(
         None => return Err(ContractError::PoolDoesNotHaveAdditionalRewards {}),
     };
 
-    update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg)?;
+    let amount = pool.orphan_proxy_rewards;
+    pool.orphan_proxy_rewards = Uint128::zero();
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
 
-    let msg = ProxyQueryMsg::Reward {};
-    let balance: Uint128 = deps.querier.query_wasm_smart(proxy.to_string(), &msg)?;
-    let mut to_distribute = Uint128::zero();
-
-    for (_, user_info) in USER_INFO
-        .prefix(&lp_token)
-        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-        .filter_map(|v| v.ok())
-    {
-        to_distribute = to_distribute.checked_add(
-            (user_info.amount * pool.acc_per_share_on_proxy)
-                .checked_sub(user_info.reward_debt_proxy)?,
-        )?;
-    }
-
-    let amount;
-
-    if balance > to_distribute {
-        amount = balance.checked_sub(to_distribute)?;
-        let msg = ProxyExecuteMsg::SendRewards {
-            account: recipient.clone(),
-            amount,
-        };
-
-        response.messages.push(SubMsg::new(WasmMsg::Execute {
-            contract_addr: proxy.to_string(),
-            funds: vec![],
-            msg: to_binary(&msg)?,
-        }));
-    } else {
+    if amount.is_zero() {
         return Err(ContractError::OrphanRewardsTooSmall {});
     }
+
+    let msg = ProxyExecuteMsg::SendRewards {
+        account: recipient.clone(),
+        amount,
+    };
+
+    response.messages.push(SubMsg::new(WasmMsg::Execute {
+        contract_addr: proxy.to_string(),
+        funds: vec![],
+        msg: to_binary(&msg)?,
+    }));
 
     Ok(response.add_event(
         Event::new("Sent orphan rewards")
@@ -958,29 +922,11 @@ fn query_orphan_proxy_rewards(deps: Deps, lp_token: Addr) -> Result<Binary, Cont
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
-    let proxy = match &pool.reward_proxy {
-        Some(proxy) => proxy.clone(),
-        None => return Err(ContractError::PoolDoesNotHaveAdditionalRewards {}),
-    };
-
-    let msg = ProxyQueryMsg::Reward {};
-    let balance: Uint128 = deps.querier.query_wasm_smart(proxy.to_string(), &msg)?;
-    let mut to_distribute = Uint128::zero();
-
-    for (_, user_info) in USER_INFO
-        .prefix(&lp_token)
-        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-        .filter_map(|v| v.ok())
-    {
-        to_distribute = to_distribute.checked_add(
-            (user_info.amount * pool.acc_per_share_on_proxy)
-                .checked_sub(user_info.reward_debt_proxy)?,
-        )?;
+    if pool.reward_proxy.is_none() {
+        return Err(ContractError::PoolDoesNotHaveAdditionalRewards {});
     }
 
-    let amount = balance.checked_sub(to_distribute)?;
-
-    Ok(to_binary(&amount)?)
+    Ok(to_binary(&pool.orphan_proxy_rewards)?)
 }
 
 pub fn calculate_rewards(env: &Env, pool: &PoolInfo, cfg: &Config) -> StdResult<Uint128> {
