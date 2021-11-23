@@ -121,11 +121,11 @@ pub struct CumulativePricesResponse {
 pub struct MigrateMsg {}
 
 pub fn generator_address(
-    auto_stack: bool,
+    auto_stake: bool,
     factory_addr: Addr,
     deps: &DepsMut,
 ) -> StdResult<Option<Addr>> {
-    Ok(if auto_stack {
+    Ok(if auto_stake {
         let factory_config = factory_config(factory_addr, deps)?;
         Some(factory_config.generator_address)
     } else {
@@ -154,6 +154,7 @@ pub fn mint_liquidity_token_message(
     })];
 
     if let Some(generator) = generator {
+        // TODO: remove this allowance
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: lp_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
@@ -164,6 +165,7 @@ pub fn mint_liquidity_token_message(
             funds: vec![],
         }));
 
+        // TODO: change this to transfer
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: generator.to_string(),
             msg: to_binary(&GeneratorExecuteMsg::DepositFor {
