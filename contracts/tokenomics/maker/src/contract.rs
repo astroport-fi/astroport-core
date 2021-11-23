@@ -132,6 +132,13 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
     // Use ReplyOn to have a proper amount of astro
     if !response.messages.is_empty() {
         response.messages.last_mut().unwrap().reply_on = ReplyOn::Success;
+    } else {
+        let balance = astro.query_pool(&deps.querier, env.contract.address)?;
+        if !balance.is_zero() {
+            response
+                .messages
+                .append(&mut distribute_astro(deps.as_ref(), &cfg, balance)?);
+        }
     }
 
     Ok(response)
