@@ -224,8 +224,7 @@ fn provide_liquidity() {
         }
     );
 
-    // provide more liquidity 1:2, which is not propotional to 1:1,
-    // then it must accept 1:1 and treat left amount as donation
+    // provide more liquidity 1:2, which is not propotional to 1:1
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
@@ -280,7 +279,6 @@ fn provide_liquidity() {
         }],
     );
 
-    // only accept 100, then 50 share will be generated with 100 * (100 / 200)
     let res: Response = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     let transfer_from_msg = res.messages.get(0).expect("no message");
     let mint_msg = res.messages.get(1).expect("no message");
@@ -310,7 +308,7 @@ fn provide_liquidity() {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(50_000000000000000000u128),
+                    amount: Uint128::from(74_981956874579206461u128),
                 })
                 .unwrap(),
                 funds: vec![],

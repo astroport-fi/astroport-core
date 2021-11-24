@@ -12,6 +12,9 @@ pub enum ContractError {
     #[error("Event of zero transfer")]
     InvalidZeroAmount {},
 
+    #[error("Insufficient amount of Liquidity")]
+    LiquidityAmountTooSmall {},
+
     #[error("Operation exceeds max spread limit")]
     MaxSpreadAssertion {},
 

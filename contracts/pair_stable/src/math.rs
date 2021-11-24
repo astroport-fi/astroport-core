@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use astroport::U256;
 
-const N_COINS: u8 = 2;
+pub const N_COINS: u8 = 2;
 const N_COINS_SQUARED: u8 = 4;
 const ITERATIONS: u8 = 32;
 
@@ -21,7 +21,7 @@ pub fn calc_amount(balance_in: u128, balance_out: u128, amount_in: u128, amp: u6
 /// Compute stable swap invariant (D)
 /// Equation:
 /// A * sum(x_i) * n**n + D = A * D * n**n + D**(n+1) / (n**n * prod(x_i))
-fn compute_d(leverage: u64, amount_a: u128, amount_b: u128) -> Option<u128> {
+pub fn compute_d(leverage: u64, amount_a: u128, amount_b: u128) -> Option<u128> {
     let amount_a_times_coins =
         checked_u8_mul(&U256::from(amount_a), N_COINS)?.checked_add(U256::one())?;
     let amount_b_times_coins =
