@@ -335,6 +335,10 @@ pub fn provide_liquidity(
         )
     };
 
+    if share.is_zero() {
+        return Err(ContractError::LiquidityAmountTooSmall {});
+    }
+
     // mint LP token for sender or receiver if set
     let receiver = receiver.unwrap_or_else(|| info.sender.to_string());
     messages.extend(mint_liquidity_token_message(
