@@ -63,13 +63,13 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Collect { pair_addresses } => collect(deps, env, pair_addresses),
-        ExecuteMsg::SetConfig {
+        ExecuteMsg::UpdateConfig {
             owner,
             factory_contract,
             staking_contract,
             governance_contract,
             governance_percent,
-        } => set_config(
+        } => update_config(
             deps,
             info,
             owner,
@@ -240,7 +240,7 @@ fn swap_to_astro(
     }
 }
 
-fn set_config(
+fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     owner: Option<String>,

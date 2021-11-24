@@ -355,7 +355,7 @@ fn update_config() {
     let new_governance = Addr::unchecked("new_governance");
     let new_governance_percent = Uint64::new(50);
 
-    let msg = ExecuteMsg::SetConfig {
+    let msg = ExecuteMsg::UpdateConfig {
         owner: Some(new_owner.to_string()),
         governance_percent: Some(new_governance_percent),
         governance_contract: Some(UpdateAddr::Set(new_governance.to_string())),
@@ -391,7 +391,7 @@ fn update_config() {
     assert_eq!(res.governance_percent, new_governance_percent);
     assert_eq!(res.governance_contract, Some(new_governance.clone()));
 
-    let msg = ExecuteMsg::SetConfig {
+    let msg = ExecuteMsg::UpdateConfig {
         owner: None,
         governance_percent: None,
         governance_contract: Some(UpdateAddr::Remove {}),
