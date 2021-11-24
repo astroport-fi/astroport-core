@@ -364,8 +364,9 @@ fn claim() {
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_eq!(
-        res.events[0].attributes,
+        res.attributes,
         vec![
+            attr("action", "claim"),
             attr("address", "addr0000"),
             attr("available_amount", "0"),
             attr("claimed_amount", "0"),
@@ -376,8 +377,9 @@ fn claim() {
     env.block.time = Timestamp::from_seconds(101);
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_eq!(
-        res.events[0].attributes,
+        res.attributes,
         vec![
+            attr("action", "claim"),
             attr("address", "addr0000"),
             attr("available_amount", "111"),
             attr("claimed_amount", "111"),
@@ -405,8 +407,9 @@ fn claim() {
     env.block.time = Timestamp::from_seconds(102);
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_eq!(
-        res.events[0].attributes,
+        res.attributes,
         vec![
+            attr("action", "claim"),
             attr("address", "addr0000"),
             attr("available_amount", "11"),
             attr("claimed_amount", "11"),

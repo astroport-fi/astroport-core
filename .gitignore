@@ -18,3 +18,5 @@ target/
 /scripts/node_modules/
 #/scripts/package-lock.json
 /artifacts/*.wasm
+/artifacts/checksums_intermediate.txt
+/artifacts/checksums.txt

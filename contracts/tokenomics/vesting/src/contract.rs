@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
-    Response, StdError, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
+    attr, entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
+    StdError, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 
 use crate::state::{read_vesting_infos, Config, CONFIG, VESTING_INFO};
@@ -97,8 +97,6 @@ pub fn register_vesting_accounts(
 ) -> Result<Response, ContractError> {
     let mut response = Response::new();
 
-    let mut event = Event::new("Register vesting accounts".to_string());
-
     let config: Config = CONFIG.load(deps.storage)?;
 
     if config.owner != info.sender {
@@ -145,9 +143,10 @@ pub fn register_vesting_accounts(
             amount: to_deposit,
         })?,
     }));
-    event.attributes.push(attr("deposited", to_deposit));
 
-    Ok(response)
+    Ok(response
+        .add_attribute("action", "register_vesting_accounts")
+        .add_attribute("deposited", to_deposit))
 }
 
 pub fn claim(
@@ -158,7 +157,10 @@ pub fn claim(
     amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     let mut response = Response::new();
-    let mut event = Event::new("Claim".to_string()).add_attribute("address", info.sender.clone());
+    let mut attributes = vec![
+        attr("action", "claim"),
+        attr("address", info.sender.clone()),
+    ];
 
     let config: Config = CONFIG.load(deps.storage)?;
 
@@ -175,7 +177,7 @@ pub fn claim(
         available_amount
     };
 
-    event.attributes.append(&mut vec![
+    attributes.append(&mut vec![
         attr("available_amount", available_amount),
         attr("claimed_amount", claim_amount),
     ]);
@@ -196,7 +198,7 @@ pub fn claim(
         VESTING_INFO.save(deps.storage, &info.sender, &vesting_info)?;
     };
 
-    Ok(response.add_event(event))
+    Ok(response.add_attributes(attributes))
 }
 
 fn compute_available_amount(

@@ -8,7 +8,7 @@ use astroport::maker::{
 use astroport::pair::{Cw20HookMsg, QueryMsg as PairQueryMsg};
 use astroport::querier::query_pair_info;
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo,
+    attr, entry_point, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
     QueryRequest, Reply, ReplyOn, Response, StdResult, SubMsg, Uint128, Uint64, WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
@@ -248,7 +248,7 @@ fn set_config(
     governance_contract: Option<UpdateAddr>,
     governance_percent: Option<Uint64>,
 ) -> Result<Response, ContractError> {
-    let mut event = Event::new("Set config".to_string());
+    let mut attributes = vec![attr("action", "set_config")];
 
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -264,18 +264,14 @@ fn set_config(
 
     if let Some(staking_contract) = staking_contract {
         config.staking_contract = deps.api.addr_validate(&staking_contract)?;
-        event
-            .attributes
-            .push(Attribute::new("staking_contract", &staking_contract));
+        attributes.push(Attribute::new("staking_contract", &staking_contract));
     };
 
     if let Some(action) = governance_contract {
         match action {
             UpdateAddr::Set { address: gov } => {
                 config.governance_contract = Option::from(deps.api.addr_validate(&gov)?);
-                event
-                    .attributes
-                    .push(Attribute::new("governance_contract", &gov));
+                attributes.push(Attribute::new("governance_contract", &gov));
             }
             UpdateAddr::Remove {} => {
                 config.governance_contract = None;
@@ -289,14 +285,12 @@ fn set_config(
         };
 
         config.governance_percent = governance_percent;
-        event
-            .attributes
-            .push(Attribute::new("governance_percent", governance_percent));
+        attributes.push(Attribute::new("governance_percent", governance_percent));
     };
 
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::new().add_event(event))
+    Ok(Response::new().add_attributes(attributes))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
