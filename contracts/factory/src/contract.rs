@@ -39,7 +39,7 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let mut config = Config {
-        admin: deps.api.addr_validate(&msg.admin)?,
+        owner: deps.api.addr_validate(&msg.owner)?,
         token_code_id: msg.token_code_id,
         fee_address: None,
         generator_address: deps.api.addr_validate(msg.generator_address.as_str())?,
@@ -73,7 +73,7 @@ pub fn instantiate(
 }
 
 pub struct UpdateConfig {
-    admin: Option<String>,
+    owner: Option<String>,
     token_code_id: Option<u64>,
     fee_address: Option<String>,
     generator_address: Option<String>,
@@ -90,7 +90,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig {
-            admin,
+            owner,
             token_code_id,
             fee_address,
             generator_address,
@@ -101,7 +101,7 @@ pub fn execute(
             env,
             info,
             UpdateConfig {
-                admin,
+                owner,
                 token_code_id,
                 fee_address,
                 generator_address,
@@ -127,13 +127,13 @@ pub fn execute_update_config(
     let mut config: Config = CONFIG.load(deps.storage)?;
 
     // permission check
-    if info.sender != config.admin {
+    if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(admin) = param.admin {
+    if let Some(owner) = param.owner {
         // validate address format
-        config.admin = deps.api.addr_validate(admin.as_str())?;
+        config.owner = deps.api.addr_validate(owner.as_str())?;
     }
 
     if let Some(fee_address) = param.fee_address {
@@ -198,7 +198,7 @@ pub fn execute_create_pair(
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         id: INSTANTIATE_PAIR_REPLY_ID,
         msg: WasmMsg::Instantiate {
-            admin: Some(config.admin.to_string()),
+            admin: Some(config.owner.to_string()),
             code_id: pair_config.code_id,
             msg: to_binary(&PairInstantiateMsg {
                 asset_infos: asset_infos.clone(),
@@ -249,7 +249,7 @@ pub fn execute_create_pair_stable(
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         id: INSTANTIATE_PAIR_REPLY_ID,
         msg: WasmMsg::Instantiate {
-            admin: Some(config.admin.to_string()),
+            admin: Some(config.owner.to_string()),
             code_id: pair_config.code_id,
             msg: to_binary(&PairInstantiateMsgStable {
                 asset_infos: asset_infos.clone(),
@@ -304,7 +304,7 @@ pub fn deregister(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    if info.sender != config.admin {
+    if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -332,7 +332,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
-        admin: config.admin,
+        owner: config.owner,
         pair_xyk_config: config.pair_xyk_config,
         pair_stable_config: config.pair_stable_config,
         token_code_id: config.token_code_id,

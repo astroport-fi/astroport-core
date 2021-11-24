@@ -328,7 +328,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         pair_stable_config: None,
         token_code_id,
         generator_address: String::from("generator"),
-        admin: owner.to_string(),
+        owner: owner.to_string(),
     };
 
     let factory_instance = app

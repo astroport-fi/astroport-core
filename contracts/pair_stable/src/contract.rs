@@ -1021,7 +1021,7 @@ pub fn update_config(
     let mut config = CONFIG.load(deps.storage)?;
     let factory_config = query_factory_config(&deps.querier, config.factory_addr.clone())?;
 
-    if info.sender != factory_config.admin {
+    if info.sender != factory_config.owner {
         return Err(ContractError::Unauthorized {});
     }
 

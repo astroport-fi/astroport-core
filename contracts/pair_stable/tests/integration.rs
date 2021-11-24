@@ -332,7 +332,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         }),
         token_code_id,
         generator_address: String::from("generator"),
-        admin: String::from("owner0000"),
+        owner: String::from("owner0000"),
     };
 
     let factory_instance = app

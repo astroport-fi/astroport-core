@@ -10,7 +10,7 @@ use astroport::factory::PairConfig;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub admin: Addr,
+    pub owner: Addr,
     pub token_code_id: u64,
     pub generator_address: Addr,
     pub fee_address: Option<Addr>,

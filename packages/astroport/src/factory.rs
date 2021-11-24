@@ -46,7 +46,7 @@ pub struct InstantiateMsg {
     /// Used for auto_stake from pools
     pub generator_address: String,
     /// Controls settings for factory, pools and tokenomics contracts
-    pub admin: String,
+    pub owner: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -54,7 +54,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// UpdateConfig updates relevant code IDs
     UpdateConfig {
-        admin: Option<String>,
+        owner: Option<String>,
         token_code_id: Option<u64>,
         fee_address: Option<String>,
         generator_address: Option<String>,
@@ -96,7 +96,7 @@ pub enum QueryMsg {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub admin: Addr,
+    pub owner: Addr,
     pub pair_xyk_config: Option<PairConfig>,
     pub pair_stable_config: Option<PairConfig>,
     pub token_code_id: u64,
@@ -125,6 +125,6 @@ pub struct FeeInfoResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum UpdateAddr {
-    Set { address: String },
+    Set(String),
     Remove {},
 }

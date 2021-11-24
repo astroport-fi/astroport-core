@@ -22,8 +22,8 @@ pub enum ExecuteMsg {
     },
     SetConfig {
         owner: Option<String>,
+        factory_contract: Option<String>,
         staking_contract: Option<String>,
-
         governance_contract: Option<UpdateAddr>,
         governance_percent: Option<Uint64>,
     },
