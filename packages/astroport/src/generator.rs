@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    pub owner: String,
     pub astro_token: String,
     pub tokens_per_block: Uint128,
     pub start_block: Uint64,
@@ -14,6 +15,11 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    UpdateConfig {
+        owner: Option<String>,
+        tokens_per_block: Option<Uint128>,
+        vesting_contract: Option<String>,
+    },
     Add {
         lp_token: Addr,
         alloc_point: Uint64,
@@ -49,9 +55,6 @@ pub enum ExecuteMsg {
     SendOrphanProxyReward {
         recipient: String,
         lp_token: String,
-    },
-    SetTokensPerBlock {
-        amount: Uint128,
     },
 }
 

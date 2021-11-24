@@ -26,8 +26,6 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    let owner = deps.api.addr_validate(&msg.owner)?;
-
     let governance_contract = if let Some(governance_contract) = msg.governance_contract {
         Option::from(deps.api.addr_validate(&governance_contract)?)
     } else {
@@ -44,7 +42,7 @@ pub fn instantiate(
     };
 
     let cfg = Config {
-        owner,
+        owner: deps.api.addr_validate(&msg.owner)?,
         astro_token_contract: deps.api.addr_validate(&msg.astro_token_contract)?,
         factory_contract: deps.api.addr_validate(&msg.factory_contract)?,
         staking_contract: deps.api.addr_validate(&msg.staking_contract)?,

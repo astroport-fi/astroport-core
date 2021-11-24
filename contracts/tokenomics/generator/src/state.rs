@@ -27,7 +27,7 @@ pub struct PoolInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: Addr,
-    // The ASTRO TOKEN!
+    // ASTRO token address
     pub astro_token: Addr,
     // ASTRO tokens created per block.
     pub tokens_per_block: Uint128,

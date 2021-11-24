@@ -28,7 +28,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -39,16 +39,16 @@ pub fn instantiate(
     }
 
     let config = Config {
+        owner: deps.api.addr_validate(&msg.owner)?,
         astro_token: deps.api.addr_validate(&msg.astro_token)?,
         tokens_per_block: msg.tokens_per_block,
         total_alloc_point: Uint64::from(0u64),
-        owner: info.sender,
         start_block: msg.start_block,
         allowed_reward_proxies,
         vesting_contract: deps.api.addr_validate(&msg.vesting_contract)?,
     };
-    CONFIG.save(deps.storage, &config)?;
 
+    CONFIG.save(deps.storage, &config)?;
     TMP_USER_ACTION.save(deps.storage, &None)?;
 
     Ok(Response::default())
@@ -62,6 +62,11 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::UpdateConfig {
+            owner,
+            tokens_per_block,
+            vesting_contract,
+        } => execute_update_config(deps, info, owner, tokens_per_block, vesting_contract),
         ExecuteMsg::Add {
             lp_token,
             alloc_point,
@@ -154,8 +159,39 @@ pub fn execute(
             recipient,
             lp_token,
         } => send_orphan_proxy_rewards(deps, info, recipient, lp_token),
-        ExecuteMsg::SetTokensPerBlock { amount } => set_tokens_per_block(deps, info, amount),
     }
+}
+
+// Only owner can execute it
+pub fn execute_update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    owner: Option<String>,
+    tokens_per_block: Option<Uint128>,
+    vesting_contract: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+
+    // permission check
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(owner) = owner {
+        config.owner = deps.api.addr_validate(owner.as_str())?;
+    }
+
+    if let Some(tokens_per_block) = tokens_per_block {
+        config.tokens_per_block = tokens_per_block;
+    }
+
+    if let Some(vesting_contract) = vesting_contract {
+        config.vesting_contract = deps.api.addr_validate(vesting_contract.as_str())?;
+    }
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new().add_attribute("action", "update_config"))
 }
 
 // Add a new lp to the pool. Can only be called by the owner.
@@ -770,53 +806,39 @@ fn send_orphan_proxy_rewards(
         .add_attribute("amount", amount))
 }
 
-fn set_tokens_per_block(
-    deps: DepsMut,
-    info: MessageInfo,
-    amount: Uint128,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    CONFIG.update::<_, ContractError>(deps.storage, |mut v| {
-        v.tokens_per_block = amount;
-        Ok(v)
-    })?;
-    Ok(Response::new()
-        .add_attribute("action", "set_tokens_per_block")
-        .add_attribute("amount", amount))
-}
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::PoolLength {} => pool_length(deps),
-        QueryMsg::Deposit { lp_token, user } => query_deposit(deps, lp_token, user),
-        QueryMsg::PendingToken { lp_token, user } => pending_token(deps, env, lp_token, user),
-        QueryMsg::Config {} => query_config(deps),
-        QueryMsg::RewardInfo { lp_token } => query_reward_info(deps, lp_token),
-        QueryMsg::OrphanProxyRewards { lp_token } => query_orphan_proxy_rewards(deps, lp_token),
+        QueryMsg::PoolLength {} => Ok(to_binary(&pool_length(deps)?)?),
+        QueryMsg::Deposit { lp_token, user } => {
+            Ok(to_binary(&query_deposit(deps, lp_token, user)?)?)
+        }
+        QueryMsg::PendingToken { lp_token, user } => {
+            Ok(to_binary(&pending_token(deps, env, lp_token, user)?)?)
+        }
+        QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
+        QueryMsg::RewardInfo { lp_token } => Ok(to_binary(&query_reward_info(deps, lp_token)?)?),
+        QueryMsg::OrphanProxyRewards { lp_token } => {
+            Ok(to_binary(&query_orphan_proxy_rewards(deps, lp_token)?)?)
+        }
     }
 }
 
-pub fn pool_length(deps: Deps) -> Result<Binary, ContractError> {
+pub fn pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
     let length = POOL_INFO
         .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
         .count();
-    Ok(to_binary(&PoolLengthResponse { length })?)
+    Ok(PoolLengthResponse { length })
 }
 
-pub fn query_deposit(deps: Deps, lp_token: Addr, user: Addr) -> Result<Binary, ContractError> {
+pub fn query_deposit(deps: Deps, lp_token: Addr, user: Addr) -> Result<Uint128, ContractError> {
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
     let user = deps.api.addr_validate(user.as_str())?;
 
     let user_info = USER_INFO
         .load(deps.storage, (&lp_token, &user))
         .unwrap_or_default();
-    Ok(to_binary(&user_info.amount)?)
+    Ok(user_info.amount)
 }
 
 // View function to see pending ASTRO on frontend.
@@ -825,7 +847,7 @@ pub fn pending_token(
     env: Env,
     lp_token: Addr,
     user: Addr,
-) -> Result<Binary, ContractError> {
+) -> Result<PendingTokenResponse, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
@@ -880,16 +902,16 @@ pub fn pending_token(
     }
     let pending = (user_info.amount * acc_per_share).checked_sub(user_info.reward_debt)?;
 
-    Ok(to_binary(&PendingTokenResponse {
+    Ok(PendingTokenResponse {
         pending,
         pending_on_proxy,
-    })?)
+    })
 }
 
-fn query_config(deps: Deps) -> Result<Binary, ContractError> {
+fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    Ok(to_binary(&ConfigResponse {
+    Ok(ConfigResponse {
         allowed_reward_proxies: config.allowed_reward_proxies,
         astro_token: config.astro_token,
         owner: config.owner,
@@ -897,10 +919,10 @@ fn query_config(deps: Deps) -> Result<Binary, ContractError> {
         tokens_per_block: config.tokens_per_block,
         total_alloc_point: config.total_alloc_point,
         vesting_contract: config.vesting_contract,
-    })?)
+    })
 }
 
-fn query_reward_info(deps: Deps, lp_token: Addr) -> Result<Binary, ContractError> {
+fn query_reward_info(deps: Deps, lp_token: Addr) -> Result<RewardInfoResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
@@ -917,13 +939,13 @@ fn query_reward_info(deps: Deps, lp_token: Addr) -> Result<Binary, ContractError
         None => None,
     };
 
-    Ok(to_binary(&RewardInfoResponse {
+    Ok(RewardInfoResponse {
         base_reward_token: config.astro_token,
         proxy_reward_token,
-    })?)
+    })
 }
 
-fn query_orphan_proxy_rewards(deps: Deps, lp_token: Addr) -> Result<Binary, ContractError> {
+fn query_orphan_proxy_rewards(deps: Deps, lp_token: Addr) -> Result<Uint128, ContractError> {
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
@@ -931,7 +953,7 @@ fn query_orphan_proxy_rewards(deps: Deps, lp_token: Addr) -> Result<Binary, Cont
         return Err(ContractError::PoolDoesNotHaveAdditionalRewards {});
     }
 
-    Ok(to_binary(&pool.orphan_proxy_rewards)?)
+    Ok(pool.orphan_proxy_rewards)
 }
 
 pub fn calculate_rewards(env: &Env, pool: &PoolInfo, cfg: &Config) -> StdResult<Uint128> {
@@ -946,6 +968,6 @@ pub fn calculate_rewards(env: &Env, pool: &PoolInfo, cfg: &Config) -> StdResult<
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
