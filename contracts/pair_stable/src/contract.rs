@@ -325,6 +325,7 @@ pub fn provide_liquidity(
         let d_after_addition_liquidity =
             compute_d(leverage, pool_amount_0.u128(), pool_amount_1.u128()).unwrap();
 
+        // d after addition liquidity may be less than or equal to d before addition liquidity due to rounding
         if d_before_addition_liquidity >= d_after_addition_liquidity {
             return Err(ContractError::LiquidityAmountTooSmall {});
         }
