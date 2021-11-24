@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event, MessageInfo, Reply,
-    ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn,
+    Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg};
 
@@ -202,7 +202,8 @@ pub fn add(
     POOL_INFO.save(deps.storage, &lp_token, &pool_info)?;
 
     Ok(Response::new()
-        .add_event(Event::new(String::from("Added pool")).add_attribute("lp_token", lp_token)))
+        .add_attribute("action", "add_pool")
+        .add_attribute("lp_token", lp_token))
 }
 
 // Update the given pool's ASTRO allocation point. Can only be called by the owner.
@@ -229,9 +230,9 @@ pub fn set(
     CONFIG.save(deps.storage, &cfg)?;
     POOL_INFO.save(deps.storage, &lp_token, &pool_info)?;
 
-    Ok(Response::new().add_event(
-        Event::new(String::from("Set pool")).add_attribute("lp_token", lp_token.clone()),
-    ))
+    Ok(Response::new()
+        .add_attribute("action", "set_pool")
+        .add_attribute("lp_token", lp_token.clone()))
 }
 
 fn update_rewards_and_execute(
@@ -383,7 +384,7 @@ pub fn mass_update_pools(mut deps: DepsMut, env: Env) -> Result<Response, Contra
         update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg)?;
         POOL_INFO.save(deps.storage, &lp_token, &pool)?;
     }
-    Ok(response.add_event(Event::new(String::from("Mass update pools"))))
+    Ok(response.add_attribute("action", "mass_update_pools"))
 }
 
 // Update reward variables of the given pool to be up-to-date.
@@ -397,7 +398,7 @@ pub fn update_pool(mut deps: DepsMut, env: Env, lp_token: Addr) -> Result<Respon
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
 
-    Ok(response.add_event(Event::new(String::from("Updated pool"))))
+    Ok(response.add_attribute("action", "update_pool"))
 }
 
 // Update reward variables of the given pool to be up-to-date.
@@ -547,7 +548,9 @@ pub fn deposit(
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
     USER_INFO.save(deps.storage, (&lp_token, &beneficiary), &user)?;
 
-    Ok(response.add_event(Event::new(String::from("Deposit")).add_attribute("amount", amount)))
+    Ok(response
+        .add_attribute("action", "deposit")
+        .add_attribute("amount", amount))
 }
 
 // Withdraw LP tokens from MasterChef.
@@ -641,7 +644,9 @@ pub fn withdraw(
         USER_INFO.remove(deps.storage, (&lp_token, &account));
     }
 
-    Ok(response.add_event(Event::new(String::from("Withdraw")).add_attribute("amount", amount)))
+    Ok(response
+        .add_attribute("action", "withdraw")
+        .add_attribute("amount", amount))
 }
 
 // Withdraw without caring about rewards. EMERGENCY ONLY.
@@ -687,9 +692,9 @@ pub fn emergency_withdraw(
     // Change user balance
     USER_INFO.remove(deps.storage, (&lp_token, &info.sender));
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
-    Ok(response.add_event(
-        Event::new(String::from("Emergency withdraw")).add_attribute("amount", user.amount),
-    ))
+    Ok(response
+        .add_attribute("action", "emergency_withdraw")
+        .add_attribute("amount", user.amount))
 }
 
 fn set_allowed_reward_proxies(
@@ -712,7 +717,7 @@ fn set_allowed_reward_proxies(
         v.allowed_reward_proxies = allowed_reward_proxies;
         Ok(v)
     })?;
-    Ok(Response::new().add_event(Event::new(String::from("Set allowed reward proxies"))))
+    Ok(Response::new().add_attribute("action", "set_allowed_reward_proxies"))
 }
 
 fn send_orphan_proxy_rewards(
@@ -758,12 +763,11 @@ fn send_orphan_proxy_rewards(
         msg: to_binary(&msg)?,
     }));
 
-    Ok(response.add_event(
-        Event::new("Sent orphan rewards")
-            .add_attribute("recipient", recipient.to_string())
-            .add_attribute("lp_token", lp_token)
-            .add_attribute("amount", amount),
-    ))
+    Ok(response
+        .add_attribute("action", "send_orphan_rewards")
+        .add_attribute("recipient", recipient.to_string())
+        .add_attribute("lp_token", lp_token)
+        .add_attribute("amount", amount))
 }
 
 fn set_tokens_per_block(
@@ -782,7 +786,8 @@ fn set_tokens_per_block(
         Ok(v)
     })?;
     Ok(Response::new()
-        .add_event(Event::new("Set tokens per block").add_attribute("amount", amount)))
+        .add_attribute("action", "set_tokens_per_block")
+        .add_attribute("amount", amount))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
