@@ -1,6 +1,6 @@
 use astroport::{
     generator::{
-        ConfigResponse, ExecuteMsg as GeneratorExecuteMsg,
+        ConfigResponse, Cw20HookMsg as GeneratorHookMsg, ExecuteMsg as GeneratorExecuteMsg,
         InstantiateMsg as GeneratorInstantiateMsg, PendingTokenResponse,
         QueryMsg as GeneratorQueryMsg,
     },
@@ -71,12 +71,17 @@ fn generator_without_reward_proxies() {
     );
 
     // An user can't deposit without sufficient lp_token balance
-    let msg = GeneratorExecuteMsg::Deposit {
-        lp_token: (lp_cny_eur_instance).clone(),
+    let msg = Cw20ExecuteMsg::Send {
+        contract: generator_instance.to_string(),
+        msg: to_binary(&GeneratorHookMsg::Deposit {
+            lp_token: (lp_cny_eur_instance).clone(),
+        })
+        .unwrap(),
         amount: Uint128::new(10),
     };
+
     assert_eq!(
-        app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        app.execute_contract(user1.clone(), (lp_cny_eur_instance).clone(), &msg, &[])
             .unwrap_err()
             .to_string(),
         "Overflow: Cannot Sub with 9 and 10".to_string()
@@ -485,12 +490,17 @@ fn generator_with_mirror_reward_proxy() {
     );
 
     // An user can't deposit without sufficient lp_token balance
-    let msg = GeneratorExecuteMsg::Deposit {
-        lp_token: (lp_cny_eur_instance).clone(),
+    let msg = Cw20ExecuteMsg::Send {
+        contract: generator_instance.to_string(),
+        msg: to_binary(&GeneratorHookMsg::Deposit {
+            lp_token: (lp_cny_eur_instance).clone(),
+        })
+        .unwrap(),
         amount: Uint128::new(10),
     };
+
     assert_eq!(
-        app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        app.execute_contract(user1.clone(), (lp_cny_eur_instance).clone(), &msg, &[])
             .unwrap_err()
             .to_string(),
         "Overflow: Cannot Sub with 9 and 10".to_string()
@@ -1190,18 +1200,17 @@ fn deposit_lp_tokens_to_generator(
     lp_tokens: &[(&Addr, u128)],
 ) {
     for (token, amount) in lp_tokens {
-        let msg = GeneratorExecuteMsg::Deposit {
-            lp_token: (*token).clone(),
+        let msg = Cw20ExecuteMsg::Send {
+            contract: generator_instance.to_string(),
+            msg: to_binary(&GeneratorHookMsg::Deposit {
+                lp_token: (*token).clone(),
+            })
+            .unwrap(),
             amount: Uint128::from(amount.to_owned()),
         };
 
-        app.execute_contract(
-            Addr::unchecked(depositor),
-            generator_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap();
+        app.execute_contract(Addr::unchecked(depositor), (*token).clone(), &msg, &[])
+            .unwrap();
     }
 }
 
