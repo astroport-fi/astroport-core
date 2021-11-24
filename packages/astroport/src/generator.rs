@@ -1,4 +1,5 @@
 use cosmwasm_std::{Addr, Uint128, Uint64};
+use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -27,15 +28,6 @@ pub enum ExecuteMsg {
     UpdatePool {
         lp_token: Addr,
     },
-    Deposit {
-        lp_token: Addr,
-        amount: Uint128,
-    },
-    DepositFor {
-        lp_token: Addr,
-        beneficiary: Addr,
-        amount: Uint128,
-    },
     Withdraw {
         lp_token: Addr,
         amount: Uint128,
@@ -53,6 +45,7 @@ pub enum ExecuteMsg {
     SetTokensPerBlock {
         amount: Uint128,
     },
+    Receive(Cw20ReceiveMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -96,3 +89,10 @@ pub struct ConfigResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Cw20HookMsg {
+    Deposit { lp_token: Addr },
+    DepositFor { lp_token: Addr, beneficiary: Addr },
+}

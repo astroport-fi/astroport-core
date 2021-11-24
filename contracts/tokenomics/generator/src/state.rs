@@ -65,7 +65,6 @@ pub enum ExecuteOnReply {
         lp_token: Addr,
         beneficiary: Addr,
         amount: Uint128,
-        sender: Addr,
     },
     Withdraw {
         lp_token: Addr,

@@ -1,8 +1,8 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event, MessageInfo, Reply,
-    ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event,
+    MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
-use cw20::{BalanceResponse, Cw20ExecuteMsg};
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use crate::error::ContractError;
 use crate::state::{
@@ -10,7 +10,7 @@ use crate::state::{
 };
 use astroport::{
     generator::{
-        ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse,
+        ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse,
         PoolLengthResponse, QueryMsg, RewardInfoResponse,
     },
     generator_proxy::{
@@ -111,31 +111,6 @@ pub fn execute(
             Some(lp_token.clone()),
             ExecuteOnReply::UpdatePool { lp_token },
         ),
-        ExecuteMsg::Deposit { lp_token, amount } => update_rewards_and_execute(
-            deps,
-            env,
-            Some(lp_token.clone()),
-            ExecuteOnReply::Deposit {
-                lp_token,
-                account: info.sender,
-                amount,
-            },
-        ),
-        ExecuteMsg::DepositFor {
-            lp_token,
-            beneficiary,
-            amount,
-        } => update_rewards_and_execute(
-            deps,
-            env,
-            Some(lp_token.clone()),
-            ExecuteOnReply::DepositFor {
-                lp_token,
-                beneficiary,
-                amount,
-                sender: info.sender,
-            },
-        ),
         ExecuteMsg::Withdraw { lp_token, amount } => update_rewards_and_execute(
             deps,
             env,
@@ -155,6 +130,7 @@ pub fn execute(
             lp_token,
         } => send_orphan_proxy_rewards(deps, info, recipient, lp_token),
         ExecuteMsg::SetTokensPerBlock { amount } => set_tokens_per_block(deps, info, amount),
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
     }
 }
 
@@ -345,13 +321,12 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                     lp_token,
                     account,
                     amount,
-                } => deposit(deps, env, lp_token, account, amount, None),
+                } => deposit(deps, env, lp_token, account, amount),
                 ExecuteOnReply::DepositFor {
                     lp_token,
                     beneficiary,
                     amount,
-                    sender,
-                } => deposit(deps, env, lp_token, beneficiary, amount, Some(sender)),
+                } => deposit(deps, env, lp_token, beneficiary, amount),
                 ExecuteOnReply::Withdraw {
                     lp_token,
                     account,
@@ -453,6 +428,43 @@ pub fn update_pool_rewards(
     Ok(())
 }
 
+fn receive_cw20(
+    deps: DepsMut,
+    env: Env,
+    _info: MessageInfo,
+    cw20_msg: Cw20ReceiveMsg,
+) -> Result<Response, ContractError> {
+    let sender = deps.api.addr_validate(cw20_msg.sender.as_str())?;
+    let amount = cw20_msg.amount;
+
+    match from_binary(&cw20_msg.msg) {
+        Ok(Cw20HookMsg::Deposit { lp_token }) => update_rewards_and_execute(
+            deps,
+            env,
+            Some(lp_token.clone()),
+            ExecuteOnReply::Deposit {
+                lp_token,
+                account: sender,
+                amount,
+            },
+        ),
+        Ok(Cw20HookMsg::DepositFor {
+            lp_token,
+            beneficiary,
+        }) => update_rewards_and_execute(
+            deps,
+            env,
+            Some(lp_token.clone()),
+            ExecuteOnReply::DepositFor {
+                lp_token,
+                beneficiary,
+                amount,
+            },
+        ),
+        Err(err) => Err(ContractError::Std(err)),
+    }
+}
+
 // Deposit LP tokens to MasterChef for ASTRO allocation.
 pub fn deposit(
     mut deps: DepsMut,
@@ -460,15 +472,10 @@ pub fn deposit(
     lp_token: Addr,
     beneficiary: Addr,
     amount: Uint128,
-    sender: Option<Addr>,
 ) -> Result<Response, ContractError> {
     let lp_token = deps.api.addr_validate(lp_token.as_str())?;
     let beneficiary = deps.api.addr_validate(beneficiary.as_str())?;
 
-    let sender = match sender {
-        Some(sender) => sender,
-        None => beneficiary.clone(),
-    };
     let mut response = Response::new().add_attribute("Action", "Deposit");
 
     let mut user = USER_INFO
@@ -507,14 +514,14 @@ pub fn deposit(
             }
         }
     }
+
     //call transfer function for lp token from: info.sender to: env.contract.address amount:_amount
     if !amount.is_zero() {
         match &pool.reward_proxy {
             Some(proxy) => {
                 response.messages.push(SubMsg::new(WasmMsg::Execute {
                     contract_addr: lp_token.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::SendFrom {
-                        owner: sender.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Send {
                         contract: proxy.to_string(),
                         msg: to_binary(&ProxyCw20HookMsg::Deposit {})?,
                         amount,
@@ -525,8 +532,7 @@ pub fn deposit(
             None => {
                 response.messages.push(SubMsg::new(WasmMsg::Execute {
                     contract_addr: lp_token.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                        owner: sender.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
                         recipient: env.contract.address.to_string(),
                         amount,
                     })?,
