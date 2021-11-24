@@ -13,7 +13,7 @@ use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
-    PairsResponse, QueryMsg, UpdateAddr,
+    PairsResponse, QueryMsg,
 };
 
 use astroport::pair::{
@@ -37,25 +37,18 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    let owner = deps.api.addr_validate(&msg.owner)?;
 
-    let generator_address = deps.api.addr_validate(msg.generator_address.as_str())?;
     let mut config = Config {
-        owner,
-        gov: None,
+        admin: deps.api.addr_validate(&msg.admin)?,
         token_code_id: msg.token_code_id,
         fee_address: None,
-        generator_address,
+        generator_address: deps.api.addr_validate(msg.generator_address.as_str())?,
         pair_xyk_config: None,
         pair_stable_config: None,
     };
 
     if let Some(fee_address) = msg.fee_address {
         config.fee_address = Some(deps.api.addr_validate(fee_address.as_str())?);
-    }
-
-    if let Some(gov) = msg.gov {
-        config.gov = Some(deps.api.addr_validate(gov.as_str())?);
     }
 
     if let Some(pair_xyk_config) = msg.pair_xyk_config {
@@ -80,11 +73,10 @@ pub fn instantiate(
 }
 
 pub struct UpdateConfig {
-    gov: Option<UpdateAddr>,
-    owner: Option<Addr>,
+    admin: Option<String>,
     token_code_id: Option<u64>,
-    fee_address: Option<Addr>,
-    generator_address: Option<Addr>,
+    fee_address: Option<String>,
+    generator_address: Option<String>,
     pair_xyk_config: Option<PairConfig>,
     pair_stable_config: Option<PairConfig>,
 }
@@ -98,8 +90,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig {
-            gov,
-            owner,
+            admin,
             token_code_id,
             fee_address,
             generator_address,
@@ -110,8 +101,7 @@ pub fn execute(
             env,
             info,
             UpdateConfig {
-                gov,
-                owner,
+                admin,
                 token_code_id,
                 fee_address,
                 generator_address,
@@ -137,24 +127,13 @@ pub fn execute_update_config(
     let mut config: Config = CONFIG.load(deps.storage)?;
 
     // permission check
-    if info.sender != config.owner {
+    if info.sender != config.admin {
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(action) = param.gov {
-        match action {
-            UpdateAddr::Set { address: gov } => {
-                config.gov = Option::from(deps.api.addr_validate(&gov)?);
-            }
-            UpdateAddr::Remove {} => {
-                config.gov = None;
-            }
-        }
-    }
-
-    if let Some(owner) = param.owner {
+    if let Some(admin) = param.admin {
         // validate address format
-        config.owner = deps.api.addr_validate(owner.as_str())?;
+        config.admin = deps.api.addr_validate(admin.as_str())?;
     }
 
     if let Some(fee_address) = param.fee_address {
@@ -219,7 +198,7 @@ pub fn execute_create_pair(
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         id: INSTANTIATE_PAIR_REPLY_ID,
         msg: WasmMsg::Instantiate {
-            admin: Some(config.owner.to_string()),
+            admin: Some(config.admin.to_string()),
             code_id: pair_config.code_id,
             msg: to_binary(&PairInstantiateMsg {
                 asset_infos: asset_infos.clone(),
@@ -270,7 +249,7 @@ pub fn execute_create_pair_stable(
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         id: INSTANTIATE_PAIR_REPLY_ID,
         msg: WasmMsg::Instantiate {
-            admin: Some(config.owner.to_string()),
+            admin: Some(config.admin.to_string()),
             code_id: pair_config.code_id,
             msg: to_binary(&PairInstantiateMsgStable {
                 asset_infos: asset_infos.clone(),
@@ -325,7 +304,7 @@ pub fn deregister(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    if info.sender != config.owner {
+    if info.sender != config.admin {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -353,8 +332,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
-        owner: config.owner,
-        gov: config.gov,
+        admin: config.admin,
         pair_xyk_config: config.pair_xyk_config,
         pair_stable_config: config.pair_stable_config,
         token_code_id: config.token_code_id,

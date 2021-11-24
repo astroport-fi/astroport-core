@@ -2,9 +2,7 @@ use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, Addr};
 
 use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, QueryMsg, UpdateAddr,
-};
+use astroport::factory::{ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, QueryMsg};
 
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -58,7 +56,7 @@ fn store_token_code(app: &mut App) -> u64 {
 fn proper_initialization() {
     let mut app = mock_app();
 
-    let owner = Addr::unchecked("Owner");
+    let admin = String::from("admin");
 
     let factory_code_id = store_factory_code(&mut app);
 
@@ -73,13 +71,19 @@ fn proper_initialization() {
         pair_stable_config: None,
         token_code_id: 123,
         fee_address: None,
-        gov: None,
-        owner: owner.to_string(),
-        generator_address: Addr::unchecked("generator"),
+        admin: admin.to_string(),
+        generator_address: String::from("generator"),
     };
 
     let factory_instance = app
-        .instantiate_contract(factory_code_id, owner.clone(), &msg, &[], "factory", None)
+        .instantiate_contract(
+            factory_code_id,
+            Addr::unchecked(admin.clone()),
+            &msg,
+            &[],
+            "factory",
+            None,
+        )
         .unwrap();
 
     let msg = QueryMsg::Config {};
@@ -91,18 +95,19 @@ fn proper_initialization() {
     assert_eq!(123, config_res.token_code_id);
     assert_eq!(Some(pair_config), config_res.pair_xyk_config);
     assert_eq!(None, config_res.pair_stable_config);
-    assert_eq!(owner, config_res.owner);
+    assert_eq!(admin, config_res.admin);
 }
 
 #[test]
 fn update_config() {
     let mut app = mock_app();
 
-    let owner = Addr::unchecked("Owner");
-    let new_owner = Addr::unchecked("NewOnwer");
+    let admin = String::from("admin");
+    let new_admin = String::from("new_admin");
 
     let token_code_id = store_token_code(&mut app);
-    let factory_instance = instantiate_contract(&mut app, &owner, token_code_id);
+    let factory_instance =
+        instantiate_contract(&mut app, &Addr::unchecked(admin.clone()), token_code_id);
 
     let pair_config = PairConfig {
         code_id: 321,
@@ -110,12 +115,9 @@ fn update_config() {
         maker_fee_bps: 10,
     };
 
-    // update owner
+    // update admin
     let msg = ExecuteMsg::UpdateConfig {
-        gov: Some(UpdateAddr::Set {
-            address: new_owner.to_string(),
-        }),
-        owner: Some(new_owner.clone()),
+        admin: Some(new_admin.clone()),
         token_code_id: None,
         fee_address: None,
         generator_address: None,
@@ -123,64 +125,28 @@ fn update_config() {
         pair_stable_config: Some(pair_config.clone()),
     };
 
-    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
-        .unwrap();
+    app.execute_contract(
+        Addr::unchecked(admin.clone()),
+        factory_instance.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
 
     let msg = QueryMsg::Config {};
     let config_res: ConfigResponse = app
         .wrap()
         .query_wasm_smart(&factory_instance, &msg)
         .unwrap();
+
     assert_eq!(token_code_id, config_res.token_code_id);
-    assert_eq!(new_owner.clone(), config_res.gov.unwrap());
-    assert_eq!(new_owner.clone(), config_res.owner);
+    assert_eq!(new_admin.clone(), config_res.admin);
     assert_eq!(Some(pair_config.clone()), config_res.pair_stable_config);
 
-    let msg = ExecuteMsg::UpdateConfig {
-        gov: None,
-        owner: Some(new_owner.clone()),
-        token_code_id: None,
-        fee_address: None,
-        generator_address: None,
-        pair_xyk_config: None,
-        pair_stable_config: Some(pair_config.clone()),
-    };
-
-    app.execute_contract(new_owner.clone(), factory_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = QueryMsg::Config {};
-    let config_res: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&factory_instance, &msg)
-        .unwrap();
-    assert_eq!(new_owner.clone(), config_res.gov.unwrap());
-
-    let msg = ExecuteMsg::UpdateConfig {
-        gov: Some(UpdateAddr::Remove {}),
-        owner: Some(new_owner.clone()),
-        token_code_id: None,
-        fee_address: None,
-        generator_address: None,
-        pair_xyk_config: None,
-        pair_stable_config: Some(pair_config.clone()),
-    };
-
-    app.execute_contract(new_owner.clone(), factory_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = QueryMsg::Config {};
-    let config_res: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&factory_instance, &msg)
-        .unwrap();
-    assert_eq!(None, config_res.gov);
-
     // update left items
-    let fee_address = Some(Addr::unchecked("fee"));
+    let fee_address = Some(String::from("fee"));
     let msg = ExecuteMsg::UpdateConfig {
-        gov: None,
-        owner: None,
+        admin: None,
         token_code_id: Some(200u64),
         fee_address: fee_address.clone(),
         generator_address: None,
@@ -188,8 +154,13 @@ fn update_config() {
         pair_stable_config: None,
     };
 
-    app.execute_contract(new_owner, factory_instance.clone(), &msg, &[])
-        .unwrap();
+    app.execute_contract(
+        Addr::unchecked(new_admin),
+        factory_instance.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
 
     let msg = QueryMsg::Config {};
     let config_res: ConfigResponse = app
@@ -197,12 +168,14 @@ fn update_config() {
         .query_wasm_smart(&factory_instance, &msg)
         .unwrap();
     assert_eq!(200u64, config_res.token_code_id);
-    assert_eq!(fee_address, config_res.fee_address);
+    assert_eq!(
+        fee_address.unwrap(),
+        config_res.fee_address.unwrap().to_string()
+    );
 
     // Unauthorized err
     let msg = ExecuteMsg::UpdateConfig {
-        gov: None,
-        owner: None,
+        admin: None,
         token_code_id: None,
         fee_address: None,
         generator_address: None,
@@ -211,12 +184,12 @@ fn update_config() {
     };
 
     let res = app
-        .execute_contract(owner, factory_instance, &msg, &[])
+        .execute_contract(Addr::unchecked(admin), factory_instance, &msg, &[])
         .unwrap_err();
     assert_eq!(res.to_string(), "Unauthorized");
 }
 
-fn instantiate_contract(app: &mut App, owner: &Addr, token_code_id: u64) -> Addr {
+fn instantiate_contract(app: &mut App, admin: &Addr, token_code_id: u64) -> Addr {
     let pair_code_id = store_pair_code(app);
     let factory_code_id = store_factory_code(app);
 
@@ -231,14 +204,13 @@ fn instantiate_contract(app: &mut App, owner: &Addr, token_code_id: u64) -> Addr
         pair_stable_config: None,
         token_code_id,
         fee_address: None,
-        gov: None,
-        owner: owner.to_string(),
-        generator_address: Addr::unchecked("generator"),
+        admin: admin.to_string(),
+        generator_address: String::from("generator"),
     };
 
     app.instantiate_contract(
         factory_code_id,
-        owner.to_owned(),
+        admin.to_owned(),
         &msg,
         &[],
         "factory",
@@ -251,11 +223,12 @@ fn instantiate_contract(app: &mut App, owner: &Addr, token_code_id: u64) -> Addr
 fn create_pair() {
     let mut app = mock_app();
 
-    let owner = Addr::unchecked("Owner");
+    let admin = String::from("admin");
 
     let token_code_id = store_token_code(&mut app);
 
-    let factory_instance = instantiate_contract(&mut app, &owner, token_code_id);
+    let factory_instance =
+        instantiate_contract(&mut app, &Addr::unchecked(admin.clone()), token_code_id);
 
     let asset_infos = [
         AssetInfo::Token {
@@ -270,7 +243,7 @@ fn create_pair() {
     };
 
     let res = app
-        .execute_contract(owner, factory_instance.clone(), &msg, &[])
+        .execute_contract(Addr::unchecked(admin), factory_instance.clone(), &msg, &[])
         .unwrap();
 
     assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));

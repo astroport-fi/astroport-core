@@ -32,7 +32,7 @@ fn pair_type_to_string() {
 fn proper_initialization() {
     // check validation of total and maker fee bps
     let mut deps = mock_dependencies(&[]);
-    let owner = "owner0000".to_string();
+    let admin = "admin0000".to_string();
 
     let msg = InstantiateMsg {
         pair_xyk_config: None,
@@ -43,9 +43,8 @@ fn proper_initialization() {
         }),
         token_code_id: 123u64,
         fee_address: None,
-        gov: None,
-        generator_address: Addr::unchecked("generator"),
-        owner: owner.clone(),
+        generator_address: String::from("generator"),
+        admin: admin.clone(),
     };
 
     let env = mock_env();
@@ -69,9 +68,8 @@ fn proper_initialization() {
         }),
         token_code_id: 123u64,
         fee_address: None,
-        gov: None,
-        generator_address: Addr::unchecked("generator"),
-        owner: owner.clone(),
+        generator_address: String::from("generator"),
+        admin: admin.clone(),
     };
 
     let env = mock_env();
@@ -84,13 +82,13 @@ fn proper_initialization() {
     assert_eq!(123u64, config_res.token_code_id);
     assert_eq!(msg.pair_xyk_config, config_res.pair_xyk_config);
     assert_eq!(msg.pair_stable_config, config_res.pair_stable_config);
-    assert_eq!(Addr::unchecked(owner), config_res.owner);
+    assert_eq!(Addr::unchecked(admin), config_res.admin);
 }
 
 #[test]
 fn update_config() {
     let mut deps = mock_dependencies(&[]);
-    let owner = "owner0000";
+    let admin = "admin0000";
 
     let pair_config = PairConfig {
         code_id: 123u64,
@@ -103,26 +101,24 @@ fn update_config() {
         pair_stable_config: None,
         token_code_id: 123u64,
         fee_address: None,
-        gov: None,
-        owner: owner.to_string(),
-        generator_address: Addr::unchecked("generator"),
+        admin: admin.to_string(),
+        generator_address: String::from("generator"),
     };
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let new_owner = "addr0001";
+    let new_admin = "addr0001";
 
     // we can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // update owner
+    // update admin
     let env = mock_env();
-    let info = mock_info(owner.clone(), &[]);
+    let info = mock_info(admin.clone(), &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        gov: None,
-        owner: Some(Addr::unchecked(new_owner)),
+        admin: Some(String::from(new_admin)),
         token_code_id: None,
-        fee_address: Some(Addr::unchecked("fee_addr")),
+        fee_address: Some(String::from("fee_addr")),
         generator_address: None,
         pair_xyk_config: Some(pair_config.clone()),
         pair_stable_config: Some(pair_config.clone()),
@@ -137,7 +133,7 @@ fn update_config() {
     assert_eq!(123u64, config_res.token_code_id);
     assert_eq!(Some(pair_config.clone()), config_res.pair_xyk_config);
     assert_eq!(Some(pair_config.clone()), config_res.pair_stable_config);
-    assert_eq!(Addr::unchecked(new_owner), config_res.owner);
+    assert_eq!(Addr::unchecked(new_admin), config_res.admin);
 
     // check validation of total and maker fee bps
     let pair_config = PairConfig {
@@ -147,12 +143,11 @@ fn update_config() {
     };
 
     let env = mock_env();
-    let info = mock_info(new_owner, &[]);
+    let info = mock_info(new_admin, &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        gov: None,
-        owner: Some(Addr::unchecked(new_owner)),
+        admin: Some(String::from(new_admin)),
         token_code_id: None,
-        fee_address: Some(Addr::unchecked("fee_addr")),
+        fee_address: Some(String::from("fee_addr")),
         generator_address: None,
         pair_xyk_config: Some(pair_config),
         pair_stable_config: None,
@@ -163,10 +158,9 @@ fn update_config() {
 
     // update left items
     let env = mock_env();
-    let info = mock_info(new_owner, &[]);
+    let info = mock_info(new_admin, &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        gov: None,
-        owner: None,
+        admin: None,
         token_code_id: Some(200u64),
         fee_address: None,
         generator_address: None,
@@ -181,14 +175,13 @@ fn update_config() {
     let query_res = query(deps.as_ref(), env, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(200u64, config_res.token_code_id);
-    assert_eq!(String::from("addr0001"), config_res.owner);
+    assert_eq!(String::from("addr0001"), config_res.admin);
 
     // Unauthorized err
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        gov: None,
-        owner: None,
+        admin: None,
         token_code_id: None,
         fee_address: None,
         generator_address: None,
@@ -207,12 +200,11 @@ fn update_config() {
     };
 
     let env = mock_env();
-    let info = mock_info(new_owner, &[]);
+    let info = mock_info(new_admin, &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        gov: None,
-        owner: Some(Addr::unchecked(new_owner)),
+        admin: Some(String::from(new_admin)),
         token_code_id: None,
-        fee_address: Some(Addr::unchecked("fee_addr")),
+        fee_address: Some(String::from("fee_addr")),
         generator_address: None,
         pair_xyk_config: Some(pair_config.clone()),
         pair_stable_config: None,
@@ -250,9 +242,8 @@ fn create_pair() {
         pair_stable_config: None,
         token_code_id: 123u64,
         fee_address: None,
-        gov: None,
-        owner: "owner0000".to_string(),
-        generator_address: Addr::unchecked("generator"),
+        admin: "admin0000".to_string(),
+        generator_address: String::from("generator"),
     };
 
     let env = mock_env();
@@ -316,7 +307,7 @@ fn create_pair() {
                 .unwrap(),
                 code_id: pair_config.code_id,
                 funds: vec![],
-                admin: Some(config.unwrap().owner.to_string()),
+                admin: Some(config.unwrap().admin.to_string()),
                 label: String::from("Astroport pair"),
             }
             .into(),
@@ -330,7 +321,7 @@ fn create_pair() {
 #[test]
 fn register() {
     let mut deps = mock_dependencies(&[]);
-    let owner = "owner0000";
+    let admin = "admin0000";
 
     let msg = InstantiateMsg {
         pair_xyk_config: Some(PairConfig {
@@ -341,9 +332,8 @@ fn register() {
         pair_stable_config: None,
         token_code_id: 123u64,
         fee_address: None,
-        gov: None,
-        generator_address: Addr::unchecked("generator"),
-        owner: owner.to_string(),
+        generator_address: String::from("generator"),
+        admin: admin.to_string(),
     };
 
     let env = mock_env();
@@ -549,7 +539,7 @@ fn register() {
 
     // Proper deregister
     let env = mock_env();
-    let info = mock_info(owner.clone(), &[]);
+    let info = mock_info(admin.clone(), &[]);
     let res = execute(
         deps.as_mut(),
         env.clone(),

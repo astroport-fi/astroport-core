@@ -1,9 +1,12 @@
 use crate::asset::{Asset, AssetInfo, PairInfo};
-use crate::factory::{PairsResponse, QueryMsg as FactoryQueryMsg};
+use crate::factory::{
+    ConfigResponse as FactoryConfigResponse, FeeInfoResponse, PairType, PairsResponse,
+    QueryMsg as FactoryQueryMsg,
+};
 use crate::pair::{QueryMsg as PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
 
 use cosmwasm_std::{
-    to_binary, Addr, AllBalanceResponse, BalanceResponse, BankQuery, Coin, QuerierWrapper,
+    to_binary, Addr, AllBalanceResponse, BalanceResponse, BankQuery, Coin, Decimal, QuerierWrapper,
     QueryRequest, StdResult, Uint128, WasmQuery,
 };
 
@@ -70,6 +73,39 @@ pub fn query_token_precision(querier: &QuerierWrapper, asset_info: AssetInfo) ->
 
             res.decimals
         }
+    })
+}
+
+pub fn query_factory_config(
+    querier: &QuerierWrapper,
+    factory_contract: Addr,
+) -> StdResult<FactoryConfigResponse> {
+    querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: factory_contract.to_string(),
+        msg: to_binary(&FactoryQueryMsg::Config {})?,
+    }))
+}
+
+pub struct FeeInfo {
+    pub fee_address: Option<Addr>,
+    pub total_fee_rate: Decimal,
+    pub maker_fee_rate: Decimal,
+}
+
+pub fn query_fee_info(
+    querier: &QuerierWrapper,
+    factory_contract: Addr,
+    pair_type: PairType,
+) -> StdResult<FeeInfo> {
+    let res: FeeInfoResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: factory_contract.to_string(),
+        msg: to_binary(&FactoryQueryMsg::FeeInfo { pair_type })?,
+    }))?;
+
+    Ok(FeeInfo {
+        fee_address: res.fee_address,
+        total_fee_rate: Decimal::from_ratio(Uint128::from(res.total_fee_bps), Uint128::new(10000)),
+        maker_fee_rate: Decimal::from_ratio(Uint128::from(res.maker_fee_bps), Uint128::new(10000)),
     })
 }
 
