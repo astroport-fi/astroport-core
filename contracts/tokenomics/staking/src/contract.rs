@@ -120,7 +120,8 @@ fn receive_cw20(
 
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::Enter {}) => {
-            // If no balance exists, mint it 1:1 to the amount put in
+            // In cw20 send total balance is already increased,
+            // To calculated properly we should subtract user deposit from the pool
             total_deposit -= amount;
             let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
                 amount

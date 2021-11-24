@@ -55,21 +55,6 @@ fn generator_without_reward_proxies() {
     mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 9);
     mint_tokens(&mut app, &lp_eur_usd_instance, &user1, 10);
 
-    allow_tokens(
-        &mut app,
-        &lp_cny_eur_instance,
-        USER1,
-        &generator_instance,
-        10,
-    );
-    allow_tokens(
-        &mut app,
-        &lp_eur_usd_instance,
-        USER1,
-        &generator_instance,
-        10,
-    );
-
     // An user can't deposit without sufficient lp_token balance
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
@@ -158,21 +143,6 @@ fn generator_without_reward_proxies() {
     // User 2
     mint_tokens(&mut app, &lp_cny_eur_instance, &user2, 10);
     mint_tokens(&mut app, &lp_eur_usd_instance, &user2, 10);
-
-    allow_tokens(
-        &mut app,
-        &lp_cny_eur_instance,
-        USER2,
-        &generator_instance,
-        10,
-    );
-    allow_tokens(
-        &mut app,
-        &lp_eur_usd_instance,
-        USER2,
-        &generator_instance,
-        10,
-    );
 
     deposit_lp_tokens_to_generator(
         &mut app,

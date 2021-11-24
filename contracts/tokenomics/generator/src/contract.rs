@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event,
-    MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 
@@ -323,11 +323,6 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                     account,
                     amount,
                 } => deposit(deps, env, lp_token, account, amount),
-                ExecuteOnReply::DepositFor {
-                    lp_token,
-                    beneficiary,
-                    amount,
-                } => deposit(deps, env, lp_token, beneficiary, amount),
                 ExecuteOnReply::Withdraw {
                     lp_token,
                     account,
@@ -438,8 +433,8 @@ fn receive_cw20(
     let sender = deps.api.addr_validate(cw20_msg.sender.as_str())?;
     let amount = cw20_msg.amount;
 
-    match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::Deposit { lp_token }) => update_rewards_and_execute(
+    match from_binary(&cw20_msg.msg)? {
+        Cw20HookMsg::Deposit { lp_token } => update_rewards_and_execute(
             deps,
             env,
             Some(lp_token.clone()),
@@ -449,20 +444,19 @@ fn receive_cw20(
                 amount,
             },
         ),
-        Ok(Cw20HookMsg::DepositFor {
+        Cw20HookMsg::DepositFor {
             lp_token,
             beneficiary,
-        }) => update_rewards_and_execute(
+        } => update_rewards_and_execute(
             deps,
             env,
             Some(lp_token.clone()),
-            ExecuteOnReply::DepositFor {
+            ExecuteOnReply::Deposit {
                 lp_token,
-                beneficiary,
+                account: beneficiary,
                 amount,
             },
         ),
-        Err(err) => Err(ContractError::Std(err)),
     }
 }
 
@@ -517,31 +511,18 @@ pub fn deposit(
     }
 
     //call transfer function for lp token from: info.sender to: env.contract.address amount:_amount
-    if !amount.is_zero() {
-        match &pool.reward_proxy {
-            Some(proxy) => {
-                response.messages.push(SubMsg::new(WasmMsg::Execute {
-                    contract_addr: lp_token.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::Send {
-                        contract: proxy.to_string(),
-                        msg: to_binary(&ProxyCw20HookMsg::Deposit {})?,
-                        amount,
-                    })?,
-                    funds: vec![],
-                }));
-            }
-            None => {
-                response.messages.push(SubMsg::new(WasmMsg::Execute {
-                    contract_addr: lp_token.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                        recipient: env.contract.address.to_string(),
-                        amount,
-                    })?,
-                    funds: vec![],
-                }));
-            }
-        }
+    if !amount.is_zero() && pool.reward_proxy.is_some() {
+        response.messages.push(SubMsg::new(WasmMsg::Execute {
+            contract_addr: lp_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: pool.reward_proxy.clone().unwrap().to_string(),
+                msg: to_binary(&ProxyCw20HookMsg::Deposit {})?,
+                amount,
+            })?,
+            funds: vec![],
+        }));
     }
+
     //Change user balance
     user.amount = user.amount.checked_add(amount)?;
     if !pool.acc_per_share.is_zero() {
