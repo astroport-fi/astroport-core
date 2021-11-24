@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::asset::{Asset, AssetInfo};
 
 use crate::factory::factory_config;
-use crate::generator::ExecuteMsg as GeneratorExecuteMsg;
+use crate::generator::Cw20HookMsg as GeneratorHookMsg;
 use cosmwasm_std::{to_binary, Addr, CosmosMsg, Decimal, DepsMut, StdResult, Uint128, WasmMsg};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
@@ -154,27 +154,18 @@ pub fn mint_liquidity_token_message(
     })];
 
     if let Some(generator) = generator {
-        // TODO: remove this allowance
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: lp_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                spender: generator.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: generator.to_string(),
                 amount,
-                expires: None,
+                msg: to_binary(&GeneratorHookMsg::DepositFor {
+                    lp_token,
+                    beneficiary,
+                })?,
             })?,
             funds: vec![],
-        }));
-
-        // TODO: change this to transfer
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: generator.to_string(),
-            msg: to_binary(&GeneratorExecuteMsg::DepositFor {
-                lp_token,
-                beneficiary,
-                amount,
-            })?,
-            funds: vec![],
-        }));
+        }))
     }
 
     Ok(messages)
