@@ -1,11 +1,11 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply,
-    ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
-use astroport::staking::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::staking::{ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg};
 use cw2::set_contract_version;
 use cw20::{
     BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse,
@@ -79,7 +79,6 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::Leave { share } => try_leave(&deps, env, info, share),
     }
 }
 
@@ -109,74 +108,66 @@ fn receive_cw20(
     deps: DepsMut,
     env: Env,
     _info: MessageInfo,
-    msg: Cw20ReceiveMsg,
+    cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
 
-    let recipient = msg.sender;
-    let amount = msg.amount;
+    let recipient = cw20_msg.sender;
+    let amount = cw20_msg.amount;
 
-    let total_deposit = get_total_deposit(deps.as_ref(), env.clone(), config.clone())?;
+    let mut total_deposit = get_total_deposit(deps.as_ref(), env, config.clone())?;
     let total_shares = get_total_shares(deps.as_ref(), config.clone())?;
 
-    // If no balance exists, mint it 1:1 to the amount put in
-    let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
-        amount
-    } else {
-        amount
-            .checked_mul(total_shares)?
-            .checked_div(total_deposit)
-            .map_err(|e| StdError::DivideByZero { source: e })?
-    };
+    match from_binary(&cw20_msg.msg) {
+        Ok(Cw20HookMsg::Enter {}) => {
+            // If no balance exists, mint it 1:1 to the amount put in
+            total_deposit -= amount;
+            let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
+                amount
+            } else {
+                amount
+                    .checked_mul(total_shares)?
+                    .checked_div(total_deposit)
+                    .map_err(|e| StdError::DivideByZero { source: e })?
+            };
 
-    let res = Response::new().add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: config.xastro_token_addr.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Mint {
-            recipient,
-            amount: mint_amount,
-        })?,
-        funds: vec![],
-    }));
+            let res = Response::new().add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: config.xastro_token_addr.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Mint {
+                    recipient,
+                    amount: mint_amount,
+                })?,
+                funds: vec![],
+            }));
 
-    Ok(res)
-}
+            Ok(res)
+        }
+        Ok(Cw20HookMsg::Leave {}) => {
+            let what = amount
+                .checked_mul(total_deposit)?
+                .checked_div(total_shares)
+                .map_err(|e| StdError::DivideByZero { source: e })?;
 
-pub fn try_leave(
-    deps: &DepsMut,
-    env: Env,
-    info: MessageInfo,
-    share: Uint128,
-) -> Result<Response, ContractError> {
-    let config: Config = CONFIG.load(deps.storage)?;
+            // Burn share
+            let res = Response::new()
+                .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: config.xastro_token_addr.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
+                    funds: vec![],
+                }))
+                .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: config.astro_token_addr.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                        recipient,
+                        amount: what,
+                    })?,
+                    funds: vec![],
+                }));
 
-    let total_deposit = get_total_deposit(deps.as_ref(), env, config.clone())?;
-    let total_shares = get_total_shares(deps.as_ref(), config.clone())?;
-
-    let what = share
-        .checked_mul(total_deposit)?
-        .checked_div(total_shares)
-        .map_err(|e| StdError::DivideByZero { source: e })?;
-
-    // Burn share
-    let res = Response::new()
-        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.xastro_token_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::BurnFrom {
-                owner: info.sender.to_string(),
-                amount: share,
-            })?,
-            funds: vec![],
-        }))
-        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.astro_token_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: info.sender.to_string(),
-                amount: what,
-            })?,
-            funds: vec![],
-        }));
-
-    Ok(res)
+            Ok(res)
+        }
+        Err(err) => Err(ContractError::Std(err)),
+    }
 }
 
 pub fn get_total_shares(deps: Deps, config: Config) -> StdResult<Uint128> {
