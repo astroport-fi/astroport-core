@@ -378,7 +378,7 @@ pub fn update_pool_rewards(
     lp_token: &Addr,
     pool: &mut PoolInfo,
     cfg: &Config,
-    amount: Option<Uint128>,
+    deposited: Option<Uint128>,
 ) -> StdResult<()> {
     let lp_supply: Uint128;
 
@@ -408,7 +408,7 @@ pub fn update_pool_rewards(
                 },
             )?;
 
-            if let Some(amount) = amount {
+            if let Some(amount) = deposited {
                 lp_supply = res.balance - amount;
             } else {
                 lp_supply = res.balance;
