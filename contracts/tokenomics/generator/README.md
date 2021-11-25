@@ -75,15 +75,16 @@ Updates reward variables of the given pool to be up-to-date.
 }
 ```
 
-### `deposit`
+### `receive`
 
-Deposits given lp amount and allocates ASTRO.
+CW20 receive msg.
 
 ```json
 {
-  "deposit": {
-    "lp_token": "terra...",
-    "amount": "123"
+  "receive": {
+    "sender": "terra...",
+    "amount": "123",
+    "msg": "<base64_encoded_json_string>"
   }
 }
 ```
@@ -207,6 +208,47 @@ Returns orphan rewards amount.
 {
   "orphan_proxy_rewards": {
     "lp_token": "terra..."
+  }
+}
+```
+
+## Cw20HookMsg
+
+### `Deposit`
+
+Deposits given lp amount and allocates ASTRO.
+Must be sent from token contract.
+
+```json
+{
+  "send": {
+    "contract": HumanAddr,
+    "amount": Uint128,
+    "msg": Binary({
+      "Deposit": {
+        "lp_token": HumanAddr
+      }
+    })
+  }
+}
+```
+
+### `DepositFor`
+
+Deposits given lp amount and allocates ASTRO to beneficiary.
+Must be sent from token contract.
+
+```json
+{
+  "send": {
+    "contract": HumanAddr,
+    "amount": Uint128,
+    "msg": Binary({
+      "DepositFor": {
+        "lp_token": HumanAddr,
+        "beneficiary": HumanAddr
+      }
+    })
   }
 }
 ```
