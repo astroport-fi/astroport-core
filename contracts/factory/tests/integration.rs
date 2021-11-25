@@ -294,3 +294,54 @@ fn create_pair() {
     assert_eq!("Contract #1", res.contract_addr.to_string());
     assert_eq!("Contract #2", res.liquidity_token.to_string());
 }
+
+#[test]
+#[should_panic]
+fn create_pair_with_same_assets() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked("Owner");
+    let token_code_id = store_token_code(&mut app);
+    let factory_instance = instantiate_contract(&mut app, &owner, token_code_id);
+    let token = Addr::unchecked("asset0000");
+
+    let asset_infos = [
+        AssetInfo::Token {
+            contract_addr: token.clone(),
+        },
+        AssetInfo::Token {
+            contract_addr: token,
+        },
+    ];
+    let msg = ExecuteMsg::CreatePair { asset_infos };
+
+    app.execute_contract(owner, factory_instance, &msg, &[])
+        .unwrap();
+}
+
+#[test]
+#[should_panic]
+fn create_pair_stable_with_same_assets() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked("Owner");
+    let token_code_id = store_token_code(&mut app);
+    let factory_instance = instantiate_contract(&mut app, &owner, token_code_id);
+    let token = Addr::unchecked("asset0000");
+
+    let asset_infos = [
+        AssetInfo::Token {
+            contract_addr: token.clone(),
+        },
+        AssetInfo::Token {
+            contract_addr: token,
+        },
+    ];
+    let msg = ExecuteMsg::CreatePairStable {
+        asset_infos,
+        amp: 100,
+    };
+
+    app.execute_contract(owner, factory_instance, &msg, &[])
+        .unwrap();
+}

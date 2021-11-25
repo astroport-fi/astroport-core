@@ -21,6 +21,9 @@ pub enum ContractError {
     #[error("Operation exceeds max splippage tolerance")]
     MaxSlippageAssertion {},
 
+    #[error("Doubling assets in asset infos")]
+    DoublingAssets {},
+
     #[error("Asset mismatch between the requested and stored in contract")]
     AssetMismatch {},
 
