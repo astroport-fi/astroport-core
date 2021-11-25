@@ -57,7 +57,7 @@ Must be sent from token contract.
   "send": {
     "contract": HumanAddr,
     "amount": Uint128,
-    "msg": Binary{
+    "msg": Binary({
       "Enter": {}
     })
   }
@@ -73,9 +73,9 @@ Must be sent from token contract.
   "send": {
     "contract": HumanAddr,
     "amount": Uint128,
-    "msg": {
+    "msg": Binary({
       "Leave": {}
-    }
+    })
   }
 }
 ```
