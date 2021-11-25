@@ -42,6 +42,10 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsgStable,
 ) -> Result<Response, ContractError> {
+    if msg.asset_infos[0] == msg.asset_infos[1] {
+        return Err(ContractError::DoublingAssets {});
+    }
+
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {

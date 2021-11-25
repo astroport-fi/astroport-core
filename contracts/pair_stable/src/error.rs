@@ -9,6 +9,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
+    #[error("Doubling assets in asset infos")]
+    DoublingAssets {},
+
     #[error("Event of zero transfer")]
     InvalidZeroAmount {},
 
