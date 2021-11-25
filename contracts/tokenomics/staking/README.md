@@ -17,26 +17,16 @@ README has updated with new messages (Astroport v1 messages follow).
 
 ## ExecuteMsg
 
-### `enter`
+### `receive`
 
-Deposits token to get share token amount.
-
-```json
-{
-  "enter": {
-    "amount": "123"
-  }
-}
-```
-
-### `leave`
-
-Unstakes share token to move back deposit token amount. Burns share.
+CW20 receive msg.
 
 ```json
 {
-  "leave": {
-    "share": "123"
+  "receive": {
+    "sender": "terra...",
+    "amount": "123",
+    "msg": "<base64_encoded_json_string>"
   }
 }
 ```
@@ -52,5 +42,40 @@ Returns deposit and share token addresses.
 ```json
 {
   "config": {}
+}
+```
+
+## Cw20HookMsg
+
+### `Enter`
+
+Deposits token to get share token amount.
+Must be sent from token contract.
+
+```json
+{
+  "send": {
+    "contract": HumanAddr,
+    "amount": Uint128,
+    "msg": Binary{
+      "Enter": {}
+    })
+  }
+}
+```
+
+### `Leave`
+
+Unstakes share token to move back deposit token amount. Burns share.
+Must be sent from token contract.
+```json
+{
+  "send": {
+    "contract": HumanAddr,
+    "amount": Uint128,
+    "msg": {
+      "Leave": {}
+    }
+  }
 }
 ```
