@@ -444,21 +444,6 @@ fn generator_with_mirror_reward_proxy() {
     mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 9);
     mint_tokens(&mut app, &lp_eur_usd_instance, &user1, 10);
 
-    allow_tokens(
-        &mut app,
-        &lp_cny_eur_instance,
-        USER1,
-        &generator_instance,
-        10,
-    );
-    allow_tokens(
-        &mut app,
-        &lp_eur_usd_instance,
-        USER1,
-        &generator_instance,
-        10,
-    );
-
     // An user can't deposit without sufficient lp_token balance
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
@@ -565,21 +550,6 @@ fn generator_with_mirror_reward_proxy() {
     // User 2
     mint_tokens(&mut app, &lp_cny_eur_instance, &user2, 10);
     mint_tokens(&mut app, &lp_eur_usd_instance, &user2, 10);
-
-    allow_tokens(
-        &mut app,
-        &lp_cny_eur_instance,
-        USER2,
-        &generator_instance,
-        10,
-    );
-    allow_tokens(
-        &mut app,
-        &lp_eur_usd_instance,
-        USER2,
-        &generator_instance,
-        10,
-    );
 
     deposit_lp_tokens_to_generator(
         &mut app,
@@ -999,14 +969,13 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
 
     let amount = Uint128::new(63072000_000000);
 
-    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: vesting_instance.to_string(),
-        amount,
-        expires: None,
-    };
-
-    app.execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
-        .unwrap();
+    allow_tokens(
+        &mut app,
+        &astro_token_instance,
+        owner.as_str(),
+        &vesting_instance,
+        amount.u128(),
+    );
 
     let msg = VestingExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![VestingAccount {
