@@ -5,24 +5,22 @@ use crate::state::{Config, CONFIG};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, QueryRequest, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
-    Uint128, WasmMsg, WasmQuery,
+    DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
+    WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::{
-    ConfigResponse as FactoryConfigResponse, FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg,
-};
-
-use astroport::pair::{
-    generator_address, mint_liquidity_token_message, ConfigResponse, InstantiateMsgStable,
-};
+use astroport::factory::PairType;
+use astroport::generator::ExecuteMsg as GeneratorExecuteMsg;
+use astroport::pair::{ConfigResponse, InstantiateMsgStable};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse,
 };
-use astroport::querier::{query_supply, query_token_precision};
+use astroport::querier::{
+    query_factory_config, query_fee_info, query_supply, query_token_precision,
+};
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -347,11 +345,12 @@ pub fn provide_liquidity(
     // mint LP token for sender or receiver if set
     let receiver = receiver.unwrap_or_else(|| info.sender.to_string());
     messages.extend(mint_liquidity_token_message(
-        env.contract.address.clone(),
-        config.pair_info.liquidity_token.clone(),
+        deps.as_ref(),
+        &config,
+        env.clone(),
         deps.api.addr_validate(receiver.as_str())?,
         share,
-        generator_address(auto_stake, config.factory_addr.clone(), &deps)?,
+        auto_stake,
     )?);
 
     // Accumulate prices for oracle
@@ -376,6 +375,63 @@ pub fn provide_liquidity(
         attr("assets", format!("{}, {}", assets[0], assets[1])),
         attr("share", share.to_string()),
     ]))
+}
+
+/// Mint LP token to beneficiary or auto deposit into generator if set
+fn mint_liquidity_token_message(
+    deps: Deps,
+    config: &Config,
+    env: Env,
+    recipient: Addr,
+    amount: Uint128,
+    auto_stake: bool,
+) -> StdResult<Vec<CosmosMsg>> {
+    let lp_token = config.pair_info.liquidity_token.clone();
+
+    // If no auto-stake - just mint to recipient
+    if !auto_stake {
+        return Ok(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: lp_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Mint {
+                recipient: recipient.to_string(),
+                amount,
+            })?,
+            funds: vec![],
+        })]);
+    }
+
+    // Mint to contract and stake to generator
+    let generator =
+        query_factory_config(&deps.querier, config.clone().factory_addr)?.generator_address;
+
+    Ok(vec![
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: lp_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Mint {
+                recipient: env.contract.address.to_string(),
+                amount,
+            })?,
+            funds: vec![],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: lp_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                spender: generator.to_string(),
+                amount,
+                expires: None,
+            })?,
+            funds: vec![],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: generator.to_string(),
+            msg: to_binary(&GeneratorExecuteMsg::DepositFor {
+                lp_token,
+                amount,
+                beneficiary: recipient,
+            })?,
+            funds: vec![],
+        }),
+    ])
 }
 
 pub fn withdraw_liquidity(
@@ -502,7 +558,11 @@ pub fn swap(
     }
 
     // Get fee info from factory
-    let fee_info = get_fee_info(deps.as_ref(), config.clone())?;
+    let fee_info = query_fee_info(
+        &deps.querier,
+        config.factory_addr.clone(),
+        config.pair_info.pair_type.clone(),
+    )?;
 
     let offer_amount = offer_asset.amount;
     let (return_amount, spread_amount, commission_amount) = compute_swap(
@@ -656,28 +716,6 @@ pub fn calculate_maker_fee(
     })
 }
 
-pub struct FeeInfo {
-    pub fee_address: Option<Addr>,
-    pub total_fee_rate: Decimal,
-    pub maker_fee_rate: Decimal,
-}
-
-pub fn get_fee_info(deps: Deps, config: Config) -> StdResult<FeeInfo> {
-    let res: FeeInfoResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.factory_addr.to_string(),
-        msg: to_binary(&FactoryQueryMsg::FeeInfo {
-            pair_type: config.pair_info.pair_type,
-        })
-        .unwrap(),
-    }))?;
-
-    Ok(FeeInfo {
-        fee_address: res.fee_address,
-        total_fee_rate: Decimal::from_ratio(Uint128::from(res.total_fee_bps), Uint128::new(10000)),
-        maker_fee_rate: Decimal::from_ratio(Uint128::from(res.maker_fee_bps), Uint128::new(10000)),
-    })
-}
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -739,7 +777,11 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
     }
 
     // Get fee info from factory
-    let fee_info = get_fee_info(deps, config.clone())?;
+    let fee_info = query_fee_info(
+        &deps.querier,
+        config.factory_addr.clone(),
+        config.pair_info.pair_type.clone(),
+    )?;
 
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
@@ -782,7 +824,11 @@ pub fn query_reverse_simulation(
     }
 
     // Get fee info from factory
-    let fee_info = get_fee_info(deps, config.clone())?;
+    let fee_info = query_fee_info(
+        &deps.querier,
+        config.factory_addr.clone(),
+        config.pair_info.pair_type.clone(),
+    )?;
 
     let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
         offer_pool.amount,
@@ -1016,14 +1062,9 @@ pub fn update_config(
     amp: Option<u64>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
+    let factory_config = query_factory_config(&deps.querier, config.factory_addr.clone())?;
 
-    let factory_config: FactoryConfigResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: config.factory_addr.to_string(),
-            msg: to_binary(&FactoryQueryMsg::Config {})?,
-        }))?;
-
-    if factory_config.gov.is_none() || info.sender != factory_config.gov.unwrap() {
+    if info.sender != factory_config.owner {
         return Err(ContractError::Unauthorized {});
     }
 

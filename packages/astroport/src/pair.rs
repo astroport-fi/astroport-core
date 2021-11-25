@@ -3,10 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{Asset, AssetInfo};
 
-use crate::factory::factory_config;
-use crate::generator::ExecuteMsg as GeneratorExecuteMsg;
-use cosmwasm_std::{to_binary, Addr, CosmosMsg, Decimal, DepsMut, StdResult, Uint128, WasmMsg};
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cosmwasm_std::{Addr, Decimal, Uint128};
+use cw20::Cw20ReceiveMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -119,61 +117,3 @@ pub struct CumulativePricesResponse {
 /// We currently take no arguments for migrations
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
-
-pub fn generator_address(
-    auto_stack: bool,
-    factory_addr: Addr,
-    deps: &DepsMut,
-) -> StdResult<Option<Addr>> {
-    Ok(if auto_stack {
-        let factory_config = factory_config(factory_addr, deps)?;
-        Some(factory_config.generator_address)
-    } else {
-        None
-    })
-}
-
-/// Mint LP token to beneficiary or auto deposit into generator if set
-pub fn mint_liquidity_token_message(
-    pair: Addr,
-    lp_token: Addr,
-    beneficiary: Addr,
-    amount: Uint128,
-    generator: Option<Addr>,
-) -> StdResult<Vec<CosmosMsg>> {
-    let recipient = if generator.is_some() {
-        pair.to_string()
-    } else {
-        beneficiary.to_string()
-    };
-
-    let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: lp_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Mint { recipient, amount })?,
-        funds: vec![],
-    })];
-
-    if let Some(generator) = generator {
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: lp_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                spender: generator.to_string(),
-                amount,
-                expires: None,
-            })?,
-            funds: vec![],
-        }));
-
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: generator.to_string(),
-            msg: to_binary(&GeneratorExecuteMsg::DepositFor {
-                lp_token,
-                beneficiary,
-                amount,
-            })?,
-            funds: vec![],
-        }));
-    }
-
-    Ok(messages)
-}

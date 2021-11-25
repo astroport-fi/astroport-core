@@ -12,13 +12,13 @@ interface FactoryInitMsg {
         token_code_id: number,
         fee_address?: string,
         generator_address: string,
-        gov?: string,
         owner: string,
     }
 }
 
 interface GeneratorInitMsg {
     config: {
+        owner: string
         allowed_reward_proxies: string[],
         astro_token: string,
         start_block: string,

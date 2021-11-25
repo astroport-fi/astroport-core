@@ -1,3 +1,4 @@
+use astroport::generator::{ExecuteMsg, QueryMsg};
 use astroport::{
     generator::{
         ConfigResponse, ExecuteMsg as GeneratorExecuteMsg,
@@ -25,6 +26,67 @@ use terra_multi_test::{next_block, App, BankKeeper, ContractWrapper, Executor, T
 const OWNER: &str = "Owner";
 const USER1: &str = "User1";
 const USER2: &str = "User2";
+
+#[test]
+fn update_config() {
+    let mut app = mock_app();
+
+    let token_code_id = store_token_code(&mut app);
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
+
+    let msg = QueryMsg::Config {};
+    let res: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg)
+        .unwrap();
+
+    assert_eq!(res.owner, OWNER);
+    assert_eq!(res.astro_token.to_string(), "Contract #0");
+    assert_eq!(res.vesting_contract.to_string(), "Contract #1");
+
+    let new_owner = Addr::unchecked("new_owner");
+    let new_tokens_per_block = Uint128::new(999);
+    let new_vesting = Addr::unchecked("new_vesting");
+
+    let msg = ExecuteMsg::UpdateConfig {
+        owner: Some(new_owner.to_string()),
+        tokens_per_block: Some(new_tokens_per_block),
+        vesting_contract: Some(new_vesting.to_string()),
+    };
+
+    // Assert cannot update with improper owner
+    let e = app
+        .execute_contract(
+            Addr::unchecked("not_owner"),
+            generator_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(e.to_string(), "Unauthorized");
+
+    app.execute_contract(
+        Addr::unchecked(OWNER),
+        generator_instance.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    let msg = QueryMsg::Config {};
+    let res: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg)
+        .unwrap();
+
+    assert_eq!(res.owner, new_owner);
+    assert_eq!(res.tokens_per_block, new_tokens_per_block);
+    assert_eq!(res.vesting_contract, new_vesting);
+}
 
 #[test]
 fn generator_without_reward_proxies() {
@@ -432,16 +494,6 @@ fn generator_with_mirror_reward_proxy() {
 
     let msg = GeneratorExecuteMsg::SetAllowedRewardProxies {
         proxies: vec![proxy_to_mirror_instance.to_string()],
-    };
-    assert_eq!(
-        app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
-            .unwrap_err()
-            .to_string(),
-        String::from("Unauthorized")
-    );
-
-    let msg = GeneratorExecuteMsg::SetTokensPerBlock {
-        amount: Uint128::from(100u64),
     };
     assert_eq!(
         app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
@@ -980,10 +1032,11 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
     let generator_code_id = app.store_code(generator_contract);
 
     let init_msg = GeneratorInstantiateMsg {
+        owner: owner.to_string(),
         allowed_reward_proxies: vec![],
         start_block: Uint64::from(app.block_info().height),
         astro_token: astro_token_instance.to_string(),
-        tokens_per_block: Uint128::from(0_000000u128),
+        tokens_per_block: Uint128::new(10_000000),
         vesting_contract: vesting_instance.to_string(),
     };
 
@@ -997,21 +1050,6 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
             None,
         )
         .unwrap();
-
-    let tokens_per_block = Uint128::new(10_000000);
-
-    let msg = GeneratorExecuteMsg::SetTokensPerBlock {
-        amount: tokens_per_block,
-    };
-    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = GeneratorQueryMsg::Config {};
-    let res: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&generator_instance, &msg)
-        .unwrap();
-    assert_eq!(res.tokens_per_block, tokens_per_block);
 
     // vesting to generator:
 

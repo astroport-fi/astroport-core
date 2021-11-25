@@ -26,8 +26,6 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    let owner = deps.api.addr_validate(&msg.owner)?;
-
     let governance_contract = if let Some(governance_contract) = msg.governance_contract {
         Option::from(deps.api.addr_validate(&governance_contract)?)
     } else {
@@ -44,7 +42,7 @@ pub fn instantiate(
     };
 
     let cfg = Config {
-        owner,
+        owner: deps.api.addr_validate(&msg.owner)?,
         astro_token_contract: deps.api.addr_validate(&msg.astro_token_contract)?,
         factory_contract: deps.api.addr_validate(&msg.factory_contract)?,
         staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
@@ -65,15 +63,17 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Collect { pair_addresses } => collect(deps, env, pair_addresses),
-        ExecuteMsg::SetConfig {
+        ExecuteMsg::UpdateConfig {
             owner,
+            factory_contract,
             staking_contract,
             governance_contract,
             governance_percent,
-        } => set_config(
+        } => update_config(
             deps,
             info,
             owner,
+            factory_contract,
             staking_contract,
             governance_contract,
             governance_percent,
@@ -240,10 +240,11 @@ fn swap_to_astro(
     }
 }
 
-fn set_config(
+fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     owner: Option<String>,
+    factory_contract: Option<String>,
     staking_contract: Option<String>,
     governance_contract: Option<UpdateAddr>,
     governance_percent: Option<Uint64>,
@@ -260,7 +261,13 @@ fn set_config(
     if let Some(owner) = owner {
         // validate address format
         config.owner = deps.api.addr_validate(owner.as_str())?;
+        attributes.push(Attribute::new("owner", &owner));
     }
+
+    if let Some(factory_contract) = factory_contract {
+        config.factory_contract = deps.api.addr_validate(&factory_contract)?;
+        attributes.push(Attribute::new("factory_contract", &factory_contract));
+    };
 
     if let Some(staking_contract) = staking_contract {
         config.staking_contract = deps.api.addr_validate(&staking_contract)?;
@@ -269,7 +276,7 @@ fn set_config(
 
     if let Some(action) = governance_contract {
         match action {
-            UpdateAddr::Set { address: gov } => {
+            UpdateAddr::Set(gov) => {
                 config.governance_contract = Option::from(deps.api.addr_validate(&gov)?);
                 attributes.push(Attribute::new("governance_contract", &gov));
             }

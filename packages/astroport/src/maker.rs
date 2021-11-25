@@ -20,10 +20,10 @@ pub enum ExecuteMsg {
     Collect {
         pair_addresses: Vec<Addr>,
     },
-    SetConfig {
+    UpdateConfig {
         owner: Option<String>,
+        factory_contract: Option<String>,
         staking_contract: Option<String>,
-
         governance_contract: Option<UpdateAddr>,
         governance_percent: Option<Uint64>,
     },

@@ -327,8 +327,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         }),
         pair_stable_config: None,
         token_code_id,
-        gov: None,
-        generator_address: Addr::unchecked("generator"),
+        generator_address: String::from("generator"),
         owner: owner.to_string(),
     };
 

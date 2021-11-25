@@ -16,7 +16,6 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
   "token_code_id": 123,
   "fee_address": "terra...",
   "owner": "terra...",
-  "gov": "terra...",
   "generator_address": "terra..."
 }
 ```

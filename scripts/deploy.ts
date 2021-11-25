@@ -68,6 +68,7 @@ async function main() {
         console.log('Deploying Generator...')
         deployConfig.generatorInitMsg.config.astro_token = network.tokenAddress;
         deployConfig.generatorInitMsg.config.vesting_contract = network.vestingAddress;
+        deployConfig.generatorInitMsg.config.owner = wallet.key.accAddress;
         network.generatorAddress = await deployContract(
             terra,
             wallet,

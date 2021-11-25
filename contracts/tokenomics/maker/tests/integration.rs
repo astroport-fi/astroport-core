@@ -1,15 +1,13 @@
-use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, Uint64, WasmQuery};
-use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
-
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-
 use astroport::factory::{PairConfig, UpdateAddr};
 use astroport::maker::{
     ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
 };
+use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, Uint64, WasmQuery};
+use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
+use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -87,9 +85,8 @@ fn instantiate_contracts(
         pair_stable_config: None,
         token_code_id: 1u64,
         fee_address: None,
-        gov: None,
         owner: owner.to_string(),
-        generator_address: Addr::unchecked("generator"),
+        generator_address: String::from("generator"),
     };
 
     let factory_instance = router
@@ -324,10 +321,9 @@ fn create_pair(
 }
 
 #[test]
-fn collect_all() {
+fn update_config() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
-    let user = Addr::unchecked("user0000");
     let staking = Addr::unchecked("staking");
     let governance = Addr::unchecked("governance");
     let governance_percent = Uint64::new(10);
@@ -345,16 +341,39 @@ fn collect_all() {
         .wrap()
         .query_wasm_smart(&maker_instance, &msg)
         .unwrap();
+
+    assert_eq!(res.owner, owner);
+    assert_eq!(res.astro_token_contract, astro_token_instance);
+    assert_eq!(res.factory_contract, factory_instance);
+    assert_eq!(res.staking_contract, staking);
+    assert_eq!(res.governance_contract, Some(governance));
     assert_eq!(res.governance_percent, governance_percent);
 
-    let governance_percent = Uint64::new(50);
+    let new_owner = Addr::unchecked("new_owner");
+    let new_staking = Addr::unchecked("new_staking");
+    let new_factory = Addr::unchecked("new_factory");
+    let new_governance = Addr::unchecked("new_governance");
+    let new_governance_percent = Uint64::new(50);
 
-    let msg = ExecuteMsg::SetConfig {
-        owner: None,
-        governance_percent: Some(governance_percent),
-        governance_contract: None,
-        staking_contract: None,
+    let msg = ExecuteMsg::UpdateConfig {
+        owner: Some(new_owner.to_string()),
+        governance_percent: Some(new_governance_percent),
+        governance_contract: Some(UpdateAddr::Set(new_governance.to_string())),
+        staking_contract: Some(new_staking.to_string()),
+        factory_contract: Some(new_factory.to_string()),
     };
+
+    // Assert cannot update with improper owner
+    let e = router
+        .execute_contract(
+            Addr::unchecked("not_owner"),
+            maker_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(e.to_string(), "Unauthorized");
 
     router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
@@ -365,18 +384,23 @@ fn collect_all() {
         .wrap()
         .query_wasm_smart(&maker_instance, &msg)
         .unwrap();
-    assert_eq!(res.governance_percent, governance_percent);
-    assert_eq!(res.governance_contract, Some(governance.clone()));
 
-    let msg = ExecuteMsg::SetConfig {
+    assert_eq!(res.owner, new_owner);
+    assert_eq!(res.factory_contract, new_factory);
+    assert_eq!(res.staking_contract, new_staking);
+    assert_eq!(res.governance_percent, new_governance_percent);
+    assert_eq!(res.governance_contract, Some(new_governance.clone()));
+
+    let msg = ExecuteMsg::UpdateConfig {
         owner: None,
-        governance_percent: Some(governance_percent),
+        governance_percent: None,
         governance_contract: Some(UpdateAddr::Remove {}),
         staking_contract: None,
+        factory_contract: None,
     };
 
     router
-        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
+        .execute_contract(new_owner.clone(), maker_instance.clone(), &msg, &[])
         .unwrap();
 
     let msg = QueryMsg::Config {};
@@ -385,26 +409,24 @@ fn collect_all() {
         .query_wasm_smart(&maker_instance, &msg)
         .unwrap();
     assert_eq!(res.governance_contract, None);
+}
 
-    let msg = ExecuteMsg::SetConfig {
-        owner: None,
-        governance_percent: Some(governance_percent),
-        governance_contract: Some(UpdateAddr::Set {
-            address: governance.to_string(),
-        }),
-        staking_contract: None,
-    };
+#[test]
+fn collect_all() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+    let user = Addr::unchecked("user0000");
+    let staking = Addr::unchecked("staking");
+    let governance = Addr::unchecked("governance");
+    let governance_percent = Uint64::new(10);
 
-    router
-        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = QueryMsg::Config {};
-    let res: QueryConfigResponse = router
-        .wrap()
-        .query_wasm_smart(&maker_instance, &msg)
-        .unwrap();
-    assert_eq!(res.governance_contract, Some(governance.clone()));
+    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
+        &mut router,
+        owner.clone(),
+        staking.clone(),
+        &governance,
+        governance_percent,
+    );
 
     let usdc_token_instance = instantiate_token(
         &mut router,

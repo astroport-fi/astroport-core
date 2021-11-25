@@ -7,6 +7,7 @@ export const configDefault: Config = {
     },
     generatorInitMsg: {
         config: {
+            owner: '',
             allowed_reward_proxies: [],
             astro_token: '',
             start_block: '1',
@@ -30,7 +31,6 @@ export const configDefault: Config = {
             token_code_id: 0,
             generator_address: '',
             fee_address: undefined,
-            gov: undefined,
         }
     },
     registerVestingAccounts: {
