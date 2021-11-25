@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{Asset, AssetInfo};
 
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -14,18 +14,8 @@ pub struct InstantiateMsg {
     pub token_code_id: u64,
     /// Factory contract address
     pub factory_addr: Addr,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InstantiateMsgStable {
-    /// Asset infos
-    pub asset_infos: [AssetInfo; 2],
-    /// Token contract code id for initialization
-    pub token_code_id: u64,
-    /// Factory contract address
-    pub factory_addr: Addr,
-    /// Amplification point
-    pub amp: u64,
+    /// Optional binary serialised parameters for custom pool types
+    pub init_params: Option<Binary>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -47,7 +37,7 @@ pub enum ExecuteMsg {
         to: Option<String>,
     },
     UpdateConfig {
-        amp: Option<u64>,
+        params: Binary,
     },
 }
 
@@ -117,3 +107,9 @@ pub struct CumulativePricesResponse {
 /// We currently take no arguments for migrations
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct StablePoolParams {
+    pub amp: u64,
+}
