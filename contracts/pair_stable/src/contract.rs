@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::math::calc_amount;
+use crate::math::{calc_amount, compute_d, N_COINS};
 use crate::state::{Config, CONFIG};
 
 use cosmwasm_bignumber::{Decimal256, Uint256};
@@ -281,25 +281,64 @@ pub fn provide_liquidity(
     // assert slippage tolerance
     assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
 
+    let token_precision_0 = query_token_precision(&deps.querier, pools[0].info.clone())?;
+    let token_precision_1 = query_token_precision(&deps.querier, pools[1].info.clone())?;
+
+    let greater_precision = token_precision_0.max(token_precision_1);
+
+    let deposit_amount_0 = adjust_precision(deposits[0], token_precision_0, greater_precision)?;
+    let deposit_amount_1 = adjust_precision(deposits[1], token_precision_1, greater_precision)?;
+
     let total_share = query_supply(&deps.querier, config.pair_info.liquidity_token.clone())?;
     let share = if total_share.is_zero() {
+        let liquidity_token_precision = query_token_precision(
+            &deps.querier,
+            AssetInfo::Token {
+                contract_addr: config.pair_info.liquidity_token.clone(),
+            },
+        )?;
+
         // Initial share = collateral amount
-        Uint128::new(
-            (U256::from(deposits[0].u128()) * U256::from(deposits[1].u128()))
-                .integer_sqrt()
-                .as_u128(),
-        )
+        adjust_precision(
+            Uint128::new(
+                (U256::from(deposit_amount_0.u128()) * U256::from(deposit_amount_1.u128()))
+                    .integer_sqrt()
+                    .as_u128(),
+            ),
+            greater_precision,
+            liquidity_token_precision,
+        )?
     } else {
-        // min(1, 2)
-        // 1. sqrt(deposit_0 * exchange_rate_0_to_1 * deposit_0) * (total_share / sqrt(pool_0 * pool_1))
-        // == deposit_0 * total_share / pool_0
-        // 2. sqrt(deposit_1 * exchange_rate_1_to_0 * deposit_1) * (total_share / sqrt(pool_1 * pool_1))
-        // == deposit_1 * total_share / pool_1
-        std::cmp::min(
-            deposits[0].multiply_ratio(total_share, pools[0].amount),
-            deposits[1].multiply_ratio(total_share, pools[1].amount),
+        let leverage = config.amp.checked_mul(u64::from(N_COINS)).unwrap();
+
+        let mut pool_amount_0 =
+            adjust_precision(pools[0].amount, token_precision_0, greater_precision)?;
+        let mut pool_amount_1 =
+            adjust_precision(pools[1].amount, token_precision_1, greater_precision)?;
+
+        let d_before_addition_liquidity =
+            compute_d(leverage, pool_amount_0.u128(), pool_amount_1.u128()).unwrap();
+
+        pool_amount_0 = pool_amount_0.checked_add(deposit_amount_0)?;
+        pool_amount_1 = pool_amount_1.checked_add(deposit_amount_1)?;
+
+        let d_after_addition_liquidity =
+            compute_d(leverage, pool_amount_0.u128(), pool_amount_1.u128()).unwrap();
+
+        // d after addition liquidity may be less than or equal to d before addition liquidity due to rounding
+        if d_before_addition_liquidity >= d_after_addition_liquidity {
+            return Err(ContractError::LiquidityAmountTooSmall {});
+        }
+
+        total_share.multiply_ratio(
+            d_after_addition_liquidity - d_before_addition_liquidity,
+            d_before_addition_liquidity,
         )
     };
+
+    if share.is_zero() {
+        return Err(ContractError::LiquidityAmountTooSmall {});
+    }
 
     // mint LP token for sender or receiver if set
     let receiver = receiver.unwrap_or_else(|| info.sender.to_string());
@@ -316,9 +355,9 @@ pub fn provide_liquidity(
         env,
         &config,
         pools[0].amount,
-        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        token_precision_0,
         pools[1].amount,
-        query_token_precision(&deps.querier, pools[1].info.clone())?,
+        token_precision_1,
     )? {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
