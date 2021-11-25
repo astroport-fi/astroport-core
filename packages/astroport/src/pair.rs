@@ -36,6 +36,7 @@ pub enum ExecuteMsg {
         max_spread: Option<Decimal>,
         to: Option<String>,
     },
+    /// Update pair config if required
     UpdateConfig {
         params: Binary,
     },
@@ -76,7 +77,7 @@ pub struct PoolResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub block_time_last: u64,
-    pub amp: Option<u64>,
+    pub params: Option<Binary>,
 }
 
 /// SimulationResponse returns swap simulation response

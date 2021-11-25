@@ -61,6 +61,25 @@ fn proper_initialization() {
     let res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap_err();
     assert_eq!(res, ContractError::PairConfigDuplicate {});
 
+    let msg = InstantiateMsg {
+        pair_configs: vec![PairConfig {
+            code_id: 123u64,
+            pair_type: PairType::Xyk {},
+            total_fee_bps: 10_001,
+            maker_fee_bps: 10,
+        }],
+        token_code_id: 123u64,
+        fee_address: None,
+        generator_address: String::from("generator"),
+        owner: owner.clone(),
+    };
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+
+    let res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap_err();
+    assert_eq!(res, ContractError::PairConfigInvalidFeeBps {});
+
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {

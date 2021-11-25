@@ -4,11 +4,12 @@ use astroport::factory::{
     QueryMsg as FactoryQueryMsg,
 };
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StablePoolParams,
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
+    StablePoolParams,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
+use cosmwasm_std::{attr, from_binary, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
 
@@ -559,4 +560,85 @@ fn create_pair_with_same_assets() {
         .unwrap_err();
 
     assert_eq!(resp.to_string(), "Doubling assets in asset infos")
+}
+
+#[test]
+fn update_pair_config() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+
+    let token_contract_code_id = store_token_code(&mut router);
+    let pair_contract_code_id = store_pair_code(&mut router);
+
+    let factory_code_id = store_factory_code(&mut router);
+
+    let init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![],
+        token_code_id: token_contract_code_id,
+        generator_address: String::from("generator"),
+        owner: owner.to_string(),
+    };
+
+    let factory_instance = router
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
+
+    let msg = InstantiateMsg {
+        asset_infos: [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        ],
+        token_code_id: token_contract_code_id,
+        factory_addr: factory_instance,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+    };
+
+    let pair = router
+        .instantiate_contract(
+            pair_contract_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("PAIR"),
+            None,
+        )
+        .unwrap();
+
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+        .unwrap();
+
+    let params: StablePoolParams = from_binary(&res.params.unwrap()).unwrap();
+
+    assert_eq!(params.amp, 100);
+
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&StablePoolParams { amp: 250 }).unwrap(),
+    };
+
+    router
+        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
+        .unwrap();
+
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+        .unwrap();
+
+    let params: StablePoolParams = from_binary(&res.params.unwrap()).unwrap();
+
+    assert_eq!(params.amp, 250);
 }
