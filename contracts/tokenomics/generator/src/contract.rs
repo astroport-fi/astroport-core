@@ -351,7 +351,7 @@ pub fn mass_update_pools(mut deps: DepsMut, env: Env) -> Result<Response, Contra
         return Ok(response);
     }
     for (lp_token, mut pool) in pools {
-        update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg)?;
+        update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg, None)?;
         POOL_INFO.save(deps.storage, &lp_token, &pool)?;
     }
     Ok(response.add_attribute("action", "mass_update_pools"))
@@ -364,7 +364,7 @@ pub fn update_pool(mut deps: DepsMut, env: Env, lp_token: Addr) -> Result<Respon
     let cfg = CONFIG.load(deps.storage)?;
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
-    update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg)?;
+    update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg, None)?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
 
@@ -378,6 +378,7 @@ pub fn update_pool_rewards(
     lp_token: &Addr,
     pool: &mut PoolInfo,
     cfg: &Config,
+    amount: Option<Uint128>,
 ) -> StdResult<()> {
     let lp_supply: Uint128;
 
@@ -406,7 +407,12 @@ pub fn update_pool_rewards(
                     address: env.contract.address.to_string(),
                 },
             )?;
-            lp_supply = res.balance;
+
+            if let Some(amount) = amount {
+                lp_supply = res.balance - amount;
+            } else {
+                lp_supply = res.balance;
+            }
         }
     };
 
@@ -480,7 +486,14 @@ pub fn deposit(
     let cfg = CONFIG.load(deps.storage)?;
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
-    update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg)?;
+    update_pool_rewards(
+        deps.branch(),
+        &env,
+        &lp_token,
+        &mut pool,
+        &cfg,
+        Some(amount),
+    )?;
 
     if !user.amount.is_zero() {
         let pending = (user.amount * pool.acc_per_share).checked_sub(user.reward_debt)?;
@@ -560,7 +573,7 @@ pub fn withdraw(
     }
     let cfg = CONFIG.load(deps.storage)?;
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
-    update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg)?;
+    update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg, None)?;
 
     let pending = (user.amount * pool.acc_per_share).checked_sub(user.reward_debt)?;
     if !pending.is_zero() {
