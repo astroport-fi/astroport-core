@@ -110,8 +110,8 @@ async function main() {
     if (!network.factoryAddress) {
         console.log('Deploying Factory...')
         deployConfig.factoryInitMsg.config.generator_address = network.generatorAddress
-        deployConfig.factoryInitMsg.config.pair_xyk_config.code_id = network.pairCodeID
-        deployConfig.factoryInitMsg.config.pair_stable_config.code_id = network.pairStableCodeID
+        deployConfig.factoryInitMsg.config.pair_configs[0].code_id = network.pairCodeID
+        deployConfig.factoryInitMsg.config.pair_configs[1].code_id = network.pairStableCodeID
         deployConfig.factoryInitMsg.config.token_code_id = network.tokenCodeID
         console.log(`CodeId Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID}`)
         deployConfig.factoryInitMsg.config.owner = wallet.key.accAddress
