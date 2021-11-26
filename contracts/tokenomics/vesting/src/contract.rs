@@ -1,17 +1,17 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 
 use crate::state::{read_vesting_infos, Config, CONFIG, VESTING_INFO};
 
 use crate::error::ContractError;
 use astroport::vesting::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg, VestingAccount,
-    VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg,
+    VestingAccount, VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
 };
 use cw2::set_contract_version;
-use cw20::Cw20ExecuteMsg;
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-vesting";
@@ -47,9 +47,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::Claim { recipient, amount } => claim(deps, env, info, recipient, amount),
         ExecuteMsg::UpdateConfig { owner } => update_config(deps, info, owner),
-        ExecuteMsg::RegisterVestingAccounts { vesting_accounts } => {
-            register_vesting_accounts(deps, env, info, vesting_accounts)
-        }
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
     }
 }
 
@@ -73,33 +71,31 @@ pub fn update_config(
     Ok(Response::new().add_attribute("action", "update_config"))
 }
 
-fn assert_vesting_schedules(
-    addr: &Addr,
-    vesting_schedules: &[VestingSchedule],
-) -> Result<(), ContractError> {
-    for sch in vesting_schedules.iter() {
-        if let Some(end_point) = &sch.end_point {
-            if !(sch.start_point.time < end_point.time && sch.start_point.amount < end_point.amount)
-            {
-                return Err(ContractError::VestingScheduleError(addr.clone()));
-            }
+fn receive_cw20(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    cw20_msg: Cw20ReceiveMsg,
+) -> Result<Response, ContractError> {
+    match from_binary(&cw20_msg.msg)? {
+        Cw20HookMsg::RegisterVestingAccounts { vesting_accounts } => {
+            register_vesting_accounts(deps, env, info, vesting_accounts, cw20_msg.amount)
         }
     }
-
-    Ok(())
 }
 
 pub fn register_vesting_accounts(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     vesting_accounts: Vec<VestingAccount>,
+    confirm_amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::new();
+    let response = Response::new();
 
     let config: Config = CONFIG.load(deps.storage)?;
 
-    if config.owner != info.sender {
+    if info.sender != config.token_addr {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -134,19 +130,29 @@ pub fn register_vesting_accounts(
         )?;
     }
 
-    response.messages.push(SubMsg::new(WasmMsg::Execute {
-        contract_addr: config.token_addr.to_string(),
-        funds: vec![],
-        msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-            owner: config.owner.to_string(),
-            recipient: env.contract.address.to_string(),
-            amount: to_deposit,
-        })?,
-    }));
+    if to_deposit != confirm_amount {
+        return Err(ContractError::VestingScheduleAmountError {});
+    }
 
     Ok(response
         .add_attribute("action", "register_vesting_accounts")
         .add_attribute("deposited", to_deposit))
+}
+
+fn assert_vesting_schedules(
+    addr: &Addr,
+    vesting_schedules: &[VestingSchedule],
+) -> Result<(), ContractError> {
+    for sch in vesting_schedules.iter() {
+        if let Some(end_point) = &sch.end_point {
+            if !(sch.start_point.time < end_point.time && sch.start_point.amount < end_point.amount)
+            {
+                return Err(ContractError::VestingScheduleError(addr.clone()));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub fn claim(

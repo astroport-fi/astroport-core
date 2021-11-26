@@ -2,6 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Order, Timestamp, Uint128};
+use cw20::Cw20ReceiveMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -15,13 +16,11 @@ pub enum ExecuteMsg {
     UpdateConfig {
         owner: Option<String>,
     },
-    RegisterVestingAccounts {
-        vesting_accounts: Vec<VestingAccount>,
-    },
     Claim {
         recipient: Option<String>,
         amount: Option<Uint128>,
     },
+    Receive(Cw20ReceiveMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -107,3 +106,11 @@ impl Into<Order> for OrderBy {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Cw20HookMsg {
+    RegisterVestingAccounts {
+        vesting_accounts: Vec<VestingAccount>,
+    },
+}
