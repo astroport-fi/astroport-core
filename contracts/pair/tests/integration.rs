@@ -326,6 +326,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             maker_fee_bps: 0,
             pair_type: PairType::Xyk {},
             total_fee_bps: 0,
+            is_disabled: None,
         }],
         token_code_id,
         generator_address: String::from("generator"),

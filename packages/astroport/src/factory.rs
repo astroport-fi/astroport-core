@@ -29,6 +29,7 @@ pub struct PairConfig {
     pub pair_type: PairType,
     pub total_fee_bps: u16,
     pub maker_fee_bps: u16,
+    pub is_disabled: Option<bool>,
 }
 
 impl PairConfig {
@@ -62,9 +63,6 @@ pub enum ExecuteMsg {
     },
     UpdatePairConfig {
         config: PairConfig,
-    },
-    RemovePairConfig {
-        pair_type: PairType,
     },
     /// CreatePair instantiates pair contract
     CreatePair {

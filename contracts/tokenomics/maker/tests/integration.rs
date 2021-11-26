@@ -82,6 +82,7 @@ fn instantiate_contracts(
             pair_type: PairType::Xyk {},
             total_fee_bps: 0,
             maker_fee_bps: 0,
+            is_disabled: None,
         }],
         token_code_id: 1u64,
         fee_address: None,

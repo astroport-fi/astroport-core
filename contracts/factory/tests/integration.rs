@@ -67,6 +67,7 @@ fn proper_initialization() {
         pair_type: PairType::Xyk {},
         total_fee_bps: 100,
         maker_fee_bps: 10,
+        is_disabled: None,
     }];
 
     let msg = InstantiateMsg {
@@ -186,6 +187,7 @@ fn instantiate_contract(app: &mut App, owner: &Addr, token_code_id: u64) -> Addr
         pair_type: PairType::Xyk {},
         total_fee_bps: 100,
         maker_fee_bps: 10,
+        is_disabled: None,
     }];
 
     let msg = InstantiateMsg {

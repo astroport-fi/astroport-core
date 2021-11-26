@@ -41,12 +41,14 @@ fn proper_initialization() {
                 pair_type: PairType::Xyk {},
                 total_fee_bps: 100,
                 maker_fee_bps: 10,
+                is_disabled: None,
             },
             PairConfig {
                 code_id: 325u64,
                 pair_type: PairType::Xyk {},
                 total_fee_bps: 100,
                 maker_fee_bps: 10,
+                is_disabled: None,
             },
         ],
         token_code_id: 123u64,
@@ -67,6 +69,7 @@ fn proper_initialization() {
             pair_type: PairType::Xyk {},
             total_fee_bps: 10_001,
             maker_fee_bps: 10,
+            is_disabled: None,
         }],
         token_code_id: 123u64,
         fee_address: None,
@@ -89,12 +92,14 @@ fn proper_initialization() {
                 pair_type: PairType::Stable {},
                 total_fee_bps: 100,
                 maker_fee_bps: 10,
+                is_disabled: None,
             },
             PairConfig {
                 code_id: 123u64,
                 pair_type: PairType::Xyk {},
                 total_fee_bps: 100,
                 maker_fee_bps: 10,
+                is_disabled: None,
             },
         ],
         token_code_id: 123u64,
@@ -125,6 +130,7 @@ fn update_config() {
         pair_type: PairType::Xyk {},
         total_fee_bps: 3,
         maker_fee_bps: 166,
+        is_disabled: None,
     }];
 
     let msg = InstantiateMsg {
@@ -170,6 +176,7 @@ fn update_config() {
             pair_type: PairType::Xyk {},
             total_fee_bps: 3,
             maker_fee_bps: 10_001,
+            is_disabled: None,
         },
     };
 
@@ -217,6 +224,7 @@ fn update_config() {
             pair_type: PairType::Xyk {},
             total_fee_bps: 3,
             maker_fee_bps: 166,
+            is_disabled: None,
         },
     };
 
@@ -252,6 +260,7 @@ fn update_pair_config() {
         pair_type: PairType::Xyk {},
         total_fee_bps: 100,
         maker_fee_bps: 10,
+        is_disabled: None,
     }];
 
     let msg = InstantiateMsg {
@@ -279,6 +288,7 @@ fn update_pair_config() {
         pair_type: PairType::Xyk {},
         total_fee_bps: 1,
         maker_fee_bps: 2,
+        is_disabled: None,
     };
 
     // Unauthorized err
@@ -310,6 +320,7 @@ fn update_pair_config() {
         pair_type: PairType::Custom("test".to_string()),
         total_fee_bps: 10,
         maker_fee_bps: 20,
+        is_disabled: None,
     };
 
     let info = mock_info(owner.clone(), &[]);
@@ -326,19 +337,6 @@ fn update_pair_config() {
         vec![pair_config_custom.clone(), pair_config.clone()],
         config_res.pair_configs
     );
-
-    // Remove pair config
-    let info = mock_info(owner, &[]);
-    let msg = ExecuteMsg::RemovePairConfig {
-        pair_type: pair_config_custom.pair_type,
-    };
-
-    execute(deps.as_mut(), env.clone(), info, msg).unwrap();
-
-    // it worked, let's query the state
-    let query_res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
-    let config_res: ConfigResponse = from_binary(&query_res).unwrap();
-    assert_eq!(vec![pair_config], config_res.pair_configs);
 }
 
 #[test]
@@ -350,6 +348,7 @@ fn create_pair() {
         pair_type: PairType::Xyk {},
         total_fee_bps: 100,
         maker_fee_bps: 10,
+        is_disabled: None,
     };
 
     let msg = InstantiateMsg {
@@ -447,6 +446,7 @@ fn register() {
             pair_type: PairType::Xyk {},
             total_fee_bps: 100,
             maker_fee_bps: 10,
+            is_disabled: None,
         }],
         token_code_id: 123u64,
         fee_address: None,

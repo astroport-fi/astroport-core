@@ -23,4 +23,10 @@ pub enum ContractError {
 
     #[error("Pair config not found")]
     PairConfigNotFound {},
+
+    #[error("Pair config disabled")]
+    PairConfigDisabled {},
+
+    #[error("Doubling assets in asset infos")]
+    DoublingAssets {},
 }

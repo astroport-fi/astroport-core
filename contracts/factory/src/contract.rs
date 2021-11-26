@@ -103,9 +103,6 @@ pub fn execute(
             },
         ),
         ExecuteMsg::UpdatePairConfig { config } => execute_update_pair_config(deps, info, config),
-        ExecuteMsg::RemovePairConfig { pair_type } => {
-            execute_remove_pair_config(deps, info, pair_type)
-        }
         ExecuteMsg::CreatePair {
             pair_type,
             asset_infos,
@@ -179,27 +176,6 @@ pub fn execute_update_pair_config(
     Ok(Response::new().add_attribute("action", "update_pair_config"))
 }
 
-pub fn execute_remove_pair_config(
-    deps: DepsMut,
-    info: MessageInfo,
-    pair_type: PairType,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    // permission check
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    if !PAIR_CONFIGS.has(deps.storage, pair_type.to_string()) {
-        return Err(ContractError::PairConfigNotFound {});
-    }
-
-    PAIR_CONFIGS.remove(deps.storage, pair_type.to_string());
-
-    Ok(Response::new().add_attribute("action", "remove_pair_config"))
-}
-
 // Anyone can execute it to create swap pair
 pub fn execute_create_pair(
     deps: DepsMut,
@@ -208,6 +184,10 @@ pub fn execute_create_pair(
     asset_infos: [AssetInfo; 2],
     init_params: Option<Binary>,
 ) -> Result<Response, ContractError> {
+    if asset_infos[0] == asset_infos[1] {
+        return Err(ContractError::DoublingAssets {});
+    }
+
     let config = CONFIG.load(deps.storage)?;
 
     if PAIRS
@@ -221,6 +201,11 @@ pub fn execute_create_pair(
     let pair_config = PAIR_CONFIGS
         .load(deps.storage, pair_type.to_string())
         .map_err(|_| ContractError::PairConfigNotFound {})?;
+
+    // Check if pair config is disabled
+    if pair_config.is_disabled.is_some() && pair_config.is_disabled.unwrap() {
+        return Err(ContractError::PairConfigDisabled {});
+    }
 
     let pair_key = pair_key(&asset_infos);
     TMP_PAIR_INFO.save(deps.storage, &TmpPairInfo { pair_key })?;
