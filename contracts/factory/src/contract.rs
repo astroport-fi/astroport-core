@@ -51,8 +51,7 @@ pub fn instantiate(
 
     let config_set: HashSet<String> = msg
         .pair_configs
-        .clone()
-        .into_iter()
+        .iter()
         .map(|pc| pc.pair_type.to_string())
         .collect();
 
