@@ -433,14 +433,15 @@ pub fn update_pool_rewards(
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     let sender = deps.api.addr_validate(cw20_msg.sender.as_str())?;
     let amount = cw20_msg.amount;
+    let lp_token = info.sender;
 
     match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::Deposit { lp_token } => update_rewards_and_execute(
+        Cw20HookMsg::Deposit {} => update_rewards_and_execute(
             deps,
             env,
             Some(lp_token.clone()),
@@ -450,10 +451,7 @@ fn receive_cw20(
                 amount,
             },
         ),
-        Cw20HookMsg::DepositFor {
-            lp_token,
-            beneficiary,
-        } => update_rewards_and_execute(
+        Cw20HookMsg::DepositFor { beneficiary } => update_rewards_and_execute(
             deps,
             env,
             Some(lp_token.clone()),

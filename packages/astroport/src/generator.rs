@@ -93,6 +93,6 @@ pub struct MigrateMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    Deposit { lp_token: Addr },
-    DepositFor { lp_token: Addr, beneficiary: Addr },
+    Deposit {},
+    DepositFor { beneficiary: Addr },
 }

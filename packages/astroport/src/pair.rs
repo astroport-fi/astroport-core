@@ -159,10 +159,7 @@ pub fn mint_liquidity_token_message(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: generator.to_string(),
                 amount,
-                msg: to_binary(&GeneratorHookMsg::DepositFor {
-                    lp_token,
-                    beneficiary,
-                })?,
+                msg: to_binary(&GeneratorHookMsg::DepositFor { beneficiary })?,
             })?,
             funds: vec![],
         }))
