@@ -384,38 +384,6 @@ fn provide_liquidity() {
         ),
     ]);
 
-    // failed because the price is under slippage_tolerance
-    let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
-            Asset {
-                info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked("asset0000"),
-                },
-                amount: Uint128::from(98_000000000000000000u128),
-            },
-            Asset {
-                info: AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-                amount: Uint128::from(100_000000000000000000u128),
-            },
-        ],
-        slippage_tolerance: Some(Decimal::percent(1)),
-        auto_stake: None,
-        receiver: None,
-    };
-
-    let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
-    let info = mock_info(
-        "addr0001",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100_000000000000000000u128),
-        }],
-    );
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
-    assert_eq!(res, ContractError::MaxSlippageAssertion {});
-
     // initialize token balance to 1:1
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
@@ -424,38 +392,6 @@ fn provide_liquidity() {
             amount: Uint128::new(100_000000000000000000 + 98_000000000000000000 /* user deposit must be pre-applied */),
         }],
     )]);
-
-    // failed because the price is under slippage_tolerance
-    let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
-            Asset {
-                info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked("asset0000"),
-                },
-                amount: Uint128::from(100_000000000000000000u128),
-            },
-            Asset {
-                info: AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-                amount: Uint128::from(98_000000000000000000u128),
-            },
-        ],
-        slippage_tolerance: Some(Decimal::percent(1)),
-        auto_stake: None,
-        receiver: None,
-    };
-
-    let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
-    let info = mock_info(
-        "addr0001",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(98_000000000000000000u128),
-        }],
-    );
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
-    assert_eq!(res, ContractError::MaxSlippageAssertion {});
 
     // initialize token balance to 1:1
     deps.querier.with_balance(&[(
