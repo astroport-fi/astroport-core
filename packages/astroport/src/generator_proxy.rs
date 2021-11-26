@@ -26,6 +26,16 @@ pub enum ExecuteMsg {
     SendRewards { account: Addr, amount: Uint128 },
     Withdraw { account: Addr, amount: Uint128 },
     EmergencyWithdraw { account: Addr, amount: Uint128 },
+    Callback(CallbackMsg),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CallbackMsg {
+    TransferLpTokensAfterWithdraw {
+        account: Addr,
+        prev_lp_balance: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
