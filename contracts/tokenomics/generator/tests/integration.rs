@@ -58,10 +58,7 @@ fn generator_without_reward_proxies() {
     // An user can't deposit without sufficient lp_token balance
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
-        msg: to_binary(&GeneratorHookMsg::Deposit {
-            lp_token: (lp_cny_eur_instance).clone(),
-        })
-        .unwrap(),
+        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
         amount: Uint128::new(10),
     };
 
@@ -447,10 +444,7 @@ fn generator_with_mirror_reward_proxy() {
     // An user can't deposit without sufficient lp_token balance
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
-        msg: to_binary(&GeneratorHookMsg::Deposit {
-            lp_token: (lp_cny_eur_instance).clone(),
-        })
-        .unwrap(),
+        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
         amount: Uint128::new(10),
     };
 
@@ -1141,10 +1135,7 @@ fn deposit_lp_tokens_to_generator(
     for (token, amount) in lp_tokens {
         let msg = Cw20ExecuteMsg::Send {
             contract: generator_instance.to_string(),
-            msg: to_binary(&GeneratorHookMsg::Deposit {
-                lp_token: (*token).clone(),
-            })
-            .unwrap(),
+            msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
             amount: Uint128::from(amount.to_owned()),
         };
 
