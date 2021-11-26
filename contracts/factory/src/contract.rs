@@ -13,7 +13,7 @@ use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
-    PairsResponse, QueryMsg, UpdateAddr,
+    PairsResponse, QueryMsg,
 };
 
 use astroport::pair::{
@@ -37,25 +37,18 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    let owner = deps.api.addr_validate(&msg.owner)?;
 
-    let generator_address = deps.api.addr_validate(msg.generator_address.as_str())?;
     let mut config = Config {
-        owner,
-        gov: None,
+        owner: deps.api.addr_validate(&msg.owner)?,
         token_code_id: msg.token_code_id,
         fee_address: None,
-        generator_address,
+        generator_address: deps.api.addr_validate(msg.generator_address.as_str())?,
         pair_xyk_config: None,
         pair_stable_config: None,
     };
 
     if let Some(fee_address) = msg.fee_address {
         config.fee_address = Some(deps.api.addr_validate(fee_address.as_str())?);
-    }
-
-    if let Some(gov) = msg.gov {
-        config.gov = Some(deps.api.addr_validate(gov.as_str())?);
     }
 
     if let Some(pair_xyk_config) = msg.pair_xyk_config {
@@ -80,11 +73,10 @@ pub fn instantiate(
 }
 
 pub struct UpdateConfig {
-    gov: Option<UpdateAddr>,
-    owner: Option<Addr>,
+    owner: Option<String>,
     token_code_id: Option<u64>,
-    fee_address: Option<Addr>,
-    generator_address: Option<Addr>,
+    fee_address: Option<String>,
+    generator_address: Option<String>,
     pair_xyk_config: Option<PairConfig>,
     pair_stable_config: Option<PairConfig>,
 }
@@ -98,7 +90,6 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig {
-            gov,
             owner,
             token_code_id,
             fee_address,
@@ -110,7 +101,6 @@ pub fn execute(
             env,
             info,
             UpdateConfig {
-                gov,
                 owner,
                 token_code_id,
                 fee_address,
@@ -139,17 +129,6 @@ pub fn execute_update_config(
     // permission check
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
-    }
-
-    if let Some(action) = param.gov {
-        match action {
-            UpdateAddr::Set { address: gov } => {
-                config.gov = Option::from(deps.api.addr_validate(&gov)?);
-            }
-            UpdateAddr::Remove {} => {
-                config.gov = None;
-            }
-        }
     }
 
     if let Some(owner) = param.owner {
@@ -354,7 +333,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
         owner: config.owner,
-        gov: config.gov,
         pair_xyk_config: config.pair_xyk_config,
         pair_stable_config: config.pair_stable_config,
         token_code_id: config.token_code_id,

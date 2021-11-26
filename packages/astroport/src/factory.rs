@@ -1,5 +1,5 @@
 use crate::asset::{AssetInfo, PairInfo};
-use cosmwasm_std::{to_binary, Addr, DepsMut, QueryRequest, StdResult, WasmQuery};
+use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result};
@@ -39,11 +39,13 @@ pub struct InstantiateMsg {
     /// Pair contract code IDs which are allowed to create pairs
     pub pair_xyk_config: Option<PairConfig>,
     pub pair_stable_config: Option<PairConfig>,
+    /// Token contract code, used for LP tokens
     pub token_code_id: u64,
-    // Contract address to send fees to
-    pub fee_address: Option<Addr>,
-    pub generator_address: Addr,
-    pub gov: Option<Addr>,
+    /// Contract address to send fees to
+    pub fee_address: Option<String>,
+    /// Used for auto_stake from pools
+    pub generator_address: String,
+    /// Controls settings for factory, pools and tokenomics contracts
     pub owner: String,
 }
 
@@ -52,11 +54,10 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// UpdateConfig updates relevant code IDs
     UpdateConfig {
-        gov: Option<UpdateAddr>,
-        owner: Option<Addr>,
+        owner: Option<String>,
         token_code_id: Option<u64>,
-        fee_address: Option<Addr>,
-        generator_address: Option<Addr>,
+        fee_address: Option<String>,
+        generator_address: Option<String>,
         pair_xyk_config: Option<PairConfig>,
         pair_stable_config: Option<PairConfig>,
     },
@@ -96,7 +97,6 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub owner: Addr,
-    pub gov: Option<Addr>,
     pub pair_xyk_config: Option<PairConfig>,
     pub pair_stable_config: Option<PairConfig>,
     pub token_code_id: u64,
@@ -122,17 +122,9 @@ pub struct FeeInfoResponse {
     pub maker_fee_bps: u16,
 }
 
-/// External query factory config
-pub fn factory_config(factory_addr: Addr, deps: &DepsMut) -> StdResult<ConfigResponse> {
-    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: factory_addr.to_string(),
-        msg: to_binary(&QueryMsg::Config {})?,
-    }))
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum UpdateAddr {
-    Set { address: String },
+    Set(String),
     Remove {},
 }

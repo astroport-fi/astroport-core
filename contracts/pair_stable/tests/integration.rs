@@ -331,9 +331,8 @@ fn test_compatibility_of_tokens_with_different_precision() {
             total_fee_bps: 0,
         }),
         token_code_id,
-        gov: None,
-        owner: "owner0000".to_string(),
-        generator_address: Addr::unchecked("generator"),
+        generator_address: String::from("generator"),
+        owner: String::from("owner0000"),
     };
 
     let factory_instance = app

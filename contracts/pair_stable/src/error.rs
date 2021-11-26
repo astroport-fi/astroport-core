@@ -9,8 +9,14 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
+    #[error("Doubling assets in asset infos")]
+    DoublingAssets {},
+
     #[error("Event of zero transfer")]
     InvalidZeroAmount {},
+
+    #[error("Insufficient amount of Liquidity")]
+    LiquidityAmountTooSmall {},
 
     #[error("Operation exceeds max spread limit")]
     MaxSpreadAssertion {},

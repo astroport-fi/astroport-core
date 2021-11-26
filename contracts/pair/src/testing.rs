@@ -1,7 +1,7 @@
 use crate::contract::reply;
 use crate::contract::{
-    accumulate_prices, assert_max_spread, compute_swap, execute, get_fee_info, instantiate,
-    query_pair_info, query_pool, query_reverse_simulation, query_share, query_simulation,
+    accumulate_prices, assert_max_spread, compute_swap, execute, instantiate, query_pair_info,
+    query_pool, query_reverse_simulation, query_share, query_simulation,
 };
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
@@ -24,7 +24,6 @@ use cosmwasm_std::{
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use proptest::prelude::*;
 use protobuf::Message;
-use std::str::FromStr;
 
 fn store_liquidity_token(deps: DepsMut, msg_id: u64, contract_addr: String) {
     let data = MsgInstantiateContractResponse {
@@ -45,37 +44,6 @@ fn store_liquidity_token(deps: DepsMut, msg_id: u64, contract_addr: String) {
     };
 
     let _res = reply(deps, mock_env(), reply_msg.clone()).unwrap();
-}
-
-#[test]
-fn test_get_fee_info() {
-    let deps = mock_dependencies(&[]);
-    let fee_info = get_fee_info(
-        deps.as_ref(),
-        Config {
-            pair_info: PairInfo {
-                asset_infos: [
-                    AssetInfo::NativeToken {
-                        denom: "uusd".to_string(),
-                    },
-                    AssetInfo::Token {
-                        contract_addr: Addr::unchecked("asset0000"),
-                    },
-                ],
-                contract_addr: Addr::unchecked("contract"),
-                liquidity_token: Addr::unchecked("token"),
-                pair_type: PairType::Xyk {},
-            },
-            factory_addr: Addr::unchecked("factory"),
-            block_time_last: 0,
-            price0_cumulative_last: Default::default(),
-            price1_cumulative_last: Default::default(),
-        },
-    )
-    .unwrap();
-
-    assert_eq!(fee_info.total_fee_rate, Decimal::from_str("0.003").unwrap());
-    assert_eq!(fee_info.maker_fee_rate, Decimal::from_str("0.166").unwrap());
 }
 
 #[test]

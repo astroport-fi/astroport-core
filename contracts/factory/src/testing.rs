@@ -43,8 +43,7 @@ fn proper_initialization() {
         }),
         token_code_id: 123u64,
         fee_address: None,
-        gov: None,
-        generator_address: Addr::unchecked("generator"),
+        generator_address: String::from("generator"),
         owner: owner.clone(),
     };
 
@@ -69,8 +68,7 @@ fn proper_initialization() {
         }),
         token_code_id: 123u64,
         fee_address: None,
-        gov: None,
-        generator_address: Addr::unchecked("generator"),
+        generator_address: String::from("generator"),
         owner: owner.clone(),
     };
 
@@ -103,9 +101,8 @@ fn update_config() {
         pair_stable_config: None,
         token_code_id: 123u64,
         fee_address: None,
-        gov: None,
         owner: owner.to_string(),
-        generator_address: Addr::unchecked("generator"),
+        generator_address: String::from("generator"),
     };
 
     let env = mock_env();
@@ -119,10 +116,9 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info(owner.clone(), &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        gov: None,
-        owner: Some(Addr::unchecked(new_owner)),
+        owner: Some(String::from(new_owner)),
         token_code_id: None,
-        fee_address: Some(Addr::unchecked("fee_addr")),
+        fee_address: Some(String::from("fee_addr")),
         generator_address: None,
         pair_xyk_config: Some(pair_config.clone()),
         pair_stable_config: Some(pair_config.clone()),
@@ -149,10 +145,9 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info(new_owner, &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        gov: None,
-        owner: Some(Addr::unchecked(new_owner)),
+        owner: Some(String::from(new_owner)),
         token_code_id: None,
-        fee_address: Some(Addr::unchecked("fee_addr")),
+        fee_address: Some(String::from("fee_addr")),
         generator_address: None,
         pair_xyk_config: Some(pair_config),
         pair_stable_config: None,
@@ -165,7 +160,6 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info(new_owner, &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        gov: None,
         owner: None,
         token_code_id: Some(200u64),
         fee_address: None,
@@ -187,7 +181,6 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        gov: None,
         owner: None,
         token_code_id: None,
         fee_address: None,
@@ -209,10 +202,9 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info(new_owner, &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        gov: None,
-        owner: Some(Addr::unchecked(new_owner)),
+        owner: Some(String::from(new_owner)),
         token_code_id: None,
-        fee_address: Some(Addr::unchecked("fee_addr")),
+        fee_address: Some(String::from("fee_addr")),
         generator_address: None,
         pair_xyk_config: Some(pair_config.clone()),
         pair_stable_config: None,
@@ -250,9 +242,8 @@ fn create_pair() {
         pair_stable_config: None,
         token_code_id: 123u64,
         fee_address: None,
-        gov: None,
         owner: "owner0000".to_string(),
-        generator_address: Addr::unchecked("generator"),
+        generator_address: String::from("generator"),
     };
 
     let env = mock_env();
@@ -341,8 +332,7 @@ fn register() {
         pair_stable_config: None,
         token_code_id: 123u64,
         fee_address: None,
-        gov: None,
-        generator_address: Addr::unchecked("generator"),
+        generator_address: String::from("generator"),
         owner: owner.to_string(),
     };
 
