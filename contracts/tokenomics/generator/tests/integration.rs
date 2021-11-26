@@ -8,7 +8,7 @@ use astroport::{
     generator_proxy::InstantiateMsg as ProxyInstantiateMsg,
     token::InstantiateMsg as TokenInstantiateMsg,
     vesting::{
-        ExecuteMsg as VestingExecuteMsg, InstantiateMsg as VestingInstantiateMsg, VestingAccount,
+        Cw20HookMsg as VestingHookMsg, InstantiateMsg as VestingInstantiateMsg, VestingAccount,
         VestingSchedule, VestingSchedulePoint,
     },
 };
@@ -1001,28 +1001,25 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
 
     let amount = Uint128::new(63072000_000000);
 
-    allow_tokens(
-        &mut app,
-        &astro_token_instance,
-        owner.as_str(),
-        &vesting_instance,
-        amount.u128(),
-    );
-
-    let msg = VestingExecuteMsg::RegisterVestingAccounts {
-        vesting_accounts: vec![VestingAccount {
-            address: generator_instance.to_string(),
-            schedules: vec![VestingSchedule {
-                start_point: VestingSchedulePoint {
-                    time: current_block.time,
-                    amount,
-                },
-                end_point: None,
+    let msg = Cw20ExecuteMsg::Send {
+        contract: vesting_instance.to_string(),
+        msg: to_binary(&VestingHookMsg::RegisterVestingAccounts {
+            vesting_accounts: vec![VestingAccount {
+                address: generator_instance.to_string(),
+                schedules: vec![VestingSchedule {
+                    start_point: VestingSchedulePoint {
+                        time: current_block.time,
+                        amount,
+                    },
+                    end_point: None,
+                }],
             }],
-        }],
+        })
+        .unwrap(),
+        amount,
     };
 
-    app.execute_contract(owner, vesting_instance, &msg, &[])
+    app.execute_contract(owner, astro_token_instance.clone(), &msg, &[])
         .unwrap();
 
     generator_instance
@@ -1150,17 +1147,6 @@ fn mint_tokens(app: &mut App, token: &Addr, recipient: &Addr, amount: u128) {
     };
 
     app.execute_contract(Addr::unchecked(OWNER), token.to_owned(), &msg, &[])
-        .unwrap();
-}
-
-fn allow_tokens(app: &mut App, token: &Addr, owner: &str, spender: &Addr, amount: u128) {
-    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: spender.to_string(),
-        expires: None,
-        amount: Uint128::from(amount),
-    };
-
-    app.execute_contract(Addr::unchecked(owner), token.to_owned(), &msg, &[])
         .unwrap();
 }
 
