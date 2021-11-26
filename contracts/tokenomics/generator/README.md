@@ -89,6 +89,51 @@ CW20 receive msg.
 }
 ```
 
+#### `Deposit`
+
+Deposits given lp amount and allocates ASTRO.
+Execute this message by the LP token contract address from which you want to make a deposit.
+```json
+{
+  "send": {
+    "contract": <GeneratorContractAddress>,
+    "amount": 999,
+    "msg": "base64-encodedStringOfWithdrawMsg"
+  }
+}
+```
+
+In send.msg, you may decode this JSON string into base64 encoding.
+```json
+{
+  "Deposit": {}
+}
+```
+
+#### `DepositFor`
+
+Deposits given lp amount and allocates ASTRO to beneficiary.
+Execute this message by the LP token contract address from which you want to make a deposit.
+
+```json
+{
+  "send": {
+    "contract": <GeneratorContractAddress>,
+    "amount": 999,
+    "msg": "base64-encodedStringOfWithdrawMsg"
+  }
+}
+```
+
+In send.msg, you may decode this JSON string into base64 encoding.
+```json
+{
+  "DepositFor": {
+    "beneficiary": <HumanAddr>
+  }
+}
+```
+
 ### `withdraw`
 
 Withdraws given lp amount and rewards.
@@ -208,47 +253,6 @@ Returns orphan rewards amount.
 {
   "orphan_proxy_rewards": {
     "lp_token": "terra..."
-  }
-}
-```
-
-## Cw20HookMsg
-
-### `Deposit`
-
-Deposits given lp amount and allocates ASTRO.
-Must be sent from token contract.
-
-```json
-{
-  "send": {
-    "contract": HumanAddr,
-    "amount": Uint128,
-    "msg": Binary({
-      "Deposit": {
-        "lp_token": HumanAddr
-      }
-    })
-  }
-}
-```
-
-### `DepositFor`
-
-Deposits given lp amount and allocates ASTRO to beneficiary.
-Must be sent from token contract.
-
-```json
-{
-  "send": {
-    "contract": HumanAddr,
-    "amount": Uint128,
-    "msg": Binary({
-      "DepositFor": {
-        "lp_token": HumanAddr,
-        "beneficiary": HumanAddr
-      }
-    })
   }
 }
 ```

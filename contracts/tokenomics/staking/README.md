@@ -50,32 +50,43 @@ Returns deposit and share token addresses.
 ### `Enter`
 
 Deposits token to get share token amount.
-Must be sent from token contract.
 
+Execute this message by the ASTRO token contract address from which you want to make a deposit.
 ```json
 {
   "send": {
-    "contract": HumanAddr,
-    "amount": Uint128,
-    "msg": Binary({
-      "Enter": {}
-    })
+    "contract": <StakingContractAddress>,
+    "amount": 999,
+    "msg": "base64-encodedStringOfWithdrawMsg"
   }
+}
+```
+
+In send.msg, you may decode this JSON string into base64 encoding.
+```json
+{
+  "Enter": {}
 }
 ```
 
 ### `Leave`
 
 Unstakes share token to move back deposit token amount. Burns share.
-Must be sent from token contract.
+
+Execute this message by the xASTRO token contract address from which you want to move back deposit.
 ```json
 {
   "send": {
-    "contract": HumanAddr,
-    "amount": Uint128,
-    "msg": Binary({
-      "Leave": {}
-    })
+    "contract": <StakingContractAddress>,
+    "amount": 999,
+    "msg": "base64-encodedStringOfWithdrawMsg"
   }
+}
+```
+
+In send.msg, you may decode this JSON string into base64 encoding.
+```json
+{
+  "Leave": {}
 }
 ```
