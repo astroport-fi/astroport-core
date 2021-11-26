@@ -5,6 +5,42 @@
     {
       "type": "object",
       "required": [
+        "update_config"
+      ],
+      "properties": {
+        "update_config": {
+          "type": "object",
+          "properties": {
+            "owner": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tokens_per_block": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint128"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "vesting_contract": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "add"
       ],
       "properties": {
@@ -173,26 +209,6 @@
             },
             "recipient": {
               "type": "string"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "set_tokens_per_block"
-      ],
-      "properties": {
-        "set_tokens_per_block": {
-          "type": "object",
-          "required": [
-            "amount"
-          ],
-          "properties": {
-            "amount": {
-              "$ref": "#/definitions/Uint128"
             }
           }
         }
