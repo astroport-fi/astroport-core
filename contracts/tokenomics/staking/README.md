@@ -31,23 +31,7 @@ CW20 receive msg.
 }
 ```
 
-## QueryMsg
-
-All query messages are described below. A custom struct is defined for each query response.
-
-### `config`
-
-Returns deposit and share token addresses.
-
-```json
-{
-  "config": {}
-}
-```
-
-## Cw20HookMsg
-
-### `Enter`
+#### `Enter`
 
 Deposits token to get share token amount.
 
@@ -69,7 +53,7 @@ In send.msg, you may decode this JSON string into base64 encoding.
 }
 ```
 
-### `Leave`
+#### `Leave`
 
 Unstakes share token to move back deposit token amount. Burns share.
 
@@ -88,5 +72,20 @@ In send.msg, you may decode this JSON string into base64 encoding.
 ```json
 {
   "Leave": {}
+}
+```
+
+
+## QueryMsg
+
+All query messages are described below. A custom struct is defined for each query response.
+
+### `config`
+
+Returns deposit and share token addresses.
+
+```json
+{
+  "config": {}
 }
 ```
