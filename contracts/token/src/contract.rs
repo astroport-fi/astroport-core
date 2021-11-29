@@ -8,7 +8,7 @@ use cw20_base::msg::{ExecuteMsg, QueryMsg};
 use cw20_base::state::{MinterData, TokenInfo, TOKEN_INFO};
 use cw20_base::ContractError;
 
-use astroport::asset::user_input_to_addr;
+use astroport::asset::addr_validate_to_lower;
 use astroport::token::{InstantiateMsg, MigrateMsg};
 
 // version info for migration info
@@ -39,7 +39,7 @@ pub fn instantiate(
 
     let mint = match msg.mint {
         Some(m) => Some(MinterData {
-            minter: user_input_to_addr(deps.api, &m.minter)?,
+            minter: addr_validate_to_lower(deps.api, &m.minter)?,
             cap: m.cap,
         }),
         None => None,

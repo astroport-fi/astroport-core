@@ -193,6 +193,6 @@ impl PairInfo {
     }
 }
 
-pub fn user_input_to_addr(api: &dyn Api, addr: &str) -> StdResult<Addr> {
+pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
     api.addr_validate(&addr.to_lowercase())
 }
