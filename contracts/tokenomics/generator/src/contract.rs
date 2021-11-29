@@ -472,7 +472,6 @@ fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    let sender = deps.api.addr_validate(cw20_msg.sender.as_str())?;
     let amount = cw20_msg.amount;
     let lp_token = info.sender;
 
@@ -487,11 +486,11 @@ fn receive_cw20(
             Some(lp_token.clone()),
             ExecuteOnReply::Deposit {
                 lp_token,
-                account: sender,
+                account: Addr::unchecked(cw20_msg.sender),
                 amount,
             },
         ),
-        Cw20HookMsg::DepositFor { beneficiary } => update_rewards_and_execute(
+        Cw20HookMsg::DepositFor(beneficiary) => update_rewards_and_execute(
             deps,
             env,
             Some(lp_token.clone()),

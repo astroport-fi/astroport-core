@@ -5,7 +5,7 @@ import {
     readArtifact,
     deployContract,
     executeContract,
-    uploadContract, Client,
+    uploadContract, Client, toEncodedBinary,
 } from './helpers.js'
 import { configDefault } from './deploy_configs.js'
 import { join } from 'path'
@@ -90,12 +90,15 @@ async function main() {
 
         deployConfig.registerVestingAccounts.register_vesting_accounts.vesting_accounts = vestingAccounts
         const { registerVestingAccounts } = deployConfig;
-        await executeContract(
-            terra,
-            wallet,
-            network.vestingAddress,
-            registerVestingAccounts,
-        )
+
+        console.log('Register vesting accounts...')
+        await executeContract(terra, wallet, network.tokenAddress, {
+            "Send": {
+                contract: network.vestingAddress,
+                amount: String("63072000000000"),
+                msg: toEncodedBinary(registerVestingAccounts)
+            }
+        })
     }
 
     /*************************************** Deploy Factory Contract *****************************************/

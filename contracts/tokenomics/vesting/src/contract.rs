@@ -89,7 +89,7 @@ pub fn register_vesting_accounts(
     _env: Env,
     info: MessageInfo,
     vesting_accounts: Vec<VestingAccount>,
-    confirm_amount: Uint128,
+    cw20_amount: Uint128,
 ) -> Result<Response, ContractError> {
     let response = Response::new();
 
@@ -130,7 +130,7 @@ pub fn register_vesting_accounts(
         )?;
     }
 
-    if to_deposit != confirm_amount {
+    if to_deposit != cw20_amount {
         return Err(ContractError::VestingScheduleAmountError {});
     }
 

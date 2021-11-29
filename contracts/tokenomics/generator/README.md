@@ -128,9 +128,7 @@ Execute this message by the LP token contract address from which you want to mak
 In send.msg, you may decode this JSON string into base64 encoding.
 ```json
 {
-  "DepositFor": {
-    "beneficiary": <HumanAddr>
-  }
+  "DepositFor": Addr
 }
 ```
 

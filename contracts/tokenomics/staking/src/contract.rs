@@ -118,8 +118,8 @@ fn receive_cw20(
     let mut total_deposit = get_total_deposit(deps.as_ref(), env, config.clone())?;
     let total_shares = get_total_shares(deps.as_ref(), config.clone())?;
 
-    match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::Enter {}) => {
+    match from_binary(&cw20_msg.msg)? {
+        Cw20HookMsg::Enter {} => {
             if info.sender != config.astro_token_addr {
                 return Err(ContractError::Unauthorized {});
             }
@@ -146,7 +146,7 @@ fn receive_cw20(
 
             Ok(res)
         }
-        Ok(Cw20HookMsg::Leave {}) => {
+        Cw20HookMsg::Leave {} => {
             if info.sender != config.xastro_token_addr {
                 return Err(ContractError::Unauthorized {});
             }
@@ -174,7 +174,6 @@ fn receive_cw20(
 
             Ok(res)
         }
-        Err(err) => Err(ContractError::Std(err)),
     }
 }
 

@@ -96,8 +96,6 @@ fn send_from_unregistered_lp() {
 
     let token_code_id = store_token_code(&mut app);
 
-    let lp_cny_eur_instance = instantiate_token(&mut app, token_code_id, "CNY-EUR", None);
-    let lp_eur_usd_instance = instantiate_token(&mut app, token_code_id, "EUR-USD", None);
     let lp_eur_usdt_instance = instantiate_token(&mut app, token_code_id, "EUR-USDT", None);
 
     let astro_token_instance =
@@ -105,19 +103,9 @@ fn send_from_unregistered_lp() {
 
     let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
 
-    register_lp_tokens_in_generator(
-        &mut app,
-        &generator_instance,
-        None,
-        &[&lp_cny_eur_instance, &lp_eur_usd_instance],
-    );
-
-    // User 1
-    mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 10);
-    mint_tokens(&mut app, &lp_eur_usd_instance, &user1, 10);
     mint_tokens(&mut app, &lp_eur_usdt_instance, &user1, 10);
 
-    // An user can't deposit without sufficient lp_token balance
+    // we cannot make a deposit for an unregistered token
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
         msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),

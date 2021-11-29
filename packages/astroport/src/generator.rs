@@ -97,5 +97,5 @@ pub struct MigrateMsg {}
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
     Deposit {},
-    DepositFor { beneficiary: Addr },
+    DepositFor(Addr),
 }
