@@ -12,8 +12,10 @@ use cosmwasm_std::{
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
-use astroport::generator::ExecuteMsg as GeneratorExecuteMsg;
+
+use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::{ConfigResponse, InstantiateMsg, StablePoolParams};
+
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse,
@@ -417,19 +419,10 @@ fn mint_liquidity_token_message(
         }),
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: lp_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                spender: generator.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: generator.to_string(),
                 amount,
-                expires: None,
-            })?,
-            funds: vec![],
-        }),
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: generator.to_string(),
-            msg: to_binary(&GeneratorExecuteMsg::DepositFor {
-                lp_token,
-                amount,
-                beneficiary: recipient,
+                msg: to_binary(&GeneratorHookMsg::DepositFor(recipient))?,
             })?,
             funds: vec![],
         }),

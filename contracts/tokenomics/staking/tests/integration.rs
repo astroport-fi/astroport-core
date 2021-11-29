@@ -1,4 +1,4 @@
-use astroport::staking::{ConfigResponse, InstantiateMsg as xInstatiateMsg, QueryMsg};
+use astroport::staking::{ConfigResponse, Cw20HookMsg, InstantiateMsg as xInstatiateMsg, QueryMsg};
 use astroport::token::InstantiateMsg;
 use cosmwasm_std::testing::MockQuerier;
 use cosmwasm_std::{
@@ -119,7 +119,7 @@ fn mint_some_astro(router: &mut App, owner: Addr, astro_token_instance: Addr, to
 }
 
 #[test]
-fn should_not_allow_enter_if_not_enough_approve() {
+fn cw20receive_enter_and_leave() {
     let mut router = mock_app();
 
     let owner = Addr::unchecked("owner");
@@ -134,6 +134,7 @@ fn should_not_allow_enter_if_not_enough_approve() {
         astro_token_instance.clone(),
         ALICE,
     );
+
     let alice_address = Addr::unchecked(ALICE);
 
     // check if Alice's ASTRO balance is 100
@@ -152,93 +153,37 @@ fn should_not_allow_enter_if_not_enough_approve() {
         }
     );
 
-    // try to enter Alice's 100 ASTRO for 100 xASTRO
-    let msg = astroport::staking::ExecuteMsg::Enter {
-        amount: Uint128::from(100u128),
+    // we can leave tokens only from xAstro token.
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
+        amount: Uint128::from(10u128),
     };
-    let res = router
-        .execute_contract(alice_address.clone(), staking_instance.clone(), &msg, &[])
-        .unwrap_err();
-    assert_eq!(res.to_string(), "No allowance for this account");
 
-    // increase Alice's allowance to 50 ASTRO for staking contract
-    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: staking_instance.to_string(),
-        amount: Uint128::from(50u128),
-        expires: None,
-    };
-    let res = router
+    let resp = router
         .execute_contract(
             alice_address.clone(),
             astro_token_instance.clone(),
             &msg,
             &[],
         )
-        .unwrap();
-    assert_eq!(
-        res.events[1].attributes[1],
-        attr("action", "increase_allowance")
-    );
-    assert_eq!(
-        res.events[1].attributes[2],
-        attr("owner", alice_address.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[3],
-        attr("spender", staking_instance.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[4],
-        attr("amount", 50u128.to_string())
-    );
+        .unwrap_err();
+    assert_eq!(resp.to_string(), "Unauthorized");
 
     // try to enter Alice's 100 ASTRO for 100 xASTRO
-    let msg = astroport::staking::ExecuteMsg::Enter {
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(100u128),
     };
-    let res = router
-        .execute_contract(alice_address.clone(), staking_instance.clone(), &msg, &[])
-        .unwrap_err();
-    assert_eq!(res.to_string(), "Overflow: Cannot Sub with 50 and 100");
 
-    // increase Alice's allowance to 100 ASTRO for staking contract
-    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: staking_instance.to_string(),
-        amount: Uint128::from(50u128),
-        expires: None,
-    };
-    let res = router
-        .execute_contract(
-            alice_address.clone(),
-            astro_token_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap();
-
-    assert_eq!(
-        res.events[1].attributes[1],
-        attr("action", "increase_allowance")
-    );
-    assert_eq!(
-        res.events[1].attributes[2],
-        attr("owner", alice_address.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[3],
-        attr("spender", staking_instance.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[4],
-        attr("amount", 50u128.to_string())
-    );
-
-    // enter Alice's 100 ASTRO for 100 xASTRO
-    let msg = astroport::staking::ExecuteMsg::Enter {
-        amount: Uint128::from(100u128),
-    };
     router
-        .execute_contract(alice_address.clone(), staking_instance.clone(), &msg, &[])
+        .execute_contract(
+            alice_address.clone(),
+            astro_token_instance.clone(),
+            &msg,
+            &[],
+        )
         .unwrap();
 
     // check if Alice's xASTRO balance is 100
@@ -254,6 +199,135 @@ fn should_not_allow_enter_if_not_enough_approve() {
         res.unwrap(),
         BalanceResponse {
             balance: Uint128::from(100u128)
+        }
+    );
+
+    // check if Alice's ASTRO balance is 0
+    let msg = Cw20QueryMsg::Balance {
+        address: alice_address.to_string(),
+    };
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: astro_token_instance.to_string(),
+            msg: to_binary(&msg).unwrap(),
+        }));
+    assert_eq!(
+        res.unwrap(),
+        BalanceResponse {
+            balance: Uint128::from(0u128)
+        }
+    );
+
+    // check if staking contract's ASTRO balance is 100
+    let msg = Cw20QueryMsg::Balance {
+        address: staking_instance.to_string(),
+    };
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: astro_token_instance.to_string(),
+            msg: to_binary(&msg).unwrap(),
+        }));
+    assert_eq!(
+        res.unwrap(),
+        BalanceResponse {
+            balance: Uint128::from(100u128)
+        }
+    );
+
+    // we can enter tokens only from Astro token.
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        amount: Uint128::from(10u128),
+    };
+
+    let resp = router
+        .execute_contract(
+            alice_address.clone(),
+            x_astro_token_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(resp.to_string(), "Unauthorized");
+
+    // try to leave Alice's 10 xASTRO for 10 ASTRO
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
+        amount: Uint128::from(10u128),
+    };
+
+    router
+        .execute_contract(
+            alice_address.clone(),
+            x_astro_token_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
+
+    // check if Alice's xASTRO balance is 90
+    let msg = Cw20QueryMsg::Balance {
+        address: alice_address.to_string(),
+    };
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: x_astro_token_instance.to_string(),
+            msg: to_binary(&msg).unwrap(),
+        }));
+    assert_eq!(
+        res.unwrap(),
+        BalanceResponse {
+            balance: Uint128::from(90u128)
+        }
+    );
+
+    // check if Alice's ASTRO balance is 10
+    let msg = Cw20QueryMsg::Balance {
+        address: alice_address.to_string(),
+    };
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: astro_token_instance.to_string(),
+            msg: to_binary(&msg).unwrap(),
+        }));
+    assert_eq!(
+        res.unwrap(),
+        BalanceResponse {
+            balance: Uint128::from(10u128)
+        }
+    );
+
+    // check if staking contract's ASTRO balance is 90
+    let msg = Cw20QueryMsg::Balance {
+        address: staking_instance.to_string(),
+    };
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: astro_token_instance.to_string(),
+            msg: to_binary(&msg).unwrap(),
+        }));
+    assert_eq!(
+        res.unwrap(),
+        BalanceResponse {
+            balance: Uint128::from(90u128)
+        }
+    );
+
+    // check if staking contract's xASTRO balance is 0
+    let msg = Cw20QueryMsg::Balance {
+        address: staking_instance.to_string(),
+    };
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: x_astro_token_instance.to_string(),
+            msg: to_binary(&msg).unwrap(),
+        }));
+    assert_eq!(
+        res.unwrap(),
+        BalanceResponse {
+            balance: Uint128::from(0u128)
         }
     );
 }
@@ -276,13 +350,14 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
     );
     let alice_address = Addr::unchecked(ALICE);
 
-    // increase Alice's allowance to 100 ASTRO for staking contract
-    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: staking_instance.to_string(),
+    // enter Alice's 100 ASTRO for 100 xASTRO
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(100u128),
-        expires: None,
     };
-    let res = router
+
+    router
         .execute_contract(
             alice_address.clone(),
             astro_token_instance.clone(),
@@ -290,37 +365,30 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
             &[],
         )
         .unwrap();
-    assert_eq!(
-        res.events[1].attributes[1],
-        attr("action", "increase_allowance")
-    );
-    assert_eq!(
-        res.events[1].attributes[2],
-        attr("owner", alice_address.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[3],
-        attr("spender", staking_instance.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[4],
-        attr("amount", 100u128.to_string())
-    );
 
-    // enter Alice's 100 ASTRO for 100 xASTRO
-    let msg = astroport::staking::ExecuteMsg::Enter {
-        amount: Uint128::from(100u128),
+    // check if Alice's xASTRO balance is 100
+    let msg = Cw20QueryMsg::Balance {
+        address: alice_address.to_string(),
     };
-    router
-        .execute_contract(alice_address.clone(), staking_instance.clone(), &msg, &[])
-        .unwrap();
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: x_astro_token_instance.to_string(),
+            msg: to_binary(&msg).unwrap(),
+        }));
+    assert_eq!(
+        res.unwrap(),
+        BalanceResponse {
+            balance: Uint128::from(100u128)
+        }
+    );
 
-    // increase Alice's allowance to 200 xASTRO for staking contract
-    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: staking_instance.to_string(),
+    // try to leave Alice's 200 xASTRO
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
         amount: Uint128::from(200u128),
-        expires: None,
     };
+
     let res = router
         .execute_contract(
             alice_address.clone(),
@@ -328,32 +396,8 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
             &msg,
             &[],
         )
-        .unwrap();
-
-    assert_eq!(
-        res.events[1].attributes[1],
-        attr("action", "increase_allowance")
-    );
-    assert_eq!(
-        res.events[1].attributes[2],
-        attr("owner", alice_address.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[3],
-        attr("spender", staking_instance.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[4],
-        attr("amount", 200u128.to_string())
-    );
-
-    // try to leave Alice's 200 xASTRO
-    let msg = astroport::staking::ExecuteMsg::Leave {
-        share: Uint128::from(200u128),
-    };
-    let res = router
-        .execute_contract(alice_address.clone(), staking_instance.clone(), &msg, &[])
         .unwrap_err();
+
     assert_eq!(res.to_string(), "Overflow: Cannot Sub with 100 and 200");
 }
 
@@ -393,13 +437,14 @@ fn should_work_with_more_than_one_participant() {
     );
     let carol_address = Addr::unchecked(CAROL);
 
-    // increase Alice's allowance to 100 ASTRO for staking contract
-    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: staking_instance.to_string(),
-        amount: Uint128::from(100u128),
-        expires: None,
+    // enter Alice's 20 ASTRO for 20 xASTRO
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        amount: Uint128::from(20u128),
     };
-    let res = router
+
+    router
         .execute_contract(
             alice_address.clone(),
             astro_token_instance.clone(),
@@ -408,64 +453,15 @@ fn should_work_with_more_than_one_participant() {
         )
         .unwrap();
 
-    assert_eq!(
-        res.events[1].attributes[1],
-        attr("action", "increase_allowance")
-    );
-    assert_eq!(
-        res.events[1].attributes[2],
-        attr("owner", alice_address.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[3],
-        attr("spender", staking_instance.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[4],
-        attr("amount", 100u128.to_string())
-    );
-
-    // increase Bob's allowance to 100 ASTRO for staking contract
-    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: staking_instance.to_string(),
-        amount: Uint128::from(100u128),
-        expires: None,
-    };
-    let res = router
-        .execute_contract(bob_address.clone(), astro_token_instance.clone(), &msg, &[])
-        .unwrap();
-
-    assert_eq!(
-        res.events[1].attributes[1],
-        attr("action", "increase_allowance")
-    );
-    assert_eq!(
-        res.events[1].attributes[2],
-        attr("owner", bob_address.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[3],
-        attr("spender", staking_instance.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[4],
-        attr("amount", 100u128.to_string())
-    );
-
-    // enter Alice's 20 ASTRO for 20 xASTRO
-    let msg = astroport::staking::ExecuteMsg::Enter {
-        amount: Uint128::from(20u128),
-    };
-    router
-        .execute_contract(alice_address.clone(), staking_instance.clone(), &msg, &[])
-        .unwrap();
-
     // enter Bob's 10 ASTRO for 10 xASTRO
-    let msg = astroport::staking::ExecuteMsg::Enter {
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(10u128),
     };
+
     router
-        .execute_contract(bob_address.clone(), staking_instance.clone(), &msg, &[])
+        .execute_contract(bob_address.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap();
 
     // check if Alice's xASTRO balance is 20
@@ -541,11 +537,19 @@ fn should_work_with_more_than_one_participant() {
     );
 
     // enter Alice's 10 ASTRO for 6 xASTRO: 10*30/50 = 6
-    let msg = astroport::staking::ExecuteMsg::Enter {
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(10u128),
     };
+
     router
-        .execute_contract(alice_address.clone(), staking_instance.clone(), &msg, &[])
+        .execute_contract(
+            alice_address.clone(),
+            astro_token_instance.clone(),
+            &msg,
+            &[],
+        )
         .unwrap();
 
     // check if Alice's xASTRO balance is 26
@@ -580,43 +584,20 @@ fn should_work_with_more_than_one_participant() {
         }
     );
 
-    // increase Bob's allowance to 5 xASTRO for staking contract
-    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: staking_instance.to_string(),
+    // leave Bob's 5 xASTRO: gets 5*60/36 = 8 ASTRO
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
         amount: Uint128::from(5u128),
-        expires: None,
     };
-    let res = router
+
+    router
         .execute_contract(
             bob_address.clone(),
             x_astro_token_instance.clone(),
             &msg,
             &[],
         )
-        .unwrap();
-    assert_eq!(
-        res.events[1].attributes[1],
-        attr("action", "increase_allowance")
-    );
-    assert_eq!(
-        res.events[1].attributes[2],
-        attr("owner", bob_address.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[3],
-        attr("spender", staking_instance.clone())
-    );
-    assert_eq!(
-        res.events[1].attributes[4],
-        attr("amount", 5u128.to_string())
-    );
-
-    // leave Bob's 5 xASTRO: gets 5*60/36 = 8 ASTRO
-    let msg = astroport::staking::ExecuteMsg::Leave {
-        share: Uint128::from(5u128),
-    };
-    router
-        .execute_contract(bob_address.clone(), staking_instance.clone(), &msg, &[])
         .unwrap();
 
     // check if Alice's xASTRO balance is 26

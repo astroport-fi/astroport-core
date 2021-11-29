@@ -1,13 +1,16 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply,
-    ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
-use astroport::staking::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::staking::{ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg};
 use cw2::set_contract_version;
-use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
+use cw20::{
+    BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse,
+    TokenInfoResponse,
+};
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::addr_validate_to_lower;
@@ -36,8 +39,8 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            deposit_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
-            share_token_addr: Addr::unchecked(""),
+            astro_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
+            xastro_token_addr: Addr::unchecked(""),
         },
     )?;
 
@@ -76,8 +79,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Enter { amount } => try_enter(&deps, env, info, amount),
-        ExecuteMsg::Leave { share } => try_leave(&deps, env, info, share),
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
     }
 }
 
@@ -85,7 +87,7 @@ pub fn execute(
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
-    if config.share_token_addr != Addr::unchecked("") {
+    if config.xastro_token_addr != Addr::unchecked("") {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -96,105 +98,97 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
         })?;
 
     // Set token addr
-    config.share_token_addr = addr_validate_to_lower(deps.api, res.get_contract_address())?;
+    config.xastro_token_addr = addr_validate_to_lower(deps.api, res.get_contract_address())?;
 
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new())
 }
 
-pub fn try_enter(
-    deps: &DepsMut,
+fn receive_cw20(
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    amount: Uint128,
+    cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
 
-    let total_deposit = get_total_deposit(deps, env.clone(), config.clone())?;
-    let total_shares = get_total_shares(deps, config.clone())?;
+    let recipient = cw20_msg.sender;
+    let amount = cw20_msg.amount;
 
-    // If no balance exists, mint it 1:1 to the amount put in
-    let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
-        amount
-    } else {
-        amount
-            .checked_mul(total_shares)?
-            .checked_div(total_deposit)
-            .map_err(|e| StdError::DivideByZero { source: e })?
-    };
+    let mut total_deposit = get_total_deposit(deps.as_ref(), env, config.clone())?;
+    let total_shares = get_total_shares(deps.as_ref(), config.clone())?;
 
-    let res = Response::new()
-        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.share_token_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Mint {
-                recipient: info.sender.to_string(),
-                amount: mint_amount,
-            })?,
-            funds: vec![],
-        }))
-        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.deposit_token_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: info.sender.to_string(),
-                recipient: env.contract.address.to_string(),
-                amount,
-            })?,
-            funds: vec![],
-        }));
+    match from_binary(&cw20_msg.msg)? {
+        Cw20HookMsg::Enter {} => {
+            if info.sender != config.astro_token_addr {
+                return Err(ContractError::Unauthorized {});
+            }
+            // In cw20 send total balance is already increased,
+            // To calculated properly we should subtract user deposit from the pool
+            total_deposit -= amount;
+            let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
+                amount
+            } else {
+                amount
+                    .checked_mul(total_shares)?
+                    .checked_div(total_deposit)
+                    .map_err(|e| StdError::DivideByZero { source: e })?
+            };
 
-    Ok(res)
+            let res = Response::new().add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: config.xastro_token_addr.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Mint {
+                    recipient,
+                    amount: mint_amount,
+                })?,
+                funds: vec![],
+            }));
+
+            Ok(res)
+        }
+        Cw20HookMsg::Leave {} => {
+            if info.sender != config.xastro_token_addr {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            let what = amount
+                .checked_mul(total_deposit)?
+                .checked_div(total_shares)
+                .map_err(|e| StdError::DivideByZero { source: e })?;
+
+            // Burn share
+            let res = Response::new()
+                .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: config.xastro_token_addr.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
+                    funds: vec![],
+                }))
+                .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: config.astro_token_addr.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                        recipient,
+                        amount: what,
+                    })?,
+                    funds: vec![],
+                }));
+
+            Ok(res)
+        }
+    }
 }
 
-pub fn try_leave(
-    deps: &DepsMut,
-    env: Env,
-    info: MessageInfo,
-    share: Uint128,
-) -> Result<Response, ContractError> {
-    let config: Config = CONFIG.load(deps.storage)?;
-
-    let total_deposit = get_total_deposit(deps, env, config.clone())?;
-    let total_shares = get_total_shares(deps, config.clone())?;
-
-    let what = share
-        .checked_mul(total_deposit)?
-        .checked_div(total_shares)
-        .map_err(|e| StdError::DivideByZero { source: e })?;
-
-    // Burn share
-    let res = Response::new()
-        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.share_token_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::BurnFrom {
-                owner: info.sender.to_string(),
-                amount: share,
-            })?,
-            funds: vec![],
-        }))
-        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.deposit_token_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: info.sender.to_string(),
-                amount: what,
-            })?,
-            funds: vec![],
-        }));
-
-    Ok(res)
-}
-
-pub fn get_total_shares(deps: &DepsMut, config: Config) -> StdResult<Uint128> {
+pub fn get_total_shares(deps: Deps, config: Config) -> StdResult<Uint128> {
     let result: TokenInfoResponse = deps
         .querier
-        .query_wasm_smart(&config.share_token_addr, &Cw20QueryMsg::TokenInfo {})?;
+        .query_wasm_smart(&config.xastro_token_addr, &Cw20QueryMsg::TokenInfo {})?;
 
     Ok(result.total_supply)
 }
 
-pub fn get_total_deposit(deps: &DepsMut, env: Env, config: Config) -> StdResult<Uint128> {
+pub fn get_total_deposit(deps: Deps, env: Env, config: Config) -> StdResult<Uint128> {
     let result: BalanceResponse = deps.querier.query_wasm_smart(
-        &config.deposit_token_addr,
+        &config.astro_token_addr,
         &Cw20QueryMsg::Balance {
             address: env.contract.address.to_string(),
         },
@@ -207,8 +201,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let config = CONFIG.load(deps.storage)?;
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&ConfigResponse {
-            deposit_token_addr: config.deposit_token_addr,
-            share_token_addr: config.share_token_addr,
+            deposit_token_addr: config.astro_token_addr,
+            share_token_addr: config.xastro_token_addr,
         })?),
     }
 }

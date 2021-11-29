@@ -5,6 +5,7 @@
   "required": [
     "allowed_reward_proxies",
     "astro_token",
+    "owner",
     "start_block",
     "tokens_per_block",
     "vesting_contract"
@@ -17,6 +18,9 @@
       }
     },
     "astro_token": {
+      "type": "string"
+    },
+    "owner": {
       "type": "string"
     },
     "start_block": {

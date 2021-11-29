@@ -29,13 +29,39 @@ Updates contract owner.
 }
 ```
 
-### `register_vesting_accounts`
+### `receive`
 
-Registers account vesting schedules for future token distributions.
+CW20 receive msg.
 
 ```json
 {
-  "register_vesting_accounts": {
+  "receive": {
+    "sender": "terra...",
+    "amount": "123",
+    "msg": "<base64_encoded_json_string>"
+  }
+}
+```
+
+#### `RegisterVestingAccounts`
+
+Registers account vesting schedules for future token distributions.
+
+Execute this message by the ASTRO token contract address for future token distributions.
+```json
+{
+  "send": {
+    "contract": <VestingContractAddress>,
+    "amount": 999,
+    "msg": "base64-encodedStringOfWithdrawMsg"
+  }
+}
+```
+
+In send.msg, you may decode this JSON string into base64 encoding.
+```json
+{
+  "RegisterVestingAccounts": {
     "vesting_accounts": [
       {
         "address": "terra...",

@@ -1,14 +1,14 @@
 use astroport::generator::{ExecuteMsg, QueryMsg};
 use astroport::{
     generator::{
-        ConfigResponse, ExecuteMsg as GeneratorExecuteMsg,
+        ConfigResponse, Cw20HookMsg as GeneratorHookMsg, ExecuteMsg as GeneratorExecuteMsg,
         InstantiateMsg as GeneratorInstantiateMsg, PendingTokenResponse,
         QueryMsg as GeneratorQueryMsg,
     },
     generator_proxy::InstantiateMsg as ProxyInstantiateMsg,
     token::InstantiateMsg as TokenInstantiateMsg,
     vesting::{
-        ExecuteMsg as VestingExecuteMsg, InstantiateMsg as VestingInstantiateMsg, VestingAccount,
+        Cw20HookMsg as VestingHookMsg, InstantiateMsg as VestingInstantiateMsg, VestingAccount,
         VestingSchedule, VestingSchedulePoint,
     },
 };
@@ -89,6 +89,53 @@ fn update_config() {
 }
 
 #[test]
+fn send_from_unregistered_lp() {
+    let mut app = mock_app();
+
+    let user1 = Addr::unchecked(USER1);
+
+    let token_code_id = store_token_code(&mut app);
+
+    let lp_eur_usdt_instance = instantiate_token(&mut app, token_code_id, "EUR-USDT", None);
+
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
+
+    // Mint tokens, so user can deposit
+    mint_tokens(&mut app, &lp_eur_usdt_instance, &user1, 10);
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: generator_instance.to_string(),
+        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
+        amount: Uint128::new(10),
+    };
+
+    let resp = app
+        .execute_contract(user1.clone(), lp_eur_usdt_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(resp.to_string(), "Unauthorized");
+
+    // Register lp token
+    register_lp_tokens_in_generator(
+        &mut app,
+        &generator_instance,
+        None,
+        &[&lp_eur_usdt_instance],
+    );
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: generator_instance.to_string(),
+        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
+        amount: Uint128::new(10),
+    };
+
+    app.execute_contract(user1.clone(), (lp_eur_usdt_instance).clone(), &msg, &[])
+        .unwrap();
+}
+
+#[test]
 fn generator_without_reward_proxies() {
     let mut app = mock_app();
 
@@ -113,32 +160,18 @@ fn generator_without_reward_proxies() {
         &[&lp_cny_eur_instance, &lp_eur_usd_instance],
     );
 
-    // User 1
+    // Mint tokens, so user can deposit
     mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 9);
     mint_tokens(&mut app, &lp_eur_usd_instance, &user1, 10);
 
-    allow_tokens(
-        &mut app,
-        &lp_cny_eur_instance,
-        USER1,
-        &generator_instance,
-        10,
-    );
-    allow_tokens(
-        &mut app,
-        &lp_eur_usd_instance,
-        USER1,
-        &generator_instance,
-        10,
-    );
-
-    // An user can't deposit without sufficient lp_token balance
-    let msg = GeneratorExecuteMsg::Deposit {
-        lp_token: (lp_cny_eur_instance).clone(),
+    let msg = Cw20ExecuteMsg::Send {
+        contract: generator_instance.to_string(),
+        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
         amount: Uint128::new(10),
     };
+
     assert_eq!(
-        app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        app.execute_contract(user1.clone(), (lp_cny_eur_instance).clone(), &msg, &[])
             .unwrap_err()
             .to_string(),
         "Overflow: Cannot Sub with 9 and 10".to_string()
@@ -171,7 +204,7 @@ fn generator_without_reward_proxies() {
         (0, None),
     );
 
-    // An user can't withdraw if didn't deposit
+    // User can't withdraw if didn't deposit
     let msg = GeneratorExecuteMsg::Withdraw {
         lp_token: lp_cny_eur_instance.clone(),
         amount: Uint128::new(1_000000),
@@ -183,7 +216,7 @@ fn generator_without_reward_proxies() {
         "Insufficient balance in contract to process claim".to_string()
     );
 
-    // An user can't emergency withdraw if didn't deposit
+    // User can't emergency withdraw if didn't deposit
     let msg = GeneratorExecuteMsg::EmergencyWithdraw {
         lp_token: lp_cny_eur_instance.clone(),
     };
@@ -215,21 +248,6 @@ fn generator_without_reward_proxies() {
     // User 2
     mint_tokens(&mut app, &lp_cny_eur_instance, &user2, 10);
     mint_tokens(&mut app, &lp_eur_usd_instance, &user2, 10);
-
-    allow_tokens(
-        &mut app,
-        &lp_cny_eur_instance,
-        USER2,
-        &generator_instance,
-        10,
-    );
-    allow_tokens(
-        &mut app,
-        &lp_eur_usd_instance,
-        USER2,
-        &generator_instance,
-        10,
-    );
 
     deposit_lp_tokens_to_generator(
         &mut app,
@@ -517,32 +535,18 @@ fn generator_with_mirror_reward_proxy() {
 
     register_lp_tokens_in_generator(&mut app, &generator_instance, None, &[&lp_eur_usd_instance]);
 
-    // User 1
+    // Mint tokens, so user can deposit
     mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 9);
     mint_tokens(&mut app, &lp_eur_usd_instance, &user1, 10);
 
-    allow_tokens(
-        &mut app,
-        &lp_cny_eur_instance,
-        USER1,
-        &generator_instance,
-        10,
-    );
-    allow_tokens(
-        &mut app,
-        &lp_eur_usd_instance,
-        USER1,
-        &generator_instance,
-        10,
-    );
-
-    // An user can't deposit without sufficient lp_token balance
-    let msg = GeneratorExecuteMsg::Deposit {
-        lp_token: (lp_cny_eur_instance).clone(),
+    let msg = Cw20ExecuteMsg::Send {
+        contract: generator_instance.to_string(),
+        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
         amount: Uint128::new(10),
     };
+
     assert_eq!(
-        app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        app.execute_contract(user1.clone(), (lp_cny_eur_instance).clone(), &msg, &[])
             .unwrap_err()
             .to_string(),
         "Overflow: Cannot Sub with 9 and 10".to_string()
@@ -580,7 +584,7 @@ fn generator_with_mirror_reward_proxy() {
         (0, None),
     );
 
-    // An user can't withdraw if didn't deposit
+    // User can't withdraw if didn't deposit
     let msg = GeneratorExecuteMsg::Withdraw {
         lp_token: lp_cny_eur_instance.clone(),
         amount: Uint128::new(1_000000),
@@ -592,7 +596,7 @@ fn generator_with_mirror_reward_proxy() {
         "Insufficient balance in contract to process claim".to_string()
     );
 
-    // An user can't emergency withdraw if didn't deposit
+    // User can't emergency withdraw if didn't deposit
     let msg = GeneratorExecuteMsg::EmergencyWithdraw {
         lp_token: lp_cny_eur_instance.clone(),
     };
@@ -637,21 +641,6 @@ fn generator_with_mirror_reward_proxy() {
     // User 2
     mint_tokens(&mut app, &lp_cny_eur_instance, &user2, 10);
     mint_tokens(&mut app, &lp_eur_usd_instance, &user2, 10);
-
-    allow_tokens(
-        &mut app,
-        &lp_cny_eur_instance,
-        USER2,
-        &generator_instance,
-        10,
-    );
-    allow_tokens(
-        &mut app,
-        &lp_eur_usd_instance,
-        USER2,
-        &generator_instance,
-        10,
-    );
 
     deposit_lp_tokens_to_generator(
         &mut app,
@@ -1057,29 +1046,25 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
 
     let amount = Uint128::new(63072000_000000);
 
-    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: vesting_instance.to_string(),
-        amount,
-        expires: None,
-    };
-
-    app.execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = VestingExecuteMsg::RegisterVestingAccounts {
-        vesting_accounts: vec![VestingAccount {
-            address: generator_instance.to_string(),
-            schedules: vec![VestingSchedule {
-                start_point: VestingSchedulePoint {
-                    time: current_block.time,
-                    amount,
-                },
-                end_point: None,
+    let msg = Cw20ExecuteMsg::Send {
+        contract: vesting_instance.to_string(),
+        msg: to_binary(&VestingHookMsg::RegisterVestingAccounts {
+            vesting_accounts: vec![VestingAccount {
+                address: generator_instance.to_string(),
+                schedules: vec![VestingSchedule {
+                    start_point: VestingSchedulePoint {
+                        time: current_block.time,
+                        amount,
+                    },
+                    end_point: None,
+                }],
             }],
-        }],
+        })
+        .unwrap(),
+        amount,
     };
 
-    app.execute_contract(owner, vesting_instance, &msg, &[])
+    app.execute_contract(owner, astro_token_instance.clone(), &msg, &[])
         .unwrap();
 
     generator_instance
@@ -1210,17 +1195,6 @@ fn mint_tokens(app: &mut App, token: &Addr, recipient: &Addr, amount: u128) {
         .unwrap();
 }
 
-fn allow_tokens(app: &mut App, token: &Addr, owner: &str, spender: &Addr, amount: u128) {
-    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: spender.to_string(),
-        expires: None,
-        amount: Uint128::from(amount),
-    };
-
-    app.execute_contract(Addr::unchecked(owner), token.to_owned(), &msg, &[])
-        .unwrap();
-}
-
 fn deposit_lp_tokens_to_generator(
     app: &mut App,
     generator_instance: &Addr,
@@ -1228,18 +1202,14 @@ fn deposit_lp_tokens_to_generator(
     lp_tokens: &[(&Addr, u128)],
 ) {
     for (token, amount) in lp_tokens {
-        let msg = GeneratorExecuteMsg::Deposit {
-            lp_token: (*token).clone(),
+        let msg = Cw20ExecuteMsg::Send {
+            contract: generator_instance.to_string(),
+            msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
             amount: Uint128::from(amount.to_owned()),
         };
 
-        app.execute_contract(
-            Addr::unchecked(depositor),
-            generator_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap();
+        app.execute_contract(Addr::unchecked(depositor), (*token).clone(), &msg, &[])
+            .unwrap();
     }
 }
 

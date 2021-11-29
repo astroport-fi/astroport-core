@@ -75,16 +75,60 @@ Updates reward variables of the given pool to be up-to-date.
 }
 ```
 
-### `deposit`
+### `receive`
 
-Deposits given lp amount and allocates ASTRO.
+CW20 receive msg.
 
 ```json
 {
-  "deposit": {
-    "lp_token": "terra...",
-    "amount": "123"
+  "receive": {
+    "sender": "terra...",
+    "amount": "123",
+    "msg": "<base64_encoded_json_string>"
   }
+}
+```
+
+#### `Deposit`
+
+Deposits given lp amount and allocates ASTRO.
+Execute this message by the LP token contract address from which you want to make a deposit.
+```json
+{
+  "send": {
+    "contract": <GeneratorContractAddress>,
+    "amount": 999,
+    "msg": "base64-encodedStringOfWithdrawMsg"
+  }
+}
+```
+
+In send.msg, you may decode this JSON string into base64 encoding.
+```json
+{
+  "Deposit": {}
+}
+```
+
+#### `DepositFor`
+
+Deposits given lp amount and allocates ASTRO to beneficiary.
+Execute this message by the LP token contract address from which you want to make a deposit.
+
+```json
+{
+  "send": {
+    "contract": <GeneratorContractAddress>,
+    "amount": 999,
+    "msg": "base64-encodedStringOfWithdrawMsg"
+  }
+}
+```
+
+In send.msg, you may decode this JSON string into base64 encoding.
+```json
+{
+  "DepositFor": Addr
 }
 ```
 

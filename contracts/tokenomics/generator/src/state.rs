@@ -61,12 +61,6 @@ pub enum ExecuteOnReply {
         account: Addr,
         amount: Uint128,
     },
-    DepositFor {
-        lp_token: Addr,
-        beneficiary: Addr,
-        amount: Uint128,
-        sender: Addr,
-    },
     Withdraw {
         lp_token: Addr,
         account: Addr,
