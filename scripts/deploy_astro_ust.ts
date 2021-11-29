@@ -27,6 +27,7 @@ async function main() {
     console.log("create astro-ust pair")
     let resp = await executeContract(terra, wallet, network.factoryAddress, {
         "create_pair": {
+            pair_type: {"xyk": {}},
             asset_infos: [
                 {
                     "token": {

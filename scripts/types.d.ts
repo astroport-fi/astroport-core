@@ -7,8 +7,7 @@ interface StakingInitMsg {
 
 interface FactoryInitMsg {
     config: {
-        pair_xyk_config: PairConfig,
-        pair_stable_config: PairConfig,
+        pair_configs: PairConfig[],
         token_code_id: number,
         fee_address?: string,
         generator_address: string,
@@ -27,8 +26,16 @@ interface GeneratorInitMsg {
     }
 }
 
+type PairType = {
+    xyk: {}
+} | {
+    stable: {}
+}
+
+
 interface PairConfig {
     code_id: number,
+    pair_type: PairType,
     total_fee_bps: number,
     maker_fee_bps: number
 }

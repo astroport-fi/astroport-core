@@ -1,5 +1,5 @@
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::{PairConfig, UpdateAddr};
+use astroport::factory::{PairConfig, PairType, UpdateAddr};
 use astroport::maker::{
     ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
 };
@@ -77,12 +77,13 @@ fn instantiate_contracts(
 
     let factory_code_id = router.store_code(factory_contract);
     let msg = astroport::factory::InstantiateMsg {
-        pair_xyk_config: Some(PairConfig {
+        pair_configs: vec![PairConfig {
             code_id: pair_code_id,
+            pair_type: PairType::Xyk {},
             total_fee_bps: 0,
             maker_fee_bps: 0,
-        }),
-        pair_stable_config: None,
+            is_disabled: None,
+        }],
         token_code_id: 1u64,
         fee_address: None,
         owner: owner.to_string(),
@@ -248,7 +249,9 @@ fn create_pair(
             owner.clone(),
             factory_instance.clone(),
             &astroport::factory::ExecuteMsg::CreatePair {
+                pair_type: PairType::Xyk {},
                 asset_infos: asset_infos.clone(),
+                init_params: None,
             },
             &[],
         )

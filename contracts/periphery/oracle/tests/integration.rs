@@ -6,10 +6,11 @@ use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuer
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
-use astroport::factory::PairConfig;
+use astroport::factory::{PairConfig, PairType};
 
 use astroport::oracle::QueryMsg::Consult;
 use astroport::oracle::{ExecuteMsg, InstantiateMsg};
+use astroport::pair::StablePoolParams;
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -86,16 +87,22 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
 
     let factory_code_id = router.store_code(factory_contract);
     let msg = astroport::factory::InstantiateMsg {
-        pair_xyk_config: Some(PairConfig {
-            code_id: pair_code_id,
-            total_fee_bps: 0,
-            maker_fee_bps: 0,
-        }),
-        pair_stable_config: Some(PairConfig {
-            code_id: pair_stable_code_id,
-            total_fee_bps: 0,
-            maker_fee_bps: 0,
-        }),
+        pair_configs: vec![
+            PairConfig {
+                code_id: pair_code_id,
+                pair_type: PairType::Xyk {},
+                total_fee_bps: 0,
+                maker_fee_bps: 0,
+                is_disabled: None,
+            },
+            PairConfig {
+                code_id: pair_stable_code_id,
+                pair_type: PairType::Stable {},
+                total_fee_bps: 0,
+                maker_fee_bps: 0,
+                is_disabled: None,
+            },
+        ],
         token_code_id: 1u64,
         fee_address: None,
         generator_address: String::from("generator"),
@@ -239,7 +246,9 @@ fn create_pair(
             owner.clone(),
             factory_instance.clone(),
             &astroport::factory::ExecuteMsg::CreatePair {
+                pair_type: PairType::Xyk {},
                 asset_infos: asset_infos.clone(),
+                init_params: None,
             },
             &[],
         )
@@ -341,18 +350,16 @@ fn create_pair_stable(
         .execute_contract(
             owner.clone(),
             factory_instance.clone(),
-            &astroport::factory::ExecuteMsg::CreatePairStable {
+            &astroport::factory::ExecuteMsg::CreatePair {
+                pair_type: PairType::Stable {},
                 asset_infos: asset_infos.clone(),
-                amp: 100,
+                init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
             },
             &[],
         )
         .unwrap();
 
-    assert_eq!(
-        res.events[1].attributes[1],
-        attr("action", "create_pair_stable")
-    );
+    assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
     assert_eq!(
         res.events[1].attributes[2],
         attr(

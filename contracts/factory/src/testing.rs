@@ -35,12 +35,42 @@ fn proper_initialization() {
     let owner = "owner0000".to_string();
 
     let msg = InstantiateMsg {
-        pair_xyk_config: None,
-        pair_stable_config: Some(PairConfig {
-            code_id: 325u64,
+        pair_configs: vec![
+            PairConfig {
+                code_id: 123u64,
+                pair_type: PairType::Xyk {},
+                total_fee_bps: 100,
+                maker_fee_bps: 10,
+                is_disabled: None,
+            },
+            PairConfig {
+                code_id: 325u64,
+                pair_type: PairType::Xyk {},
+                total_fee_bps: 100,
+                maker_fee_bps: 10,
+                is_disabled: None,
+            },
+        ],
+        token_code_id: 123u64,
+        fee_address: None,
+        generator_address: String::from("generator"),
+        owner: owner.clone(),
+    };
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+
+    let res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap_err();
+    assert_eq!(res, ContractError::PairConfigDuplicate {});
+
+    let msg = InstantiateMsg {
+        pair_configs: vec![PairConfig {
+            code_id: 123u64,
+            pair_type: PairType::Xyk {},
             total_fee_bps: 10_001,
             maker_fee_bps: 10,
-        }),
+            is_disabled: None,
+        }],
         token_code_id: 123u64,
         fee_address: None,
         generator_address: String::from("generator"),
@@ -56,16 +86,22 @@ fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
-        pair_xyk_config: Some(PairConfig {
-            code_id: 123u64,
-            total_fee_bps: 100,
-            maker_fee_bps: 10,
-        }),
-        pair_stable_config: Some(PairConfig {
-            code_id: 325u64,
-            total_fee_bps: 100,
-            maker_fee_bps: 10,
-        }),
+        pair_configs: vec![
+            PairConfig {
+                code_id: 325u64,
+                pair_type: PairType::Stable {},
+                total_fee_bps: 100,
+                maker_fee_bps: 10,
+                is_disabled: None,
+            },
+            PairConfig {
+                code_id: 123u64,
+                pair_type: PairType::Xyk {},
+                total_fee_bps: 100,
+                maker_fee_bps: 10,
+                is_disabled: None,
+            },
+        ],
         token_code_id: 123u64,
         fee_address: None,
         generator_address: String::from("generator"),
@@ -80,8 +116,7 @@ fn proper_initialization() {
     let query_res = query(deps.as_ref(), env, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(123u64, config_res.token_code_id);
-    assert_eq!(msg.pair_xyk_config, config_res.pair_xyk_config);
-    assert_eq!(msg.pair_stable_config, config_res.pair_stable_config);
+    assert_eq!(msg.pair_configs, config_res.pair_configs);
     assert_eq!(Addr::unchecked(owner), config_res.owner);
 }
 
@@ -90,15 +125,16 @@ fn update_config() {
     let mut deps = mock_dependencies(&[]);
     let owner = "owner0000";
 
-    let pair_config = PairConfig {
+    let pair_configs = vec![PairConfig {
         code_id: 123u64,
+        pair_type: PairType::Xyk {},
         total_fee_bps: 3,
         maker_fee_bps: 166,
-    };
+        is_disabled: None,
+    }];
 
     let msg = InstantiateMsg {
-        pair_xyk_config: Some(pair_config.clone()),
-        pair_stable_config: None,
+        pair_configs: pair_configs.clone(),
         token_code_id: 123u64,
         fee_address: None,
         owner: owner.to_string(),
@@ -120,8 +156,6 @@ fn update_config() {
         token_code_id: None,
         fee_address: Some(String::from("fee_addr")),
         generator_address: None,
-        pair_xyk_config: Some(pair_config.clone()),
-        pair_stable_config: Some(pair_config.clone()),
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -131,26 +165,19 @@ fn update_config() {
     let query_res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(123u64, config_res.token_code_id);
-    assert_eq!(Some(pair_config.clone()), config_res.pair_xyk_config);
-    assert_eq!(Some(pair_config.clone()), config_res.pair_stable_config);
     assert_eq!(Addr::unchecked(new_owner), config_res.owner);
 
     // check validation of total and maker fee bps
-    let pair_config = PairConfig {
-        code_id: 123u64,
-        total_fee_bps: 3,
-        maker_fee_bps: 10_001,
-    };
-
     let env = mock_env();
     let info = mock_info(new_owner, &[]);
-    let msg = ExecuteMsg::UpdateConfig {
-        owner: Some(String::from(new_owner)),
-        token_code_id: None,
-        fee_address: Some(String::from("fee_addr")),
-        generator_address: None,
-        pair_xyk_config: Some(pair_config),
-        pair_stable_config: None,
+    let msg = ExecuteMsg::UpdatePairConfig {
+        config: PairConfig {
+            code_id: 123u64,
+            pair_type: PairType::Xyk {},
+            total_fee_bps: 3,
+            maker_fee_bps: 10_001,
+            is_disabled: None,
+        },
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
@@ -164,8 +191,6 @@ fn update_config() {
         token_code_id: Some(200u64),
         fee_address: None,
         generator_address: None,
-        pair_xyk_config: None,
-        pair_stable_config: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -185,29 +210,22 @@ fn update_config() {
         token_code_id: None,
         fee_address: None,
         generator_address: None,
-        pair_xyk_config: None,
-        pair_stable_config: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
 
     // Check fee response
-    let pair_config = PairConfig {
-        code_id: 123u64,
-        total_fee_bps: 3,
-        maker_fee_bps: 166,
-    };
-
     let env = mock_env();
     let info = mock_info(new_owner, &[]);
-    let msg = ExecuteMsg::UpdateConfig {
-        owner: Some(String::from(new_owner)),
-        token_code_id: None,
-        fee_address: Some(String::from("fee_addr")),
-        generator_address: None,
-        pair_xyk_config: Some(pair_config.clone()),
-        pair_stable_config: None,
+    let msg = ExecuteMsg::UpdatePairConfig {
+        config: PairConfig {
+            code_id: 123u64,
+            pair_type: PairType::Xyk {},
+            total_fee_bps: 3,
+            maker_fee_bps: 166,
+            is_disabled: None,
+        },
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -223,8 +241,102 @@ fn update_config() {
     .unwrap();
     let fee_info: FeeInfoResponse = from_binary(&query_res).unwrap();
     assert_eq!(String::from("fee_addr"), fee_info.fee_address.unwrap());
-    assert_eq!(pair_config.total_fee_bps, fee_info.total_fee_bps);
-    assert_eq!(pair_config.maker_fee_bps, fee_info.maker_fee_bps);
+    assert_eq!(
+        pair_configs[0].clone().total_fee_bps,
+        fee_info.total_fee_bps
+    );
+    assert_eq!(
+        pair_configs[0].clone().maker_fee_bps,
+        fee_info.maker_fee_bps
+    );
+}
+
+#[test]
+fn update_pair_config() {
+    let mut deps = mock_dependencies(&[]);
+    let owner = "owner0000";
+    let pair_configs = vec![PairConfig {
+        code_id: 123u64,
+        pair_type: PairType::Xyk {},
+        total_fee_bps: 100,
+        maker_fee_bps: 10,
+        is_disabled: None,
+    }];
+
+    let msg = InstantiateMsg {
+        pair_configs: pair_configs.clone(),
+        token_code_id: 123u64,
+        fee_address: None,
+        owner: owner.to_string(),
+        generator_address: String::from("generator"),
+    };
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+
+    // we can just call .unwrap() to assert this was a success
+    instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
+
+    // it worked, let's query the state
+    let query_res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
+    let config_res: ConfigResponse = from_binary(&query_res).unwrap();
+    assert_eq!(pair_configs, config_res.pair_configs);
+
+    // update config
+    let pair_config = PairConfig {
+        code_id: 800,
+        pair_type: PairType::Xyk {},
+        total_fee_bps: 1,
+        maker_fee_bps: 2,
+        is_disabled: None,
+    };
+
+    // Unauthorized err
+    let env = mock_env();
+    let info = mock_info("wrong-addr0000", &[]);
+    let msg = ExecuteMsg::UpdatePairConfig {
+        config: pair_config.clone(),
+    };
+
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
+    assert_eq!(res, ContractError::Unauthorized {});
+
+    let info = mock_info(owner.clone(), &[]);
+    let msg = ExecuteMsg::UpdatePairConfig {
+        config: pair_config.clone(),
+    };
+
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    // it worked, let's query the state
+    let query_res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
+    let config_res: ConfigResponse = from_binary(&query_res).unwrap();
+    assert_eq!(vec![pair_config.clone()], config_res.pair_configs);
+
+    // add second config
+    let pair_config_custom = PairConfig {
+        code_id: 100,
+        pair_type: PairType::Custom("test".to_string()),
+        total_fee_bps: 10,
+        maker_fee_bps: 20,
+        is_disabled: None,
+    };
+
+    let info = mock_info(owner.clone(), &[]);
+    let msg = ExecuteMsg::UpdatePairConfig {
+        config: pair_config_custom.clone(),
+    };
+
+    execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+
+    // it worked, let's query the state
+    let query_res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
+    let config_res: ConfigResponse = from_binary(&query_res).unwrap();
+    assert_eq!(
+        vec![pair_config_custom.clone(), pair_config.clone()],
+        config_res.pair_configs
+    );
 }
 
 #[test]
@@ -233,13 +345,14 @@ fn create_pair() {
 
     let pair_config = PairConfig {
         code_id: 321u64,
+        pair_type: PairType::Xyk {},
         total_fee_bps: 100,
         maker_fee_bps: 10,
+        is_disabled: None,
     };
 
     let msg = InstantiateMsg {
-        pair_xyk_config: Some(pair_config.clone()),
-        pair_stable_config: None,
+        pair_configs: vec![pair_config.clone()],
         token_code_id: 123u64,
         fee_address: None,
         owner: "owner0000".to_string(),
@@ -270,9 +383,10 @@ fn create_pair() {
         deps.as_mut(),
         env.clone(),
         info.clone(),
-        ExecuteMsg::CreatePairStable {
+        ExecuteMsg::CreatePair {
+            pair_type: PairType::Stable {},
             asset_infos: asset_infos.clone(),
-            amp: 100,
+            init_params: None,
         },
     )
     .unwrap_err();
@@ -283,7 +397,9 @@ fn create_pair() {
         env,
         info,
         ExecuteMsg::CreatePair {
+            pair_type: PairType::Xyk {},
             asset_infos: asset_infos.clone(),
+            init_params: None,
         },
     )
     .unwrap();
@@ -303,6 +419,7 @@ fn create_pair() {
                     factory_addr: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     asset_infos: asset_infos.clone(),
                     token_code_id: msg.token_code_id,
+                    init_params: None
                 })
                 .unwrap(),
                 code_id: pair_config.code_id,
@@ -324,12 +441,13 @@ fn register() {
     let owner = "owner0000";
 
     let msg = InstantiateMsg {
-        pair_xyk_config: Some(PairConfig {
+        pair_configs: vec![PairConfig {
             code_id: 123u64,
+            pair_type: PairType::Xyk {},
             total_fee_bps: 100,
             maker_fee_bps: 10,
-        }),
-        pair_stable_config: None,
+            is_disabled: None,
+        }],
         token_code_id: 123u64,
         fee_address: None,
         generator_address: String::from("generator"),
@@ -350,7 +468,9 @@ fn register() {
     ];
 
     let msg = ExecuteMsg::CreatePair {
+        pair_type: PairType::Xyk {},
         asset_infos: asset_infos.clone(),
+        init_params: None,
     };
 
     let env = mock_env();
@@ -424,7 +544,9 @@ fn register() {
     ];
 
     let msg = ExecuteMsg::CreatePair {
+        pair_type: PairType::Xyk {},
         asset_infos: asset_infos_2.clone(),
+        init_params: None,
     };
 
     let env = mock_env();

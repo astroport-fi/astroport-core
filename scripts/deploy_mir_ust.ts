@@ -37,6 +37,7 @@ async function main() {
         console.log("Create MIR-UST pool")
         let resp = await executeContract(terra, wallet, network.factoryAddress, {
             "create_pair": {
+                pair_type: {"xyk": {}},
                 asset_infos: [
                     {
                         "token": {

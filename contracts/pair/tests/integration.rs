@@ -1,6 +1,6 @@
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{
-    ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig,
+    ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
     QueryMsg as FactoryQueryMsg,
 };
 use astroport::pair::{
@@ -74,6 +74,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         ],
         token_code_id: token_contract_code_id,
         factory_addr: Addr::unchecked("factory"),
+        init_params: None,
     };
 
     let pair = router
@@ -320,12 +321,13 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
     let init_msg = FactoryInstantiateMsg {
         fee_address: None,
-        pair_xyk_config: Some(PairConfig {
+        pair_configs: vec![PairConfig {
             code_id: pair_code_id,
             maker_fee_bps: 0,
+            pair_type: PairType::Xyk {},
             total_fee_bps: 0,
-        }),
-        pair_stable_config: None,
+            is_disabled: None,
+        }],
         token_code_id,
         generator_address: String::from("generator"),
         owner: owner.to_string(),
@@ -351,6 +353,8 @@ fn test_compatibility_of_tokens_with_different_precision() {
                 contract_addr: token_y_instance.clone(),
             },
         ],
+        pair_type: PairType::Xyk {},
+        init_params: None,
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
@@ -519,4 +523,40 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     // In accumulators we don't have any precision so we rely on elapsed time to not consider it
     assert_eq!(twap0, Uint128::new(43200)); // 0.5 * ELAPSED_SECONDS (86400)
     assert_eq!(twap1, Uint128::new(172800)); //   2 * ELAPSED_SECONDS
+}
+
+#[test]
+fn create_pair_with_same_assets() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+
+    let token_contract_code_id = store_token_code(&mut router);
+    let pair_contract_code_id = store_pair_code(&mut router);
+
+    let msg = InstantiateMsg {
+        asset_infos: [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+        ],
+        token_code_id: token_contract_code_id,
+        factory_addr: Addr::unchecked("factory"),
+        init_params: None,
+    };
+
+    let resp = router
+        .instantiate_contract(
+            pair_contract_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("PAIR"),
+            None,
+        )
+        .unwrap_err();
+
+    assert_eq!(resp.to_string(), "Doubling assets in asset infos")
 }

@@ -43,7 +43,8 @@ Inits a new stable pair.
         "denom": "uusd"
       }
     }
-  ]
+  ],
+  "init_params": Buffer.from(JSON.stringify({"amp": 100})).toString("base64")
 }
 ```
 

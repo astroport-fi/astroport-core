@@ -18,16 +18,20 @@ export const configDefault: Config = {
     factoryInitMsg: {
         config: {
             owner: '',
-            pair_xyk_config: {
-                code_id: 0,
-                total_fee_bps: 0,
-                maker_fee_bps: 0
-            },
-            pair_stable_config: {
-                code_id: 0,
-                total_fee_bps: 0,
-                maker_fee_bps: 0
-            },
+            pair_configs: [
+                {
+                    code_id: 0,
+                    pair_type: { xyk: {} },
+                    total_fee_bps: 0,
+                    maker_fee_bps: 0
+                },
+                {
+                    code_id: 0,
+                    pair_type: { stable: {} },
+                    total_fee_bps: 0,
+                    maker_fee_bps: 0
+                }
+            ],
             token_code_id: 0,
             generator_address: '',
             fee_address: undefined,

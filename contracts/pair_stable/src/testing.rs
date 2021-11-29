@@ -11,8 +11,8 @@ use crate::state::Config;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 
 use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsgStable, PoolResponse, ReverseSimulationResponse,
-    SimulationResponse,
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
+    SimulationResponse, StablePoolParams,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
@@ -49,7 +49,7 @@ fn store_liquidity_token(deps: DepsMut, msg_id: u64, contract_addr: String) {
 fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
@@ -60,7 +60,7 @@ fn proper_initialization() {
             },
         ],
         token_code_id: 10u64,
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let sender = "addr0000";
@@ -132,7 +132,7 @@ fn provide_liquidity() {
         ),
     ]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -143,7 +143,7 @@ fn provide_liquidity() {
         ],
         token_code_id: 10u64,
         factory_addr: Addr::unchecked("factory"),
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let env = mock_env();
@@ -384,38 +384,6 @@ fn provide_liquidity() {
         ),
     ]);
 
-    // failed because the price is under slippage_tolerance
-    let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
-            Asset {
-                info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked("asset0000"),
-                },
-                amount: Uint128::from(98_000000000000000000u128),
-            },
-            Asset {
-                info: AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-                amount: Uint128::from(100_000000000000000000u128),
-            },
-        ],
-        slippage_tolerance: Some(Decimal::percent(1)),
-        auto_stake: None,
-        receiver: None,
-    };
-
-    let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
-    let info = mock_info(
-        "addr0001",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100_000000000000000000u128),
-        }],
-    );
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
-    assert_eq!(res, ContractError::MaxSlippageAssertion {});
-
     // initialize token balance to 1:1
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
@@ -424,38 +392,6 @@ fn provide_liquidity() {
             amount: Uint128::new(100_000000000000000000 + 98_000000000000000000 /* user deposit must be pre-applied */),
         }],
     )]);
-
-    // failed because the price is under slippage_tolerance
-    let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
-            Asset {
-                info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked("asset0000"),
-                },
-                amount: Uint128::from(100_000000000000000000u128),
-            },
-            Asset {
-                info: AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-                amount: Uint128::from(98_000000000000000000u128),
-            },
-        ],
-        slippage_tolerance: Some(Decimal::percent(1)),
-        auto_stake: None,
-        receiver: None,
-    };
-
-    let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
-    let info = mock_info(
-        "addr0001",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(98_000000000000000000u128),
-        }],
-    );
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
-    assert_eq!(res, ContractError::MaxSlippageAssertion {});
 
     // initialize token balance to 1:1
     deps.querier.with_balance(&[(
@@ -560,7 +496,7 @@ fn withdraw_liquidity() {
         ),
     ]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -571,7 +507,7 @@ fn withdraw_liquidity() {
         ],
         token_code_id: 10u64,
         factory_addr: Addr::unchecked("factory"),
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let env = mock_env();
@@ -686,7 +622,7 @@ fn try_native_to_token() {
         ),
     ]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -697,7 +633,7 @@ fn try_native_to_token() {
         ],
         token_code_id: 10u64,
         factory_addr: Addr::unchecked("factory"),
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let env = mock_env();
@@ -874,7 +810,7 @@ fn try_token_to_native() {
         ),
     ]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -885,7 +821,7 @@ fn try_token_to_native() {
         ],
         token_code_id: 10u64,
         factory_addr: Addr::unchecked("factory"),
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let env = mock_env();
@@ -1152,7 +1088,7 @@ fn test_query_pool() {
         ),
     ]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1163,7 +1099,7 @@ fn test_query_pool() {
         ],
         token_code_id: 10u64,
         factory_addr: Addr::unchecked("factory"),
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let env = mock_env();
@@ -1217,7 +1153,7 @@ fn test_query_share() {
         ),
     ]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1228,7 +1164,7 @@ fn test_query_share() {
         ],
         token_code_id: 10u64,
         factory_addr: Addr::unchecked("factory"),
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let env = mock_env();

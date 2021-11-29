@@ -16,7 +16,16 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
   "token_code_id": 123,
   "fee_address": "terra...",
   "owner": "terra...",
-  "generator_address": "terra..."
+  "generator_address": "terra...",
+  "pair_configs": [{
+      "code_id": 123,
+      "pair_type": {
+        "xyk": {}
+      },
+      "total_fee_bps": 100,
+      "maker_fee_bps": 10
+    }
+  ]
 }
 ```
 
@@ -89,7 +98,8 @@ Anyone can execute it to create swap pair. When a user executes `CreatePair` ope
         }
       }
     ]
-  }
+  },
+  "init_params": "<base64_encoded_json_string: Optional binary serialised parameters for custom pool types>"
 }
 ```
 
