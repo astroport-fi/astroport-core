@@ -5,6 +5,7 @@
   "required": [
     "generator_address",
     "owner",
+    "pair_configs",
     "token_code_id"
   ],
   "properties": {
@@ -21,38 +22,14 @@
     "generator_address": {
       "$ref": "#/definitions/Addr"
     },
-    "gov": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/Addr"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "owner": {
       "$ref": "#/definitions/Addr"
     },
-    "pair_stable_config": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/PairConfig"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "pair_xyk_config": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/PairConfig"
-        },
-        {
-          "type": "null"
-        }
-      ]
+    "pair_configs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/PairConfig"
+      }
     },
     "token_code_id": {
       "type": "integer",
@@ -70,6 +47,7 @@
       "required": [
         "code_id",
         "maker_fee_bps",
+        "pair_type",
         "total_fee_bps"
       ],
       "properties": {
@@ -78,10 +56,19 @@
           "format": "uint64",
           "minimum": 0.0
         },
+        "is_disabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "maker_fee_bps": {
           "type": "integer",
           "format": "uint16",
           "minimum": 0.0
+        },
+        "pair_type": {
+          "$ref": "#/definitions/PairType"
         },
         "total_fee_bps": {
           "type": "integer",
@@ -89,6 +76,46 @@
           "minimum": 0.0
         }
       }
+    },
+    "PairType": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "xyk"
+          ],
+          "properties": {
+            "xyk": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "stable"
+          ],
+          "properties": {
+            "stable": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "custom"
+          ],
+          "properties": {
+            "custom": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     }
   }
 }

@@ -28,12 +28,18 @@
     {
       "type": "object",
       "required": [
-        "set_config"
+        "update_config"
       ],
       "properties": {
-        "set_config": {
+        "update_config": {
           "type": "object",
           "properties": {
+            "factory_contract": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "governance_contract": {
               "anyOf": [
                 {
@@ -90,15 +96,7 @@
           ],
           "properties": {
             "set": {
-              "type": "object",
-              "required": [
-                "address"
-              ],
-              "properties": {
-                "address": {
-                  "type": "string"
-                }
-              }
+              "type": "string"
             }
           },
           "additionalProperties": false

@@ -97,6 +97,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "callback"
+      ],
+      "properties": {
+        "callback": {
+          "$ref": "#/definitions/CallbackMsg"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -107,6 +119,34 @@
     "Binary": {
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
+    },
+    "CallbackMsg": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "transfer_lp_tokens_after_withdraw"
+          ],
+          "properties": {
+            "transfer_lp_tokens_after_withdraw": {
+              "type": "object",
+              "required": [
+                "account",
+                "prev_lp_balance"
+              ],
+              "properties": {
+                "account": {
+                  "$ref": "#/definitions/Addr"
+                },
+                "prev_lp_balance": {
+                  "$ref": "#/definitions/Uint128"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "Cw20ReceiveMsg": {
       "description": "Cw20ReceiveMsg should be de/serialized under `Receive()` variant in a ExecuteMsg",
