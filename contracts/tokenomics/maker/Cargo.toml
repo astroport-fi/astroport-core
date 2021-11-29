@@ -36,6 +36,5 @@ astroport = {path = "../../../packages/astroport"}
 astroport-token = {path = "../../token"}
 astroport-factory = {path = "../../factory"}
 astroport-pair = {path = "../../pair"}
-#cw-multi-test = "0.8.0"
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch = "main"}
 cosmwasm-bignumber = "2.2.0"

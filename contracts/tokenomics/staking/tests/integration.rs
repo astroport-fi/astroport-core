@@ -1,12 +1,13 @@
 use astroport::staking::{ConfigResponse, InstantiateMsg as xInstatiateMsg, QueryMsg};
 use astroport::token::InstantiateMsg;
+use cosmwasm_std::testing::MockQuerier;
 use cosmwasm_std::{
     attr,
     testing::{mock_env, MockApi, MockStorage},
     to_binary, Addr, QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
+use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
 const ALICE: &str = "Alice";
 const BOB: &str = "Bob";
@@ -17,7 +18,8 @@ fn mock_app() -> App {
     let api = MockApi::default();
     let bank = BankKeeper::new();
 
-    App::new(api, env.block, bank, MockStorage::new())
+    let terra_mock_querier = TerraMockQuerier::new(MockQuerier::new(&[]));
+    App::new(api, env.block, bank, MockStorage::new(), terra_mock_querier)
 }
 
 fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
@@ -87,9 +89,9 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
         .unwrap();
 
     // in multitest, contract names are named in the order in which contracts are created.
-    assert_eq!("Contract #0", astro_token_instance);
-    assert_eq!("Contract #1", staking_instance);
-    assert_eq!("Contract #2", res.share_token_addr);
+    assert_eq!("contract #0", astro_token_instance);
+    assert_eq!("contract #1", staking_instance);
+    assert_eq!("contract #2", res.share_token_addr);
 
     let x_astro_token_instance = res.share_token_addr;
 

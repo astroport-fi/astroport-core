@@ -789,6 +789,6 @@ fn collect_err_no_swap_pair() {
 
     assert_eq!(
         e.to_string(),
-        "Cannot swap uluna to Contract #0. Pair not found in factory",
+        "Cannot swap uluna to contract #0. Pair not found in factory",
     );
 }
