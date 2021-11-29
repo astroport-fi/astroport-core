@@ -2,7 +2,9 @@ use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, Addr};
 
 use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::{ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, QueryMsg};
+use astroport::factory::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, PairType, QueryMsg,
+};
 
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -60,15 +62,16 @@ fn proper_initialization() {
 
     let factory_code_id = store_factory_code(&mut app);
 
-    let pair_config = PairConfig {
+    let pair_configs = vec![PairConfig {
         code_id: 321,
+        pair_type: PairType::Xyk {},
         total_fee_bps: 100,
         maker_fee_bps: 10,
-    };
+        is_disabled: None,
+    }];
 
     let msg = InstantiateMsg {
-        pair_xyk_config: Some(pair_config.clone()),
-        pair_stable_config: None,
+        pair_configs: pair_configs.clone(),
         token_code_id: 123,
         fee_address: None,
         owner: owner.to_string(),
@@ -93,8 +96,7 @@ fn proper_initialization() {
         .unwrap();
 
     assert_eq!(123, config_res.token_code_id);
-    assert_eq!(Some(pair_config), config_res.pair_xyk_config);
-    assert_eq!(None, config_res.pair_stable_config);
+    assert_eq!(pair_configs, config_res.pair_configs);
     assert_eq!(owner, config_res.owner);
 }
 
@@ -109,20 +111,12 @@ fn update_config() {
     let factory_instance =
         instantiate_contract(&mut app, &Addr::unchecked(owner.clone()), token_code_id);
 
-    let pair_config = PairConfig {
-        code_id: 321,
-        total_fee_bps: 100,
-        maker_fee_bps: 10,
-    };
-
     // update owner
     let msg = ExecuteMsg::UpdateConfig {
         owner: Some(new_owner.clone()),
         token_code_id: None,
         fee_address: None,
         generator_address: None,
-        pair_xyk_config: None,
-        pair_stable_config: Some(pair_config.clone()),
     };
 
     app.execute_contract(
@@ -141,7 +135,6 @@ fn update_config() {
 
     assert_eq!(token_code_id, config_res.token_code_id);
     assert_eq!(new_owner.clone(), config_res.owner);
-    assert_eq!(Some(pair_config.clone()), config_res.pair_stable_config);
 
     // update left items
     let fee_address = Some(String::from("fee"));
@@ -150,8 +143,6 @@ fn update_config() {
         token_code_id: Some(200u64),
         fee_address: fee_address.clone(),
         generator_address: None,
-        pair_xyk_config: None,
-        pair_stable_config: None,
     };
 
     app.execute_contract(
@@ -179,8 +170,6 @@ fn update_config() {
         token_code_id: None,
         fee_address: None,
         generator_address: None,
-        pair_xyk_config: None,
-        pair_stable_config: None,
     };
 
     let res = app
@@ -193,15 +182,16 @@ fn instantiate_contract(app: &mut App, owner: &Addr, token_code_id: u64) -> Addr
     let pair_code_id = store_pair_code(app);
     let factory_code_id = store_factory_code(app);
 
-    let pair_config = PairConfig {
+    let pair_configs = vec![PairConfig {
         code_id: pair_code_id,
+        pair_type: PairType::Xyk {},
         total_fee_bps: 100,
         maker_fee_bps: 10,
-    };
+        is_disabled: None,
+    }];
 
     let msg = InstantiateMsg {
-        pair_xyk_config: Some(pair_config),
-        pair_stable_config: None,
+        pair_configs: pair_configs.clone(),
         token_code_id,
         fee_address: None,
         owner: owner.to_string(),
@@ -239,7 +229,9 @@ fn create_pair() {
         },
     ];
     let msg = ExecuteMsg::CreatePair {
+        pair_type: PairType::Xyk {},
         asset_infos: asset_infos.clone(),
+        init_params: None,
     };
 
     let res = app
@@ -266,55 +258,4 @@ fn create_pair() {
     assert_eq!("Contract #0", factory_instance.to_string());
     assert_eq!("Contract #1", res.contract_addr.to_string());
     assert_eq!("Contract #2", res.liquidity_token.to_string());
-}
-
-#[test]
-#[should_panic]
-fn create_pair_with_same_assets() {
-    let mut app = mock_app();
-
-    let owner = Addr::unchecked("Owner");
-    let token_code_id = store_token_code(&mut app);
-    let factory_instance = instantiate_contract(&mut app, &owner, token_code_id);
-    let token = Addr::unchecked("asset0000");
-
-    let asset_infos = [
-        AssetInfo::Token {
-            contract_addr: token.clone(),
-        },
-        AssetInfo::Token {
-            contract_addr: token,
-        },
-    ];
-    let msg = ExecuteMsg::CreatePair { asset_infos };
-
-    app.execute_contract(owner, factory_instance, &msg, &[])
-        .unwrap();
-}
-
-#[test]
-#[should_panic]
-fn create_pair_stable_with_same_assets() {
-    let mut app = mock_app();
-
-    let owner = Addr::unchecked("Owner");
-    let token_code_id = store_token_code(&mut app);
-    let factory_instance = instantiate_contract(&mut app, &owner, token_code_id);
-    let token = Addr::unchecked("asset0000");
-
-    let asset_infos = [
-        AssetInfo::Token {
-            contract_addr: token.clone(),
-        },
-        AssetInfo::Token {
-            contract_addr: token,
-        },
-    ];
-    let msg = ExecuteMsg::CreatePairStable {
-        asset_infos,
-        amp: 100,
-    };
-
-    app.execute_contract(owner, factory_instance, &msg, &[])
-        .unwrap();
 }

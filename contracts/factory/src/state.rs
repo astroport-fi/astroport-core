@@ -14,8 +14,6 @@ pub struct Config {
     pub token_code_id: u64,
     pub generator_address: Addr,
     pub fee_address: Option<Addr>,
-    pub pair_xyk_config: Option<PairConfig>,
-    pub pair_stable_config: Option<PairConfig>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -34,6 +32,8 @@ pub fn pair_key(asset_infos: &[AssetInfo; 2]) -> Vec<u8> {
 
     [asset_infos[0].as_bytes(), asset_infos[1].as_bytes()].concat()
 }
+
+pub const PAIR_CONFIGS: Map<String, PairConfig> = Map::new("pair_configs");
 
 // settings for pagination
 const MAX_LIMIT: u32 = 30;

@@ -26,7 +26,8 @@ async function main() {
 
     console.log("create ust-luna pair")
     let resp = await executeContract(terra, wallet, network.factoryAddress, {
-        "create_pair_stable": {
+        "create_pair": {
+            pair_type: {"stable": {}},
             asset_infos: [
                 {
                     "native_token": {
@@ -39,7 +40,7 @@ async function main() {
                     }
                 }
             ],
-            amp: 100
+            init_params: Buffer.from(JSON.stringify({"amp": 100})).toString("base64")
         }
     })
     console.log("pair successfully created!")

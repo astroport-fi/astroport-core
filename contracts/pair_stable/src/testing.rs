@@ -11,8 +11,8 @@ use crate::state::Config;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 
 use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsgStable, PoolResponse, ReverseSimulationResponse,
-    SimulationResponse,
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
+    SimulationResponse, StablePoolParams,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
@@ -49,7 +49,7 @@ fn store_liquidity_token(deps: DepsMut, msg_id: u64, contract_addr: String) {
 fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         factory_addr: Addr::unchecked("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
@@ -60,7 +60,7 @@ fn proper_initialization() {
             },
         ],
         token_code_id: 10u64,
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let sender = "addr0000";
@@ -132,7 +132,7 @@ fn provide_liquidity() {
         ),
     ]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -143,7 +143,7 @@ fn provide_liquidity() {
         ],
         token_code_id: 10u64,
         factory_addr: Addr::unchecked("factory"),
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let env = mock_env();
@@ -496,7 +496,7 @@ fn withdraw_liquidity() {
         ),
     ]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -507,7 +507,7 @@ fn withdraw_liquidity() {
         ],
         token_code_id: 10u64,
         factory_addr: Addr::unchecked("factory"),
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let env = mock_env();
@@ -622,7 +622,7 @@ fn try_native_to_token() {
         ),
     ]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -633,7 +633,7 @@ fn try_native_to_token() {
         ],
         token_code_id: 10u64,
         factory_addr: Addr::unchecked("factory"),
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let env = mock_env();
@@ -810,7 +810,7 @@ fn try_token_to_native() {
         ),
     ]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -821,7 +821,7 @@ fn try_token_to_native() {
         ],
         token_code_id: 10u64,
         factory_addr: Addr::unchecked("factory"),
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let env = mock_env();
@@ -1088,7 +1088,7 @@ fn test_query_pool() {
         ),
     ]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1099,7 +1099,7 @@ fn test_query_pool() {
         ],
         token_code_id: 10u64,
         factory_addr: Addr::unchecked("factory"),
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let env = mock_env();
@@ -1153,7 +1153,7 @@ fn test_query_share() {
         ),
     ]);
 
-    let msg = InstantiateMsgStable {
+    let msg = InstantiateMsg {
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1164,7 +1164,7 @@ fn test_query_share() {
         ],
         token_code_id: 10u64,
         factory_addr: Addr::unchecked("factory"),
-        amp: 100,
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
     let env = mock_env();

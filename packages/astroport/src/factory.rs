@@ -1,5 +1,5 @@
 use crate::asset::{AssetInfo, PairInfo};
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Binary};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result};
@@ -9,6 +9,7 @@ use std::fmt::{Display, Formatter, Result};
 pub enum PairType {
     Xyk {},
     Stable {},
+    Custom(String),
 }
 
 // Provide a string version of this to raw encode strings
@@ -17,6 +18,7 @@ impl Display for PairType {
         match self {
             PairType::Xyk {} => fmt.write_str("xyk"),
             PairType::Stable {} => fmt.write_str("stable"),
+            PairType::Custom(pair_type) => fmt.write_str(format!("custom-{}", pair_type).as_str()),
         }
     }
 }
@@ -24,8 +26,10 @@ impl Display for PairType {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairConfig {
     pub code_id: u64,
+    pub pair_type: PairType,
     pub total_fee_bps: u16,
     pub maker_fee_bps: u16,
+    pub is_disabled: Option<bool>,
 }
 
 impl PairConfig {
@@ -37,9 +41,7 @@ impl PairConfig {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     /// Pair contract code IDs which are allowed to create pairs
-    pub pair_xyk_config: Option<PairConfig>,
-    pub pair_stable_config: Option<PairConfig>,
-    /// Token contract code, used for LP tokens
+    pub pair_configs: Vec<PairConfig>,
     pub token_code_id: u64,
     /// Contract address to send fees to
     pub fee_address: Option<String>,
@@ -58,19 +60,18 @@ pub enum ExecuteMsg {
         token_code_id: Option<u64>,
         fee_address: Option<String>,
         generator_address: Option<String>,
-        pair_xyk_config: Option<PairConfig>,
-        pair_stable_config: Option<PairConfig>,
+    },
+    UpdatePairConfig {
+        config: PairConfig,
     },
     /// CreatePair instantiates pair contract
     CreatePair {
+        /// Type of pair contract
+        pair_type: PairType,
         /// Asset infos
         asset_infos: [AssetInfo; 2],
-    },
-    CreatePairStable {
-        /// Asset infos
-        asset_infos: [AssetInfo; 2],
-        /// Amplification point
-        amp: u64,
+        /// Optional binary serialised parameters for custom pool types
+        init_params: Option<Binary>,
     },
     Deregister {
         asset_infos: [AssetInfo; 2],
@@ -97,8 +98,7 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub owner: Addr,
-    pub pair_xyk_config: Option<PairConfig>,
-    pub pair_stable_config: Option<PairConfig>,
+    pub pair_configs: Vec<PairConfig>,
     pub token_code_id: u64,
     pub fee_address: Option<Addr>,
     pub generator_address: Addr,

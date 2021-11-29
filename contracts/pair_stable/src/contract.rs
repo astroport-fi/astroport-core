@@ -13,7 +13,7 @@ use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
 use astroport::generator::ExecuteMsg as GeneratorExecuteMsg;
-use astroport::pair::{ConfigResponse, InstantiateMsgStable};
+use astroport::pair::{ConfigResponse, InstantiateMsg, StablePoolParams};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse,
@@ -38,11 +38,13 @@ pub fn instantiate(
     deps: DepsMut,
     env: Env,
     _info: MessageInfo,
-    msg: InstantiateMsgStable,
+    msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     if msg.asset_infos[0] == msg.asset_infos[1] {
         return Err(ContractError::DoublingAssets {});
     }
+
+    let params: StablePoolParams = from_binary(&msg.init_params.unwrap())?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -57,7 +59,7 @@ pub fn instantiate(
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
-        amp: msg.amp,
+        amp: params.amp,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -118,7 +120,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::UpdateConfig { amp } => update_config(deps, info, amp),
+        ExecuteMsg::UpdateConfig { params } => update_config(deps, info, params),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ProvideLiquidity {
             assets,
@@ -880,7 +882,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
-        amp: Some(config.amp),
+        params: Some(to_binary(&StablePoolParams { amp: config.amp })?),
     })
 }
 
@@ -1040,7 +1042,7 @@ pub fn pool_info(deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)>
 pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
-    amp: Option<u64>,
+    params: Binary,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
     let factory_config = query_factory_config(&deps.querier, config.factory_addr.clone())?;
@@ -1049,9 +1051,9 @@ pub fn update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(amp) = amp {
-        config.amp = amp
-    }
+    let params: StablePoolParams = from_binary(&params)?;
+
+    config.amp = params.amp;
 
     CONFIG.save(deps.storage, &config)?;
 
