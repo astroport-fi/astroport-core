@@ -80,7 +80,7 @@ fn update_config() {
     let msg = QueryMsg::Config {};
     let res: ConfigResponse = app
         .wrap()
-        .query_wasm_smart(&generator_instance, &msg)
+        .query_wasm_smart(&generator_instance, &msfg)
         .unwrap();
 
     assert_eq!(res.owner, new_owner);
@@ -96,8 +96,6 @@ fn send_from_unregistered_lp() {
 
     let token_code_id = store_token_code(&mut app);
 
-    let lp_cny_eur_instance = instantiate_token(&mut app, token_code_id, "CNY-EUR", None);
-    let lp_eur_usd_instance = instantiate_token(&mut app, token_code_id, "EUR-USD", None);
     let lp_eur_usdt_instance = instantiate_token(&mut app, token_code_id, "EUR-USDT", None);
 
     let astro_token_instance =
@@ -105,19 +103,9 @@ fn send_from_unregistered_lp() {
 
     let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
 
-    register_lp_tokens_in_generator(
-        &mut app,
-        &generator_instance,
-        None,
-        &[&lp_cny_eur_instance, &lp_eur_usd_instance],
-    );
-
-    // User 1
-    mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 10);
-    mint_tokens(&mut app, &lp_eur_usd_instance, &user1, 10);
+    // Mint tokens, so user can deposit
     mint_tokens(&mut app, &lp_eur_usdt_instance, &user1, 10);
 
-    // An user can't deposit without sufficient lp_token balance
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
         msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
@@ -125,9 +113,26 @@ fn send_from_unregistered_lp() {
     };
 
     let resp = app
-        .execute_contract(user1.clone(), (lp_eur_usdt_instance).clone(), &msg, &[])
+        .execute_contract(user1.clone(), lp_eur_usdt_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(resp.to_string(), "Unauthorized");
+
+    // Register lp token
+    register_lp_tokens_in_generator(
+        &mut app,
+        &generator_instance,
+        None,
+        &[&lp_eur_usdt_instance],
+    );
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: generator_instance.to_string(),
+        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
+        amount: Uint128::new(10),
+    };
+
+    app.execute_contract(user1.clone(), (lp_eur_usdt_instance).clone(), &msg, &[])
+        .unwrap();
 }
 
 #[test]
@@ -155,11 +160,10 @@ fn generator_without_reward_proxies() {
         &[&lp_cny_eur_instance, &lp_eur_usd_instance],
     );
 
-    // User 1
+    // Mint tokens, so user can deposit
     mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 9);
     mint_tokens(&mut app, &lp_eur_usd_instance, &user1, 10);
 
-    // An user can't deposit without sufficient lp_token balance
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
         msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
