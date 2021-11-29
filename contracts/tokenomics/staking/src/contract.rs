@@ -10,6 +10,7 @@ use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
 
 use crate::response::MsgInstantiateContractResponse;
+use astroport::asset::addr_validate_to_lower;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use protobuf::Message;
 
@@ -35,7 +36,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            deposit_token_addr: deps.api.addr_validate(&msg.deposit_token_addr)?,
+            deposit_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
             share_token_addr: Addr::unchecked(""),
         },
     )?;
@@ -95,7 +96,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
         })?;
 
     // Set token addr
-    config.share_token_addr = deps.api.addr_validate(res.get_contract_address())?;
+    config.share_token_addr = addr_validate_to_lower(deps.api, res.get_contract_address())?;
 
     CONFIG.save(deps.storage, &config)?;
 

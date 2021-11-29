@@ -42,5 +42,5 @@ terra-cosmwasm = { version = "2.2.0" }
 proptest = "1.0.0"
 sim =  { path = "./sim" }
 astroport-token = {path = "../token"}
-cw-multi-test = "0.8.0"
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
 astroport-factory = {path = "../factory"}

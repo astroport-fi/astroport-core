@@ -8,6 +8,7 @@ use crate::error::ContractError;
 use crate::state::{
     Config, ExecuteOnReply, PoolInfo, CONFIG, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
+use astroport::asset::addr_validate_to_lower;
 use astroport::{
     generator::{
         ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse,
@@ -35,17 +36,17 @@ pub fn instantiate(
 
     let mut allowed_reward_proxies: Vec<Addr> = vec![];
     for proxy in msg.allowed_reward_proxies {
-        allowed_reward_proxies.push(deps.api.addr_validate(&proxy)?);
+        allowed_reward_proxies.push(addr_validate_to_lower(deps.api, &proxy)?);
     }
 
     let config = Config {
-        owner: deps.api.addr_validate(&msg.owner)?,
-        astro_token: deps.api.addr_validate(&msg.astro_token)?,
+        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+        astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
         tokens_per_block: msg.tokens_per_block,
         total_alloc_point: Uint64::from(0u64),
         start_block: msg.start_block,
         allowed_reward_proxies,
-        vesting_contract: deps.api.addr_validate(&msg.vesting_contract)?,
+        vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -178,7 +179,7 @@ pub fn execute_update_config(
     }
 
     if let Some(owner) = owner {
-        config.owner = deps.api.addr_validate(owner.as_str())?;
+        config.owner = addr_validate_to_lower(deps.api, owner.as_str())?;
     }
 
     if let Some(tokens_per_block) = tokens_per_block {
@@ -186,7 +187,7 @@ pub fn execute_update_config(
     }
 
     if let Some(vesting_contract) = vesting_contract {
-        config.vesting_contract = deps.api.addr_validate(vesting_contract.as_str())?;
+        config.vesting_contract = addr_validate_to_lower(deps.api, vesting_contract.as_str())?;
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -204,14 +205,14 @@ pub fn add(
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
-    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
 
     if POOL_INFO.load(deps.storage, &lp_token).is_ok() {
         return Err(ContractError::TokenPoolAlreadyExists {});
     }
 
     let reward_proxy = reward_proxy
-        .map(|v| deps.api.addr_validate(&v))
+        .map(|v| addr_validate_to_lower(deps.api, &v))
         .transpose()?;
 
     if let Some(proxy) = &reward_proxy {
@@ -251,7 +252,7 @@ pub fn set(
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
-    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
 
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_token)?;
 
@@ -289,7 +290,7 @@ fn update_rewards_and_execute(
 
     match update_single_pool {
         Some(lp_token) => {
-            let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+            let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
 
             let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
             if let Some(reward_proxy) = pool.reward_proxy.clone() {
@@ -499,8 +500,8 @@ pub fn deposit(
     amount: Uint128,
     sender: Option<Addr>,
 ) -> Result<Response, ContractError> {
-    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
-    let beneficiary = deps.api.addr_validate(beneficiary.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
+    let beneficiary = addr_validate_to_lower(deps.api, beneficiary.as_str())?;
 
     let sender = match sender {
         Some(sender) => sender,
@@ -599,7 +600,7 @@ pub fn withdraw(
 ) -> Result<Response, ContractError> {
     let mut response = Response::new().add_attribute("Action", "Withdraw");
 
-    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
 
     let mut user = USER_INFO
         .load(deps.storage, (&lp_token, &account))
@@ -694,7 +695,7 @@ pub fn emergency_withdraw(
 ) -> Result<Response, ContractError> {
     let mut response = Response::new().add_attribute("Action", "EmergencyWithdraw");
 
-    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
 
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let user = USER_INFO.load(deps.storage, (&lp_token, &info.sender))?;
@@ -746,7 +747,7 @@ fn set_allowed_reward_proxies(
 
     let mut allowed_reward_proxies: Vec<Addr> = vec![];
     for proxy in proxies {
-        allowed_reward_proxies.push(deps.api.addr_validate(&proxy)?);
+        allowed_reward_proxies.push(addr_validate_to_lower(deps.api, &proxy)?);
     }
 
     CONFIG.update::<_, StdError>(deps.storage, |mut v| {
@@ -768,9 +769,9 @@ fn send_orphan_proxy_rewards(
         return Err(ContractError::Unauthorized {});
     };
 
-    let lp_token = deps.api.addr_validate(&lp_token)?;
+    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
-    let recipient = deps.api.addr_validate(&recipient)?;
+    let recipient = addr_validate_to_lower(deps.api, &recipient)?;
 
     let mut response = Response::new();
 
@@ -832,8 +833,8 @@ pub fn pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
 }
 
 pub fn query_deposit(deps: Deps, lp_token: Addr, user: Addr) -> Result<Uint128, ContractError> {
-    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
-    let user = deps.api.addr_validate(user.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
+    let user = addr_validate_to_lower(deps.api, user.as_str())?;
 
     let user_info = USER_INFO
         .load(deps.storage, (&lp_token, &user))
@@ -850,8 +851,8 @@ pub fn pending_token(
 ) -> Result<PendingTokenResponse, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
-    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
-    let user = deps.api.addr_validate(user.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
+    let user = addr_validate_to_lower(deps.api, user.as_str())?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let user_info = USER_INFO
@@ -925,7 +926,7 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
 fn query_reward_info(deps: Deps, lp_token: Addr) -> Result<RewardInfoResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
@@ -946,7 +947,7 @@ fn query_reward_info(deps: Deps, lp_token: Addr) -> Result<RewardInfoResponse, C
 }
 
 fn query_orphan_proxy_rewards(deps: Deps, lp_token: Addr) -> Result<Uint128, ContractError> {
-    let lp_token = deps.api.addr_validate(lp_token.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
     if pool.reward_proxy.is_none() {

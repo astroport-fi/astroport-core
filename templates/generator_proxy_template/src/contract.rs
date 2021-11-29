@@ -25,11 +25,11 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
-        generator_contract_addr: deps.api.addr_validate(&msg.generator_contract_addr)?,
-        pair_addr: deps.api.addr_validate(&msg.pair_addr)?,
-        lp_token_addr: deps.api.addr_validate(&msg.lp_token_addr)?,
-        reward_contract_addr: deps.api.addr_validate(&msg.reward_contract_addr)?,
-        reward_token_addr: deps.api.addr_validate(&msg.reward_token_addr)?,
+        generator_contract_addr: user_input_to_addr(&msg.generator_contract_addr)?,
+        pair_addr: user_input_to_addr(&msg.pair_addr)?,
+        lp_token_addr: user_input_to_addr(&msg.lp_token_addr)?,
+        reward_contract_addr: user_input_to_addr(&msg.reward_contract_addr)?,
+        reward_token_addr: user_input_to_addr(&msg.reward_token_addr)?,
     };
     CONFIG.save(deps.storage, &config)?;
 
