@@ -80,7 +80,7 @@ fn update_config() {
     let msg = QueryMsg::Config {};
     let res: ConfigResponse = app
         .wrap()
-        .query_wasm_smart(&generator_instance, &msfg)
+        .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
 
     assert_eq!(res.owner, new_owner);
