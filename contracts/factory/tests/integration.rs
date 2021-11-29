@@ -58,7 +58,7 @@ fn store_token_code(app: &mut App) -> u64 {
 fn proper_initialization() {
     let mut app = mock_app();
 
-    let owner = Addr::unchecked("Owner");
+    let owner = Addr::unchecked("owner");
 
     let factory_code_id = store_factory_code(&mut app);
 
