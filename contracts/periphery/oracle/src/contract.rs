@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::querier::{query_cumulative_prices, query_pair_info, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
-use astroport::asset::{Asset, AssetInfo};
+use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
 use astroport::oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use astroport::querier::query_token_precision;
 use cosmwasm_bignumber::{Decimal256, Uint256};
@@ -26,7 +26,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let factory_contract = deps.api.addr_validate(msg.factory_contract.as_ref())?;
+    let factory_contract = addr_validate_to_lower(deps.api, msg.factory_contract.as_ref())?;
     let pair_info = query_pair_info(
         &deps.querier,
         factory_contract.clone(),

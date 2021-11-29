@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
-use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo, PairInfo};
 use astroport::factory::UpdateAddr;
 use astroport::maker::{
     ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
@@ -27,7 +27,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     let governance_contract = if let Some(governance_contract) = msg.governance_contract {
-        Option::from(deps.api.addr_validate(&governance_contract)?)
+        Option::from(addr_validate_to_lower(deps.api, &governance_contract)?)
     } else {
         None
     };
@@ -42,10 +42,10 @@ pub fn instantiate(
     };
 
     let cfg = Config {
-        owner: deps.api.addr_validate(&msg.owner)?,
-        astro_token_contract: deps.api.addr_validate(&msg.astro_token_contract)?,
-        factory_contract: deps.api.addr_validate(&msg.factory_contract)?,
-        staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
+        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+        astro_token_contract: addr_validate_to_lower(deps.api, &msg.astro_token_contract)?,
+        factory_contract: addr_validate_to_lower(deps.api, &msg.factory_contract)?,
+        staking_contract: addr_validate_to_lower(deps.api, &msg.staking_contract)?,
         governance_contract,
         governance_percent,
     };
@@ -260,24 +260,24 @@ fn update_config(
 
     if let Some(owner) = owner {
         // validate address format
-        config.owner = deps.api.addr_validate(owner.as_str())?;
+        config.owner = addr_validate_to_lower(deps.api, owner.as_str())?;
         attributes.push(Attribute::new("owner", &owner));
     }
 
     if let Some(factory_contract) = factory_contract {
-        config.factory_contract = deps.api.addr_validate(&factory_contract)?;
+        config.factory_contract = addr_validate_to_lower(deps.api, &factory_contract)?;
         attributes.push(Attribute::new("factory_contract", &factory_contract));
     };
 
     if let Some(staking_contract) = staking_contract {
-        config.staking_contract = deps.api.addr_validate(&staking_contract)?;
+        config.staking_contract = addr_validate_to_lower(deps.api, &staking_contract)?;
         attributes.push(Attribute::new("staking_contract", &staking_contract));
     };
 
     if let Some(action) = governance_contract {
         match action {
             UpdateAddr::Set(gov) => {
-                config.governance_contract = Option::from(deps.api.addr_validate(&gov)?);
+                config.governance_contract = Option::from(addr_validate_to_lower(deps.api, &gov)?);
                 attributes.push(Attribute::new("governance_contract", &gov));
             }
             UpdateAddr::Remove {} => {

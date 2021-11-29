@@ -23,9 +23,9 @@ use mirror_protocol::staking::{
 };
 use terra_multi_test::{next_block, App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
-const OWNER: &str = "Owner";
-const USER1: &str = "User1";
-const USER2: &str = "User2";
+const OWNER: &str = "owner";
+const USER1: &str = "user1";
+const USER2: &str = "user2";
 
 #[test]
 fn update_config() {
@@ -44,8 +44,8 @@ fn update_config() {
         .unwrap();
 
     assert_eq!(res.owner, OWNER);
-    assert_eq!(res.astro_token.to_string(), "Contract #0");
-    assert_eq!(res.vesting_contract.to_string(), "Contract #1");
+    assert_eq!(res.astro_token.to_string(), "contract #0");
+    assert_eq!(res.vesting_contract.to_string(), "contract #1");
 
     let new_owner = Addr::unchecked("new_owner");
     let new_tokens_per_block = Uint128::new(999);

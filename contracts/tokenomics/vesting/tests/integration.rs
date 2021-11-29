@@ -14,10 +14,10 @@ use cosmwasm_std::{
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
-const OWNER1: &str = "Owner1";
-const OWNER2: &str = "Owner2";
-const USER1: &str = "User1";
-const USER2: &str = "User2";
+const OWNER1: &str = "owner1";
+const OWNER2: &str = "owner2";
+const USER1: &str = "user1";
+const USER2: &str = "user2";
 const TOKEN_INITIAL_AMOUNT: u128 = 1_000_000_000_000000;
 
 #[test]
@@ -257,7 +257,7 @@ fn register_vesting_accounts() {
     let res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(res.to_string(), "Vesting schedule error on addr: User1. Should satisfy: (start < end and at_start < total) or (start = end and at_start = total)");
+    assert_eq!(res.to_string(), "Vesting schedule error on addr: user1. Should satisfy: (start < end and at_start < total) or (start = end and at_start = total)");
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),

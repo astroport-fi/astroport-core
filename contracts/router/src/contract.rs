@@ -8,7 +8,7 @@ use crate::operations::execute_swap_operation;
 use crate::querier::compute_tax;
 use crate::state::{Config, CONFIG};
 
-use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo, PairInfo};
 use astroport::pair::{QueryMsg as PairQueryMsg, SimulationResponse};
 use astroport::querier::query_pair_info;
 use astroport::router::{
@@ -36,7 +36,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            astroport_factory: deps.api.addr_validate(&msg.astroport_factory)?,
+            astroport_factory: addr_validate_to_lower(deps.api, &msg.astroport_factory)?,
         },
     )?;
 
@@ -78,7 +78,7 @@ pub fn execute(
             asset_info,
             prev_balance,
             minimum_receive,
-            deps.api.addr_validate(&receiver)?,
+            addr_validate_to_lower(deps.api, &receiver)?,
         ),
     }
 }
@@ -89,7 +89,7 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let sender = deps.api.addr_validate(&cw20_msg.sender)?;
+    let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::ExecuteSwapOperations {
             operations,
@@ -97,7 +97,7 @@ pub fn receive_cw20(
             to,
         } => {
             let to_addr = if let Some(to_addr) = to {
-                Some(deps.api.addr_validate(to_addr.as_str())?)
+                Some(addr_validate_to_lower(deps.api, to_addr.as_str())?)
             } else {
                 None
             };
@@ -133,7 +133,7 @@ pub fn execute_swap_operations(
     assert_operations(&operations)?;
 
     let to = if let Some(to) = to {
-        deps.api.addr_validate(to.as_str())?
+        addr_validate_to_lower(deps.api, to.as_str())?
     } else {
         sender
     };

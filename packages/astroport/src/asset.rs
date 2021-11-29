@@ -5,7 +5,7 @@ use std::fmt;
 use crate::factory::PairType;
 use crate::querier::{query_balance, query_token_balance};
 use cosmwasm_std::{
-    to_binary, Addr, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper, StdError,
+    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper, StdError,
     StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
@@ -191,4 +191,8 @@ impl PairInfo {
             },
         ])
     }
+}
+
+pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
+    api.addr_validate(&addr.to_lowercase())
 }

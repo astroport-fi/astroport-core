@@ -7,19 +7,20 @@ use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
+use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
+use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
-const OWNER: &str = "Owner";
+const OWNER: &str = "owner";
 
 fn mock_app() -> App {
     let env = mock_env();
     let api = MockApi::default();
     let bank = BankKeeper {};
 
-    App::new(api, env.block, bank, MockStorage::new())
+    let terra_mock_querier = TerraMockQuerier::new(MockQuerier::new(&[]));
+    App::new(api, env.block, bank, MockStorage::new(), terra_mock_querier)
 }
 
 fn store_token_code(app: &mut App) -> u64 {
@@ -92,8 +93,8 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         .wrap()
         .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
         .unwrap();
-    assert_eq!("Contract #0", res.contract_addr);
-    assert_eq!("Contract #1", res.liquidity_token);
+    assert_eq!("contract #0", res.contract_addr);
+    assert_eq!("contract #1", res.liquidity_token);
 
     pair
 }
