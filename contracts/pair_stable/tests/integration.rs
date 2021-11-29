@@ -424,7 +424,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
         .unwrap();
 
-    let user = Addr::unchecked("User");
+    let user = Addr::unchecked("user");
 
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),

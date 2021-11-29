@@ -41,6 +41,12 @@
                 "null"
               ]
             },
+            "receiver": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "slippage_tolerance": {
               "anyOf": [
                 {
@@ -104,6 +110,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Update pair config if required",
       "type": "object",
       "required": [
         "update_config"
@@ -111,14 +118,12 @@
       "properties": {
         "update_config": {
           "type": "object",
+          "required": [
+            "params"
+          ],
           "properties": {
-            "amp": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
+            "params": {
+              "$ref": "#/definitions/Binary"
             }
           }
         }
