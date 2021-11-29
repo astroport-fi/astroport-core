@@ -204,7 +204,7 @@ fn generator_without_reward_proxies() {
         (0, None),
     );
 
-    // An user can't withdraw if didn't deposit
+    // User can't withdraw if didn't deposit
     let msg = GeneratorExecuteMsg::Withdraw {
         lp_token: lp_cny_eur_instance.clone(),
         amount: Uint128::new(1_000000),
@@ -216,7 +216,7 @@ fn generator_without_reward_proxies() {
         "Insufficient balance in contract to process claim".to_string()
     );
 
-    // An user can't emergency withdraw if didn't deposit
+    // User can't emergency withdraw if didn't deposit
     let msg = GeneratorExecuteMsg::EmergencyWithdraw {
         lp_token: lp_cny_eur_instance.clone(),
     };
@@ -535,11 +535,10 @@ fn generator_with_mirror_reward_proxy() {
 
     register_lp_tokens_in_generator(&mut app, &generator_instance, None, &[&lp_eur_usd_instance]);
 
-    // User 1
+    // Mint tokens, so user can deposit
     mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 9);
     mint_tokens(&mut app, &lp_eur_usd_instance, &user1, 10);
 
-    // An user can't deposit without sufficient lp_token balance
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
         msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
@@ -585,7 +584,7 @@ fn generator_with_mirror_reward_proxy() {
         (0, None),
     );
 
-    // An user can't withdraw if didn't deposit
+    // User can't withdraw if didn't deposit
     let msg = GeneratorExecuteMsg::Withdraw {
         lp_token: lp_cny_eur_instance.clone(),
         amount: Uint128::new(1_000000),
@@ -597,7 +596,7 @@ fn generator_with_mirror_reward_proxy() {
         "Insufficient balance in contract to process claim".to_string()
     );
 
-    // An user can't emergency withdraw if didn't deposit
+    // User can't emergency withdraw if didn't deposit
     let msg = GeneratorExecuteMsg::EmergencyWithdraw {
         lp_token: lp_cny_eur_instance.clone(),
     };
