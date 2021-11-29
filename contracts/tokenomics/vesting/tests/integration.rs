@@ -217,6 +217,20 @@ fn register_vesting_accounts() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
+    let noname_token_instance = instantiate_token(
+        &mut app,
+        token_code_id,
+        "NONAME",
+        Some(1_000_000_000_000000),
+    );
+
+    mint_tokens(
+        &mut app,
+        &noname_token_instance,
+        &owner,
+        TOKEN_INITIAL_AMOUNT,
+    );
+
     let vesting_instance = instantiate_vesting(&mut app, &astro_token_instance);
 
     let msg = Cw20ExecuteMsg::Send {
@@ -275,6 +289,11 @@ fn register_vesting_accounts() {
         )
         .unwrap_err();
     assert_eq!(res.to_string(), "Overflow: Cannot Sub with 0 and 100");
+
+    let res = app
+        .execute_contract(owner.clone(), noname_token_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(res.to_string(), "Unauthorized");
 
     let _res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])

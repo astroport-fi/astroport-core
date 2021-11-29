@@ -151,6 +151,23 @@ fn cw20receive_enter_and_leave() {
         }
     );
 
+    // we can leave tokens only from xAstro token.
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
+        amount: Uint128::from(10u128),
+    };
+
+    let resp = router
+        .execute_contract(
+            alice_address.clone(),
+            astro_token_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(resp.to_string(), "Unauthorized");
+
     // try to enter Alice's 100 ASTRO for 100 xASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
@@ -214,6 +231,23 @@ fn cw20receive_enter_and_leave() {
             balance: Uint128::from(100u128)
         }
     );
+
+    // we can enter tokens only from Astro token.
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        amount: Uint128::from(10u128),
+    };
+
+    let resp = router
+        .execute_contract(
+            alice_address.clone(),
+            x_astro_token_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(resp.to_string(), "Unauthorized");
 
     // try to leave Alice's 10 xASTRO for 10 ASTRO
     let msg = Cw20ExecuteMsg::Send {

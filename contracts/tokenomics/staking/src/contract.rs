@@ -107,7 +107,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
@@ -120,6 +120,9 @@ fn receive_cw20(
 
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::Enter {}) => {
+            if info.sender != config.astro_token_addr {
+                return Err(ContractError::Unauthorized {});
+            }
             // In cw20 send total balance is already increased,
             // To calculated properly we should subtract user deposit from the pool
             total_deposit -= amount;
@@ -144,6 +147,10 @@ fn receive_cw20(
             Ok(res)
         }
         Ok(Cw20HookMsg::Leave {}) => {
+            if info.sender != config.xastro_token_addr {
+                return Err(ContractError::Unauthorized {});
+            }
+
             let what = amount
                 .checked_mul(total_deposit)?
                 .checked_div(total_shares)

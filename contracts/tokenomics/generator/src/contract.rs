@@ -476,6 +476,10 @@ fn receive_cw20(
     let amount = cw20_msg.amount;
     let lp_token = info.sender;
 
+    if POOL_INFO.load(deps.storage, &lp_token).is_err() {
+        return Err(ContractError::Unauthorized {});
+    }
+
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::Deposit {} => update_rewards_and_execute(
             deps,
