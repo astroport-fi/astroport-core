@@ -93,7 +93,7 @@ async function main() {
 
         console.log('Register vesting accounts...')
         await executeContract(terra, wallet, network.tokenAddress, {
-            "Send": {
+            "send": {
                 contract: network.vestingAddress,
                 amount: String("63072000000000"),
                 msg: toEncodedBinary(registerVestingAccounts)
