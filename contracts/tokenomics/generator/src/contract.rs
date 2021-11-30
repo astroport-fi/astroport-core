@@ -136,7 +136,6 @@ pub fn execute(
             lp_token,
         } => send_orphan_proxy_rewards(deps, info, recipient, lp_token),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::SetTokensPerBlock { amount } => set_tokens_per_block(deps, amount),
     }
 }
 
@@ -150,35 +149,28 @@ pub fn execute_update_config(
     vesting_contract: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut response = Response::default();
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     // permission check
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(owner) = owner {
-        config.owner = addr_validate_to_lower(deps.api, owner.as_str())?;
-    }
-
     if let Some(tokens_per_block) = tokens_per_block {
         response = update_rewards_and_execute(
             deps.branch(),
-            env.clone(),
+            env,
             None,
-            ExecuteOnReply::MassUpdatePools {},
-        )?;
-
-        let mut sub_msg = SubMsg::new(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            funds: vec![],
-            msg: to_binary(&ExecuteMsg::SetTokensPerBlock {
+            ExecuteOnReply::SetTokensPerBlock {
                 amount: tokens_per_block,
-            })?,
-        });
+            },
+        )?;
+    }
 
-        sub_msg.reply_on = ReplyOn::Success;
-        response.messages.push(sub_msg);
+    let mut config = CONFIG.load(deps.storage)?;
+
+    if let Some(owner) = owner {
+        config.owner = addr_validate_to_lower(deps.api, owner.as_str())?;
     }
 
     if let Some(vesting_contract) = vesting_contract {
@@ -188,15 +180,6 @@ pub fn execute_update_config(
     CONFIG.save(deps.storage, &config)?;
 
     Ok(response.add_attribute("action", "update_config"))
-}
-
-fn set_tokens_per_block(deps: DepsMut, amount: Uint128) -> Result<Response, ContractError> {
-    CONFIG.update::<_, ContractError>(deps.storage, |mut v| {
-        v.tokens_per_block = amount;
-        Ok(v)
-    })?;
-    Ok(Response::new()
-        .add_event(Event::new("Set tokens per block").add_attribute("amount", amount)))
 }
 
 // Add a new lp to the pool. Can only be called by the owner.
@@ -393,10 +376,27 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                     account,
                     amount,
                 } => withdraw(deps, env, lp_token, account, amount),
+                ExecuteOnReply::SetTokensPerBlock { amount } => {
+                    set_tokens_per_block(deps, env, amount)
+                }
             }
         }
         None => Ok(Response::default()),
     }
+}
+
+fn set_tokens_per_block(
+    mut deps: DepsMut,
+    env: Env,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    mass_update_pools(deps.branch(), env)?;
+    CONFIG.update::<_, ContractError>(deps.storage, |mut v| {
+        v.tokens_per_block = amount;
+        Ok(v)
+    })?;
+    Ok(Response::new()
+        .add_event(Event::new("Set tokens per block").add_attribute("amount", amount)))
 }
 
 // Update reward variables for all pools.

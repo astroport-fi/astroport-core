@@ -43,6 +43,9 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ExecuteOnReply {
+    SetTokensPerBlock {
+        amount: Uint128,
+    },
     MassUpdatePools {},
     Add {
         lp_token: Addr,
