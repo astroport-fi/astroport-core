@@ -49,6 +49,9 @@ pub enum ExecuteMsg {
         lp_token: String,
     },
     Receive(Cw20ReceiveMsg),
+    SetTokensPerBlock {
+        amount: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

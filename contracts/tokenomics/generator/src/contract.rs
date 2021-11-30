@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event,
+    MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 
@@ -136,6 +136,7 @@ pub fn execute(
             lp_token,
         } => send_orphan_proxy_rewards(deps, info, recipient, lp_token),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::SetTokensPerBlock { amount } => set_tokens_per_block(deps, amount),
     }
 }
 
@@ -163,11 +164,21 @@ pub fn execute_update_config(
     if let Some(tokens_per_block) = tokens_per_block {
         response = update_rewards_and_execute(
             deps.branch(),
-            env,
+            env.clone(),
             None,
             ExecuteOnReply::MassUpdatePools {},
         )?;
-        config.tokens_per_block = tokens_per_block;
+
+        let mut sub_msg = SubMsg::new(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            funds: vec![],
+            msg: to_binary(&ExecuteMsg::SetTokensPerBlock {
+                amount: tokens_per_block,
+            })?,
+        });
+
+        sub_msg.reply_on = ReplyOn::Success;
+        response.messages.push(sub_msg);
     }
 
     if let Some(vesting_contract) = vesting_contract {
@@ -177,6 +188,15 @@ pub fn execute_update_config(
     CONFIG.save(deps.storage, &config)?;
 
     Ok(response.add_attribute("action", "update_config"))
+}
+
+fn set_tokens_per_block(deps: DepsMut, amount: Uint128) -> Result<Response, ContractError> {
+    CONFIG.update::<_, ContractError>(deps.storage, |mut v| {
+        v.tokens_per_block = amount;
+        Ok(v)
+    })?;
+    Ok(Response::new()
+        .add_event(Event::new("Set tokens per block").add_attribute("amount", amount)))
 }
 
 // Add a new lp to the pool. Can only be called by the owner.
