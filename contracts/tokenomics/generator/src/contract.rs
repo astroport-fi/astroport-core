@@ -149,7 +149,7 @@ pub fn execute_update_config(
     vesting_contract: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut response = Response::default();
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     // permission check
     if info.sender != config.owner {
@@ -165,9 +165,8 @@ pub fn execute_update_config(
                 amount: tokens_per_block,
             },
         )?;
+        config = CONFIG.load(deps.storage)?;
     }
-
-    let mut config = CONFIG.load(deps.storage)?;
 
     if let Some(owner) = owner {
         config.owner = addr_validate_to_lower(deps.api, owner.as_str())?;
