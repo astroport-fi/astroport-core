@@ -67,7 +67,7 @@ pub fn execute(
             owner,
             tokens_per_block,
             vesting_contract,
-        } => execute_update_config(deps, info, owner, tokens_per_block, vesting_contract),
+        } => execute_update_config(deps, env, info, owner, tokens_per_block, vesting_contract),
         ExecuteMsg::Add {
             lp_token,
             alloc_point,
@@ -141,12 +141,14 @@ pub fn execute(
 
 // Only owner can execute it
 pub fn execute_update_config(
-    deps: DepsMut,
+    mut deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     owner: Option<String>,
     tokens_per_block: Option<Uint128>,
     vesting_contract: Option<String>,
 ) -> Result<Response, ContractError> {
+    let mut response = Response::default();
     let mut config = CONFIG.load(deps.storage)?;
 
     // permission check
@@ -159,6 +161,12 @@ pub fn execute_update_config(
     }
 
     if let Some(tokens_per_block) = tokens_per_block {
+        response = update_rewards_and_execute(
+            deps.branch(),
+            env,
+            None,
+            ExecuteOnReply::MassUpdatePools {},
+        )?;
         config.tokens_per_block = tokens_per_block;
     }
 
@@ -168,7 +176,7 @@ pub fn execute_update_config(
 
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::new().add_attribute("action", "update_config"))
+    Ok(response.add_attribute("action", "update_config"))
 }
 
 // Add a new lp to the pool. Can only be called by the owner.
