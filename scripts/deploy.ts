@@ -17,6 +17,7 @@ async function main() {
     console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
     let deployConfig: Config = configDefault
     const network = readArtifact(terra.config.chainID)
+    const network_data = readArtifact(terra.config.chainID + process.env.NETWORK_DATA_ENDING!)
     console.log('network:', network)
 
     if (!network.tokenAddress) {
@@ -37,15 +38,19 @@ async function main() {
     /*************************************** Deploy Vesting Contract *****************************************/
     if (!network.vestingAddress) {
         console.log('Deploying Vesting...')
+        let init_msg = {
+            owner: wallet.key.accAddress,
+            token_addr: network.tokenAddress,
+        }
         network.vestingAddress = await deployContract(
             terra,
             wallet,
             join(ARTIFACTS_PATH, 'astroport_vesting.wasm'),
-            {
-                owner: wallet.key.accAddress,
-                token_addr: network.tokenAddress,
-            },
+            init_msg,
         )
+
+        network_data.vesting = {}
+        network_data.vesting.initData = init_msg
         console.log(`Address Vesting Contract: ${network.vestingAddress}`)
     }
 
@@ -60,6 +65,9 @@ async function main() {
             join(ARTIFACTS_PATH, 'astroport_staking.wasm'),
             deployConfig.stakingInitMsg.config
         )
+
+        network_data.staking = {}
+        network_data.staking.initData = deployConfig.stakingInitMsg.config
         console.log(`Address Staking Contract: ${network.stakingAddress}`)
     }
 
@@ -75,6 +83,9 @@ async function main() {
             join(ARTIFACTS_PATH, 'astroport_generator.wasm'),
             deployConfig.generatorInitMsg.config
         )
+
+        network_data.generator = {}
+        network_data.generator.initData = deployConfig.generatorInitMsg.config
         console.log(`Address Generator Contract: ${network.generatorAddress}`)
 
         /*************************************** Setting tokens to Vesting Contract *****************************************/
@@ -99,6 +110,7 @@ async function main() {
                 msg: toEncodedBinary(registerVestingAccounts)
             }
         })
+        network_data.vesting.vesting_accounts = registerVestingAccounts.register_vesting_accounts.vesting_accounts
     }
 
     /*************************************** Deploy Factory Contract *****************************************/
@@ -116,41 +128,52 @@ async function main() {
             join(ARTIFACTS_PATH, 'astroport_factory.wasm'),
             deployConfig.factoryInitMsg.config
         )
+
+        network_data.factory = {}
+        network_data.factory.initData = deployConfig.factoryInitMsg.config
         console.log(`Address Factory Contract: ${network.factoryAddress}`)
     }
 
     /*************************************** Deploy Router Contract *****************************************/
     if (!network.routerAddress) {
         console.log('Deploying Router...')
+        let init_msg = {
+            astroport_factory: network.factoryAddress
+        }
         network.routerAddress = await deployContract(
             terra,
             wallet,
             join(ARTIFACTS_PATH, 'astroport_router.wasm'),
-            {
-                astroport_factory: network.factoryAddress,
-            },
+            init_msg,
         )
+        network_data.router = {}
+        network_data.router.initData = init_msg
         console.log(`Address Router Contract: ${network.routerAddress}`)
     }
 
     /*************************************** Deploy Maker Contract *****************************************/
     if (!network.makerAddress) {
         console.log('Deploying Maker...')
+        let init_msg = {
+            owner: wallet.key.accAddress,
+            factory_contract: String(network.factoryAddress),
+            staking_contract: String(network.stakingAddress),
+            astro_token_contract: String(network.tokenAddress),
+        }
         network.makerAddress = await deployContract(
             terra,
             wallet,
             join(ARTIFACTS_PATH, 'astroport_maker.wasm'),
-            {
-                owner: wallet.key.accAddress,
-                factory_contract: String(network.factoryAddress),
-                staking_contract: String(network.stakingAddress),
-                astro_token_contract: String(network.tokenAddress),
-            }
+            init_msg
         )
+
+        network_data.maker = {}
+        network_data.maker.initData = init_msg
         console.log(`Address Maker Contract: ${network.makerAddress}`)
     }
 
     writeArtifact(network, terra.config.chainID)
+    writeArtifact(network_data, terra.config.chainID + process.env.NETWORK_DATA_ENDING!)
     console.log('FINISH')
 }
 
