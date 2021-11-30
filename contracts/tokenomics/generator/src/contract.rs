@@ -165,7 +165,11 @@ pub fn execute_update_config(
                 amount: tokens_per_block,
             },
         )?;
-        config = CONFIG.load(deps.storage)?;
+
+        // we need to reload the config if updating rewards is done directly
+        if response.messages.is_empty() {
+            config = CONFIG.load(deps.storage)?;
+        }
     }
 
     if let Some(owner) = owner {
