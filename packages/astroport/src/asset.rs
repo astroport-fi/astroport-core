@@ -163,6 +163,28 @@ impl AssetInfo {
             AssetInfo::Token { contract_addr } => contract_addr.as_bytes(),
         }
     }
+
+    pub fn check_lowercase(&self) -> StdResult<()> {
+        match self {
+            AssetInfo::Token { contract_addr } => {
+                if contract_addr.as_str() != contract_addr.as_str().to_lowercase() {
+                    return Err(StdError::generic_err(format!(
+                        "Token address {} should be lowercase",
+                        contract_addr
+                    )));
+                }
+            }
+            AssetInfo::NativeToken { denom } => {
+                if denom != &denom.to_lowercase() {
+                    return Err(StdError::generic_err(format!(
+                        "Native token denom {} should be lowercase",
+                        denom
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 // We define a custom struct for each query response

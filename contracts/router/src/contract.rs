@@ -185,6 +185,7 @@ fn assert_minimum_receive(
     minimum_receive: Uint128,
     receiver: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    asset_info.check_lowercase()?;
     let receiver_balance = asset_info.query_pool(&deps.querier, receiver)?;
     let swap_amount = receiver_balance.checked_sub(prev_balance)?;
 
@@ -339,6 +340,8 @@ fn assert_operations(operations: &[SwapOperation]) -> Result<(), ContractError> 
                 ask_asset_info,
             } => (offer_asset_info.clone(), ask_asset_info.clone()),
         };
+        offer_asset.check_lowercase()?;
+        ask_asset.check_lowercase()?;
 
         ask_asset_map.remove(&offer_asset.to_string());
         ask_asset_map.insert(ask_asset.to_string(), true);
