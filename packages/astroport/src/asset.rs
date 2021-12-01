@@ -163,6 +163,23 @@ impl AssetInfo {
             AssetInfo::Token { contract_addr } => contract_addr.as_bytes(),
         }
     }
+
+    pub fn check(&self, api: &dyn Api) -> StdResult<()> {
+        match self {
+            AssetInfo::Token { contract_addr } => {
+                addr_validate_to_lower(api, contract_addr.as_str())?;
+            }
+            AssetInfo::NativeToken { denom } => {
+                if denom != &denom.to_lowercase() {
+                    return Err(StdError::generic_err(format!(
+                        "Native token denom {} should be lowercase",
+                        denom
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 // We define a custom struct for each query response
@@ -194,5 +211,11 @@ impl PairInfo {
 }
 
 pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
-    api.addr_validate(&addr.to_lowercase())
+    if addr.to_lowercase() != addr {
+        return Err(StdError::generic_err(format!(
+            "Address {} should be lowercase",
+            addr
+        )));
+    }
+    api.addr_validate(addr)
 }

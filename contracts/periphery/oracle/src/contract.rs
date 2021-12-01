@@ -24,6 +24,9 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    msg.asset_infos[0].check(deps.api)?;
+    msg.asset_infos[1].check(deps.api)?;
+
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let factory_contract = addr_validate_to_lower(deps.api, msg.factory_contract.as_ref())?;
