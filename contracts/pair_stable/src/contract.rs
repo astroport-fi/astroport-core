@@ -42,8 +42,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    msg.asset_infos[0].check_lowercase()?;
-    msg.asset_infos[1].check_lowercase()?;
+    msg.asset_infos[0].check(deps.api)?;
+    msg.asset_infos[1].check(deps.api)?;
 
     if msg.asset_infos[0] == msg.asset_infos[1] {
         return Err(ContractError::DoublingAssets {});
@@ -148,7 +148,7 @@ pub fn execute(
             max_spread,
             to,
         } => {
-            offer_asset.info.check_lowercase()?;
+            offer_asset.info.check(deps.api)?;
             if !offer_asset.is_native_token() {
                 return Err(ContractError::Unauthorized {});
             }
@@ -243,8 +243,8 @@ pub fn provide_liquidity(
     auto_stake: Option<bool>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
-    assets[0].info.check_lowercase()?;
-    assets[1].info.check_lowercase()?;
+    assets[0].info.check(deps.api)?;
+    assets[1].info.check(deps.api)?;
 
     let auto_stake = auto_stake.unwrap_or(false);
     for asset in assets.iter() {

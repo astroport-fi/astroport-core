@@ -454,7 +454,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
 fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     let mut app = mock_app();
 
-    let user1 = Addr::unchecked("USER1");
+    let user1 = Addr::unchecked("user1");
 
     app.init_bank_balance(
         &user1,

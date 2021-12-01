@@ -164,15 +164,10 @@ impl AssetInfo {
         }
     }
 
-    pub fn check_lowercase(&self) -> StdResult<()> {
+    pub fn check(&self, api: &dyn Api) -> StdResult<()> {
         match self {
             AssetInfo::Token { contract_addr } => {
-                if contract_addr.as_str() != contract_addr.as_str().to_lowercase() {
-                    return Err(StdError::generic_err(format!(
-                        "Token address {} should be lowercase",
-                        contract_addr
-                    )));
-                }
+                addr_validate_to_lower(api, contract_addr.as_str())?;
             }
             AssetInfo::NativeToken { denom } => {
                 if denom != &denom.to_lowercase() {
@@ -216,5 +211,11 @@ impl PairInfo {
 }
 
 pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
-    api.addr_validate(&addr.to_lowercase())
+    if addr.to_lowercase() != addr {
+        return Err(StdError::generic_err(format!(
+            "Address {} should be lowercase",
+            addr
+        )));
+    }
+    api.addr_validate(addr)
 }

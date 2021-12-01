@@ -184,8 +184,8 @@ pub fn execute_create_pair(
     asset_infos: [AssetInfo; 2],
     init_params: Option<Binary>,
 ) -> Result<Response, ContractError> {
-    asset_infos[0].check_lowercase()?;
-    asset_infos[1].check_lowercase()?;
+    asset_infos[0].check(deps.api)?;
+    asset_infos[1].check(deps.api)?;
 
     if asset_infos[0] == asset_infos[1] {
         return Err(ContractError::DoublingAssets {});
@@ -269,8 +269,8 @@ pub fn deregister(
     info: MessageInfo,
     asset_infos: [AssetInfo; 2],
 ) -> Result<Response, ContractError> {
-    asset_infos[0].check_lowercase()?;
-    asset_infos[1].check_lowercase()?;
+    asset_infos[0].check(deps.api)?;
+    asset_infos[1].check(deps.api)?;
 
     let config = CONFIG.load(deps.storage)?;
 
