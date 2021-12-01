@@ -5,6 +5,8 @@ use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, PairType, QueryMsg,
 };
+use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use cw20::MinterResponse;
 
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -220,14 +222,65 @@ fn create_pair() {
     let factory_instance =
         instantiate_contract(&mut app, &Addr::unchecked(owner.clone()), token_code_id);
 
+    let owner_addr = Addr::unchecked(owner.clone());
+
+    let token_name = "tokenX";
+
+    let init_msg = TokenInstantiateMsg {
+        name: token_name.to_string(),
+        symbol: token_name.to_string(),
+        decimals: 18,
+        initial_balances: vec![],
+        mint: Some(MinterResponse {
+            minter: owner_addr.to_string(),
+            cap: None,
+        }),
+    };
+
+    let token_instance0 = app
+        .instantiate_contract(
+            token_code_id,
+            owner_addr.clone(),
+            &init_msg,
+            &[],
+            token_name,
+            None,
+        )
+        .unwrap();
+
+    let token_name = "tokenY";
+
+    let init_msg = TokenInstantiateMsg {
+        name: token_name.to_string(),
+        symbol: token_name.to_string(),
+        decimals: 18,
+        initial_balances: vec![],
+        mint: Some(MinterResponse {
+            minter: owner_addr.to_string(),
+            cap: None,
+        }),
+    };
+
+    let token_instance1 = app
+        .instantiate_contract(
+            token_code_id,
+            owner_addr.clone(),
+            &init_msg,
+            &[],
+            token_name,
+            None,
+        )
+        .unwrap();
+
     let asset_infos = [
         AssetInfo::Token {
-            contract_addr: Addr::unchecked("asset0000"),
+            contract_addr: token_instance0.clone(),
         },
         AssetInfo::Token {
-            contract_addr: Addr::unchecked("asset0001"),
+            contract_addr: token_instance1.clone(),
         },
     ];
+
     let msg = ExecuteMsg::CreatePair {
         pair_type: PairType::Xyk {},
         asset_infos: asset_infos.clone(),
@@ -241,7 +294,7 @@ fn create_pair() {
     assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
     assert_eq!(
         res.events[1].attributes[2],
-        attr("pair", "asset0000-asset0001")
+        attr("pair", "contract #1-contract #2")
     );
 
     let res: PairInfo = app
@@ -256,6 +309,6 @@ fn create_pair() {
 
     // in multitest, contract names are named in the order in which contracts are created.
     assert_eq!("contract #0", factory_instance.to_string());
-    assert_eq!("contract #1", res.contract_addr.to_string());
-    assert_eq!("contract #2", res.liquidity_token.to_string());
+    assert_eq!("contract #3", res.contract_addr.to_string());
+    assert_eq!("contract #4", res.liquidity_token.to_string());
 }

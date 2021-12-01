@@ -220,31 +220,25 @@ pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
     api.addr_validate(addr)
 }
 
-const TOKEN_NAME_MAX_LENGTH: usize = 12;
+const TOKEN_SYMBOL_MAX_LENGTH: usize = 12;
 
 pub fn format_lp_token_name(
     asset_infos: [AssetInfo; 2],
     querier: &QuerierWrapper,
 ) -> StdResult<String> {
-    let mut symbol = "".to_string();
+    let mut lp_token_name = "".to_string();
     for asset_info in asset_infos {
+        let short_symbol: String;
         match asset_info {
             AssetInfo::NativeToken { denom } => {
-                if denom.len() > TOKEN_NAME_MAX_LENGTH {
-                    symbol.push_str(&denom[..TOKEN_NAME_MAX_LENGTH])
-                } else {
-                    symbol.push_str(&denom)
-                }
+                short_symbol = denom.chars().take(TOKEN_SYMBOL_MAX_LENGTH).collect();
             }
             AssetInfo::Token { contract_addr } => {
                 let token_symbol = query_token_symbol(querier, contract_addr)?;
-                if token_symbol.len() > TOKEN_NAME_MAX_LENGTH {
-                    symbol.push_str(&token_symbol[..TOKEN_NAME_MAX_LENGTH])
-                } else {
-                    symbol.push_str(&token_symbol)
-                }
+                short_symbol = token_symbol.chars().take(TOKEN_SYMBOL_MAX_LENGTH).collect();
             }
         }
+        lp_token_name.push_str(&short_symbol);
     }
-    Ok(format!("{}-LP", symbol.to_uppercase()))
+    Ok(format!("{}-LP", lp_token_name.to_uppercase()))
 }

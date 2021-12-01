@@ -37,3 +37,4 @@ cosmwasm-schema = "0.16.0"
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch = "main"}
 astroport-token = {path = "../token"}
 astroport-pair = {path = "../pair"}
+cw20 = { version = "0.8" }
