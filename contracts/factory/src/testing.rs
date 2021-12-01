@@ -487,7 +487,7 @@ fn register() {
 
     let mut deployed_pairs = vec![(&pair0_addr, &pair0_info)];
 
-    // register terraswap pair querier
+    // register astroport pair querier
     deps.querier.with_astroport_pairs(&deployed_pairs);
 
     let data = MsgInstantiateContractResponse {
@@ -563,7 +563,7 @@ fn register() {
 
     deployed_pairs.push((&pair1_addr, &pair1_info));
 
-    // register terraswap pair querier
+    // register astroport pair querier
     deps.querier.with_astroport_pairs(&deployed_pairs);
 
     let data = MsgInstantiateContractResponse {

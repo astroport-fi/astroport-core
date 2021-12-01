@@ -38,7 +38,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-factory"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "astroport",
  "astroport-pair",
@@ -56,7 +56,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-generator"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "astroport",
  "astroport-generator-proxy-to-mirror",
@@ -77,7 +77,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-generator-proxy-to-mirror"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "astroport",
  "cosmwasm-schema",
@@ -93,7 +93,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-maker"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "astroport",
  "astroport-factory",
@@ -113,7 +113,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-oracle"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "astroport",
  "astroport-factory",
@@ -135,7 +135,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "astroport",
  "astroport-factory",
@@ -159,7 +159,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-stable"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "astroport",
  "astroport-factory",
@@ -184,7 +184,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-router"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "astroport",
  "cosmwasm-schema",
@@ -219,7 +219,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-token"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "astroport",
  "cosmwasm-schema",
