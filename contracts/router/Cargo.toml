@@ -1,7 +1,7 @@
 [package]
 name = "astroport-router"
-version = "0.0.0"
-authors = ["Terraform Labs, PTE."]
+version = "1.0.0"
+authors = ["Astroport"]
 edition = "2018"
 description = "An Astroport router contract - provides multi-step operations to facilitate single sign operation"
 license = "Apache-2.0"

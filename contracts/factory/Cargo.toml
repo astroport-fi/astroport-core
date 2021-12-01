@@ -1,7 +1,7 @@
 [package]
 name = "astroport-factory"
-version = "0.0.0"
-authors = ["Terraform Labs, PTE."]
+version = "1.0.0"
+authors = ["Astroport"]
 edition = "2018"
 description = "An Astroport factory contract - auto pair contract generator and also directory for all pairs"
 license = "MIT"
