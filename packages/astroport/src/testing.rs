@@ -323,5 +323,5 @@ fn test_format_lp_token_name() {
     deps.querier.with_cw20_query_handler();
 
     let lp_name = format_lp_token_name(pair_info.asset_infos, &deps.as_ref().querier).unwrap();
-    assert_eq!(lp_name, "MAPPLUUSD-LP")
+    assert_eq!(lp_name, "MAPP-UUSD-LP")
 }

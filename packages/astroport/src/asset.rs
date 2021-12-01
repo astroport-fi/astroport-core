@@ -226,7 +226,7 @@ pub fn format_lp_token_name(
     asset_infos: [AssetInfo; 2],
     querier: &QuerierWrapper,
 ) -> StdResult<String> {
-    let mut lp_token_name = "".to_string();
+    let mut short_symbols: Vec<String> = vec![];
     for asset_info in asset_infos {
         let short_symbol: String;
         match asset_info {
@@ -238,7 +238,7 @@ pub fn format_lp_token_name(
                 short_symbol = token_symbol.chars().take(TOKEN_SYMBOL_MAX_LENGTH).collect();
             }
         }
-        lp_token_name.push_str(&short_symbol);
+        short_symbols.push(short_symbol);
     }
-    Ok(format!("{}-LP", lp_token_name.to_uppercase()))
+    Ok(format!("{}-{}-LP", short_symbols[0], short_symbols[1]).to_uppercase())
 }

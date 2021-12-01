@@ -80,7 +80,7 @@ fn proper_initialization() {
             msg: WasmMsg::Instantiate {
                 code_id: 10u64,
                 msg: to_binary(&TokenInstantiateMsg {
-                    name: "UUSDMAPPL-LP".to_string(),
+                    name: "UUSD-MAPP-LP".to_string(),
                     symbol: "uLP".to_string(),
                     decimals: 6,
                     initial_balances: vec![],
