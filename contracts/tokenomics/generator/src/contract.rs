@@ -245,7 +245,7 @@ pub fn set(
 
     Ok(Response::new()
         .add_attribute("action", "set_pool")
-        .add_attribute("lp_token", lp_token.clone()))
+        .add_attribute("lp_token", lp_token))
 }
 
 fn update_rewards_and_execute(
