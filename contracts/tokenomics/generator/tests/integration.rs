@@ -28,6 +28,46 @@ const USER1: &str = "user1";
 const USER2: &str = "user2";
 
 #[test]
+fn set_tokens_per_block() {
+    let mut app = mock_app();
+
+    let token_code_id = store_token_code(&mut app);
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
+
+    let msg = QueryMsg::Config {};
+    let res: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg)
+        .unwrap();
+
+    assert_eq!(res.tokens_per_block, Uint128::new(10_000000));
+
+    // setting new value of tokens per block
+    let tokens_per_block = Uint128::new(100);
+
+    let msg = GeneratorExecuteMsg::SetTokensPerBlock {
+        amount: tokens_per_block,
+    };
+    app.execute_contract(
+        Addr::unchecked(OWNER),
+        generator_instance.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    let msg = GeneratorQueryMsg::Config {};
+    let res: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg)
+        .unwrap();
+    assert_eq!(res.tokens_per_block, tokens_per_block);
+}
+
+#[test]
 fn update_config() {
     let mut app = mock_app();
 
@@ -48,12 +88,10 @@ fn update_config() {
     assert_eq!(res.vesting_contract.to_string(), "contract #1");
 
     let new_owner = Addr::unchecked("new_owner");
-    let new_tokens_per_block = Uint128::new(999);
     let new_vesting = Addr::unchecked("new_vesting");
 
     let msg = ExecuteMsg::UpdateConfig {
         owner: Some(new_owner.to_string()),
-        tokens_per_block: Some(new_tokens_per_block),
         vesting_contract: Some(new_vesting.to_string()),
     };
 
@@ -84,7 +122,6 @@ fn update_config() {
         .unwrap();
 
     assert_eq!(res.owner, new_owner);
-    assert_eq!(res.tokens_per_block, new_tokens_per_block);
     assert_eq!(res.vesting_contract, new_vesting);
 }
 
