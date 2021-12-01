@@ -26,7 +26,7 @@ impl InstantiateMsg {
         // Check name, symbol, decimals
         if !is_valid_name(&self.name) {
             return Err(StdError::generic_err(
-                "Name is not in the expected format (3-12 UTF-8 bytes)",
+                "Name is not in the expected format (3-50 UTF-8 bytes)",
             ));
         }
         if !is_valid_symbol(&self.symbol) {
@@ -43,7 +43,7 @@ impl InstantiateMsg {
 
 fn is_valid_name(name: &str) -> bool {
     let bytes = name.as_bytes();
-    if bytes.len() < 3 || bytes.len() > 12 {
+    if bytes.len() < 3 || bytes.len() > 50 {
         return false;
     }
     true
