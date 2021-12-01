@@ -65,9 +65,8 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig {
             owner,
-            tokens_per_block,
             vesting_contract,
-        } => execute_update_config(deps, env, info, owner, tokens_per_block, vesting_contract),
+        } => execute_update_config(deps, info, owner, vesting_contract),
         ExecuteMsg::Add {
             lp_token,
             alloc_point,
@@ -136,40 +135,22 @@ pub fn execute(
             lp_token,
         } => send_orphan_proxy_rewards(deps, info, recipient, lp_token),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::SetTokensPerBlock { amount } => set_tokens_per_block(deps, env, amount),
     }
 }
 
 // Only owner can execute it
 pub fn execute_update_config(
-    mut deps: DepsMut,
-    env: Env,
+    deps: DepsMut,
     info: MessageInfo,
     owner: Option<String>,
-    tokens_per_block: Option<Uint128>,
     vesting_contract: Option<String>,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::default();
     let mut config = CONFIG.load(deps.storage)?;
 
     // permission check
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
-    }
-
-    if let Some(tokens_per_block) = tokens_per_block {
-        response = update_rewards_and_execute(
-            deps.branch(),
-            env,
-            None,
-            ExecuteOnReply::SetTokensPerBlock {
-                amount: tokens_per_block,
-            },
-        )?;
-
-        // we need to reload the config if updating rewards is done directly
-        if response.messages.is_empty() {
-            config = CONFIG.load(deps.storage)?;
-        }
     }
 
     if let Some(owner) = owner {
@@ -182,7 +163,7 @@ pub fn execute_update_config(
 
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(response.add_attribute("action", "update_config"))
+    Ok(Response::new().add_attribute("action", "update_config"))
 }
 
 // Add a new lp to the pool. Can only be called by the owner.
@@ -379,9 +360,6 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                     account,
                     amount,
                 } => withdraw(deps, env, lp_token, account, amount),
-                ExecuteOnReply::SetTokensPerBlock { amount } => {
-                    set_tokens_per_block(deps, env, amount)
-                }
             }
         }
         None => Ok(Response::default()),
