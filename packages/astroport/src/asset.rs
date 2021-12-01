@@ -220,7 +220,7 @@ pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
     api.addr_validate(addr)
 }
 
-const TOKEN_SYMBOL_MAX_LENGTH: usize = 12;
+const TOKEN_SYMBOL_MAX_LENGTH: usize = 4;
 
 pub fn format_lp_token_name(
     asset_infos: [AssetInfo; 2],
