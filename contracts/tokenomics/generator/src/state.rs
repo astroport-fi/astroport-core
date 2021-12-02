@@ -66,6 +66,9 @@ pub enum ExecuteOnReply {
         account: Addr,
         amount: Uint128,
     },
+    SetTokensPerBlock {
+        amount: Uint128,
+    },
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

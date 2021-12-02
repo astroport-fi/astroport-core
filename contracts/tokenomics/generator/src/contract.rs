@@ -135,7 +135,19 @@ pub fn execute(
             lp_token,
         } => send_orphan_proxy_rewards(deps, info, recipient, lp_token),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::SetTokensPerBlock { amount } => set_tokens_per_block(deps, env, amount),
+        ExecuteMsg::SetTokensPerBlock { amount } => {
+            let cfg = CONFIG.load(deps.storage)?;
+            if info.sender != cfg.owner {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            update_rewards_and_execute(
+                deps,
+                env,
+                None,
+                ExecuteOnReply::SetTokensPerBlock { amount },
+            )
+        }
     }
 }
 
@@ -360,6 +372,9 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                     account,
                     amount,
                 } => withdraw(deps, env, lp_token, account, amount),
+                ExecuteOnReply::SetTokensPerBlock { amount } => {
+                    set_tokens_per_block(deps, env, amount)
+                }
             }
         }
         None => Ok(Response::default()),
