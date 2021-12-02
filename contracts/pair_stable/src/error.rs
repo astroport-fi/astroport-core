@@ -1,3 +1,4 @@
+use crate::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
 use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
@@ -29,6 +30,24 @@ pub enum ContractError {
 
     #[error("Pair type mismatch. Check factory pair configs")]
     PairTypeMismatch {},
+
+    #[error(
+        "Amp coefficient must be greater than 0 and less than or equal to {}",
+        MAX_AMP
+    )]
+    IncorrectAmp {},
+
+    #[error(
+        "The difference between the old and new amp value must not exceed {} times",
+        MAX_AMP_CHANGE
+    )]
+    MaxAmpChangeAssertion {},
+
+    #[error(
+        "Amp coefficient cannot be changed more often than once per {} seconds",
+        MIN_AMP_CHANGING_TIME
+    )]
+    MinAmpChangingTimeAssertion {},
 
     #[error("You need to provide init params")]
     InitParamsNotFound {},
