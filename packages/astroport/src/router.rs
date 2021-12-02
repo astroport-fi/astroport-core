@@ -6,6 +6,8 @@ use cw20::Cw20ReceiveMsg;
 
 use crate::asset::AssetInfo;
 
+pub const MAX_SWAP_OPERATIONS: usize = 50;
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub astroport_factory: String,

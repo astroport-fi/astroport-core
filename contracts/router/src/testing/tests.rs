@@ -13,7 +13,7 @@ use astroport::asset::{Asset, AssetInfo};
 use astroport::pair::ExecuteMsg as PairExecuteMsg;
 use astroport::router::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
-    SimulateSwapOperationsResponse, SwapOperation,
+    SimulateSwapOperationsResponse, SwapOperation, MAX_SWAP_OPERATIONS,
 };
 use terra_cosmwasm::{create_swap_msg, create_swap_send_msg};
 
@@ -651,4 +651,36 @@ fn assert_minimum_receive_token() {
             amount: Uint128::new(1000000),
         }
     );
+}
+
+#[test]
+fn assert_maximum_receive_swap_operations() {
+    let mut deps = mock_dependencies(&[]);
+    let msg = InstantiateMsg {
+        astroport_factory: String::from("astroportfactory"),
+    };
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+
+    // we can just call .unwrap() to assert this was a success
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+
+    let msg = ExecuteMsg::ExecuteSwapOperations {
+        operations: vec![
+            SwapOperation::NativeSwap {
+                offer_denom: "uusd".to_string(),
+                ask_denom: "ukrw".to_string(),
+            };
+            MAX_SWAP_OPERATIONS + 1
+        ],
+        minimum_receive: None,
+        to: None,
+    };
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
+
+    assert_eq!(res, ContractError::SwapLimitExceeded {});
 }
