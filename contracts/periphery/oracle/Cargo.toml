@@ -27,13 +27,12 @@ serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
 cw2 = "0.8"
 cw20 = "0.8"
-astroport = { path = "../../../packages/astroport", default-features = false, version = "2.4.0"}
+astroport = { path = "../../../packages/astroport", default-features = false }
 terra-cosmwasm = "2.2.0"
 cosmwasm-bignumber = "2.2.0"
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
-astroport = {path = "../../../packages/astroport" }
 astroport-token = {path = "../../token" }
 astroport-factory = {path = "../../factory" }
 astroport-pair = {path = "../../pair" }

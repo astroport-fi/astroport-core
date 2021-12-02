@@ -26,13 +26,12 @@ cw2 = { version = "0.8.0" }
 cw20 = { version = "0.8.0" }
 cw-storage-plus = { version = "0.8.0", features = ["iterator"] }
 schemars = "0.8.1"
-astroport = { version = "2.4.0", path = "../../../packages/astroport" }
+astroport = { path = "../../../packages/astroport", default-features = false }
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
-astroport = {path = "../../../packages/astroport"}
 astroport-token = {path = "../../token"}
 astroport-factory = {path = "../../factory"}
 astroport-pair = {path = "../../pair"}
