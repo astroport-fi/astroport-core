@@ -7,7 +7,8 @@ use crate::error::ContractError;
 use crate::querier::query_pair_info;
 
 use crate::state::{
-    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, PAIRS, PAIR_CONFIGS, TMP_PAIR_INFO,
+    pair_key, read_pairs, Config, OwnershipProposal, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL,
+    PAIRS, PAIR_CONFIGS, TMP_PAIR_INFO,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -72,7 +73,6 @@ pub fn instantiate(
 }
 
 pub struct UpdateConfig {
-    owner: Option<String>,
     token_code_id: Option<u64>,
     fee_address: Option<String>,
     generator_address: Option<String>,
@@ -87,7 +87,6 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig {
-            owner,
             token_code_id,
             fee_address,
             generator_address,
@@ -96,7 +95,6 @@ pub fn execute(
             env,
             info,
             UpdateConfig {
-                owner,
                 token_code_id,
                 fee_address,
                 generator_address,
@@ -109,7 +107,90 @@ pub fn execute(
             init_params,
         } => execute_create_pair(deps, env, pair_type, asset_infos, init_params),
         ExecuteMsg::Deregister { asset_infos } => deregister(deps, info, asset_infos),
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            propose_new_owner(deps, info, env, owner, expires_in)
+        }
+        ExecuteMsg::DropNewOwner {} => drop_new_owner(deps, info),
+        ExecuteMsg::ClaimOwnership {} => claim_ownership(deps, info, env),
     }
+}
+
+pub fn propose_new_owner(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    new_owner: String,
+    expires_in: u64,
+) -> Result<Response, ContractError> {
+    let config: Config = CONFIG.load(deps.storage)?;
+
+    // permission check
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let new_owner = addr_validate_to_lower(deps.api, new_owner.as_str())?;
+
+    // check that owner is not the same
+    if new_owner == config.owner {
+        return Err(ContractError::OwnershipProposalError(String::from(
+            "new owner cannot be same",
+        )));
+    }
+
+    OWNERSHIP_PROPOSAL.save(
+        deps.storage,
+        &OwnershipProposal {
+            owner: new_owner.clone(),
+            ttl: env.block.time.seconds() + expires_in,
+        },
+    )?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "propose_new_owner"),
+        attr("new_owner", new_owner),
+    ]))
+}
+
+pub fn drop_new_owner(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
+    let config: Config = CONFIG.load(deps.storage)?;
+
+    // permission check
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    OWNERSHIP_PROPOSAL.remove(deps.storage);
+
+    Ok(Response::new().add_attributes(vec![attr("action", "drop_new_owner")]))
+}
+
+pub fn claim_ownership(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+) -> Result<Response, ContractError> {
+    let mut config: Config = CONFIG.load(deps.storage)?;
+    let proposal = OWNERSHIP_PROPOSAL.load(deps.storage)?;
+
+    // Check sender
+    if info.sender != proposal.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if env.block.time.seconds() > proposal.ttl {
+        return Err(ContractError::OwnershipProposalExpired {});
+    }
+
+    config.owner = info.sender;
+
+    CONFIG.save(deps.storage, &config)?;
+    OWNERSHIP_PROPOSAL.remove(deps.storage);
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "claim_ownership"),
+        attr("new_owner", config.owner),
+    ]))
 }
 
 // Only owner can execute it
@@ -124,11 +205,6 @@ pub fn execute_update_config(
     // permission check
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
-    }
-
-    if let Some(owner) = param.owner {
-        // validate address format
-        config.owner = addr_validate_to_lower(deps.api, owner.as_str())?;
     }
 
     if let Some(fee_address) = param.fee_address {
