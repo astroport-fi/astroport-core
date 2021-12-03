@@ -285,9 +285,6 @@ pub fn provide_liquidity(
         }
     }
 
-    // assert slippage tolerance
-    assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
-
     let total_share = query_supply(&deps.querier, config.pair_info.liquidity_token.clone())?;
     let share = if total_share.is_zero() {
         // Initial share = collateral amount
@@ -297,6 +294,9 @@ pub fn provide_liquidity(
                 .as_u128(),
         )
     } else {
+        // assert slippage tolerance
+        assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
+
         // min(1, 2)
         // 1. sqrt(deposit_0 * exchange_rate_0_to_1 * deposit_0) * (total_share / sqrt(pool_0 * pool_1))
         // == deposit_0 * total_share / pool_0

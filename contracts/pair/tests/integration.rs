@@ -8,7 +8,7 @@ use astroport::pair::{
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -161,7 +161,7 @@ fn test_provide_and_withdraw_liquidity() {
         .unwrap();
 
     // Provide liquidity
-    let (msg, coins) = provide_liquidity_msg(Uint128::new(100), Uint128::new(100), None);
+    let (msg, coins) = provide_liquidity_msg(Uint128::new(100), Uint128::new(100), None, None);
     let res = router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
@@ -188,6 +188,7 @@ fn test_provide_and_withdraw_liquidity() {
         Uint128::new(100),
         Uint128::new(100),
         Some("bob".to_string()),
+        None,
     );
     let res = router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
@@ -215,6 +216,7 @@ fn provide_liquidity_msg(
     uusd_amount: Uint128,
     uluna_amount: Uint128,
     receiver: Option<String>,
+    slippage_tolerance: Option<Decimal>,
 ) -> (ExecuteMsg, [Coin; 2]) {
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [
@@ -231,7 +233,7 @@ fn provide_liquidity_msg(
                 amount: uluna_amount.clone(),
             },
         ],
-        slippage_tolerance: None,
+        slippage_tolerance: Option::from(slippage_tolerance),
         auto_stake: None,
         receiver,
     };
@@ -479,6 +481,7 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
         Uint128::new(1000000_000000),
         Uint128::new(1000000_000000),
         None,
+        Option::from(Decimal::one()),
     );
     app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
@@ -496,6 +499,7 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     let (msg, coins) = provide_liquidity_msg(
         Uint128::new(3000000_000000),
         Uint128::new(1000000_000000),
+        None,
         None,
     );
     app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
