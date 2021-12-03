@@ -17,7 +17,8 @@ use astroport::factory::PairType;
 
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::{
-    ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams, TWAP_PRECISION,
+    ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams, DEFAULT_SLIPPAGE,
+    TWAP_PRECISION,
 };
 
 use astroport::pair::{
@@ -32,6 +33,7 @@ use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
 use std::cmp::Ordering;
+use std::str::FromStr;
 use std::vec;
 
 // version info for migration info
@@ -1025,6 +1027,8 @@ pub fn assert_max_spread(
     return_amount: Uint128,
     spread_amount: Uint128,
 ) -> Result<(), ContractError> {
+    let default_spread = Decimal::from_str(DEFAULT_SLIPPAGE)?;
+    let max_spread = max_spread.or(Some(default_spread));
     if let (Some(max_spread), Some(belief_price)) = (max_spread, belief_price) {
         let expected_return =
             offer_amount * Decimal::from(Decimal256::one() / Decimal256::from(belief_price));

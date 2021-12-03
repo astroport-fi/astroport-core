@@ -6,6 +6,8 @@ use crate::asset::{Asset, AssetInfo};
 use cosmwasm_std::{Addr, Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
+pub const DEFAULT_SLIPPAGE: &str = "0.5";
+
 pub const TWAP_PRECISION: u8 = 6;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

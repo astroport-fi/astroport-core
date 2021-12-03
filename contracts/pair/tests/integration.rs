@@ -500,7 +500,7 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
         Uint128::new(3000000_000000),
         Uint128::new(1000000_000000),
         None,
-        None,
+        Some(Decimal::one()),
     );
     app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();

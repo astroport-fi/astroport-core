@@ -1,5 +1,7 @@
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, BlockInfo, Coin, QueryRequest, Uint128, WasmQuery};
+use cosmwasm_std::{
+    attr, to_binary, Addr, BlockInfo, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
+};
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -484,7 +486,7 @@ fn change_provide_liquidity(
                         amount: amount2,
                     },
                 ],
-                slippage_tolerance: None,
+                slippage_tolerance: Some(Decimal::one()),
                 auto_stake: None,
                 receiver: None,
             },
