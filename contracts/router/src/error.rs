@@ -14,6 +14,9 @@ pub enum ContractError {
 
     #[error("Assertion failed; minimum receive amount: {receive}, swap amount: {amount}")]
     AssertionMinimumReceive { receive: Uint128, amount: Uint128 },
+
+    #[error("The limit exceeded of swap operations!")]
+    SwapLimitExceeded {},
 }
 
 impl From<OverflowError> for ContractError {

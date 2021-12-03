@@ -13,7 +13,7 @@ use astroport::pair::{QueryMsg as PairQueryMsg, SimulationResponse};
 use astroport::querier::query_pair_info;
 use astroport::router::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
-    SimulateSwapOperationsResponse, SwapOperation,
+    SimulateSwapOperationsResponse, SwapOperation, MAX_SWAP_OPERATIONS,
 };
 use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
@@ -129,6 +129,10 @@ pub fn execute_swap_operations(
         return Err(ContractError::MustProvideOperations {});
     }
 
+    if operations_len > MAX_SWAP_OPERATIONS {
+        return Err(ContractError::SwapLimitExceeded {});
+    }
+
     // Assert the operations are properly set
     assert_operations(deps.api, &operations)?;
 
@@ -237,12 +241,16 @@ fn simulate_swap_operations(
     let astroport_factory = config.astroport_factory;
     let terra_querier = TerraQuerier::new(&deps.querier);
 
-    assert_operations(deps.api, &operations)?;
-
     let operations_len = operations.len();
     if operations_len == 0 {
         return Err(ContractError::MustProvideOperations {});
     }
+
+    if operations_len > MAX_SWAP_OPERATIONS {
+        return Err(ContractError::SwapLimitExceeded {});
+    }
+
+    assert_operations(deps.api, &operations)?;
 
     let mut operation_index = 0;
     let mut offer_amount = offer_amount;
