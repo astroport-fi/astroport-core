@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event,
-    MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 
@@ -391,8 +391,7 @@ fn set_tokens_per_block(
         v.tokens_per_block = amount;
         Ok(v)
     })?;
-    Ok(Response::new()
-        .add_event(Event::new("Set tokens per block").add_attribute("amount", amount)))
+    Ok(Response::new().add_attribute("action", "Set tokens per block"))
 }
 
 // Update reward variables for all pools.
