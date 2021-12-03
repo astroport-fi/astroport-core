@@ -50,6 +50,11 @@ fn store_liquidity_token(deps: DepsMut, msg_id: u64, contract_addr: String) {
 fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
 
+    deps.querier.with_token_balances(&[(
+        &String::from("asset0000"),
+        &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(123u128))],
+    )]);
+
     let msg = InstantiateMsg {
         factory_addr: Addr::unchecked("factory"),
         asset_infos: [
@@ -75,7 +80,7 @@ fn proper_initialization() {
             msg: WasmMsg::Instantiate {
                 code_id: 10u64,
                 msg: to_binary(&TokenInstantiateMsg {
-                    name: "Astroport LP token".to_string(),
+                    name: "UUSD-MAPP-LP".to_string(),
                     symbol: "uLP".to_string(),
                     decimals: 6,
                     initial_balances: vec![],
@@ -122,10 +127,16 @@ fn provide_liquidity() {
         amount: Uint128::new(200_000000000000000000u128),
     }]);
 
-    deps.querier.with_token_balances(&[(
-        &String::from("liquidity0000"),
-        &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(0))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &String::from("asset0000"),
+            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(0))],
+        ),
+        (
+            &String::from("liquidity0000"),
+            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(0))],
+        ),
+    ]);
 
     let msg = InstantiateMsg {
         asset_infos: [

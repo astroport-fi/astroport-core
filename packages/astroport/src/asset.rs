@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::factory::PairType;
-use crate::querier::{query_balance, query_token_balance};
+use crate::querier::{query_balance, query_token_balance, query_token_symbol};
 use cosmwasm_std::{
     to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper, StdError,
     StdResult, Uint128, WasmMsg,
@@ -218,4 +218,27 @@ pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
         )));
     }
     api.addr_validate(addr)
+}
+
+const TOKEN_SYMBOL_MAX_LENGTH: usize = 4;
+
+pub fn format_lp_token_name(
+    asset_infos: [AssetInfo; 2],
+    querier: &QuerierWrapper,
+) -> StdResult<String> {
+    let mut short_symbols: Vec<String> = vec![];
+    for asset_info in asset_infos {
+        let short_symbol: String;
+        match asset_info {
+            AssetInfo::NativeToken { denom } => {
+                short_symbol = denom.chars().take(TOKEN_SYMBOL_MAX_LENGTH).collect();
+            }
+            AssetInfo::Token { contract_addr } => {
+                let token_symbol = query_token_symbol(querier, contract_addr)?;
+                short_symbol = token_symbol.chars().take(TOKEN_SYMBOL_MAX_LENGTH).collect();
+            }
+        }
+        short_symbols.push(short_symbol);
+    }
+    Ok(format!("{}-{}-LP", short_symbols[0], short_symbols[1]).to_uppercase())
 }

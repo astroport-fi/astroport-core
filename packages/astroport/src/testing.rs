@@ -1,4 +1,4 @@
-use crate::asset::{Asset, AssetInfo, PairInfo};
+use crate::asset::{format_lp_token_name, Asset, AssetInfo, PairInfo};
 use crate::mock_querier::mock_dependencies;
 use crate::querier::{
     query_all_balances, query_balance, query_pair_info, query_supply, query_token_balance,
@@ -279,4 +279,49 @@ fn query_astroport_pair_contract() {
 
     assert_eq!(pair_info.contract_addr, String::from("pair0000"),);
     assert_eq!(pair_info.liquidity_token, String::from("liquidity0000"),);
+}
+
+#[test]
+fn test_format_lp_token_name() {
+    let mut deps = mock_dependencies(&[]);
+    deps.querier.with_astroport_pairs(&[(
+        &"asset0000uusd".to_string(),
+        &PairInfo {
+            asset_infos: [
+                AssetInfo::Token {
+                    contract_addr: Addr::unchecked("asset0000"),
+                },
+                AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+            ],
+            contract_addr: Addr::unchecked("pair0000"),
+            liquidity_token: Addr::unchecked("liquidity0000"),
+            pair_type: PairType::Xyk {},
+        },
+    )]);
+
+    let pair_info: PairInfo = query_pair_info(
+        &deps.as_ref().querier,
+        Addr::unchecked(MOCK_CONTRACT_ADDR),
+        &[
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked("asset0000"),
+            },
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+        ],
+    )
+    .unwrap();
+
+    deps.querier.with_token_balances(&[(
+        &String::from("asset0000"),
+        &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(123u128))],
+    )]);
+
+    deps.querier.with_cw20_query_handler();
+
+    let lp_name = format_lp_token_name(pair_info.asset_infos, &deps.as_ref().querier).unwrap();
+    assert_eq!(lp_name, "MAPP-UUSD-LP")
 }

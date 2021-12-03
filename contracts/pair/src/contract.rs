@@ -9,7 +9,7 @@ use cosmwasm_std::{
 };
 
 use crate::response::MsgInstantiateContractResponse;
-use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo, PairInfo};
+use astroport::asset::{addr_validate_to_lower, format_lp_token_name, Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::ConfigResponse;
@@ -49,7 +49,7 @@ pub fn instantiate(
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
-            asset_infos: msg.asset_infos,
+            asset_infos: msg.asset_infos.clone(),
             pair_type: PairType::Xyk {},
         },
         factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr.as_str())?,
@@ -60,12 +60,14 @@ pub fn instantiate(
 
     CONFIG.save(deps.storage, &config)?;
 
+    let token_name = format_lp_token_name(msg.asset_infos, &deps.querier)?;
+
     // Create LP token
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
             code_id: msg.token_code_id,
             msg: to_binary(&TokenInstantiateMsg {
-                name: "Astroport LP token".to_string(),
+                name: token_name,
                 symbol: "uLP".to_string(),
                 decimals: 6,
                 initial_balances: vec![],
