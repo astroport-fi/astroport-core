@@ -29,6 +29,9 @@ pub enum ContractError {
 
     #[error("Pair type mismatch. Check factory pair configs")]
     PairTypeMismatch {},
+
+    #[error("You need to provide init params")]
+    InitParamsNotFound {},
 }
 
 impl From<OverflowError> for ContractError {

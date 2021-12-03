@@ -24,6 +24,9 @@ pub enum ContractError {
 
     #[error("Incorrect governance percent of its share")]
     IncorrectGovernancePercent {},
+
+    #[error("Swap non-ASTRO to ASTRO error")]
+    SwapNonAstroToAstroError {},
 }
 
 impl From<OverflowError> for ContractError {
