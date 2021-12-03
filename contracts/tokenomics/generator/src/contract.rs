@@ -391,7 +391,7 @@ fn set_tokens_per_block(
         v.tokens_per_block = amount;
         Ok(v)
     })?;
-    Ok(Response::new().add_attribute("action", "Set tokens per block"))
+    Ok(Response::new().add_attribute("action", "set_tokens_per_block"))
 }
 
 // Update reward variables for all pools.
