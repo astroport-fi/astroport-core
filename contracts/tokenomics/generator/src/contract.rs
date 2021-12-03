@@ -11,6 +11,7 @@ use crate::state::{
 };
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::DecimalCheckedOps;
 use astroport::{
     generator::{
         ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse,
@@ -484,7 +485,7 @@ pub fn update_pool_rewards(
                     reward_amount.checked_sub(pool.proxy_reward_balance_before_update)?;
 
                 let share = Decimal::from_ratio(token_rewards, lp_supply);
-                pool.acc_per_share_on_proxy = pool.acc_per_share_on_proxy + share;
+                pool.acc_per_share_on_proxy = pool.acc_per_share_on_proxy.checked_add(share)?;
             }
         }
         None => {
@@ -496,7 +497,7 @@ pub fn update_pool_rewards(
             )?;
 
             if let Some(amount) = deposited {
-                lp_supply = res.balance - amount;
+                lp_supply = res.balance.checked_sub(amount)?;
             } else {
                 lp_supply = res.balance;
             }
@@ -508,7 +509,7 @@ pub fn update_pool_rewards(
             let token_rewards = calculate_rewards(env, pool, cfg)?;
 
             let share = Decimal::from_ratio(token_rewards, lp_supply);
-            pool.acc_per_share = pool.acc_per_share + share;
+            pool.acc_per_share = pool.acc_per_share.checked_add(share)?;
         }
 
         pool.last_reward_block = Uint64::from(env.block.height);
@@ -584,7 +585,10 @@ pub fn deposit(
     )?;
 
     if !user.amount.is_zero() {
-        let pending = (user.amount * pool.acc_per_share).checked_sub(user.reward_debt)?;
+        let pending = pool
+            .acc_per_share
+            .checked_mul(user.amount)?
+            .checked_sub(user.reward_debt)?;
         if !pending.is_zero() {
             response.messages.push(SubMsg::new(WasmMsg::Execute {
                 contract_addr: cfg.vesting_contract.to_string(),
@@ -596,8 +600,10 @@ pub fn deposit(
             }));
         }
         if let Some(proxy) = &pool.reward_proxy {
-            let pending_on_proxy =
-                (user.amount * pool.acc_per_share_on_proxy).checked_sub(user.reward_debt_proxy)?;
+            let pending_on_proxy = pool
+                .acc_per_share_on_proxy
+                .checked_mul(user.amount)?
+                .checked_sub(user.reward_debt_proxy)?;
             if !pending_on_proxy.is_zero() {
                 response.messages.push(SubMsg::new(WasmMsg::Execute {
                     contract_addr: proxy.to_string(),
@@ -627,10 +633,10 @@ pub fn deposit(
     //Change user balance
     user.amount = user.amount.checked_add(amount)?;
     if !pool.acc_per_share.is_zero() {
-        user.reward_debt = user.amount * pool.acc_per_share;
+        user.reward_debt = pool.acc_per_share.checked_mul(user.amount)?;
     };
     if !pool.acc_per_share_on_proxy.is_zero() {
-        user.reward_debt_proxy = user.amount * pool.acc_per_share_on_proxy;
+        user.reward_debt_proxy = pool.acc_per_share_on_proxy.checked_mul(user.amount)?;
     };
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
@@ -663,7 +669,10 @@ pub fn withdraw(
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
     update_pool_rewards(deps.branch(), &env, &lp_token, &mut pool, &cfg, None)?;
 
-    let pending = (user.amount * pool.acc_per_share).checked_sub(user.reward_debt)?;
+    let pending = pool
+        .acc_per_share
+        .checked_mul(user.amount)?
+        .checked_sub(user.reward_debt)?;
     if !pending.is_zero() {
         response.messages.push(SubMsg::new(WasmMsg::Execute {
             contract_addr: cfg.vesting_contract.to_string(),
@@ -676,8 +685,10 @@ pub fn withdraw(
     }
 
     if let Some(proxy) = &pool.reward_proxy {
-        let pending_on_proxy =
-            (user.amount * pool.acc_per_share_on_proxy).checked_sub(user.reward_debt_proxy)?;
+        let pending_on_proxy = pool
+            .acc_per_share_on_proxy
+            .checked_mul(user.amount)?
+            .checked_sub(user.reward_debt_proxy)?;
         if !pending_on_proxy.is_zero() {
             response.messages.push(SubMsg::new(WasmMsg::Execute {
                 contract_addr: proxy.to_string(),
@@ -719,10 +730,10 @@ pub fn withdraw(
     // Update user balance
     user.amount = user.amount.checked_sub(amount)?;
     if !pool.acc_per_share.is_zero() {
-        user.reward_debt = user.amount * pool.acc_per_share;
+        user.reward_debt = pool.acc_per_share.checked_mul(user.amount)?;
     }
     if !pool.acc_per_share_on_proxy.is_zero() {
-        user.reward_debt_proxy = user.amount * pool.acc_per_share_on_proxy;
+        user.reward_debt_proxy = pool.acc_per_share_on_proxy.checked_mul(user.amount)?;
     }
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
@@ -751,8 +762,11 @@ pub fn emergency_withdraw(
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let user = USER_INFO.load(deps.storage, (&lp_token, &info.sender))?;
 
-    pool.orphan_proxy_rewards +=
-        (user.amount * pool.acc_per_share_on_proxy).saturating_sub(user.reward_debt_proxy);
+    pool.orphan_proxy_rewards = pool.orphan_proxy_rewards.checked_add(
+        pool.acc_per_share_on_proxy
+            .checked_mul(user.amount)?
+            .saturating_sub(user.reward_debt_proxy),
+    )?;
 
     //call to transfer function for lp token
     response
@@ -927,10 +941,11 @@ pub fn pending_token(
                 let mut acc_per_share_on_proxy = pool.acc_per_share_on_proxy;
                 if let Some(token_rewards) = res {
                     let share = Decimal::from_ratio(token_rewards, lp_supply);
-                    acc_per_share_on_proxy = pool.acc_per_share_on_proxy + share;
+                    acc_per_share_on_proxy = pool.acc_per_share_on_proxy.checked_add(share)?;
                 }
                 pending_on_proxy = Some(
-                    (user_info.amount * acc_per_share_on_proxy)
+                    acc_per_share_on_proxy
+                        .checked_mul(user_info.amount)?
                         .checked_sub(user_info.reward_debt_proxy)?,
                 );
             }
@@ -950,9 +965,11 @@ pub fn pending_token(
     if env.block.height > pool.last_reward_block.u64() && !lp_supply.is_zero() {
         let token_rewards = calculate_rewards(&env, &pool, &cfg)?;
         let share = Decimal::from_ratio(token_rewards, lp_supply);
-        acc_per_share = pool.acc_per_share + share;
+        acc_per_share = pool.acc_per_share.checked_add(share)?;
     }
-    let pending = (user_info.amount * acc_per_share).checked_sub(user_info.reward_debt)?;
+    let pending = acc_per_share
+        .checked_mul(user_info.amount)?
+        .checked_sub(user_info.reward_debt)?;
 
     Ok(PendingTokenResponse {
         pending,
