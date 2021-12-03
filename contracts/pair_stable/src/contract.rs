@@ -504,7 +504,10 @@ pub fn get_share_in_assets(
     amount: Uint128,
     total_share: Uint128,
 ) -> [Asset; 2] {
-    let share_ratio: Decimal = Decimal::from_ratio(amount, total_share);
+    let mut share_ratio = Decimal::zero();
+    if !total_share.is_zero() {
+        share_ratio = Decimal::from_ratio(amount, total_share);
+    }
 
     [
         Asset {
