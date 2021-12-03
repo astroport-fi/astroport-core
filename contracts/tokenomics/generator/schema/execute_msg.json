@@ -17,16 +17,6 @@
                 "null"
               ]
             },
-            "tokens_per_block": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Uint128"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
             "vesting_contract": {
               "type": [
                 "string",
@@ -223,6 +213,26 @@
       "properties": {
         "receive": {
           "$ref": "#/definitions/Cw20ReceiveMsg"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "set_tokens_per_block"
+      ],
+      "properties": {
+        "set_tokens_per_block": {
+          "type": "object",
+          "required": [
+            "amount"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
         }
       },
       "additionalProperties": false

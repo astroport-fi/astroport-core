@@ -18,7 +18,6 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     UpdateConfig {
         owner: Option<String>,
-        tokens_per_block: Option<Uint128>,
         vesting_contract: Option<String>,
     },
     Add {
@@ -49,6 +48,9 @@ pub enum ExecuteMsg {
         lp_token: String,
     },
     Receive(Cw20ReceiveMsg),
+    SetTokensPerBlock {
+        amount: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
