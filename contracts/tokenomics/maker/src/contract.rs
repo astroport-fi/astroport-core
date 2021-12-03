@@ -131,7 +131,11 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
 
     // Use ReplyOn to have a proper amount of astro
     if !response.messages.is_empty() {
-        response.messages.last_mut().unwrap().reply_on = ReplyOn::Success;
+        if let Some(last) = response.messages.last_mut() {
+            last.reply_on = ReplyOn::Success;
+        } else {
+            return Err(ContractError::SwapNonAstroToAstroError {});
+        }
     } else {
         let balance = astro.query_pool(&deps.querier, env.contract.address)?;
         if !balance.is_zero() {
@@ -231,10 +235,8 @@ fn swap_to_astro(
                     belief_price: None,
                     max_spread: None,
                     to: None,
-                })
-                .unwrap(),
-            })
-            .unwrap(),
+                })?,
+            })?,
             funds: vec![],
         }))
     }

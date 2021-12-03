@@ -7,6 +7,7 @@ use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
     StablePoolParams,
 };
+
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, from_binary, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
@@ -64,6 +65,32 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
     let token_contract_code_id = store_token_code(&mut router);
 
     let pair_contract_code_id = store_pair_code(&mut router);
+
+    let msg = InstantiateMsg {
+        asset_infos: [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        ],
+        token_code_id: token_contract_code_id,
+        factory_addr: Addr::unchecked("factory"),
+        init_params: None,
+    };
+
+    let resp = router
+        .instantiate_contract(
+            pair_contract_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("PAIR"),
+            None,
+        )
+        .unwrap_err();
+    assert_eq!("You need to provide init params", resp.to_string());
 
     let msg = InstantiateMsg {
         asset_infos: [

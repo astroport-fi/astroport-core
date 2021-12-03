@@ -49,6 +49,10 @@ pub fn instantiate(
         return Err(ContractError::DoublingAssets {});
     }
 
+    if msg.init_params.is_none() {
+        return Err(ContractError::InitParamsNotFound {});
+    }
+
     let params: StablePoolParams = from_binary(&msg.init_params.unwrap())?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
