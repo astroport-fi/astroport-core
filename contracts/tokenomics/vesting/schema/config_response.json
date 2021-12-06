@@ -3,13 +3,9 @@
   "title": "ConfigResponse",
   "type": "object",
   "required": [
-    "owner",
     "token_addr"
   ],
   "properties": {
-    "owner": {
-      "$ref": "#/definitions/Addr"
-    },
     "token_addr": {
       "$ref": "#/definitions/Addr"
     }
