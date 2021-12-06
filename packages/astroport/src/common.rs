@@ -68,7 +68,9 @@ pub fn claim_ownership(
     proposal: Item<OwnershipProposal>,
     cb: fn(DepsMut, Addr) -> StdResult<()>,
 ) -> StdResult<Response> {
-    let p: OwnershipProposal = proposal.load(deps.storage)?;
+    let p: OwnershipProposal = proposal
+        .load(deps.storage)
+        .map_err(|_| StdError::generic_err("Ownership proposal not found"))?;
 
     // Check sender
     if info.sender != p.owner {

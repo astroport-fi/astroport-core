@@ -21,12 +21,17 @@ pub enum ExecuteMsg {
         pair_addresses: Vec<Addr>,
     },
     UpdateConfig {
-        owner: Option<String>,
         factory_contract: Option<String>,
         staking_contract: Option<String>,
         governance_contract: Option<UpdateAddr>,
         governance_percent: Option<Uint64>,
     },
+    ProposeNewOwner {
+        owner: String,
+        expires_in: u64,
+    },
+    DropOwnershipProposal {},
+    ClaimOwnership {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -38,7 +43,7 @@ pub enum QueryMsg {
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct QueryConfigResponse {
+pub struct ConfigResponse {
     pub owner: Addr,
     pub astro_token_contract: Addr,
     pub factory_contract: Addr,
@@ -49,6 +54,6 @@ pub struct QueryConfigResponse {
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct QueryBalancesResponse {
+pub struct BalancesResponse {
     pub balances: Vec<Asset>,
 }

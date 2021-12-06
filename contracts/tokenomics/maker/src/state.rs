@@ -1,3 +1,4 @@
+use astroport::common::OwnershipProposal;
 use cosmwasm_std::{Addr, Uint64};
 use cw_storage_plus::Item;
 use schemars::JsonSchema;
@@ -14,3 +15,4 @@ pub struct Config {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
+pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");

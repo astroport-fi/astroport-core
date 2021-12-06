@@ -6,9 +6,11 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use crate::error::ContractError;
 use crate::state::{
-    Config, ExecuteOnReply, PoolInfo, CONFIG, POOL_INFO, TMP_USER_ACTION, USER_INFO,
+    Config, ExecuteOnReply, PoolInfo, CONFIG, OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION,
+    USER_INFO,
 };
 use astroport::asset::addr_validate_to_lower;
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::{
     generator::{
         ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse,
@@ -63,10 +65,9 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::UpdateConfig {
-            owner,
-            vesting_contract,
-        } => execute_update_config(deps, info, owner, vesting_contract),
+        ExecuteMsg::UpdateConfig { vesting_contract } => {
+            execute_update_config(deps, info, vesting_contract)
+        }
         ExecuteMsg::Add {
             lp_token,
             alloc_point,
@@ -148,6 +149,37 @@ pub fn execute(
                 ExecuteOnReply::SetTokensPerBlock { amount },
             )
         }
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                owner,
+                expires_in,
+                config.owner,
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(|e| e.into())
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
+                .map_err(|e| e.into())
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
+                    v.owner = new_owner;
+                    Ok(v)
+                })?;
+
+                Ok(())
+            })
+            .map_err(|e| e.into())
+        }
     }
 }
 
@@ -155,7 +187,6 @@ pub fn execute(
 pub fn execute_update_config(
     deps: DepsMut,
     info: MessageInfo,
-    owner: Option<String>,
     vesting_contract: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
@@ -163,10 +194,6 @@ pub fn execute_update_config(
     // permission check
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
-    }
-
-    if let Some(owner) = owner {
-        config.owner = addr_validate_to_lower(deps.api, owner.as_str())?;
     }
 
     if let Some(vesting_contract) = vesting_contract {

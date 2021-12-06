@@ -30,7 +30,6 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: addr_validate_to_lower(deps.api, &msg.owner)?,
             token_addr: addr_validate_to_lower(deps.api, &msg.token_addr)?,
         },
     )?;
@@ -47,29 +46,8 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Claim { recipient, amount } => claim(deps, env, info, recipient, amount),
-        ExecuteMsg::UpdateConfig { owner } => update_config(deps, info, owner),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
     }
-}
-
-pub fn update_config(
-    deps: DepsMut,
-    info: MessageInfo,
-    owner: Option<String>,
-) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
-
-    if config.owner != info.sender {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    if let Some(owner) = owner {
-        config.owner = addr_validate_to_lower(deps.api, &owner)?;
-    }
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new().add_attribute("action", "update_config"))
 }
 
 fn receive_cw20(
@@ -266,7 +244,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
-        owner: config.owner,
         token_addr: config.token_addr,
     };
 
