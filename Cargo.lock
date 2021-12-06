@@ -40,6 +40,7 @@ version = "0.2.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
  "cw20",
  "schemars",
  "serde",

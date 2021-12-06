@@ -7,8 +7,8 @@ use crate::error::ContractError;
 use crate::querier::query_pair_info;
 
 use crate::state::{
-    pair_key, read_pairs, Config, OwnershipProposal, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL,
-    PAIRS, PAIR_CONFIGS, TMP_PAIR_INFO,
+    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS, PAIR_CONFIGS,
+    TMP_PAIR_INFO,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -19,6 +19,7 @@ use astroport::factory::{
     PairsResponse, QueryMsg,
 };
 
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cw2::set_contract_version;
 use protobuf::Message;
@@ -108,89 +109,37 @@ pub fn execute(
         } => execute_create_pair(deps, env, pair_type, asset_infos, init_params),
         ExecuteMsg::Deregister { asset_infos } => deregister(deps, info, asset_infos),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
-            propose_new_owner(deps, info, env, owner, expires_in)
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                owner,
+                expires_in,
+                config.owner,
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(|e| e.into())
         }
-        ExecuteMsg::DropNewOwner {} => drop_new_owner(deps, info),
-        ExecuteMsg::ClaimOwnership {} => claim_ownership(deps, info, env),
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
+                .map_err(|e| e.into())
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
+                    v.owner = new_owner;
+                    Ok(v)
+                })?;
+
+                Ok(())
+            })
+            .map_err(|e| e.into())
+        }
     }
-}
-
-pub fn propose_new_owner(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    new_owner: String,
-    expires_in: u64,
-) -> Result<Response, ContractError> {
-    let config: Config = CONFIG.load(deps.storage)?;
-
-    // permission check
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let new_owner = addr_validate_to_lower(deps.api, new_owner.as_str())?;
-
-    // check that owner is not the same
-    if new_owner == config.owner {
-        return Err(ContractError::OwnershipProposalError(String::from(
-            "new owner cannot be same",
-        )));
-    }
-
-    OWNERSHIP_PROPOSAL.save(
-        deps.storage,
-        &OwnershipProposal {
-            owner: new_owner.clone(),
-            ttl: env.block.time.seconds() + expires_in,
-        },
-    )?;
-
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "propose_new_owner"),
-        attr("new_owner", new_owner),
-    ]))
-}
-
-pub fn drop_new_owner(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
-    let config: Config = CONFIG.load(deps.storage)?;
-
-    // permission check
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    OWNERSHIP_PROPOSAL.remove(deps.storage);
-
-    Ok(Response::new().add_attributes(vec![attr("action", "drop_new_owner")]))
-}
-
-pub fn claim_ownership(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
-    let proposal = OWNERSHIP_PROPOSAL.load(deps.storage)?;
-
-    // Check sender
-    if info.sender != proposal.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    if env.block.time.seconds() > proposal.ttl {
-        return Err(ContractError::OwnershipProposalExpired {});
-    }
-
-    config.owner = info.sender;
-
-    CONFIG.save(deps.storage, &config)?;
-    OWNERSHIP_PROPOSAL.remove(deps.storage);
-
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "claim_ownership"),
-        attr("new_owner", config.owner),
-    ]))
 }
 
 // Only owner can execute it

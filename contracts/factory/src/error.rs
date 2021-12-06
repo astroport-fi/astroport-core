@@ -29,10 +29,4 @@ pub enum ContractError {
 
     #[error("Doubling assets in asset infos")]
     DoublingAssets {},
-
-    #[error("Ownership proposal has expired")]
-    OwnershipProposalExpired {},
-
-    #[error("Ownership proposal error: {0}")]
-    OwnershipProposalError(String),
 }

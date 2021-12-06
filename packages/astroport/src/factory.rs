@@ -79,7 +79,7 @@ pub enum ExecuteMsg {
         owner: String,
         expires_in: u64,
     },
-    DropNewOwner {},
+    DropOwnershipProposal {},
     ClaimOwnership {},
 }
 

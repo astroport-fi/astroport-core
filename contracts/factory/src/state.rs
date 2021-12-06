@@ -6,6 +6,7 @@ use cosmwasm_std::{Addr, Deps, Order};
 
 use astroport::asset::AssetInfo;
 
+use astroport::common::OwnershipProposal;
 use astroport::factory::PairConfig;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -69,12 +70,6 @@ fn calc_range_start(start_after: Option<[AssetInfo; 2]>) -> Option<Vec<u8>> {
         v.push(1);
         v
     })
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct OwnershipProposal {
-    pub owner: Addr,
-    pub ttl: u64,
 }
 
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
