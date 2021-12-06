@@ -42,7 +42,6 @@ async function main() {
             wallet,
             join(ARTIFACTS_PATH, 'astroport_vesting.wasm'),
             {
-                owner: wallet.key.accAddress,
                 token_addr: network.tokenAddress,
             },
         )

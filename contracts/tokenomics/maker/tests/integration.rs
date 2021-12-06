@@ -1,8 +1,6 @@
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType, UpdateAddr};
-use astroport::maker::{
-    ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
-};
+use astroport::maker::{BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, Uint64, WasmQuery};
@@ -340,7 +338,7 @@ fn update_config() {
     );
 
     let msg = QueryMsg::Config {};
-    let res: QueryConfigResponse = router
+    let res: ConfigResponse = router
         .wrap()
         .query_wasm_smart(&maker_instance, &msg)
         .unwrap();
@@ -352,14 +350,12 @@ fn update_config() {
     assert_eq!(res.governance_contract, Some(governance));
     assert_eq!(res.governance_percent, governance_percent);
 
-    let new_owner = Addr::unchecked("new_owner");
     let new_staking = Addr::unchecked("new_staking");
     let new_factory = Addr::unchecked("new_factory");
     let new_governance = Addr::unchecked("new_governance");
     let new_governance_percent = Uint64::new(50);
 
     let msg = ExecuteMsg::UpdateConfig {
-        owner: Some(new_owner.to_string()),
         governance_percent: Some(new_governance_percent),
         governance_contract: Some(UpdateAddr::Set(new_governance.to_string())),
         staking_contract: Some(new_staking.to_string()),
@@ -383,19 +379,17 @@ fn update_config() {
         .unwrap();
 
     let msg = QueryMsg::Config {};
-    let res: QueryConfigResponse = router
+    let res: ConfigResponse = router
         .wrap()
         .query_wasm_smart(&maker_instance, &msg)
         .unwrap();
 
-    assert_eq!(res.owner, new_owner);
     assert_eq!(res.factory_contract, new_factory);
     assert_eq!(res.staking_contract, new_staking);
     assert_eq!(res.governance_percent, new_governance_percent);
     assert_eq!(res.governance_contract, Some(new_governance.clone()));
 
     let msg = ExecuteMsg::UpdateConfig {
-        owner: None,
         governance_percent: None,
         governance_contract: Some(UpdateAddr::Remove {}),
         staking_contract: None,
@@ -403,11 +397,11 @@ fn update_config() {
     };
 
     router
-        .execute_contract(new_owner.clone(), maker_instance.clone(), &msg, &[])
+        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
         .unwrap();
 
     let msg = QueryMsg::Config {};
-    let res: QueryConfigResponse = router
+    let res: ConfigResponse = router
         .wrap()
         .query_wasm_smart(&maker_instance, &msg)
         .unwrap();
@@ -621,7 +615,7 @@ fn collect_all() {
         },
     ];
 
-    let balances_resp: QueryBalancesResponse = router
+    let balances_resp: BalancesResponse = router
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: maker_instance.to_string(),

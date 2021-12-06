@@ -12,8 +12,7 @@ use crate::{
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
-    ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType,
-    PairsResponse, QueryMsg,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, PairType, PairsResponse, QueryMsg,
 };
 
 use crate::contract::reply;
@@ -142,55 +141,18 @@ fn update_config() {
     };
 
     let env = mock_env();
-    let info = mock_info("addr0000", &[]);
-    let new_owner = "addr0001";
+    let info = mock_info(owner, &[]);
 
     // we can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // update owner
+    // update config
     let env = mock_env();
-    let info = mock_info(owner.clone(), &[]);
+    let info = mock_info(owner, &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        owner: Some(String::from(new_owner)),
-        token_code_id: None,
-        fee_address: Some(String::from("fee_addr")),
-        generator_address: None,
-    };
-
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
-    assert_eq!(0, res.messages.len());
-
-    // it worked, let's query the state
-    let query_res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
-    let config_res: ConfigResponse = from_binary(&query_res).unwrap();
-    assert_eq!(123u64, config_res.token_code_id);
-    assert_eq!(Addr::unchecked(new_owner), config_res.owner);
-
-    // check validation of total and maker fee bps
-    let env = mock_env();
-    let info = mock_info(new_owner, &[]);
-    let msg = ExecuteMsg::UpdatePairConfig {
-        config: PairConfig {
-            code_id: 123u64,
-            pair_type: PairType::Xyk {},
-            total_fee_bps: 3,
-            maker_fee_bps: 10_001,
-            is_disabled: None,
-        },
-    };
-
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
-    assert_eq!(res, ContractError::PairConfigInvalidFeeBps {});
-
-    // update left items
-    let env = mock_env();
-    let info = mock_info(new_owner, &[]);
-    let msg = ExecuteMsg::UpdateConfig {
-        owner: None,
         token_code_id: Some(200u64),
-        fee_address: None,
-        generator_address: None,
+        fee_address: Some(String::from("new_fee_addr")),
+        generator_address: Some(String::from("new_generator_addr")),
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -200,13 +162,20 @@ fn update_config() {
     let query_res = query(deps.as_ref(), env, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(200u64, config_res.token_code_id);
-    assert_eq!(String::from("addr0001"), config_res.owner);
+    assert_eq!(owner, config_res.owner);
+    assert_eq!(
+        String::from("new_fee_addr"),
+        config_res.fee_address.unwrap()
+    );
+    assert_eq!(
+        String::from("new_generator_addr"),
+        config_res.generator_address
+    );
 
     // Unauthorized err
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        owner: None,
         token_code_id: None,
         fee_address: None,
         generator_address: None,
@@ -214,41 +183,83 @@ fn update_config() {
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
+}
 
-    // Check fee response
-    let env = mock_env();
-    let info = mock_info(new_owner, &[]);
-    let msg = ExecuteMsg::UpdatePairConfig {
-        config: PairConfig {
-            code_id: 123u64,
-            pair_type: PairType::Xyk {},
-            total_fee_bps: 3,
-            maker_fee_bps: 166,
-            is_disabled: None,
-        },
+#[test]
+fn update_owner() {
+    let mut deps = mock_dependencies(&[]);
+    let owner = "owner0000";
+
+    let msg = InstantiateMsg {
+        pair_configs: vec![],
+        token_code_id: 123u64,
+        fee_address: None,
+        owner: owner.to_string(),
+        generator_address: String::from("generator"),
     };
 
+    let env = mock_env();
+    let info = mock_info(owner, &[]);
+
+    // we can just call .unwrap() to assert this was a success
+    instantiate(deps.as_mut(), env, info, msg).unwrap();
+
+    let new_owner = String::from("new_owner");
+
+    // new owner
+    let env = mock_env();
+    let msg = ExecuteMsg::ProposeNewOwner {
+        owner: new_owner.clone(),
+        expires_in: 100, // seconds
+    };
+
+    let info = mock_info(new_owner.as_str(), &[]);
+
+    // unauthorized check
+    let err = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+
+    // claim before proposal
+    let info = mock_info(new_owner.as_str(), &[]);
+    execute(
+        deps.as_mut(),
+        env.clone(),
+        info,
+        ExecuteMsg::ClaimOwnership {},
+    )
+    .unwrap_err();
+
+    // propose new owner
+    let info = mock_info(owner, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    let query_res = query(
-        deps.as_ref(),
+    // unauthorized ownership claim
+    let info = mock_info("invalid_addr", &[]);
+    let err = execute(
+        deps.as_mut(),
         env.clone(),
-        QueryMsg::FeeInfo {
-            pair_type: PairType::Xyk {},
-        },
+        info,
+        ExecuteMsg::ClaimOwnership {},
+    )
+    .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+
+    // Claim ownership
+    let info = mock_info(new_owner.as_str(), &[]);
+    let res = execute(
+        deps.as_mut(),
+        env.clone(),
+        info,
+        ExecuteMsg::ClaimOwnership {},
     )
     .unwrap();
-    let fee_info: FeeInfoResponse = from_binary(&query_res).unwrap();
-    assert_eq!(String::from("fee_addr"), fee_info.fee_address.unwrap());
-    assert_eq!(
-        pair_configs[0].clone().total_fee_bps,
-        fee_info.total_fee_bps
-    );
-    assert_eq!(
-        pair_configs[0].clone().maker_fee_bps,
-        fee_info.maker_fee_bps
-    );
+    assert_eq!(0, res.messages.len());
+
+    // let's query the state
+    let config: ConfigResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap()).unwrap();
+    assert_eq!(new_owner, config.owner);
 }
 
 #[test]
@@ -300,6 +311,22 @@ fn update_pair_config() {
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
+
+    // check validation of total and maker fee bps
+    let env = mock_env();
+    let info = mock_info(owner.clone(), &[]);
+    let msg = ExecuteMsg::UpdatePairConfig {
+        config: PairConfig {
+            code_id: 123u64,
+            pair_type: PairType::Xyk {},
+            total_fee_bps: 3,
+            maker_fee_bps: 10_001,
+            is_disabled: None,
+        },
+    };
+
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
+    assert_eq!(res, ContractError::PairConfigInvalidFeeBps {});
 
     let info = mock_info(owner.clone(), &[]);
     let msg = ExecuteMsg::UpdatePairConfig {

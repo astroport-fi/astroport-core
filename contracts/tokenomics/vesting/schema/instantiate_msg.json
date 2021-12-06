@@ -3,13 +3,9 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "owner",
     "token_addr"
   ],
   "properties": {
-    "owner": {
-      "type": "string"
-    },
     "token_addr": {
       "type": "string"
     }

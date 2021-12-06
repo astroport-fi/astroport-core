@@ -17,7 +17,6 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     UpdateConfig {
-        owner: Option<String>,
         vesting_contract: Option<String>,
     },
     Add {
@@ -51,6 +50,12 @@ pub enum ExecuteMsg {
     SetTokensPerBlock {
         amount: Uint128,
     },
+    ProposeNewOwner {
+        owner: String,
+        expires_in: u64,
+    },
+    DropOwnershipProposal {},
+    ClaimOwnership {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

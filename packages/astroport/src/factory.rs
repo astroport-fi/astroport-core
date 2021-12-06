@@ -56,7 +56,6 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// UpdateConfig updates relevant code IDs
     UpdateConfig {
-        owner: Option<String>,
         token_code_id: Option<u64>,
         fee_address: Option<String>,
         generator_address: Option<String>,
@@ -76,6 +75,12 @@ pub enum ExecuteMsg {
     Deregister {
         asset_infos: [AssetInfo; 2],
     },
+    ProposeNewOwner {
+        owner: String,
+        expires_in: u64,
+    },
+    DropOwnershipProposal {},
+    ClaimOwnership {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

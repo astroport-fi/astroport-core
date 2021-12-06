@@ -107,18 +107,19 @@ fn update_config() {
     let mut app = mock_app();
 
     let owner = String::from("owner");
-    let new_owner = String::from("new_owner");
 
     let token_code_id = store_token_code(&mut app);
     let factory_instance =
         instantiate_contract(&mut app, &Addr::unchecked(owner.clone()), token_code_id);
 
-    // update owner
+    // update config
+    let fee_address = Some(String::from("fee"));
+    let generator_address = Some(String::from("generator"));
+
     let msg = ExecuteMsg::UpdateConfig {
-        owner: Some(new_owner.clone()),
-        token_code_id: None,
-        fee_address: None,
-        generator_address: None,
+        token_code_id: Some(200u64),
+        fee_address: fee_address.clone(),
+        generator_address: generator_address.clone(),
     };
 
     app.execute_contract(
@@ -135,47 +136,30 @@ fn update_config() {
         .query_wasm_smart(&factory_instance, &msg)
         .unwrap();
 
-    assert_eq!(token_code_id, config_res.token_code_id);
-    assert_eq!(new_owner.clone(), config_res.owner);
-
-    // update left items
-    let fee_address = Some(String::from("fee"));
-    let msg = ExecuteMsg::UpdateConfig {
-        owner: None,
-        token_code_id: Some(200u64),
-        fee_address: fee_address.clone(),
-        generator_address: None,
-    };
-
-    app.execute_contract(
-        Addr::unchecked(new_owner),
-        factory_instance.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
-
-    let msg = QueryMsg::Config {};
-    let config_res: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&factory_instance, &msg)
-        .unwrap();
     assert_eq!(200u64, config_res.token_code_id);
     assert_eq!(
         fee_address.unwrap(),
         config_res.fee_address.unwrap().to_string()
     );
+    assert_eq!(
+        generator_address.unwrap(),
+        config_res.generator_address.to_string()
+    );
 
     // Unauthorized err
     let msg = ExecuteMsg::UpdateConfig {
-        owner: None,
         token_code_id: None,
         fee_address: None,
         generator_address: None,
     };
 
     let res = app
-        .execute_contract(Addr::unchecked(owner), factory_instance, &msg, &[])
+        .execute_contract(
+            Addr::unchecked("invalid_owner"),
+            factory_instance,
+            &msg,
+            &[],
+        )
         .unwrap_err();
     assert_eq!(res.to_string(), "Unauthorized");
 }

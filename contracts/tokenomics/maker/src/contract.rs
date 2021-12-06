@@ -1,15 +1,15 @@
 use crate::error::ContractError;
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, CONFIG, OWNERSHIP_PROPOSAL};
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo, PairInfo};
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
-use astroport::maker::{
-    ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
-};
+use astroport::maker::{BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use astroport::pair::{Cw20HookMsg, QueryMsg as PairQueryMsg};
 use astroport::querier::query_pair_info;
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
-    QueryRequest, Reply, ReplyOn, Response, StdResult, SubMsg, Uint128, Uint64, WasmMsg, WasmQuery,
+    QueryRequest, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    WasmQuery,
 };
 use cw2::set_contract_version;
 use std::collections::HashMap;
@@ -64,7 +64,6 @@ pub fn execute(
     match msg {
         ExecuteMsg::Collect { pair_addresses } => collect(deps, env, pair_addresses),
         ExecuteMsg::UpdateConfig {
-            owner,
             factory_contract,
             staking_contract,
             governance_contract,
@@ -72,12 +71,42 @@ pub fn execute(
         } => update_config(
             deps,
             info,
-            owner,
             factory_contract,
             staking_contract,
             governance_contract,
             governance_percent,
         ),
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                owner,
+                expires_in,
+                config.owner,
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(|e| e.into())
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
+                .map_err(|e| e.into())
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
+                    v.owner = new_owner;
+                    Ok(v)
+                })?;
+
+                Ok(())
+            })
+            .map_err(|e| e.into())
+        }
     }
 }
 
@@ -245,7 +274,6 @@ fn swap_to_astro(
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
-    owner: Option<String>,
     factory_contract: Option<String>,
     staking_contract: Option<String>,
     governance_contract: Option<UpdateAddr>,
@@ -258,12 +286,6 @@ fn update_config(
     // permission check
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
-    }
-
-    if let Some(owner) = owner {
-        // validate address format
-        config.owner = addr_validate_to_lower(deps.api, owner.as_str())?;
-        attributes.push(Attribute::new("owner", &owner));
     }
 
     if let Some(factory_contract) = factory_contract {
@@ -310,9 +332,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_get_config(deps: Deps) -> StdResult<QueryConfigResponse> {
+fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
-    Ok(QueryConfigResponse {
+    Ok(ConfigResponse {
         owner: config.owner,
         factory_contract: config.factory_contract,
         staking_contract: config.staking_contract,
@@ -322,12 +344,8 @@ fn query_get_config(deps: Deps) -> StdResult<QueryConfigResponse> {
     })
 }
 
-fn query_get_balances(
-    deps: Deps,
-    env: Env,
-    assets: Vec<AssetInfo>,
-) -> StdResult<QueryBalancesResponse> {
-    let mut resp = QueryBalancesResponse { balances: vec![] };
+fn query_get_balances(deps: Deps, env: Env, assets: Vec<AssetInfo>) -> StdResult<BalancesResponse> {
+    let mut resp = BalancesResponse { balances: vec![] };
 
     for a in assets {
         // Get Balance

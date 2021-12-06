@@ -10,24 +10,10 @@ README has updated with new messages (Astroport v1 messages follow).
 
 ```json
 {
-  "owner": "terra...",
   "token_addr": "terra..."
 }
 ```
 
-## ExecuteMsg
-
-### `update_config`
-
-Updates contract owner.
-
-```json
-{
-  "update_config": {
-    "owner": "terra..."
-  }
-}
-```
 
 ### `receive`
 
@@ -100,7 +86,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `config`
 
-Returns owner and token addresses.
+Returns contract config
 
 ```json
 {

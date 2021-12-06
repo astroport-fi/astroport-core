@@ -7,7 +7,8 @@ use crate::error::ContractError;
 use crate::querier::query_pair_info;
 
 use crate::state::{
-    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, PAIRS, PAIR_CONFIGS, TMP_PAIR_INFO,
+    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS, PAIR_CONFIGS,
+    TMP_PAIR_INFO,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -18,6 +19,7 @@ use astroport::factory::{
     PairsResponse, QueryMsg,
 };
 
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cw2::set_contract_version;
 use protobuf::Message;
@@ -72,7 +74,6 @@ pub fn instantiate(
 }
 
 pub struct UpdateConfig {
-    owner: Option<String>,
     token_code_id: Option<u64>,
     fee_address: Option<String>,
     generator_address: Option<String>,
@@ -87,7 +88,6 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig {
-            owner,
             token_code_id,
             fee_address,
             generator_address,
@@ -96,7 +96,6 @@ pub fn execute(
             env,
             info,
             UpdateConfig {
-                owner,
                 token_code_id,
                 fee_address,
                 generator_address,
@@ -109,6 +108,37 @@ pub fn execute(
             init_params,
         } => execute_create_pair(deps, env, pair_type, asset_infos, init_params),
         ExecuteMsg::Deregister { asset_infos } => deregister(deps, info, asset_infos),
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                owner,
+                expires_in,
+                config.owner,
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(|e| e.into())
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
+                .map_err(|e| e.into())
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
+                    v.owner = new_owner;
+                    Ok(v)
+                })?;
+
+                Ok(())
+            })
+            .map_err(|e| e.into())
+        }
     }
 }
 
@@ -124,11 +154,6 @@ pub fn execute_update_config(
     // permission check
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
-    }
-
-    if let Some(owner) = param.owner {
-        // validate address format
-        config.owner = addr_validate_to_lower(deps.api, owner.as_str())?;
     }
 
     if let Some(fee_address) = param.fee_address {
