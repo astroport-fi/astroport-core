@@ -4,7 +4,7 @@ use astroport::factory::{
     QueryMsg as FactoryQueryMsg,
 };
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, TWAP_PRECISION,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
@@ -525,9 +525,9 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     let twap1 = cpr_new.price1_cumulative_last - cpr_old.price1_cumulative_last;
 
     // Prices weren't changed for the last day, uusd amount in pool = 4000000_000000, uluna = 2000000_000000
-    // In accumulators we don't have any precision so we rely on elapsed time to not consider it
-    assert_eq!(twap0, Uint128::new(43200)); // 0.5 * ELAPSED_SECONDS (86400)
-    assert_eq!(twap1, Uint128::new(172800)); //   2 * ELAPSED_SECONDS
+    let price_precision = Uint128::from(10u128.pow(TWAP_PRECISION.into()));
+    assert_eq!(twap0 / price_precision, Uint128::new(43200)); // 0.5 * ELAPSED_SECONDS (86400)
+    assert_eq!(twap1 / price_precision, Uint128::new(172800)); //   2 * ELAPSED_SECONDS
 }
 
 #[test]

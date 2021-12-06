@@ -16,7 +16,9 @@ use astroport::asset::{addr_validate_to_lower, format_lp_token_name, Asset, Asse
 use astroport::factory::PairType;
 
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
-use astroport::pair::{ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams};
+use astroport::pair::{
+    ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams, TWAP_PRECISION,
+};
 
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
@@ -682,11 +684,11 @@ pub fn accumulate_prices(
 
     // we have to shift block_time when any price is zero to not fill an accumulator with a new price to that period
 
-    let greater_precision = x_precision.max(y_precision);
+    let greater_precision = x_precision.max(y_precision).max(TWAP_PRECISION);
     let x = adjust_precision(x, x_precision, greater_precision)?;
     let y = adjust_precision(y, y_precision, greater_precision)?;
 
-    let time_elapsed = Uint128::new((block_time - config.block_time_last) as u128);
+    let time_elapsed = Uint128::from(block_time - config.block_time_last);
 
     let mut pcl0 = config.price0_cumulative_last;
     let mut pcl1 = config.price1_cumulative_last;
@@ -704,7 +706,7 @@ pub fn accumulate_prices(
                 .unwrap(),
             ))?,
             greater_precision,
-            0,
+            TWAP_PRECISION,
         )?);
         pcl1 = config.price1_cumulative_last.wrapping_add(adjust_precision(
             time_elapsed.checked_mul(Uint128::new(
@@ -717,7 +719,7 @@ pub fn accumulate_prices(
                 .unwrap(),
             ))?,
             greater_precision,
-            0,
+            TWAP_PRECISION,
         )?)
     };
 
@@ -881,14 +883,14 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
     let mut price0_cumulative_last = config.price0_cumulative_last;
     let mut price1_cumulative_last = config.price1_cumulative_last;
 
-    if let Ok(Some((price0_cumulative_new, price1_cumulative_new, _))) = accumulate_prices(
+    if let Some((price0_cumulative_new, price1_cumulative_new, _)) = accumulate_prices(
         env,
         &config,
         assets[0].amount,
         query_token_precision(&deps.querier, assets[0].info.clone())?,
         assets[1].amount,
         query_token_precision(&deps.querier, assets[1].info.clone())?,
-    ) {
+    )? {
         price0_cumulative_last = price0_cumulative_new;
         price1_cumulative_last = price1_cumulative_new;
     }
