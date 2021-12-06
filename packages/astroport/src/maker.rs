@@ -1,6 +1,6 @@
 use crate::asset::{Asset, AssetInfo};
 use crate::factory::UpdateAddr;
-use cosmwasm_std::{Addr, Uint64};
+use cosmwasm_std::{Addr, Decimal, Uint64};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -12,6 +12,7 @@ pub struct InstantiateMsg {
     pub staking_contract: String,
     pub governance_contract: Option<String>,
     pub governance_percent: Option<Uint64>,
+    pub max_spread: Option<Decimal>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -25,6 +26,7 @@ pub enum ExecuteMsg {
         staking_contract: Option<String>,
         governance_contract: Option<UpdateAddr>,
         governance_percent: Option<Uint64>,
+        max_spread: Option<Decimal>,
     },
     ProposeNewOwner {
         owner: String,
@@ -50,6 +52,7 @@ pub struct ConfigResponse {
     pub staking_contract: Addr,
     pub governance_contract: Option<Addr>,
     pub governance_percent: Uint64,
+    pub max_spread: Decimal,
 }
 
 // We define a custom struct for each query response

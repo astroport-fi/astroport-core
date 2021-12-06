@@ -1,5 +1,5 @@
 use astroport::common::OwnershipProposal;
-use cosmwasm_std::{Addr, Uint64};
+use cosmwasm_std::{Addr, Decimal, Uint64};
 use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -12,6 +12,7 @@ pub struct Config {
     pub governance_contract: Option<Addr>,
     pub governance_percent: Uint64,
     pub astro_token_contract: Addr,
+    pub max_spread: Decimal,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

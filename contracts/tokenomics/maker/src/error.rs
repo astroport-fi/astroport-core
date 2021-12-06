@@ -27,6 +27,9 @@ pub enum ContractError {
 
     #[error("Swap non-ASTRO to ASTRO error")]
     SwapNonAstroToAstroError {},
+
+    #[error("Incorrect max spread")]
+    IncorrectMaxSpread {},
 }
 
 impl From<OverflowError> for ContractError {
