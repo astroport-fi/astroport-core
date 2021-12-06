@@ -58,7 +58,7 @@ pub fn drop_ownership_proposal(
 
     proposal.remove(deps.storage);
 
-    Ok(Response::new().add_attributes(vec![attr("action", "drop_new_owner")]))
+    Ok(Response::new().add_attributes(vec![attr("action", "drop_ownership_proposal")]))
 }
 
 pub fn claim_ownership(
