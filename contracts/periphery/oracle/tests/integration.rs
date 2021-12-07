@@ -486,7 +486,7 @@ fn change_provide_liquidity(
                         amount: amount2,
                     },
                 ],
-                slippage_tolerance: Some(Decimal::one()),
+                slippage_tolerance: Some(Decimal::percent(50)),
                 auto_stake: None,
                 receiver: None,
             },
@@ -861,8 +861,8 @@ fn consult2() {
 
     // Change pair liquidity
     for (amount1, amount2) in [
-        (Uint128::from(1000_u128), Uint128::from(250_u128)),
-        (Uint128::from(1000_u128), Uint128::from(250_u128)),
+        (Uint128::from(1000_u128), Uint128::from(500_u128)),
+        (Uint128::from(1000_u128), Uint128::from(500_u128)),
     ] {
         change_provide_liquidity(
             &mut router,
@@ -888,12 +888,12 @@ fn consult2() {
         (
             astro_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(625u128),
+            Uint128::from(750u128),
         ),
         (
             usdc_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(1600u128),
+            Uint128::from(1333u128),
         ),
     ] {
         let msg = Consult {
@@ -914,8 +914,8 @@ fn consult2() {
 
     // Change pair liquidity
     for (amount1, amount2) in [
-        (Uint128::from(250_u128), Uint128::from(2000_u128)),
-        (Uint128::from(250_u128), Uint128::from(2000_u128)),
+        (Uint128::from(250_u128), Uint128::from(350_u128)),
+        (Uint128::from(250_u128), Uint128::from(350_u128)),
     ] {
         change_provide_liquidity(
             &mut router,
@@ -941,12 +941,12 @@ fn consult2() {
         (
             astro_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(1444u128),
+            Uint128::from(822u128),
         ),
         (
             usdc_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(692u128),
+            Uint128::from(1216u128),
         ),
     ] {
         let msg = Consult {

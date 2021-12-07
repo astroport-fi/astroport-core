@@ -18,7 +18,7 @@ use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::{
     ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams, DEFAULT_SLIPPAGE,
-    TWAP_PRECISION,
+    MAX_ALLOWED_SLIPPAGE, TWAP_PRECISION,
 };
 
 use astroport::pair::{
@@ -1028,8 +1028,14 @@ pub fn assert_max_spread(
     spread_amount: Uint128,
 ) -> Result<(), ContractError> {
     let default_spread = Decimal::from_str(DEFAULT_SLIPPAGE)?;
-    let max_spread = max_spread.or(Some(default_spread));
-    if let (Some(max_spread), Some(belief_price)) = (max_spread, belief_price) {
+    let max_allowed_spread = Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?;
+
+    let max_spread = max_spread.unwrap_or(default_spread);
+    if max_spread.gt(&max_allowed_spread) {
+        return Err(ContractError::AllowedSpreadAssertion {});
+    }
+
+    if let Some(belief_price) = belief_price {
         let expected_return =
             offer_amount * Decimal::from(Decimal256::one() / Decimal256::from(belief_price));
         let spread_amount = expected_return
@@ -1041,10 +1047,8 @@ pub fn assert_max_spread(
         {
             return Err(ContractError::MaxSpreadAssertion {});
         }
-    } else if let Some(max_spread) = max_spread {
-        if Decimal::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
-            return Err(ContractError::MaxSpreadAssertion {});
-        }
+    } else if Decimal::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
+        return Err(ContractError::MaxSpreadAssertion {});
     }
 
     Ok(())
