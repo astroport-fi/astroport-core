@@ -272,7 +272,7 @@ fn provide_liquidity() {
                 amount: Uint128::from(200_000000000000000000u128),
             },
         ],
-        slippage_tolerance: None,
+        slippage_tolerance: Some(Decimal::percent(50)),
         auto_stake: None,
         receiver: None,
     };
@@ -726,7 +726,7 @@ fn try_native_to_token() {
             amount: offer_amount,
         },
         belief_price: None,
-        max_spread: None,
+        max_spread: Some(Decimal::percent(50)),
         to: None,
     };
     let env = mock_env_with_block_time(1000);
@@ -921,7 +921,7 @@ fn try_token_to_native() {
         amount: offer_amount,
         msg: to_binary(&Cw20HookMsg::Swap {
             belief_price: None,
-            max_spread: None,
+            max_spread: Some(Decimal::percent(50)),
             to: None,
         })
         .unwrap(),
