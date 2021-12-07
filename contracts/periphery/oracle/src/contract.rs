@@ -3,6 +3,7 @@ use crate::querier::{query_cumulative_prices, query_pair_info, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
 use astroport::oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use astroport::pair::TWAP_PRECISION;
 use astroport::querier::query_token_precision;
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
@@ -144,9 +145,10 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, Std
         .unwrap()
         .return_amount;
 
-        Uint256::from(price) * Decimal256::from_ratio(Uint256::from(amount), Uint256::from(one))
+        Uint256::from(price).multiply_ratio(Uint256::from(amount), Uint256::from(one))
     } else {
-        Uint256::from(amount) * price_average
+        let price_precision = Uint256::from(10_u128.pow(TWAP_PRECISION.into()));
+        Uint256::from(amount) * price_average / Decimal256::from_uint256(price_precision)
     })
 }
 

@@ -12,7 +12,7 @@ use astroport::asset::{Asset, AssetInfo, PairInfo};
 
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
-    SimulationResponse, StablePoolParams,
+    SimulationResponse, StablePoolParams, TWAP_PRECISION,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
@@ -1208,6 +1208,8 @@ fn test_accumulate_prices() {
         is_some: bool,
     }
 
+    let price_precision = 10u128.pow(TWAP_PRECISION.into());
+
     let test_cases: Vec<(Case, Result)> = vec![
         (
             Case {
@@ -1230,8 +1232,8 @@ fn test_accumulate_prices() {
             Case {
                 block_time: 1000,
                 block_time_last: 1000,
-                last0: 1,
-                last1: 2,
+                last0: 1 * price_precision,
+                last1: 2 * price_precision,
                 x_amount: 250_000000,
                 y_amount: 500_000000,
             },
@@ -1246,8 +1248,8 @@ fn test_accumulate_prices() {
             Case {
                 block_time: 1500,
                 block_time_last: 1000,
-                last0: 500,
-                last1: 2000,
+                last0: 500 * price_precision,
+                last1: 2000 * price_precision,
                 x_amount: 250_000000,
                 y_amount: 500_000000,
             },
@@ -1300,8 +1302,14 @@ fn test_accumulate_prices() {
 
         if let Some(config) = config {
             assert_eq!(config.2, result.block_time_last);
-            assert_eq!(config.0, Uint128::new(result.cumulative_price_x));
-            assert_eq!(config.1, Uint128::new(result.cumulative_price_y));
+            assert_eq!(
+                config.0 / Uint128::from(price_precision),
+                Uint128::new(result.cumulative_price_x)
+            );
+            assert_eq!(
+                config.1 / Uint128::from(price_precision),
+                Uint128::new(result.cumulative_price_y)
+            );
         }
     }
 }

@@ -15,7 +15,7 @@ use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::ConfigResponse;
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
-    QueryMsg, ReverseSimulationResponse, SimulationResponse,
+    QueryMsg, ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
@@ -321,7 +321,7 @@ pub fn provide_liquidity(
 
     // Accumulate prices for oracle
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
-        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)
+        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)?
     {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
@@ -404,7 +404,7 @@ pub fn withdraw_liquidity(
 
     // Accumulate prices for oracle
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
-        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)
+        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)?
     {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
@@ -555,7 +555,7 @@ pub fn swap(
 
     // Accumulate prices for oracle
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
-        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)
+        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)?
     {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
@@ -587,29 +587,34 @@ pub fn accumulate_prices(
     config: &Config,
     x: Uint128,
     y: Uint128,
-) -> Option<(Uint128, Uint128, u64)> {
+) -> StdResult<Option<(Uint128, Uint128, u64)>> {
     let block_time = env.block.time.seconds();
     if block_time <= config.block_time_last {
-        return None;
+        return Ok(None);
     }
 
     // we have to shift block_time when any price is zero to not fill an accumulator with a new price to that period
 
-    let time_elapsed = Uint128::new((block_time - config.block_time_last) as u128);
+    let time_elapsed = Uint128::from(block_time - config.block_time_last);
 
     let mut pcl0 = config.price0_cumulative_last;
     let mut pcl1 = config.price1_cumulative_last;
 
     if !x.is_zero() && !y.is_zero() {
-        pcl0 = config
-            .price0_cumulative_last
-            .wrapping_add(time_elapsed * Decimal::from_ratio(y, x));
-        pcl1 = config
-            .price1_cumulative_last
-            .wrapping_add(time_elapsed * Decimal::from_ratio(x, y))
+        let price_precision = Uint128::from(10u128.pow(TWAP_PRECISION.into()));
+        pcl0 = config.price0_cumulative_last.wrapping_add(
+            time_elapsed
+                .checked_mul(price_precision)?
+                .multiply_ratio(y, x),
+        );
+        pcl1 = config.price1_cumulative_last.wrapping_add(
+            time_elapsed
+                .checked_mul(price_precision)?
+                .multiply_ratio(x, y),
+        );
     };
 
-    Some((pcl0, pcl1, block_time))
+    Ok(Some((pcl0, pcl1, block_time)))
 }
 
 pub fn calculate_maker_fee(
@@ -761,7 +766,7 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
     let mut price1_cumulative_last = config.price1_cumulative_last;
 
     if let Some((price0_cumulative_new, price1_cumulative_new, _)) =
-        accumulate_prices(env, &config, assets[0].amount, assets[1].amount)
+        accumulate_prices(env, &config, assets[0].amount, assets[1].amount)?
     {
         price0_cumulative_last = price0_cumulative_new;
         price1_cumulative_last = price1_cumulative_new;
