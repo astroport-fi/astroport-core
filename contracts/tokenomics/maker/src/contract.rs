@@ -7,9 +7,9 @@ use astroport::maker::{BalancesResponse, ConfigResponse, ExecuteMsg, Instantiate
 use astroport::pair::{Cw20HookMsg, QueryMsg as PairQueryMsg};
 use astroport::querier::query_pair_info;
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
-    QueryRequest, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
-    WasmQuery,
+    attr, entry_point, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, Env,
+    MessageInfo, QueryRequest, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
+    Uint64, WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
 use std::collections::HashMap;
@@ -17,6 +17,8 @@ use std::collections::HashMap;
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-maker";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+const DEFAULT_MAX_SPREAD: u64 = 5; // 5%
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -41,6 +43,16 @@ pub fn instantiate(
         Uint64::zero()
     };
 
+    let max_spread = if let Some(max_spread) = msg.max_spread {
+        if max_spread.gt(&Decimal::one()) {
+            return Err(ContractError::IncorrectMaxSpread {});
+        };
+
+        max_spread
+    } else {
+        Decimal::percent(DEFAULT_MAX_SPREAD)
+    };
+
     let cfg = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         astro_token_contract: addr_validate_to_lower(deps.api, &msg.astro_token_contract)?,
@@ -48,6 +60,7 @@ pub fn instantiate(
         staking_contract: addr_validate_to_lower(deps.api, &msg.staking_contract)?,
         governance_contract,
         governance_percent,
+        max_spread,
     };
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -68,6 +81,7 @@ pub fn execute(
             staking_contract,
             governance_contract,
             governance_percent,
+            max_spread,
         } => update_config(
             deps,
             info,
@@ -75,6 +89,7 @@ pub fn execute(
             staking_contract,
             governance_contract,
             governance_percent,
+            max_spread,
         ),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             let config: Config = CONFIG.load(deps.storage)?;
@@ -246,7 +261,7 @@ fn swap_to_astro(
             msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
                 offer_asset,
                 belief_price: None,
-                max_spread: None,
+                max_spread: Some(cfg.max_spread),
                 to: None,
             })?,
             funds: vec![Coin {
@@ -262,7 +277,7 @@ fn swap_to_astro(
                 amount: amount_in,
                 msg: to_binary(&Cw20HookMsg::Swap {
                     belief_price: None,
-                    max_spread: None,
+                    max_spread: Some(cfg.max_spread),
                     to: None,
                 })?,
             })?,
@@ -278,6 +293,7 @@ fn update_config(
     staking_contract: Option<String>,
     governance_contract: Option<UpdateAddr>,
     governance_percent: Option<Uint64>,
+    max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     let mut attributes = vec![attr("action", "set_config")];
 
@@ -319,6 +335,15 @@ fn update_config(
         attributes.push(Attribute::new("governance_percent", governance_percent));
     };
 
+    if let Some(max_spread) = max_spread {
+        if max_spread.gt(&Decimal::one()) {
+            return Err(ContractError::IncorrectMaxSpread {});
+        };
+
+        config.max_spread = max_spread;
+        attributes.push(Attribute::new("max_spread", max_spread.to_string()));
+    };
+
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_attributes(attributes))
@@ -341,6 +366,7 @@ fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
         governance_contract: config.governance_contract,
         governance_percent: config.governance_percent,
         astro_token_contract: config.astro_token_contract,
+        max_spread: config.max_spread,
     })
 }
 

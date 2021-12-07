@@ -3,8 +3,11 @@ use astroport::factory::{PairConfig, PairType, UpdateAddr};
 use astroport::maker::{BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, Coin, QueryRequest, Uint128, Uint64, WasmQuery};
+use cosmwasm_std::{
+    attr, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
+};
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
+use std::str::FromStr;
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
 fn mock_app() -> App {
@@ -22,6 +25,7 @@ fn instantiate_contracts(
     staking: Addr,
     governance: &Addr,
     governance_percent: Uint64,
+    max_spread: Option<Decimal>,
 ) -> (Addr, Addr, Addr) {
     let astro_token_contract = Box::new(ContractWrapper::new(
         astroport_token::contract::execute,
@@ -116,6 +120,7 @@ fn instantiate_contracts(
         governance_contract: Option::from(governance.to_string()),
         governance_percent: Option::from(governance_percent),
         astro_token_contract: astro_token_instance.to_string(),
+        max_spread,
     };
     let maker_instance = router
         .instantiate_contract(
@@ -335,6 +340,7 @@ fn update_config() {
         staking.clone(),
         &governance,
         governance_percent,
+        None,
     );
 
     let msg = QueryMsg::Config {};
@@ -349,17 +355,20 @@ fn update_config() {
     assert_eq!(res.staking_contract, staking);
     assert_eq!(res.governance_contract, Some(governance));
     assert_eq!(res.governance_percent, governance_percent);
+    assert_eq!(res.max_spread, Decimal::from_str("0.05").unwrap());
 
     let new_staking = Addr::unchecked("new_staking");
     let new_factory = Addr::unchecked("new_factory");
     let new_governance = Addr::unchecked("new_governance");
     let new_governance_percent = Uint64::new(50);
+    let new_max_spread = Decimal::from_str("0.5").unwrap();
 
     let msg = ExecuteMsg::UpdateConfig {
         governance_percent: Some(new_governance_percent),
         governance_contract: Some(UpdateAddr::Set(new_governance.to_string())),
         staking_contract: Some(new_staking.to_string()),
         factory_contract: Some(new_factory.to_string()),
+        max_spread: Some(new_max_spread),
     };
 
     // Assert cannot update with improper owner
@@ -388,12 +397,14 @@ fn update_config() {
     assert_eq!(res.staking_contract, new_staking);
     assert_eq!(res.governance_percent, new_governance_percent);
     assert_eq!(res.governance_contract, Some(new_governance.clone()));
+    assert_eq!(res.max_spread, new_max_spread);
 
     let msg = ExecuteMsg::UpdateConfig {
         governance_percent: None,
         governance_contract: Some(UpdateAddr::Remove {}),
         staking_contract: None,
         factory_contract: None,
+        max_spread: None,
     };
 
     router
@@ -416,6 +427,7 @@ fn collect_all() {
     let staking = Addr::unchecked("staking");
     let governance = Addr::unchecked("governance");
     let governance_percent = Uint64::new(10);
+    let max_spread = Decimal::from_str("0.5").unwrap();
 
     let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
         &mut router,
@@ -423,6 +435,7 @@ fn collect_all() {
         staking.clone(),
         &governance,
         governance_percent,
+        Some(max_spread),
     );
 
     let usdc_token_instance = instantiate_token(
@@ -690,6 +703,7 @@ fn collect_err_no_swap_pair() {
         staking.clone(),
         &governance,
         governance_percent,
+        None,
     );
 
     let uusd_asset = String::from("uusd");

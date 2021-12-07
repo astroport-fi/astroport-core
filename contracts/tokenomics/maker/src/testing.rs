@@ -1,9 +1,10 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{from_binary, Addr, Uint64};
+use cosmwasm_std::{from_binary, Addr, Decimal, Uint64};
 
 use crate::contract::{execute, instantiate, query};
 use crate::state::{Config, CONFIG};
 use astroport::maker::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use std::str::FromStr;
 
 #[test]
 fn proper_initialization() {
@@ -25,6 +26,7 @@ fn proper_initialization() {
         governance_contract: Option::from(governance_contract.to_string()),
         governance_percent: Option::from(governance_percent),
         astro_token_contract: astro_token_contract.to_string(),
+        max_spread: None,
     };
     let res = instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -39,6 +41,7 @@ fn proper_initialization() {
             governance_contract: Option::from(governance_contract),
             governance_percent,
             astro_token_contract: Addr::unchecked("astro-token"),
+            max_spread: Decimal::from_str("0.05").unwrap(),
         }
     )
 }
@@ -62,6 +65,7 @@ fn update_owner() {
         governance_contract: Option::from(governance_contract.to_string()),
         governance_percent: Option::from(governance_percent),
         astro_token_contract: astro_token_contract.to_string(),
+        max_spread: None,
     };
 
     let env = mock_env();
