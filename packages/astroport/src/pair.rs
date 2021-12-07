@@ -114,3 +114,16 @@ pub struct MigrateMsg {}
 pub struct StablePoolParams {
     pub amp: u64,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct StablePoolConfig {
+    pub amp: Decimal,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StablePoolUpdateParams {
+    StartChangingAmp { next_amp: u64, next_amp_time: u64 },
+    StopChangingAmp {},
+}
