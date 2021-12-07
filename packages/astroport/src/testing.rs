@@ -5,6 +5,7 @@ use crate::querier::{
 };
 
 use crate::factory::PairType;
+use crate::DecimalCheckedOps;
 use cosmwasm_std::testing::MOCK_CONTRACT_ADDR;
 use cosmwasm_std::{to_binary, Addr, BankMsg, Coin, CosmosMsg, Decimal, Uint128, WasmMsg};
 use cw20::Cw20ExecuteMsg;
@@ -324,4 +325,30 @@ fn test_format_lp_token_name() {
 
     let lp_name = format_lp_token_name(pair_info.asset_infos, &deps.as_ref().querier).unwrap();
     assert_eq!(lp_name, "MAPP-UUSD-LP")
+}
+
+#[test]
+fn test_decimal_checked_ops() {
+    for i in 0u32..100u32 {
+        let dec = Decimal::from_ratio(i, 1u32);
+        assert_eq!(dec + dec, dec.checked_add(dec).unwrap());
+    }
+    assert!(
+        Decimal::from_ratio(Uint128::MAX, Uint128::from(10u128.pow(18u32)))
+            .checked_add(Decimal::one())
+            .is_err()
+    );
+
+    for i in 0u128..100u128 {
+        let dec = Decimal::from_ratio(i, 1u128);
+        assert_eq!(
+            dec * Uint128::new(i),
+            dec.checked_mul(Uint128::new(i)).unwrap()
+        );
+    }
+    assert!(
+        Decimal::from_ratio(Uint128::MAX, Uint128::from(10u128.pow(18u32)))
+            .checked_mul(Uint128::from(10u128.pow(18u32) + 1))
+            .is_err()
+    );
 }
