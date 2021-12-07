@@ -13,13 +13,12 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 use std::collections::HashMap;
-use std::str::FromStr;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-maker";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const DEFAULT_MAX_SPREAD: &str = "0.01";
+const DEFAULT_MAX_SPREAD: u64 = 5; // 5%
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -51,7 +50,7 @@ pub fn instantiate(
 
         max_spread
     } else {
-        Decimal::from_str(DEFAULT_MAX_SPREAD)?
+        Decimal::percent(DEFAULT_MAX_SPREAD)
     };
 
     let cfg = Config {

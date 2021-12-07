@@ -355,7 +355,7 @@ fn update_config() {
     assert_eq!(res.staking_contract, staking);
     assert_eq!(res.governance_contract, Some(governance));
     assert_eq!(res.governance_percent, governance_percent);
-    assert_eq!(res.max_spread, Decimal::from_str("0.01").unwrap());
+    assert_eq!(res.max_spread, Decimal::from_str("0.05").unwrap());
 
     let new_staking = Addr::unchecked("new_staking");
     let new_factory = Addr::unchecked("new_factory");

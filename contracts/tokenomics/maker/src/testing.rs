@@ -41,7 +41,7 @@ fn proper_initialization() {
             governance_contract: Option::from(governance_contract),
             governance_percent,
             astro_token_contract: Addr::unchecked("astro-token"),
-            max_spread: Decimal::from_str("0.01").unwrap(),
+            max_spread: Decimal::from_str("0.05").unwrap(),
         }
     )
 }
