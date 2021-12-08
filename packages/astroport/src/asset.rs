@@ -105,12 +105,12 @@ impl Asset {
 
 /// ## Description
 /// This enum describes available types of Token.
-/// ## Available types
+/// ## Examples
 /// ```
 /// # use cosmwasm_std::Addr;
 /// # use astroport::asset::AssetInfo::{NativeToken, Token};
-/// Token { contract_addr: Addr };
-/// NativeToken { denom: String };
+/// Token { contract_addr: Addr::unchecked("terra...") };
+/// NativeToken { denom: String::from("uluna") };
 /// ```
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

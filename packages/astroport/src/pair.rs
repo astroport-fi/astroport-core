@@ -6,6 +6,11 @@ use crate::asset::{Asset, AssetInfo};
 use cosmwasm_std::{Addr, Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
+pub const DEFAULT_SLIPPAGE: &str = "0.005";
+pub const MAX_ALLOWED_SLIPPAGE: &str = "0.5";
+
+pub const TWAP_PRECISION: u8 = 6;
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     /// Asset infos
@@ -113,4 +118,17 @@ pub struct MigrateMsg {}
 #[serde(rename_all = "snake_case")]
 pub struct StablePoolParams {
     pub amp: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct StablePoolConfig {
+    pub amp: Decimal,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StablePoolUpdateParams {
+    StartChangingAmp { next_amp: u64, next_amp_time: u64 },
+    StopChangingAmp {},
 }

@@ -1,3 +1,4 @@
+use astroport::common::OwnershipProposal;
 use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
@@ -77,3 +78,4 @@ pub const TMP_USER_ACTION: Item<Option<ExecuteOnReply>> = Item::new("tmp_user_ac
 
 // first key part is token, second - depositor
 pub const USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
+pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");

@@ -11,7 +11,7 @@ use std::fmt::{Display, Formatter, Result};
 /// # use astroport::factory::PairType::{Custom, Stable, Xyk};
 /// Xyk {};
 /// Stable {};
-/// Custom(String);
+/// Custom(String::from("Custom"));
 /// ```
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -82,8 +82,6 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// UpdateConfig updates relevant code IDs
     UpdateConfig {
-        /// Sets contract address that used for controls settings for factory, pools and tokenomics contracts
-        owner: Option<String>,
         /// Sets CW20 token contract code identifier
         token_code_id: Option<u64>,
         /// Sets contract address to send fees to
@@ -110,6 +108,12 @@ pub enum ExecuteMsg {
         /// Sets the type of asset infos available in [`AssetInfo`]
         asset_infos: [AssetInfo; 2],
     },
+    ProposeNewOwner {
+        owner: String,
+        expires_in: u64,
+    },
+    DropOwnershipProposal {},
+    ClaimOwnership {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

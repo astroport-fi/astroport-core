@@ -5,12 +5,15 @@ use astroport::factory::{
 };
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
-    StablePoolParams,
+    StablePoolConfig, StablePoolParams, StablePoolUpdateParams, TWAP_PRECISION,
 };
 
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_pair_stable::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{attr, from_binary, to_binary, Addr, Coin, QueryRequest, Uint128, WasmQuery};
+use cosmwasm_std::{
+    attr, from_binary, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
+};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -550,9 +553,9 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     let twap1 = cpr_new.price1_cumulative_last - cpr_old.price1_cumulative_last;
 
     // Prices weren't changed for the last day, uusd amount in pool = 4000000_000000, uluna = 2000000_000000
-    // In accumulators we don't have any precision so we rely on elapsed time to not consider it
-    assert_eq!(twap0, Uint128::new(85684)); // 1.008356286 * ELAPSED_SECONDS (86400)
-    assert_eq!(twap1, Uint128::new(87121)); //   0.991712963 * ELAPSED_SECONDS
+    let price_precision = Uint128::from(10u128.pow(TWAP_PRECISION.into()));
+    assert_eq!(twap0 / price_precision, Uint128::new(85684)); // 1.008356286 * ELAPSED_SECONDS (86400)
+    assert_eq!(twap1 / price_precision, Uint128::new(87121)); //   0.991712963 * ELAPSED_SECONDS
 }
 
 #[test]
@@ -650,24 +653,165 @@ fn update_pair_config() {
         .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
         .unwrap();
 
-    let params: StablePoolParams = from_binary(&res.params.unwrap()).unwrap();
+    let params: StablePoolConfig = from_binary(&res.params.unwrap()).unwrap();
 
-    assert_eq!(params.amp, 100);
+    assert_eq!(params.amp, Decimal::from_ratio(100u32, 1u32));
+
+    //Start changing amp with incorrect next amp
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
+            next_amp: MAX_AMP + 1,
+            next_amp_time: router.block_info().time.seconds(),
+        })
+        .unwrap(),
+    };
+
+    let resp = router
+        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(
+        resp.to_string(),
+        format!(
+            "Amp coefficient must be greater than 0 and less than or equal to {}",
+            MAX_AMP
+        )
+    );
+
+    //Start changing amp with big difference between the old and new amp value
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
+            next_amp: 100 * MAX_AMP_CHANGE + 1,
+            next_amp_time: router.block_info().time.seconds(),
+        })
+        .unwrap(),
+    };
+
+    let resp = router
+        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(
+        resp.to_string(),
+        format!(
+            "The difference between the old and new amp value must not exceed {} times",
+            MAX_AMP_CHANGE
+        )
+    );
+
+    //Start changing amp earlier than the MIN_AMP_CHANGING_TIME has elapsed
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
+            next_amp: 250,
+            next_amp_time: router.block_info().time.seconds(),
+        })
+        .unwrap(),
+    };
+
+    let resp = router
+        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(
+        resp.to_string(),
+        format!(
+            "Amp coefficient cannot be changed more often than once per {} seconds",
+            MIN_AMP_CHANGING_TIME
+        )
+    );
+
+    // Start increasing amp
+    router.update_block(|b| {
+        b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME);
+    });
 
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&StablePoolParams { amp: 250 }).unwrap(),
+        params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
+            next_amp: 250,
+            next_amp_time: router.block_info().time.seconds() + MIN_AMP_CHANGING_TIME,
+        })
+        .unwrap(),
     };
 
     router
         .execute_contract(owner.clone(), pair.clone(), &msg, &[])
         .unwrap();
 
+    router.update_block(|b| {
+        b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME / 2);
+    });
+
     let res: ConfigResponse = router
         .wrap()
         .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
         .unwrap();
 
-    let params: StablePoolParams = from_binary(&res.params.unwrap()).unwrap();
+    let params: StablePoolConfig = from_binary(&res.params.unwrap()).unwrap();
 
-    assert_eq!(params.amp, 250);
+    assert_eq!(params.amp, Decimal::from_ratio(175u32, 1u32));
+
+    router.update_block(|b| {
+        b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME / 2);
+    });
+
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+        .unwrap();
+
+    let params: StablePoolConfig = from_binary(&res.params.unwrap()).unwrap();
+
+    assert_eq!(params.amp, Decimal::from_ratio(250u32, 1u32));
+
+    // Start decreasing amp
+    router.update_block(|b| {
+        b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME);
+    });
+
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
+            next_amp: 50,
+            next_amp_time: router.block_info().time.seconds() + MIN_AMP_CHANGING_TIME,
+        })
+        .unwrap(),
+    };
+
+    router
+        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
+        .unwrap();
+
+    router.update_block(|b| {
+        b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME / 2);
+    });
+
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+        .unwrap();
+
+    let params: StablePoolConfig = from_binary(&res.params.unwrap()).unwrap();
+
+    assert_eq!(params.amp, Decimal::from_ratio(150u32, 1u32));
+
+    // Stop changing amp
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&StablePoolUpdateParams::StopChangingAmp {}).unwrap(),
+    };
+
+    router
+        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
+        .unwrap();
+
+    router.update_block(|b| {
+        b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME / 2);
+    });
+
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+        .unwrap();
+
+    let params: StablePoolConfig = from_binary(&res.params.unwrap()).unwrap();
+
+    assert_eq!(params.amp, Decimal::from_ratio(150u32, 1u32));
 }

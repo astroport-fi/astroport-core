@@ -5,26 +5,6 @@
     {
       "type": "object",
       "required": [
-        "update_config"
-      ],
-      "properties": {
-        "update_config": {
-          "type": "object",
-          "properties": {
-            "owner": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "claim"
       ],
       "properties": {

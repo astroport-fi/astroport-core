@@ -12,16 +12,17 @@ use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{addr_validate_to_lower, format_lp_token_name, Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
-use astroport::pair::ConfigResponse;
+use astroport::pair::{ConfigResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
-    QueryMsg, ReverseSimulationResponse, SimulationResponse,
+    QueryMsg, ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
+use std::str::FromStr;
 use std::vec;
 
 // version info for migration info
@@ -295,7 +296,7 @@ pub fn provide_liquidity(
         )
     } else {
         // assert slippage tolerance
-        assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
+        assert_slippage_tolerance(slippage_tolerance, &deposits, &pools)?;
 
         // min(1, 2)
         // 1. sqrt(deposit_0 * exchange_rate_0_to_1 * deposit_0) * (total_share / sqrt(pool_0 * pool_1))
@@ -321,7 +322,7 @@ pub fn provide_liquidity(
 
     // Accumulate prices for oracle
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
-        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)
+        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)?
     {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
@@ -404,7 +405,7 @@ pub fn withdraw_liquidity(
 
     // Accumulate prices for oracle
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
-        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)
+        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)?
     {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
@@ -555,7 +556,7 @@ pub fn swap(
 
     // Accumulate prices for oracle
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
-        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)
+        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)?
     {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
@@ -587,29 +588,34 @@ pub fn accumulate_prices(
     config: &Config,
     x: Uint128,
     y: Uint128,
-) -> Option<(Uint128, Uint128, u64)> {
+) -> StdResult<Option<(Uint128, Uint128, u64)>> {
     let block_time = env.block.time.seconds();
     if block_time <= config.block_time_last {
-        return None;
+        return Ok(None);
     }
 
     // we have to shift block_time when any price is zero to not fill an accumulator with a new price to that period
 
-    let time_elapsed = Uint128::new((block_time - config.block_time_last) as u128);
+    let time_elapsed = Uint128::from(block_time - config.block_time_last);
 
     let mut pcl0 = config.price0_cumulative_last;
     let mut pcl1 = config.price1_cumulative_last;
 
     if !x.is_zero() && !y.is_zero() {
-        pcl0 = config
-            .price0_cumulative_last
-            .wrapping_add(time_elapsed * Decimal::from_ratio(y, x));
-        pcl1 = config
-            .price1_cumulative_last
-            .wrapping_add(time_elapsed * Decimal::from_ratio(x, y))
+        let price_precision = Uint128::from(10u128.pow(TWAP_PRECISION.into()));
+        pcl0 = config.price0_cumulative_last.wrapping_add(
+            time_elapsed
+                .checked_mul(price_precision)?
+                .multiply_ratio(y, x),
+        );
+        pcl1 = config.price1_cumulative_last.wrapping_add(
+            time_elapsed
+                .checked_mul(price_precision)?
+                .multiply_ratio(x, y),
+        );
     };
 
-    Some((pcl0, pcl1, block_time))
+    Ok(Some((pcl0, pcl1, block_time)))
 }
 
 pub fn calculate_maker_fee(
@@ -761,7 +767,7 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
     let mut price1_cumulative_last = config.price1_cumulative_last;
 
     if let Some((price0_cumulative_new, price1_cumulative_new, _)) =
-        accumulate_prices(env, &config, assets[0].amount, assets[1].amount)
+        accumulate_prices(env, &config, assets[0].amount, assets[1].amount)?
     {
         price0_cumulative_last = price0_cumulative_new;
         price1_cumulative_last = price1_cumulative_new;
@@ -860,7 +866,15 @@ pub fn assert_max_spread(
     return_amount: Uint128,
     spread_amount: Uint128,
 ) -> Result<(), ContractError> {
-    if let (Some(max_spread), Some(belief_price)) = (max_spread, belief_price) {
+    let default_spread = Decimal::from_str(DEFAULT_SLIPPAGE)?;
+    let max_allowed_spread = Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?;
+
+    let max_spread = max_spread.unwrap_or(default_spread);
+    if max_spread.gt(&max_allowed_spread) {
+        return Err(ContractError::AllowedSpreadAssertion {});
+    }
+
+    if let Some(belief_price) = belief_price {
         let expected_return =
             offer_amount * Decimal::from(Decimal256::one() / Decimal256::from(belief_price));
         let spread_amount = expected_return
@@ -872,38 +886,38 @@ pub fn assert_max_spread(
         {
             return Err(ContractError::MaxSpreadAssertion {});
         }
-    } else if let Some(max_spread) = max_spread {
-        if Decimal::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
-            return Err(ContractError::MaxSpreadAssertion {});
-        }
+    } else if Decimal::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
+        return Err(ContractError::MaxSpreadAssertion {});
     }
 
     Ok(())
 }
 
 fn assert_slippage_tolerance(
-    slippage_tolerance: &Option<Decimal>,
+    slippage_tolerance: Option<Decimal>,
     deposits: &[Uint128; 2],
     pools: &[Asset; 2],
 ) -> Result<(), ContractError> {
-    if let Some(slippage_tolerance) = *slippage_tolerance {
-        let slippage_tolerance: Decimal256 = slippage_tolerance.into();
-        if slippage_tolerance > Decimal256::one() {
-            return Err(StdError::generic_err("slippage_tolerance cannot bigger than 1").into());
-        }
+    let default_slippage = Decimal::from_str(DEFAULT_SLIPPAGE)?;
+    let max_allowed_slippage = Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?;
 
-        let one_minus_slippage_tolerance = Decimal256::one() - slippage_tolerance;
-        let deposits: [Uint256; 2] = [deposits[0].into(), deposits[1].into()];
-        let pools: [Uint256; 2] = [pools[0].amount.into(), pools[1].amount.into()];
+    let slippage_tolerance = slippage_tolerance.unwrap_or(default_slippage);
+    if slippage_tolerance.gt(&max_allowed_slippage) {
+        return Err(ContractError::AllowedSpreadAssertion {});
+    }
 
-        // Ensure each prices are not dropped as much as slippage tolerance rate
-        if Decimal256::from_ratio(deposits[0], deposits[1]) * one_minus_slippage_tolerance
-            > Decimal256::from_ratio(pools[0], pools[1])
-            || Decimal256::from_ratio(deposits[1], deposits[0]) * one_minus_slippage_tolerance
-                > Decimal256::from_ratio(pools[1], pools[0])
-        {
-            return Err(ContractError::MaxSlippageAssertion {});
-        }
+    let slippage_tolerance: Decimal256 = slippage_tolerance.into();
+    let one_minus_slippage_tolerance = Decimal256::one() - slippage_tolerance;
+    let deposits: [Uint256; 2] = [deposits[0].into(), deposits[1].into()];
+    let pools: [Uint256; 2] = [pools[0].amount.into(), pools[1].amount.into()];
+
+    // Ensure each prices are not dropped as much as slippage tolerance rate
+    if Decimal256::from_ratio(deposits[0], deposits[1]) * one_minus_slippage_tolerance
+        > Decimal256::from_ratio(pools[0], pools[1])
+        || Decimal256::from_ratio(deposits[1], deposits[0]) * one_minus_slippage_tolerance
+            > Decimal256::from_ratio(pools[1], pools[0])
+    {
+        return Err(ContractError::MaxSlippageAssertion {});
     }
 
     Ok(())

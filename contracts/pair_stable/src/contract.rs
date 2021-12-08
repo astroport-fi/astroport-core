@@ -1,5 +1,7 @@
 use crate::error::ContractError;
-use crate::math::{calc_amount, compute_d, N_COINS};
+use crate::math::{
+    calc_amount, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME, N_COINS,
+};
 use crate::state::{Config, CONFIG};
 
 use cosmwasm_bignumber::Decimal256;
@@ -14,11 +16,14 @@ use astroport::asset::{addr_validate_to_lower, format_lp_token_name, Asset, Asse
 use astroport::factory::PairType;
 
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
-use astroport::pair::{ConfigResponse, InstantiateMsg, StablePoolParams};
+use astroport::pair::{
+    ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams, DEFAULT_SLIPPAGE,
+    MAX_ALLOWED_SLIPPAGE, TWAP_PRECISION,
+};
 
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
-    ReverseSimulationResponse, SimulationResponse,
+    ReverseSimulationResponse, SimulationResponse, StablePoolConfig,
 };
 use astroport::querier::{
     query_factory_config, query_fee_info, query_supply, query_token_precision,
@@ -28,6 +33,7 @@ use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
 use std::cmp::Ordering;
+use std::str::FromStr;
 use std::vec;
 
 // version info for migration info
@@ -55,6 +61,10 @@ pub fn instantiate(
 
     let params: StablePoolParams = from_binary(&msg.init_params.unwrap())?;
 
+    if params.amp == 0 || params.amp > MAX_AMP {
+        return Err(ContractError::IncorrectAmp {});
+    }
+
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
@@ -68,7 +78,10 @@ pub fn instantiate(
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
-        amp: params.amp,
+        init_amp: params.amp * AMP_PRECISION,
+        init_amp_time: env.block.time.seconds(),
+        next_amp: params.amp * AMP_PRECISION,
+        next_amp_time: env.block.time.seconds(),
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -132,7 +145,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::UpdateConfig { params } => update_config(deps, info, params),
+        ExecuteMsg::UpdateConfig { params } => update_config(deps, env, info, params),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ProvideLiquidity {
             assets,
@@ -329,7 +342,9 @@ pub fn provide_liquidity(
             liquidity_token_precision,
         )?
     } else {
-        let leverage = config.amp.checked_mul(u64::from(N_COINS)).unwrap();
+        let leverage = compute_current_amp(&config, &env)?
+            .checked_mul(u64::from(N_COINS))
+            .unwrap();
 
         let mut pool_amount_0 =
             adjust_precision(pools[0].amount, token_precision_0, greater_precision)?;
@@ -584,7 +599,7 @@ pub fn swap(
         query_token_precision(&deps.querier, ask_pool.info.clone())?,
         offer_amount,
         fee_info.total_fee_rate,
-        config.amp,
+        compute_current_amp(&config, &env)?,
     )?;
 
     // check max spread limit if exist
@@ -671,28 +686,29 @@ pub fn accumulate_prices(
 
     // we have to shift block_time when any price is zero to not fill an accumulator with a new price to that period
 
-    let greater_precision = x_precision.max(y_precision);
+    let greater_precision = x_precision.max(y_precision).max(TWAP_PRECISION);
     let x = adjust_precision(x, x_precision, greater_precision)?;
     let y = adjust_precision(y, y_precision, greater_precision)?;
 
-    let time_elapsed = Uint128::new((block_time - config.block_time_last) as u128);
+    let time_elapsed = Uint128::from(block_time - config.block_time_last);
 
     let mut pcl0 = config.price0_cumulative_last;
     let mut pcl1 = config.price1_cumulative_last;
 
     if !x.is_zero() && !y.is_zero() {
+        let current_amp = compute_current_amp(config, &env)?;
         pcl0 = config.price0_cumulative_last.wrapping_add(adjust_precision(
             time_elapsed.checked_mul(Uint128::new(
                 calc_amount(
                     x.u128(),
                     y.u128(),
                     adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
-                    config.amp,
+                    current_amp,
                 )
                 .unwrap(),
             ))?,
             greater_precision,
-            0,
+            TWAP_PRECISION,
         )?);
         pcl1 = config.price1_cumulative_last.wrapping_add(adjust_precision(
             time_elapsed.checked_mul(Uint128::new(
@@ -700,12 +716,12 @@ pub fn accumulate_prices(
                     y.u128(),
                     x.u128(),
                     adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
-                    config.amp,
+                    current_amp,
                 )
                 .unwrap(),
             ))?,
             greater_precision,
-            0,
+            TWAP_PRECISION,
         )?)
     };
 
@@ -734,12 +750,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Pair {} => to_binary(&query_pair_info(deps)?),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
         QueryMsg::Share { amount } => to_binary(&query_share(deps, amount)?),
-        QueryMsg::Simulation { offer_asset } => to_binary(&query_simulation(deps, offer_asset)?),
+        QueryMsg::Simulation { offer_asset } => {
+            to_binary(&query_simulation(deps, env, offer_asset)?)
+        }
         QueryMsg::ReverseSimulation { ask_asset } => {
-            to_binary(&query_reverse_simulation(deps, ask_asset)?)
+            to_binary(&query_reverse_simulation(deps, env, ask_asset)?)
         }
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
     }
 }
 
@@ -768,7 +786,7 @@ pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<[Asset; 2]> {
     Ok(refund_assets)
 }
 
-pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationResponse> {
+pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<SimulationResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let contract_addr = config.pair_info.contract_addr.clone();
 
@@ -802,7 +820,7 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
         query_token_precision(&deps.querier, ask_pool.info)?,
         offer_asset.amount,
         fee_info.total_fee_rate,
-        config.amp,
+        compute_current_amp(&config, &env)?,
     )?;
 
     Ok(SimulationResponse {
@@ -814,6 +832,7 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
 
 pub fn query_reverse_simulation(
     deps: Deps,
+    env: Env,
     ask_asset: Asset,
 ) -> StdResult<ReverseSimulationResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
@@ -849,7 +868,7 @@ pub fn query_reverse_simulation(
         query_token_precision(&deps.querier, ask_pool.info)?,
         ask_asset.amount,
         fee_info.total_fee_rate,
-        config.amp,
+        compute_current_amp(&config, &env)?,
     )?;
 
     Ok(ReverseSimulationResponse {
@@ -866,14 +885,14 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
     let mut price0_cumulative_last = config.price0_cumulative_last;
     let mut price1_cumulative_last = config.price1_cumulative_last;
 
-    if let Ok(Some((price0_cumulative_new, price1_cumulative_new, _))) = accumulate_prices(
+    if let Some((price0_cumulative_new, price1_cumulative_new, _)) = accumulate_prices(
         env,
         &config,
         assets[0].amount,
         query_token_precision(&deps.querier, assets[0].info.clone())?,
         assets[1].amount,
         query_token_precision(&deps.querier, assets[1].info.clone())?,
-    ) {
+    )? {
         price0_cumulative_last = price0_cumulative_new;
         price1_cumulative_last = price1_cumulative_new;
     }
@@ -888,11 +907,13 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
     Ok(resp)
 }
 
-pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
-        params: Some(to_binary(&StablePoolParams { amp: config.amp })?),
+        params: Some(to_binary(&StablePoolConfig {
+            amp: Decimal::from_ratio(compute_current_amp(&config, &env)?, AMP_PRECISION),
+        })?),
     })
 }
 
@@ -1006,7 +1027,15 @@ pub fn assert_max_spread(
     return_amount: Uint128,
     spread_amount: Uint128,
 ) -> Result<(), ContractError> {
-    if let (Some(max_spread), Some(belief_price)) = (max_spread, belief_price) {
+    let default_spread = Decimal::from_str(DEFAULT_SLIPPAGE)?;
+    let max_allowed_spread = Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?;
+
+    let max_spread = max_spread.unwrap_or(default_spread);
+    if max_spread.gt(&max_allowed_spread) {
+        return Err(ContractError::AllowedSpreadAssertion {});
+    }
+
+    if let Some(belief_price) = belief_price {
         let expected_return =
             offer_amount * Decimal::from(Decimal256::one() / Decimal256::from(belief_price));
         let spread_amount = expected_return
@@ -1018,10 +1047,8 @@ pub fn assert_max_spread(
         {
             return Err(ContractError::MaxSpreadAssertion {});
         }
-    } else if let Some(max_spread) = max_spread {
-        if Decimal::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
-            return Err(ContractError::MaxSpreadAssertion {});
-        }
+    } else if Decimal::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
+        return Err(ContractError::MaxSpreadAssertion {});
     }
 
     Ok(())
@@ -1051,21 +1078,104 @@ pub fn pool_info(deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)>
 
 pub fn update_config(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     params: Binary,
 ) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     let factory_config = query_factory_config(&deps.querier, config.factory_addr.clone())?;
 
     if info.sender != factory_config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
-    let params: StablePoolParams = from_binary(&params)?;
+    match from_binary::<StablePoolUpdateParams>(&params)? {
+        StablePoolUpdateParams::StartChangingAmp {
+            next_amp,
+            next_amp_time,
+        } => start_changing_amp(config, deps, env, next_amp, next_amp_time)?,
+        StablePoolUpdateParams::StopChangingAmp {} => stop_changing_amp(config, deps, env)?,
+    }
 
-    config.amp = params.amp;
+    Ok(Response::default())
+}
+
+fn start_changing_amp(
+    mut config: Config,
+    deps: DepsMut,
+    env: Env,
+    next_amp: u64,
+    next_amp_time: u64,
+) -> Result<(), ContractError> {
+    if next_amp == 0 || next_amp > MAX_AMP {
+        return Err(ContractError::IncorrectAmp {});
+    }
+
+    let current_amp = compute_current_amp(&config, &env)?;
+
+    let next_amp_with_precision = next_amp * AMP_PRECISION;
+
+    if next_amp_with_precision * MAX_AMP_CHANGE < current_amp
+        || next_amp_with_precision > current_amp * MAX_AMP_CHANGE
+    {
+        return Err(ContractError::MaxAmpChangeAssertion {});
+    }
+
+    let block_time = env.block.time.seconds();
+
+    if block_time < config.init_amp_time + MIN_AMP_CHANGING_TIME
+        || next_amp_time < block_time + MIN_AMP_CHANGING_TIME
+    {
+        return Err(ContractError::MinAmpChangingTimeAssertion {});
+    }
+
+    config.init_amp = current_amp;
+    config.next_amp = next_amp_with_precision;
+    config.init_amp_time = block_time;
+    config.next_amp_time = next_amp_time;
 
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::default())
+    Ok(())
+}
+
+fn stop_changing_amp(mut config: Config, deps: DepsMut, env: Env) -> StdResult<()> {
+    let current_amp = compute_current_amp(&config, &env)?;
+    let block_time = env.block.time.seconds();
+
+    config.init_amp = current_amp;
+    config.next_amp = current_amp;
+    config.init_amp_time = block_time;
+    config.next_amp_time = block_time;
+    // now (block_time < next_amp_time) is always False, so we return saved Amp
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(())
+}
+
+/// Compute actual amplification coefficient (A)
+fn compute_current_amp(config: &Config, env: &Env) -> StdResult<u64> {
+    let block_time = env.block.time.seconds();
+
+    if block_time < config.next_amp_time {
+        let elapsed_time =
+            Uint128::from(block_time).checked_sub(Uint128::from(config.init_amp_time))?;
+        let time_range =
+            Uint128::from(config.next_amp_time).checked_sub(Uint128::from(config.init_amp_time))?;
+        let init_amp = Uint128::from(config.init_amp);
+        let next_amp = Uint128::from(config.next_amp);
+
+        if config.next_amp > config.init_amp {
+            let amp_range = next_amp - init_amp;
+            let res = init_amp + (amp_range * elapsed_time).checked_div(time_range)?;
+            Ok(res.u128() as u64)
+        } else {
+            let amp_range = init_amp - next_amp;
+            let res = init_amp - (amp_range * elapsed_time).checked_div(time_range)?;
+            Ok(res.u128() as u64)
+        }
+    } else {
+        Ok(config.next_amp)
+    }
 }

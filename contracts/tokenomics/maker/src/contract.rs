@@ -1,15 +1,15 @@
 use crate::error::ContractError;
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, CONFIG, OWNERSHIP_PROPOSAL};
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo, PairInfo};
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
-use astroport::maker::{
-    ExecuteMsg, InstantiateMsg, QueryBalancesResponse, QueryConfigResponse, QueryMsg,
-};
+use astroport::maker::{BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use astroport::pair::{Cw20HookMsg, QueryMsg as PairQueryMsg};
 use astroport::querier::query_pair_info;
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
-    QueryRequest, Reply, ReplyOn, Response, StdResult, SubMsg, Uint128, Uint64, WasmMsg, WasmQuery,
+    attr, entry_point, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, Env,
+    MessageInfo, QueryRequest, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
+    Uint64, WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
 use std::collections::HashMap;
@@ -17,6 +17,8 @@ use std::collections::HashMap;
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-maker";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+const DEFAULT_MAX_SPREAD: u64 = 5; // 5%
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -41,6 +43,16 @@ pub fn instantiate(
         Uint64::zero()
     };
 
+    let max_spread = if let Some(max_spread) = msg.max_spread {
+        if max_spread.gt(&Decimal::one()) {
+            return Err(ContractError::IncorrectMaxSpread {});
+        };
+
+        max_spread
+    } else {
+        Decimal::percent(DEFAULT_MAX_SPREAD)
+    };
+
     let cfg = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         astro_token_contract: addr_validate_to_lower(deps.api, &msg.astro_token_contract)?,
@@ -48,6 +60,7 @@ pub fn instantiate(
         staking_contract: addr_validate_to_lower(deps.api, &msg.staking_contract)?,
         governance_contract,
         governance_percent,
+        max_spread,
     };
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -64,20 +77,51 @@ pub fn execute(
     match msg {
         ExecuteMsg::Collect { pair_addresses } => collect(deps, env, pair_addresses),
         ExecuteMsg::UpdateConfig {
-            owner,
             factory_contract,
             staking_contract,
             governance_contract,
             governance_percent,
+            max_spread,
         } => update_config(
             deps,
             info,
-            owner,
             factory_contract,
             staking_contract,
             governance_contract,
             governance_percent,
+            max_spread,
         ),
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                owner,
+                expires_in,
+                config.owner,
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(|e| e.into())
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
+                .map_err(|e| e.into())
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
+                    v.owner = new_owner;
+                    Ok(v)
+                })?;
+
+                Ok(())
+            })
+            .map_err(|e| e.into())
+        }
     }
 }
 
@@ -217,7 +261,7 @@ fn swap_to_astro(
             msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
                 offer_asset,
                 belief_price: None,
-                max_spread: None,
+                max_spread: Some(cfg.max_spread),
                 to: None,
             })?,
             funds: vec![Coin {
@@ -233,7 +277,7 @@ fn swap_to_astro(
                 amount: amount_in,
                 msg: to_binary(&Cw20HookMsg::Swap {
                     belief_price: None,
-                    max_spread: None,
+                    max_spread: Some(cfg.max_spread),
                     to: None,
                 })?,
             })?,
@@ -245,11 +289,11 @@ fn swap_to_astro(
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
-    owner: Option<String>,
     factory_contract: Option<String>,
     staking_contract: Option<String>,
     governance_contract: Option<UpdateAddr>,
     governance_percent: Option<Uint64>,
+    max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     let mut attributes = vec![attr("action", "set_config")];
 
@@ -258,12 +302,6 @@ fn update_config(
     // permission check
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
-    }
-
-    if let Some(owner) = owner {
-        // validate address format
-        config.owner = addr_validate_to_lower(deps.api, owner.as_str())?;
-        attributes.push(Attribute::new("owner", &owner));
     }
 
     if let Some(factory_contract) = factory_contract {
@@ -297,6 +335,15 @@ fn update_config(
         attributes.push(Attribute::new("governance_percent", governance_percent));
     };
 
+    if let Some(max_spread) = max_spread {
+        if max_spread.gt(&Decimal::one()) {
+            return Err(ContractError::IncorrectMaxSpread {});
+        };
+
+        config.max_spread = max_spread;
+        attributes.push(Attribute::new("max_spread", max_spread.to_string()));
+    };
+
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_attributes(attributes))
@@ -310,24 +357,21 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_get_config(deps: Deps) -> StdResult<QueryConfigResponse> {
+fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
-    Ok(QueryConfigResponse {
+    Ok(ConfigResponse {
         owner: config.owner,
         factory_contract: config.factory_contract,
         staking_contract: config.staking_contract,
         governance_contract: config.governance_contract,
         governance_percent: config.governance_percent,
         astro_token_contract: config.astro_token_contract,
+        max_spread: config.max_spread,
     })
 }
 
-fn query_get_balances(
-    deps: Deps,
-    env: Env,
-    assets: Vec<AssetInfo>,
-) -> StdResult<QueryBalancesResponse> {
-    let mut resp = QueryBalancesResponse { balances: vec![] };
+fn query_get_balances(deps: Deps, env: Env, assets: Vec<AssetInfo>) -> StdResult<BalancesResponse> {
+    let mut resp = BalancesResponse { balances: vec![] };
 
     for a in assets {
         // Get Balance

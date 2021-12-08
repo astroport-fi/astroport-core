@@ -87,11 +87,9 @@ fn update_config() {
     assert_eq!(res.astro_token.to_string(), "contract #0");
     assert_eq!(res.vesting_contract.to_string(), "contract #1");
 
-    let new_owner = Addr::unchecked("new_owner");
     let new_vesting = Addr::unchecked("new_vesting");
 
     let msg = ExecuteMsg::UpdateConfig {
-        owner: Some(new_owner.to_string()),
         vesting_contract: Some(new_vesting.to_string()),
     };
 
@@ -121,8 +119,89 @@ fn update_config() {
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
 
-    assert_eq!(res.owner, new_owner);
     assert_eq!(res.vesting_contract, new_vesting);
+}
+
+#[test]
+fn update_owner() {
+    let mut app = mock_app();
+
+    let token_code_id = store_token_code(&mut app);
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
+
+    let new_owner = String::from("new_owner");
+
+    // new owner
+    let msg = ExecuteMsg::ProposeNewOwner {
+        owner: new_owner.clone(),
+        expires_in: 100, // seconds
+    };
+
+    // unauthorized check
+    let err = app
+        .execute_contract(
+            Addr::unchecked("not_owner"),
+            generator_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+
+    // claim before proposal
+    let err = app
+        .execute_contract(
+            Addr::unchecked(new_owner.clone()),
+            generator_instance.clone(),
+            &ExecuteMsg::ClaimOwnership {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Ownership proposal not found"
+    );
+
+    // propose new owner
+    app.execute_contract(
+        Addr::unchecked(OWNER),
+        generator_instance.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    // claim from invalid addr
+    let err = app
+        .execute_contract(
+            Addr::unchecked("invalid_addr"),
+            generator_instance.clone(),
+            &ExecuteMsg::ClaimOwnership {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+
+    // claim ownership
+    app.execute_contract(
+        Addr::unchecked(new_owner.clone()),
+        generator_instance.clone(),
+        &ExecuteMsg::ClaimOwnership {},
+        &[],
+    )
+    .unwrap();
+
+    // let's query the state
+    let msg = QueryMsg::Config {};
+    let res: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg)
+        .unwrap();
+
+    assert_eq!(res.owner.to_string(), new_owner)
 }
 
 #[test]
@@ -1023,7 +1102,6 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
     let vesting_code_id = app.store_code(vesting_contract);
 
     let init_msg = VestingInstantiateMsg {
-        owner: owner.to_string(),
         token_addr: astro_token_instance.to_string(),
     };
 

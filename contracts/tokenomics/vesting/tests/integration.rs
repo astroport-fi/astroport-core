@@ -1,4 +1,4 @@
-use astroport::vesting::{ConfigResponse, QueryMsg, VestingAccountResponse};
+use astroport::vesting::{QueryMsg, VestingAccountResponse};
 use astroport::{
     token::InstantiateMsg as TokenInstantiateMsg,
     vesting::{
@@ -15,7 +15,6 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
 const OWNER1: &str = "owner1";
-const OWNER2: &str = "owner2";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
 const TOKEN_INITIAL_AMOUNT: u128 = 1_000_000_000_000000;
@@ -454,30 +453,6 @@ fn register_vesting_accounts() {
         &owner.clone(),
         TOKEN_INITIAL_AMOUNT - 310u128,
     );
-
-    let msg = ExecuteMsg::UpdateConfig {
-        owner: Some(USER1.to_string()),
-    };
-
-    let res = app
-        .execute_contract(user1.clone(), vesting_instance.clone(), &msg, &[])
-        .unwrap_err();
-    assert_eq!(res.to_string(), "Unauthorized");
-
-    let msg = ExecuteMsg::UpdateConfig {
-        owner: Some(OWNER2.to_string()),
-    };
-
-    let _res = app
-        .execute_contract(owner.clone(), vesting_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = QueryMsg::Config {};
-    let config: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(vesting_instance.clone(), &msg)
-        .unwrap();
-    assert_eq!(OWNER2, config.owner);
 }
 
 fn mock_app() -> App {
@@ -535,7 +510,6 @@ fn instantiate_vesting(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
     let vesting_code_id = app.store_code(vesting_contract);
 
     let init_msg = InstantiateMsg {
-        owner: owner.to_string(),
         token_addr: astro_token_instance.to_string(),
     };
 
@@ -554,7 +528,6 @@ fn instantiate_vesting(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
         .wrap()
         .query_wasm_smart(vesting_instance.clone(), &QueryMsg::Config {})
         .unwrap();
-    assert_eq!(OWNER1.clone(), res.owner);
     assert_eq!(astro_token_instance.to_string(), res.token_addr.to_string());
 
     mint_tokens(

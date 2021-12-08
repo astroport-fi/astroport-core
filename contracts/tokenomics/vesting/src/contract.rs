@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
+    Response, StdError, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 
 use crate::state::{read_vesting_infos, Config, CONFIG, VESTING_INFO};
@@ -30,7 +30,6 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: addr_validate_to_lower(deps.api, &msg.owner)?,
             token_addr: addr_validate_to_lower(deps.api, &msg.token_addr)?,
         },
     )?;
@@ -47,29 +46,8 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Claim { recipient, amount } => claim(deps, env, info, recipient, amount),
-        ExecuteMsg::UpdateConfig { owner } => update_config(deps, info, owner),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
     }
-}
-
-pub fn update_config(
-    deps: DepsMut,
-    info: MessageInfo,
-    owner: Option<String>,
-) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
-
-    if config.owner != info.sender {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    if let Some(owner) = owner {
-        config.owner = addr_validate_to_lower(deps.api, &owner)?;
-    }
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new().add_attribute("action", "update_config"))
 }
 
 fn receive_cw20(
@@ -109,11 +87,12 @@ pub fn register_vesting_accounts(
         assert_vesting_schedules(&account_address, &vesting_account.schedules)?;
 
         for sch in &vesting_account.schedules {
-            to_deposit += if let Some(end_point) = &sch.end_point {
+            let amount = if let Some(end_point) = &sch.end_point {
                 end_point.amount
             } else {
                 sch.start_point.amount
-            }
+            };
+            to_deposit = to_deposit.checked_add(amount)?;
         }
 
         if let Some(mut old_info) = VESTING_INFO.may_load(deps.storage, &account_address)? {
@@ -225,12 +204,11 @@ fn compute_available_amount(
                 current_time.min(end_point.time).seconds() - sch.start_point.time.seconds();
             let time_period = end_point.time.seconds() - sch.start_point.time.seconds();
             if passed_time != 0 && time_period != 0 {
-                let release_amount_per_second: Decimal = Decimal::from_ratio(
+                let release_amount = Uint128::from(passed_time).multiply_ratio(
                     end_point.amount.checked_sub(sch.start_point.amount)?,
                     time_period,
                 );
-
-                available_amount += Uint128::new(passed_time as u128) * release_amount_per_second;
+                available_amount = available_amount.checked_add(release_amount)?;
             }
         }
     }
@@ -266,7 +244,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
-        owner: config.owner,
         token_addr: config.token_addr,
     };
 
