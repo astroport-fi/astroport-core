@@ -658,7 +658,7 @@ fn try_native_to_token() {
             amount: offer_amount,
         },
         belief_price: None,
-        max_spread: None,
+        max_spread: Some(Decimal::percent(50)),
         to: None,
     };
     let env = mock_env_with_block_time(1000);

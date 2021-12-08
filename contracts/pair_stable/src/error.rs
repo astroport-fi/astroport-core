@@ -19,6 +19,9 @@ pub enum ContractError {
     #[error("Insufficient amount of Liquidity")]
     LiquidityAmountTooSmall {},
 
+    #[error("Provided spread amount exceeds allowed limit")]
+    AllowedSpreadAssertion {},
+
     #[error("Operation exceeds max spread limit")]
     MaxSpreadAssertion {},
 
