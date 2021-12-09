@@ -1,5 +1,6 @@
 use astroport::common::OwnershipProposal;
-use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
+use astroport::DecimalCheckedOps;
+use cosmwasm_std::{Addr, Decimal, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,9 +17,9 @@ pub struct UserInfo {
 pub struct PoolInfo {
     pub alloc_point: Uint64,
     pub last_reward_block: Uint64,
-    pub acc_per_share: Decimal,
+    pub accumulated_rewards_per_share: Decimal,
     pub reward_proxy: Option<Addr>,
-    pub acc_per_share_on_proxy: Decimal,
+    pub accumulated_proxy_rewards_per_share: Decimal,
     // for calculation of new proxy rewards
     pub proxy_reward_balance_before_update: Uint128,
     /// Orphan proxy rewards which are left by emergency withdrawals
@@ -79,3 +80,35 @@ pub const TMP_USER_ACTION: Item<Option<ExecuteOnReply>> = Item::new("tmp_user_ac
 // first key part is token, second - depositor
 pub const USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
+
+pub fn get_pools(store: &dyn Storage) -> Vec<(Addr, PoolInfo)> {
+    POOL_INFO
+        .range(store, None, None, cosmwasm_std::Order::Ascending)
+        .filter_map(|v| {
+            v.ok()
+                .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
+        })
+        .collect()
+}
+
+pub fn update_user_balance(
+    mut user: UserInfo,
+    pool: &PoolInfo,
+    amount: Uint128,
+) -> StdResult<UserInfo> {
+    user.amount = amount;
+
+    if !pool.accumulated_rewards_per_share.is_zero() {
+        user.reward_debt = pool
+            .accumulated_rewards_per_share
+            .checked_mul(user.amount)?;
+    };
+
+    if !pool.accumulated_proxy_rewards_per_share.is_zero() {
+        user.reward_debt_proxy = pool
+            .accumulated_proxy_rewards_per_share
+            .checked_mul(user.amount)?;
+    };
+
+    Ok(user)
+}
