@@ -1,4 +1,4 @@
-import { toEncodedBinary } from "./helpers";
+import { toEncodedBinary } from "./helpers.js";
 
 export const configDefault: Config = {
     stakingInitMsg: {

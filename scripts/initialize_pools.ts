@@ -5,11 +5,10 @@ import {
     readArtifact,
     deployContract,
     executeContract,
-    uploadContract, Client, instantiateContract, queryContract,
+    queryContract,
 } from './helpers.js'
 import { configDefault } from './deploy_configs.js'
 import { join } from 'path'
-import { config } from 'dotenv'
 
 const ARTIFACTS_PATH = '../artifacts'
 
@@ -51,10 +50,12 @@ async function main() {
         if (pool.initOracle && network[pool_pair_key] && !network[pool_oracle_key]) {
             console.log(`Deploying oracle for ${pool.identifier}...`)
 
-            network[pool_oracle_key] = await deployContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_oracle.wasm'), {
+            let resp = await deployContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_oracle.wasm'), {
                 factory_contract: network.factoryAddress,
                 asset_infos: pool.assetInfos
             })
+            network[pool_oracle_key] = resp.shift();
+
             console.log(`Address of ${pool.identifier} oracle contract: ${network[pool_oracle_key]}`)
             writeArtifact(network, terra.config.chainID)
         }
@@ -66,13 +67,14 @@ async function main() {
             if (pool.initGenerator.generatorProxy) {
                 // Deploy proxy contract
                 console.log(`Deploying generator proxy for ${pool.identifier}...`)
-                network[pool_generator_proxy_key] = await deployContract(terra, wallet, join(ARTIFACTS_PATH, pool.initGenerator.generatorProxy.artifactName), {
+                let resp = await deployContract(terra, wallet, join(ARTIFACTS_PATH, pool.initGenerator.generatorProxy.artifactName), {
                     generator_contract_addr: network.generatorAddress,
                     pair_addr: network[pool_pair_key],
                     lp_token_addr: network[pool_lp_token_key],
                     reward_contract_addr: pool.initGenerator.generatorProxy.rewardContractAddr,
                     reward_token_addr: pool.initGenerator.generatorProxy.rewardTokenAddr
                 })
+                network[pool_generator_proxy_key] = resp.shift();
                 console.log(`Address of ${pool.identifier} generator proxy contract ${network[pool_generator_proxy_key]}`)
 
                 // Set generator proxy as allowed
