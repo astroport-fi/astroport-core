@@ -1,3 +1,5 @@
+import { toEncodedBinary } from "./helpers";
+
 export const configDefault: Config = {
     stakingInitMsg: {
         config: {
@@ -53,5 +55,89 @@ export const configDefault: Config = {
                 }
             ]
         }
-    }
+    },
+    initialPools: [
+        {
+            identifier: "AstroUst",
+            assetInfos: [
+                {
+                    token: {
+                        contract_addr: ""
+                    }
+                },
+                {
+                    native_token: { denom: "uusd" }
+                }
+            ],
+            pairType: { xyk: {} }
+        },
+        {
+            identifier: "LunaUst",
+            assetInfos: [
+                {
+                    native_token: { denom: "uluna" }
+                },
+                {
+                    native_token: { denom: "uusd" }
+                }
+            ],
+            pairType: { stable: {} },
+            initParams: toEncodedBinary({ amp: 100 })
+        },
+        {
+            identifier: "AncUst",
+            assetInfos: [
+                {
+                    token: {
+                        contract_addr: "terra1747mad58h0w4y589y3sk84r5efqdev9q4r02pc"
+                    }
+                },
+                {
+                    native_token: { denom: "uusd" }
+                }
+            ],
+            pairType: { xyk: {} },
+            initGenerator: {
+                generatorAllocPoint: 1000000
+            }
+        },
+        {
+            identifier: "MirUst",
+            assetInfos: [
+                {
+                    token: {
+                        contract_addr: "terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u"
+                    }
+                },
+                {
+                    native_token: { denom: "uusd" }
+                }
+            ],
+            pairType: { xyk: {} },
+            initOracle: true,
+            initGenerator: {
+                generatorAllocPoint: 1000000,
+                generatorProxy: {
+                    artifactName: "astroport_generator_proxy_to_mirror.wasm",
+                    rewardContractAddr: "terra1a06dgl27rhujjphsn4drl242ufws267qxypptx",
+                    rewardTokenAddr: "terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u"
+                }
+            }
+        },
+        {
+            identifier: "BlunaLuna",
+            assetInfos: [
+                {
+                    token: {
+                        contract_addr: "terra1u0t35drzyy0mujj8rkdyzhe264uls4ug3wdp3x"
+                    }
+                },
+                {
+                    native_token: { denom: "uusd" }
+                }
+            ],
+            pairType: { stable: {} },
+            initParams: toEncodedBinary({ amp: 100 })
+        }
+    ]
 }

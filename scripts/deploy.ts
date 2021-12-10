@@ -28,10 +28,12 @@ async function main() {
     if (!network.pairCodeID) {
         console.log('Register Pair Contract...')
         network.pairCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair.wasm')!)
+        writeArtifact(network, terra.config.chainID)
     }
     if (!network.pairStableCodeID) {
         console.log('Register Stable Pair Contract...')
         network.pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable.wasm')!)
+        writeArtifact(network, terra.config.chainID)
     }
 
     /*************************************** Deploy Vesting Contract *****************************************/
@@ -46,6 +48,7 @@ async function main() {
             },
         )
         console.log(`Address Vesting Contract: ${network.vestingAddress}`)
+        writeArtifact(network, terra.config.chainID)
     }
 
     /*************************************** Deploy Staking Contract *****************************************/
@@ -60,6 +63,7 @@ async function main() {
             deployConfig.stakingInitMsg.config
         )
         console.log(`Address Staking Contract: ${network.stakingAddress}`)
+        writeArtifact(network, terra.config.chainID)
     }
 
     /*************************************** Deploy Generator Contract *****************************************/
@@ -98,6 +102,7 @@ async function main() {
                 msg: toEncodedBinary(registerVestingAccounts)
             }
         })
+        writeArtifact(network, terra.config.chainID)
     }
 
     /*************************************** Deploy Factory Contract *****************************************/
@@ -116,6 +121,7 @@ async function main() {
             deployConfig.factoryInitMsg.config
         )
         console.log(`Address Factory Contract: ${network.factoryAddress}`)
+        writeArtifact(network, terra.config.chainID)
     }
 
     /*************************************** Deploy Router Contract *****************************************/
@@ -130,6 +136,7 @@ async function main() {
             },
         )
         console.log(`Address Router Contract: ${network.routerAddress}`)
+        writeArtifact(network, terra.config.chainID)
     }
 
     /*************************************** Deploy Maker Contract *****************************************/
@@ -147,6 +154,7 @@ async function main() {
             }
         )
         console.log(`Address Maker Contract: ${network.makerAddress}`)
+        writeArtifact(network, terra.config.chainID)
     }
 
     writeArtifact(network, terra.config.chainID)
