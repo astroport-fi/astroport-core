@@ -25,18 +25,24 @@ use cw2::set_contract_version;
 use protobuf::Message;
 use std::collections::HashSet;
 
-/// Contract name that is used when creating it.
+/// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-factory";
-/// Contract version that is used when creating it.
+/// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// A `reply` call code ID of sub-message.
 const INSTANTIATE_PAIR_REPLY_ID: u64 = 1;
 
 /// ## Description
-/// Creates a new contract with the specified parameters in the `msg` variable. The method returns the
-/// address of the contract if the creation was successful, or a [`ContractError`] if the contract was not created.
+/// Creates a new contract with the specified parameters in the `msg` variable.
+/// Returns the [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if the contract was not created
 /// ## Params
-/// `msg` it is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **_env** is the object of type [`Env`]
+///
+/// * **_info** is the object of type [`MessageInfo`]
+///
+/// * **msg**  is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -154,10 +160,17 @@ pub fn execute(
 }
 
 /// ## Description
-/// Updates general settings. Returns an [`ContractError`] on failure or the following [`Config`] data will be updated if successful.
+/// Updates general settings. Returns an [`ContractError`] on failure or the following [`Config`]
+/// data will be updated if successful.
 ///
 /// ## Params
-/// `param` it is an object of type [`UpdateConfig`] that contains information to update.
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **param** is the object of type [`UpdateConfig`] that contains information to update.
 ///
 /// ##Executor
 /// Only owner can execute it
@@ -198,7 +211,11 @@ pub fn execute_update_config(
 /// the following [`PairConfig`] data will be updated if successful.
 ///
 /// ## Params
-/// `pair_config` it is an object of type [`PairConfig`] that contains information to update.
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **info** is the object of type [`MessageInfo`]
+///
+/// * **pair_config** is the object of type [`PairConfig`] that contains information to update.
 ///
 /// ## Executor
 /// Only owner can execute it
@@ -233,13 +250,15 @@ pub fn execute_update_pair_config(
 /// returns the address of the contract if the creation was successful.
 ///
 /// ## Params
-/// `asset_infos` it is array with two items the type of [`AssetInfo`].
+/// * **deps** is the object of type [`DepsMut`].
 ///
-/// `init_params` it is an [`Option`] type.
+/// * **env** is the object of type [`Env`].
 ///
-/// ## Executor
-/// Anyone can execute it to create swap pair
+/// * **pair_type** is the object of type [`PairType`].
 ///
+/// * **asset_infos** is an array with two items the type of [`AssetInfo`].
+///
+/// * **init_params** is an [`Option`] type. Receive a binary data.
 pub fn execute_create_pair(
     deps: DepsMut,
     env: Env,
@@ -303,8 +322,14 @@ pub fn execute_create_pair(
         ]))
 }
 
-/// ## Description
+/// # Description
 /// The entry point to the contract for processing the reply from the submessage
+/// # Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **msg** is the object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let tmp = TMP_PAIR_INFO.load(deps.storage)?;
@@ -329,15 +354,19 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 }
 
 /// ## Description
-/// Removes a exists pair with the specified parameters in the `asset_infos` variable. Returns an [`ContractError`] on failure or
-/// returns the [`Response`] with the specified attributes if the operation was successful.
+/// Removes a exists pair with the specified parameters in the `asset_infos` variable.
+/// Returns an [`ContractError`] on failure or returns the [`Response`] with the specified attributes
+/// if the operation was successful.
 ///
 /// ## Params
-/// `asset_infos` it is array with two items the type of [`AssetInfo`].
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **asset_infos** are an array with two items the type of [`AssetInfo`].
 ///
 /// ## Executor
 /// Only owner can execute it
-///
 pub fn deregister(
     deps: DepsMut,
     info: MessageInfo,
@@ -375,6 +404,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 /// ## Description
 /// Returns controls settings that specified in custom [`ConfigResponse`] structure
+///
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
@@ -397,7 +429,9 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 /// ## Description
 /// Returns a pair with the specified parameters in the `asset_infos` variable.
 /// ## Params
-/// `asset_infos` it is array with two items the type of [`AssetInfo`].
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **asset_infos** it is array with two items the type of [`AssetInfo`].
 pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     query_pair_info(deps, &pair_addr)
@@ -406,8 +440,11 @@ pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo
 /// ## Description
 /// Returns an array of pairs according to the specified parameters in `start_after` and `limit` variables.
 /// ## Params
-/// `start_after` it is an [`Option`] type field that accepts an array with two items the type of [`AssetInfo`].
-/// `limit` it is a [`Option`] type. Sets the number of items to be read.
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **start_after** it is an [`Option`] type field that accepts an array with two items the type of [`AssetInfo`].
+///
+/// * **limit** it is a [`Option`] type. Sets the number of items to be read.
 pub fn query_pairs(
     deps: Deps,
     start_after: Option<[AssetInfo; 2]>,
@@ -424,7 +461,9 @@ pub fn query_pairs(
 /// ## Description
 /// Returns the settings specified in the custom structure [`FeeInfoResponse`] for the specified parameters in the `pair_type` variable.
 /// ## Params
-/// `pair_type` it is the type of pair available in [`PairType`]
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **pair_type** is the type of pair available in [`PairType`]
 pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoResponse> {
     let config = CONFIG.load(deps.storage)?;
     let pair_config = PAIR_CONFIGS.load(deps.storage, pair_type.to_string())?;
@@ -436,6 +475,14 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
     })
 }
 
+/// ## Description
+/// Used for migration of contract. Returns the default object of type [`Response`].
+/// ## Params
+/// * **_deps** is the object of type [`Deps`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())

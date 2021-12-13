@@ -53,20 +53,15 @@ pub fn pair_key(asset_infos: &[AssetInfo; 2]) -> Vec<u8> {
 /// Saves the settings of the created pairs
 pub const PAIR_CONFIGS: Map<String, PairConfig> = Map::new("pair_configs");
 
-/// The maximum limit for reading pairs from a [`Pairs`]
-/// ```
-/// //settings for pagination
-/// ```
+//settings for pagination
+/// The maximum limit for reading pairs from a [`PAIRS`]
 const MAX_LIMIT: u32 = 30;
 
-/// The default limit for reading pairs from a [`Pairs`]
-/// ```
-/// //settings for pagination
-/// ```
+/// The default limit for reading pairs from a [`PAIRS`]
 const DEFAULT_LIMIT: u32 = 10;
 
 /// ## Description
-/// Reads pairs from the [`Pairs`] according to the specified parameters in `start_after` and `limit` variables.
+/// Reads pairs from the [`PAIRS`] according to the specified parameters in `start_after` and `limit` variables.
 /// Otherwise, it returns the default number of pairs.
 /// ## Params
 /// `start_after` is a [`Option`] type. Sets the item to start reading from.
@@ -90,13 +85,11 @@ pub fn read_pairs(
         .collect()
 }
 
+// this will set the first key after the provided key, by appending a 1 byte
 /// ## Description
 /// Calculates the key of the pair from which to start reading.
 /// ## Params
 /// `start_after` is an [`Option`] type that accepts two [`AssetInfo`] elements.
-/// ```
-/// // this will set the first key after the provided key, by appending a 1 byte
-/// ```
 fn calc_range_start(start_after: Option<[AssetInfo; 2]>) -> Option<Vec<u8>> {
     start_after.map(|asset_infos| {
         let mut asset_infos = asset_infos.to_vec();

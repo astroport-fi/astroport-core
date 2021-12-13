@@ -13,8 +13,20 @@ use astroport::router::SwapOperation;
 use cw20::Cw20ExecuteMsg;
 use terra_cosmwasm::{create_swap_msg, create_swap_send_msg, TerraMsgWrapper};
 
-/// Execute swap operation
-/// swap all offer asset to ask asset
+/// ## Description
+/// Execute swap operation. Swap all offer asset to ask asset.
+/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the
+/// specified attributes if the operation was successful.
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **operation** is the object of type [`SwapOperation`].
+///
+/// * **to** is the object of type [`Option<String>`].
 pub fn execute_swap_operation(
     deps: DepsMut,
     env: Env,
@@ -94,6 +106,19 @@ pub fn execute_swap_operation(
     Ok(Response::new().add_messages(messages))
 }
 
+/// ## Description
+/// Creates a message with an exchange operation of type CosmosMsg for each asset.
+/// Returns the [`CosmosMsg<TerraMsgWrapper>`] with the specified attributes if the operation was successful.
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **pair_contract** is the object of type [`String`].
+///
+/// * **offer_asset** is the object of type [`Asset`].
+///
+/// * **max_spread** is the object of type [`Option<Decimal>`].
+///
+/// * **to** is the object of type [`Option<String>`].
 pub fn asset_into_swap_msg(
     deps: DepsMut,
     pair_contract: String,

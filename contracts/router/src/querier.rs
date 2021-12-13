@@ -1,8 +1,18 @@
 use cosmwasm_std::{Decimal, Deps, StdResult, Uint128};
 use terra_cosmwasm::TerraQuerier;
 
+/// ## Description
+/// Sets the default decimal fraction
 static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
+/// ## Description
+/// If **denom* is a **uluna** returns zero, otherwise calculates and returns compute tax.
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **amount** is the object of type [`Uint128`].
+///
+/// * **denom** is the object of type [`String`].
 pub fn compute_tax(deps: Deps, amount: Uint128, denom: String) -> StdResult<Uint128> {
     if denom == "uluna" {
         return Ok(Uint128::zero());

@@ -103,16 +103,21 @@ pub enum ExecuteMsg {
         /// Optional binary serialised parameters for custom pool types
         init_params: Option<Binary>,
     },
-    /// Removes a previously created pair
+    /// Deregister removes a previously created pair
     Deregister {
         /// Sets the type of asset infos available in [`AssetInfo`]
         asset_infos: [AssetInfo; 2],
     },
+    /// ProposeNewOwner creates an offer for a new owner. The validity period of the offer is set in the `expires_in` variable.
     ProposeNewOwner {
+        /// Sets contract address that used for controls settings for factory, pools and tokenomics contracts
         owner: String,
+        /// Sets the offer expiration date for the new owner
         expires_in: u64,
     },
+    /// DropOwnershipProposal removes the existing offer for the new owner.
     DropOwnershipProposal {},
+    /// ClaimOwnership TODO:
     ClaimOwnership {},
 }
 
@@ -122,47 +127,71 @@ pub enum QueryMsg {
     /// Config returns controls settings that specified in custom [`ConfigResponse`] structure
     Config {},
     /// Pair returns a pair according to the specified parameters in `asset_infos` variable.
-    Pair { asset_infos: [AssetInfo; 2] },
+    Pair {
+        /// Sets the type of asset infos available in [`AssetInfo`]
+        asset_infos: [AssetInfo; 2],
+    },
     /// Pairs returns an array of pairs according to the specified parameters in `start_after` and `limit` variables.
     Pairs {
+        /// Sets the item to start reading from. It is an [`Option`] type that accepts two [`AssetInfo`] elements.
         start_after: Option<[AssetInfo; 2]>,
+        /// Sets the number of items to be read. It is an [`Option`] type.
         limit: Option<u32>,
     },
     /// FeeInfo returns settings that specified in custom [`FeeInfoResponse`] structure
-    FeeInfo { pair_type: PairType },
+    FeeInfo {
+        /// Sets the type of pair available in [`PairType`]
+        pair_type: PairType,
+    },
 }
 
+/// ## Description
 /// A custom struct for each query response that returns controls settings of contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
+    /// Contract address that used for controls settings for factory, pools and tokenomics contracts
     pub owner: Addr,
+    /// Pair contract code IDs which are allowed to create pairs
     pub pair_configs: Vec<PairConfig>,
+    /// CW20 token contract code identifier
     pub token_code_id: u64,
+    /// Contract address to send fees to
     pub fee_address: Option<Addr>,
+    /// Contract address that used for auto_stake from pools
     pub generator_address: Addr,
 }
 
+/// ## Description
 /// We currently take no arguments for migrations
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
 
-// We define a custom struct for each query response
+/// ## Description
+/// A custom struct for each query response that returns an array of objects type [`PairInfo`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairsResponse {
     pub pairs: Vec<PairInfo>,
 }
 
-// We define a custom struct for each query response
+/// ## Description
+/// A custom struct for each query response that returns an object of type [`FeeInfoResponse`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct FeeInfoResponse {
+    /// Contract address to send fees to
     pub fee_address: Option<Addr>,
+    /// Pair total fees bps
     pub total_fee_bps: u16,
+    /// Pair fees bps
     pub maker_fee_bps: u16,
 }
 
+/// ## Description
+/// This is an enumeration for setting and unsetting a contract address.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum UpdateAddr {
+    /// Set sets a new contract address.
     Set(String),
+    /// Remove removes contract address.
     Remove {},
 }

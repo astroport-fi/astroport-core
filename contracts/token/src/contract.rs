@@ -11,10 +11,22 @@ use cw20_base::ContractError;
 use astroport::asset::addr_validate_to_lower;
 use astroport::token::{InstantiateMsg, MigrateMsg};
 
-// version info for migration info
+/// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-token";
+/// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// ## Description
+/// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
+/// Returns the default object of type [`Response`] if the operation was successful,
+/// or a [`ContractError`] if the contract was not created.
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **_info** is the object of type [`MessageInfo`].
+/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     mut deps: DepsMut,
@@ -74,6 +86,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     cw20_query(deps, env, msg)
 }
 
+/// ## Description
+/// Used for migration of contract. Returns the default object of type [`Response`].
+/// ## Params
+/// * **_deps** is the object of type [`DepsMut`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     Ok(Response::default())
