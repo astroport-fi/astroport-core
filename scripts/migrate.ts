@@ -1,7 +1,6 @@
 import 'dotenv/config'
 import {ARTIFACTS_PATH, migrate, newClient, readArtifact, uploadContract} from "./helpers.js"
 import { join } from "path"
-import {config} from "./migrate_configs.js";
 
 async function main() {
     const {terra, wallet} = newClient()
@@ -10,6 +9,13 @@ async function main() {
     console.log('network:', network)
 
     console.log("uploading...");
+
+    let config = {
+        contract_address: "terra13q7ekd3phju3emd4u84wsylzx0x24tg88rr8qe",
+        file_path: "astroport_maker.wasm",
+        message: {}
+    }
+
     const newCodeId = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, config.file_path)!);
 
     console.log('migrating...');

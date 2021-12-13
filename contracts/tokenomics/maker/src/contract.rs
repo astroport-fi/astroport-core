@@ -7,7 +7,7 @@ use astroport::maker::{BalancesResponse, ConfigResponse, ExecuteMsg, Instantiate
 use astroport::pair::{Cw20HookMsg, QueryMsg as PairQueryMsg};
 use astroport::querier::query_pair_info;
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, Env,
+    attr, entry_point, to_binary, Addr, Attribute, Binary, Decimal, Deps, DepsMut, Env,
     MessageInfo, QueryRequest, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
     Uint64, WasmMsg, WasmQuery,
 };
@@ -251,10 +251,10 @@ fn swap_to_astro(
             amount: amount_in,
         };
 
-        // deduct tax first
-        let amount_in = amount_in.checked_sub(offer_asset.compute_tax(&deps.querier)?)?;
+        let coin = offer_asset.deduct_tax(&deps.querier)?;
 
-        offer_asset.amount = amount_in;
+        // deduct tax first
+        offer_asset.amount = coin.amount;
 
         Ok(SubMsg::new(WasmMsg::Execute {
             contract_addr: pair.contract_addr.to_string(),
@@ -264,10 +264,7 @@ fn swap_to_astro(
                 max_spread: Some(cfg.max_spread),
                 to: None,
             })?,
-            funds: vec![Coin {
-                denom: from_token.to_string(),
-                amount: amount_in,
-            }],
+            funds: vec![coin],
         }))
     } else {
         Ok(SubMsg::new(WasmMsg::Execute {

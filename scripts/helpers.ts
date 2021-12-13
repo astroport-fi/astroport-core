@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import {
+    Coin,
     Coins,
     isTxError,
     LCDClient,
@@ -150,4 +151,62 @@ export function initialize(terra: LCDClient) {
 
 export function toEncodedBinary(object: any) {
     return Buffer.from(JSON.stringify(object)).toString('base64');
+}
+
+export class NativeAsset {
+    denom: string;
+    amount?: string
+
+    constructor(denom: string, amount?: string) {
+        this.denom = denom
+        this.amount = amount
+    }
+
+    getInfo() {
+        return {
+            "native_token": {
+                "denom": this.denom,
+            }
+        }
+    }
+
+    withAmount() {
+        return {
+            "info": this.getInfo(),
+            "amount": this.amount
+        }
+    }
+
+    toCoin() {
+        return new Coin(this.denom, this.amount || "0")
+    }
+}
+
+export class TokenAsset {
+    addr: string;
+    amount?: string
+
+    constructor(addr: string, amount?: string) {
+        this.addr = addr
+        this.amount = amount
+    }
+
+    getInfo() {
+        return {
+            "token": {
+                "contract_addr": this.addr
+            }
+        }
+    }
+
+    withAmount() {
+        return {
+            "info": this.getInfo(),
+            "amount": this.amount
+        }
+    }
+
+    toCoin() {
+        return null
+    }
 }

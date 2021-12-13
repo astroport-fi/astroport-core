@@ -6,8 +6,10 @@ import {
     deployContract,
     executeContract,
     queryContract,
+    toEncodedBinary,
+    NativeAsset,
+    TokenAsset
 } from './helpers.js'
-import { configDefault } from './deploy_configs.js'
 import { join } from 'path'
 
 const ARTIFACTS_PATH = '../artifacts'
@@ -17,12 +19,72 @@ async function main() {
     console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
     const network = readArtifact(terra.config.chainID)
     console.log('network:', network)
-    let deployConfig: Config = configDefault
 
-    for (let i = 0; i < deployConfig.initialPools.length; i++) {
-        let pool = deployConfig.initialPools[i]
-        let pool_pair_key = pool.identifier + "PairAddress"
-        let pool_lp_token_key = pool.identifier + "LpTokenAddress"
+    if (network.tokenAddress == "") {
+        throw new Error("token address is not set, create ASTRO token first")
+    }
+
+    let pools =  [
+        {
+            identifier: "AstroUst",
+            assetInfos: [
+                new TokenAsset(network.tokenAddress).getInfo(),
+                new NativeAsset("uusd").getInfo(),
+            ],
+            pairType: { xyk: {} }
+        },
+        {
+            identifier: "LunaUst",
+            assetInfos: [
+                new NativeAsset("uluna").getInfo(),
+                new NativeAsset("uusd").getInfo(),
+            ],
+            pairType: { stable: {} },
+            initParams: toEncodedBinary({ amp: 100 })
+        },
+        {
+            identifier: "AncUst",
+            assetInfos: [
+                new TokenAsset("terra1747mad58h0w4y589y3sk84r5efqdev9q4r02pc").getInfo(),
+                new NativeAsset("uusd").getInfo(),
+            ],
+            pairType: { xyk: {} },
+            initGenerator: {
+                generatorAllocPoint: 1000000
+            }
+        },
+        {
+            identifier: "MirUst",
+            assetInfos: [
+                new TokenAsset("terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u").getInfo(),
+                new NativeAsset("uusd").getInfo(),
+            ],
+            pairType: { xyk: {} },
+            initOracle: true,
+            initGenerator: {
+                generatorAllocPoint: 1000000,
+                generatorProxy: {
+                    artifactName: "astroport_generator_proxy_to_mirror.wasm",
+                    rewardContractAddr: "terra1a06dgl27rhujjphsn4drl242ufws267qxypptx",
+                    rewardTokenAddr: "terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u"
+                }
+            }
+        },
+        {
+            identifier: "BlunaLuna",
+            assetInfos: [
+                new TokenAsset("terra1u0t35drzyy0mujj8rkdyzhe264uls4ug3wdp3x").getInfo(),
+                new NativeAsset("uusd").getInfo(),
+            ],
+            pairType: { stable: {} },
+            initParams: toEncodedBinary({ amp: 100 })
+        }
+    ]
+
+    for (let i = 0; i < pools.length; i++) {
+        let pool = pools[i]
+        let pool_pair_key = "pool" + pool.identifier
+        let pool_lp_token_key = "lpToken" + pool.identifier
 
         // Create pool
         if (!network[pool_pair_key]) {
@@ -34,11 +96,13 @@ async function main() {
                     init_params: pool.initParams
                 }
             })
+
             network[pool_pair_key] = res.logs[0].eventsByType.from_contract.pair_contract_addr[0]
 
             let pool_info = await queryContract(terra, network[pool_pair_key], {
                 pair: {}
             })
+
             network[pool_lp_token_key] = pool_info.liquidity_token
 
             console.log(`Pair successfully created! Address: ${network[pool_pair_key]}`)
@@ -46,7 +110,7 @@ async function main() {
         }
 
         // Deploy oracle
-        let pool_oracle_key = pool.identifier + "OracleAddress"
+        let pool_oracle_key = "oracle" + pool.identifier
         if (pool.initOracle && network[pool_pair_key] && !network[pool_oracle_key]) {
             console.log(`Deploying oracle for ${pool.identifier}...`)
 
@@ -62,7 +126,7 @@ async function main() {
 
         // Initialize generator
         if (network[pool_pair_key] && network[pool_lp_token_key] && pool.initGenerator) {
-            let pool_generator_proxy_key = pool.identifier + "GeneratorProxyAddress"
+            let pool_generator_proxy_key = "generatorProxy" + pool.identifier
             network[pool_generator_proxy_key] = undefined
             if (pool.initGenerator.generatorProxy) {
                 // Deploy proxy contract
