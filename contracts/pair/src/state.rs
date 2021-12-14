@@ -10,10 +10,13 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     /// Sets the type of pair info available in [`PairInfo`]
     pub pair_info: PairInfo,
+    /// Sets the factory contract address
     pub factory_addr: Addr,
     pub block_time_last: u64,
     pub price0_cumulative_last: Uint128,
     pub price1_cumulative_last: Uint128,
 }
 
+/// ## Description
+/// Stores config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");

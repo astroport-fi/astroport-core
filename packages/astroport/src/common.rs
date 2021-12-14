@@ -15,7 +15,7 @@ pub struct OwnershipProposal {
 }
 
 /// ## Description
-/// Creates a request to change ownership. Returns an [`Err`] on failure or returns the [`Response`] with the specified attributes if the operation was successful.
+/// Creates a new request to change ownership. Returns an [`Err`] on failure or returns the [`Response`] with the specified attributes if the operation was successful.
 /// ## Executor
 /// Only owner can execute it
 /// ## Params
@@ -96,7 +96,7 @@ pub fn drop_ownership_proposal(
 }
 
 /// ## Description
-/// Approves ownership. Returns an [`Err`] on failure or returns the [`Response`] with the specified attributes if the operation was successful.
+/// Approves owner. Returns an [`Err`] on failure or returns the [`Response`] with the specified attributes if the operation was successful.
 /// ## Executor
 /// Only owner can execute it
 /// ## Params

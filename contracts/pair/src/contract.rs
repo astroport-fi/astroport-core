@@ -132,6 +132,36 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     Ok(Response::new().add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
 }
 
+/// ## Description
+/// Available the execute messages of the contract.
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **msg** is the object of type [`ExecuteMsg`].
+///
+/// ## Queries
+/// * **ExecuteMsg::UpdateConfig { params: Binary }** Not supported.
+///
+/// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
+/// it depending on the received template.
+///
+/// * **ExecuteMsg::ProvideLiquidity {
+///             assets,
+///             slippage_tolerance,
+///             auto_stake,
+///             receiver,
+///         }** Provides liquidity with the specified input parameters.
+///
+/// * **ExecuteMsg::Swap {
+///             offer_asset,
+///             belief_price,
+///             max_spread,
+///             to,
+///         }** Performs an swap operation with the specified parameters.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -260,9 +290,9 @@ pub fn receive_cw20(
 }
 
 /// ## Description
-/// Provides liquidity with the specified parameters in the `slippage_tolerance`, `auto_stake` and `receiver` variables.
-/// CONTRACT - should approve contract to use the amount of token.
-/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified attributes if the operation was successful.
+/// Provides liquidity with the specified input parameters.
+/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified
+/// attributes if the operation was successful.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -270,11 +300,14 @@ pub fn receive_cw20(
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **slippage_tolerance** is object of type [`Option<Decimal>`]. Sets the slippage tolerance.
+/// * **slippage_tolerance** is an [`Option`] field of type [`Decimal`]. Used for sets the maximum
+/// percent of price movement.
 ///
-/// * **auto_stake** is object of type [`Option<bool>`]. Determines whether an autostake will be performed on the generator.
+/// * **auto_stake** is an [`Option`] field of type [`bool`]. Determines whether an autostake will
+/// be performed on the generator.
 ///
-/// * **receiver** is object of type [`Option<String>`]. Sets the receiver of liquidity.
+/// * **receiver** is an [`Option`] field of type  [`String`]. Sets the receiver of liquidity.
+// CONTRACT - should approve contract to use the amount of token.
 pub fn provide_liquidity(
     deps: DepsMut,
     env: Env,
@@ -753,6 +786,34 @@ pub fn calculate_maker_fee(
     })
 }
 
+/// ## Description
+/// Available the query messages of the contract.
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **msg** is the object of type [`QueryMsg`].
+///
+/// ## Queries
+/// * **QueryMsg::Pair {}** Returns information about a pair in an object of type [`PairInfo`].
+///
+/// * **QueryMsg::Pool {}** Returns information about a pool in an object of type [`PoolResponse`].
+///
+/// * **QueryMsg::Share { amount }** Returns information about the share of the pool in a vector
+/// that contains objects of type [`Asset`].
+///
+/// * **QueryMsg::Simulation { offer_asset }** Returns information about the simulation of the
+/// swap in a [`SimulationResponse`] object.
+///
+/// * **QueryMsg::ReverseSimulation { ask_asset }** Returns information about the reverse simulation
+/// in a [`ReverseSimulationResponse`] object.
+///
+/// * **QueryMsg::CumulativePrices {}** Returns information about the cumulative prices in a
+/// [`CumulativePricesResponse`] object.
+///
+/// * **QueryMsg::Config {}** Returns information about the controls settings in a
+/// [`ConfigResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {

@@ -77,6 +77,8 @@ pub struct InstantiateMsg {
     pub owner: String,
 }
 
+/// ## Description
+/// This structure describes the execute messages of the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
@@ -121,6 +123,8 @@ pub enum ExecuteMsg {
     ClaimOwnership {},
 }
 
+/// ## Description
+/// This structure describes the query messages of the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
@@ -162,7 +166,8 @@ pub struct ConfigResponse {
 }
 
 /// ## Description
-/// We currently take no arguments for migrations
+/// This structure describes a migration message.
+/// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
 

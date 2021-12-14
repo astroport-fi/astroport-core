@@ -96,6 +96,39 @@ pub struct UpdateConfig {
     generator_address: Option<String>,
 }
 
+/// ## Description
+/// Available the execute messages of the contract.
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **msg** is the object of type [`ExecuteMsg`].
+///
+/// ## Queries
+/// * **ExecuteMsg::UpdateConfig {
+///             token_code_id,
+///             fee_address,
+///             generator_address,
+///         }** Updates general settings.
+///
+/// * **ExecuteMsg::UpdatePairConfig { config }** Updates pair configuration.
+///
+/// * **ExecuteMsg::CreatePair {
+///             pair_type,
+///             asset_infos,
+///             init_params,
+///         }** Creates a new pair with the specified input parameters
+///
+/// * **ExecuteMsg::Deregister { asset_infos }** Removes a exists pair with the specified input parameters.
+///
+/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a request to change ownership.
+///
+/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change ownership.
+///
+/// * **ExecuteMsg::ClaimOwnership {}** Approves ownership.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -390,6 +423,25 @@ pub fn deregister(
     ]))
 }
 
+/// ## Description
+/// Available the query messages of the contract.
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **msg** is the object of type [`QueryMsg`].
+///
+/// ## Queries
+/// * **QueryMsg::Config {}** Returns controls settings that specified in custom [`ConfigResponse`] structure.
+///
+/// * **QueryMsg::Pair { asset_infos }** Returns the [`PairInfo`] object with the specified input parameters
+///
+/// * **QueryMsg::Pairs { start_after, limit }** Returns an array that contains items of [`PairInfo`]
+/// according to the specified input parameters.
+///
+/// * **QueryMsg::FeeInfo { pair_type }** Returns the settings specified in the custom
+/// structure [`FeeInfoResponse`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -438,13 +490,13 @@ pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo
 }
 
 /// ## Description
-/// Returns an array of pairs according to the specified parameters in `start_after` and `limit` variables.
+/// Returns an array that contains items of [`PairInfo`] according to the specified parameters in `start_after` and `limit` variables.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **start_after** it is an [`Option`] type field that accepts an array with two items the type of [`AssetInfo`].
+/// * **start_after** is an [`Option`] field that accepts an array with two items the type of [`AssetInfo`].
 ///
-/// * **limit** it is a [`Option`] type. Sets the number of items to be read.
+/// * **limit** is a [`Option`] type. Sets the number of items to be read.
 pub fn query_pairs(
     deps: Deps,
     start_after: Option<[AssetInfo; 2]>,

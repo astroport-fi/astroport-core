@@ -17,7 +17,7 @@ const CONTRACT_NAME: &str = "astroport-oracle";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Period that is used for update
+/// Update time interval that is used for update method
 const PERIOD: u64 = 86400;
 
 /// ## Description
@@ -69,6 +69,20 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
+/// ## Description
+/// Available the execute messages of the contract.
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **_info** is the object of type [`MessageInfo`].
+///
+/// * **msg** is the object of type [`ExecuteMsg`].
+///
+/// ## Queries
+/// * **ExecuteMsg::Update {}** Updates prices for the specified time interval that sets in the
+/// [`PERIOD`] constant.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -130,6 +144,18 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
 
+/// ## Description
+/// Available the query messages of the contract.
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **msg** is the object of type [`QueryMsg`].
+///
+/// ## Queries
+/// * **QueryMsg::Consult { token, amount }** Validates assets and calculates a new average
+/// amount with updated precision
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {

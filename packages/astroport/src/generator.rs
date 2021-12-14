@@ -9,13 +9,13 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {
     /// Sets contract address that used for controls settings
     pub owner: String,
-    /// Sets CW20 token contract address TODO:
+    /// Sets ASTRO token contract address
     pub astro_token: String,
     /// Sets tokens per block
     pub tokens_per_block: Uint128,
     /// Sets start block
     pub start_block: Uint64,
-    /// Sets allowed reward proxies TODO:
+    /// Sets allowed reward proxies contracts
     pub allowed_reward_proxies: Vec<String>,
     /// Sets a vesting contract
     pub vesting_contract: String,
@@ -24,50 +24,103 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// UpdateConfig update current vesting contract
+    /// ## Description
+    /// Update current vesting contract
+    /// ## Executor
+    /// Only owner can execute it
     UpdateConfig {
+        /// Sets the vesting contract
         vesting_contract: Option<String>,
     },
-    /// Add TODO:
+    /// ## Description
+    /// Add a new liquidity pool token:
+    /// ## Executor
+    /// Only owner can execute it
     Add {
+        /// Sets the LP token contract address
         lp_token: Addr,
+        /// Sets the allocation point of liquidity pool
         alloc_point: Uint64,
+        /// Sets the reward proxy contract
         reward_proxy: Option<String>,
     },
-    /// Set TODO:
+    /// ## Description
+    /// Update the given pool's ASTRO allocation point
+    /// ## Executor
+    /// Only owner can execute it
     Set {
+        /// Sets the LP token contract address
         lp_token: Addr,
+        /// Sets the allocation point of liquidity pool
         alloc_point: Uint64,
     },
-    /// MassUpdatePools
+    /// ## Description
+    /// Updates reward variables for all pools
     MassUpdatePools {},
-    /// UpdatePool
+    /// ## Description
+    /// Updates reward variables of the given pool to be up-to-date
     UpdatePool {
+        /// Sets the LP token contract address
         lp_token: Addr,
     },
+    /// ## Description
+    /// Withdraw LP tokens from Generator.
     Withdraw {
+        /// Sets the LP token contract address
         lp_token: Addr,
+        /// Sets the amount of withdrawal
         amount: Uint128,
     },
+    /// ## Description
+    /// Withdraw LP tokens from Generator without caring about rewards.
     EmergencyWithdraw {
+        /// Sets the LP token contract address
         lp_token: Addr,
     },
+    /// ## Description
+    /// Sets allowed reward proxies contracts
     SetAllowedRewardProxies {
+        /// Sets the list of allowed contracts
         proxies: Vec<String>,
     },
+    /// ## Description
+    /// Sends the orphan proxy rewards which are left by emergency withdrawals
     SendOrphanProxyReward {
+        /// Sets the recipient of withdraw
         recipient: String,
+        /// Sets the LP token contract address
         lp_token: String,
     },
+    /// ## Description
+    /// Receives a message of type [`Cw20ReceiveMsg`]
     Receive(Cw20ReceiveMsg),
+    /// ## Description
+    /// Sets a new count of tokens per block
+    /// ## Executor
+    /// Only owner can execute it
     SetTokensPerBlock {
+        /// Sets the amount
         amount: Uint128,
     },
+    /// ## Description
+    /// Creates a request to change ownership
+    /// ## Executor
+    /// Only owner can execute it
     ProposeNewOwner {
+        /// Sets a new ownership
         owner: String,
+        /// Sets the validity period of the offer to change the owner
         expires_in: u64,
     },
+    /// ## Description
+    /// Removes a request to change ownership
+    /// ## Executor
+    /// Only owner can execute it
     DropOwnershipProposal {},
+    /// ## Description
+    /// Approves ownership
+    /// ## Executor
+    /// Only owner can execute it
     ClaimOwnership {},
 }
 
@@ -121,7 +174,7 @@ pub struct RewardInfoResponse {
 pub struct ConfigResponse {
     /// Sets contract address that used for controls settings
     pub owner: Addr,
-    /// Sets CW20 token contract address TODO:
+    /// Sets ASTRO token contract address
     pub astro_token: Addr,
     /// Sets tokens per block
     pub tokens_per_block: Uint128,

@@ -55,6 +55,36 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
+/// ## Description
+/// Available the execute messages of the contract.
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **_info** is the object of type [`MessageInfo`].
+///
+/// * **msg** is the object of type [`ExecuteMsg`].
+///
+/// ## Queries
+/// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
+/// it depending on the received template.
+///
+/// * **ExecuteMsg::ExecuteSwapOperations {
+///             operations,
+///             minimum_receive,
+///             to
+///         }** Performs swap operations with the specified parameters.
+///
+/// * **ExecuteMsg::ExecuteSwapOperation { operation, to }** Execute swap operation.
+/// Swap all offer asset to ask asset.
+///
+/// * **ExecuteMsg::AssertMinimumReceive {
+///             asset_info,
+///             prev_balance,
+///             minimum_receive,
+///             receiver
+///         }** Performs minimum receive amount assertion.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -258,6 +288,22 @@ fn assert_minimum_receive(
     Ok(Response::default())
 }
 
+/// ## Description
+/// Available the query messages of the contract.
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **msg** is the object of type [`QueryMsg`].
+///
+/// ## Queries
+/// * **QueryMsg::Config {}** Returns information about the controls settings in a [`ConfigResponse`] object.
+/// * **QueryMsg::SimulateSwapOperations {
+///             offer_amount,
+///             operations,
+///         }** Returns information about the simulation of the swap operations in a
+/// [`SimulateSwapOperationsResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
@@ -274,7 +320,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 }
 
 /// ## Description
-/// Returns an [`ContractError`] on failure, otherwise returns information about the controls settings in a [`ConfigResponse`] object.
+/// Returns an [`ContractError`] on failure, otherwise returns information about the controls
+/// settings in a [`ConfigResponse`] object.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 pub fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {

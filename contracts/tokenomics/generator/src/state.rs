@@ -58,10 +58,15 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ExecuteOnReply {
+    /// Updates reward for all pools
     MassUpdatePools {},
+    /// Add a new pool with allocation point
     Add {
+        /// Sets the LP token contract
         lp_token: Addr,
+        /// Sets the allocation point for LP token contract
         alloc_point: Uint64,
+        /// Sets the reward proxy contract
         reward_proxy: Option<String>,
     },
     Set {

@@ -8,20 +8,31 @@ use crate::asset::AssetInfo;
 
 pub const MAX_SWAP_OPERATIONS: usize = 50;
 
+/// ## Description
+/// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    /// Sets the astroport factory contract address
     pub astroport_factory: String,
 }
 
+/// ## Description
+/// This enum describes the swap operation.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SwapOperation {
+    /// Native swap
     NativeSwap {
+        /// Sets the offer denom
         offer_denom: String,
+        /// Sets the asks denom
         ask_denom: String,
     },
+    /// ASTRO swap
     AstroSwap {
+        /// Sets the offer asset info
         offer_asset_info: AssetInfo,
+        /// Sets the asks asset info
         ask_asset_info: AssetInfo,
     },
 }
@@ -37,9 +48,13 @@ impl SwapOperation {
     }
 }
 
+/// ## Description
+/// This structure describes the execute messages of the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received
+    /// template.
     Receive(Cw20ReceiveMsg),
     /// Execute multiple BuyOperation
     ExecuteSwapOperations {
@@ -68,34 +83,49 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
     ExecuteSwapOperations {
+        /// Sets operations for swap
         operations: Vec<SwapOperation>,
+        /// Sets the minimum receive for swap
         minimum_receive: Option<Uint128>,
+        /// Sets the recipient
         to: Option<String>,
     },
 }
 
+/// ## Description
+/// This structure describes the query messages of the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    /// Config returns controls settings that specified in custom [`ConfigResponse`] structure
     Config {},
+    /// Simulates multi-hop swap operations
     SimulateSwapOperations {
+        /// Sets the offer amount
         offer_amount: Uint128,
+        /// Sets operations for swap
         operations: Vec<SwapOperation>,
     },
 }
 
-// We define a custom struct for each query response
+/// ## Description
+/// This structure describes the custom struct for each query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
+    /// Sets the astroport factory contract address
     pub astroport_factory: String,
 }
 
-// We define a custom struct for each query response
+/// ## Description
+/// This structure describes the custom struct for each query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SimulateSwapOperationsResponse {
+    /// Sets the amount of swap
     pub amount: Uint128,
 }
 
-/// We currently take no arguments for migrations
+/// ## Description
+/// This structure describes a migration message.
+/// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
