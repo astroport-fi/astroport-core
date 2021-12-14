@@ -733,7 +733,7 @@ fn receive_cw20(
             Some(lp_token.clone()),
             ExecuteOnReply::Deposit {
                 lp_token,
-                account: Addr::unchecked(cw20msg.sender),
+                account: Addr::unchecked(cw20_msg.sender),
                 amount,
             },
         ),
