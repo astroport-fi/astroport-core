@@ -7,6 +7,7 @@ import {
     TokenAsset,
 } from "../helpers.js"
 
+
 async function main() {
     const { terra, wallet } = newClient()
     const network = readArtifact(terra.config.chainID)
@@ -14,17 +15,53 @@ async function main() {
     const astroport = new Astroport(terra, wallet);
     console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
 
-    // 1. Deposit ASTRO to staking
-    // stake(network, astroport, wallet.key.accAddress)
+    // 1. Provide liquidity
+    await provideLiquidity(network, astroport, wallet.key.accAddress)
 
-    // 2. Swap tokens in pool
-    // swap(network, astroport, wallet.key.accAddress)
+    // 2. Deposit ASTRO to staking
+    await stake(network, astroport, wallet.key.accAddress)
 
-    // 3. Maker collect fees
-    collectFees(network, astroport, wallet.key.accAddress)
+    // 3. Swap tokens in pool
+    await swap(network, astroport, wallet.key.accAddress)
 
-    // 4. Unstake ASTRO
-    // unstake(network, astroport, wallet.key.accAddress)
+    // 4. Maker collect fees
+    await collectFees(network, astroport, wallet.key.accAddress)
+
+    // 5. Withdraw liquidity
+    await withdrawLiquidity(network, astroport, wallet.key.accAddress)
+
+    // 6. Unstake ASTRO
+    await unstake(network, astroport, wallet.key.accAddress)
+}
+
+async function provideLiquidity(network: any, astroport: Astroport, accAddress: string) {
+    const liquidity_amount = 100000000;
+    const pool_uust_astro = astroport.pair(network.poolAstroUst);
+
+    // Provide liquidity to swap
+    await pool_uust_astro.provideLiquidity(new NativeAsset('uusd', liquidity_amount.toString()), new TokenAsset(network.tokenAddress, liquidity_amount.toString()))
+
+    let astro_balance = await astroport.getTokenBalance(network.tokenAddress, accAddress);
+    let xastro_balance = await astroport.getTokenBalance(network.xastroAddress, accAddress);
+
+    console.log(`ASTRO balance: ${astro_balance}`)
+    console.log(`xASTRO balance: ${xastro_balance}`)
+}
+
+async function withdrawLiquidity(network: any, astroport: Astroport, accAddress: string) {
+    const pool_uust_astro = astroport.pair(network.poolAstroUst);
+
+    let pair_info = await pool_uust_astro.queryPair();
+    let lp_token_amount = await astroport.getTokenBalance(pair_info.liquidity_token, accAddress);
+
+    // Withdraw liquidity
+    await pool_uust_astro.withdrawLiquidity(pair_info.liquidity_token, lp_token_amount.toString());
+
+    let astro_balance = await astroport.getTokenBalance(network.tokenAddress, accAddress);
+    let xastro_balance = await astroport.getTokenBalance(network.xastroAddress, accAddress);
+
+    console.log(`ASTRO balance: ${astro_balance}`)
+    console.log(`xASTRO balance: ${xastro_balance}`)
 }
 
 async function stake(network: any, astroport: Astroport, accAddress: string) {
@@ -69,18 +106,15 @@ async function unstake(network: any, astroport: Astroport, accAddress: string) {
 async function swap(network: any, astroport: Astroport, accAddress: string) {
     const pool_uust_astro = astroport.pair(network.poolAstroUst);
     const factory = astroport.factory(network.factoryAddress);
-    const liquidity_amount = 100000000;
     const swap_amount = 10000;
+
+    let pair_info = await pool_uust_astro.queryPair();
 
     let astro_balance = await astroport.getTokenBalance(network.tokenAddress, accAddress);
     let xastro_balance = await astroport.getTokenBalance(network.xastroAddress, accAddress);
 
     console.log(`ASTRO balance: ${astro_balance}`)
     console.log(`xASTRO balance: ${xastro_balance}`)
-
-    // Provide liquidity to swap
-    await pool_uust_astro.provideLiquidity(new NativeAsset('uusd', liquidity_amount.toString()), new TokenAsset(network.tokenAddress, liquidity_amount.toString()))
-    let pair_info = await pool_uust_astro.queryPair();
 
     let fee_info = await factory.queryFeeInfo('xyk');
     strictEqual(true,  fee_info.fee_address != null, "fee address is not set")
@@ -99,17 +133,6 @@ async function swap(network: any, astroport: Astroport, accAddress: string) {
         let share_info = await pool_uust_astro.queryShare(lp_token_amount.toString());
         console.log(share_info)
     }
-
-    let lp_token_amount = await astroport.getTokenBalance(pair_info.liquidity_token, accAddress);
-
-    // Withdraw liquidity
-    await pool_uust_astro.withdrawLiquidity(pair_info.liquidity_token, lp_token_amount.toString());
-
-    astro_balance = await astroport.getTokenBalance(network.tokenAddress, accAddress);
-    xastro_balance = await astroport.getTokenBalance(network.xastroAddress, accAddress);
-
-    console.log(`ASTRO balance: ${astro_balance}`)
-    console.log(`xASTRO balance: ${xastro_balance}`)
 }
 
 async function collectFees(network: any, astroport: Astroport, accAddress: string) {
@@ -119,7 +142,7 @@ async function collectFees(network: any, astroport: Astroport, accAddress: strin
     strictEqual(maker_cfg.astro_token_contract, network.tokenAddress)
     strictEqual(maker_cfg.staking_contract, network.stakingAddress)
 
-    let balances = await maker.queryBalances([new TokenAsset(network.tokenAddress, '0'), new NativeAsset('uusd', '0')]);
+    let balances = await maker.queryBalances([new TokenAsset(network.tokenAddress, '0')]);
     strictEqual(true, balances.length > 0, "maker balances are empty. no fees are collected")
 
     console.log(balances)

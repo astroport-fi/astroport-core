@@ -116,7 +116,6 @@ class Pair {
             }
         }
 
-
         await executeContract(this.terra, this.wallet, this.addr, msg, coins)
     }
 
@@ -189,10 +188,9 @@ class Maker {
     }
 
     async collect(pair_addresses: string[]) {
-        console.log(pair_addresses)
         return await executeContract(this.terra, this.wallet, this.addr, {
             collect: {
-                pair_addresses: ["terra12l2y2argwke639j5cqgf8r9vqzy9jdkst4yzc5"]
+                pair_addresses,
             }
         })
     }
