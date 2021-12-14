@@ -112,8 +112,7 @@ export async function uploadContract(terra: LCDClient, wallet: Wallet, filepath:
 export async function instantiateContract(terra: LCDClient, wallet: Wallet, codeId: number, msg: object) {
     const instantiateMsg = new MsgInstantiateContract(wallet.key.accAddress, wallet.key.accAddress, codeId, msg, undefined);
     let result = await performTransaction(terra, wallet, instantiateMsg)
-    const attributes = result.logs[0].events[0].attributes
-    return attributes[attributes.length - 1].value // contract address
+    return result.logs[0].events[0].attributes.filter(element => element.key == 'contract_address' ).map(x => x.value);
 }
 
 export async function executeContract(terra: LCDClient, wallet: Wallet, contractAddress: string, msg: object, coins?: Coins.Input) {

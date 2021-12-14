@@ -20,3 +20,5 @@ target/
 /artifacts/*.wasm
 /artifacts/checksums_intermediate.txt
 /artifacts/checksums.txt
+/artifacts/localterra.json
+/artifacts/localterra_data.json

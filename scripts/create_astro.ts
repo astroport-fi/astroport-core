@@ -38,7 +38,8 @@ async function main() {
     }
 
     // Instantiate Astro token contract
-    network.tokenAddress = await instantiateContract(terra, wallet, network.tokenCodeID, TOKEN_INFO)
+    let resp = await instantiateContract(terra, wallet, network.tokenCodeID, TOKEN_INFO)
+    network.tokenAddress = resp.shift()
     console.log("astro:", network.tokenAddress)
     console.log(await queryContract(terra, network.tokenAddress, { token_info: {} }))
     console.log(await queryContract(terra, network.tokenAddress, { minter: {} }))

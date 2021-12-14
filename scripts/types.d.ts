@@ -67,11 +67,41 @@ interface RegisterVestingAccounts {
     register_vesting_accounts: RegisterVestingAccountsType
 }
 
+interface AssetInfo {
+    token?: {
+        contract_addr: string
+    }
+    native_token?: {
+        denom: string
+    }
+}
+
+type ProxyInfo = {
+    artifactName: string,
+    rewardContractAddr: string,
+    rewardTokenAddr: string
+}
+
+type GeneratorInfo = {
+    generatorAllocPoint: Number,
+    generatorProxy?: ProxyInfo
+}
+
+type InitialPool = {
+    identifier: string,
+    assetInfos: AssetInfo[],
+    pairType: PairType,
+    initParams?: String,
+    initOracle?: boolean,
+    initGenerator?: GeneratorInfo
+}
+
 interface Config {
     factoryInitMsg: FactoryInitMsg,
     stakingInitMsg: StakingInitMsg,
     generatorInitMsg: GeneratorInitMsg,
-    registerVestingAccounts: RegisterVestingAccounts
+    registerVestingAccounts: RegisterVestingAccounts,
+    initialPools: InitialPool[]
 }
 
 interface MigrationConfig {
