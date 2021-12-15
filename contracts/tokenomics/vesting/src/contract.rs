@@ -14,10 +14,24 @@ use astroport::vesting::{
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
-// version info for migration info
+/// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-vesting";
+/// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// ## Description
+/// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
+/// Returns the default [`Response`] object if the operation was successful, otherwise returns
+/// the [`StdResult`] if the contract was not created.
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **_info** is the object of type [`MessageInfo`].
+///
+/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for
+/// creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -37,6 +51,23 @@ pub fn instantiate(
     Ok(Response::new())
 }
 
+/// ## Description
+/// Available the execute messages of the contract.
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **msg** is the object of type [`ExecuteMsg`].
+///
+/// ## Queries
+/// * **ExecuteMsg::Claim { recipient, amount }** Claims the amount from Vesting for transfer
+/// to the recipient.
+///
+/// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes it
+/// depending on the received template.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -50,6 +81,18 @@ pub fn execute(
     }
 }
 
+/// ## Description
+/// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
+/// If the template is not found in the received message, then an [`ContractError`] is returned,
+/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -63,6 +106,20 @@ fn receive_cw20(
     }
 }
 
+/// ## Description
+/// Register vesting accounts. Returns the [`Response`] with the specified attributes if the
+/// operation was successful, otherwise returns the [`ContractError`].
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **vesting_accounts** is an array with items the type of [`VestingAccount`]. Sets the list of accounts to register.
+///
+/// * **cw20_amount** is the object of type [`Uint128`]. Sets the amount that confirms the total
+/// amount of all accounts to register
 pub fn register_vesting_accounts(
     deps: DepsMut,
     _env: Env,
@@ -119,6 +176,14 @@ pub fn register_vesting_accounts(
         .add_attribute("deposited", to_deposit))
 }
 
+/// ## Description
+/// Approves vesting schedules. Returns the [`Ok`] if schedules are valid, otherwise returns the
+/// [`ContractError`].
+/// ## Params
+/// * **addr** is the object of type [`Addr`]. Sets the address of the contract for which the error
+/// will be returned
+///
+/// * **vesting_schedules** is the object of type [`Env`]. Sets the schedules to validate.
 fn assert_vesting_schedules(
     addr: &Addr,
     vesting_schedules: &[VestingSchedule],
@@ -135,6 +200,19 @@ fn assert_vesting_schedules(
     Ok(())
 }
 
+/// ## Description
+/// Claims the amount from Vesting for transfer to the recipient. Returns the [`Response`] with
+/// specified attributes if operation was successful, otherwise returns the [`ContractError`].
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **recipient** is an [`Option`] field of type [`String`]. Sets the recipient for claim.
+///
+/// * **amount** is an [`Option`] field of type [`Uint128`]. Sets the amount of claim.
 pub fn claim(
     deps: DepsMut,
     env: Env,
@@ -187,6 +265,15 @@ pub fn claim(
     Ok(response.add_attributes(attributes))
 }
 
+/// ## Description
+/// Computes the available amount for the specified input parameters. Returns the computed amount
+/// if operation was successful.
+/// ## Params
+/// * **current_time** is the object of type [`Timestamp`]. Schedules with start point time bigger
+/// then the current time will be omitted
+///
+/// * **vesting_info** is the object of type [`VestingInfo`]. Sets the vesting schedules to compute
+/// available amount.
 fn compute_available_amount(
     current_time: Timestamp,
     vesting_info: &VestingInfo,
@@ -218,6 +305,28 @@ fn compute_available_amount(
         .map_err(StdError::from)
 }
 
+/// ## Description
+/// Available the query messages of the contract.
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **msg** is the object of type [`QueryMsg`].
+///
+/// ## Queries
+/// * **QueryMsg::Config {}** Returns the base controls configs that contains in the [`Config`].
+///
+/// * **QueryMsg::VestingAccount { address }** Returns information for this account that contains
+/// in the [`VestingInfo`].
+///
+/// * **QueryMsg::VestingAccounts {
+///             start_after,
+///             limit,
+///             order_by,
+///         }** Returns a list of accounts for the given input parameters.
+///
+/// * **QueryMsg::AvailableAmount { address }** Returns the available amount for specified account.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -241,6 +350,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
+/// ## Description
+/// Returns information about the vesting configs in the [`ConfigResponse`] object.
+///
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
@@ -250,6 +364,13 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(resp)
 }
 
+/// ## Description
+/// Returns information about the vesting account in the [`VestingAccountResponse`] object.
+///
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **address** is the object of type [`Addr`].
 pub fn query_vesting_account(deps: Deps, address: Addr) -> StdResult<VestingAccountResponse> {
     let address = addr_validate_to_lower(deps.api, address.as_str())?;
     let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
@@ -259,6 +380,17 @@ pub fn query_vesting_account(deps: Deps, address: Addr) -> StdResult<VestingAcco
     Ok(resp)
 }
 
+/// ## Description
+/// Returns a list of accounts, for the given input parameters, in the [`VestingAccountsResponse`] object.
+///
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **start_after** is an [`Option`] field of type [`Addr`].
+///
+/// * **limit** is an [`Option`] field of type [`u32`].
+///
+/// * **order_by** is an [`Option`] field of type [`OrderBy`].
 pub fn query_vesting_accounts(
     deps: Deps,
     start_after: Option<Addr>,
@@ -277,6 +409,15 @@ pub fn query_vesting_accounts(
     })
 }
 
+/// ## Description
+/// Returns the available amount for specified account.
+///
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **address** is the object of type [`Addr`].
 pub fn query_vesting_available_amount(deps: Deps, env: Env, address: Addr) -> StdResult<Uint128> {
     let address = addr_validate_to_lower(deps.api, address.as_str())?;
 
@@ -285,6 +426,14 @@ pub fn query_vesting_available_amount(deps: Deps, env: Env, address: Addr) -> St
     Ok(available_amount)
 }
 
+/// ## Description
+/// Used for migration of contract. Returns the default object of type [`Response`].
+/// ## Params
+/// * **_deps** is the object of type [`DepsMut`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())

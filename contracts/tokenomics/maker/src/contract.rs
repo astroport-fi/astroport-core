@@ -14,12 +14,24 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use std::collections::HashMap;
 
-// version info for migration info
+/// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-maker";
+/// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
+/// Sets the default maximum spread in percentage
 const DEFAULT_MAX_SPREAD: u64 = 5; // 5%
 
+/// ## Description
+/// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
+/// Returns the default object of type [`Response`] if the operation was successful,
+/// or a [`ContractError`] if the contract was not created.
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **_info** is the object of type [`MessageInfo`].
+/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -67,6 +79,34 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
+/// ## Description
+/// Available the execute messages of the contract.
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **_info** is the object of type [`MessageInfo`].
+///
+/// * **msg** is the object of type [`ExecuteMsg`].
+///
+/// ## Queries
+/// * **ExecuteMsg::Collect { pair_addresses }** Collects rewards from the pools, swaps to astro
+/// token and distributes the rewards between staking and governance contracts
+///
+/// * **ExecuteMsg::UpdateConfig {
+///             factory_contract,
+///             staking_contract,
+///             governance_contract,
+///             governance_percent,
+///             max_spread,
+///         }** Updates general settings that contains in the [`Config`].
+///
+/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change ownership.
+///
+/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change ownership.
+///
+/// * **ExecuteMsg::ClaimOwnership {}** Approves owner.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -125,6 +165,15 @@ pub fn execute(
     }
 }
 
+/// # Description
+/// The entry point to the contract for processing the reply from the submessage.
+/// # Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **_msg** is the object of type [`Reply`].
+#[cfg_attr(not(feature = "library"), entry_point)]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
@@ -144,6 +193,18 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractE
     Ok(resp)
 }
 
+/// # Description
+/// Collects astro tokens. Before that collects all assets from the all specified
+/// pairs and performs a swap operation for all non-astro tokens into an astro token.
+/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] object if the
+/// operation was successful.
+/// # Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **pair_addresses** is a vector that contains object of type [`Addr`].
+/// Sets the pairs for which the collect operation will be performed.
 fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -192,6 +253,16 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
     Ok(response)
 }
 
+/// # Description
+/// Performs the distribute of astro token. Returns an [`ContractError`] on failure,
+/// otherwise returns the vector that contains the objects of type [`SubMsg`] if the operation
+/// was successful.
+/// # Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **cfg** is the object of type [`Config`].
+///
+/// * **amount** is the object of type [`Uint128`].
 fn distribute_astro(
     deps: Deps,
     cfg: &Config,
@@ -228,6 +299,18 @@ fn distribute_astro(
     Ok(result)
 }
 
+/// # Description
+/// Performs the swap operation to astro token. Returns an [`ContractError`] on failure,
+/// otherwise returns the vector that contains the objects of type [`SubMsg`] if the operation
+/// was successful.
+/// # Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **cfg** is the object of type [`Config`].
+///
+/// * **from_token** is the object of type [`AssetInfo`].
+///
+/// * **amount** is the object of type [`Uint128`].
 fn swap_to_astro(
     deps: Deps,
     cfg: &Config,
@@ -286,6 +369,27 @@ fn swap_to_astro(
     }
 }
 
+/// ## Description
+/// Updates general settings. Returns an [`ContractError`] on failure or the following [`Config`]
+/// data will be updated if successful.
+///
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **factory_contract** is an [`Option`] field of type [`String`].
+///
+/// * **staking_contract** is an [`Option`] field of type [`String`].
+///
+/// * **governance_contract** is an [`Option`] field of type [`UpdateAddr`].
+///
+/// * **governance_percent** is an [`Option`] field of type [`Uint64`].
+///
+/// * **max_spread** is an [`Option`] field of type [`Decimal`].
+///
+/// ##Executor
+/// Only owner can execute it
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -349,6 +453,21 @@ fn update_config(
     Ok(Response::new().add_attributes(attributes))
 }
 
+/// # Description
+/// Describes all query messages.
+/// # Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **msg** is the object of type [`QueryMsg`].
+///
+/// ## Queries
+/// * **QueryMsg::Config {}** Returns information about the maker configs
+/// in a [`ConfigResponse`] object.
+///
+/// * **QueryMsg::Balances { assets }** Returns the balance for each asset
+/// in the [`ConfigResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -357,6 +476,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
+/// ## Description
+/// Returns information about the maker configs in a [`ConfigResponse`] object.
+///
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
 fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
@@ -370,6 +494,15 @@ fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
     })
 }
 
+/// ## Description
+/// Returns the balance for each asset in the [`ConfigResponse`] object.
+///
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **assets** is a vector that contains object of type [`AssetInfo`].
 fn query_get_balances(deps: Deps, env: Env, assets: Vec<AssetInfo>) -> StdResult<BalancesResponse> {
     let mut resp = BalancesResponse { balances: vec![] };
 
@@ -387,6 +520,13 @@ fn query_get_balances(deps: Deps, env: Env, assets: Vec<AssetInfo>) -> StdResult
     Ok(resp)
 }
 
+/// ## Description
+/// Returns the asset information for the specified pair.
+///
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **contract_addr** is the object of type [`Addr`]. Sets the pair contract address.
 pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<[AssetInfo; 2]> {
     let res: PairInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: String::from(contract_addr),

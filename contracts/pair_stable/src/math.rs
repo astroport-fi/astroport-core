@@ -10,6 +10,16 @@ pub const MAX_AMP_CHANGE: u64 = 10;
 pub const MIN_AMP_CHANGING_TIME: u64 = 86400;
 pub const AMP_PRECISION: u64 = 100;
 
+/// ## Description
+/// Calculates swapped amount.
+/// ## Params
+/// * **balance_in** is the object of type [`u128`].
+///
+/// * **balance_out** is the object of type [`u128`].
+///
+/// * **amount_in** is the object of type [`u128`].
+///
+/// * **amp** is the object of type [`u64`].
 pub fn calc_amount(balance_in: u128, balance_out: u128, amount_in: u128, amp: u64) -> Option<u128> {
     let leverage = amp.checked_mul(u64::from(N_COINS)).unwrap();
     let new_balance_in = balance_in + amount_in;
@@ -22,9 +32,19 @@ pub fn calc_amount(balance_in: u128, balance_out: u128, amount_in: u128, amp: u6
     Some(amount_swapped)
 }
 
-/// Compute stable swap invariant (D)
-/// Equation:
+/// ## Description
+/// Computes stable swap invariant (D)
+///
+/// * **Equation**
+///
 /// A * sum(x_i) * n**n + D = A * D * n**n + D**(n+1) / (n**n * prod(x_i))
+///
+/// ## Params
+/// * **leverage** is the object of type [`u128`].
+///
+/// * **amount_a** is the object of type [`u128`].
+///
+/// * **amount_b** is the object of type [`u128`].
 pub fn compute_d(leverage: u64, amount_a: u128, amount_b: u128) -> Option<u128> {
     let amount_a_times_coins =
         checked_u8_mul(&U256::from(amount_a), N_COINS)?.checked_add(U256::one())?;
@@ -58,6 +78,11 @@ pub fn compute_d(leverage: u64, amount_a: u128, amount_b: u128) -> Option<u128> 
     }
 }
 
+/// ## Description
+/// Calculates step
+///
+/// * **Equation**:
+///
 /// d = (leverage * sum_x + d_product * n_coins) * initial_d / ((leverage - 1) * initial_d + (n_coins + 1) * d_product)
 fn calculate_step(initial_d: &U256, leverage: u64, sum_x: u128, d_product: &U256) -> Option<U256> {
     let leverage_mul = U256::from(leverage).checked_mul(sum_x.into())? / AMP_PRECISION;
@@ -74,9 +99,13 @@ fn calculate_step(initial_d: &U256, leverage: u64, sum_x: u128, d_product: &U256
     l_val.checked_div(r_val)
 }
 
+/// ## Description
 /// Compute swap amount `y` in proportion to `x`
-/// Solve for y:
+///
+/// * **Solve for y**
+///
 /// y**2 + y * (sum' - (A*n**n - 1) * D / (A * n**n)) = D ** (n + 1) / (n ** (2 * n) * prod' * A)
+///
 /// y**2 + b*y = c
 fn compute_new_balance_out(leverage: u64, new_source_amount: u128, d_val: u128) -> Option<u128> {
     // Upscale to U256
@@ -111,6 +140,7 @@ fn compute_new_balance_out(leverage: u64, new_source_amount: u128, d_val: u128) 
     u128::try_from(y).ok()
 }
 
+/// ## Description
 /// Returns self to the power of b
 fn checked_u8_power(a: &U256, b: u8) -> Option<U256> {
     let mut result = *a;
@@ -120,6 +150,7 @@ fn checked_u8_power(a: &U256, b: u8) -> Option<U256> {
     Some(result)
 }
 
+/// ## Description
 /// Returns self multiplied by b
 fn checked_u8_mul(a: &U256, b: u8) -> Option<U256> {
     let mut result = *a;

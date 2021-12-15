@@ -2,6 +2,8 @@ use astroport::asset::AssetInfo;
 use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
+/// ## Description
+/// This enum describes maker contract errors!
 #[derive(Error, Debug)]
 pub enum ContractError {
     #[error("{0}")]

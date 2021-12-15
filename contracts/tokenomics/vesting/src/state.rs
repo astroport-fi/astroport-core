@@ -5,17 +5,35 @@ use astroport::vesting::{OrderBy, VestingInfo};
 use cosmwasm_std::{Addr, Deps, StdResult};
 use cw_storage_plus::{Bound, Item, Map};
 
+/// ## Description
+/// This structure describes the main control config of vesting contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
+    /// The vesting token contract address
     pub token_addr: Addr,
 }
 
+/// ## Description
+/// Stores config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
+/// ## Description
+/// The first key part is account contract address, the second key part is an object of type [`VestingInfo`].
 pub const VESTING_INFO: Map<&Addr, VestingInfo> = Map::new("vesting_info");
 
 const MAX_LIMIT: u32 = 30;
 const DEFAULT_LIMIT: u32 = 10;
 
+/// ## Description
+/// Returns the empty vector if does not found data to read, otherwise returns the vector that
+/// contains the objects of type [`VESTING_INFO`].
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **start_after** is an [`Option`] field of type [`Addr`]. Sets the index to start reading.
+///
+/// * **limit** is an [`Option`] field of type [`u32`]. Sets the limit to reading.
+///
+/// * **order_by** is an [`Option`] field of type [`OrderBy`].
 pub fn read_vesting_infos(
     deps: Deps,
     start_after: Option<Addr>,

@@ -2,6 +2,8 @@ use crate::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
 use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
+/// ## Description
+/// This enum describes pair stable contract errors!
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]

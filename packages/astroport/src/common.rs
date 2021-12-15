@@ -4,12 +4,34 @@ use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+/// ## Description
+/// This structure describes the basic settings for creating a request for a change of ownership.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OwnershipProposal {
+    /// a new ownership.
     pub owner: Addr,
+    /// time to live a request
     pub ttl: u64,
 }
 
+/// ## Description
+/// Creates a new request to change ownership. Returns an [`Err`] on failure or returns the [`Response`] with the specified attributes if the operation was successful.
+/// ## Executor
+/// Only owner can execute it
+/// ## Params
+/// `deps` is the object of type [`DepsMut`].
+///
+/// `info` is the object of type [`MessageInfo`].
+///
+/// `env` is the object of type [`Env`].
+///
+/// `new_owner` is a new owner.
+///
+/// `expires_in` is the validity period of the offer to change the owner.
+///
+/// `owner` is the current owner.
+///
+/// `proposal` is the object of type [`OwnershipProposal`].
 pub fn propose_new_owner(
     deps: DepsMut,
     info: MessageInfo,
@@ -45,6 +67,18 @@ pub fn propose_new_owner(
     ]))
 }
 
+/// ## Description
+/// Removes a request to change ownership. Returns an [`Err`] on failure or returns the [`Response`] with the specified attributes if the operation was successful.
+/// ## Executor
+/// Only owner can execute it
+/// ## Params
+/// `deps` is the object of type [`DepsMut`].
+///
+/// `info` is the object of type [`MessageInfo`].
+///
+/// `owner` is the current owner.
+///
+/// `proposal` is the object of type [`OwnershipProposal`].
 pub fn drop_ownership_proposal(
     deps: DepsMut,
     info: MessageInfo,
@@ -61,6 +95,20 @@ pub fn drop_ownership_proposal(
     Ok(Response::new().add_attributes(vec![attr("action", "drop_ownership_proposal")]))
 }
 
+/// ## Description
+/// Approves owner. Returns an [`Err`] on failure or returns the [`Response`] with the specified attributes if the operation was successful.
+/// ## Executor
+/// Only owner can execute it
+/// ## Params
+/// `deps` is the object of type [`DepsMut`].
+///
+/// `info` is the object of type [`MessageInfo`].
+///
+/// `env` is the object of type [`Env`].
+///
+/// `proposal` is the object of type [`OwnershipProposal`].
+///
+/// `cb` is a type of callback function that takes two parameters of type [`DepsMut`] and [`Addr`].
 pub fn claim_ownership(
     deps: DepsMut,
     info: MessageInfo,

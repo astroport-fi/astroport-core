@@ -11,9 +11,13 @@ use cosmwasm_std::{
 use cw20::Cw20ExecuteMsg;
 use terra_cosmwasm::TerraQuerier;
 
+/// ## Description
+/// This enum describes asset.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Asset {
+    /// the available type of asset from [`AssetInfo`]
     pub info: AssetInfo,
+    /// the amount of an asset
     pub amount: Uint128,
 }
 
@@ -23,13 +27,24 @@ impl fmt::Display for Asset {
     }
 }
 
+/// the decimal fraction
 static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
 impl Asset {
+    /// ## Description
+    /// Returns true if token is native token. Otherwise returns false.
+    /// ## Params
+    /// * **self** is the type of the caller object.
     pub fn is_native_token(&self) -> bool {
         self.info.is_native_token()
     }
 
+    /// ## Description
+    /// Calculates and returns computed tax for native token. For other tokens returns zero.
+    /// ## Params
+    /// * **self** is the type of the caller object.
+    ///
+    /// * **querier** is the object of type [`QuerierWrapper`]
     pub fn compute_tax(&self, querier: &QuerierWrapper) -> StdResult<Uint128> {
         let amount = self.amount;
         if let AssetInfo::NativeToken { denom } = &self.info {
@@ -48,6 +63,12 @@ impl Asset {
         }
     }
 
+    /// ## Description
+    /// Calculates and returns deducted tax for native token. For other tokens returns an [`Err`].
+    /// ## Params
+    /// * **self** is the type of the caller object.
+    ///
+    /// * **querier** is the object of type [`QuerierWrapper`]
     pub fn deduct_tax(&self, querier: &QuerierWrapper) -> StdResult<Coin> {
         let amount = self.amount;
         if let AssetInfo::NativeToken { denom } = &self.info {
@@ -60,6 +81,19 @@ impl Asset {
         }
     }
 
+    /// ## Description
+    /// Returns a message of type [`CosmosMsg`].
+    ///
+    /// For native tokens of type [`AssetInfo`] used default method [`BankMsg::Send`] to send amount to recipient,
+    /// before sent we need to deduct tax.
+    ///
+    /// For token of type [`AssetInfo`] used default method [`Cw20ExecuteMsg::Transfer`] and no need to deduct any tax.
+    /// ## Params
+    /// * **self** is the type of the caller object.
+    ///
+    /// * **querier** is the object of type [`QuerierWrapper`]
+    ///
+    /// * **recepient** is the address where the funds will be sent.
     pub fn into_msg(self, querier: &QuerierWrapper, recipient: Addr) -> StdResult<CosmosMsg> {
         let amount = self.amount;
 
@@ -79,6 +113,12 @@ impl Asset {
         }
     }
 
+    /// ## Description
+    /// Approves the amount of native tokens. Returns [`Ok`] if successful, otherwise returns [`Err`].
+    /// ## Params
+    /// * **self** is the type of the caller object.
+    ///
+    /// * **message_info** is the object of type [`MessageInfo`]
     pub fn assert_sent_native_token_balance(&self, message_info: &MessageInfo) -> StdResult<()> {
         if let AssetInfo::NativeToken { denom } = &self.info {
             match message_info.funds.iter().find(|x| x.denom == *denom) {
@@ -103,10 +143,21 @@ impl Asset {
     }
 }
 
+/// ## Description
+/// This enum describes available types of Token.
+/// ## Examples
+/// ```
+/// # use cosmwasm_std::Addr;
+/// # use astroport::asset::AssetInfo::{NativeToken, Token};
+/// Token { contract_addr: Addr::unchecked("terra...") };
+/// NativeToken { denom: String::from("uluna") };
+/// ```
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetInfo {
+    /// Token
     Token { contract_addr: Addr },
+    /// Native token
     NativeToken { denom: String },
 }
 
@@ -120,6 +171,10 @@ impl fmt::Display for AssetInfo {
 }
 
 impl AssetInfo {
+    /// ## Description
+    /// Returns true if the caller is a native token. Otherwise returns false.
+    /// ## Params
+    /// * **self** is the type of the caller object
     pub fn is_native_token(&self) -> bool {
         match self {
             AssetInfo::NativeToken { .. } => true,
@@ -127,6 +182,12 @@ impl AssetInfo {
         }
     }
 
+    /// ## Description
+    /// Returns balance of token in a pool.
+    /// ## Params
+    /// * **self** is the type of the caller object.
+    ///
+    /// * **pool_addr** is the address of the contract from which the balance is requested.
     pub fn query_pool(&self, querier: &QuerierWrapper, pool_addr: Addr) -> StdResult<Uint128> {
         match self {
             AssetInfo::Token { contract_addr, .. } => {
@@ -138,6 +199,13 @@ impl AssetInfo {
         }
     }
 
+    /// ## Description
+    /// Returns True if the calling token is equal to the token specified in the input parameters.
+    /// Otherwise returns False.
+    /// ## Params
+    /// * **self** is the type of the caller object.
+    ///
+    /// * **asset** is object of type [`AssetInfo`].
     pub fn equal(&self, asset: &AssetInfo) -> bool {
         match self {
             AssetInfo::Token { contract_addr, .. } => {
@@ -157,6 +225,12 @@ impl AssetInfo {
         }
     }
 
+    /// ## Description
+    /// If caller object is a native token of type ['AssetInfo`] then his `denom` field convert to a byte string.
+    ///
+    /// If caller object is a token of type ['AssetInfo`] then his `contract_addr` field convert to a byte string.
+    /// ## Params
+    /// * **self** is the type of the caller object.
     pub fn as_bytes(&self) -> &[u8] {
         match self {
             AssetInfo::NativeToken { denom } => denom.as_bytes(),
@@ -164,6 +238,12 @@ impl AssetInfo {
         }
     }
 
+    /// ## Description
+    /// Returns [`Ok`] if the token of type [`AssetInfo`] is in lowercase and valid. Otherwise returns [`Err`].
+    /// ## Params
+    /// * **self** is the type of the caller object.
+    ///
+    /// * **api** is a object of type [`Api`]
     pub fn check(&self, api: &dyn Api) -> StdResult<()> {
         match self {
             AssetInfo::Token { contract_addr } => {
@@ -182,16 +262,29 @@ impl AssetInfo {
     }
 }
 
-// We define a custom struct for each query response
+/// ## Description
+/// This structure describes the main controls configs of pair
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairInfo {
+    /// the type of asset infos available in [`AssetInfo`]
     pub asset_infos: [AssetInfo; 2],
+    /// pair contract address
     pub contract_addr: Addr,
+    /// pair liquidity token
     pub liquidity_token: Addr,
+    /// the type of pair available in [`PairType`]
     pub pair_type: PairType,
 }
 
 impl PairInfo {
+    /// ## Description
+    /// Returns balance for each asset in the pool.
+    /// ## Params
+    /// * **self** is the type of the caller object
+    ///
+    /// * **querier** is the object of type [`QuerierWrapper`]
+    ///
+    /// * **contract_addr** is the pool address of the pair.
     pub fn query_pools(
         &self,
         querier: &QuerierWrapper,
@@ -210,6 +303,12 @@ impl PairInfo {
     }
 }
 
+/// ## Description
+/// Returns the validated address in lowercase on success. Otherwise returns [`Err`]
+/// ## Params
+/// * **api** is a object of type [`Api`]
+///
+/// * **addr** is the object of type [`Addr`]
 pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
     if addr.to_lowercase() != addr {
         return Err(StdError::generic_err(format!(
@@ -222,6 +321,12 @@ pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
 
 const TOKEN_SYMBOL_MAX_LENGTH: usize = 4;
 
+/// ## Description
+/// Returns formatted liquidity token name
+/// ## Params
+/// * **asset_infos** is array with two items the type of [`AssetInfo`].
+///
+/// * **querier** is the object of type [`QuerierWrapper`].
 pub fn format_lp_token_name(
     asset_infos: [AssetInfo; 2],
     querier: &QuerierWrapper,
