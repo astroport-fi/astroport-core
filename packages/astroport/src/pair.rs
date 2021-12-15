@@ -6,9 +6,9 @@ use crate::asset::{Asset, AssetInfo};
 use cosmwasm_std::{Addr, Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
-/// Sets the default slippage
+/// the default slippage
 pub const DEFAULT_SLIPPAGE: &str = "0.005";
-/// Sets the maximum allowed slippage
+/// the maximum allowed slippage
 pub const MAX_ALLOWED_SLIPPAGE: &str = "0.5";
 
 pub const TWAP_PRECISION: u8 = 6;
@@ -17,13 +17,13 @@ pub const TWAP_PRECISION: u8 = 6;
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// Sets the type of asset infos available in [`AssetInfo`]
+    /// the type of asset infos available in [`AssetInfo`]
     pub asset_infos: [AssetInfo; 2],
-    /// Sets the token contract code id for initialization
+    /// the token contract code id for initialization
     pub token_code_id: u64,
-    /// Sets the factory contract address
+    /// the factory contract address
     pub factory_addr: Addr,
-    /// Sets the optional binary serialised parameters for custom pool types
+    /// the optional binary serialised parameters for custom pool types
     pub init_params: Option<Binary>,
 }
 
@@ -37,13 +37,13 @@ pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
     /// ProvideLiquidity a user provides pool liquidity
     ProvideLiquidity {
-        /// Sets the type of asset available in [`Asset`]
+        /// the type of asset available in [`Asset`]
         assets: [Asset; 2],
-        /// Sets the slippage tolerance for sets the maximum percent of price movement
+        /// the slippage tolerance for sets the maximum percent of price movement
         slippage_tolerance: Option<Decimal>,
         /// Determines whether an autostake will be performed on the generator
         auto_stake: Option<bool>,
-        /// Sets the receiver of provide liquidity
+        /// the receiver of provide liquidity
         receiver: Option<String>,
     },
     /// Swap an offer asset to the other
@@ -105,7 +105,7 @@ pub struct PoolResponse {
 /// This structure describes the custom struct for each query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    /// Sets the last time block
+    /// the last time block
     pub block_time_last: u64,
     pub params: Option<Binary>,
 }

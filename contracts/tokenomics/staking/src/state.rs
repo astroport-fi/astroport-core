@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 /// This structure describes the main control config of staking contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// Sets the ASTRO token contract address
+    /// the ASTRO token contract address
     pub astro_token_addr: Addr,
-    /// Sets the xASTRO token contract address
+    /// the xASTRO token contract address
     pub xastro_token_addr: Addr,
 }
 

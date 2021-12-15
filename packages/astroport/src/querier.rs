@@ -145,11 +145,11 @@ pub fn query_factory_config(
 /// ## Description
 /// This structure describes the basic fee information.
 pub struct FeeInfo {
-    /// Sets the fee address
+    /// the fee address
     pub fee_address: Option<Addr>,
-    /// Sets the total fee rate
+    /// the total fee rate
     pub total_fee_rate: Decimal,
-    /// Sets the maker fee rate
+    /// the maker fee rate
     pub maker_fee_rate: Decimal,
 }
 

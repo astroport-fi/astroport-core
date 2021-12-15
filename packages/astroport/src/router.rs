@@ -12,7 +12,7 @@ pub const MAX_SWAP_OPERATIONS: usize = 50;
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// Sets the astroport factory contract address
+    /// the astroport factory contract address
     pub astroport_factory: String,
 }
 
@@ -23,16 +23,16 @@ pub struct InstantiateMsg {
 pub enum SwapOperation {
     /// Native swap
     NativeSwap {
-        /// Sets the offer denom
+        /// the offer denom
         offer_denom: String,
-        /// Sets the asks denom
+        /// the asks denom
         ask_denom: String,
     },
     /// ASTRO swap
     AstroSwap {
-        /// Sets the offer asset info
+        /// the offer asset info
         offer_asset_info: AssetInfo,
-        /// Sets the asks asset info
+        /// the asks asset info
         ask_asset_info: AssetInfo,
     },
 }
@@ -83,11 +83,11 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
     ExecuteSwapOperations {
-        /// Sets operations for swap
+        /// operations for swap
         operations: Vec<SwapOperation>,
-        /// Sets the minimum receive for swap
+        /// the minimum receive for swap
         minimum_receive: Option<Uint128>,
-        /// Sets the recipient
+        /// the recipient
         to: Option<String>,
     },
 }
@@ -101,9 +101,9 @@ pub enum QueryMsg {
     Config {},
     /// Simulates multi-hop swap operations
     SimulateSwapOperations {
-        /// Sets the offer amount
+        /// the offer amount
         offer_amount: Uint128,
-        /// Sets operations for swap
+        /// operations for swap
         operations: Vec<SwapOperation>,
     },
 }
@@ -112,7 +112,7 @@ pub enum QueryMsg {
 /// This structure describes the custom struct for each query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    /// Sets the astroport factory contract address
+    /// the astroport factory contract address
     pub astroport_factory: String,
 }
 
@@ -120,7 +120,7 @@ pub struct ConfigResponse {
 /// This structure describes the custom struct for each query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SimulateSwapOperationsResponse {
-    /// Sets the amount of swap
+    /// the amount of swap
     pub amount: Uint128,
 }
 

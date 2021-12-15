@@ -9,11 +9,11 @@ use serde::{Deserialize, Serialize};
 /// This structure describes the main information of each user
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct UserInfo {
-    /// Sets an amount
+    /// An amount
     pub amount: Uint128,
-    /// Sets a reward debt TODO:
+    /// A reward amount user already received or is not eligible for, used for proper reward calculation
     pub reward_debt: Uint128,
-    /// Sets a reward debtor proxy
+    /// Proxy reward amount user already received or is not eligible for, used for proper reward calculation
     pub reward_debt_proxy: Uint128,
 }
 
@@ -21,17 +21,17 @@ pub struct UserInfo {
 /// This structure describes the main information of pool
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolInfo {
-    /// Sets the allocation point
+    /// Allocation point is used to control reward distribution among the pools
     pub alloc_point: Uint64,
-    /// Sets the last reward block
+    /// Accumulated amount of reward per share unit. Used for reward calculations
     pub last_reward_block: Uint64,
     pub accumulated_rewards_per_share: Decimal,
-    /// Sets the reward proxy contract
+    /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
     pub accumulated_proxy_rewards_per_share: Decimal,
     /// for calculation of new proxy rewards
     pub proxy_reward_balance_before_update: Uint128,
-    /// Sets the orphan proxy rewards which are left by emergency withdrawals
+    /// the orphan proxy rewards which are left by emergency withdrawals
     pub orphan_proxy_rewards: Uint128,
 }
 
@@ -39,19 +39,19 @@ pub struct PoolInfo {
 /// This structure describes the main control config of generator.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// Sets contract address that used for controls settings
+    /// contract address that used for controls settings
     pub owner: Addr,
-    /// Sets the ASTRO token address
+    /// the ASTRO token address
     pub astro_token: Addr,
-    /// Sets the ASTRO tokens created per block.
+    /// Total amount of ASTRO rewards per block
     pub tokens_per_block: Uint128,
-    /// Sets the total allocation points. Must be the sum of all allocation points in all pools.
+    /// the total allocation points. Must be the sum of all allocation points in all pools.
     pub total_alloc_point: Uint64,
-    /// Sets the block number when ASTRO mining starts.
+    /// the block number when ASTRO mining starts.
     pub start_block: Uint64,
-    /// Sets the list of allowed reward proxy contracts
+    /// the list of allowed reward proxy contracts
     pub allowed_reward_proxies: Vec<Addr>,
-    /// Sets the vesting contract from which rewards are received
+    /// The vesting contract from which rewards are distributed
     pub vesting_contract: Addr,
 }
 
@@ -61,31 +61,46 @@ pub enum ExecuteOnReply {
     MassUpdatePools {},
     /// Add a new pool with allocation point
     Add {
-        /// Sets the LP token contract
+        /// the LP token contract
         lp_token: Addr,
-        /// Sets the allocation point for LP token contract
+        /// the allocation point for LP token contract
         alloc_point: Uint64,
-        /// Sets the reward proxy contract
+        /// the reward proxy contract
         reward_proxy: Option<String>,
     },
+    /// update the given pool's ASTRO allocation point
     Set {
+        /// the LP token contract
         lp_token: Addr,
+        /// the allocation point for LP token contract
         alloc_point: Uint64,
     },
+    /// Updates reward variables of the given pool to be up-to-date
     UpdatePool {
+        /// the LP token contract
         lp_token: Addr,
     },
+    /// Deposit LP tokens to Generator for ASTRO allocation.
     Deposit {
+        /// the LP token contract
         lp_token: Addr,
+        /// the deposit recipient
         account: Addr,
+        /// the deposit amount
         amount: Uint128,
     },
+    /// Withdraw LP tokens from Generator
     Withdraw {
+        /// the LP token contract
         lp_token: Addr,
+        /// the withdraw recipient
         account: Addr,
+        /// the withdraw amount
         amount: Uint128,
     },
+    /// Sets a new count of tokens per block.
     SetTokensPerBlock {
+        /// A new count of tokens per block
         amount: Uint128,
     },
 }

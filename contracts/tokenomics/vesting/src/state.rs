@@ -9,7 +9,7 @@ use cw_storage_plus::{Bound, Item, Map};
 /// This structure describes the main control config of vesting contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// Sets the token contract address
+    /// The vesting token contract address
     pub token_addr: Addr,
 }
 

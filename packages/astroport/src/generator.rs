@@ -7,17 +7,17 @@ use serde::{Deserialize, Serialize};
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// Sets contract address that used for controls settings
+    /// contract address that used for controls settings
     pub owner: String,
-    /// Sets ASTRO token contract address
+    /// ASTRO token contract address
     pub astro_token: String,
-    /// Sets tokens per block
+    /// tokens per block
     pub tokens_per_block: Uint128,
-    /// Sets start block
+    /// start block
     pub start_block: Uint64,
-    /// Sets allowed reward proxies contracts
+    /// allowed reward proxies contracts
     pub allowed_reward_proxies: Vec<String>,
-    /// Sets a vesting contract
+    /// a vesting contract
     pub vesting_contract: String,
 }
 
@@ -29,7 +29,7 @@ pub enum ExecuteMsg {
     /// ## Executor
     /// Only owner can execute it
     UpdateConfig {
-        /// Sets the vesting contract
+        /// the vesting contract
         vesting_contract: Option<String>,
     },
     /// ## Description
@@ -37,11 +37,11 @@ pub enum ExecuteMsg {
     /// ## Executor
     /// Only owner can execute it
     Add {
-        /// Sets the LP token contract address
+        /// the LP token contract address
         lp_token: Addr,
-        /// Sets the allocation point of liquidity pool
+        /// the allocation point of liquidity pool
         alloc_point: Uint64,
-        /// Sets the reward proxy contract
+        /// the reward proxy contract
         reward_proxy: Option<String>,
     },
     /// ## Description
@@ -49,9 +49,9 @@ pub enum ExecuteMsg {
     /// ## Executor
     /// Only owner can execute it
     Set {
-        /// Sets the LP token contract address
+        /// the LP token contract address
         lp_token: Addr,
-        /// Sets the allocation point of liquidity pool
+        /// the allocation point of liquidity pool
         alloc_point: Uint64,
     },
     /// ## Description
@@ -60,46 +60,46 @@ pub enum ExecuteMsg {
     /// ## Description
     /// Updates reward variables of the given pool to be up-to-date
     UpdatePool {
-        /// Sets the LP token contract address
+        /// the LP token contract address
         lp_token: Addr,
     },
     /// ## Description
     /// Withdraw LP tokens from Generator.
     Withdraw {
-        /// Sets the LP token contract address
+        /// the LP token contract address
         lp_token: Addr,
-        /// Sets the amount of withdrawal
+        /// the amount of withdrawal
         amount: Uint128,
     },
     /// ## Description
     /// Withdraw LP tokens from Generator without caring about rewards.
     EmergencyWithdraw {
-        /// Sets the LP token contract address
+        /// the LP token contract address
         lp_token: Addr,
     },
     /// ## Description
-    /// Sets allowed reward proxies contracts
+    /// allowed reward proxies contracts
     SetAllowedRewardProxies {
-        /// Sets the list of allowed contracts
+        /// the list of allowed contracts
         proxies: Vec<String>,
     },
     /// ## Description
     /// Sends the orphan proxy rewards which are left by emergency withdrawals
     SendOrphanProxyReward {
-        /// Sets the recipient of withdraw
+        /// the recipient of withdraw
         recipient: String,
-        /// Sets the LP token contract address
+        /// the LP token contract address
         lp_token: String,
     },
     /// ## Description
     /// Receives a message of type [`Cw20ReceiveMsg`]
     Receive(Cw20ReceiveMsg),
     /// ## Description
-    /// Sets a new count of tokens per block
+    /// a new count of tokens per block
     /// ## Executor
     /// Only owner can execute it
     SetTokensPerBlock {
-        /// Sets the amount
+        /// the amount
         amount: Uint128,
     },
     /// ## Description
@@ -107,9 +107,9 @@ pub enum ExecuteMsg {
     /// ## Executor
     /// Only owner can execute it
     ProposeNewOwner {
-        /// Sets a new ownership
+        /// a new ownership
         owner: String,
-        /// Sets the validity period of the offer to change the owner
+        /// the validity period of the offer to change the owner
         expires_in: u64,
     },
     /// ## Description
@@ -152,9 +152,9 @@ pub struct PoolLengthResponse {
 /// This structure describes the response to the pending token.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PendingTokenResponse {
-    /// Sets a pending token
+    /// a pending token
     pub pending: Uint128,
-    /// Sets a pending token on proxy
+    /// a pending token on proxy
     pub pending_on_proxy: Option<Uint128>,
 }
 
@@ -162,9 +162,9 @@ pub struct PendingTokenResponse {
 /// This structure describes the response to the reward information.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
-    /// Sets a base reward token
+    /// a base reward token
     pub base_reward_token: Addr,
-    /// Sets a proxy reward token
+    /// a proxy reward token
     pub proxy_reward_token: Option<Addr>,
 }
 
@@ -172,19 +172,19 @@ pub struct RewardInfoResponse {
 /// This structure describes the response for base controls.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    /// Sets contract address that used for controls settings
+    /// contract address that used for controls settings
     pub owner: Addr,
-    /// Sets ASTRO token contract address
+    /// ASTRO token contract address
     pub astro_token: Addr,
-    /// Sets tokens per block
+    /// tokens per block
     pub tokens_per_block: Uint128,
-    /// Sets total allocation point
+    /// total allocation point
     pub total_alloc_point: Uint64,
-    /// Sets start block
+    /// start block
     pub start_block: Uint64,
-    /// Sets allowed reward proxies
+    /// allowed reward proxies
     pub allowed_reward_proxies: Vec<Addr>,
-    /// Sets a vesting contract
+    /// a vesting contract
     pub vesting_contract: Addr,
 }
 

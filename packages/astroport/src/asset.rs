@@ -15,9 +15,9 @@ use terra_cosmwasm::TerraQuerier;
 /// This enum describes asset.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Asset {
-    /// Sets the available type of asset from [`AssetInfo`]
+    /// the available type of asset from [`AssetInfo`]
     pub info: AssetInfo,
-    /// Sets the amount of an asset
+    /// the amount of an asset
     pub amount: Uint128,
 }
 
@@ -27,7 +27,7 @@ impl fmt::Display for Asset {
     }
 }
 
-/// Sets the decimal fraction
+/// the decimal fraction
 static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
 impl Asset {
@@ -266,13 +266,13 @@ impl AssetInfo {
 /// This structure describes the main controls configs of pair
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairInfo {
-    /// Sets the type of asset infos available in [`AssetInfo`]
+    /// the type of asset infos available in [`AssetInfo`]
     pub asset_infos: [AssetInfo; 2],
-    /// Sets pair contract address
+    /// pair contract address
     pub contract_addr: Addr,
-    /// Sets pair liquidity token
+    /// pair liquidity token
     pub liquidity_token: Addr,
-    /// Sets the type of pair available in [`PairType`]
+    /// the type of pair available in [`PairType`]
     pub pair_type: PairType,
 }
 

@@ -15,15 +15,15 @@ pub const PRICE_LAST: Item<PriceCumulativeLast> = Item::new("price_last");
 /// This structure describes the main controls configs of pair
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PriceCumulativeLast {
-    /// Sets the last cumulative price by index 0
+    /// The last cumulative price 0 asset in pool
     pub price0_cumulative_last: Uint128,
-    /// Sets the last cumulative price by index 1
+    /// The last cumulative price 1 asset in pool
     pub price1_cumulative_last: Uint128,
-    /// Sets the average price by index 0
+    /// The average price 0 asset in pool
     pub price_0_average: Decimal256,
-    /// Sets the average price by index 0
+    /// The average price 1 asset in pool
     pub price_1_average: Decimal256,
-    /// Sets the last timestamp block
+    /// The last timestamp block in pool
     pub block_timestamp_last: u64,
 }
 
@@ -31,12 +31,12 @@ pub struct PriceCumulativeLast {
 /// Contract global configuration
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// Sets contract address that used for controls settings
+    /// The contract address that used for controls settings
     pub owner: Addr,
-    /// Sets factory contract address
+    /// The factory contract address
     pub factory: Addr,
-    /// Sets the type of asset infos available in [`AssetInfo`]
+    /// The assets in the pool. Describes in [`AssetInfo`]
     pub asset_infos: [AssetInfo; 2],
-    /// Sets the type of pair info available in [`PairInfo`]
+    /// e.g. xyk, stable, etc.
     pub pair: PairInfo,
 }

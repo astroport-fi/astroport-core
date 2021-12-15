@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InstantiateMsg {
-    /// Sets the token code identifier
+    /// the token code identifier
     pub token_code_id: u64,
-    /// Sets the deposit token address
+    /// the deposit token address
     pub deposit_token_addr: String,
 }
 
@@ -34,9 +34,9 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    /// Sets the deposit token address
+    /// the deposit token address
     pub deposit_token_addr: Addr,
-    /// Sets the share token address
+    /// the share token address
     pub share_token_addr: Addr,
 }
 

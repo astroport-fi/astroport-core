@@ -13,13 +13,13 @@ use astroport::factory::PairConfig;
 /// This structure describes the main control config of factory.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// Sets contract address that used for controls settings for factory, pools and tokenomics contracts
+    /// The Contract address that used for controls settings for factory, pools and tokenomics contracts
     pub owner: Addr,
-    /// Sets CW20 token contract code identifier
+    /// CW20 token contract code identifier
     pub token_code_id: u64,
-    /// Sets contract address that used for auto_stake from pools
+    /// contract address that used for auto_stake from pools
     pub generator_address: Addr,
-    /// Sets contract address to send fees to
+    /// contract address to send fees to
     pub fee_address: Option<Addr>,
 }
 

@@ -8,7 +8,7 @@ use cw20::Cw20ReceiveMsg;
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// Sets the token address
+    /// the token address
     pub token_addr: String,
 }
 
@@ -19,9 +19,9 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// Claims the amount from Vesting for transfer to the recipient
     Claim {
-        /// Sets the recipient of claim
+        /// the recipient of claim
         recipient: Option<String>,
-        /// Sets the amount of claim
+        /// the amount of claim
         amount: Option<Uint128>,
     },
     /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received
@@ -33,9 +33,9 @@ pub enum ExecuteMsg {
 /// This structure describes the basic settings for vesting account.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
-    /// Sets the address of account
+    /// the address of account
     pub address: String,
-    /// Sets the schedules of account
+    /// the schedules of account
     pub schedules: Vec<VestingSchedule>,
 }
 
@@ -43,9 +43,9 @@ pub struct VestingAccount {
 /// This structure describes the basic settings for vesting information.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingInfo {
-    /// Sets the schedules
+    /// the schedules
     pub schedules: Vec<VestingSchedule>,
-    /// Sets the released amount
+    /// the released amount
     pub released_amount: Uint128,
 }
 
@@ -53,9 +53,9 @@ pub struct VestingInfo {
 /// This structure describes the basic settings for vesting schedule.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingSchedule {
-    /// Sets the start point of schedule
+    /// the start point of schedule
     pub start_point: VestingSchedulePoint,
-    /// Sets the end point of schedule
+    /// the end point of schedule
     pub end_point: Option<VestingSchedulePoint>,
 }
 
@@ -63,9 +63,9 @@ pub struct VestingSchedule {
 /// This structure describes the basic settings for vesting schedule point.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingSchedulePoint {
-    /// Sets the time
+    /// the time
     pub time: Timestamp,
-    /// Sets the amount
+    /// the amount
     pub amount: Uint128,
 }
 
@@ -96,7 +96,7 @@ pub enum QueryMsg {
 /// This structure describes the custom struct for each query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    /// Sets the token address
+    /// the token address
     pub token_addr: Addr,
 }
 
@@ -104,9 +104,9 @@ pub struct ConfigResponse {
 /// This structure describes the custom struct for each query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccountResponse {
-    /// Sets the token address
+    /// the token address
     pub address: Addr,
-    /// Sets the information object of type [`VestingInfo`]
+    /// the information object of type [`VestingInfo`]
     pub info: VestingInfo,
 }
 
@@ -114,7 +114,7 @@ pub struct VestingAccountResponse {
 /// This structure describes the custom struct for each query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccountsResponse {
-    /// Sets the vesting accounts information
+    /// the vesting accounts information
     pub vesting_accounts: Vec<VestingAccountResponse>,
 }
 

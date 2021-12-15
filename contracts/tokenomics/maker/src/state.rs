@@ -8,19 +8,19 @@ use serde::{Deserialize, Serialize};
 /// This structure describes the main control config of maker.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// Sets contract address that used for controls settings
+    /// contract address that used for controls settings
     pub owner: Addr,
-    /// Sets the factory contract address
+    /// the factory contract address
     pub factory_contract: Addr,
-    /// Sets the staking contract address
+    /// the staking contract address
     pub staking_contract: Addr,
-    /// Sets the governance contract address
+    /// the governance contract address
     pub governance_contract: Option<Addr>,
-    /// Sets the governance percent
+    /// the governance percent
     pub governance_percent: Uint64,
-    /// Sets the ASTRO token address
+    /// the ASTRO token address
     pub astro_token_contract: Addr,
-    /// Sets the max spread
+    /// the max spread
     pub max_spread: Decimal,
 }
 

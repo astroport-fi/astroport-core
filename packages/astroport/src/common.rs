@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 /// This structure describes the basic settings for creating a request for a change of ownership.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OwnershipProposal {
-    /// Sets a new ownership.
+    /// a new ownership.
     pub owner: Addr,
-    /// Sets time to live a request
+    /// time to live a request
     pub ttl: u64,
 }
 

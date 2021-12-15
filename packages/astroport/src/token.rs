@@ -9,15 +9,15 @@ use cw20::{Cw20Coin, MinterResponse};
 /// TokenContract InstantiateMsg
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InstantiateMsg {
-    /// Sets the name
+    /// the name
     pub name: String,
-    /// Sets the symbol
+    /// the symbol
     pub symbol: String,
-    /// Sets the precision after the decimal point
+    /// the precision after the decimal point
     pub decimals: u8,
-    /// Sets the initial balance of token
+    /// the initial balance of token
     pub initial_balances: Vec<Cw20Coin>,
-    /// Sets the controls configs of type [`MinterResponse`]
+    /// the controls configs of type [`MinterResponse`]
     pub mint: Option<MinterResponse>,
 }
 
@@ -54,7 +54,7 @@ impl InstantiateMsg {
 /// ## Description
 /// Checks the validity of the token name
 /// ## Params
-/// * **name** is the object of type [`str`]. Sets the name to check
+/// * **name** is the object of type [`str`]. the name to check
 fn is_valid_name(name: &str) -> bool {
     let bytes = name.as_bytes();
     if bytes.len() < 3 || bytes.len() > 50 {
@@ -66,7 +66,7 @@ fn is_valid_name(name: &str) -> bool {
 /// ## Description
 /// Checks the validity of the token symbol
 /// ## Params
-/// * **symbol** is the object of type [`str`]. Sets the symbol to check
+/// * **symbol** is the object of type [`str`]. the symbol to check
 fn is_valid_symbol(symbol: &str) -> bool {
     let bytes = symbol.as_bytes();
     if bytes.len() < 3 || bytes.len() > 12 {

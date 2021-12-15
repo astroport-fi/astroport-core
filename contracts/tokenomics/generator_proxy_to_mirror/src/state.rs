@@ -8,15 +8,15 @@ use cw_storage_plus::Item;
 /// This structure describes the main controls configs of generator_proxy_to_mirror contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// Sets the generator contract address
+    /// the generator contract address
     pub generator_contract_addr: Addr,
-    /// Sets the pair contract address
+    /// the pair contract address
     pub pair_addr: Addr,
-    /// Sets the contract address for liquidity pool token
+    /// the contract address for liquidity pool token
     pub lp_token_addr: Addr,
-    /// Sets the reward contract address
+    /// the reward contract address
     pub reward_contract_addr: Addr,
-    /// Sets the reward token contract address
+    /// the reward token contract address
     pub reward_token_addr: Addr,
 }
 

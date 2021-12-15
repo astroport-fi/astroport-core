@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// Sets the factory contract address
+    /// the factory contract address
     pub factory_contract: String,
-    /// Sets the type of asset infos available in [`AssetInfo`]
+    /// the type of asset infos available in [`AssetInfo`]
     pub asset_infos: [AssetInfo; 2],
 }
 
@@ -29,9 +29,9 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     /// Validates assets and calculates a new average amount with updated precision
     Consult {
-        /// Sets the assets to validate
+        /// the assets to validate
         token: AssetInfo,
-        /// Sets the amount
+        /// the amount
         amount: Uint128,
     },
 }

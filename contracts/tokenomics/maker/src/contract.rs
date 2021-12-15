@@ -91,9 +91,8 @@ pub fn instantiate(
 /// * **msg** is the object of type [`ExecuteMsg`].
 ///
 /// ## Queries
-/// * **ExecuteMsg::Collect { pair_addresses }** Collects astro tokens. Before that,
-/// collects all assets from the all specified pairs and performs a swap operation for
-/// all non-astro tokens into an astro token.
+/// * **ExecuteMsg::Collect { pair_addresses }** Collects rewards from the pools, swaps to astro
+/// token and distributes the rewards between staking and governance contracts
 ///
 /// * **ExecuteMsg::UpdateConfig {
 ///             factory_contract,

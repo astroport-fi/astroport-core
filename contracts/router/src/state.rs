@@ -12,6 +12,6 @@ pub const CONFIG: Item<Config> = Item::new("config");
 /// This structure describes the main controls configs for router
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// Sets a factory contract address
+    /// The factory contract address
     pub astroport_factory: Addr,
 }

@@ -8,19 +8,19 @@ use serde::{Deserialize, Serialize};
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// Sets contract address that used for controls settings for maker
+    /// contract address that used for controls settings for maker
     pub owner: String,
-    /// Sets the ASTRO token contract address
+    /// the ASTRO token contract address
     pub astro_token_contract: String,
-    /// Sets the factory contract address
+    /// the factory contract address
     pub factory_contract: String,
-    /// Sets the staking contract address
+    /// the staking contract address
     pub staking_contract: String,
-    /// Sets the governance contract address
+    /// the governance contract address
     pub governance_contract: Option<String>,
-    /// Sets the governance percent
+    /// the governance percent
     pub governance_percent: Option<Uint64>,
-    /// Sets the maximum spread
+    /// the maximum spread
     pub max_spread: Option<Decimal>,
 }
 
@@ -31,27 +31,27 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// Collects astro tokens from the given pairs
     Collect {
-        /// Sets the pairs contracts
+        /// the pairs contracts
         pair_addresses: Vec<Addr>,
     },
     /// Updates general settings that contains in the  [`Config`]
     UpdateConfig {
-        /// Sets the factory contract address
+        /// the factory contract address
         factory_contract: Option<String>,
-        /// Sets the staking contract address
+        /// the staking contract address
         staking_contract: Option<String>,
-        /// Sets the governance contract address
+        /// the governance contract address
         governance_contract: Option<UpdateAddr>,
-        /// Sets the governance percent
+        /// the governance percent
         governance_percent: Option<Uint64>,
-        /// Sets the maximum spread
+        /// the maximum spread
         max_spread: Option<Decimal>,
     },
     /// Creates a request to change ownership.
     ProposeNewOwner {
-        /// Sets a new owner
+        /// a new owner
         owner: String,
-        /// Sets the validity period of the offer to change the owner
+        /// the validity period of the offer to change the owner
         expires_in: u64,
     },
     /// Removes a request to change ownership.
@@ -77,17 +77,17 @@ pub enum QueryMsg {
 pub struct ConfigResponse {
     /// Contract address that used for controls settings for factory, pools and tokenomics contracts
     pub owner: Addr,
-    /// Sets the ASTRO token contract address
+    /// the ASTRO token contract address
     pub astro_token_contract: Addr,
-    /// Sets the factory contract address
+    /// the factory contract address
     pub factory_contract: Addr,
-    /// Sets the staking contract address
+    /// the staking contract address
     pub staking_contract: Addr,
-    /// Sets the governance contract address
+    /// the governance contract address
     pub governance_contract: Option<Addr>,
-    /// Sets the governance percent
+    /// the governance percent
     pub governance_percent: Uint64,
-    /// Sets the maximum spread
+    /// the maximum spread
     pub max_spread: Decimal,
 }
 
