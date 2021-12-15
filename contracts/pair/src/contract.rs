@@ -723,9 +723,9 @@ pub fn swap(
 ///
 /// * **config** is the object of type [`Config`].
 ///
-/// * **x** TODO:
+/// * **x** is the balance of asset[0] within a pool
 ///
-/// * **y** TODO:
+/// * **y** is the balance of asset[1] within a pool
 pub fn accumulate_prices(
     env: Env,
     config: &Config,

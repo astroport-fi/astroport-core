@@ -174,7 +174,6 @@ pub fn execute(
 ///
 /// * **_msg** is the object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
