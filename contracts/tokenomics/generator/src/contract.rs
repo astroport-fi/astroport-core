@@ -741,6 +741,18 @@ fn receive_cw20(
     }
 }
 
+/// # Description
+/// Distributes the pending rewards between recipient and the proxy contract.
+/// Returns an [`ContractError`] on failure, otherwise returns the vector that
+/// contains the objects of type [`SubMsg`].
+/// # Params
+/// * **cfg** is the object of type [`Config`].
+///
+/// * **pool** is the object of type [`PoolInfo`].
+///
+/// * **user** is the object of type [`UserInfo`].
+///
+/// * **to** is the object of type [`Addr`].
 pub fn send_pending_rewards(
     cfg: &Config,
     pool: &PoolInfo,
