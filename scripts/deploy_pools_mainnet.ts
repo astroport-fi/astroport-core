@@ -40,7 +40,7 @@ async function main() {
                 new NativeAsset("uluna").getInfo(),
             ],
             pairType: { stable: {} },
-            initParams: toEncodedBinary({ amp: 100 })
+            initParams: toEncodedBinary({ amp: 1 })
         },
         {
             identifier: "UstLuna",
