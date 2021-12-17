@@ -18,7 +18,7 @@ pub struct Config {
     /// CW20 token contract code identifier
     pub token_code_id: u64,
     /// contract address that used for auto_stake from pools
-    pub generator_address: Addr,
+    pub generator_address: Option<Addr>,
     /// contract address to send fees to
     pub fee_address: Option<Addr>,
 }
