@@ -73,7 +73,7 @@ pub struct InstantiateMsg {
     /// contract address to send fees to
     pub fee_address: Option<String>,
     /// contract address that used for auto_stake from pools
-    pub generator_address: String,
+    pub generator_address: Option<String>,
     /// contract address that used for controls settings for factory, pools and tokenomics contracts
     pub owner: String,
 }
@@ -163,7 +163,7 @@ pub struct ConfigResponse {
     /// Contract address to send fees to
     pub fee_address: Option<Addr>,
     /// Contract address that used for auto_stake from pools
-    pub generator_address: Addr,
+    pub generator_address: Option<Addr>,
 }
 
 /// ## Description

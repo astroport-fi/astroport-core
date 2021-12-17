@@ -52,7 +52,7 @@ fn proper_initialization() {
         ],
         token_code_id: 123u64,
         fee_address: None,
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
         owner: owner.clone(),
     };
 
@@ -72,7 +72,7 @@ fn proper_initialization() {
         }],
         token_code_id: 123u64,
         fee_address: None,
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
         owner: owner.clone(),
     };
 
@@ -103,7 +103,7 @@ fn proper_initialization() {
         ],
         token_code_id: 123u64,
         fee_address: None,
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
         owner: owner.clone(),
     };
 
@@ -137,7 +137,7 @@ fn update_config() {
         token_code_id: 123u64,
         fee_address: None,
         owner: owner.to_string(),
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
     };
 
     let env = mock_env();
@@ -169,7 +169,7 @@ fn update_config() {
     );
     assert_eq!(
         String::from("new_generator_addr"),
-        config_res.generator_address
+        config_res.generator_address.unwrap()
     );
 
     // Unauthorized err
@@ -195,7 +195,7 @@ fn update_owner() {
         token_code_id: 123u64,
         fee_address: None,
         owner: owner.to_string(),
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
     };
 
     let env = mock_env();
@@ -279,7 +279,7 @@ fn update_pair_config() {
         token_code_id: 123u64,
         fee_address: None,
         owner: owner.to_string(),
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
     };
 
     let env = mock_env();
@@ -383,7 +383,7 @@ fn create_pair() {
         token_code_id: 123u64,
         fee_address: None,
         owner: "owner0000".to_string(),
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
     };
 
     let env = mock_env();
@@ -477,7 +477,7 @@ fn register() {
         }],
         token_code_id: 123u64,
         fee_address: None,
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
     };
 

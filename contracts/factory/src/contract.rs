@@ -56,8 +56,15 @@ pub fn instantiate(
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         token_code_id: msg.token_code_id,
         fee_address: None,
-        generator_address: addr_validate_to_lower(deps.api, msg.generator_address.as_str())?,
+        generator_address: None,
     };
+
+    if let Some(generator_address) = msg.generator_address {
+        config.generator_address = Some(addr_validate_to_lower(
+            deps.api,
+            generator_address.as_str(),
+        )?);
+    }
 
     if let Some(fee_address) = msg.fee_address {
         config.fee_address = Some(addr_validate_to_lower(deps.api, fee_address.as_str())?);
@@ -227,7 +234,10 @@ pub fn execute_update_config(
 
     if let Some(generator_address) = param.generator_address {
         // validate address format
-        config.generator_address = addr_validate_to_lower(deps.api, generator_address.as_str())?;
+        config.generator_address = Some(addr_validate_to_lower(
+            deps.api,
+            generator_address.as_str(),
+        )?);
     }
 
     if let Some(token_code_id) = param.token_code_id {

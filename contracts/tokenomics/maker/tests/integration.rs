@@ -89,7 +89,7 @@ fn instantiate_contracts(
         token_code_id: 1u64,
         fee_address: None,
         owner: owner.to_string(),
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
     };
 
     let factory_instance = router

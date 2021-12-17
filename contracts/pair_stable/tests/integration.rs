@@ -364,7 +364,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             is_disabled: None,
         }],
         token_code_id,
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
         owner: String::from("owner0000"),
     };
 
@@ -608,7 +608,7 @@ fn update_pair_config() {
         fee_address: None,
         pair_configs: vec![],
         token_code_id: token_contract_code_id,
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
     };
 
