@@ -107,7 +107,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
         ],
         token_code_id: 1u64,
         fee_address: None,
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
     };
 

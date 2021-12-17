@@ -77,7 +77,7 @@ fn proper_initialization() {
         token_code_id: 123,
         fee_address: None,
         owner: owner.to_string(),
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
     };
 
     let factory_instance = app
@@ -143,7 +143,7 @@ fn update_config() {
     );
     assert_eq!(
         generator_address.unwrap(),
-        config_res.generator_address.to_string()
+        config_res.generator_address.unwrap().to_string()
     );
 
     // Unauthorized err
@@ -181,7 +181,7 @@ fn instantiate_contract(app: &mut App, owner: &Addr, token_code_id: u64) -> Addr
         token_code_id,
         fee_address: None,
         owner: owner.to_string(),
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
     };
 
     app.instantiate_contract(

@@ -440,7 +440,7 @@ fn mint_liquidity_token_message(
     recipient: Addr,
     amount: Uint128,
     auto_stake: bool,
-) -> StdResult<Vec<CosmosMsg>> {
+) -> Result<Vec<CosmosMsg>, ContractError> {
     let lp_token = config.pair_info.liquidity_token.clone();
 
     // If no auto-stake - just mint to recipient
@@ -459,6 +459,10 @@ fn mint_liquidity_token_message(
     let generator =
         query_factory_config(&deps.querier, config.clone().factory_addr)?.generator_address;
 
+    if generator.is_none() {
+        return Err(ContractError::AutoStakeError {});
+    }
+
     Ok(vec![
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: lp_token.to_string(),
@@ -471,7 +475,7 @@ fn mint_liquidity_token_message(
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: lp_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: generator.to_string(),
+                contract: generator.unwrap().to_string(),
                 amount,
                 msg: to_binary(&GeneratorHookMsg::DepositFor(recipient))?,
             })?,
