@@ -193,6 +193,10 @@ export class NativeAsset {
         }
     }
 
+    getDenom() {
+        return this.denom
+    }
+
     toCoin() {
         return new Coin(this.denom, this.amount || "0")
     }
@@ -224,5 +228,47 @@ export class TokenAsset {
 
     toCoin() {
         return null
+    }
+
+    getDenom() {
+        return this.addr
+    }
+}
+
+export class NativeSwap {
+    offer_denom: string;
+    ask_denom: string;
+
+    constructor(offer_denom: string, ask_denom: string) {
+        this.offer_denom = offer_denom
+        this.ask_denom = ask_denom
+    }
+
+    getInfo() {
+        return {
+            "native_swap": {
+                "offer_denom": this.offer_denom,
+                "ask_denom": this.ask_denom
+            }
+        }
+    }
+}
+
+export class AstroSwap {
+    offer_asset_info: TokenAsset|NativeAsset;
+    ask_asset_info: TokenAsset|NativeAsset;
+
+    constructor(offer_asset_info: TokenAsset|NativeAsset, ask_asset_info: TokenAsset|NativeAsset) {
+        this.offer_asset_info = offer_asset_info
+        this.ask_asset_info = ask_asset_info
+    }
+
+    getInfo() {
+        return {
+            "astro_swap": {
+                "offer_asset_info": this.offer_asset_info.getInfo(),
+                "ask_asset_info": this.ask_asset_info.getInfo(),
+            }
+        }
     }
 }

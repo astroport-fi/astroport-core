@@ -114,7 +114,7 @@ async function main() {
         if (pool.initOracle && network[pool_pair_key] && !network[pool_oracle_key]) {
             console.log(`Deploying oracle for ${pool.identifier}...`)
 
-            let resp = await deployContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_oracle.wasm'), {
+            let resp = await deployContract(terra, wallet, network.multisigAddress, join(ARTIFACTS_PATH, 'astroport_oracle.wasm'), {
                 factory_contract: network.factoryAddress,
                 asset_infos: pool.assetInfos
             })
@@ -131,7 +131,7 @@ async function main() {
             if (pool.initGenerator.generatorProxy) {
                 // Deploy proxy contract
                 console.log(`Deploying generator proxy for ${pool.identifier}...`)
-                let resp = await deployContract(terra, wallet, join(ARTIFACTS_PATH, pool.initGenerator.generatorProxy.artifactName), {
+                let resp = await deployContract(terra, wallet, network.multisigAddress, join(ARTIFACTS_PATH, pool.initGenerator.generatorProxy.artifactName), {
                     generator_contract_addr: network.generatorAddress,
                     pair_addr: network[pool_pair_key],
                     lp_token_addr: network[pool_lp_token_key],

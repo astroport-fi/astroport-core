@@ -37,6 +37,7 @@ async function uploadAndInitVesting(terra: LCDClient, wallet: any) {
         let resp = await deployContract(
             terra,
             wallet,
+            network.multisigAddress,
             join(ARTIFACTS_PATH, 'astroport_vesting.wasm'),
             {
                 token_addr: network.tokenAddress,
@@ -57,6 +58,7 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
         let resp = await deployContract(
             terra,
             wallet,
+            network.multisigAddress,
             join(ARTIFACTS_PATH, 'astroport_generator.wasm'),
             {
                 owner: wallet.key.accAddress,
