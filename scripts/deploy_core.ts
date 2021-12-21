@@ -23,11 +23,27 @@ async function main() {
         return
     }
 
+    if (!network.multisigAddress) {
+        console.log(`set the proper owner multisig for the contracts`)
+        return
+    }
+
     await uploadPairContracts(terra, wallet)
     await uploadAndInitStaking(terra, wallet)
     await uploadAndInitFactory(terra, wallet)
     await uploadAndInitRouter(terra, wallet)
     await uploadAndInitMaker(terra, wallet)
+
+    // Set new owner for admin
+    network = readArtifact(terra.config.chainID) // reload variables
+    console.log('Propose owner for factory. Onwership has to be claimed within 7 days')
+    await executeContract(terra, wallet, network.factoryAddress, {
+        "propose_new_owner": {
+            owner: network.multisigAddress,
+            expires_in: 604800 // 7 days
+        }
+    })
+
 
     console.log('FINISH')
 }
@@ -57,6 +73,7 @@ async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
         let resp = await deployContract(
             terra,
             wallet,
+            network.multisigAddress,
             join(ARTIFACTS_PATH, 'astroport_staking.wasm'),
             {
                 token_code_id: network.tokenCodeID,
@@ -82,9 +99,10 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
         let resp = await deployContract(
             terra,
             wallet,
+            network.multisigAddress,
             join(ARTIFACTS_PATH, 'astroport_factory.wasm'),
             {
-                owner: wallet.key.accAddress,
+                owner: wallet.key.accAddress, // We don't set multisig as owner, as we need to update maker address once it is deployed
                 pair_configs: [
                     {
                         code_id: network.pairCodeID,
@@ -100,7 +118,7 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                     }
                 ],
                 token_code_id: network.tokenCodeID,
-                generator_address: network.generatorAddress,
+                generator_address: undefined,
                 fee_address: undefined,
             }
         )
@@ -118,6 +136,7 @@ async function uploadAndInitRouter(terra: LCDClient, wallet: any) {
         let resp = await deployContract(
             terra,
             wallet,
+            network.multisigAddress,
             join(ARTIFACTS_PATH, 'astroport_router.wasm'),
             {
                 astroport_factory: network.factoryAddress,
@@ -137,9 +156,10 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
         let resp = await deployContract(
             terra,
             wallet,
+            network.multisigAddress,
             join(ARTIFACTS_PATH, 'astroport_maker.wasm'),
             {
-                owner: wallet.key.accAddress,
+                owner: network.multisigAddress,
                 factory_contract: String(network.factoryAddress),
                 staking_contract: String(network.stakingAddress),
                 astro_token_contract: String(network.tokenAddress),
@@ -150,7 +170,7 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
         writeArtifact(network, terra.config.chainID)
 
         // Set maker address in factory
-        console.log('Set maker address in factory')
+        console.log('Set maker and proper owner address in factory')
         await executeContract(terra, wallet, network.factoryAddress, {
             "update_config": {
                 fee_address: network.makerAddress
