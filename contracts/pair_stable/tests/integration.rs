@@ -373,6 +373,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         token_code_id,
         generator_address: Some(String::from("generator")),
         owner: String::from("owner0000"),
+        whitelist_code_id: 234u64,
     };
 
     let factory_instance = app
@@ -617,6 +618,7 @@ fn update_pair_config() {
         token_code_id: token_contract_code_id,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
+        whitelist_code_id: 234u64,
     };
 
     let factory_instance = router

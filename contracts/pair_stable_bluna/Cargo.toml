@@ -1,5 +1,5 @@
 [package]
-name = "astroport-pair-stable"
+name = "astroport-pair-stable-bluna"
 version = "1.0.0"
 authors = ["Astroport"]
 edition = "2018"
@@ -34,13 +34,19 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }
 cosmwasm-bignumber = "2.2.0"
 protobuf = { version = "2", features = ["with-bytes"] }
+anchor-basset = {git = "https://github.com/astroport-fi/anchor-bAsset-contracts.git", branch = "master", package = "basset"}
 
 [dev-dependencies]
-cosmwasm-vm = { version = "0.16.0", default-features = false, features = ["iterator"] }
-cosmwasm-schema = "0.16.0"
-terra-cosmwasm = { version = "2.2.0" }
 proptest = "1.0.0"
 sim =  { path = "../sim" }
+terra-cosmwasm = { version = "2.2.0" }
+cosmwasm-vm = { version = "0.16.0", default-features = false, features = ["iterator"] }
+cosmwasm-schema = "0.16.0"
 astroport-token = {path = "../token"}
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
 astroport-factory = {path = "../factory"}
+anchor-basset-token = {git = "https://github.com/astroport-fi/anchor-bAsset-contracts.git", branch = "master", package = "anchor_basset_token"}
+anchor-basset-reward = {git = "https://github.com/astroport-fi/anchor-bAsset-contracts.git", branch = "master", package = "anchor_basset_reward"}
+anchor-basset-hub = {git = "https://github.com/astroport-fi/anchor-bAsset-contracts.git", branch = "master", package = "anchor_basset_hub"}
+astroport-whitelist = {path = "../whitelist"}
+cw20-legacy = { version = "0.2.0", features = ["library"]}
