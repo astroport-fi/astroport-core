@@ -103,6 +103,7 @@ fn instantiate_contracts(
         fee_address: None,
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
+        whitelist_code_id: 234u64,
     };
 
     let factory_instance = router

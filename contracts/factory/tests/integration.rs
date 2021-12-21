@@ -84,6 +84,7 @@ fn proper_initialization() {
         fee_address: None,
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
+        whitelist_code_id: 234u64,
     };
 
     let factory_instance = app
@@ -126,6 +127,7 @@ fn update_config() {
         token_code_id: Some(200u64),
         fee_address: fee_address.clone(),
         generator_address: generator_address.clone(),
+        whitelist_code_id: None,
     };
 
     app.execute_contract(
@@ -157,6 +159,7 @@ fn update_config() {
         token_code_id: None,
         fee_address: None,
         generator_address: None,
+        whitelist_code_id: None,
     };
 
     let res = app
@@ -188,6 +191,7 @@ fn instantiate_contract(app: &mut TerraApp, owner: &Addr, token_code_id: u64) ->
         fee_address: None,
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
+        whitelist_code_id: 234u64,
     };
 
     app.instantiate_contract(
