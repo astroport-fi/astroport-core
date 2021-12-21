@@ -28,6 +28,168 @@ const USER1: &str = "user1";
 const USER2: &str = "user2";
 
 #[test]
+fn disabling_pool() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked(OWNER);
+    let user1 = Addr::unchecked(USER1);
+
+    let token_code_id = store_token_code(&mut app);
+
+    let lp_cny_eur_instance = instantiate_token(&mut app, token_code_id, "CNY-EUR", None);
+    let lp_eur_usd_instance = instantiate_token(&mut app, token_code_id, "EUR-USD", None);
+
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
+
+    register_lp_tokens_in_generator(
+        &mut app,
+        &generator_instance,
+        None,
+        &[&lp_cny_eur_instance, &lp_eur_usd_instance],
+    );
+
+    // Mint tokens, so user can deposit
+    mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 10);
+    mint_tokens(&mut app, &lp_eur_usd_instance, &user1, 10);
+
+    deposit_lp_tokens_to_generator(
+        &mut app,
+        &generator_instance,
+        USER1,
+        &[(&lp_cny_eur_instance, 10), (&lp_eur_usd_instance, 10)],
+    );
+
+    check_token_balance(&mut app, &lp_cny_eur_instance, &generator_instance, 10);
+    check_token_balance(&mut app, &lp_eur_usd_instance, &generator_instance, 10);
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_cny_eur_instance,
+        USER1,
+        (0, None),
+    );
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_eur_usd_instance,
+        USER1,
+        (0, None),
+    );
+
+    app.update_block(|bi| next_block(bi));
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_cny_eur_instance,
+        USER1,
+        (5000000, None),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_eur_usd_instance,
+        USER1,
+        (5000000, None),
+    );
+
+    // setting the allocation point to zero for pool
+    let msg = GeneratorExecuteMsg::Set {
+        alloc_point: Uint64::new(0),
+        lp_token: lp_cny_eur_instance.clone(),
+    };
+
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // setting the allocation point to zero for pool
+    let msg_eur_usd = GeneratorExecuteMsg::Set {
+        alloc_point: Uint64::new(0),
+        lp_token: lp_eur_usd_instance.clone(),
+    };
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg_eur_usd, &[])
+        .unwrap();
+
+    app.update_block(|bi| next_block(bi));
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_cny_eur_instance,
+        USER1,
+        (5000000, None),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_eur_usd_instance,
+        USER1,
+        (5000000, None),
+    );
+
+    app.update_block(|bi| next_block(bi));
+
+    let msg = GeneratorExecuteMsg::Withdraw {
+        lp_token: lp_cny_eur_instance.clone(),
+        amount: Uint128::new(10),
+    };
+
+    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = GeneratorExecuteMsg::Withdraw {
+        lp_token: lp_eur_usd_instance.clone(),
+        amount: Uint128::new(10),
+    };
+
+    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    check_token_balance(&mut app, &lp_cny_eur_instance, &generator_instance, 0);
+    check_token_balance(&mut app, &lp_eur_usd_instance, &generator_instance, 0);
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_cny_eur_instance,
+        USER1,
+        (0, None),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_eur_usd_instance,
+        USER1,
+        (0, None),
+    );
+
+    app.update_block(|bi| next_block(bi));
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_cny_eur_instance,
+        USER1,
+        (0, None),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_eur_usd_instance,
+        USER1,
+        (0, None),
+    );
+}
+
+#[test]
 fn set_tokens_per_block() {
     let mut app = mock_app();
 

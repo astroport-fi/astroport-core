@@ -372,9 +372,9 @@ pub fn set(
 
     let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
 
-    let mut pool_info = POOL_INFO.load(deps.storage, &lp_token)?;
-
     mass_update_pools(deps.branch(), env)?;
+
+    let mut pool_info = POOL_INFO.load(deps.storage, &lp_token)?;
 
     cfg.total_alloc_point = cfg
         .total_alloc_point
@@ -1333,10 +1333,15 @@ fn query_orphan_proxy_rewards(deps: Deps, lp_token: Addr) -> Result<Uint128, Con
 pub fn calculate_rewards(env: &Env, pool: &PoolInfo, cfg: &Config) -> StdResult<Uint128> {
     let n_blocks = Uint128::from(env.block.height).checked_sub(pool.last_reward_block.into())?;
 
-    let r = n_blocks
-        .checked_mul(cfg.tokens_per_block)?
-        .checked_mul(Uint128::from(pool.alloc_point.u64()))?
-        .checked_div(Uint128::from(cfg.total_alloc_point.u64()))?;
+    let r;
+    if !cfg.total_alloc_point.is_zero() {
+        r = n_blocks
+            .checked_mul(cfg.tokens_per_block)?
+            .checked_mul(Uint128::from(pool.alloc_point.u64()))?
+            .checked_div(Uint128::from(cfg.total_alloc_point.u64()))?;
+    } else {
+        r = Uint128::zero();
+    }
 
     Ok(r)
 }
