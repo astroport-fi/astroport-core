@@ -6,11 +6,13 @@ pub mod generator_proxy;
 pub mod maker;
 pub mod oracle;
 pub mod pair;
+pub mod pair_stable_bluna;
 pub mod querier;
 pub mod router;
 pub mod staking;
 pub mod token;
 pub mod vesting;
+pub mod whitelist;
 
 #[cfg(test)]
 mod mock_querier;

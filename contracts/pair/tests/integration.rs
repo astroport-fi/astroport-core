@@ -341,6 +341,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         token_code_id,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
+        whitelist_code_id: 234u64,
     };
 
     let factory_instance = app

@@ -31,4 +31,7 @@ pub enum ContractError {
 
     #[error("Doubling assets in asset infos")]
     DoublingAssets {},
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
