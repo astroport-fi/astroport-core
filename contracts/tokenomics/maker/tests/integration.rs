@@ -1,4 +1,4 @@
-use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::asset::{native_asset, token_asset, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType, UpdateAddr};
 use astroport::maker::{BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
@@ -103,14 +103,12 @@ fn instantiate_contracts(
         )
         .unwrap();
 
-    let maker_contract = Box::new(
-        ContractWrapper::new(
-            astroport_maker::contract::execute,
-            astroport_maker::contract::instantiate,
-            astroport_maker::contract::query,
-        )
-        .with_reply(astroport_maker::contract::reply),
-    );
+    let maker_contract = Box::new(ContractWrapper::new(
+        astroport_maker::contract::execute,
+        astroport_maker::contract::instantiate,
+        astroport_maker::contract::query,
+    ));
+
     let market_code_id = router.store_code(maker_contract);
 
     let msg = InstantiateMsg {
@@ -445,11 +443,11 @@ fn collect_all() {
         "USDC".to_string(),
     );
 
-    let luna_token_instance = instantiate_token(
+    let test_token_instance = instantiate_token(
         &mut router,
         owner.clone(),
-        "Luna token".to_string(),
-        "LUNA".to_string(),
+        "Test token".to_string(),
+        "TEST".to_string(),
     );
 
     let uusd_asset = String::from("uusd");
@@ -460,88 +458,20 @@ fn collect_all() {
 
     for t in vec![
         [
-            Asset {
-                info: AssetInfo::NativeToken {
-                    denom: uusd_asset.clone(),
-                },
-                amount: Uint128::from(100_000_u128),
-            },
-            Asset {
-                info: AssetInfo::Token {
-                    contract_addr: astro_token_instance.clone(),
-                },
-                amount: Uint128::from(100_000_u128),
-            },
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+            token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
         [
-            Asset {
-                info: AssetInfo::NativeToken {
-                    denom: uluna_asset.clone(),
-                },
-                amount: Uint128::from(100_000_u128),
-            },
-            Asset {
-                info: AssetInfo::Token {
-                    contract_addr: astro_token_instance.clone(),
-                },
-                amount: Uint128::from(100_000_u128),
-            },
+            native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
         ],
         [
-            Asset {
-                info: AssetInfo::NativeToken {
-                    denom: uusd_asset.clone(),
-                },
-                amount: Uint128::from(100_000_u128),
-            },
-            Asset {
-                info: AssetInfo::NativeToken {
-                    denom: uluna_asset.clone(),
-                },
-                amount: Uint128::from(100_000_u128),
-            },
+            token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
         [
-            Asset {
-                info: AssetInfo::Token {
-                    contract_addr: usdc_token_instance.clone(),
-                },
-                amount: Uint128::from(100_000_u128),
-            },
-            Asset {
-                info: AssetInfo::Token {
-                    contract_addr: astro_token_instance.clone(),
-                },
-                amount: Uint128::from(100_000_u128),
-            },
-        ],
-        [
-            Asset {
-                info: AssetInfo::Token {
-                    contract_addr: luna_token_instance.clone(),
-                },
-                amount: Uint128::from(100_000_u128),
-            },
-            Asset {
-                info: AssetInfo::Token {
-                    contract_addr: astro_token_instance.clone(),
-                },
-                amount: Uint128::from(100_000_u128),
-            },
-        ],
-        [
-            Asset {
-                info: AssetInfo::Token {
-                    contract_addr: usdc_token_instance.clone(),
-                },
-                amount: Uint128::from(100_000_u128),
-            },
-            Asset {
-                info: AssetInfo::Token {
-                    contract_addr: luna_token_instance.clone(),
-                },
-                amount: Uint128::from(100_000_u128),
-            },
+            token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
         ],
     ] {
         let pair_info = create_pair(
@@ -555,11 +485,27 @@ fn collect_all() {
         pair_addresses.push(pair_info.contract_addr);
     }
 
+    // Setup bridge to withdraw USDC via USDC -> TEST -> UUSD -> ASTRO route
+    router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::UpdateBridges {
+                add: Some(vec![(
+                    token_asset_info(usdc_token_instance.clone()),
+                    token_asset_info(test_token_instance.clone()),
+                )]),
+                remove: None,
+            },
+            &[],
+        )
+        .unwrap();
+
     // Mint all tokens for maker
     for t in vec![
         (astro_token_instance.clone(), 10u128),
         (usdc_token_instance.clone(), 20u128),
-        (luna_token_instance.clone(), 30u128),
+        (test_token_instance.clone(), 30u128),
     ] {
         let (token, amount) = t;
         mint_some_token(
@@ -596,36 +542,11 @@ fn collect_all() {
         .unwrap();
 
     let expected_balances = vec![
-        Asset {
-            info: AssetInfo::NativeToken {
-                denom: uusd_asset.clone(),
-            },
-            amount: Uint128::new(100),
-        },
-        Asset {
-            info: AssetInfo::NativeToken {
-                denom: uluna_asset.clone(),
-            },
-            amount: Uint128::new(110),
-        },
-        Asset {
-            info: AssetInfo::Token {
-                contract_addr: astro_token_instance.clone(),
-            },
-            amount: Uint128::new(10),
-        },
-        Asset {
-            info: AssetInfo::Token {
-                contract_addr: usdc_token_instance.clone(),
-            },
-            amount: Uint128::new(20),
-        },
-        Asset {
-            info: AssetInfo::Token {
-                contract_addr: luna_token_instance.clone(),
-            },
-            amount: Uint128::new(30),
-        },
+        native_asset(uusd_asset.clone(), Uint128::new(100)),
+        native_asset(uluna_asset.clone(), Uint128::new(110)),
+        token_asset(astro_token_instance.clone(), Uint128::new(10)),
+        token_asset(usdc_token_instance.clone(), Uint128::new(20)),
+        token_asset(test_token_instance.clone(), Uint128::new(30)),
     ];
 
     let balances_resp: BalancesResponse = router
@@ -651,7 +572,7 @@ fn collect_all() {
 
     router
         .execute_contract(
-            maker_instance.clone(),
+            Addr::unchecked("anyone"),
             maker_instance.clone(),
             &ExecuteMsg::Collect { pair_addresses },
             &[],
@@ -661,7 +582,7 @@ fn collect_all() {
     for t in vec![
         (astro_token_instance.clone(), 266u128), // 10 astro + 19 usdc + 29 luna + 99 uusd + 109 uluna
         (usdc_token_instance.clone(), 0u128),
-        (luna_token_instance.clone(), 0u128),
+        (test_token_instance.clone(), 0u128),
     ] {
         let (token, amount) = t;
 

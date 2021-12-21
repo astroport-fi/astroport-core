@@ -347,3 +347,25 @@ pub fn format_lp_token_name(
     }
     Ok(format!("{}-{}-LP", short_symbols[0], short_symbols[1]).to_uppercase())
 }
+
+pub fn native_asset(denom: String, amount: Uint128) -> Asset {
+    Asset {
+        info: AssetInfo::NativeToken { denom },
+        amount,
+    }
+}
+
+pub fn token_asset(contract_addr: Addr, amount: Uint128) -> Asset {
+    Asset {
+        info: AssetInfo::Token { contract_addr },
+        amount,
+    }
+}
+
+pub fn native_asset_info(denom: String) -> AssetInfo {
+    AssetInfo::NativeToken { denom }
+}
+
+pub fn token_asset_info(contract_addr: Addr) -> AssetInfo {
+    AssetInfo::Token { contract_addr }
+}
