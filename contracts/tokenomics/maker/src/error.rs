@@ -12,23 +12,20 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("TokenMaker: Invalid bridge")]
-    InvalidBridge {},
+    #[error("Invalid bridge. {0} to {1} not found")]
+    InvalidBridge(AssetInfo, AssetInfo),
 
     #[error("Insufficient balance in contract to process claim")]
     BalanceTooSmall {},
 
-    #[error("Repetitive reply definition")]
-    RepetitiveReply {},
+    #[error("Empty reply definition")]
+    EmptyReply {},
 
-    #[error("Cannot swap {0} to {1}. Pair not found in factory")]
-    PairNotFound(AssetInfo, AssetInfo),
+    #[error("Cannot swap {0}. No swap destinations")]
+    CannotSwap(AssetInfo),
 
     #[error("Incorrect governance percent of its share")]
     IncorrectGovernancePercent {},
-
-    #[error("Swap non-ASTRO to ASTRO error")]
-    SwapNonAstroToAstroError {},
 
     #[error("Incorrect max spread")]
     IncorrectMaxSpread {},

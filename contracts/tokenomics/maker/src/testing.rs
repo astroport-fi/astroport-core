@@ -3,6 +3,7 @@ use cosmwasm_std::{from_binary, Addr, Decimal, Uint64};
 
 use crate::contract::{execute, instantiate, query};
 use crate::state::{Config, CONFIG};
+use astroport::asset::AssetInfo;
 use astroport::maker::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use std::str::FromStr;
 
@@ -129,4 +130,118 @@ fn update_owner() {
     let config: ConfigResponse =
         from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap()).unwrap();
     assert_eq!(new_owner, config.owner);
+}
+
+#[test]
+fn update_bridges() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info("addr0000", &[]);
+
+    let owner = Addr::unchecked("owner");
+    let factory = Addr::unchecked("factory");
+    let staking = Addr::unchecked("staking");
+    let governance_contract = Addr::unchecked("governance");
+    let governance_percent = Uint64::new(50);
+    let astro_token_contract = Addr::unchecked("astro-token");
+
+    let msg = InstantiateMsg {
+        owner: owner.to_string(),
+        factory_contract: factory.to_string(),
+        staking_contract: staking.to_string(),
+        governance_contract: Option::from(governance_contract.to_string()),
+        governance_percent: Option::from(governance_percent),
+        astro_token_contract: astro_token_contract.to_string(),
+        max_spread: None,
+    };
+
+    let env = mock_env();
+
+    // we can just call .unwrap() to assert this was a success
+    instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
+
+    let msg = ExecuteMsg::UpdateBridges {
+        add: Some(vec![
+            (
+                AssetInfo::NativeToken {
+                    denom: String::from("uluna"),
+                },
+                AssetInfo::NativeToken {
+                    denom: String::from("uusd"),
+                },
+            ),
+            (
+                AssetInfo::NativeToken {
+                    denom: String::from("ukrt"),
+                },
+                AssetInfo::NativeToken {
+                    denom: String::from("uusd"),
+                },
+            ),
+        ]),
+        remove: None,
+    };
+
+    // unauthorized check
+    let err = execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info("invalid_owner", &[]),
+        msg.clone(),
+    )
+    .unwrap_err();
+    assert_eq!(err.to_string(), "Unauthorized");
+
+    // add bridges
+    execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(owner.as_str(), &[]),
+        msg.clone(),
+    )
+    .unwrap();
+
+    let resp: Vec<(String, String)> =
+        from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::Bridges {}).unwrap()).unwrap();
+
+    assert_eq!(
+        resp,
+        vec![
+            (String::from("ukrt"), String::from("uusd")),
+            (String::from("uluna"), String::from("uusd")),
+        ]
+    );
+
+    let msg = ExecuteMsg::UpdateBridges {
+        remove: Some(vec![AssetInfo::NativeToken {
+            denom: String::from("ukrt"),
+        }]),
+        add: Some(vec![(
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked("terra1xyzxyz"),
+            },
+            AssetInfo::NativeToken {
+                denom: String::from("uusd"),
+            },
+        )]),
+    };
+
+    // add and remove bridges
+    execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(owner.as_str(), &[]),
+        msg.clone(),
+    )
+    .unwrap();
+
+    let resp: Vec<(String, String)> =
+        from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::Bridges {}).unwrap()).unwrap();
+
+    assert_eq!(
+        resp,
+        vec![
+            (String::from("terra1xyzxyz"), String::from("uusd")),
+            (String::from("uluna"), String::from("uusd")),
+        ]
+    );
 }

@@ -47,6 +47,17 @@ pub enum ExecuteMsg {
         /// the maximum spread
         max_spread: Option<Decimal>,
     },
+    /// Add bridges
+    UpdateBridges {
+        add: Option<Vec<(AssetInfo, AssetInfo)>>,
+        remove: Option<Vec<AssetInfo>>,
+    },
+    /// Swap rewards via bridge assets
+    SwapBridgeAssets { assets: Vec<AssetInfo> },
+    /// Swap uusd rewards to ASTRO tokens
+    SwapUusdToAstro {},
+    /// Distribute rewards in ASTRO tokens
+    DistributeAstro {},
     /// Creates a request to change ownership.
     ProposeNewOwner {
         /// a new owner
@@ -68,7 +79,10 @@ pub enum QueryMsg {
     /// Returns information about the maker configs that contains in the [`Config`]
     Config {},
     /// Returns the balance for each asset in the specified input parameters
-    Balances { assets: Vec<AssetInfo> },
+    Balances {
+        assets: Vec<AssetInfo>,
+    },
+    Bridges {},
 }
 
 /// ## Description
