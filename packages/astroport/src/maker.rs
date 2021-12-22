@@ -54,8 +54,6 @@ pub enum ExecuteMsg {
     },
     /// Swap rewards via bridge assets
     SwapBridgeAssets { assets: Vec<AssetInfo> },
-    /// Swap uusd rewards to ASTRO tokens
-    SwapUusdToAstro {},
     /// Distribute rewards in ASTRO tokens
     DistributeAstro {},
     /// Creates a request to change ownership.
