@@ -206,7 +206,7 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
 
     let mut bridge_assets = HashMap::new();
 
-    // Swap all non-astro and non-ust tokens
+    // Swap all non-astro tokens
     for a in assets_map.values().cloned().filter(|a| a.ne(&astro)) {
         // Get Balance
         let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
@@ -243,7 +243,7 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
             funds: vec![],
         }));
     } else {
-        // Distribute rewards
+        // Update balances and distribute rewards
         response.messages.push(SubMsg::new(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
             msg: to_binary(&ExecuteMsg::DistributeAstro {})?,
@@ -297,6 +297,22 @@ fn swap(
         .load(deps.storage, from_token.to_string())
         .map_err(|_| ContractError::CannotSwap(from_token.clone()))?;
 
+    let bridge_pool = validate_bridge(deps, cfg, from_token.clone(), bridge_token.clone(), astro)?;
+    let msg = build_swap_msg(deps, cfg, bridge_pool, from_token, amount_in)?;
+
+    Ok(SwapTarget::Bridge {
+        asset: bridge_token,
+        msg,
+    })
+}
+
+fn validate_bridge(
+    deps: Deps,
+    cfg: &Config,
+    from_token: AssetInfo,
+    bridge_token: AssetInfo,
+    astro_token: AssetInfo,
+) -> Result<PairInfo, ContractError> {
     // check if bridge pool exists
     let bridge_pool = query_pair_info(
         &deps.querier,
@@ -309,16 +325,11 @@ fn swap(
     query_pair_info(
         &deps.querier,
         cfg.factory_contract.clone(),
-        &[bridge_token.clone(), astro.clone()],
+        &[bridge_token.clone(), astro_token.clone()],
     )
-    .map_err(|_| ContractError::InvalidBridge(bridge_token.clone(), astro.clone()))?;
+    .map_err(|_| ContractError::InvalidBridge(bridge_token.clone(), astro_token.clone()))?;
 
-    let msg = build_swap_msg(deps, cfg, bridge_pool, from_token, amount_in)?;
-
-    Ok(SwapTarget::Bridge {
-        asset: bridge_token,
-        msg,
-    })
+    Ok(bridge_pool)
 }
 
 fn build_swap_msg(
@@ -530,12 +541,13 @@ fn update_bridges(
             }
 
             // Check that bridge token can be swapped to ASTRO
-            query_pair_info(
-                &deps.querier,
-                cfg.factory_contract.clone(),
-                &[bridge.clone(), astro.clone()],
-            )
-            .map_err(|_| ContractError::InvalidBridge(bridge.clone(), astro.clone()))?;
+            validate_bridge(
+                deps.as_ref(),
+                &cfg,
+                asset.clone(),
+                bridge.clone(),
+                astro.clone(),
+            )?;
 
             BRIDGES.save(deps.storage, asset.to_string(), &bridge)?;
         }

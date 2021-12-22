@@ -754,6 +754,32 @@ fn update_bridges() {
     let err = router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
         .unwrap_err();
+    assert_eq!(err.to_string(), "Invalid bridge. uluna to uusd not found");
+
+    // Create pair so that add bridge check does not fail
+    for pair in vec![
+        [
+            native_asset(String::from("uluna"), Uint128::from(100_000_u128)),
+            native_asset(String::from("uusd"), Uint128::from(100_000_u128)),
+        ],
+        [
+            native_asset(String::from("ukrt"), Uint128::from(100_000_u128)),
+            native_asset(String::from("uusd"), Uint128::from(100_000_u128)),
+        ],
+    ] {
+        create_pair(
+            &mut router,
+            owner.clone(),
+            user.clone(),
+            &factory_instance,
+            pair,
+        );
+    }
+
+    // add bridges
+    let err = router
+        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
+        .unwrap_err();
     assert_eq!(
         err.to_string(),
         "Invalid bridge. uusd to contract #0 not found"
@@ -794,13 +820,10 @@ fn update_bridges() {
 
     let msg = ExecuteMsg::UpdateBridges {
         remove: Some(vec![native_asset_info(String::from("ukrt"))]),
-        add: Some(vec![(
-            token_asset_info(Addr::unchecked("terra1xyzxyz")),
-            native_asset_info(String::from("uusd")),
-        )]),
+        add: None,
     };
 
-    // add and remove bridges
+    // remove bridges
     router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
         .unwrap();
@@ -813,11 +836,5 @@ fn update_bridges() {
         }))
         .unwrap();
 
-    assert_eq!(
-        resp,
-        vec![
-            (String::from("terra1xyzxyz"), String::from("uusd")),
-            (String::from("uluna"), String::from("uusd")),
-        ]
-    );
+    assert_eq!(resp, vec![(String::from("uluna"), String::from("uusd")),]);
 }
