@@ -658,6 +658,7 @@ pub fn accumulate_rewards_per_share(
                 pool.accumulated_proxy_rewards_per_share = pool
                     .accumulated_proxy_rewards_per_share
                     .checked_add(share)?;
+                pool.proxy_reward_balance_before_update = reward_amount;
             }
         }
         None => {
