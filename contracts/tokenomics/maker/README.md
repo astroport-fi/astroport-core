@@ -17,7 +17,8 @@ Inits with required contract addresses and `governance_percent`.
   "factory_contract": "terra...",
   "staking_contract": "terra...",
   "governance_contract": "terra...",
-  "governance_percent": "20"
+  "governance_percent": 20,
+  "max_spread": 23.3
 }
 ```
 
@@ -25,27 +26,67 @@ Inits with required contract addresses and `governance_percent`.
 
 ### `collect`
 
-Collects assets from given pools.
+Collects astro tokens from the given pairs
 
 ```json
 {
   "collect": {
     "pair_addresses": [
+      "terra...",
       "terra..."
     ]
   }
 }
 ```
 
-### `set_config`
+### `update_config`
 
-Updates config, all fields are optional.
+Updates general settings. All fields are optional.
 
 ```json
 {
-  "staking_contract": "terra...",
-  "governance_contract": "terra...",
-  "governance_percent": "20"
+  "update_config": {
+    "factory_contract": "terra...",
+    "staking_contract": "terra...",
+    "governance_contract": {
+      "set": "terra..."
+    },
+    "governance_percent": "20",
+    "max_spread": 23.3
+  }
+}
+```
+
+### `propose_new_owner`
+
+Creates an offer for a new owner. The validity period of the offer is set in the `expires_in` variable.
+
+```json
+{
+  "propose_new_owner": {
+    "owner": "terra...",
+    "expires_in": 1234567
+  }
+}
+```
+
+### `drop_ownership_proposal`
+
+Removes the existing offer for the new owner.
+
+```json
+{
+  "drop_ownership_proposal": {}
+}
+```
+
+### `claim_ownership`
+
+Used to claim(approve) new owner proposal, thus changing contract's owner.
+
+```json
+{
+  "claim_ownership": {}
 }
 ```
 
@@ -55,7 +96,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `config`
 
-Returns contract addresses and `governance_percent`.
+Returns information about the maker configs.
 
 ```json
 {
@@ -65,27 +106,21 @@ Returns contract addresses and `governance_percent`.
 
 ### `balances`
 
-Returns asset infos for all pools.
+Returns the balance for each asset in the specified input parameters
 
 ```json
 {
   "balances": {
     "assets": [
       {
-        "info": {
-          "token": {
-            "contract_addr": "terra..."
-          }
-        },
-        "amount": "1000000"
+        "token": {
+          "contract_addr": "terra..."
+        }
       },
       {
-        "info": {
-          "native_token": {
-            "denom": "uusd"
-          }
-        },
-        "amount": "1000000"
+        "native_token": {
+          "denom": "uusd"
+        }
       }
     ]
   }

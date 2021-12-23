@@ -44,7 +44,7 @@ Inits a new stable pair.
       }
     }
   ],
-  "init_params": Buffer.from(JSON.stringify({"amp": 100})).toString("base64")
+  "init_params": "<base64_encoded_json_string: Optional binary serialised parameters for custom pool types. Example params: {'amp': 100} >"
 }
 ```
 
@@ -90,7 +90,9 @@ Provides pool liquidity by sending user's native or token assets. It can be dist
           },
           "amount": "1000000"
         }
-      ]
+      ],
+      "auto_stake": false,
+      "receiver": "terra..."
     }
   }
 ```
@@ -117,9 +119,11 @@ Provides pool liquidity by sending user's native or token assets. It can be dist
           },
           "amount": "1000000"
         }
-      ]
-    },
-    "slippage_tolerance": "0.01"
+      ],
+      "slippage_tolerance": "0.01",
+      "auto_stake": false,
+      "receiver": "terra..."
+    }
   }
 ```
 
@@ -155,19 +159,21 @@ NOTE: You should increase token allowance before swap. This method is only used 
   }
 ```
 
+### `update_config`
+
+Update pair configuration
+
+```json
+  {
+    "update_config": {
+      "params": "<base64_encoded_json_string>: binary serialised parameters for stable pool types: Example: {'amp': 100} "
+    }
+  }
+```
+
 #### Commission
 
 The `lp_commission` remains in the swap pool. The value of this permanently increased pool goes to all LPs.
-
-### `update_config`
-
-```json
-{
-  "update_config": {
-    "amp": 123
-  }
-}
-```
 
 ## QueryMsg
 
@@ -190,6 +196,16 @@ Get pool assets and total share.
 ```json
 {
   "pool": {}
+}
+```
+
+### `config`
+
+Get configuration of pair.
+
+```json
+{
+  "config": {}
 }
 ```
 

@@ -12,7 +12,6 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
 
 ```json
 {
-  "pair_code_id": 123,
   "token_code_id": 123,
   "fee_address": "terra...",
   "owner": "terra...",
@@ -23,7 +22,8 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
         "xyk": {}
       },
       "total_fee_bps": 100,
-      "maker_fee_bps": 10
+      "maker_fee_bps": 10,
+      "is_disabled": false
     }
   ]
 }
@@ -33,11 +33,11 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
 
 ### `update_config`
 
+Updates relevant code IDs.
+
 ```json
 {
   "update_config": {
-    "gov": "terra...",
-    "owner": "terra...",
     "token_code_id": 123,
     "fee_address": "terra...",
     "generator_address": "terra..."
@@ -47,7 +47,7 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
 
 ### `update_pair_config`
 
-Updating code id and fees for specified pair type. All fields are optional.
+Updating code id and fees for specified pair type or disable pair configs. All fields are optional.
 
 ```json
 {
@@ -58,20 +58,9 @@ Updating code id and fees for specified pair type. All fields are optional.
         "xyk": {}
       },
       "total_fee_bps": 100,
-      "maker_fee_bps": 10
+      "maker_fee_bps": 10,
+      "is_disabled": false
     }
-  }
-}
-```
-
-### `remove_pair_config`
-
-Removing config for specified pair type.
-
-```json
-{
-  "pair_type": {
-    "stable": {}
   }
 }
 ```
@@ -97,9 +86,9 @@ Anyone can execute it to create swap pair. When a user executes `CreatePair` ope
           "denom": "uusd"
         }
       }
-    ]
-  },
-  "init_params": "<base64_encoded_json_string: Optional binary serialised parameters for custom pool types>"
+    ],
+    "init_params": "<base64_encoded_json_string: Optional binary serialised parameters for custom pool types>"
+  }
 }
 ```
 
@@ -126,11 +115,46 @@ Deregisters already registered pair (deletes pair).
 }
 ```
 
+### `propose_new_owner`
+
+Creates an offer for a new owner. The validity period of the offer is set in the `expires_in` variable.
+
+```json
+{
+  "propose_new_owner": {
+    "owner": "terra...",
+    "expires_in": 1234567
+  }
+}
+```
+
+### `drop_ownership_proposal`
+
+Removes the existing offer for the new owner.
+
+```json
+{
+  "drop_ownership_proposal": {}
+}
+```
+
+### `claim_ownership`
+
+Used to claim(approve) new owner proposal, thus changing contract's owner.
+
+```json
+{
+  "claim_ownership": {}
+}
+```
+
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.
 
 ### `config`
+
+Returns general settings of the factory
 
 ```json
 {

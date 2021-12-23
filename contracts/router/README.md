@@ -64,7 +64,6 @@ Swap UST => mABNB
           }
         }
       },
-     "minimum_receive": "123",
      "to": "terra..."
    }
 }
@@ -150,29 +149,31 @@ Simulates multi-hop swap operations (execute_swap_operations), examples:
 
 ```json
 {
-  "offer_amount": "123",
-  "operations": [
-    {
-      "native_swap": {
-        "offer_denom": "ukrw",
-        "ask_denom": "uusd"
-      }
-    },
-    {
-      "astro_swap": {
-        "offer_asset_info": {
-          "native_token": {
-            "denom": "uusd"
-          }
-        },
-        "ask_asset_info": {
-          "token": {
-            "contract_addr": "terra..."
+  "simulate_swap_operations" : {
+    "offer_amount": "123",
+    "operations": [
+      {
+        "native_swap": {
+          "offer_denom": "ukrw",
+          "ask_denom": "uusd"
+        }
+      },
+      {
+        "astro_swap": {
+          "offer_asset_info": {
+            "native_token": {
+              "denom": "uusd"
+            }
+          },
+          "ask_asset_info": {
+            "token": {
+              "contract_addr": "terra..."
+            }
           }
         }
       }
-    }
-  ]
+    ]
+  }
 }
 ```
 
@@ -180,8 +181,9 @@ Simulates multi-hop swap operations (execute_swap_operations), examples:
 
 ```json
 {
-  "offer_amount": "123",
-  "operations": [
+  "simulate_swap_operations" : {
+    "offer_amount": "123",
+    "operations": [
     {
       "native_swap": {
         "offer_denom": "uusd",
@@ -203,5 +205,6 @@ Simulates multi-hop swap operations (execute_swap_operations), examples:
       }
     }
   ]
+  }
 }
 ```

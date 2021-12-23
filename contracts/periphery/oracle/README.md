@@ -52,10 +52,8 @@ Multiplies a given amount and last average price in common.
 {
   "consult": {
     "token": {
-      "info": {
-        "token": {
-          "contract_addr": "terra..."
-        }
+      "native_token": {
+        "denom": "uluna"
       }
     },
     "amount": "1000000"
