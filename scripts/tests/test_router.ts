@@ -10,7 +10,6 @@ import {
 } from "../helpers.js"
 import util from "util";
 import {Coin } from "@terra-money/terra.js";
-import {provideLiquidity} from "./tests.js"
 
 async function main() {
     const cl = newClient()
@@ -19,7 +18,6 @@ async function main() {
     const astroport = new Astroport(cl.terra, cl.wallet);
     console.log(`chainID: ${cl.terra.config.chainID} wallet: ${cl.wallet.key.accAddress}`)
 
-    const swap_amount = 1000;
     const router = astroport.router(network.routerAddress);
     console.log("router config: ", await router.queryConfig());
 
@@ -44,19 +42,20 @@ async function main() {
     console.log(`LunaUst balance: ${lpTokenLunaUst}`)
 
     // 4. Assert minimum receive
-    await assertMinimumReceive(router, swap_amount.toString(), cl.wallet.key.accAddress);
+    await assertMinimumReceive(router, cl.wallet.key.accAddress);
 
     // 5. Swap tokens
-    await swapFromCW20(router, swap_amount.toString(), network, astroport, cl.wallet.key.accAddress);
+    await swapFromCW20(router, network, astroport, cl.wallet.key.accAddress);
 
     // 6. Swap native tokens
-    await swapFromNative(router, swap_amount.toString(), network, astroport, cl.wallet.key.accAddress);
+    await swapFromNative(router, network, astroport, cl.wallet.key.accAddress);
 }
 
-async function assertMinimumReceive(router: Router, swap_amount: string, accAddress: string) {
+async function assertMinimumReceive(router: Router, accAddress: string) {
+    const swap_amount = 1000;
     try {
         let minReceive = await router.assertMinimumReceive(
-            new NativeAsset("uluna", swap_amount), "1000", "10000000000000000", accAddress);
+            new NativeAsset("uluna", swap_amount.toString()), "1000", "10000000000000000", accAddress);
         console.log("Assert minimum receive: ", util.inspect(minReceive, false, null, true));
     } catch (e: any) {
         console.log("assertMinimumReceive status code: ", e.response.status);
@@ -64,8 +63,9 @@ async function assertMinimumReceive(router: Router, swap_amount: string, accAddr
     }
 }
 
-async function swapFromCW20(router: Router, swap_amount: string, network: any, astroport: Astroport, accAddress: string) {
+async function swapFromCW20(router: Router, network: any, astroport: Astroport, accAddress: string) {
     // to get an error, set the minimum amount to be greater than the exchange amount
+    const swap_amount = 1000;
     let min_receive = swap_amount + 1;
     try {
         let resp = await router.swapOperationsCW20(network.tokenAddress, swap_amount.toString(), min_receive.toString(),
@@ -111,7 +111,8 @@ async function swapFromCW20(router: Router, swap_amount: string, network: any, a
         uluna_balance_after_swap?.add(swapRate).amount.toNumber());
 }
 
-async function swapFromNative(router: Router, swap_amount: string, network: any, astroport: Astroport, accAddress: string) {
+async function swapFromNative(router: Router, network: any, astroport: Astroport, accAddress: string) {
+    const swap_amount = 1000;
     let uluna_balance_before_swap = await astroport.getNativeBalance(accAddress, "uluna");
     console.log(`uluna balance before swap: ${uluna_balance_before_swap}`);
 
@@ -141,6 +142,21 @@ async function swapFromNative(router: Router, swap_amount: string, network: any,
     console.log(`astro balance after swap: ${astro_balance_after_swap}`);
 
     strictEqual(astro_balance_before_swap, astro_balance_after_swap + swapRate.amount.toNumber());
+}
+
+async function provideLiquidity(network: any, astroport: Astroport, accAddress: string, poolAddress: string, assets: (NativeAsset|TokenAsset)[]) {
+    const pool = astroport.pair(poolAddress);
+    let pair_info = await pool.queryPair();
+    console.log(util.inspect(pair_info, false, null, true));
+
+    // Provide liquidity to swap
+    await pool.provideLiquidity(assets[0], assets[1])
+
+    let astro_balance = await astroport.getTokenBalance(network.tokenAddress, accAddress);
+    let xastro_balance = await astroport.getTokenBalance(network.xastroAddress, accAddress);
+
+    console.log(`ASTRO balance: ${astro_balance}`)
+    console.log(`xASTRO balance: ${xastro_balance}`)
 }
 
 main().catch(console.log)
