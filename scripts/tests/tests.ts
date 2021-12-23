@@ -22,25 +22,19 @@ async function main() {
         new TokenAsset(network.tokenAddress, liquidity_amount.toString())
     ])
 
-    // 2. Provide LunaUst liquidity
-    await provideLiquidity(network, astroport, wallet.key.accAddress, network.poolLunaUst, [
-        new NativeAsset('uluna', liquidity_amount.toString()),
-        new NativeAsset('uusd', liquidity_amount.toString())
-    ])
-
-    // 3. Deposit ASTRO to staking
+    // 2. Deposit ASTRO to staking
     await stake(network, astroport, wallet.key.accAddress)
 
-    // 4. Swap tokens in pool
+    // 3. Swap tokens in pool
     await swap(network, astroport, wallet.key.accAddress)
 
-    // 5. Maker collect fees
+    // 4. Maker collect fees
     await collectFees(network, astroport, wallet.key.accAddress)
 
-    // 6. Withdraw liquidity
+    // 5. Withdraw liquidity
     await withdrawLiquidity(network, astroport, wallet.key.accAddress)
 
-    // 7. Unstake ASTRO
+    // 6. Unstake ASTRO
     await unstake(network, astroport, wallet.key.accAddress)
 }
 
