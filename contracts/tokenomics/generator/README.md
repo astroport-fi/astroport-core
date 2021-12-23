@@ -12,6 +12,7 @@ Inits with required contract addresses for depositing and reward distribution.
 
 ```json
 {
+  "owner": "terra...",
   "astro_token": "terra...",
   "tokens_per_block": "123",
   "start_block": "123",
@@ -24,16 +25,27 @@ Inits with required contract addresses for depositing and reward distribution.
 
 ## ExecuteMsg
 
+### `update_config`
+
+Update current vesting contract. Only owner can execute it.
+
+```json
+{
+  "update_config": {
+    "vesting_contract": "terra..."
+  }
+}
+```
+
 ### `add`
 
-Adds support of a new LP with optional reward_proxy address. `with_update` for updating reward variables for all pools.
+Adds support of a new LP with optional reward_proxy address.
 
 ```json
 {
   "add": {
     "lp_token": "terra...",
     "alloc_point": "40",
-    "with_update": true,
     "reward_proxy": "terra..."
   }
 }
@@ -41,14 +53,13 @@ Adds support of a new LP with optional reward_proxy address. `with_update` for u
 
 ### `set`
 
-Updates LP token allocation point. `with_update` for updating pool reward only.
+Update the given pool's ASTRO allocation point. Only owner can execute it.
 
 ```json
 {
   "set": {
     "lp_token": "terra...",
-    "alloc_point": "60",
-    "with_update": true
+    "alloc_point": "60"
   }
 }
 ```
@@ -128,7 +139,7 @@ Execute this message by the LP token contract address from which you want to mak
 In send.msg, you may decode this JSON string into base64 encoding.
 ```json
 {
-  "DepositFor": Addr
+  "DepositFor": "terra..."
 }
 ```
 
@@ -164,8 +175,10 @@ Updates allowed proxies whitelist for 3-d party staking.
 ```json
 {
   "set_allowed_reward_proxies": {
-    "lp_token": "terra...",
-    "amount": "123"
+    "proxies": [
+      "terra...",
+      "terra..."
+    ]
   }
 }
 ```
@@ -192,6 +205,39 @@ Sets reward amount that will be generated per block.
   "set_tokens_per_block": {
     "amount": "123"
   }
+}
+```
+
+### `propose_new_owner`
+
+Creates a request to change ownership. The validity period of the offer is set in the `expires_in` variable.
+
+```json
+{
+  "propose_new_owner": {
+    "owner": "terra...",
+    "expires_in": 1234567
+  }
+}
+```
+
+### `drop_ownership_proposal`
+
+Removes the existing offer for the new owner.
+
+```json
+{
+  "drop_ownership_proposal": {}
+}
+```
+
+### `claim_ownership`
+
+Used to claim(approve) new owner proposal, thus changing contract's owner.
+
+```json
+{
+  "claim_ownership": {}
 }
 ```
 
@@ -250,6 +296,18 @@ Returns orphan rewards amount.
 ```json
 {
   "orphan_proxy_rewards": {
+    "lp_token": "terra..."
+  }
+}
+```
+
+### `reward_info`
+
+Returns reward information for the specified token.
+
+```json
+{
+  "reward_info": {
     "lp_token": "terra..."
   }
 }

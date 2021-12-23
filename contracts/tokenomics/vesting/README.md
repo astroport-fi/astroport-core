@@ -69,7 +69,7 @@ In send.msg, you may decode this JSON string into base64 encoding.
 
 ### `claim`
 
-Releases amount if claimed amount of tokens is available. Fields are optional.
+Claims the amount from Vesting for transfer to the recipient. Fields are optional.
 
 ```json
 {
@@ -86,7 +86,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `config`
 
-Returns contract config
+Returns the vesting token contract address
 
 ```json
 {
@@ -123,6 +123,9 @@ Gives paginated vesting schedules using specified parameters. Given fields are o
 ```
 
 ### `available amount`
+
+Returns the available amount for specified account.
+
 ```json
 {
   "available_amount": {

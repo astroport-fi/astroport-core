@@ -43,7 +43,8 @@ Inits a new x*y=k pair.
         "denom": "uusd"
       }
     }
-  ]
+  ],
+  "init_params": "<base64_encoded_json_string: Optional binary serialised parameters for custom pool types>"
 }
 ```
 
@@ -89,7 +90,9 @@ Provides pool liquidity by sending user's native or token assets. It can be dist
           },
           "amount": "1000000"
         }
-      ]
+      ],
+      "auto_stake": false,
+      "receiver": "terra..."
     }
   }
 ```
@@ -116,9 +119,11 @@ Provides pool liquidity by sending user's native or token assets. It can be dist
           },
           "amount": "1000000"
         }
-      ]
-    },
-    "slippage_tolerance": "0.01"
+      ],
+      "slippage_tolerance": "0.01",
+      "auto_stake": false,
+      "receiver": "terra..."
+    }
   }
 ```
 
@@ -128,7 +133,7 @@ Provides pool liquidity by sending user's native or token assets. It can be dist
   {
     "withdraw_liquidity": {}
   }
- ```
+```
 
 ### `swap`
 
@@ -150,6 +155,18 @@ NOTE: You should increase token allowance before swap. This method is only used 
       "belief_price": "123",
       "max_spread": "123",
       "to": "terra..."
+    }
+  }
+```
+
+### `update_config`
+
+Non supported.
+
+```json
+  {
+    "update_config": {
+      "params": "<base64_encoded_json_string>"
     }
   }
 ```
@@ -179,6 +196,16 @@ Get pool assets and total share.
 ```json
 {
   "pool": {}
+}
+```
+
+### `config`
+
+Get configuration of pair.
+
+```json
+{
+  "config": {}
 }
 ```
 

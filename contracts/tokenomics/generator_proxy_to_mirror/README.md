@@ -85,6 +85,21 @@ Withdraws token rewards amount for given address.
 }
 ```
 
+### `callback`
+
+Handles the callbacks messages of the contract.
+In the current example used for transfer liquidity tokens after withdraw.
+
+```json
+{
+  "callback": {
+    "transfer_lp_tokens_after_withdraw": {
+      "account": "terra...",
+      "prev_lp_balance": "1234"
+    }
+  }
+}
+```
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.
@@ -116,5 +131,15 @@ Gives token proxy reward pending amount.
 ```json
 {
   "pending_token": {}
+}
+```
+
+### `reward_info`
+
+Returns the reward token contract address
+
+```json
+{
+  "reward_info": {}
 }
 ```
