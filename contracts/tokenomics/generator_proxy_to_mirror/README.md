@@ -104,6 +104,16 @@ In the current example used for transfer liquidity tokens after withdraw.
 
 All query messages are described below. A custom struct is defined for each query response.
 
+### `config`
+
+Returns the contract's configuration
+
+```json
+{
+  "config": {}
+}
+```
+
 ### `deposit`
 
 Returns deposited/staked token amount.

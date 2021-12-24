@@ -8,7 +8,7 @@ use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 use astroport::asset::addr_validate_to_lower;
 use astroport::generator_proxy::{
-    CallbackMsg, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+    CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
 use cw2::set_contract_version;
 use mirror_protocol::staking::{
@@ -359,6 +359,13 @@ pub fn transfer_lp_tokens_after_withdraw(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cfg = CONFIG.load(deps.storage)?;
     match msg {
+        QueryMsg::Config {} => to_binary(&ConfigResponse {
+            generator_contract_addr: cfg.generator_contract_addr.to_string(),
+            pair_addr: cfg.pair_addr.to_string(),
+            lp_token_addr: cfg.lp_token_addr.to_string(),
+            reward_contract_addr: cfg.reward_contract_addr.to_string(),
+            reward_token_addr: cfg.reward_token_addr.to_string(),
+        }),
         QueryMsg::Deposit {} => {
             let res: StdResult<RewardInfoResponse> = deps.querier.query_wasm_smart(
                 cfg.reward_contract_addr,
