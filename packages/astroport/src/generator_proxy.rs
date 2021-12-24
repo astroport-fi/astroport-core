@@ -72,6 +72,8 @@ pub enum CallbackMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    /// Returns the contract's configuration
+    Config {},
     /// Returns the deposit amount
     Deposit {},
     /// Returns the balance of reward token
@@ -81,6 +83,8 @@ pub enum QueryMsg {
     /// Returns the reward token contract address
     RewardInfo {},
 }
+
+pub type ConfigResponse = InstantiateMsg;
 
 /// ## Description
 /// This structure describes a migration message.
