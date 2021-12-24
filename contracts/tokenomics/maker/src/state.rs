@@ -1,6 +1,7 @@
+use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
 use cosmwasm_std::{Addr, Decimal, Uint64};
-use cw_storage_plus::Item;
+use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -27,6 +28,11 @@ pub struct Config {
 /// ## Description
 /// Stores config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
+
 /// ## Description
 /// Contains proposal for change ownership.
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
+
+/// ## Description
+/// Stores bridges to swap fees while collecting
+pub const BRIDGES: Map<String, AssetInfo> = Map::new("bridges");
