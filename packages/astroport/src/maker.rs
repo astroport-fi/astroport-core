@@ -53,7 +53,7 @@ pub enum ExecuteMsg {
         remove: Option<Vec<AssetInfo>>,
     },
     /// Swap rewards via bridge assets
-    SwapBridgeAssets { assets: Vec<AssetInfo> },
+    SwapBridgeAssets { assets: Vec<AssetInfo>, depth: u64 },
     /// Distribute rewards in ASTRO tokens
     DistributeAstro {},
     /// Creates a request to change ownership.
