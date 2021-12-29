@@ -11,7 +11,7 @@ use crate::state::{
 };
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::querier::query_token_balance;
+use astroport::querier::{query_supply, query_token_balance};
 use astroport::DecimalCheckedOps;
 use astroport::{
     generator::{
@@ -144,6 +144,9 @@ pub fn execute(
             if info.sender != cfg.owner {
                 return Err(ContractError::Unauthorized {});
             }
+
+            // Check if LP token exists
+            query_supply(&deps.querier, lp_token.clone())?;
 
             update_rewards_and_execute(
                 deps,
