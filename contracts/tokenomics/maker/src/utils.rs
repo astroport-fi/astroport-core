@@ -116,9 +116,7 @@ pub fn validate_bridge(
         // Check if next level of bridge exists
         let next_bridge_token = BRIDGES
             .load(deps.storage, bridge_token.to_string())
-            .map_err(|_| {
-                ContractError::InvalidBridgeDestination(from_token.clone(), astro_token.clone())
-            })?;
+            .map_err(|_| ContractError::InvalidBridgeDestination(from_token.clone()))?;
 
         validate_bridge(
             deps,

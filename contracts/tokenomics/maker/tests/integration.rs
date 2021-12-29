@@ -914,7 +914,7 @@ fn update_bridges() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Invalid bridge destination. uluna cannot be swapped to contract #0"
+        "Invalid bridge destination. uluna cannot be swapped to ASTRO"
     );
 
     // Create pair so that add bridge check does not fail

@@ -243,6 +243,35 @@ enum SwapTarget {
     Bridge { asset: AssetInfo, msg: SubMsg },
 }
 
+fn swap_assets(
+    deps: Deps,
+    env: Env,
+    cfg: &Config,
+    assets: Vec<AssetInfo>,
+) -> Result<(Response, Vec<AssetInfo>), ContractError> {
+    let mut response = Response::default();
+    let mut bridge_assets = HashMap::new();
+
+    for a in assets {
+        // Get Balance
+        let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
+        if !balance.is_zero() {
+            let swap_msg = swap(deps, cfg, a, balance)?;
+            match swap_msg {
+                SwapTarget::Astro(msg) => {
+                    response.messages.push(msg);
+                }
+                SwapTarget::Bridge { asset, msg } => {
+                    response.messages.push(msg);
+                    bridge_assets.insert(asset.to_string(), asset);
+                }
+            }
+        }
+    }
+
+    Ok((response, bridge_assets.into_values().collect()))
+}
+
 /// # Description
 /// Performs the swap operation to astro token. Returns an [`ContractError`] on failure,
 /// otherwise returns the vector that contains the objects of type [`SubMsg`] if the operation
@@ -332,7 +361,7 @@ fn swap_bridge_assets(
 
     let (response, bridge_assets) = swap_assets(deps.as_ref(), env.clone(), &cfg, assets)?;
 
-    // If no messages - send astro directly
+    // there always should be some messages, if there are none - something went wrong
     if response.messages.is_empty() {
         return Err(ContractError::Std(StdError::generic_err(
             "Empty swap messages",
@@ -342,35 +371,6 @@ fn swap_bridge_assets(
     Ok(response
         .add_submessage(build_distribute_msg(env, bridge_assets, depth + 1)?)
         .add_attribute("action", "swap_bridge_assets"))
-}
-
-fn swap_assets(
-    deps: Deps,
-    env: Env,
-    cfg: &Config,
-    assets: Vec<AssetInfo>,
-) -> Result<(Response, Vec<AssetInfo>), ContractError> {
-    let mut response = Response::default();
-    let mut bridge_assets = HashMap::new();
-
-    for a in assets {
-        // Get Balance
-        let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
-        if !balance.is_zero() {
-            let swap_msg = swap(deps, cfg, a, balance)?;
-            match swap_msg {
-                SwapTarget::Astro(msg) => {
-                    response.messages.push(msg);
-                }
-                SwapTarget::Bridge { asset, msg } => {
-                    response.messages.push(msg);
-                    bridge_assets.insert(asset.to_string(), asset);
-                }
-            }
-        }
-    }
-
-    Ok((response, bridge_assets.into_values().collect()))
 }
 
 /// ## Description

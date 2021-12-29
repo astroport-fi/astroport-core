@@ -18,8 +18,8 @@ pub enum ContractError {
     #[error("Invalid bridge. Pool {0} to {1} not found")]
     InvalidBridgeNoPool(AssetInfo, AssetInfo),
 
-    #[error("Invalid bridge destination. {0} cannot be swapped to {1}")]
-    InvalidBridgeDestination(AssetInfo, AssetInfo),
+    #[error("Invalid bridge destination. {0} cannot be swapped to ASTRO")]
+    InvalidBridgeDestination(AssetInfo),
 
     #[error("Max bridge depth {0} is reached")]
     MaxBridgeDepth(u64),
