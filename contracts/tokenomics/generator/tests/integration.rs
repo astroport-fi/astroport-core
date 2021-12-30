@@ -1330,7 +1330,7 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
                 address: generator_instance.to_string(),
                 schedules: vec![VestingSchedule {
                     start_point: VestingSchedulePoint {
-                        time: current_block.time,
+                        time: current_block.time.seconds(),
                         amount,
                     },
                     end_point: None,

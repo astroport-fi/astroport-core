@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Order, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Order, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 /// ## Description
@@ -64,7 +64,7 @@ pub struct VestingSchedule {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingSchedulePoint {
     /// the time
-    pub time: Timestamp,
+    pub time: u64,
     /// the amount
     pub amount: Uint128,
 }
@@ -79,7 +79,9 @@ pub enum QueryMsg {
     Config {},
     /// ## Description
     /// Returns information about the vesting account in the [`VestingAccountResponse`] object.
-    VestingAccount { address: Addr },
+    VestingAccount {
+        address: Addr,
+    },
     /// ## Description
     /// Returns a list of accounts, for the given input parameters, in the [`VestingAccountsResponse`] object.
     VestingAccounts {
@@ -89,7 +91,10 @@ pub enum QueryMsg {
     },
     /// ## Description
     /// Returns the available amount for specified account.
-    AvailableAmount { address: Addr },
+    AvailableAmount {
+        address: Addr,
+    },
+    Timestamp {},
 }
 
 /// ## Description
