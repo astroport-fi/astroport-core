@@ -3,7 +3,9 @@ use crate::state::{Config, CONFIG, OWNERSHIP_PROPOSAL};
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo, PairInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
-use astroport::maker::{BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::maker::{
+    BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+};
 use astroport::pair::{Cw20HookMsg, QueryMsg as PairQueryMsg};
 use astroport::querier::query_pair_info;
 use cosmwasm_std::{
@@ -115,7 +117,13 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Collect { pair_addresses } => collect(deps, env, pair_addresses),
+        ExecuteMsg::Collect { .. } => {
+            Err(ContractError::Std(StdError::generic_err(
+                "fee distribution is temporarily disabled",
+            )))
+
+            // collect(deps, env, pair_addresses)
+        }
         ExecuteMsg::UpdateConfig {
             factory_contract,
             staking_contract,
@@ -533,4 +541,17 @@ pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<[AssetInfo; 2]> 
     }))?;
 
     Ok(res.asset_infos)
+}
+
+/// ## Description
+/// Used for migration of contract. Returns the default object of type [`Response`].
+/// ## Params
+/// * **_deps** is the object of type [`Deps`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **_msg** is the object of type [`MigrateMsg`].
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

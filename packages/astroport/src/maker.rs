@@ -97,3 +97,9 @@ pub struct ConfigResponse {
 pub struct BalancesResponse {
     pub balances: Vec<Asset>,
 }
+
+/// ## Description
+/// This structure describes a migration message.
+/// We currently take no arguments for migrations.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
