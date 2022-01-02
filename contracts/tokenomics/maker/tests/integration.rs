@@ -649,43 +649,48 @@ fn collect_all() {
         assert_eq!(found, &b);
     }
 
-    router
+    let e = router
         .execute_contract(
             maker_instance.clone(),
             maker_instance.clone(),
             &ExecuteMsg::Collect { pair_addresses },
             &[],
         )
-        .unwrap();
+        .unwrap_err();
 
-    for t in vec![
-        (astro_token_instance.clone(), 266u128), // 10 astro + 19 usdc + 29 luna + 99 uusd + 109 uluna
-        (usdc_token_instance.clone(), 0u128),
-        (luna_token_instance.clone(), 0u128),
-    ] {
-        let (token, amount) = t;
+    assert_eq!(
+        e.to_string(),
+        "Generic error: fee distribution is temporarily disabled",
+    );
 
-        // Check maker balance
-        check_balance(
-            &mut router,
-            maker_instance.clone(),
-            token.clone(),
-            Uint128::zero(),
-        );
-
-        // Check balances
-        let amount = Uint128::new(amount);
-        let governance_amount =
-            amount.multiply_ratio(Uint128::from(governance_percent), Uint128::new(100));
-        let staking_amount = amount - governance_amount;
-        check_balance(
-            &mut router,
-            governance.clone(),
-            token.clone(),
-            governance_amount,
-        );
-        check_balance(&mut router, staking.clone(), token, staking_amount);
-    }
+    // for t in vec![
+    //     (astro_token_instance.clone(), 266u128), // 10 astro + 19 usdc + 29 luna + 99 uusd + 109 uluna
+    //     (usdc_token_instance.clone(), 0u128),
+    //     (luna_token_instance.clone(), 0u128),
+    // ] {
+    //     let (token, amount) = t;
+    //
+    //     // Check maker balance
+    //     check_balance(
+    //         &mut router,
+    //         maker_instance.clone(),
+    //         token.clone(),
+    //         Uint128::zero(),
+    //     );
+    //
+    //     // Check balances
+    //     let amount = Uint128::new(amount);
+    //     let governance_amount =
+    //         amount.multiply_ratio(Uint128::from(governance_percent), Uint128::new(100));
+    //     let staking_amount = amount - governance_amount;
+    //     check_balance(
+    //         &mut router,
+    //         governance.clone(),
+    //         token.clone(),
+    //         governance_amount,
+    //     );
+    //     check_balance(&mut router, staking.clone(), token, staking_amount);
+    // }
 }
 
 #[test]
@@ -795,8 +800,13 @@ fn collect_err_no_swap_pair() {
         .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
         .unwrap_err();
 
+    // assert_eq!(
+    //     e.to_string(),
+    //     "Cannot swap uluna to contract #0. Pair not found in factory",
+    // );
+
     assert_eq!(
         e.to_string(),
-        "Cannot swap uluna to contract #0. Pair not found in factory",
+        "Generic error: fee distribution is temporarily disabled",
     );
 }

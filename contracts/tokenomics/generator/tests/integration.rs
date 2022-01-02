@@ -1264,6 +1264,7 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
     let vesting_code_id = app.store_code(vesting_contract);
 
     let init_msg = VestingInstantiateMsg {
+        owner: owner.to_string(),
         token_addr: astro_token_instance.to_string(),
     };
 
