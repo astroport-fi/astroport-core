@@ -510,6 +510,7 @@ fn instantiate_vesting(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
     let vesting_code_id = app.store_code(vesting_contract);
 
     let init_msg = InstantiateMsg {
+        owner: OWNER1.to_string(),
         token_addr: astro_token_instance.to_string(),
     };
 
