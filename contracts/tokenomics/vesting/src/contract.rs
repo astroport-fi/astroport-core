@@ -3,10 +3,11 @@ use cosmwasm_std::{
     Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 
-use crate::state::{read_vesting_infos, Config, CONFIG, VESTING_INFO};
+use crate::state::{read_vesting_infos, Config, CONFIG, OWNERSHIP_PROPOSAL, VESTING_INFO};
 
 use crate::error::ContractError;
 use astroport::asset::addr_validate_to_lower;
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::vesting::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg,
     VestingAccount, VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
@@ -44,6 +45,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
+            owner: addr_validate_to_lower(deps.api, &msg.owner)?,
             token_addr: addr_validate_to_lower(deps.api, &msg.token_addr)?,
         },
     )?;
@@ -78,6 +80,37 @@ pub fn execute(
     match msg {
         ExecuteMsg::Claim { recipient, amount } => claim(deps, env, info, recipient, amount),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                owner,
+                expires_in,
+                config.owner,
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(|e| e.into())
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
+                .map_err(|e| e.into())
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
+                    v.owner = new_owner;
+                    Ok(v)
+                })?;
+
+                Ok(())
+            })
+            .map_err(|e| e.into())
+        }
     }
 }
 
@@ -99,9 +132,21 @@ fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
+    let config: Config = CONFIG.load(deps.storage)?;
+
+    // Check owner
+    if cw20_msg.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // Check token
+    if info.sender != config.token_addr {
+        return Err(ContractError::Unauthorized {});
+    }
+
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::RegisterVestingAccounts { vesting_accounts } => {
-            register_vesting_accounts(deps, env, info, vesting_accounts, cw20_msg.amount)
+            register_vesting_accounts(deps, env, vesting_accounts, cw20_msg.amount)
         }
     }
 }
@@ -123,17 +168,10 @@ fn receive_cw20(
 pub fn register_vesting_accounts(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
     vesting_accounts: Vec<VestingAccount>,
     cw20_amount: Uint128,
 ) -> Result<Response, ContractError> {
     let response = Response::new();
-
-    let config: Config = CONFIG.load(deps.storage)?;
-
-    if info.sender != config.token_addr {
-        return Err(ContractError::Unauthorized {});
-    }
 
     let mut to_deposit = Uint128::zero();
 
@@ -355,6 +393,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
+        owner: config.owner,
         token_addr: config.token_addr,
     };
 
