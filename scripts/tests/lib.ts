@@ -28,6 +28,10 @@ export class Astroport {
         return new Staking(this.terra, this.wallet, addr);
     }
 
+    generator(addr: string) {
+        return new Generator(this.terra, this.wallet, addr);
+    }
+
     pair(addr: string) {
         return new Pair(this.terra, this.wallet, addr);
     }
@@ -213,5 +217,47 @@ class Factory {
 
         let resp = await queryContract(this.terra, this.addr, {fee_info: {pair_type: pt}});
         return resp
+    }
+}
+
+class Generator {
+    terra: any;
+    wallet: any;
+    addr: string;
+
+    constructor(terra: any, wallet: any, addr:string) {
+        this.terra = terra
+        this.wallet = wallet
+        this.addr = addr;
+    }
+
+    async deposit(lp_addr: string, amount: string) {
+        let msg = Buffer.from(JSON.stringify({deposit: {}})).toString("base64");
+
+        await executeContract(this.terra, this.wallet, lp_addr, {
+            send: {
+                contract: this.addr,
+                amount,
+                msg
+            }
+        })
+    }
+
+    async withdraw(lp_addr: string, amount: string) {
+        await executeContract(this.terra, this.wallet, this.addr, {
+            withdraw: {
+                lp_token: lp_addr,
+                amount: amount,
+            }
+        })
+    }
+
+    async queryDeposit(lp_token: string, user: string) {
+        return await queryContract(this.terra, this.addr, {
+            deposit: {
+                "lp_token": lp_token,
+                "user": user,
+            }
+        })
     }
 }
