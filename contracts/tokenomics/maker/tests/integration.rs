@@ -452,12 +452,18 @@ fn collect_all() {
         "TEST".to_string(),
     );
 
+    let bridge2_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Bridge 2 depth token".to_string(),
+        "BRIDGE".to_string(),
+    );
+
     let uusd_asset = String::from("uusd");
     let uluna_asset = String::from("uluna");
 
-    // Mint all tokens for maker
+    // Create pairs
     let mut pair_addresses = vec![];
-
     for t in vec![
         [
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
@@ -473,6 +479,10 @@ fn collect_all() {
         ],
         [
             token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
     ] {
@@ -494,6 +504,10 @@ fn collect_all() {
             maker_instance.clone(),
             &ExecuteMsg::UpdateBridges {
                 add: Some(vec![
+                    (
+                        token_asset_info(test_token_instance.clone()),
+                        token_asset_info(bridge2_token_instance.clone()),
+                    ),
                     (
                         token_asset_info(usdc_token_instance.clone()),
                         token_asset_info(test_token_instance.clone()),
@@ -589,8 +603,12 @@ fn collect_all() {
 
     for t in vec![
         // We are loosing 1 ASTRO in fees per swap
-        // 264 = 10 astro + 18 (20 - fee for 2 swaps) usdc + 28 (30 - fee for 2 swaps) luna + 99 uusd + 109 uluna
-        (astro_token_instance.clone(), 264u128),
+        // 262 ASTRO = 10 astro +
+        // 17 usdc (20 - fee for 3 swaps)  +
+        // 28 test (30 - fee for 2 swaps) +
+        // 108 uluna (110 - fee for 2 swaps) +
+        // 99 uusd
+        (astro_token_instance.clone(), 262u128),
         (usdc_token_instance.clone(), 0u128),
         (test_token_instance.clone(), 0u128),
     ] {
@@ -619,6 +637,117 @@ fn collect_all() {
 
         check_balance(&mut router, staking.clone(), token, staking_amount);
     }
+}
+
+#[test]
+fn collect_maxdepth_test() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+    let user = Addr::unchecked("user0000");
+    let staking = Addr::unchecked("staking");
+    let governance = Addr::unchecked("governance");
+    let governance_percent = Uint64::new(10);
+    let max_spread = Decimal::from_str("0.5").unwrap();
+
+    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
+        &mut router,
+        owner.clone(),
+        staking.clone(),
+        &governance,
+        governance_percent,
+        Some(max_spread),
+    );
+
+    let usdc_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Usdc token".to_string(),
+        "USDC".to_string(),
+    );
+
+    let test_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Test token".to_string(),
+        "TEST".to_string(),
+    );
+
+    let bridge2_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Bridge 2 depth token".to_string(),
+        "BRIDGE".to_string(),
+    );
+
+    let uusd_asset = String::from("uusd");
+    let uluna_asset = String::from("uluna");
+
+    // Create pairs
+    let mut pair_addresses = vec![];
+    for t in vec![
+        [
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+            native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
+            token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+    ] {
+        let pair_info = create_pair(
+            &mut router,
+            owner.clone(),
+            user.clone(),
+            &factory_instance,
+            t,
+        );
+
+        pair_addresses.push(pair_info.contract_addr);
+    }
+
+    // Setup bridge to withdraw USDC via USDC -> TEST -> UUSD -> ASTRO route
+    let err = router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::UpdateBridges {
+                add: Some(vec![
+                    (
+                        token_asset_info(test_token_instance.clone()),
+                        token_asset_info(bridge2_token_instance.clone()),
+                    ),
+                    (
+                        token_asset_info(usdc_token_instance.clone()),
+                        token_asset_info(test_token_instance.clone()),
+                    ),
+                    (
+                        native_asset_info(uluna_asset.clone()),
+                        token_asset_info(usdc_token_instance.clone()),
+                    ),
+                    (
+                        native_asset_info(uusd_asset.clone()),
+                        native_asset_info(uluna_asset.clone()),
+                    ),
+                ]),
+                remove: None,
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(err.to_string(), "Max bridge depth 2 is reached")
 }
 
 #[test]
@@ -754,7 +883,10 @@ fn update_bridges() {
     let err = router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(err.to_string(), "Invalid bridge. uluna to uusd not found");
+    assert_eq!(
+        err.to_string(),
+        "Invalid bridge. Pool uluna to uusd not found"
+    );
 
     // Create pair so that add bridge check does not fail
     for pair in vec![
@@ -782,7 +914,7 @@ fn update_bridges() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Invalid bridge. uusd to contract #0 not found"
+        "Invalid bridge destination. uluna cannot be swapped to ASTRO"
     );
 
     // Create pair so that add bridge check does not fail

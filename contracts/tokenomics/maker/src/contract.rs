@@ -1,17 +1,20 @@
 use crate::error::ContractError;
 use crate::state::{Config, BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
+use crate::utils::{
+    build_distribute_msg, build_swap_msg, validate_bridge, BRIDGES_INITIAL_DEPTH, BRIDGES_MAX_DEPTH,
+};
 use astroport::asset::{
     addr_validate_to_lower, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
 use astroport::maker::{BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
-use astroport::pair::{Cw20HookMsg, QueryMsg as PairQueryMsg};
+use astroport::pair::QueryMsg as PairQueryMsg;
 use astroport::querier::query_pair_info;
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, Env,
+    attr, entry_point, to_binary, Addr, Attribute, Binary, Decimal, Deps, DepsMut, Env,
     MessageInfo, Order, QueryRequest, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
-    WasmMsg, WasmQuery,
+    WasmQuery,
 };
 use cw2::set_contract_version;
 use std::collections::HashMap;
@@ -141,7 +144,9 @@ pub fn execute(
             max_spread,
         ),
         ExecuteMsg::UpdateBridges { add, remove } => update_bridges(deps, info, add, remove),
-        ExecuteMsg::SwapBridgeAssets { assets } => swap_bridge_assets(deps, env, info, assets),
+        ExecuteMsg::SwapBridgeAssets { assets, depth } => {
+            swap_bridge_assets(deps, env, info, assets, depth)
+        }
         ExecuteMsg::DistributeAstro {} => distribute_astro(deps, env, info),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             let config: Config = CONFIG.load(deps.storage)?;
@@ -194,8 +199,6 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
 
     let astro = token_asset_info(cfg.astro_token_contract.clone());
 
-    let mut response = Response::default();
-
     // Collect assets
     let mut assets_map: HashMap<String, AssetInfo> = HashMap::new();
     for pair in pair_addresses {
@@ -204,15 +207,56 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
         assets_map.insert(pair[1].to_string(), pair[1].clone());
     }
 
+    // Swap all non-astro tokens
+    let (mut response, bridge_assets) = swap_assets(
+        deps.as_ref(),
+        env.clone(),
+        &cfg,
+        assets_map
+            .values()
+            .cloned()
+            .filter(|a| a.ne(&astro))
+            .collect(),
+    )?;
+
+    // If no messages - send astro directly
+    if response.messages.is_empty() {
+        let balance = astro.query_pool(&deps.querier, env.contract.address)?;
+        if !balance.is_zero() {
+            response
+                .messages
+                .append(&mut distribute(deps.as_ref(), &cfg, balance)?);
+        }
+    } else {
+        response.messages.push(build_distribute_msg(
+            env,
+            bridge_assets,
+            BRIDGES_INITIAL_DEPTH,
+        )?);
+    }
+
+    Ok(response.add_attribute("action", "collect"))
+}
+
+enum SwapTarget {
+    Astro(SubMsg),
+    Bridge { asset: AssetInfo, msg: SubMsg },
+}
+
+fn swap_assets(
+    deps: Deps,
+    env: Env,
+    cfg: &Config,
+    assets: Vec<AssetInfo>,
+) -> Result<(Response, Vec<AssetInfo>), ContractError> {
+    let mut response = Response::default();
     let mut bridge_assets = HashMap::new();
 
-    // Swap all non-astro tokens
-    for a in assets_map.values().cloned().filter(|a| a.ne(&astro)) {
+    for a in assets {
         // Get Balance
         let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
         if !balance.is_zero() {
-            // Swap to astro and transfer to staking and governance
-            let swap_msg = swap(deps.as_ref(), &cfg, a, balance)?;
+            let swap_msg = swap(deps, cfg, a, balance)?;
             match swap_msg {
                 SwapTarget::Astro(msg) => {
                     response.messages.push(msg);
@@ -225,39 +269,7 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
         }
     }
 
-    // If no messages - send astro directly
-    if response.messages.is_empty() {
-        let balance = astro.query_pool(&deps.querier, env.contract.address)?;
-        if !balance.is_zero() {
-            response
-                .messages
-                .append(&mut distribute(deps.as_ref(), &cfg, balance)?);
-        }
-    } else if !bridge_assets.is_empty() {
-        // Swap bridge assets
-        response.messages.push(SubMsg::new(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            msg: to_binary(&ExecuteMsg::SwapBridgeAssets {
-                assets: bridge_assets.into_values().collect(),
-            })?,
-            funds: vec![],
-        }));
-    } else {
-        // Update balances and distribute rewards
-        response.messages.push(SubMsg::new(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            msg: to_binary(&ExecuteMsg::DistributeAstro {})?,
-            funds: vec![],
-        }));
-    }
-
-    Ok(response)
-}
-
-///
-enum SwapTarget {
-    Astro(SubMsg),
-    Bridge { asset: AssetInfo, msg: SubMsg },
+    Ok((response, bridge_assets.into_values().collect()))
 }
 
 /// # Description
@@ -284,7 +296,7 @@ fn swap(
     let direct_pool = query_pair_info(
         &deps.querier,
         cfg.factory_contract.clone(),
-        &[from_token.clone(), astro.clone()],
+        &[from_token.clone(), astro],
     );
 
     if direct_pool.is_ok() {
@@ -297,7 +309,13 @@ fn swap(
         .load(deps.storage, from_token.to_string())
         .map_err(|_| ContractError::CannotSwap(from_token.clone()))?;
 
-    let bridge_pool = validate_bridge(deps, cfg, from_token.clone(), bridge_token.clone(), astro)?;
+    let bridge_pool = query_pair_info(
+        &deps.querier,
+        cfg.factory_contract.clone(),
+        &[from_token.clone(), bridge_token.clone()],
+    )
+    .map_err(|_| ContractError::InvalidBridgeNoPool(from_token.clone(), bridge_token.clone()))?;
+
     let msg = build_swap_msg(deps, cfg, bridge_pool, from_token, amount_in)?;
 
     Ok(SwapTarget::Bridge {
@@ -306,78 +324,85 @@ fn swap(
     })
 }
 
-fn validate_bridge(
-    deps: Deps,
-    cfg: &Config,
-    from_token: AssetInfo,
-    bridge_token: AssetInfo,
-    astro_token: AssetInfo,
-) -> Result<PairInfo, ContractError> {
-    // check if bridge pool exists
-    let bridge_pool = query_pair_info(
-        &deps.querier,
-        cfg.factory_contract.clone(),
-        &[from_token.clone(), bridge_token.clone()],
-    )
-    .map_err(|_| ContractError::InvalidBridge(from_token.clone(), bridge_token.clone()))?;
+/// ## Description
+/// Swaps collected rewards using bridge assets. Returns an [`ContractError`] on failure
+///
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **assets** is an vector field of type [`AssetInfo`].
+///
+/// ##Executor
+/// Only maker contract itself can execute it
+fn swap_bridge_assets(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    assets: Vec<AssetInfo>,
+    depth: u64,
+) -> Result<Response, ContractError> {
+    if info.sender != env.contract.address {
+        return Err(ContractError::Unauthorized {});
+    }
 
-    // check bridge token - ASTRO pool exists
-    query_pair_info(
-        &deps.querier,
-        cfg.factory_contract.clone(),
-        &[bridge_token.clone(), astro_token.clone()],
-    )
-    .map_err(|_| ContractError::InvalidBridge(bridge_token.clone(), astro_token.clone()))?;
+    if assets.is_empty() {
+        return Ok(Response::default());
+    }
 
-    Ok(bridge_pool)
+    if depth >= BRIDGES_MAX_DEPTH {
+        return Err(ContractError::MaxBridgeDepth(depth));
+    }
+
+    let cfg = CONFIG.load(deps.storage)?;
+
+    let (response, bridge_assets) = swap_assets(deps.as_ref(), env.clone(), &cfg, assets)?;
+
+    // there always should be some messages, if there are none - something went wrong
+    if response.messages.is_empty() {
+        return Err(ContractError::Std(StdError::generic_err(
+            "Empty swap messages",
+        )));
+    }
+
+    Ok(response
+        .add_submessage(build_distribute_msg(env, bridge_assets, depth + 1)?)
+        .add_attribute("action", "swap_bridge_assets"))
 }
 
-fn build_swap_msg(
-    deps: Deps,
-    cfg: &Config,
-    pool: PairInfo,
-    from: AssetInfo,
-    amount_in: Uint128,
-) -> Result<SubMsg, ContractError> {
-    if from.is_native_token() {
-        let mut offer_asset = Asset {
-            info: from.clone(),
-            amount: amount_in,
-        };
-
-        // deduct tax first
-        let amount_in = amount_in.checked_sub(offer_asset.compute_tax(&deps.querier)?)?;
-
-        offer_asset.amount = amount_in;
-
-        Ok(SubMsg::new(WasmMsg::Execute {
-            contract_addr: pool.contract_addr.to_string(),
-            msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
-                offer_asset,
-                belief_price: None,
-                max_spread: Some(cfg.max_spread),
-                to: None,
-            })?,
-            funds: vec![Coin {
-                denom: from.to_string(),
-                amount: amount_in,
-            }],
-        }))
-    } else {
-        Ok(SubMsg::new(WasmMsg::Execute {
-            contract_addr: from.to_string(),
-            msg: to_binary(&cw20::Cw20ExecuteMsg::Send {
-                contract: pool.contract_addr.to_string(),
-                amount: amount_in,
-                msg: to_binary(&Cw20HookMsg::Swap {
-                    belief_price: None,
-                    max_spread: Some(cfg.max_spread),
-                    to: None,
-                })?,
-            })?,
-            funds: vec![],
-        }))
+/// ## Description
+/// Distributes ASTRO rewards. Returns an [`ContractError`] on failure
+///
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// ##Executor
+/// Only maker contract itself can execute it
+fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+    if info.sender != env.contract.address {
+        return Err(ContractError::Unauthorized {});
     }
+
+    let cfg = CONFIG.load(deps.storage)?;
+    let astro = token_asset_info(cfg.astro_token_contract.clone());
+
+    let balance = astro.query_pool(&deps.querier, env.contract.address)?;
+    if balance.is_zero() {
+        return Ok(Response::default());
+    }
+
+    let distribute_msg = distribute(deps.as_ref(), &cfg, balance)?;
+
+    Ok(Response::default()
+        .add_submessages(distribute_msg)
+        .add_attribute("action", "distribute_astro"))
 }
 
 /// # Description
@@ -547,6 +572,7 @@ fn update_bridges(
                 asset.clone(),
                 bridge.clone(),
                 astro.clone(),
+                BRIDGES_INITIAL_DEPTH,
             )?;
 
             BRIDGES.save(deps.storage, asset.to_string(), &bridge)?;
@@ -554,92 +580,6 @@ fn update_bridges(
     }
 
     Ok(Response::default().add_attribute("action", "update_bridges"))
-}
-
-/// ## Description
-/// Swaps collected rewards using bridge assets. Returns an [`ContractError`] on failure
-///
-/// ## Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **env** is the object of type [`Env`].
-///
-/// * **info** is the object of type [`MessageInfo`].
-///
-/// * **assets** is an vector field of type [`AssetInfo`].
-///
-/// ##Executor
-/// Only maker contract itself can execute it
-fn swap_bridge_assets(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    assets: Vec<AssetInfo>,
-) -> Result<Response, ContractError> {
-    if info.sender != env.contract.address {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    if assets.is_empty() {
-        return Ok(Response::default());
-    }
-
-    let cfg = CONFIG.load(deps.storage)?;
-    let astro = token_asset_info(cfg.astro_token_contract.clone());
-
-    let mut swap_msg = vec![];
-    for a in assets {
-        let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
-
-        let pool = query_pair_info(
-            &deps.querier,
-            cfg.factory_contract.clone(),
-            &[a.clone(), astro.clone()],
-        )?;
-
-        swap_msg.push(build_swap_msg(deps.as_ref(), &cfg, pool, a, balance)?);
-    }
-
-    Ok(Response::default()
-        .add_submessages(swap_msg)
-        .add_message(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            msg: to_binary(&ExecuteMsg::DistributeAstro {})?,
-            funds: vec![],
-        })
-        .add_attribute("action", "swap_bridge_assets"))
-}
-
-/// ## Description
-/// Distributes ASTRO rewards. Returns an [`ContractError`] on failure
-///
-/// ## Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **env** is the object of type [`Env`].
-///
-/// * **info** is the object of type [`MessageInfo`].
-///
-/// ##Executor
-/// Only maker contract itself can execute it
-fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    if info.sender != env.contract.address {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let cfg = CONFIG.load(deps.storage)?;
-    let astro = token_asset_info(cfg.astro_token_contract.clone());
-
-    let balance = astro.query_pool(&deps.querier, env.contract.address)?;
-    if balance.is_zero() {
-        return Ok(Response::default());
-    }
-
-    let distribute_msg = distribute(deps.as_ref(), &cfg, balance)?;
-
-    Ok(Response::default()
-        .add_submessages(distribute_msg)
-        .add_attribute("action", "distribute_astro"))
 }
 
 /// # Description

@@ -12,14 +12,17 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Invalid bridge. {0} to {1} not found")]
+    #[error("Invalid bridge {0} to {1}")]
     InvalidBridge(AssetInfo, AssetInfo),
 
-    #[error("Insufficient balance in contract to process claim")]
-    BalanceTooSmall {},
+    #[error("Invalid bridge. Pool {0} to {1} not found")]
+    InvalidBridgeNoPool(AssetInfo, AssetInfo),
 
-    #[error("Empty reply definition")]
-    EmptyReply {},
+    #[error("Invalid bridge destination. {0} cannot be swapped to ASTRO")]
+    InvalidBridgeDestination(AssetInfo),
+
+    #[error("Max bridge depth {0} is reached")]
+    MaxBridgeDepth(u64),
 
     #[error("Cannot swap {0}. No swap destinations")]
     CannotSwap(AssetInfo),
