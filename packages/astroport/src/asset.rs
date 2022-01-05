@@ -263,6 +263,16 @@ impl AssetInfo {
 }
 
 /// ## Description
+/// This enum describes asset with limits to be collected by maker.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AssetWithLimit {
+    /// the available type of asset from [`AssetInfo`]
+    pub info: AssetInfo,
+    /// the amount of an asset
+    pub limit: Option<Uint128>,
+}
+
+/// ## Description
 /// This structure describes the main controls configs of pair
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairInfo {

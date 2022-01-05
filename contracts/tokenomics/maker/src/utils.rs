@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::state::{Config, BRIDGES};
-use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::asset::{Asset, AssetInfo, AssetWithLimit, PairInfo};
 use astroport::maker::ExecuteMsg;
 use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_pair_info;
@@ -59,7 +59,7 @@ pub fn build_swap_msg(
 
 pub fn build_distribute_msg(
     env: Env,
-    bridge_assets: Vec<AssetInfo>,
+    bridge_assets: Vec<AssetWithLimit>,
     depth: u64,
 ) -> StdResult<SubMsg> {
     let msg: SubMsg;

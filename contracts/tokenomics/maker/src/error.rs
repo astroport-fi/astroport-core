@@ -32,6 +32,9 @@ pub enum ContractError {
 
     #[error("Incorrect max spread")]
     IncorrectMaxSpread {},
+
+    #[error("Cannot be exchanged. Remove duplicate asset")]
+    DoubleAssetAmount {},
 }
 
 impl From<OverflowError> for ContractError {

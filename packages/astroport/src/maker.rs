@@ -1,4 +1,4 @@
-use crate::asset::{Asset, AssetInfo};
+use crate::asset::{Asset, AssetInfo, AssetWithLimit};
 use crate::factory::UpdateAddr;
 use cosmwasm_std::{Addr, Decimal, Uint64};
 use schemars::JsonSchema;
@@ -29,10 +29,10 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// Collects astro tokens from the given pairs
+    /// Collects astro tokens from the given assets
     Collect {
-        /// the pairs contracts
-        pair_addresses: Vec<Addr>,
+        /// the assets to collect
+        assets: Vec<AssetWithLimit>,
     },
     /// Updates general settings that contains in the  [`Config`]
     UpdateConfig {
@@ -53,7 +53,10 @@ pub enum ExecuteMsg {
         remove: Option<Vec<AssetInfo>>,
     },
     /// Swap rewards via bridge assets
-    SwapBridgeAssets { assets: Vec<AssetInfo>, depth: u64 },
+    SwapBridgeAssets {
+        assets: Vec<AssetWithLimit>,
+        depth: u64,
+    },
     /// Distribute rewards in ASTRO tokens
     DistributeAstro {},
     /// Creates a request to change ownership.

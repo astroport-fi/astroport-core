@@ -1,10 +1,12 @@
 use crate::error::ContractError;
 use crate::state::{Config, BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
+
 use crate::utils::{
     build_distribute_msg, build_swap_msg, validate_bridge, BRIDGES_INITIAL_DEPTH, BRIDGES_MAX_DEPTH,
 };
 use astroport::asset::{
-    addr_validate_to_lower, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
+    addr_validate_to_lower, token_asset, token_asset_info, Asset, AssetInfo, AssetWithLimit,
+    PairInfo,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
@@ -19,8 +21,7 @@ use cosmwasm_std::{
     WasmQuery,
 };
 use cw2::set_contract_version;
-use std::collections::HashMap;
-
+use std::collections::{HashMap, HashSet};
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-maker";
 /// Contract version that is used for migration.
@@ -99,7 +100,7 @@ pub fn instantiate(
 /// * **msg** is the object of type [`ExecuteMsg`].
 ///
 /// ## Queries
-/// * **ExecuteMsg::Collect { pair_addresses }** Collects rewards from the pools, swaps to astro
+/// * **ExecuteMsg::Collect { assets, bridges_limits }** Collects rewards from the pools, swaps to astro
 /// token and distributes the rewards between staking and governance contracts
 ///
 /// * **ExecuteMsg::UpdateConfig {
@@ -112,7 +113,8 @@ pub fn instantiate(
 ///
 /// * **ExecuteMsg::UpdateBridges { add, remove }** Adds or removes bridge assets to swap rewards
 ///
-/// * **ExecuteMsg::SwapBridgeAssets { assets }** Private method used by contract to swap rewards using bridges and keep balances updated
+/// * **ExecuteMsg::SwapBridgeAssets { assets, bridges_limits }** Private method used by contract
+/// to swap rewards using bridges and keep balances updated
 ///
 /// * **ExecuteMsg::DistributeAstro {}** Private method used by contract to distribute ASTRO rewards
 ///
@@ -129,7 +131,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Collect { pair_addresses } => collect(deps, env, pair_addresses),
+        ExecuteMsg::Collect { assets } => collect(deps, env, assets),
         ExecuteMsg::UpdateConfig {
             factory_contract,
             staking_contract,
@@ -185,8 +187,8 @@ pub fn execute(
 }
 
 /// # Description
-/// Collects astro tokens. Before that collects all assets from the all specified
-/// pairs and performs a swap operation for all non-astro tokens into an astro token.
+/// Collects astro tokens. Before that collects all assets and performs a swap operation for all
+/// non-astro tokens into an astro token.
 /// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] object if the
 /// operation was successful.
 /// # Params
@@ -194,19 +196,28 @@ pub fn execute(
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **pair_addresses** is a vector that contains object of type [`Addr`].
-/// Sets the pairs for which the collect operation will be performed.
-fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Response, ContractError> {
+/// * **assets** is a vector that contains object of type [`AssetWithLimit`].
+/// Sets the assets for which the collect operation will be performed.
+///
+/// * **bridges_limits** is an [`Option`] field that contains the [`Vec`].
+/// Sets the swap limits for bridges.
+fn collect(
+    deps: DepsMut,
+    env: Env,
+    assets: Vec<AssetWithLimit>,
+) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
     let astro = token_asset_info(cfg.astro_token_contract.clone());
 
-    // Collect assets
-    let mut assets_map: HashMap<String, AssetInfo> = HashMap::new();
-    for pair in pair_addresses {
-        let pair = query_pair(deps.as_ref(), pair)?;
-        assets_map.insert(pair[0].to_string(), pair[0].clone());
-        assets_map.insert(pair[1].to_string(), pair[1].clone());
+    // check for duplicate asset
+    let mut uniq = HashSet::new();
+    if !assets
+        .iter()
+        .into_iter()
+        .all(|a| uniq.insert(a.info.to_string()))
+    {
+        return Err(ContractError::DoubleAssetAmount {});
     }
 
     // Swap all non-astro tokens
@@ -214,11 +225,7 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
         deps.as_ref(),
         env.clone(),
         &cfg,
-        assets_map
-            .values()
-            .cloned()
-            .filter(|a| a.ne(&astro))
-            .collect(),
+        assets.into_iter().filter(|a| a.info.ne(&astro)).collect(),
     )?;
 
     // If no messages - send astro directly
@@ -240,32 +247,63 @@ fn collect(deps: DepsMut, env: Env, pair_addresses: Vec<Addr>) -> Result<Respons
     Ok(response.add_attribute("action", "collect"))
 }
 
+/// ## Description
+/// This enum describes available types for SwapTarget.
 enum SwapTarget {
     Astro(SubMsg),
     Bridge { asset: AssetInfo, msg: SubMsg },
 }
 
+/// # Description
+/// Swap all non-astro tokens to Astro. Returns an [`ContractError`] on failure, otherwise returns
+/// the [`Response`] object if the operation was successful.
+/// # Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **cfg** is the object of type [`Config`].
+///
+/// * **assets** is a vector that contains object of type [`AssetWithLimit`]. Sets the assets for
+/// which the collect operation will be performed.
+///
+/// * **bridges_limits** is an [`Option`] field that contains the [`Vec`]. Sets the swap limits for bridges.
 fn swap_assets(
     deps: Deps,
     env: Env,
     cfg: &Config,
-    assets: Vec<AssetInfo>,
-) -> Result<(Response, Vec<AssetInfo>), ContractError> {
+    assets: Vec<AssetWithLimit>,
+) -> Result<(Response, Vec<AssetWithLimit>), ContractError> {
     let mut response = Response::default();
-    let mut bridge_assets = HashMap::new();
+    let mut bridge_assets: HashMap<String, AssetWithLimit> = HashMap::new();
 
     for a in assets {
         // Get Balance
-        let balance = a.query_pool(&deps.querier, env.contract.address.clone())?;
+        let mut balance = a
+            .info
+            .query_pool(&deps.querier, env.contract.address.clone())?;
+        if let Some(limit) = a.limit {
+            if limit < balance && limit > Uint128::zero() {
+                balance = limit;
+            }
+        }
+
         if !balance.is_zero() {
-            let swap_msg = swap(deps, cfg, a, balance)?;
+            let swap_msg = swap(deps, cfg, a.info, balance)?;
+
             match swap_msg {
                 SwapTarget::Astro(msg) => {
                     response.messages.push(msg);
                 }
                 SwapTarget::Bridge { asset, msg } => {
                     response.messages.push(msg);
-                    bridge_assets.insert(asset.to_string(), asset);
+                    bridge_assets.insert(
+                        asset.to_string(),
+                        AssetWithLimit {
+                            info: asset,
+                            limit: None,
+                        },
+                    );
                 }
             }
         }
@@ -285,7 +323,7 @@ fn swap_assets(
 ///
 /// * **from_token** is the object of type [`AssetInfo`].
 ///
-/// * **amount** is the object of type [`Uint128`].
+/// * **amount_in** is the object of type [`Uint128`].
 fn swap(
     deps: Deps,
     cfg: &Config,
@@ -336,7 +374,11 @@ fn swap(
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **assets** is an vector field of type [`AssetInfo`].
+/// * **assets** is an vector field of type [`AssetWithLimit`].
+///
+/// * **bridges_limits** is an [`Option`] field that contains the [`Vec`]. Describes the swap limits for bridges.
+///
+/// * **depth** is the object of type [`u64`]. Sets the exchange depth.
 ///
 /// ##Executor
 /// Only maker contract itself can execute it
@@ -344,7 +386,7 @@ fn swap_bridge_assets(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    assets: Vec<AssetInfo>,
+    assets: Vec<AssetWithLimit>,
     depth: u64,
 ) -> Result<Response, ContractError> {
     if info.sender != env.contract.address {
