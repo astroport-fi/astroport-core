@@ -1,13 +1,15 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Order, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Order, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 /// ## Description
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    /// contract address that used to control settings
+    pub owner: String,
     /// the token address
     pub token_addr: String,
 }
@@ -27,6 +29,26 @@ pub enum ExecuteMsg {
     /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received
     /// template.
     Receive(Cw20ReceiveMsg),
+    /// ## Description
+    /// Creates a request to change ownership
+    /// ## Executor
+    /// Only owner can execute it
+    ProposeNewOwner {
+        /// a new ownership
+        owner: String,
+        /// the validity period of the offer to change the owner
+        expires_in: u64,
+    },
+    /// ## Description
+    /// Removes a request to change ownership
+    /// ## Executor
+    /// Only owner can execute it
+    DropOwnershipProposal {},
+    /// ## Description
+    /// Approves ownership
+    /// ## Executor
+    /// Only owner can execute it
+    ClaimOwnership {},
 }
 
 /// ## Description
@@ -64,7 +86,7 @@ pub struct VestingSchedule {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingSchedulePoint {
     /// the time
-    pub time: Timestamp,
+    pub time: u64,
     /// the amount
     pub amount: Uint128,
 }
@@ -79,7 +101,9 @@ pub enum QueryMsg {
     Config {},
     /// ## Description
     /// Returns information about the vesting account in the [`VestingAccountResponse`] object.
-    VestingAccount { address: Addr },
+    VestingAccount {
+        address: Addr,
+    },
     /// ## Description
     /// Returns a list of accounts, for the given input parameters, in the [`VestingAccountsResponse`] object.
     VestingAccounts {
@@ -89,13 +113,18 @@ pub enum QueryMsg {
     },
     /// ## Description
     /// Returns the available amount for specified account.
-    AvailableAmount { address: Addr },
+    AvailableAmount {
+        address: Addr,
+    },
+    Timestamp {},
 }
 
 /// ## Description
 /// This structure describes the custom struct for each query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
+    /// contract address that controls settings
+    pub owner: Addr,
     /// the token address
     pub token_addr: Addr,
 }

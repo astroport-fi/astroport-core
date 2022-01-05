@@ -5,7 +5,7 @@ import {
     readArtifact,
     deployContract,
     executeContract,
-    toEncodedBinary,
+    toEncodedBinary, instantiateContract,
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient} from '@terra-money/terra.js';
@@ -23,10 +23,55 @@ async function main() {
         return
     }
 
-    await uploadAndInitVesting(terra, wallet)
-    await uploadAndInitGenerator(terra, wallet)
+    if (!network.multisigAddress) {
+        console.log(`set the proper owner multisig for the contracts`)
+        return
+    }
+
+    // await uploadAndInitVesting(terra, wallet)
+    // await uploadAndInitGenerator(terra, wallet)
+
+    // setup pools
+    // await registerGenerator(terra, wallet, "terra17n5sunn88hpy965mzvt3079fqx3rttnplg779g", "28303")
+    // await registerGenerator(terra, wallet, "terra1m24f7k4g66gnh9f7uncp32p722v0kyt3q4l3u5", "24528")
+    // await registerGenerator(terra, wallet, "terra1htw7hm40ch0hacm8qpgd24sus4h0tq3hsseatl", "47169")
+
+
+    // TESTNET
+    // await registerGenerator(terra, wallet, "terra1cs66g290h4x0pf6scmwm8904yc75l3m7z0lzjr", "28303")
+    // await registerGenerator(terra, wallet, "terra1q8aycvr54jarwhqvlr54jr2zqttctnefw7x37q", "24528")
+    // await registerGenerator(terra, wallet, "terra1jzutwpneltsys6t96vkdr2zrc6cg0ke4e6y3s0", "47169")
+
+    // await setupVesting(terra, wallet, network)
+
+    // Set new owner for generator
+    // network = readArtifact(terra.config.chainID) // reload variables
+    // console.log('Propose owner for generator. Onwership has to be claimed within 7 days')
+    // await executeContract(terra, wallet, network.generatorAddress, {
+    //     "propose_new_owner": {
+    //         owner: network.multisigAddress,
+    //         expires_in: 604800 // 7 days
+    //     }
+    // })
 
     console.log('FINISH')
+}
+
+async function registerGenerator(terra: LCDClient, wallet: any, lp_token: string, alloc_point: string) {
+    let network = readArtifact(terra.config.chainID)
+
+     if (!network.generatorAddress) {
+        console.log(`Please deploy generator contract`)
+        return
+    }
+
+    await executeContract(terra, wallet, network.generatorAddress, {
+        add: {
+            lp_token: lp_token,
+            alloc_point: alloc_point,
+            reward_proxy: undefined
+        }
+    })
 }
 
 async function uploadAndInitVesting(terra: LCDClient, wallet: any) {
@@ -40,6 +85,7 @@ async function uploadAndInitVesting(terra: LCDClient, wallet: any) {
             network.multisigAddress,
             join(ARTIFACTS_PATH, 'astroport_vesting.wasm'),
             {
+                owner: network.multisigAddress,
                 token_addr: network.tokenAddress,
             },
         )
@@ -64,16 +110,14 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
                 owner: wallet.key.accAddress,
                 allowed_reward_proxies: [],
                 astro_token: network.tokenAddress,
-                start_block: '1',
-                tokens_per_block: String(10000000),
+                start_block: '5918639',
+                tokens_per_block: String(8403094),
                 vesting_contract: network.vestingAddress,
             }
         )
+
         network.generatorAddress = resp.shift()
         console.log(`Address Generator Contract: ${network.generatorAddress}`)
-
-        // Setup vesting for generator
-        await setupVesting(terra, wallet, network)
 
         writeArtifact(network, terra.config.chainID)
     }
@@ -90,8 +134,12 @@ async function setupVesting(terra: LCDClient, wallet: any, network: any) {
                     schedules: [
                         {
                             start_point: {
-                                time: String(new Date(2021, 10, 6).getTime()),
-                                amount: String("63072000000000")
+                                time: 1640865600,
+                                amount: String("100") // 1% on total supply at once
+                            },
+                            end_point: {
+                                time: 1672401600,
+                                amount: String("10000")
                             }
                         }
                     ]
@@ -105,7 +153,7 @@ async function setupVesting(terra: LCDClient, wallet: any, network: any) {
     await executeContract(terra, wallet, network.tokenAddress, {
         "send": {
             contract: network.vestingAddress,
-            amount: String("63072000000000"),
+            amount: String("10000"),
             msg: toEncodedBinary(msg)
         }
     })
