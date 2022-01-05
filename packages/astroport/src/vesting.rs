@@ -8,6 +8,8 @@ use cw20::Cw20ReceiveMsg;
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    /// contract address that used to control settings
+    pub owner: String,
     /// the token address
     pub token_addr: String,
 }
@@ -27,6 +29,26 @@ pub enum ExecuteMsg {
     /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received
     /// template.
     Receive(Cw20ReceiveMsg),
+    /// ## Description
+    /// Creates a request to change ownership
+    /// ## Executor
+    /// Only owner can execute it
+    ProposeNewOwner {
+        /// a new ownership
+        owner: String,
+        /// the validity period of the offer to change the owner
+        expires_in: u64,
+    },
+    /// ## Description
+    /// Removes a request to change ownership
+    /// ## Executor
+    /// Only owner can execute it
+    DropOwnershipProposal {},
+    /// ## Description
+    /// Approves ownership
+    /// ## Executor
+    /// Only owner can execute it
+    ClaimOwnership {},
 }
 
 /// ## Description
@@ -101,6 +123,8 @@ pub enum QueryMsg {
 /// This structure describes the custom struct for each query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
+    /// contract address that controls settings
+    pub owner: Addr,
     /// the token address
     pub token_addr: Addr,
 }
