@@ -1,9 +1,9 @@
 use crate::contract::{
     accumulate_prices, assert_max_spread, execute, instantiate, query_pair_info, query_pool,
-    query_reverse_simulation, query_share, query_simulation, reply,
+    query_share, query_simulation, reply,
 };
 use crate::error::ContractError;
-use crate::math::{calc_amount, AMP_PRECISION};
+use crate::math::{calc_ask_amount, calc_offer_amount, AMP_PRECISION};
 use crate::mock_querier::mock_dependencies;
 
 use crate::response::MsgInstantiateContractResponse;
@@ -11,8 +11,8 @@ use crate::state::Config;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 
 use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
-    SimulationResponse, StablePoolParams, TWAP_PRECISION,
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, SimulationResponse, StablePoolParams,
+    TWAP_PRECISION,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
@@ -715,42 +715,6 @@ fn try_native_to_token() {
     assert_eq!(expected_commission_amount, simulation_res.commission_amount);
     assert_eq!(expected_spread_amount, simulation_res.spread_amount);
 
-    // check reverse simulation res
-    let reverse_simulation_res: ReverseSimulationResponse = query_reverse_simulation(
-        deps.as_ref(),
-        env,
-        Asset {
-            info: AssetInfo::Token {
-                contract_addr: Addr::unchecked("asset0000"),
-            },
-            amount: expected_return_amount,
-        },
-    )
-    .unwrap();
-
-    let model: StableSwapModel = StableSwapModel::new(
-        100,
-        vec![collateral_pool_amount.into(), asset_pool_amount.into()],
-        2,
-    );
-
-    let sim_result = model.sim_exchange(1, 0, expected_ret_amount.into());
-    let reverse_expected_spread_amount =
-        Uint128::new(sim_result).saturating_sub(expected_ret_amount);
-
-    assert_eq!(
-        Uint128::new(sim_result),
-        reverse_simulation_res.offer_amount
-    );
-    assert_eq!(
-        expected_commission_amount,
-        reverse_simulation_res.commission_amount
-    );
-    assert_eq!(
-        reverse_expected_spread_amount,
-        reverse_simulation_res.spread_amount
-    );
-
     assert_eq!(
         res.attributes,
         vec![
@@ -924,36 +888,6 @@ fn try_token_to_native() {
     assert_eq!(expected_return_amount, simulation_res.return_amount);
     assert_eq!(expected_commission_amount, simulation_res.commission_amount);
     assert_eq!(expected_spread_amount, simulation_res.spread_amount);
-
-    // check reverse simulation res
-    let reverse_simulation_res: ReverseSimulationResponse = query_reverse_simulation(
-        deps.as_ref(),
-        env,
-        Asset {
-            amount: expected_return_amount,
-            info: AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-        },
-    )
-    .unwrap();
-
-    let sim_result = model.sim_exchange(0, 1, expected_ret_amount.into());
-    let reverse_expected_spread_amount =
-        Uint128::new(sim_result).saturating_sub(expected_ret_amount);
-
-    assert_eq!(
-        Uint128::new(sim_result),
-        reverse_simulation_res.offer_amount
-    );
-    assert_eq!(
-        expected_commission_amount,
-        reverse_simulation_res.commission_amount
-    );
-    assert_eq!(
-        reverse_expected_spread_amount,
-        reverse_simulation_res.spread_amount
-    );
 
     assert_eq!(
         res.attributes,
@@ -1344,7 +1278,7 @@ proptest! {
             2,
         );
 
-        let result = calc_amount(
+        let result = calc_ask_amount(
             balance_in,
             balance_out,
             amount_in,
@@ -1365,6 +1299,28 @@ proptest! {
             balance_in,
             balance_out,
             diff
+        );
+
+        let reverse_result = calc_offer_amount(
+            balance_in,
+            balance_out,
+            result,
+            amp * AMP_PRECISION
+        ).unwrap();
+
+        let amount_in_f = amount_in as f64;
+        let reverse_diff = (reverse_result as f64 - amount_in_f) / amount_in_f * 100.;
+
+        assert!(
+            reverse_diff <= 0.0001,
+            "result={}, sim_result={}, amp={}, amount_out={}, balance_in={}, balance_out={}, diff(%)={}",
+            reverse_result,
+            amount_in,
+            amp,
+            result,
+            balance_in,
+            balance_out,
+            reverse_diff
         );
     }
 }

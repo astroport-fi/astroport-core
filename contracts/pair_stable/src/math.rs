@@ -13,22 +13,54 @@ pub const AMP_PRECISION: u64 = 100;
 /// ## Description
 /// Calculates swapped amount.
 /// ## Params
-/// * **balance_in** is the object of type [`u128`].
+/// * **offer_pool** is the object of type [`u128`].
 ///
-/// * **balance_out** is the object of type [`u128`].
+/// * **ask_pool** is the object of type [`u128`].
 ///
-/// * **amount_in** is the object of type [`u128`].
+/// * **offer_amount** is the object of type [`u128`].
 ///
 /// * **amp** is the object of type [`u64`].
-pub fn calc_amount(balance_in: u128, balance_out: u128, amount_in: u128, amp: u64) -> Option<u128> {
+pub fn calc_ask_amount(
+    offer_pool: u128,
+    ask_pool: u128,
+    offer_amount: u128,
+    amp: u64,
+) -> Option<u128> {
     let leverage = amp.checked_mul(u64::from(N_COINS)).unwrap();
-    let new_balance_in = balance_in + amount_in;
+    let new_offer_pool = offer_pool + offer_amount;
 
-    let d = compute_d(leverage, balance_in, balance_out).unwrap();
+    let d = compute_d(leverage, offer_pool, ask_pool).unwrap();
 
-    let new_balance_out = compute_new_balance_out(leverage, new_balance_in, d)?;
+    let new_ask_pool = compute_new_balance(leverage, new_offer_pool, d)?;
 
-    let amount_swapped = balance_out - new_balance_out;
+    let amount_swapped = ask_pool - new_ask_pool;
+    Some(amount_swapped)
+}
+
+/// ## Description
+/// Calculates swapped amount.
+/// ## Params
+/// * **offer_pool** is the object of type [`u128`].
+///
+/// * **ask_pool** is the object of type [`u128`].
+///
+/// * **ask_amount** is the object of type [`u128`].
+///
+/// * **amp** is the object of type [`u64`].
+pub fn calc_offer_amount(
+    offer_pool: u128,
+    ask_pool: u128,
+    ask_amount: u128,
+    amp: u64,
+) -> Option<u128> {
+    let leverage = amp.checked_mul(u64::from(N_COINS)).unwrap();
+    let new_ask_pool = ask_pool - ask_amount;
+
+    let d = compute_d(leverage, offer_pool, ask_pool).unwrap();
+
+    let new_offer_pool = compute_new_balance(leverage, new_ask_pool, d)?;
+
+    let amount_swapped = new_offer_pool - offer_pool;
     Some(amount_swapped)
 }
 
@@ -107,7 +139,7 @@ fn calculate_step(initial_d: &U256, leverage: u64, sum_x: u128, d_product: &U256
 /// y**2 + y * (sum' - (A*n**n - 1) * D / (A * n**n)) = D ** (n + 1) / (n ** (2 * n) * prod' * A)
 ///
 /// y**2 + b*y = c
-fn compute_new_balance_out(leverage: u64, new_source_amount: u128, d_val: u128) -> Option<u128> {
+fn compute_new_balance(leverage: u64, new_source_amount: u128, d_val: u128) -> Option<u128> {
     // Upscale to U256
     let leverage: U256 = leverage.into();
     let new_source_amount: U256 = new_source_amount.into();

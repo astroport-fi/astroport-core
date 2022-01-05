@@ -1,6 +1,7 @@
 use crate::error::ContractError;
 use crate::math::{
-    calc_amount, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME, N_COINS,
+    calc_ask_amount, calc_offer_amount, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE,
+    MIN_AMP_CHANGING_TIME, N_COINS,
 };
 use crate::state::{Config, CONFIG};
 
@@ -848,7 +849,7 @@ pub fn accumulate_prices(
         let current_amp = compute_current_amp(config, &env)?;
         pcl0 = config.price0_cumulative_last.wrapping_add(adjust_precision(
             time_elapsed.checked_mul(Uint128::new(
-                calc_amount(
+                calc_ask_amount(
                     x.u128(),
                     y.u128(),
                     adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
@@ -861,7 +862,7 @@ pub fn accumulate_prices(
         )?);
         pcl1 = config.price1_cumulative_last.wrapping_add(adjust_precision(
             time_elapsed.checked_mul(Uint128::new(
-                calc_amount(
+                calc_ask_amount(
                     y.u128(),
                     x.u128(),
                     adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
@@ -1179,7 +1180,7 @@ fn compute_swap(
     let offer_amount = adjust_precision(offer_amount, offer_precision, greater_precision)?;
 
     let return_amount = Uint128::new(
-        calc_amount(offer_pool.u128(), ask_pool.u128(), offer_amount.u128(), amp).unwrap(),
+        calc_ask_amount(offer_pool.u128(), ask_pool.u128(), offer_amount.u128(), amp).unwrap(),
     );
 
     // We assume the assets should stay in a 1:1 ratio, the true exchange rate is 1. So any exchange rate <1 could be considered the spread
@@ -1228,9 +1229,9 @@ fn compute_offer_amount(
     let before_commission_deduction = ask_amount * inv_one_minus_commission;
 
     let offer_amount = Uint128::new(
-        calc_amount(
-            ask_pool.u128(),
+        calc_offer_amount(
             offer_pool.u128(),
+            ask_pool.u128(),
             before_commission_deduction.u128(),
             amp,
         )
