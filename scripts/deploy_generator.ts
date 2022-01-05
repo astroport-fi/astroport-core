@@ -42,7 +42,7 @@ async function main() {
     // await registerGenerator(terra, wallet, "terra1q8aycvr54jarwhqvlr54jr2zqttctnefw7x37q", "24528")
     // await registerGenerator(terra, wallet, "terra1jzutwpneltsys6t96vkdr2zrc6cg0ke4e6y3s0", "47169")
 
-    await setupVesting(terra, wallet, network)
+    // await setupVesting(terra, wallet, network)
 
     // Set new owner for generator
     // network = readArtifact(terra.config.chainID) // reload variables
@@ -85,6 +85,7 @@ async function uploadAndInitVesting(terra: LCDClient, wallet: any) {
             network.multisigAddress,
             join(ARTIFACTS_PATH, 'astroport_vesting.wasm'),
             {
+                owner: network.multisigAddress,
                 token_addr: network.tokenAddress,
             },
         )
@@ -109,7 +110,7 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
                 owner: wallet.key.accAddress,
                 allowed_reward_proxies: [],
                 astro_token: network.tokenAddress,
-                start_block: '5855600',
+                start_block: '5918639',
                 tokens_per_block: String(8403094),
                 vesting_contract: network.vestingAddress,
             }
