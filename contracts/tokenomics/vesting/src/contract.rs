@@ -1,12 +1,13 @@
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
+    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 
-use crate::state::{read_vesting_infos, Config, CONFIG, VESTING_INFO};
+use crate::state::{read_vesting_infos, Config, CONFIG, OWNERSHIP_PROPOSAL, VESTING_INFO};
 
 use crate::error::ContractError;
 use astroport::asset::addr_validate_to_lower;
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::vesting::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg,
     VestingAccount, VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
@@ -44,6 +45,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
+            owner: addr_validate_to_lower(deps.api, &msg.owner)?,
             token_addr: addr_validate_to_lower(deps.api, &msg.token_addr)?,
         },
     )?;
@@ -78,6 +80,37 @@ pub fn execute(
     match msg {
         ExecuteMsg::Claim { recipient, amount } => claim(deps, env, info, recipient, amount),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                owner,
+                expires_in,
+                config.owner,
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(|e| e.into())
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
+                .map_err(|e| e.into())
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
+                    v.owner = new_owner;
+                    Ok(v)
+                })?;
+
+                Ok(())
+            })
+            .map_err(|e| e.into())
+        }
     }
 }
 
@@ -99,9 +132,21 @@ fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
+    let config: Config = CONFIG.load(deps.storage)?;
+
+    // Check owner
+    if cw20_msg.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // Check token
+    if info.sender != config.token_addr {
+        return Err(ContractError::Unauthorized {});
+    }
+
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::RegisterVestingAccounts { vesting_accounts } => {
-            register_vesting_accounts(deps, env, info, vesting_accounts, cw20_msg.amount)
+            register_vesting_accounts(deps, env, vesting_accounts, cw20_msg.amount)
         }
     }
 }
@@ -123,17 +168,10 @@ fn receive_cw20(
 pub fn register_vesting_accounts(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
     vesting_accounts: Vec<VestingAccount>,
     cw20_amount: Uint128,
 ) -> Result<Response, ContractError> {
     let response = Response::new();
-
-    let config: Config = CONFIG.load(deps.storage)?;
-
-    if info.sender != config.token_addr {
-        return Err(ContractError::Unauthorized {});
-    }
 
     let mut to_deposit = Uint128::zero();
 
@@ -230,7 +268,7 @@ pub fn claim(
 
     let mut vesting_info: VestingInfo = VESTING_INFO.load(deps.storage, &info.sender)?;
 
-    let available_amount = compute_available_amount(env.block.time, &vesting_info)?;
+    let available_amount = compute_available_amount(env.block.time.seconds(), &vesting_info)?;
 
     let claim_amount = if let Some(a) = amount {
         if a > available_amount {
@@ -274,10 +312,7 @@ pub fn claim(
 ///
 /// * **vesting_info** is the object of type [`VestingInfo`]. Sets the vesting schedules to compute
 /// available amount.
-fn compute_available_amount(
-    current_time: Timestamp,
-    vesting_info: &VestingInfo,
-) -> StdResult<Uint128> {
+fn compute_available_amount(current_time: u64, vesting_info: &VestingInfo) -> StdResult<Uint128> {
     let mut available_amount: Uint128 = Uint128::zero();
     for sch in vesting_info.schedules.iter() {
         if sch.start_point.time > current_time {
@@ -287,9 +322,8 @@ fn compute_available_amount(
         available_amount = available_amount.checked_add(sch.start_point.amount)?;
 
         if let Some(end_point) = &sch.end_point {
-            let passed_time =
-                current_time.min(end_point.time).seconds() - sch.start_point.time.seconds();
-            let time_period = end_point.time.seconds() - sch.start_point.time.seconds();
+            let passed_time = current_time.min(end_point.time) - sch.start_point.time;
+            let time_period = end_point.time - sch.start_point.time;
             if passed_time != 0 && time_period != 0 {
                 let release_amount = Uint128::from(passed_time).multiply_ratio(
                     end_point.amount.checked_sub(sch.start_point.amount)?,
@@ -328,7 +362,7 @@ fn compute_available_amount(
 ///
 /// * **QueryMsg::AvailableAmount { address }** Returns the available amount for specified account.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::VestingAccount { address } => {
@@ -345,8 +379,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             order_by,
         )?)?),
         QueryMsg::AvailableAmount { address } => Ok(to_binary(&query_vesting_available_amount(
-            deps, _env, address,
+            deps, env, address,
         )?)?),
+        QueryMsg::Timestamp {} => Ok(to_binary(&query_timestamp(env)?)?),
     }
 }
 
@@ -358,10 +393,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
+        owner: config.owner,
         token_addr: config.token_addr,
     };
 
     Ok(resp)
+}
+
+pub fn query_timestamp(env: Env) -> StdResult<u64> {
+    Ok(env.block.time.seconds())
 }
 
 /// ## Description
@@ -422,7 +462,7 @@ pub fn query_vesting_available_amount(deps: Deps, env: Env, address: Addr) -> St
     let address = addr_validate_to_lower(deps.api, address.as_str())?;
 
     let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
-    let available_amount = compute_available_amount(env.block.time, &info)?;
+    let available_amount = compute_available_amount(env.block.time.seconds(), &info)?;
     Ok(available_amount)
 }
 

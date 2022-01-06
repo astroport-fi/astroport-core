@@ -1264,6 +1264,7 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
     let vesting_code_id = app.store_code(vesting_contract);
 
     let init_msg = VestingInstantiateMsg {
+        owner: owner.to_string(),
         token_addr: astro_token_instance.to_string(),
     };
 
@@ -1330,7 +1331,7 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
                 address: generator_instance.to_string(),
                 schedules: vec![VestingSchedule {
                     start_point: VestingSchedulePoint {
-                        time: current_block.time,
+                        time: current_block.time.seconds(),
                         amount,
                     },
                     end_point: None,

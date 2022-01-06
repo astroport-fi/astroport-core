@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use astroport::common::OwnershipProposal;
 use astroport::vesting::{OrderBy, VestingInfo};
 use cosmwasm_std::{Addr, Deps, StdResult};
 use cw_storage_plus::{Bound, Item, Map};
@@ -9,6 +10,8 @@ use cw_storage_plus::{Bound, Item, Map};
 /// This structure describes the main control config of vesting contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
+    /// contract address that controls settings
+    pub owner: Addr,
     /// The vesting token contract address
     pub token_addr: Addr,
 }
@@ -16,9 +19,14 @@ pub struct Config {
 /// ## Description
 /// Stores config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
+
 /// ## Description
 /// The first key part is account contract address, the second key part is an object of type [`VestingInfo`].
 pub const VESTING_INFO: Map<&Addr, VestingInfo> = Map::new("vesting_info");
+
+/// ## Description
+/// Contains proposal for change ownership.
+pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
 const MAX_LIMIT: u32 = 30;
 const DEFAULT_LIMIT: u32 = 10;
