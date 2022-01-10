@@ -100,7 +100,7 @@ pub fn instantiate(
 /// * **msg** is the object of type [`ExecuteMsg`].
 ///
 /// ## Queries
-/// * **ExecuteMsg::Collect { assets, bridges_limits }** Collects rewards from the pools, swaps to astro
+/// * **ExecuteMsg::Collect { assets }** Collects rewards from the pools, swaps to astro
 /// token and distributes the rewards between staking and governance contracts
 ///
 /// * **ExecuteMsg::UpdateConfig {
@@ -113,7 +113,7 @@ pub fn instantiate(
 ///
 /// * **ExecuteMsg::UpdateBridges { add, remove }** Adds or removes bridge assets to swap rewards
 ///
-/// * **ExecuteMsg::SwapBridgeAssets { assets, bridges_limits }** Private method used by contract
+/// * **ExecuteMsg::SwapBridgeAssets { assets }** Private method used by contract
 /// to swap rewards using bridges and keep balances updated
 ///
 /// * **ExecuteMsg::DistributeAstro {}** Private method used by contract to distribute ASTRO rewards
@@ -198,9 +198,6 @@ pub fn execute(
 ///
 /// * **assets** is a vector that contains object of type [`AssetWithLimit`].
 /// Sets the assets for which the collect operation will be performed.
-///
-/// * **bridges_limits** is an [`Option`] field that contains the [`Vec`].
-/// Sets the swap limits for bridges.
 fn collect(
     deps: DepsMut,
     env: Env,
@@ -266,8 +263,6 @@ enum SwapTarget {
 ///
 /// * **assets** is a vector that contains object of type [`AssetWithLimit`]. Sets the assets for
 /// which the collect operation will be performed.
-///
-/// * **bridges_limits** is an [`Option`] field that contains the [`Vec`]. Sets the swap limits for bridges.
 fn swap_assets(
     deps: Deps,
     env: Env,
@@ -375,8 +370,6 @@ fn swap(
 /// * **info** is the object of type [`MessageInfo`].
 ///
 /// * **assets** is an vector field of type [`AssetWithLimit`].
-///
-/// * **bridges_limits** is an [`Option`] field that contains the [`Vec`]. Describes the swap limits for bridges.
 ///
 /// * **depth** is the object of type [`u64`]. Sets the exchange depth.
 ///
