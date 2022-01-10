@@ -33,7 +33,7 @@ pub enum ContractError {
     #[error("Incorrect max spread")]
     IncorrectMaxSpread {},
 
-    #[error("Cannot be exchanged. Remove duplicate asset")]
+    #[error("Cannot collect. Remove duplicate asset")]
     DoubleAssetAmount {},
 }
 

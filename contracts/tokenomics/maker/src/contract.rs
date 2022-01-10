@@ -210,7 +210,7 @@ fn collect(
     // check for duplicate asset
     let mut uniq = HashSet::new();
     if !assets
-        .iter()
+        .clone()
         .into_iter()
         .all(|a| uniq.insert(a.info.to_string()))
     {
@@ -268,9 +268,9 @@ fn swap_assets(
     env: Env,
     cfg: &Config,
     assets: Vec<AssetWithLimit>,
-) -> Result<(Response, Vec<AssetWithLimit>), ContractError> {
+) -> Result<(Response, Vec<AssetInfo>), ContractError> {
     let mut response = Response::default();
-    let mut bridge_assets: HashMap<String, AssetWithLimit> = HashMap::new();
+    let mut bridge_assets = HashMap::new();
 
     for a in assets {
         // Get Balance
@@ -292,13 +292,7 @@ fn swap_assets(
                 }
                 SwapTarget::Bridge { asset, msg } => {
                     response.messages.push(msg);
-                    bridge_assets.insert(
-                        asset.to_string(),
-                        AssetWithLimit {
-                            info: asset,
-                            limit: None,
-                        },
-                    );
+                    bridge_assets.insert(asset.to_string(), asset);
                 }
             }
         }
@@ -379,7 +373,7 @@ fn swap_bridge_assets(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    assets: Vec<AssetWithLimit>,
+    assets: Vec<AssetInfo>,
     depth: u64,
 ) -> Result<Response, ContractError> {
     if info.sender != env.contract.address {
@@ -396,7 +390,15 @@ fn swap_bridge_assets(
 
     let cfg = CONFIG.load(deps.storage)?;
 
-    let (response, bridge_assets) = swap_assets(deps.as_ref(), env.clone(), &cfg, assets)?;
+    let mut bridges = vec![];
+    for asset in assets {
+        bridges.push(AssetWithLimit {
+            info: asset,
+            limit: None,
+        });
+    }
+
+    let (response, bridge_assets) = swap_assets(deps.as_ref(), env.clone(), &cfg, bridges)?;
 
     // there always should be some messages, if there are none - something went wrong
     if response.messages.is_empty() {

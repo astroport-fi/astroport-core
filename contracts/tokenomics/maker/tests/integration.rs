@@ -1170,10 +1170,7 @@ fn collect_with_asset_limit() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(
-        resp.to_string(),
-        "Cannot be exchanged. Remove duplicate asset",
-    );
+    assert_eq!(resp.to_string(), "Cannot collect. Remove duplicate asset",);
 
     router
         .execute_contract(
