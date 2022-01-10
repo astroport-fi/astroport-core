@@ -34,7 +34,7 @@ pub enum ContractError {
     IncorrectMaxSpread {},
 
     #[error("Cannot collect. Remove duplicate asset")]
-    DoubleAssetAmount {},
+    DuplicatedAsset {},
 }
 
 impl From<OverflowError> for ContractError {
