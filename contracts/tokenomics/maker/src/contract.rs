@@ -5,13 +5,13 @@ use crate::utils::{
     build_distribute_msg, build_swap_msg, validate_bridge, BRIDGES_INITIAL_DEPTH, BRIDGES_MAX_DEPTH,
 };
 use astroport::asset::{
-    addr_validate_to_lower, token_asset, token_asset_info, Asset, AssetInfo, AssetWithLimit,
-    PairInfo,
+    addr_validate_to_lower, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
 use astroport::maker::{
-    BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+    AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg,
+    QueryMsg,
 };
 use astroport::pair::QueryMsg as PairQueryMsg;
 use astroport::querier::query_pair_info;
@@ -214,7 +214,7 @@ fn collect(
         .into_iter()
         .all(|a| uniq.insert(a.info.to_string()))
     {
-        return Err(ContractError::DoubleAssetAmount {});
+        return Err(ContractError::DuplicatedAsset {});
     }
 
     // Swap all non-astro tokens

@@ -1,9 +1,10 @@
 use astroport::asset::{
-    native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo,
-    AssetWithLimit, PairInfo,
+    native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
 };
 use astroport::factory::{PairConfig, PairType, UpdateAddr};
-use astroport::maker::{BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::maker::{
+    AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
+};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
@@ -464,7 +465,6 @@ fn collect_all() {
     let uluna_asset = String::from("uluna");
 
     // Create pairs
-    let mut assets = vec![];
     for t in vec![
         [
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
@@ -497,19 +497,32 @@ fn collect_all() {
     }
 
     // set asset to swap
-    for t in vec![
-        native_asset(uusd_asset.clone(), Uint128::zero()),
-        token_asset(astro_token_instance.clone(), Uint128::zero()),
-        native_asset(uluna_asset.clone(), Uint128::zero()),
-        token_asset(usdc_token_instance.clone(), Uint128::zero()),
-        token_asset(test_token_instance.clone(), Uint128::zero()),
-        token_asset(bridge2_token_instance.clone(), Uint128::zero()),
-    ] {
-        assets.push(AssetWithLimit {
-            info: t.info,
+    let assets = vec![
+        AssetWithLimit {
+            info: native_asset(uusd_asset.clone(), Uint128::zero()).info,
             limit: None,
-        });
-    }
+        },
+        AssetWithLimit {
+            info: token_asset(astro_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: native_asset(uluna_asset.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(usdc_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(test_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(bridge2_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+    ];
 
     // Setup bridge to withdraw USDC via USDC -> TEST -> UUSD -> ASTRO route
     router
@@ -806,17 +819,20 @@ fn collect_err_no_swap_pair() {
     }
 
     // set asset to swap
-    let mut assets = vec![];
-    for t in vec![
-        native_asset(uusd_asset.clone(), Uint128::zero()),
-        token_asset(astro_token_instance.clone(), Uint128::zero()),
-        native_asset(uluna_asset.clone(), Uint128::zero()),
-    ] {
-        assets.push(AssetWithLimit {
-            info: t.info,
+    let assets = vec![
+        AssetWithLimit {
+            info: native_asset(uusd_asset.clone(), Uint128::zero()).info,
             limit: None,
-        });
-    }
+        },
+        AssetWithLimit {
+            info: token_asset(astro_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: native_asset(uluna_asset.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+    ];
 
     // Mint all tokens for maker
     for t in vec![(astro_token_instance.clone(), 10u128)] {
@@ -1059,33 +1075,36 @@ fn collect_with_asset_limit() {
     }
 
     // set asset with duplicate
-    let mut assets_with_duplicate = vec![];
-    for t in vec![
-        token_asset(astro_token_instance.clone(), Uint128::zero()),
-        token_asset(usdc_token_instance.clone(), Uint128::zero()),
-        token_asset(usdc_token_instance.clone(), Uint128::zero()),
-        token_asset(test_token_instance.clone(), Uint128::zero()),
-        token_asset(bridge2_token_instance.clone(), Uint128::zero()),
-    ] {
-        assets_with_duplicate.push(AssetWithLimit {
-            info: t.info,
+    let assets_with_duplicate = vec![
+        AssetWithLimit {
+            info: token_asset(usdc_token_instance.clone(), Uint128::zero()).info,
             limit: None,
-        });
-    }
+        },
+        AssetWithLimit {
+            info: token_asset(usdc_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+    ];
 
     // set asset to swap
-    let mut assets = vec![];
-    for t in vec![
-        token_asset(astro_token_instance.clone(), Uint128::zero()),
-        token_asset(usdc_token_instance.clone(), Uint128::zero()),
-        token_asset(test_token_instance.clone(), Uint128::zero()),
-        token_asset(bridge2_token_instance.clone(), Uint128::zero()),
-    ] {
-        assets.push(AssetWithLimit {
-            info: t.info,
+    let assets = vec![
+        AssetWithLimit {
+            info: token_asset(astro_token_instance.clone(), Uint128::zero()).info,
             limit: Option::from(Uint128::new(5)),
-        });
-    }
+        },
+        AssetWithLimit {
+            info: token_asset(usdc_token_instance.clone(), Uint128::zero()).info,
+            limit: Option::from(Uint128::new(5)),
+        },
+        AssetWithLimit {
+            info: token_asset(test_token_instance.clone(), Uint128::zero()).info,
+            limit: Option::from(Uint128::new(5)),
+        },
+        AssetWithLimit {
+            info: token_asset(bridge2_token_instance.clone(), Uint128::zero()).info,
+            limit: Option::from(Uint128::new(5)),
+        },
+    ];
 
     // Setup bridge to withdraw USDC via USDC -> TEST -> UUSD -> ASTRO route
     router

@@ -1,6 +1,6 @@
-use crate::asset::{Asset, AssetInfo, AssetWithLimit};
+use crate::asset::{Asset, AssetInfo};
 use crate::factory::UpdateAddr;
-use cosmwasm_std::{Addr, Decimal, Uint64};
+use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -115,3 +115,13 @@ pub struct BalancesResponse {
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
+
+/// ## Description
+/// This enum describes asset with limits to be collected by maker.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AssetWithLimit {
+    /// the available type of asset from [`AssetInfo`]
+    pub info: AssetInfo,
+    /// the amount of an asset
+    pub limit: Option<Uint128>,
+}
