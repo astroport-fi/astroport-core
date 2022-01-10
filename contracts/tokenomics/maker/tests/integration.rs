@@ -4,32 +4,39 @@ use astroport::asset::{
 use astroport::factory::{PairConfig, PairType, UpdateAddr};
 use astroport::maker::{BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
     attr, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use std::str::FromStr;
-use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
+use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
 
-fn mock_app() -> App {
+fn mock_app() -> TerraApp {
     let env = mock_env();
     let api = MockApi::default();
     let bank = BankKeeper::new();
-    let tmq = TerraMockQuerier::new(MockQuerier::new(&[]));
+    let storage = MockStorage::new();
+    let custom = TerraMock::luna_ust_case();
 
-    App::new(api, env.block, bank, MockStorage::new(), tmq)
+    AppBuilder::new()
+        .with_api(api)
+        .with_block(env.block)
+        .with_bank(bank)
+        .with_storage(storage)
+        .with_custom(custom)
+        .build()
 }
 
 fn instantiate_contracts(
-    router: &mut App,
+    router: &mut TerraApp,
     owner: Addr,
     staking: Addr,
     governance: &Addr,
     governance_percent: Uint64,
     max_spread: Option<Decimal>,
 ) -> (Addr, Addr, Addr) {
-    let astro_token_contract = Box::new(ContractWrapper::new(
+    let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
         astroport_token::contract::query,
@@ -60,23 +67,23 @@ fn instantiate_contracts(
         .unwrap();
 
     let pair_contract = Box::new(
-        ContractWrapper::new(
+        ContractWrapper::new_with_empty(
             astroport_pair::contract::execute,
             astroport_pair::contract::instantiate,
             astroport_pair::contract::query,
         )
-        .with_reply(astroport_pair::contract::reply),
+        .with_reply_empty(astroport_pair::contract::reply),
     );
 
     let pair_code_id = router.store_code(pair_contract);
 
     let factory_contract = Box::new(
-        ContractWrapper::new(
+        ContractWrapper::new_with_empty(
             astroport_factory::contract::execute,
             astroport_factory::contract::instantiate,
             astroport_factory::contract::query,
         )
-        .with_reply(astroport_factory::contract::reply),
+        .with_reply_empty(astroport_factory::contract::reply),
     );
 
     let factory_code_id = router.store_code(factory_contract);
@@ -105,7 +112,7 @@ fn instantiate_contracts(
         )
         .unwrap();
 
-    let maker_contract = Box::new(ContractWrapper::new(
+    let maker_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_maker::contract::execute,
         astroport_maker::contract::instantiate,
         astroport_maker::contract::query,
@@ -135,8 +142,8 @@ fn instantiate_contracts(
     (astro_token_instance, factory_instance, maker_instance)
 }
 
-fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String) -> Addr {
-    let token_contract = Box::new(ContractWrapper::new(
+fn instantiate_token(router: &mut TerraApp, owner: Addr, name: String, symbol: String) -> Addr {
+    let token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
         astroport_token::contract::query,
@@ -168,7 +175,13 @@ fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String
     token_instance
 }
 
-fn mint_some_token(router: &mut App, owner: Addr, token_instance: Addr, to: Addr, amount: Uint128) {
+fn mint_some_token(
+    router: &mut TerraApp,
+    owner: Addr,
+    token_instance: Addr,
+    to: Addr,
+    amount: Uint128,
+) {
     let msg = cw20::Cw20ExecuteMsg::Mint {
         recipient: to.to_string(),
         amount,
@@ -181,7 +194,13 @@ fn mint_some_token(router: &mut App, owner: Addr, token_instance: Addr, to: Addr
     assert_eq!(res.events[1].attributes[3], attr("amount", amount));
 }
 
-fn allowance_token(router: &mut App, owner: Addr, spender: Addr, token: Addr, amount: Uint128) {
+fn allowance_token(
+    router: &mut TerraApp,
+    owner: Addr,
+    spender: Addr,
+    token: Addr,
+    amount: Uint128,
+) {
     let msg = cw20::Cw20ExecuteMsg::IncreaseAllowance {
         spender: spender.to_string(),
         amount,
@@ -205,7 +224,7 @@ fn allowance_token(router: &mut App, owner: Addr, spender: Addr, token: Addr, am
     assert_eq!(res.events[1].attributes[4], attr("amount", amount));
 }
 
-fn check_balance(router: &mut App, user: Addr, token: Addr, expected_amount: Uint128) {
+fn check_balance(router: &mut TerraApp, user: Addr, token: Addr, expected_amount: Uint128) {
     let msg = Cw20QueryMsg::Balance {
         address: user.to_string(),
     };
@@ -222,7 +241,7 @@ fn check_balance(router: &mut App, user: Addr, token: Addr, expected_amount: Uin
 }
 
 fn create_pair(
-    mut router: &mut App,
+    mut router: &mut TerraApp,
     owner: Addr,
     user: Addr,
     factory_instance: &Addr,
@@ -307,7 +326,17 @@ fn create_pair(
         }
     }
 
-    router.init_bank_balance(&user, funds.clone()).unwrap();
+    funds.sort_by(|l, r| l.denom.cmp(&r.denom));
+
+    let user_funds: Vec<Coin> = funds
+        .iter()
+        .map(|c| Coin {
+            denom: c.denom.clone(),
+            amount: c.amount * Uint128::new(2),
+        })
+        .collect();
+
+    router.init_bank_balance(&user, user_funds).unwrap();
 
     router
         .execute_contract(
@@ -602,13 +631,12 @@ fn collect_all() {
         .unwrap();
 
     for t in vec![
-        // We are loosing 1 ASTRO in fees per swap
-        // 262 ASTRO = 10 astro +
-        // 17 usdc (20 - fee for 3 swaps)  +
-        // 28 test (30 - fee for 2 swaps) +
-        // 108 uluna (110 - fee for 2 swaps) +
-        // 99 uusd
-        (astro_token_instance.clone(), 262u128),
+        // 218 ASTRO = 10 ASTRO +
+        // 84 ASTRO (100 uusd - 15 tax -> 85 - 1 fee) +
+        // 79 ASTRO (110 uluna - 0 tax -> 110 uusd - 1 fee - 16 tax -> 93 - 13 tax - 1 fee) +
+        // 17 ASTRO (20 usdc -> 20 test - 1 fee -> 19 bridge - 1 fee -> 18 - 1 fee) +
+        // 28 ASTRO (30 test -> 30 bridge - 1 fee -> 29 - 1 fee)
+        (astro_token_instance.clone(), 218u128),
         (usdc_token_instance.clone(), 0u128),
         (test_token_instance.clone(), 0u128),
     ] {

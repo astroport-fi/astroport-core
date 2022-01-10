@@ -1,4 +1,4 @@
-use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{attr, Addr};
 
 use astroport::asset::{AssetInfo, PairInfo};
@@ -8,46 +8,52 @@ use astroport::factory::{
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cw20::MinterResponse;
 
-use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
+use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
 
-fn mock_app() -> App {
-    let api = MockApi::default();
+fn mock_app() -> TerraApp {
     let env = mock_env();
+    let api = MockApi::default();
     let bank = BankKeeper::new();
     let storage = MockStorage::new();
-    let tmq = TerraMockQuerier::new(MockQuerier::new(&[]));
+    let custom = TerraMock::luna_ust_case();
 
-    App::new(api, env.block, bank, storage, tmq)
+    AppBuilder::new()
+        .with_api(api)
+        .with_block(env.block)
+        .with_bank(bank)
+        .with_storage(storage)
+        .with_custom(custom)
+        .build()
 }
 
-fn store_factory_code(app: &mut App) -> u64 {
+fn store_factory_code(app: &mut TerraApp) -> u64 {
     let factory_contract = Box::new(
-        ContractWrapper::new(
+        ContractWrapper::new_with_empty(
             astroport_factory::contract::execute,
             astroport_factory::contract::instantiate,
             astroport_factory::contract::query,
         )
-        .with_reply(astroport_factory::contract::reply),
+        .with_reply_empty(astroport_factory::contract::reply),
     );
 
     app.store_code(factory_contract)
 }
 
-fn store_pair_code(app: &mut App) -> u64 {
+fn store_pair_code(app: &mut TerraApp) -> u64 {
     let pair_contract = Box::new(
-        ContractWrapper::new(
+        ContractWrapper::new_with_empty(
             astroport_pair::contract::execute,
             astroport_pair::contract::instantiate,
             astroport_pair::contract::query,
         )
-        .with_reply(astroport_pair::contract::reply),
+        .with_reply_empty(astroport_pair::contract::reply),
     );
 
     app.store_code(pair_contract)
 }
 
-fn store_token_code(app: &mut App) -> u64 {
-    let token_contract = Box::new(ContractWrapper::new(
+fn store_token_code(app: &mut TerraApp) -> u64 {
+    let token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
         astroport_token::contract::query,
@@ -164,7 +170,7 @@ fn update_config() {
     assert_eq!(res.to_string(), "Unauthorized");
 }
 
-fn instantiate_contract(app: &mut App, owner: &Addr, token_code_id: u64) -> Addr {
+fn instantiate_contract(app: &mut TerraApp, owner: &Addr, token_code_id: u64) -> Addr {
     let pair_code_id = store_pair_code(app);
     let factory_code_id = store_factory_code(app);
 

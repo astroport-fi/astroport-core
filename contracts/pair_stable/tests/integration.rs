@@ -10,26 +10,33 @@ use astroport::pair::{
 
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_pair_stable::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
-use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
     attr, from_binary, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
+use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
 
 const OWNER: &str = "owner";
 
-fn mock_app() -> App {
+fn mock_app() -> TerraApp {
     let env = mock_env();
     let api = MockApi::default();
-    let bank = BankKeeper {};
+    let bank = BankKeeper::new();
+    let storage = MockStorage::new();
+    let custom = TerraMock::luna_ust_case();
 
-    let terra_mock_querier = TerraMockQuerier::new(MockQuerier::new(&[]));
-    App::new(api, env.block, bank, MockStorage::new(), terra_mock_querier)
+    AppBuilder::new()
+        .with_api(api)
+        .with_block(env.block)
+        .with_bank(bank)
+        .with_storage(storage)
+        .with_custom(custom)
+        .build()
 }
 
-fn store_token_code(app: &mut App) -> u64 {
-    let astro_token_contract = Box::new(ContractWrapper::new(
+fn store_token_code(app: &mut TerraApp) -> u64 {
+    let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
         astroport_token::contract::query,
@@ -38,33 +45,33 @@ fn store_token_code(app: &mut App) -> u64 {
     app.store_code(astro_token_contract)
 }
 
-fn store_pair_code(app: &mut App) -> u64 {
+fn store_pair_code(app: &mut TerraApp) -> u64 {
     let pair_contract = Box::new(
-        ContractWrapper::new(
+        ContractWrapper::new_with_empty(
             astroport_pair_stable::contract::execute,
             astroport_pair_stable::contract::instantiate,
             astroport_pair_stable::contract::query,
         )
-        .with_reply(astroport_pair_stable::contract::reply),
+        .with_reply_empty(astroport_pair_stable::contract::reply),
     );
 
     app.store_code(pair_contract)
 }
 
-fn store_factory_code(app: &mut App) -> u64 {
+fn store_factory_code(app: &mut TerraApp) -> u64 {
     let factory_contract = Box::new(
-        ContractWrapper::new(
+        ContractWrapper::new_with_empty(
             astroport_factory::contract::execute,
             astroport_factory::contract::instantiate,
             astroport_factory::contract::query,
         )
-        .with_reply(astroport_factory::contract::reply),
+        .with_reply_empty(astroport_factory::contract::reply),
     );
 
     app.store_code(factory_contract)
 }
 
-fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
+fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
     let token_contract_code_id = store_token_code(&mut router);
 
     let pair_contract_code_id = store_pair_code(&mut router);
@@ -143,7 +150,7 @@ fn test_provide_and_withdraw_liquidity() {
             vec![
                 Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::new(200u128),
+                    amount: Uint128::new(233u128),
                 },
                 Coin {
                     denom: "uluna".to_string(),
@@ -272,12 +279,12 @@ fn provide_liquidity_msg(
 
     let coins = [
         Coin {
-            denom: "uusd".to_string(),
-            amount: uusd_amount.clone(),
-        },
-        Coin {
             denom: "uluna".to_string(),
             amount: uluna_amount.clone(),
+        },
+        Coin {
+            denom: "uusd".to_string(),
+            amount: uusd_amount.clone(),
         },
     ];
 
@@ -493,7 +500,7 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
         vec![
             Coin {
                 denom: "uusd".to_string(),
-                amount: Uint128::new(4000000_000000),
+                amount: Uint128::new(4666666_000000),
             },
             Coin {
                 denom: "uluna".to_string(),
