@@ -13,7 +13,7 @@ use astroport::{
     },
 };
 use cosmwasm_std::{
-    testing::{mock_env, MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR},
+    testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR},
     to_binary, Addr, StdResult, Uint128, Uint64,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
@@ -21,7 +21,9 @@ use mirror_protocol::staking::{
     Cw20HookMsg as MirrorStakingHookMsg, ExecuteMsg as MirrorExecuteMsg,
     InstantiateMsg as MirrorInstantiateMsg,
 };
-use terra_multi_test::{next_block, App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
+use terra_multi_test::{
+    next_block, AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
+};
 
 const OWNER: &str = "owner";
 const USER1: &str = "user1";
@@ -1215,18 +1217,24 @@ fn generator_with_mirror_reward_proxy() {
     );
 }
 
-fn mock_app() -> App {
-    let api = MockApi::default();
+fn mock_app() -> TerraApp {
     let env = mock_env();
+    let api = MockApi::default();
     let bank = BankKeeper::new();
     let storage = MockStorage::new();
-    let terra_mock_querier = TerraMockQuerier::new(MockQuerier::new(&[]));
+    let custom = TerraMock::luna_ust_case();
 
-    App::new(api, env.block, bank, storage, terra_mock_querier)
+    AppBuilder::new()
+        .with_api(api)
+        .with_block(env.block)
+        .with_bank(bank)
+        .with_storage(storage)
+        .with_custom(custom)
+        .build()
 }
 
-fn store_token_code(app: &mut App) -> u64 {
-    let astro_token_contract = Box::new(ContractWrapper::new(
+fn store_token_code(app: &mut TerraApp) -> u64 {
+    let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
         astroport_token::contract::query,
@@ -1235,7 +1243,12 @@ fn store_token_code(app: &mut App) -> u64 {
     app.store_code(astro_token_contract)
 }
 
-fn instantiate_token(app: &mut App, token_code_id: u64, name: &str, cap: Option<u128>) -> Addr {
+fn instantiate_token(
+    app: &mut TerraApp,
+    token_code_id: u64,
+    name: &str,
+    cap: Option<u128>,
+) -> Addr {
     let name = String::from(name);
 
     let msg = TokenInstantiateMsg {
@@ -1253,9 +1266,9 @@ fn instantiate_token(app: &mut App, token_code_id: u64, name: &str, cap: Option<
         .unwrap()
 }
 
-fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
+fn instantiate_generator(mut app: &mut TerraApp, astro_token_instance: &Addr) -> Addr {
     // Vesting
-    let vesting_contract = Box::new(ContractWrapper::new(
+    let vesting_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_vesting::contract::execute,
         astroport_vesting::contract::instantiate,
         astroport_vesting::contract::query,
@@ -1288,12 +1301,12 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
 
     // Generator
     let generator_contract = Box::new(
-        ContractWrapper::new(
+        ContractWrapper::new_with_empty(
             astroport_generator::contract::execute,
             astroport_generator::contract::instantiate,
             astroport_generator::contract::query,
         )
-        .with_reply(astroport_generator::contract::reply),
+        .with_reply_empty(astroport_generator::contract::reply),
     );
 
     let generator_code_id = app.store_code(generator_contract);
@@ -1349,7 +1362,7 @@ fn instantiate_generator(mut app: &mut App, astro_token_instance: &Addr) -> Addr
 }
 
 fn instantiate_mirror_protocol(
-    app: &mut App,
+    app: &mut TerraApp,
     token_code_id: u64,
     asset_token: &Addr,
     staking_token: &Addr,
@@ -1357,7 +1370,7 @@ fn instantiate_mirror_protocol(
     let mirror_token_instance = instantiate_token(app, token_code_id, "MIR", None);
 
     // Mirror staking
-    let mirror_staking_contract = Box::new(ContractWrapper::new(
+    let mirror_staking_contract = Box::new(ContractWrapper::new_with_empty(
         mirror_staking::contract::execute,
         mirror_staking::contract::instantiate,
         mirror_staking::contract::query,
@@ -1403,8 +1416,8 @@ fn instantiate_mirror_protocol(
     (mirror_token_instance, mirror_staking_instance)
 }
 
-fn store_proxy_code(app: &mut App) -> u64 {
-    let generator_proxy_to_mirror_contract = Box::new(ContractWrapper::new(
+fn store_proxy_code(app: &mut TerraApp) -> u64 {
+    let generator_proxy_to_mirror_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_generator_proxy_to_mirror::contract::execute,
         astroport_generator_proxy_to_mirror::contract::instantiate,
         astroport_generator_proxy_to_mirror::contract::query,
@@ -1414,7 +1427,7 @@ fn store_proxy_code(app: &mut App) -> u64 {
 }
 
 fn instantiate_proxy(
-    app: &mut App,
+    app: &mut TerraApp,
     proxy_code: u64,
     generator_instance: &Addr,
     pair: &Addr,
@@ -1442,7 +1455,7 @@ fn instantiate_proxy(
 }
 
 fn register_lp_tokens_in_generator(
-    app: &mut App,
+    app: &mut TerraApp,
     generator_instance: &Addr,
     reward_proxy: Option<&Addr>,
     lp_tokens: &[&Addr],
@@ -1463,7 +1476,7 @@ fn register_lp_tokens_in_generator(
     }
 }
 
-fn mint_tokens(app: &mut App, token: &Addr, recipient: &Addr, amount: u128) {
+fn mint_tokens(app: &mut TerraApp, token: &Addr, recipient: &Addr, amount: u128) {
     let msg = Cw20ExecuteMsg::Mint {
         recipient: recipient.to_string(),
         amount: Uint128::from(amount),
@@ -1474,7 +1487,7 @@ fn mint_tokens(app: &mut App, token: &Addr, recipient: &Addr, amount: u128) {
 }
 
 fn deposit_lp_tokens_to_generator(
-    app: &mut App,
+    app: &mut TerraApp,
     generator_instance: &Addr,
     depositor: &str,
     lp_tokens: &[(&Addr, u128)],
@@ -1491,7 +1504,7 @@ fn deposit_lp_tokens_to_generator(
     }
 }
 
-fn check_token_balance(app: &mut App, token: &Addr, address: &Addr, expected: u128) {
+fn check_token_balance(app: &mut TerraApp, token: &Addr, address: &Addr, expected: u128) {
     let msg = Cw20QueryMsg::Balance {
         address: address.to_string(),
     };
@@ -1500,7 +1513,7 @@ fn check_token_balance(app: &mut App, token: &Addr, address: &Addr, expected: u1
 }
 
 fn check_pending_rewards(
-    app: &mut App,
+    app: &mut TerraApp,
     generator_instance: &Addr,
     token: &Addr,
     depositor: &str,
