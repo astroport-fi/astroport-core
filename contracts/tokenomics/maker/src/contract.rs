@@ -22,6 +22,7 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 use std::collections::{HashMap, HashSet};
+
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-maker";
 /// Contract version that is used for migration.
@@ -390,13 +391,13 @@ fn swap_bridge_assets(
 
     let cfg = CONFIG.load(deps.storage)?;
 
-    let mut bridges = vec![];
-    for asset in assets {
-        bridges.push(AssetWithLimit {
-            info: asset,
+    let bridges = assets
+        .into_iter()
+        .map(|a| AssetWithLimit {
+            info: a,
             limit: None,
-        });
-    }
+        })
+        .collect();
 
     let (response, bridge_assets) = swap_assets(deps.as_ref(), env.clone(), &cfg, bridges)?;
 
