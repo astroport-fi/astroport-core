@@ -2,7 +2,9 @@ use astroport::asset::{
     native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
 };
 use astroport::factory::{PairConfig, PairType, UpdateAddr};
-use astroport::maker::{BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::maker::{
+    AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
+};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
@@ -492,7 +494,6 @@ fn collect_all() {
     let uluna_asset = String::from("uluna");
 
     // Create pairs
-    let mut pair_addresses = vec![];
     for t in vec![
         [
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
@@ -515,16 +516,42 @@ fn collect_all() {
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
     ] {
-        let pair_info = create_pair(
+        create_pair(
             &mut router,
             owner.clone(),
             user.clone(),
             &factory_instance,
             t,
         );
-
-        pair_addresses.push(pair_info.contract_addr);
     }
+
+    // set asset to swap
+    let assets = vec![
+        AssetWithLimit {
+            info: native_asset(uusd_asset.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(astro_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: native_asset(uluna_asset.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(usdc_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(test_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(bridge2_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+    ];
 
     // Setup bridge to withdraw USDC via USDC -> TEST -> UUSD -> ASTRO route
     router
@@ -625,7 +652,7 @@ fn collect_all() {
         .execute_contract(
             Addr::unchecked("anyone"),
             maker_instance.clone(),
-            &ExecuteMsg::Collect { pair_addresses },
+            &ExecuteMsg::Collect { assets },
             &[],
         )
         .unwrap();
@@ -799,8 +826,6 @@ fn collect_err_no_swap_pair() {
     let uusd_asset = String::from("uusd");
     let uluna_asset = String::from("uluna");
 
-    let mut pair_addresses = vec![];
-
     // Mint all tokens for maker
     for t in vec![
         [
@@ -812,16 +837,30 @@ fn collect_err_no_swap_pair() {
             native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
         ],
     ] {
-        let pair_info = create_pair(
+        create_pair(
             &mut router,
             owner.clone(),
             user.clone(),
             &factory_instance,
             t,
         );
-
-        pair_addresses.push(pair_info.contract_addr);
     }
+
+    // set asset to swap
+    let assets = vec![
+        AssetWithLimit {
+            info: native_asset(uusd_asset.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(astro_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: native_asset(uluna_asset.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+    ];
 
     // Mint all tokens for maker
     for t in vec![(astro_token_instance.clone(), 10u128)] {
@@ -859,7 +898,7 @@ fn collect_err_no_swap_pair() {
         )
         .unwrap();
 
-    let msg = ExecuteMsg::Collect { pair_addresses };
+    let msg = ExecuteMsg::Collect { assets };
 
     let e = router
         .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
@@ -997,4 +1036,279 @@ fn update_bridges() {
         .unwrap();
 
     assert_eq!(resp, vec![(String::from("uluna"), String::from("uusd")),]);
+}
+
+#[test]
+fn collect_with_asset_limit() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+    let user = Addr::unchecked("user0000");
+    let staking = Addr::unchecked("staking");
+    let governance = Addr::unchecked("governance");
+    let governance_percent = Uint64::new(10);
+    let max_spread = Decimal::from_str("0.5").unwrap();
+
+    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
+        &mut router,
+        owner.clone(),
+        staking.clone(),
+        &governance,
+        governance_percent,
+        Some(max_spread),
+    );
+
+    let usdc_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Usdc token".to_string(),
+        "USDC".to_string(),
+    );
+
+    let test_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Test token".to_string(),
+        "TEST".to_string(),
+    );
+
+    let bridge2_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Bridge 2 depth token".to_string(),
+        "BRIDGE".to_string(),
+    );
+
+    // Create pairs
+    for t in vec![
+        [
+            token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+    ] {
+        create_pair(
+            &mut router,
+            owner.clone(),
+            user.clone(),
+            &factory_instance,
+            t,
+        );
+    }
+
+    // set asset with duplicate
+    let assets_with_duplicate = vec![
+        AssetWithLimit {
+            info: token_asset(usdc_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(usdc_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+    ];
+
+    // set asset to swap
+    let assets = vec![
+        AssetWithLimit {
+            info: token_asset(astro_token_instance.clone(), Uint128::zero()).info,
+            limit: Option::from(Uint128::new(5)),
+        },
+        AssetWithLimit {
+            info: token_asset(usdc_token_instance.clone(), Uint128::zero()).info,
+            limit: Option::from(Uint128::new(5)),
+        },
+        AssetWithLimit {
+            info: token_asset(test_token_instance.clone(), Uint128::zero()).info,
+            limit: Option::from(Uint128::new(5)),
+        },
+        AssetWithLimit {
+            info: token_asset(bridge2_token_instance.clone(), Uint128::zero()).info,
+            limit: Option::from(Uint128::new(5)),
+        },
+    ];
+
+    // Setup bridge to withdraw USDC via USDC -> TEST -> UUSD -> ASTRO route
+    router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::UpdateBridges {
+                add: Some(vec![
+                    (
+                        token_asset_info(test_token_instance.clone()),
+                        token_asset_info(bridge2_token_instance.clone()),
+                    ),
+                    (
+                        token_asset_info(usdc_token_instance.clone()),
+                        token_asset_info(test_token_instance.clone()),
+                    ),
+                ]),
+                remove: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+    // Mint all tokens for maker
+    for t in vec![
+        (astro_token_instance.clone(), 10u128),
+        (usdc_token_instance.clone(), 20u128),
+        (test_token_instance.clone(), 30u128),
+    ] {
+        let (token, amount) = t;
+        mint_some_token(
+            &mut router,
+            owner.clone(),
+            token.clone(),
+            maker_instance.clone(),
+            Uint128::from(amount),
+        );
+
+        // Check initial balance
+        check_balance(
+            &mut router,
+            maker_instance.clone(),
+            token,
+            Uint128::from(amount),
+        );
+    }
+
+    let expected_balances = vec![
+        token_asset(astro_token_instance.clone(), Uint128::new(10)),
+        token_asset(usdc_token_instance.clone(), Uint128::new(20)),
+        token_asset(test_token_instance.clone(), Uint128::new(30)),
+    ];
+
+    let balances_resp: BalancesResponse = router
+        .wrap()
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: maker_instance.to_string(),
+            msg: to_binary(&QueryMsg::Balances {
+                assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
+            })
+            .unwrap(),
+        }))
+        .unwrap();
+
+    for b in expected_balances {
+        let found = balances_resp
+            .balances
+            .iter()
+            .find(|n| n.info.equal(&b.info))
+            .unwrap();
+
+        assert_eq!(found, &b);
+    }
+
+    let resp = router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect {
+                assets: assets_with_duplicate.clone(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(resp.to_string(), "Cannot collect. Remove duplicate asset",);
+
+    router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect {
+                assets: assets.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    // Check maker balance for astro token
+    check_balance(
+        &mut router,
+        maker_instance.clone(),
+        astro_token_instance.clone(),
+        Uint128::zero(),
+    );
+
+    // Check maker balance for usdc token
+    check_balance(
+        &mut router,
+        maker_instance.clone(),
+        usdc_token_instance.clone(),
+        Uint128::new(15u128),
+    );
+
+    // Check maker balance for test token
+    check_balance(
+        &mut router,
+        maker_instance.clone(),
+        test_token_instance.clone(),
+        Uint128::new(0u128),
+    );
+
+    // Check balances
+    // We are loosing 1 ASTRO in fees per swap
+    // 40 ASTRO = 10 astro +
+    // 2 usdc (5 - fee for 3 swaps)
+    // 28 test (30 - fee for 2 swaps)
+    let amount = Uint128::new(40u128);
+    let governance_amount =
+        amount.multiply_ratio(Uint128::from(governance_percent), Uint128::new(100));
+    let staking_amount = amount - governance_amount;
+
+    // check governance balance for astro token
+    check_balance(
+        &mut router,
+        governance.clone(),
+        astro_token_instance.clone(),
+        governance_amount,
+    );
+
+    // check governance balance for usdc token
+    check_balance(
+        &mut router,
+        governance.clone(),
+        usdc_token_instance.clone(),
+        Uint128::zero(),
+    );
+
+    // check governance balance for test token
+    check_balance(
+        &mut router,
+        governance.clone(),
+        test_token_instance.clone(),
+        Uint128::zero(),
+    );
+
+    // check staking balance for astro token
+    check_balance(
+        &mut router,
+        staking.clone(),
+        astro_token_instance.clone(),
+        staking_amount,
+    );
+
+    // check staking balance for usdc token
+    check_balance(
+        &mut router,
+        staking.clone(),
+        usdc_token_instance.clone(),
+        Uint128::zero(),
+    );
+
+    // check staking balance for test token
+    check_balance(
+        &mut router,
+        staking.clone(),
+        test_token_instance.clone(),
+        Uint128::zero(),
+    );
 }
