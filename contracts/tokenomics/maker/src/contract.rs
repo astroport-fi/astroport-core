@@ -494,7 +494,7 @@ fn distribute(
     if !cfg.rewards_enabled {
         cfg.pre_upgrade_astro_amount = amount;
         CONFIG.save(deps.storage, cfg)?;
-        return Ok(vec![]);
+        return Ok(result);
     } else if !cfg.pre_upgrade_astro_amount.is_zero() {
         let astro_distribution_portion = cfg
             .astro_distribution_portion
