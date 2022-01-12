@@ -579,6 +579,16 @@ fn collect_all() {
         )
         .unwrap();
 
+    // enable rewards distribution
+    router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::EnableRewards { blocks: 1 },
+            &[],
+        )
+        .unwrap();
+
     // Mint all tokens for maker
     for t in vec![
         (astro_token_instance.clone(), 10u128),
@@ -1152,6 +1162,16 @@ fn collect_with_asset_limit() {
                 ]),
                 remove: None,
             },
+            &[],
+        )
+        .unwrap();
+
+    // enable rewards distribution
+    router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::EnableRewards { blocks: 1 },
             &[],
         )
         .unwrap();
