@@ -1132,6 +1132,11 @@ fn send_orphan_proxy_rewards(
 /// in a [`RewardInfoResponse`] object.
 ///
 /// * **QueryMsg::OrphanProxyRewards { lp_token }** Returns information about the orphan proxy rewards.
+///
+/// * **QueryMsg::PoolInfo { lp_token }** Returns information about the pool
+/// in a [`PoolInfoResponse`] object.
+///
+/// * **QueryMsg::SimulateFutureReward { lp_token, future_block }** Returns information about the reward at the future block
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
@@ -1148,6 +1153,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             Ok(to_binary(&query_orphan_proxy_rewards(deps, lp_token)?)?)
         }
         QueryMsg::PoolInfo { lp_token } => Ok(to_binary(&query_pool_info(deps, env, lp_token)?)?),
+        QueryMsg::SimulateFutureReward {
+            lp_token,
+            future_block,
+        } => Ok(to_binary(&query_simulate_future_reward(
+            deps,
+            env,
+            lp_token,
+            future_block,
+        )?)?),
     }
 }
 
@@ -1332,7 +1346,9 @@ fn query_orphan_proxy_rewards(deps: Deps, lp_token: Addr) -> Result<Uint128, Con
 /// configs in a [`PoolInfoResponse`] object .
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
+///
 /// * **env** is the object of type [`Env`].
+///
 /// * **lp_token** is the object of type [`Addr`].
 fn query_pool_info(
     deps: Deps,
@@ -1357,12 +1373,12 @@ fn query_pool_info(
 
             // If LP tokens are staked via proxy contract, fetch currently pending proxy rewards
             if !lp_supply.is_zero() {
-                let res: Option<Uint128> = deps
+                let res: Uint128 = deps
                     .querier
                     .query_wasm_smart(proxy, &ProxyQueryMsg::PendingToken {})?;
 
-                if let Some(token_rewards) = res {
-                    pending_on_proxy = Some(token_rewards);
+                if !res.is_zero() {
+                    pending_on_proxy = Some(res);
                 }
             }
         }
@@ -1378,15 +1394,11 @@ fn query_pool_info(
 
     // Calculate ASTRO tokens being distributed per block to this LP token pool
     let astro_tokens_per_block: Uint128;
-    if !config.total_alloc_point.is_zero() {
-        astro_tokens_per_block = config
-            .tokens_per_block
-            .checked_mul(Uint128::from(pool.alloc_point.u64()))?
-            .checked_div(Uint128::from(config.total_alloc_point.u64()))
-            .unwrap();
-    } else {
-        astro_tokens_per_block = Uint128::zero();
-    }
+    astro_tokens_per_block = config
+        .tokens_per_block
+        .checked_mul(Uint128::from(pool.alloc_point.u64()))?
+        .checked_div(Uint128::from(config.total_alloc_point.u64()))
+        .unwrap_or_else(|_| Uint128::zero());
 
     Ok(PoolInfoResponse {
         alloc_point: pool.alloc_point,
@@ -1401,6 +1413,37 @@ fn query_pool_info(
         proxy_reward_balance_before_update: pool.proxy_reward_balance_before_update,
         orphan_proxy_rewards: pool.orphan_proxy_rewards,
     })
+}
+
+/// ## Description
+/// Returns an [`ContractError`] on failure, otherwise returns information about the reward at the future block
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **lp_token** is the object of type [`Addr`].
+pub fn query_simulate_future_reward(
+    deps: Deps,
+    env: Env,
+    lp_token: Addr,
+    future_block: u64,
+) -> Result<Uint128, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
+    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
+    let pool = POOL_INFO.load(deps.storage, &lp_token)?;
+    let n_blocks = Uint128::from(future_block)
+        .checked_sub(env.block.height.into())
+        .unwrap_or_else(|_| Uint128::zero());
+
+    let simulated_reward = n_blocks
+        .checked_mul(cfg.tokens_per_block)?
+        .checked_mul(Uint128::from(pool.alloc_point.u64()))?
+        .checked_div(Uint128::from(cfg.total_alloc_point.u64()))
+        .unwrap_or_else(|_| Uint128::zero());
+
+    Ok(simulated_reward)
 }
 
 /// ## Description

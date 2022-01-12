@@ -139,8 +139,10 @@ pub enum QueryMsg {
     RewardInfo { lp_token: Addr },
     /// OrphanProxyRewards returns reward information for the specified token.
     OrphanProxyRewards { lp_token: Addr },
-    /// PoolInfo returns currently stored information regarding that Pool alongwith the  pending total ASTRO and proxy rewards claimable by the users
+    /// PoolInfo returns currently stored information regarding that Pool alongwith the pending total ASTRO and proxy rewards claimable by the users
     PoolInfo { lp_token: Addr },
+    /// SimulateFutureReward returns the amount of ASTRO distributed at the future block
+    SimulateFutureReward { lp_token: Addr, future_block: u64 },
 }
 
 /// ## Description
