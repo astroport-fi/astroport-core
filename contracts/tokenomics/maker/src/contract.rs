@@ -204,6 +204,12 @@ pub fn execute(
                 return Err(ContractError::RewardsAlreadyEnabled {});
             }
 
+            if blocks <= 0 {
+                return Err(ContractError::Std(StdError::generic_err(
+                    "Number of blocks should be > 0",
+                )));
+            }
+
             config.rewards_enabled = true;
             config.pre_upgrade_blocks = blocks;
             config.last_distribution_block = env.block.height;
