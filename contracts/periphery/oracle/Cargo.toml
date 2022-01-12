@@ -37,4 +37,4 @@ astroport-token = {path = "../../token" }
 astroport-factory = {path = "../../factory" }
 astroport-pair = {path = "../../pair" }
 astroport-pair-stable = {path = "../../pair_stable" }
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.8.0-terra1"}

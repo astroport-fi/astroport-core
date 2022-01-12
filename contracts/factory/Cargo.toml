@@ -34,7 +34,7 @@ protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.2"
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch = "main"}
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.8.0-terra1"}
 astroport-token = {path = "../token"}
 astroport-pair = {path = "../pair"}
 cw20 = { version = "0.8" }
