@@ -312,3 +312,24 @@ Returns reward information for the specified token.
   }
 }
 ```
+
+Returns pool information for the specified token.
+
+```json
+{
+  "pool_info": {
+    "lp_token": "terra..."
+  }
+}
+```
+
+Returns the amount of ASTRO distributed at the future block and specified token.
+
+```json
+{
+  "simulate_future_reward": {
+    "lp_token": "terra...",
+    "future_block": 999
+  }
+}
+```
