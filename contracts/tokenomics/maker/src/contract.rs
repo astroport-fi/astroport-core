@@ -206,6 +206,7 @@ pub fn execute(
 
             config.rewards_enabled = true;
             config.pre_upgrade_blocks = blocks;
+            config.last_distribution_block = env.block.height;
             CONFIG.save(deps.storage, &config)?;
             Ok(Response::default())
         }
