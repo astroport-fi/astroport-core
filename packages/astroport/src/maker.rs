@@ -67,6 +67,8 @@ pub enum ExecuteMsg {
     DropOwnershipProposal {},
     /// Approves ownership.
     ClaimOwnership {},
+    /// Enables rewards collecting
+    EnableRewards { blocks: u64 },
 }
 
 /// ## Description

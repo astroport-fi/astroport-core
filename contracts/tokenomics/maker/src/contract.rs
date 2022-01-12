@@ -79,6 +79,11 @@ pub fn instantiate(
         astro_token_contract: addr_validate_to_lower(deps.api, &msg.astro_token_contract)?,
         factory_contract: addr_validate_to_lower(deps.api, &msg.factory_contract)?,
         staking_contract: addr_validate_to_lower(deps.api, &msg.staking_contract)?,
+        rewards_enabled: false,
+        pre_upgrade_blocks: 0,
+        last_distribution_block: 0,
+        astro_distribution_portion: None,
+        pre_upgrade_astro_amount: Uint128::zero(),
         governance_contract,
         governance_percent,
         max_spread,
@@ -124,6 +129,8 @@ pub fn instantiate(
 /// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change ownership.
 ///
 /// * **ExecuteMsg::ClaimOwnership {}** Approves owner.
+///
+/// * **ExecuteMsg::EnableRewards** Enables collected rewards distribution
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -184,6 +191,24 @@ pub fn execute(
             })
             .map_err(|e| e.into())
         }
+        ExecuteMsg::EnableRewards { blocks } => {
+            let mut config: Config = CONFIG.load(deps.storage)?;
+
+            // permission check
+            if info.sender != config.owner {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            // can be enabled only once
+            if config.rewards_enabled {
+                return Err(ContractError::RewardsAlreadyEnabled {});
+            }
+
+            config.rewards_enabled = true;
+            config.pre_upgrade_blocks = blocks;
+            CONFIG.save(deps.storage, &config)?;
+            Ok(Response::default())
+        }
     }
 }
 
@@ -204,7 +229,7 @@ fn collect(
     env: Env,
     assets: Vec<AssetWithLimit>,
 ) -> Result<Response, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
+    let mut cfg = CONFIG.load(deps.storage)?;
 
     let astro = token_asset_info(cfg.astro_token_contract.clone());
 
@@ -228,11 +253,11 @@ fn collect(
 
     // If no messages - send astro directly
     if response.messages.is_empty() {
-        let balance = astro.query_pool(&deps.querier, env.contract.address)?;
+        let balance = astro.query_pool(&deps.querier, env.contract.address.clone())?;
         if !balance.is_zero() {
             response
                 .messages
-                .append(&mut distribute(deps.as_ref(), &cfg, balance)?);
+                .append(&mut distribute(deps, env, &mut cfg, balance)?);
         }
     } else {
         response.messages.push(build_distribute_msg(
@@ -430,15 +455,15 @@ fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
         return Err(ContractError::Unauthorized {});
     }
 
-    let cfg = CONFIG.load(deps.storage)?;
+    let mut cfg = CONFIG.load(deps.storage)?;
     let astro = token_asset_info(cfg.astro_token_contract.clone());
 
-    let balance = astro.query_pool(&deps.querier, env.contract.address)?;
+    let balance = astro.query_pool(&deps.querier, env.contract.address.clone())?;
     if balance.is_zero() {
         return Ok(Response::default());
     }
 
-    let distribute_msg = distribute(deps.as_ref(), &cfg, balance)?;
+    let distribute_msg = distribute(deps, env, &mut cfg, balance)?;
 
     Ok(Response::default()
         .add_submessages(distribute_msg)
@@ -452,11 +477,42 @@ fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
 /// # Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
+/// * **env** is the object of type [`Env`].
+///
 /// * **cfg** is the object of type [`Config`].
 ///
 /// * **amount** is the object of type [`Uint128`].
-fn distribute(deps: Deps, cfg: &Config, amount: Uint128) -> Result<Vec<SubMsg>, ContractError> {
+fn distribute(
+    deps: DepsMut,
+    env: Env,
+    cfg: &mut Config,
+    mut amount: Uint128,
+) -> Result<Vec<SubMsg>, ContractError> {
     let mut result = vec![];
+
+    if !cfg.rewards_enabled {
+        cfg.pre_upgrade_astro_amount = amount;
+        CONFIG.save(deps.storage, cfg)?;
+        return Ok(vec![]);
+    } else if !cfg.pre_upgrade_astro_amount.is_zero() {
+        let astro_distribution_portion = cfg
+            .astro_distribution_portion
+            .unwrap_or(cfg.pre_upgrade_astro_amount / (Uint128::from(cfg.pre_upgrade_blocks)));
+        cfg.astro_distribution_portion = Some(astro_distribution_portion);
+        let blocks_passed = Uint128::from(env.block.height - cfg.last_distribution_block);
+        let current_distribution = blocks_passed * astro_distribution_portion;
+        cfg.pre_upgrade_astro_amount = if let Ok(res) = cfg
+            .pre_upgrade_astro_amount
+            .checked_sub(current_distribution)
+        {
+            amount += current_distribution - cfg.pre_upgrade_astro_amount;
+            res
+        } else {
+            Uint128::zero()
+        };
+        cfg.last_distribution_block = env.block.height;
+        CONFIG.save(deps.storage, cfg)?;
+    }
 
     let governance_amount = if let Some(governance_contract) = cfg.governance_contract.clone() {
         let amount =
