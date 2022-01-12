@@ -29,8 +29,8 @@ pub struct Config {
     pub pre_upgrade_blocks: u64,
     /// the last block when pre-upgrade ASTRO fee was distributed
     pub last_distribution_block: u64,
-    /// the number of pre-upgrade ASTRO fee distribution per block
-    pub astro_distribution_portion: Option<Uint128>,
+    /// the remainder of pre-upgrade ASTRO fee
+    pub remainder_reward: Option<Uint128>,
     /// the amount of collected ASTRO fee before enabling rewards distribution
     pub pre_upgrade_astro_amount: Uint128,
 }

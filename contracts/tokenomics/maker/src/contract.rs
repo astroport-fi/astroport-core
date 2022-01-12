@@ -1,5 +1,6 @@
 use crate::error::ContractError;
 use crate::state::{Config, BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
+use std::cmp::max;
 
 use crate::utils::{
     build_distribute_msg, build_swap_msg, validate_bridge, BRIDGES_INITIAL_DEPTH, BRIDGES_MAX_DEPTH,
@@ -82,7 +83,7 @@ pub fn instantiate(
         rewards_enabled: false,
         pre_upgrade_blocks: 0,
         last_distribution_block: 0,
-        astro_distribution_portion: None,
+        remainder_reward: None,
         pre_upgrade_astro_amount: Uint128::zero(),
         governance_contract,
         governance_percent,
@@ -204,7 +205,7 @@ pub fn execute(
                 return Err(ContractError::RewardsAlreadyEnabled {});
             }
 
-            if blocks <= 0 {
+            if blocks == 0 {
                 return Err(ContractError::Std(StdError::generic_err(
                     "Number of blocks should be > 0",
                 )));
@@ -502,21 +503,21 @@ fn distribute(
         CONFIG.save(deps.storage, cfg)?;
         return Ok(result);
     } else if !cfg.pre_upgrade_astro_amount.is_zero() {
-        let astro_distribution_portion = cfg
-            .astro_distribution_portion
-            .unwrap_or(cfg.pre_upgrade_astro_amount / (Uint128::from(cfg.pre_upgrade_blocks)));
-        cfg.astro_distribution_portion = Some(astro_distribution_portion);
+        let remainder_reward = cfg.remainder_reward.unwrap_or(cfg.pre_upgrade_astro_amount);
         let blocks_passed = Uint128::from(env.block.height - cfg.last_distribution_block);
-        let current_distribution = blocks_passed * astro_distribution_portion;
-        cfg.pre_upgrade_astro_amount = if let Ok(res) = cfg
-            .pre_upgrade_astro_amount
-            .checked_sub(current_distribution)
-        {
-            amount += current_distribution - cfg.pre_upgrade_astro_amount;
-            res
-        } else {
-            Uint128::zero()
-        };
+        let astro_distribution_portion =
+            cfg.pre_upgrade_astro_amount / Uint128::from(cfg.pre_upgrade_blocks);
+        let current_distribution =
+            max(blocks_passed * astro_distribution_portion, remainder_reward);
+
+        // subtract pre-upgrade astro amount
+        amount -= cfg.pre_upgrade_astro_amount;
+
+        // add a portion of reward
+        amount += current_distribution;
+
+        // reduce the number of pre-upgrade astro amount
+        cfg.remainder_reward = Some(remainder_reward - current_distribution);
         cfg.last_distribution_block = env.block.height;
         CONFIG.save(deps.storage, cfg)?;
     }
