@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::state::{Config, BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
-use std::cmp::max;
+use std::cmp::min;
 
 use crate::utils::{
     build_distribute_msg, build_swap_msg, validate_bridge, BRIDGES_INITIAL_DEPTH, BRIDGES_MAX_DEPTH,
@@ -503,21 +503,31 @@ fn distribute(
         CONFIG.save(deps.storage, cfg)?;
         return Ok(result);
     } else if !cfg.pre_upgrade_astro_amount.is_zero() {
-        let remainder_reward = cfg.remainder_reward.unwrap_or(cfg.pre_upgrade_astro_amount);
-        let blocks_passed = Uint128::from(env.block.height - cfg.last_distribution_block);
+        let blocks_passed = env.block.height - cfg.last_distribution_block;
+        if blocks_passed == 0 {
+            return Ok(result);
+        }
+        let blocks_passed = Uint128::from(blocks_passed);
+        let mut remainder_reward = cfg.remainder_reward.unwrap_or(cfg.pre_upgrade_astro_amount);
         let astro_distribution_portion =
             cfg.pre_upgrade_astro_amount / Uint128::from(cfg.pre_upgrade_blocks);
         let current_distribution =
-            max(blocks_passed * astro_distribution_portion, remainder_reward);
+            min(blocks_passed * astro_distribution_portion, remainder_reward);
 
-        // subtract pre-upgrade astro amount
-        amount -= cfg.pre_upgrade_astro_amount;
+        // subtract undistributed remainder reward
+        amount -= remainder_reward;
 
         // add a portion of reward
         amount += current_distribution;
 
+        remainder_reward -= current_distribution;
+        // disable this if-branch if whole reward was distributed
+        if remainder_reward.is_zero() {
+            cfg.pre_upgrade_astro_amount = Uint128::zero();
+        }
+
         // reduce the number of pre-upgrade astro amount
-        cfg.remainder_reward = Some(remainder_reward - current_distribution);
+        cfg.remainder_reward = Some(remainder_reward);
         cfg.last_distribution_block = env.block.height;
         CONFIG.save(deps.storage, cfg)?;
     }
@@ -728,6 +738,8 @@ fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
         governance_percent: config.governance_percent,
         astro_token_contract: config.astro_token_contract,
         max_spread: config.max_spread,
+        remainder_reward: config.remainder_reward,
+        pre_upgrade_astro_amount: config.pre_upgrade_astro_amount,
     })
 }
 
