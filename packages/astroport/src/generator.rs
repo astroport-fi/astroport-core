@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Uint128, Uint64};
+use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -139,6 +139,10 @@ pub enum QueryMsg {
     RewardInfo { lp_token: Addr },
     /// OrphanProxyRewards returns reward information for the specified token.
     OrphanProxyRewards { lp_token: Addr },
+    /// PoolInfo returns currently stored information regarding that Pool alongwith the pending total ASTRO and proxy rewards claimable by the users
+    PoolInfo { lp_token: Addr },
+    /// SimulateFutureReward returns the amount of ASTRO distributed at the future block
+    SimulateFutureReward { lp_token: Addr, future_block: u64 },
 }
 
 /// ## Description
@@ -166,6 +170,32 @@ pub struct RewardInfoResponse {
     pub base_reward_token: Addr,
     /// a proxy reward token
     pub proxy_reward_token: Option<Addr>,
+}
+
+/// ## Description
+/// This structure describes the response to the Pool information.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct PoolInfoResponse {
+    /// Allocation point is used to control reward distribution among the pools
+    pub alloc_point: Uint64,
+    /// ASTRO tokens being distributed per block to this LP pool
+    pub astro_tokens_per_block: Uint128,
+    /// Accumulated amount of reward per share unit. Used for reward calculations
+    pub last_reward_block: u64,
+    /// Current block number. Useful for off-chain expected APR calculations
+    pub current_block: u64,
+    pub accumulated_rewards_per_share: Decimal,
+    /// Pending amount of total ASTRO rewards which are claimable by the users
+    pub pending_astro_rewards: Uint128,
+    /// the reward proxy contract
+    pub reward_proxy: Option<Addr>,
+    /// Pending amount of total proxy rewards which are claimable by the users
+    pub pending_proxy_rewards: Option<Uint128>,
+    pub accumulated_proxy_rewards_per_share: Decimal,
+    /// for calculation of new proxy rewards
+    pub proxy_reward_balance_before_update: Uint128,
+    /// the orphan proxy rewards which are left by emergency withdrawals
+    pub orphan_proxy_rewards: Uint128,
 }
 
 /// ## Description
