@@ -535,10 +535,12 @@ fn distribute(
     let governance_amount = if let Some(governance_contract) = cfg.governance_contract.clone() {
         let amount =
             amount.multiply_ratio(Uint128::from(cfg.governance_percent), Uint128::new(100));
-        let to_governance_asset = token_asset(cfg.astro_token_contract.clone(), amount);
-        result.push(SubMsg::new(
-            to_governance_asset.into_msg(&deps.querier, governance_contract)?,
-        ));
+        if amount.u128() > 0 {
+            let to_governance_asset = token_asset(cfg.astro_token_contract.clone(), amount);
+            result.push(SubMsg::new(
+                to_governance_asset.into_msg(&deps.querier, governance_contract)?,
+            ))
+        }
         amount
     } else {
         Uint128::zero()
