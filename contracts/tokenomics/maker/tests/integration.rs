@@ -1670,8 +1670,8 @@ fn distribute_initially_accrued_fees() {
     // imagine that we received new fee while pre-ugrade astro is under distribution
     mint_some_token(
         &mut router,
-        owner,
-        astro_token_instance,
+        owner.clone(),
+        astro_token_instance.clone(),
         maker_instance.clone(),
         Uint128::from(30_u128),
     );
@@ -1725,10 +1725,42 @@ fn distribute_initially_accrued_fees() {
         .execute_contract(
             Addr::unchecked("anyone"),
             maker_instance.clone(),
-            &ExecuteMsg::Collect { assets },
+            &ExecuteMsg::Collect {
+                assets: assets.clone(),
+            },
             &[],
         )
         .unwrap();
 
     checker.check(&mut router, 8);
+
+    // check pre-upgrade astro was fully distributed
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(&maker_instance, &QueryMsg::Config {})
+        .unwrap();
+
+    assert_eq!(res.remainder_reward.unwrap().u128(), 0_u128);
+    assert_eq!(res.pre_upgrade_astro_amount.u128(), 0_u128);
+
+    // check usual collect works
+    mint_some_token(
+        &mut router,
+        owner,
+        astro_token_instance,
+        maker_instance.clone(),
+        Uint128::from(115_u128),
+    );
+
+    router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect { assets },
+            &[],
+        )
+        .unwrap();
+
+    checker.maker_amount += Uint128::from(115_u128);
+    checker.check(&mut router, 115);
 }
