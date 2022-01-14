@@ -3,7 +3,6 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::querier::compute_tax;
 use crate::state::{Config, CONFIG};
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
@@ -48,8 +47,13 @@ pub fn execute_swap_operation(
             if let Some(to) = to {
                 // if the opeation is last, and requires send
                 // deduct tax from the offer_coin
-                let amount =
-                    amount.checked_sub(compute_tax(deps.as_ref(), amount, offer_denom.clone())?)?;
+                let asset = Asset {
+                    info: AssetInfo::NativeToken {
+                        denom: offer_denom.clone(),
+                    },
+                    amount,
+                };
+                let amount = amount.checked_sub(asset.compute_tax(&deps.querier)?)?;
                 vec![create_swap_send_msg(
                     to,
                     Coin {
@@ -129,11 +133,9 @@ pub fn asset_into_swap_msg(
     match offer_asset.info.clone() {
         AssetInfo::NativeToken { denom } => {
             // deduct tax first
-            let amount = offer_asset.amount.checked_sub(compute_tax(
-                deps.as_ref(),
-                offer_asset.amount,
-                denom.clone(),
-            )?)?;
+            let amount = offer_asset
+                .amount
+                .checked_sub(offer_asset.compute_tax(&deps.querier)?)?;
             Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: pair_contract,
                 funds: vec![Coin { denom, amount }],

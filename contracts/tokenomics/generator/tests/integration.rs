@@ -103,7 +103,7 @@ fn disabling_pool() {
     // setting the allocation point to zero for pool
     let msg = GeneratorExecuteMsg::Set {
         alloc_point: Uint64::new(0),
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
     };
 
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
@@ -112,7 +112,7 @@ fn disabling_pool() {
     // setting the allocation point to zero for pool
     let msg_eur_usd = GeneratorExecuteMsg::Set {
         alloc_point: Uint64::new(0),
-        lp_token: lp_eur_usd_instance.clone(),
+        lp_token: lp_eur_usd_instance.to_string(),
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg_eur_usd, &[])
         .unwrap();
@@ -138,7 +138,7 @@ fn disabling_pool() {
     app.update_block(|bi| next_block(bi));
 
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
         amount: Uint128::new(10),
     };
 
@@ -146,7 +146,7 @@ fn disabling_pool() {
         .unwrap();
 
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_eur_usd_instance.clone(),
+        lp_token: lp_eur_usd_instance.to_string(),
         amount: Uint128::new(10),
     };
 
@@ -486,7 +486,7 @@ fn generator_without_reward_proxies() {
 
     // User can't withdraw if didn't deposit
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
         amount: Uint128::new(1_000000),
     };
     assert_eq!(
@@ -498,7 +498,7 @@ fn generator_without_reward_proxies() {
 
     // User can't emergency withdraw if didn't deposit
     let msg = GeneratorExecuteMsg::EmergencyWithdraw {
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
     };
     assert_eq!(
         app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
@@ -575,13 +575,13 @@ fn generator_without_reward_proxies() {
     // change pool alloc points
     let msg = GeneratorExecuteMsg::Set {
         alloc_point: Uint64::new(60),
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
     let msg = GeneratorExecuteMsg::Set {
         alloc_point: Uint64::new(40),
-        lp_token: lp_eur_usd_instance.clone(),
+        lp_token: lp_eur_usd_instance.to_string(),
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
@@ -622,7 +622,7 @@ fn generator_without_reward_proxies() {
     // User1 emergency withdraws and loses already fixed rewards (5).
     // Pending tokens (3) will be redistributed to other staking users.
     let msg = GeneratorExecuteMsg::EmergencyWithdraw {
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
     };
     app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
@@ -662,7 +662,7 @@ fn generator_without_reward_proxies() {
 
     // User1 can't withdraw after emergency withdraw
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
         amount: Uint128::new(1_000000),
     };
     assert_eq!(
@@ -678,7 +678,7 @@ fn generator_without_reward_proxies() {
 
     // User2 withdraw and get rewards
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
         amount: Uint128::new(10),
     };
     app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
@@ -694,7 +694,7 @@ fn generator_without_reward_proxies() {
 
     // User1 withdraw and get rewards
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_eur_usd_instance.clone(),
+        lp_token: lp_eur_usd_instance.to_string(),
         amount: Uint128::new(5),
     };
     app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
@@ -707,7 +707,7 @@ fn generator_without_reward_proxies() {
 
     // User1 withdraw and get rewards
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_eur_usd_instance.clone(),
+        lp_token: lp_eur_usd_instance.to_string(),
         amount: Uint128::new(5),
     };
     app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
@@ -719,7 +719,7 @@ fn generator_without_reward_proxies() {
 
     // User2 withdraw and get rewards
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_eur_usd_instance.clone(),
+        lp_token: lp_eur_usd_instance.to_string(),
         amount: Uint128::new(10),
     };
     app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
@@ -776,7 +776,7 @@ fn generator_with_mirror_reward_proxy() {
     let msg = GeneratorExecuteMsg::Add {
         alloc_point: Uint64::from(100u64),
         reward_proxy: Some(proxy_to_mirror_instance.to_string()),
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
     };
     assert_eq!(
         app.execute_contract(
@@ -866,7 +866,7 @@ fn generator_with_mirror_reward_proxy() {
 
     // User can't withdraw if didn't deposit
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
         amount: Uint128::new(1_000000),
     };
     assert_eq!(
@@ -878,7 +878,7 @@ fn generator_with_mirror_reward_proxy() {
 
     // User can't emergency withdraw if didn't deposit
     let msg = GeneratorExecuteMsg::EmergencyWithdraw {
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
     };
     assert_eq!(
         app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
@@ -979,13 +979,13 @@ fn generator_with_mirror_reward_proxy() {
     // change pool alloc points
     let msg = GeneratorExecuteMsg::Set {
         alloc_point: Uint64::new(60),
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
     let msg = GeneratorExecuteMsg::Set {
         alloc_point: Uint64::new(40),
-        lp_token: lp_eur_usd_instance.clone(),
+        lp_token: lp_eur_usd_instance.to_string(),
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
@@ -1039,7 +1039,7 @@ fn generator_with_mirror_reward_proxy() {
     // User1 emergency withdraws and loses already fixed rewards (5).
     // Pending tokens (3) will be redistributed to other staking users.
     let msg = GeneratorExecuteMsg::EmergencyWithdraw {
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
     };
     app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
@@ -1079,7 +1079,7 @@ fn generator_with_mirror_reward_proxy() {
 
     // User1 can't withdraw after emergency withdraw
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
         amount: Uint128::new(1_000000),
     };
     assert_eq!(
@@ -1103,7 +1103,7 @@ fn generator_with_mirror_reward_proxy() {
 
     // Check if there are orphan proxy rewards
     let msg = GeneratorQueryMsg::OrphanProxyRewards {
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
     };
     let orphan_rewards: Uint128 = app
         .wrap()
@@ -1143,7 +1143,7 @@ fn generator_with_mirror_reward_proxy() {
 
     // User2 withdraw and get rewards
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_cny_eur_instance.clone(),
+        lp_token: lp_cny_eur_instance.to_string(),
         amount: Uint128::new(10),
     };
     app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
@@ -1168,7 +1168,7 @@ fn generator_with_mirror_reward_proxy() {
 
     // User1 withdraw and get rewards
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_eur_usd_instance.clone(),
+        lp_token: lp_eur_usd_instance.to_string(),
         amount: Uint128::new(5),
     };
     app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
@@ -1182,7 +1182,7 @@ fn generator_with_mirror_reward_proxy() {
 
     // User1 withdraw and get rewards
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_eur_usd_instance.clone(),
+        lp_token: lp_eur_usd_instance.to_string(),
         amount: Uint128::new(5),
     };
     app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
@@ -1195,7 +1195,7 @@ fn generator_with_mirror_reward_proxy() {
 
     // User2 withdraw and get rewards
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_eur_usd_instance.clone(),
+        lp_token: lp_eur_usd_instance.to_string(),
         amount: Uint128::new(10),
     };
     app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
@@ -1464,7 +1464,7 @@ fn register_lp_tokens_in_generator(
         let msg = GeneratorExecuteMsg::Add {
             alloc_point: Uint64::from(100u64),
             reward_proxy: reward_proxy.map(|v| v.to_string()),
-            lp_token: (*lp).clone(),
+            lp_token: (*lp).to_string(),
         };
         app.execute_contract(
             Addr::unchecked(OWNER),
@@ -1520,8 +1520,8 @@ fn check_pending_rewards(
     expected: (u128, Option<u128>),
 ) {
     let msg = GeneratorQueryMsg::PendingToken {
-        lp_token: token.to_owned(),
-        user: Addr::unchecked(depositor),
+        lp_token: token.to_string(),
+        user: String::from(depositor),
     };
 
     let res: PendingTokenResponse = app

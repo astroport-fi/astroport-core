@@ -35,18 +35,18 @@ pub enum ExecuteMsg {
     /// Withdrawal pending rewards
     UpdateRewards {},
     /// Sends rewards to the recipient
-    SendRewards { account: Addr, amount: Uint128 },
+    SendRewards { account: String, amount: Uint128 },
     /// Withdrawal the rewards
     Withdraw {
         /// the recipient for withdrawal
-        account: Addr,
+        account: String,
         /// the amount of withdraw
         amount: Uint128,
     },
     /// Withdrawal the rewards
     EmergencyWithdraw {
         /// the recipient for withdrawal
-        account: Addr,
+        account: String,
         /// the amount of withdraw
         amount: Uint128,
     },

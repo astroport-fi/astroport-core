@@ -37,14 +37,14 @@ const DEFAULT_LIMIT: u32 = 10;
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **start_after** is an [`Option`] field of type [`Addr`]. Sets the index to start reading.
+/// * **start_after** is an [`Option`] field of type [`String`]. Sets the index to start reading.
 ///
 /// * **limit** is an [`Option`] field of type [`u32`]. Sets the limit to reading.
 ///
 /// * **order_by** is an [`Option`] field of type [`OrderBy`].
 pub fn read_vesting_infos(
     deps: Deps,
-    start_after: Option<Addr>,
+    start_after: Option<String>,
     limit: Option<u32>,
     order_by: Option<OrderBy>,
 ) -> StdResult<Vec<(Addr, VestingInfo)>> {
@@ -91,7 +91,7 @@ fn read_vesting_infos_as_expected() {
 
     let res = read_vesting_infos(
         deps.as_ref(),
-        Some(Addr::unchecked("address2")),
+        Some(String::from("address2")),
         None,
         Some(OrderBy::Asc),
     )
@@ -106,7 +106,7 @@ fn read_vesting_infos_as_expected() {
 
     let res = read_vesting_infos(
         deps.as_ref(),
-        Some(Addr::unchecked("address2")),
+        Some(String::from("address2")),
         Some(1),
         Some(OrderBy::Asc),
     )
@@ -115,7 +115,7 @@ fn read_vesting_infos_as_expected() {
 
     let res = read_vesting_infos(
         deps.as_ref(),
-        Some(Addr::unchecked("address3")),
+        Some(String::from("address3")),
         None,
         Some(OrderBy::Desc),
     )
@@ -130,7 +130,7 @@ fn read_vesting_infos_as_expected() {
 
     let res = read_vesting_infos(
         deps.as_ref(),
-        Some(Addr::unchecked("address3")),
+        Some(String::from("address3")),
         Some(1),
         Some(OrderBy::Desc),
     )

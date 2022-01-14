@@ -98,10 +98,10 @@ pub fn query_token_symbol(querier: &QuerierWrapper, contract_addr: Addr) -> StdR
 /// ## Params
 /// * **querier** is the object of type [`QuerierWrapper`].
 ///
-/// * **contract_addr** is the object of type [`Addr`].
-pub fn query_supply(querier: &QuerierWrapper, contract_addr: Addr) -> StdResult<Uint128> {
+/// * **contract_addr** is the object of type [`String`].
+pub fn query_supply(querier: &QuerierWrapper, contract_addr: String) -> StdResult<Uint128> {
     let res: TokenInfoResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: String::from(contract_addr),
+        contract_addr,
         msg: to_binary(&Cw20QueryMsg::TokenInfo {})?,
     }))?;
 

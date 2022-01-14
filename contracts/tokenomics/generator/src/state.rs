@@ -62,7 +62,7 @@ pub enum ExecuteOnReply {
     /// Add a new pool with allocation point
     Add {
         /// the LP token contract
-        lp_token: Addr,
+        lp_token: String,
         /// the allocation point for LP token contract
         alloc_point: Uint64,
         /// the reward proxy contract
@@ -71,30 +71,30 @@ pub enum ExecuteOnReply {
     /// update the given pool's ASTRO allocation point
     Set {
         /// the LP token contract
-        lp_token: Addr,
+        lp_token: String,
         /// the allocation point for LP token contract
         alloc_point: Uint64,
     },
     /// Updates reward variables of the given pool to be up-to-date
     UpdatePool {
         /// the LP token contract
-        lp_token: Addr,
+        lp_token: String,
     },
     /// Deposit LP tokens to Generator for ASTRO allocation.
     Deposit {
         /// the LP token contract
-        lp_token: Addr,
+        lp_token: String,
         /// the deposit recipient
-        account: Addr,
+        account: String,
         /// the deposit amount
         amount: Uint128,
     },
     /// Withdraw LP tokens from Generator
     Withdraw {
         /// the LP token contract
-        lp_token: Addr,
+        lp_token: String,
         /// the withdraw recipient
-        account: Addr,
+        account: String,
         /// the withdraw amount
         amount: Uint128,
     },

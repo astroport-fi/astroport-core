@@ -81,7 +81,7 @@ fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
             },
         ],
         token_code_id: token_contract_code_id,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: String::from("factory"),
         init_params: None,
     };
 
@@ -556,7 +556,7 @@ fn create_pair_with_same_assets() {
             },
         ],
         token_code_id: token_contract_code_id,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: String::from("factory"),
         init_params: None,
     };
 

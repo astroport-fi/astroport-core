@@ -193,7 +193,7 @@ pub fn execute(
             Some(lp_token.clone()),
             ExecuteOnReply::Withdraw {
                 lp_token,
-                account: info.sender,
+                account: info.sender.to_string(),
                 amount,
             },
         ),
@@ -295,7 +295,7 @@ pub fn execute_update_config(
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **lp_token** is the object of type [`Addr`].
+/// * **lp_token** is the object of type [`String`].
 ///
 /// * **alloc_point** is the object of type [`Uint64`].
 ///
@@ -306,7 +306,7 @@ pub fn execute_update_config(
 pub fn add(
     mut deps: DepsMut,
     env: Env,
-    lp_token: Addr,
+    lp_token: String,
     alloc_point: Uint64,
     reward_proxy: Option<String>,
 ) -> Result<Response, ContractError> {
@@ -359,7 +359,7 @@ pub fn add(
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **lp_token** is the object of type [`Addr`].
+/// * **lp_token** is the object of type [`String`].
 ///
 /// * **alloc_point** is the object of type [`Uint64`].
 ///
@@ -368,7 +368,7 @@ pub fn add(
 pub fn set(
     mut deps: DepsMut,
     env: Env,
-    lp_token: Addr,
+    lp_token: String,
     alloc_point: Uint64,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
@@ -403,13 +403,13 @@ pub fn set(
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **update_single_pool** is an [`Option`] field object of type [`Addr`].
+/// * **update_single_pool** is an [`Option`] field object of type [`String`].
 ///
 /// * **on_reply** is the object of type [`ExecuteOnReply`]. Sets the action to be performed.
 fn update_rewards_and_execute(
     mut deps: DepsMut,
     env: Env,
-    update_single_pool: Option<Addr>,
+    update_single_pool: Option<String>,
     on_reply: ExecuteOnReply,
 ) -> Result<Response, ContractError> {
     TMP_USER_ACTION.update(deps.storage, |v| {
@@ -604,9 +604,15 @@ pub fn mass_update_pools(mut deps: DepsMut, env: Env) -> Result<Response, Contra
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **lp_token** is the object of type [`Addr`]. Sets the liquidity pool to be updated.
-pub fn update_pool(mut deps: DepsMut, env: Env, lp_token: Addr) -> Result<Response, ContractError> {
+/// * **lp_token** is the object of type [`String`]. Sets the liquidity pool to be updated.
+pub fn update_pool(
+    mut deps: DepsMut,
+    env: Env,
+    lp_token: String,
+) -> Result<Response, ContractError> {
     let response = Response::default();
+
+    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
     let cfg = CONFIG.load(deps.storage)?;
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
@@ -715,11 +721,12 @@ fn receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     let amount = cw20_msg.amount;
-    let lp_token = info.sender;
 
-    if POOL_INFO.load(deps.storage, &lp_token).is_err() {
+    if POOL_INFO.load(deps.storage, &info.sender).is_err() {
         return Err(ContractError::Unauthorized {});
     }
+
+    let lp_token = info.sender.to_string();
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::Deposit {} => update_rewards_and_execute(
@@ -728,7 +735,7 @@ fn receive_cw20(
             Some(lp_token.clone()),
             ExecuteOnReply::Deposit {
                 lp_token,
-                account: Addr::unchecked(cw20_msg.sender),
+                account: cw20_msg.sender,
                 amount,
             },
         ),
@@ -796,7 +803,7 @@ pub fn send_pending_rewards(
                 contract_addr: proxy.to_string(),
                 funds: vec![],
                 msg: to_binary(&ProxyExecuteMsg::SendRewards {
-                    account: to.clone(),
+                    account: to.to_string(),
                     amount: pending_proxy_rewards,
                 })?,
             });
@@ -814,21 +821,21 @@ pub fn send_pending_rewards(
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **lp_token** is the object of type [`Addr`].
+/// * **lp_token** is the object of type [`String`].
 ///
-/// * **beneficiary** is the object of type [`Addr`]. Sets the recipient for Claim operation.
+/// * **beneficiary** is the object of type [`String`]. Sets the recipient for Claim operation.
 ///
 /// * **amount** is the object of type [`Uint128`].
 // Deposit LP tokens to MasterChef for ASTRO allocation.
 pub fn deposit(
     mut deps: DepsMut,
     env: Env,
-    lp_token: Addr,
-    beneficiary: Addr,
+    lp_token: String,
+    beneficiary: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
-    let beneficiary = addr_validate_to_lower(deps.api, beneficiary.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+    let beneficiary = addr_validate_to_lower(deps.api, &beneficiary)?;
 
     let user = USER_INFO
         .load(deps.storage, (&lp_token, &beneficiary))
@@ -886,19 +893,20 @@ pub fn deposit(
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **lp_token** is the object of type [`Addr`].
+/// * **lp_token** is the object of type [`String`].
 ///
-/// * **account** is the object of type [`Addr`]. Sets the recipient for withdrawal.
+/// * **account** is the object of type [`String`]. Sets the recipient for withdrawal.
 ///
 /// * **amount** is the object of type [`Uint128`].
 pub fn withdraw(
     mut deps: DepsMut,
     env: Env,
-    lp_token: Addr,
-    account: Addr,
+    lp_token: String,
+    account: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+    let account = addr_validate_to_lower(deps.api, &account)?;
 
     let user = USER_INFO
         .load(deps.storage, (&lp_token, &account))
@@ -922,7 +930,7 @@ pub fn withdraw(
                 contract_addr: proxy.to_string(),
                 funds: vec![],
                 msg: to_binary(&ProxyExecuteMsg::Withdraw {
-                    account: account.clone(),
+                    account: account.to_string(),
                     amount,
                 })?,
             },
@@ -968,14 +976,14 @@ pub fn withdraw(
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **lp_token** is the object of type [`Addr`].
+/// * **lp_token** is the object of type [`String`].
 pub fn emergency_withdraw(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    lp_token: Addr,
+    lp_token: String,
 ) -> Result<Response, ContractError> {
-    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let user = USER_INFO.load(deps.storage, (&lp_token, &info.sender))?;
@@ -992,7 +1000,7 @@ pub fn emergency_withdraw(
         transfer_msg = WasmMsg::Execute {
             contract_addr: proxy.to_string(),
             msg: to_binary(&ProxyExecuteMsg::EmergencyWithdraw {
-                account: info.sender.clone(),
+                account: info.sender.to_string(),
                 amount: user.amount,
             })?,
             funds: vec![],
@@ -1076,8 +1084,6 @@ fn send_orphan_proxy_rewards(
 
     let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
-    let recipient = addr_validate_to_lower(deps.api, &recipient)?;
-
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let proxy = match &pool.reward_proxy {
         Some(proxy) => proxy.clone(),
@@ -1102,7 +1108,7 @@ fn send_orphan_proxy_rewards(
             })?,
         })
         .add_attribute("action", "send_orphan_rewards")
-        .add_attribute("recipient", recipient.to_string())
+        .add_attribute("recipient", recipient)
         .add_attribute("lp_token", lp_token)
         .add_attribute("amount", amount))
 }
@@ -1167,12 +1173,12 @@ pub fn pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **lp_token** is the object of type [`Addr`].
+/// * **lp_token** is the object of type [`String`].
 ///
-/// * **user** is the object of type [`Addr`].
-pub fn query_deposit(deps: Deps, lp_token: Addr, user: Addr) -> Result<Uint128, ContractError> {
-    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
-    let user = addr_validate_to_lower(deps.api, user.as_str())?;
+/// * **user** is the object of type [`String`].
+pub fn query_deposit(deps: Deps, lp_token: String, user: String) -> Result<Uint128, ContractError> {
+    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+    let user = addr_validate_to_lower(deps.api, &user)?;
 
     let user_info = USER_INFO
         .load(deps.storage, (&lp_token, &user))
@@ -1188,20 +1194,20 @@ pub fn query_deposit(deps: Deps, lp_token: Addr, user: Addr) -> Result<Uint128, 
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **lp_token** is the object of type [`Addr`].
+/// * **lp_token** is the object of type [`String`].
 ///
-/// * **user** is the object of type [`Addr`].
+/// * **user** is the object of type [`String`].
 // View function to see pending ASTRO on frontend.
 pub fn pending_token(
     deps: Deps,
     env: Env,
-    lp_token: Addr,
-    user: Addr,
+    lp_token: String,
+    user: String,
 ) -> Result<PendingTokenResponse, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
-    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
-    let user = addr_validate_to_lower(deps.api, user.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+    let user = addr_validate_to_lower(deps.api, &user)?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let user_info = USER_INFO
@@ -1285,11 +1291,11 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **lp_token** is the object of type [`Addr`].
-fn query_reward_info(deps: Deps, lp_token: Addr) -> Result<RewardInfoResponse, ContractError> {
+/// * **lp_token** is the object of type [`String`].
+fn query_reward_info(deps: Deps, lp_token: String) -> Result<RewardInfoResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
+    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
@@ -1314,9 +1320,9 @@ fn query_reward_info(deps: Deps, lp_token: Addr) -> Result<RewardInfoResponse, C
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **lp_token** is the object of type [`Addr`].
-fn query_orphan_proxy_rewards(deps: Deps, lp_token: Addr) -> Result<Uint128, ContractError> {
-    let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
+/// * **lp_token** is the object of type [`String`].
+fn query_orphan_proxy_rewards(deps: Deps, lp_token: String) -> Result<Uint128, ContractError> {
+    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
     if pool.reward_proxy.is_none() {
