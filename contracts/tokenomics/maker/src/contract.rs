@@ -507,12 +507,13 @@ fn distribute(
         if blocks_passed == 0 {
             return Ok(result);
         }
-        let blocks_passed = Uint128::from(blocks_passed);
         let mut remainder_reward = cfg.remainder_reward.unwrap_or(cfg.pre_upgrade_astro_amount);
         let astro_distribution_portion =
             cfg.pre_upgrade_astro_amount / Uint128::from(cfg.pre_upgrade_blocks);
-        let current_distribution =
-            min(blocks_passed * astro_distribution_portion, remainder_reward);
+        let current_distribution = min(
+            Uint128::from(blocks_passed) * astro_distribution_portion,
+            remainder_reward,
+        );
 
         // subtract undistributed remainder reward
         amount -= remainder_reward;
