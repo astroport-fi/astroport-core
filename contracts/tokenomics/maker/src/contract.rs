@@ -261,11 +261,9 @@ fn collect(
 
     // If no messages - send astro directly
     if response.messages.is_empty() {
-        let balance = astro.query_pool(&deps.querier, env.contract.address.clone())?;
-        if !balance.is_zero() {
-            response
-                .messages
-                .append(&mut distribute(deps, env, &mut cfg, balance)?);
+        let mut distribute_msg = distribute(deps, env, &mut cfg)?;
+        if !distribute_msg.is_empty() {
+            response.messages.append(&mut distribute_msg);
         }
     } else {
         response.messages.push(build_distribute_msg(
@@ -464,14 +462,10 @@ fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
     }
 
     let mut cfg = CONFIG.load(deps.storage)?;
-    let astro = token_asset_info(cfg.astro_token_contract.clone());
-
-    let balance = astro.query_pool(&deps.querier, env.contract.address.clone())?;
-    if balance.is_zero() {
+    let distribute_msg = distribute(deps, env, &mut cfg)?;
+    if distribute_msg.is_empty() {
         return Ok(Response::default());
     }
-
-    let distribute_msg = distribute(deps, env, &mut cfg, balance)?;
 
     Ok(Response::default()
         .add_submessages(distribute_msg)
@@ -488,15 +482,15 @@ fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
 /// * **env** is the object of type [`Env`].
 ///
 /// * **cfg** is the object of type [`Config`].
-///
-/// * **amount** is the object of type [`Uint128`].
-fn distribute(
-    deps: DepsMut,
-    env: Env,
-    cfg: &mut Config,
-    mut amount: Uint128,
-) -> Result<Vec<SubMsg>, ContractError> {
+fn distribute(deps: DepsMut, env: Env, cfg: &mut Config) -> Result<Vec<SubMsg>, ContractError> {
     let mut result = vec![];
+
+    let astro = token_asset_info(cfg.astro_token_contract.clone());
+
+    let mut amount = astro.query_pool(&deps.querier, env.contract.address.clone())?;
+    if amount.is_zero() {
+        return Ok(result);
+    }
 
     if !cfg.rewards_enabled {
         cfg.pre_upgrade_astro_amount = amount;
