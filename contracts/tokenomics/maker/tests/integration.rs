@@ -1396,31 +1396,6 @@ fn distribute_initially_accrued_fees() {
         None,
     );
 
-    // unauthorized check
-    let err = router
-        .execute_contract(
-            user.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::EnableRewards { blocks: 1 },
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(err.to_string(), "Unauthorized");
-
-    // check pre_update_blocks = 0
-    let err = router
-        .execute_contract(
-            owner.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::EnableRewards { blocks: 0 },
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        "Generic error: Number of blocks should be > 0"
-    );
-
     let usdc_token_instance = instantiate_token(
         &mut router,
         owner.clone(),
@@ -1534,8 +1509,8 @@ fn distribute_initially_accrued_fees() {
     // Mint all tokens for maker
     for t in vec![
         (astro_token_instance.clone(), 10u128),
-        (usdc_token_instance.clone(), 20u128),
-        (test_token_instance.clone(), 30u128),
+        (usdc_token_instance, 20u128),
+        (test_token_instance, 30u128),
     ] {
         let (token, amount) = t;
         mint_some_token(
@@ -1560,46 +1535,43 @@ fn distribute_initially_accrued_fees() {
             &maker_instance,
             vec![
                 Coin {
-                    denom: uusd_asset.clone(),
+                    denom: uusd_asset,
                     amount: Uint128::new(100),
                 },
                 Coin {
-                    denom: uluna_asset.clone(),
+                    denom: uluna_asset,
                     amount: Uint128::new(110),
                 },
             ],
         )
         .unwrap();
 
-    let expected_balances = vec![
-        native_asset(uusd_asset.clone(), Uint128::new(100)),
-        native_asset(uluna_asset.clone(), Uint128::new(110)),
-        token_asset(astro_token_instance.clone(), Uint128::new(10)),
-        token_asset(usdc_token_instance.clone(), Uint128::new(20)),
-        token_asset(test_token_instance.clone(), Uint128::new(30)),
-    ];
+    // unauthorized check
+    let err = router
+        .execute_contract(
+            user.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::EnableRewards { blocks: 1 },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Unauthorized");
 
-    let balances_resp: BalancesResponse = router
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: maker_instance.to_string(),
-            msg: to_binary(&QueryMsg::Balances {
-                assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
-            })
-            .unwrap(),
-        }))
-        .unwrap();
+    // check pre_update_blocks = 0
+    let err = router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::EnableRewards { blocks: 0 },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Number of blocks should be > 0"
+    );
 
-    for b in expected_balances {
-        let found = balances_resp
-            .balances
-            .iter()
-            .find(|n| n.info.equal(&b.info))
-            .unwrap();
-
-        assert_eq!(found, &b);
-    }
-
+    // check collect does not distribute until rewards are enabled
     router
         .execute_contract(
             Addr::unchecked("anyone"),
@@ -1609,36 +1581,18 @@ fn distribute_initially_accrued_fees() {
         )
         .unwrap();
 
-    for t in vec![
-        // 218 ASTRO = 10 ASTRO +
-        // 84 ASTRO (100 uusd - 15 tax -> 85 - 1 fee) +
-        // 79 ASTRO (110 uluna - 0 tax -> 110 uusd - 1 fee - 16 tax -> 93 - 13 tax - 1 fee) +
-        // 17 ASTRO (20 usdc -> 20 test - 1 fee -> 19 bridge - 1 fee -> 18 - 1 fee) +
-        // 28 ASTRO (30 test -> 30 bridge - 1 fee -> 29 - 1 fee)
-        (astro_token_instance.clone(), 218u128),
-        (usdc_token_instance.clone(), 0u128),
-        (test_token_instance.clone(), 0u128),
-    ] {
-        let (token, amount) = t;
-
-        // Check maker balance
-        check_balance(
-            &mut router,
-            maker_instance.clone(),
-            token.clone(),
-            Uint128::from(amount),
-        );
-
-        // All astro should be saved within contract until rewards distribution is enabled
-        check_balance(
-            &mut router,
-            governance.clone(),
-            token.clone(),
-            Uint128::zero(),
-        );
-
-        check_balance(&mut router, staking.clone(), token, Uint128::zero());
-    }
+    // balances checker
+    let mut checker = CheckDistributedAstro {
+        maker_amount: Uint128::new(218_u128),
+        governance_amount: Uint128::zero(),
+        staking_amount: Uint128::zero(),
+        maker: maker_instance.clone(),
+        astro_token: astro_token_instance.clone(),
+        governance_percent,
+        governance,
+        staking,
+    };
+    checker.check(&mut router, 0);
 
     // enabling rewards distribution
     router
@@ -1677,18 +1631,6 @@ fn distribute_initially_accrued_fees() {
             &[],
         )
         .unwrap();
-
-    // balances checker
-    let mut checker = CheckDistributedAstro {
-        maker_amount: Uint128::new(218_u128),
-        governance_amount: Uint128::zero(),
-        staking_amount: Uint128::zero(),
-        maker: maker_instance.clone(),
-        astro_token: astro_token_instance.clone(),
-        governance_percent,
-        governance,
-        staking,
-    };
 
     // since the block number is the same nothing happened
     checker.check(&mut router, 0);
@@ -1783,7 +1725,7 @@ fn distribute_initially_accrued_fees() {
         .execute_contract(
             Addr::unchecked("anyone"),
             maker_instance.clone(),
-            &ExecuteMsg::Collect { assets: assets },
+            &ExecuteMsg::Collect { assets },
             &[],
         )
         .unwrap();
