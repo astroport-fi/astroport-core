@@ -18,11 +18,24 @@ When providing liquidity from a smart contract, the most important thing to keep
 
 > Note before executing the `provide_liqudity` operation, a user must allow the contract to use the liquidity amount of asset in the token contract.
 
-#### Slippage Tolerance
+#### Slippage Tolerance for providing liquidity
 
 If a user specify the slippage tolerance at provide liquidity msg, the contract restricts the operation when the exchange rate is dropped more than the tolerance.
 
 So, at a 1% tolerance level, if a user sends a transaction with 200 UST and 1 ASSET, amountUSTMin should be set to e.g. 198 UST, and amountASSETMin should be set to .99 ASSET. This means that, at worst, liquidity will be added at a rate between 198 ASSET/1 UST and 202.02 UST/1 ASSET (200 UST/.99 ASSET).
+
+#### Slippage tolerance for swap
+Astroport has two options to protect traders against slippage during swaps:
+
+1. Providing `max_spread`
+The spread is calculated as the difference between the ask amount (using the constant pool price) before and after the swap operation.
+Once `max_spread` is set, it will be compared against the actual spread in the swap. In case the spread exceeds the provided max limit, the swap will fail.
+Note that the spread is calculated before commission deduction in order to properly represent the pool ratio change.
+
+2. Providing `max_spread` + `belief_price`
+If `belief_price` is provided in combination with `max_spread`, the pool will check the difference between the return amount (using `belief_price`) and the real pool price.
+
+Please note that Astroport has the default value for the spread set to 0.5% and the max allowed spread set to 50%.
 
 ## InstantiateMsg
 
