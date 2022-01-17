@@ -73,11 +73,14 @@ async function main() {
         {
             identifier: "BlunaLuna",
             assetInfos: [
-                new TokenAsset("terra1u0t35drzyy0mujj8rkdyzhe264uls4ug3wdp3x").getInfo(),
+                new TokenAsset(network.tokenBLunaAddress).getInfo(),
                 new NativeAsset("uusd").getInfo(),
             ],
             pairType: { stable: {} },
-            initParams: toEncodedBinary({ amp: 100 })
+            initParams: toEncodedBinary({
+                amp: 100,
+                bluna_rewarder: network.bassetRewardAddress
+            })
         }
     ]
 
@@ -118,7 +121,7 @@ async function main() {
                 factory_contract: network.factoryAddress,
                 asset_infos: pool.assetInfos
             })
-            network[pool_oracle_key] = resp.shift();
+            network[pool_oracle_key] = resp.contract_address;
 
             console.log(`Address of ${pool.identifier} oracle contract: ${network[pool_oracle_key]}`)
             writeArtifact(network, terra.config.chainID)
@@ -138,7 +141,7 @@ async function main() {
                     reward_contract_addr: pool.initGenerator.generatorProxy.rewardContractAddr,
                     reward_token_addr: pool.initGenerator.generatorProxy.rewardTokenAddr
                 })
-                network[pool_generator_proxy_key] = resp.shift();
+                network[pool_generator_proxy_key] = resp.contract_address;
                 console.log(`Address of ${pool.identifier} generator proxy contract ${network[pool_generator_proxy_key]}`)
 
                 // Set generator proxy as allowed

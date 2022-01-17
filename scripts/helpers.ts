@@ -111,8 +111,8 @@ export async function uploadContract(terra: LCDClient, wallet: Wallet, filepath:
     return Number(result.logs[0].eventsByType.store_code.code_id[0]) // code_id
 }
 
-export async function instantiateContract(terra: LCDClient, wallet: Wallet, admin_address: string, codeId: number, msg: object) {
-    const instantiateMsg = new MsgInstantiateContract(wallet.key.accAddress, admin_address, codeId, msg, undefined);
+export async function instantiateContract(terra: LCDClient, wallet: Wallet, admin_address: string, codeId: number, msg: object, init_coins?: Coins.Input) {
+    const instantiateMsg = new MsgInstantiateContract(wallet.key.accAddress, admin_address, codeId, msg, init_coins);
     let result = await performTransaction(terra, wallet, instantiateMsg)
     return result.logs[0].events[0].attributes.filter(element => element.key == 'contract_address' ).map(x => x.value);
 }
@@ -128,7 +128,8 @@ export async function queryContract(terra: LCDClient, contractAddress: string, q
 
 export async function deployContract(terra: LCDClient, wallet: Wallet, admin_address: string, filepath: string, initMsg: object) {
     const codeId = await uploadContract(terra, wallet, filepath);
-    return await instantiateContract(terra, wallet, admin_address, codeId, initMsg);
+    let resp = await instantiateContract(terra, wallet, admin_address, codeId, initMsg);
+    return {"contract_codeID": codeId, "reps": resp}
 }
 
 export async function migrate(terra: LCDClient, wallet: Wallet, contractAddress: string, newCodeId: number, msg: object) {

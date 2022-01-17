@@ -5,7 +5,7 @@ import {
     readArtifact,
     deployContract,
     executeContract,
-    uploadContract,
+    uploadContract, instantiateContract, queryContract,
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient} from '@terra-money/terra.js';
@@ -28,6 +28,7 @@ async function main() {
         return
     }
 
+    await uploadWhiteList(terra, wallet)
     await uploadPairContracts(terra, wallet)
     await uploadAndInitStaking(terra, wallet)
     await uploadAndInitFactory(terra, wallet)
@@ -62,6 +63,12 @@ async function uploadPairContracts(terra: LCDClient, wallet: any) {
         network.pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable.wasm')!)
         writeArtifact(network, terra.config.chainID)
     }
+
+    if (!network.pairStableBLunaCodeID) {
+        console.log('Register bLuna Stable Pair Contract...')
+        network.pairStableBLunaCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable_bluna.wasm')!)
+        writeArtifact(network, terra.config.chainID)
+    }
 }
 
 async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
@@ -81,8 +88,8 @@ async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
             }
         )
 
-        network.stakingAddress = resp.shift()
-        network.xastroAddress = resp.shift();
+        network.stakingAddress = resp.reps.shift()
+        network.xastroAddress = resp.reps.shift()
 
         console.log(`Address Staking Contract: ${network.stakingAddress}`)
         writeArtifact(network, terra.config.chainID)
@@ -115,14 +122,15 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                         pair_type: { stable: {} },
                         total_fee_bps: 5, // 0.05% stableswap
                         maker_fee_bps: 5000 // 50% of stableswap fees go to the Maker
-                    }
+                    },
                 ],
                 token_code_id: network.tokenCodeID,
                 generator_address: undefined,
                 fee_address: undefined,
+                whitelist_code_id: network.whiteListCodeID,
             }
         )
-        network.factoryAddress = resp.shift()
+        network.factoryAddress = resp.reps.shift()
         console.log(`Address Factory Contract: ${network.factoryAddress}`)
         writeArtifact(network, terra.config.chainID)
     }
@@ -142,7 +150,8 @@ async function uploadAndInitRouter(terra: LCDClient, wallet: any) {
                 astroport_factory: network.factoryAddress,
             },
         )
-        network.routerAddress = resp.shift()
+
+        network.routerAddress = resp.reps.shift()
         console.log(`Address Router Contract: ${network.routerAddress}`)
         writeArtifact(network, terra.config.chainID)
     }
@@ -165,7 +174,7 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
                 astro_token_contract: String(network.tokenAddress),
             }
         )
-        network.makerAddress = resp.shift()
+        network.makerAddress = resp.reps.shift()
         console.log(`Address Maker Contract: ${network.makerAddress}`)
         writeArtifact(network, terra.config.chainID)
 
@@ -176,6 +185,15 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
                 fee_address: network.makerAddress
             }
         })
+    }
+}
+
+async function uploadWhiteList(terra: LCDClient, wallet: any) {
+    const network = readArtifact(terra.config.chainID)
+    if (!network.whiteListCodeID) {
+        network.whiteListCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_whitelist.wasm')!)
+        console.log(`whiteListCodeID: ${network.whiteListCodeID}`)
+        writeArtifact(network, terra.config.chainID)
     }
 }
 
