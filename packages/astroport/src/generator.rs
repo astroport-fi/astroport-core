@@ -201,5 +201,5 @@ pub enum Cw20HookMsg {
     /// Deposit performs the operation of depositing to the sender.
     Deposit {},
     /// DepositFor performs performs the operation of depositing to the recipient.
-    DepositFor(String),
+    DepositFor(Addr),
 }

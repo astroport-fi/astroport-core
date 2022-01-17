@@ -404,7 +404,7 @@ pub fn provide_liquidity(
     let deposit_amount_0 = adjust_precision(deposits[0], token_precision_0, greater_precision)?;
     let deposit_amount_1 = adjust_precision(deposits[1], token_precision_1, greater_precision)?;
 
-    let total_share = query_supply(&deps.querier, config.pair_info.liquidity_token.to_string())?;
+    let total_share = query_supply(&deps.querier, config.pair_info.liquidity_token.clone())?;
     let share = if total_share.is_zero() {
         let liquidity_token_precision = query_token_precision(
             &deps.querier,
@@ -550,7 +550,7 @@ fn mint_liquidity_token_message(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: generator.unwrap().to_string(),
                 amount,
-                msg: to_binary(&GeneratorHookMsg::DepositFor(recipient.to_string()))?,
+                msg: to_binary(&GeneratorHookMsg::DepositFor(recipient))?,
             })?,
             funds: vec![],
         }),
@@ -1361,8 +1361,7 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Respons
 pub fn pool_info(deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)> {
     let contract_addr = config.pair_info.contract_addr.clone();
     let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
-    let total_share: Uint128 =
-        query_supply(&deps.querier, config.pair_info.liquidity_token.to_string())?;
+    let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;
 
     Ok((pools, total_share))
 }

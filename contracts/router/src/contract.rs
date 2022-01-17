@@ -439,10 +439,10 @@ fn simulate_swap_operations(
                     }))?;
 
                 // Deduct tax after querying simulation
-                if let AssetInfo::NativeToken { .. } = ask_asset_info.clone() {
+                if let AssetInfo::NativeToken { denom } = ask_asset_info.clone() {
                     let asset = Asset {
-                        info: offer_asset_info,
-                        amount: offer_amount,
+                        info: AssetInfo::NativeToken { denom },
+                        amount: res.return_amount,
                     };
 
                     res.return_amount = res

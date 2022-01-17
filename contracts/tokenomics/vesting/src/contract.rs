@@ -437,6 +437,10 @@ pub fn query_vesting_accounts(
     limit: Option<u32>,
     order_by: Option<OrderBy>,
 ) -> StdResult<VestingAccountsResponse> {
+    let start_after = start_after
+        .map(|v| addr_validate_to_lower(deps.api, &v))
+        .transpose()?;
+
     let vesting_infos = read_vesting_infos(deps, start_after, limit, order_by)?;
 
     let vesting_account_responses: Vec<VestingAccountResponse> = vesting_infos
