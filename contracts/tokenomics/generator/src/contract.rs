@@ -723,12 +723,11 @@ fn receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     let amount = cw20_msg.amount;
+    let lp_token = info.sender;
 
-    if POOL_INFO.load(deps.storage, &info.sender).is_err() {
+    if POOL_INFO.load(deps.storage, &lp_token).is_err() {
         return Err(ContractError::Unauthorized {});
     }
-
-    let lp_token = info.sender;
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::Deposit {} => update_rewards_and_execute(
