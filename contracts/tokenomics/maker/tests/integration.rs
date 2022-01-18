@@ -1676,7 +1676,7 @@ fn distribute_initially_accrued_fees() {
         Uint128::from(30_u128),
     );
 
-    router
+    let resp = router
         .execute_contract(
             Addr::unchecked("anyone"),
             maker_instance.clone(),
@@ -1690,6 +1690,19 @@ fn distribute_initially_accrued_fees() {
     checker.maker_amount += Uint128::from(30_u128);
     // 51 = 30 minted astro + 21 distributed astro
     checker.check(&mut router, 51);
+
+    // checking attributes are set properly
+    for (attr, value) in [
+        ("astro_distribution", 27_u128),
+        ("preupgrade_astro_distribution", 19_u128),
+    ] {
+        let a = resp.events[1]
+            .attributes
+            .iter()
+            .find(|a| a.key == attr)
+            .unwrap();
+        assert_eq!(a.value, value.to_string());
+    }
 
     // increment 8 blocks
     for _ in 0..8 {
@@ -1752,7 +1765,7 @@ fn distribute_initially_accrued_fees() {
         Uint128::from(115_u128),
     );
 
-    router
+    let resp = router
         .execute_contract(
             Addr::unchecked("anyone"),
             maker_instance.clone(),
@@ -1763,4 +1776,16 @@ fn distribute_initially_accrued_fees() {
 
     checker.maker_amount += Uint128::from(115_u128);
     checker.check(&mut router, 115);
+
+    // checking attributes are set properly
+    let a = resp.events[1]
+        .attributes
+        .iter()
+        .find(|a| a.key == "astro_distribution")
+        .unwrap();
+    assert_eq!(a.value, 104_u128.to_string());
+    assert!(!resp.events[1]
+        .attributes
+        .iter()
+        .any(|a| a.key == "preupgrade_astro_distribution"));
 }

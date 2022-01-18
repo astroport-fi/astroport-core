@@ -262,9 +262,10 @@ fn collect(
 
     // If no messages - send astro directly
     if response.messages.is_empty() {
-        let mut distribute_msg = distribute(deps, env, &mut cfg)?;
+        let (mut distribute_msg, attributes) = distribute(deps, env, &mut cfg)?;
         if !distribute_msg.is_empty() {
             response.messages.append(&mut distribute_msg);
+            response = response.add_attributes(attributes);
         }
     } else {
         response.messages.push(build_distribute_msg(
@@ -463,15 +464,18 @@ fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
     }
 
     let mut cfg = CONFIG.load(deps.storage)?;
-    let distribute_msg = distribute(deps, env, &mut cfg)?;
+    let (distribute_msg, attributes) = distribute(deps, env, &mut cfg)?;
     if distribute_msg.is_empty() {
         return Ok(Response::default());
     }
 
     Ok(Response::default()
         .add_submessages(distribute_msg)
-        .add_attribute("action", "distribute_astro"))
+        .add_attribute("action", "distribute_astro")
+        .add_attributes(attributes))
 }
+
+type DistributeMsgParts = (Vec<SubMsg>, Vec<(String, String)>);
 
 /// # Description
 /// Performs the distribute of astro token. Returns an [`ContractError`] on failure,
@@ -483,41 +487,49 @@ fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
 /// * **env** is the object of type [`Env`].
 ///
 /// * **cfg** is the object of type [`Config`].
-fn distribute(deps: DepsMut, env: Env, cfg: &mut Config) -> Result<Vec<SubMsg>, ContractError> {
+fn distribute(
+    deps: DepsMut,
+    env: Env,
+    cfg: &mut Config,
+) -> Result<DistributeMsgParts, ContractError> {
     let mut result = vec![];
+    let mut attributes = vec![];
 
     let astro = token_asset_info(cfg.astro_token_contract.clone());
 
     let mut amount = astro.query_pool(&deps.querier, env.contract.address.clone())?;
     if amount.is_zero() {
-        return Ok(result);
+        return Ok((result, attributes));
     }
+    let mut pure_astro_reward = amount;
+    let mut current_preupgrade_distribution = Uint128::zero();
 
     if !cfg.rewards_enabled {
         cfg.pre_upgrade_astro_amount = amount;
         cfg.remainder_reward = amount;
         CONFIG.save(deps.storage, cfg)?;
-        return Ok(result);
+        return Ok((result, attributes));
     } else if !cfg.remainder_reward.is_zero() {
         let blocks_passed = env.block.height - cfg.last_distribution_block;
         if blocks_passed == 0 {
-            return Ok(result);
+            return Ok((result, attributes));
         }
         let mut remainder_reward = cfg.remainder_reward;
         let astro_distribution_portion =
             cfg.pre_upgrade_astro_amount / Uint128::from(cfg.pre_upgrade_blocks);
-        let current_distribution = min(
+        current_preupgrade_distribution = min(
             Uint128::from(blocks_passed) * astro_distribution_portion,
             remainder_reward,
         );
 
         // subtract undistributed remainder reward
         amount -= remainder_reward;
+        pure_astro_reward = amount;
 
         // add a portion of reward
-        amount += current_distribution;
+        amount += current_preupgrade_distribution;
 
-        remainder_reward -= current_distribution;
+        remainder_reward -= current_preupgrade_distribution;
 
         // reduce the number of pre-upgrade astro amount
         cfg.remainder_reward = remainder_reward;
@@ -534,6 +546,14 @@ fn distribute(deps: DepsMut, env: Env, cfg: &mut Config) -> Result<Vec<SubMsg>, 
                 to_governance_asset.into_msg(&deps.querier, governance_contract)?,
             ))
         }
+        pure_astro_reward -= pure_astro_reward.multiply_ratio(
+            Uint128::from(cfg.governance_percent.u64()),
+            Uint128::new(100),
+        );
+        current_preupgrade_distribution -= current_preupgrade_distribution.multiply_ratio(
+            Uint128::from(cfg.governance_percent.u64()),
+            Uint128::new(100),
+        );
         amount
     } else {
         Uint128::zero()
@@ -542,10 +562,21 @@ fn distribute(deps: DepsMut, env: Env, cfg: &mut Config) -> Result<Vec<SubMsg>, 
     let to_staking_asset =
         token_asset(cfg.astro_token_contract.clone(), amount - governance_amount);
 
+    attributes.push((
+        "astro_distribution".to_string(),
+        pure_astro_reward.to_string(),
+    ));
+    if !current_preupgrade_distribution.is_zero() {
+        attributes.push((
+            "preupgrade_astro_distribution".to_string(),
+            current_preupgrade_distribution.to_string(),
+        ));
+    }
+
     result.push(SubMsg::new(
         to_staking_asset.into_msg(&deps.querier, cfg.staking_contract.clone())?,
     ));
-    Ok(result)
+    Ok((result, attributes))
 }
 
 /// ## Description
