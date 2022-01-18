@@ -1785,6 +1785,22 @@ pub fn handle_rewards(
         .add_attribute("sent_bluna_reward", user_reward))
 }
 
+/// ## Description
+/// Calculating user rewards.
+/// Returns an [`ContractError`] on failure, otherwise returns the tuple values
+/// bluna_reward_global_index, latest_reward_amount and user_reward.
+/// ## Params
+/// * **reward_balance** is object of type [`Uint128`].
+///
+/// * **previous_reward_balance** is object of type [`Uint128`].
+///
+/// * **old_total_share** is object of type [`Uint128`].
+///
+/// * **old_user_share** is object of type [`Uint128`].
+///
+/// * **bluna_reward_global_index** is object of type [`Decimal256`].
+///
+/// * **bluna_reward_user_index** is object of type [`Decimal256`].
 pub fn calc_user_reward(
     reward_balance: Uint128,
     previous_reward_balance: Uint128,
