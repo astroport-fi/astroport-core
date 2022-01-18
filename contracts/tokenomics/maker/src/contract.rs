@@ -83,7 +83,7 @@ pub fn instantiate(
         rewards_enabled: false,
         pre_upgrade_blocks: 0,
         last_distribution_block: 0,
-        remainder_reward: None,
+        remainder_reward: Uint128::zero(),
         pre_upgrade_astro_amount: Uint128::zero(),
         governance_contract,
         governance_percent,
@@ -494,14 +494,15 @@ fn distribute(deps: DepsMut, env: Env, cfg: &mut Config) -> Result<Vec<SubMsg>, 
 
     if !cfg.rewards_enabled {
         cfg.pre_upgrade_astro_amount = amount;
+        cfg.remainder_reward = amount;
         CONFIG.save(deps.storage, cfg)?;
         return Ok(result);
-    } else if !cfg.pre_upgrade_astro_amount.is_zero() {
+    } else if !cfg.remainder_reward.is_zero() {
         let blocks_passed = env.block.height - cfg.last_distribution_block;
         if blocks_passed == 0 {
             return Ok(result);
         }
-        let mut remainder_reward = cfg.remainder_reward.unwrap_or(cfg.pre_upgrade_astro_amount);
+        let mut remainder_reward = cfg.remainder_reward;
         let astro_distribution_portion =
             cfg.pre_upgrade_astro_amount / Uint128::from(cfg.pre_upgrade_blocks);
         let current_distribution = min(
@@ -516,13 +517,9 @@ fn distribute(deps: DepsMut, env: Env, cfg: &mut Config) -> Result<Vec<SubMsg>, 
         amount += current_distribution;
 
         remainder_reward -= current_distribution;
-        // disable this if-branch if whole reward was distributed
-        if remainder_reward.is_zero() {
-            cfg.pre_upgrade_astro_amount = Uint128::zero();
-        }
 
         // reduce the number of pre-upgrade astro amount
-        cfg.remainder_reward = Some(remainder_reward);
+        cfg.remainder_reward = remainder_reward;
         cfg.last_distribution_block = env.block.height;
         CONFIG.save(deps.storage, cfg)?;
     }

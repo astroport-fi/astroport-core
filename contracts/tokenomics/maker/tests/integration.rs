@@ -1716,7 +1716,7 @@ fn distribute_initially_accrued_fees() {
         .query_wasm_smart(&maker_instance, &QueryMsg::Config {})
         .unwrap();
 
-    assert_eq!(res.remainder_reward.unwrap().u128(), 8_u128);
+    assert_eq!(res.remainder_reward.u128(), 8_u128);
 
     // check remainder reward distribution
     router.update_block(next_block);
@@ -1740,8 +1740,8 @@ fn distribute_initially_accrued_fees() {
         .query_wasm_smart(&maker_instance, &QueryMsg::Config {})
         .unwrap();
 
-    assert_eq!(res.remainder_reward.unwrap().u128(), 0_u128);
-    assert_eq!(res.pre_upgrade_astro_amount.u128(), 0_u128);
+    assert_eq!(res.remainder_reward.u128(), 0_u128);
+    assert_eq!(res.pre_upgrade_astro_amount.u128(), 218_u128);
 
     // check usual collect works
     mint_some_token(

@@ -104,7 +104,7 @@ pub struct ConfigResponse {
     /// the maximum spread
     pub max_spread: Decimal,
     /// the remainder of pre-upgrade ASTRO fee
-    pub remainder_reward: Option<Uint128>,
+    pub remainder_reward: Uint128,
     /// the amount of collected ASTRO fee before enabling rewards distribution
     pub pre_upgrade_astro_amount: Uint128,
 }
