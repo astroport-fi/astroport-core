@@ -55,7 +55,7 @@ fn proper_initialization() {
     )]);
 
     let msg = InstantiateMsg {
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: String::from("factory"),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -147,7 +147,7 @@ fn provide_liquidity() {
             },
         ],
         token_code_id: 10u64,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: String::from("factory"),
         init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
@@ -511,7 +511,7 @@ fn withdraw_liquidity() {
             },
         ],
         token_code_id: 10u64,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: String::from("factory"),
         init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
@@ -637,7 +637,7 @@ fn try_native_to_token() {
             },
         ],
         token_code_id: 10u64,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: String::from("factory"),
         init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
@@ -791,7 +791,7 @@ fn try_token_to_native() {
             },
         ],
         token_code_id: 10u64,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: String::from("factory"),
         init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
@@ -1041,7 +1041,7 @@ fn test_query_pool() {
             },
         ],
         token_code_id: 10u64,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: String::from("factory"),
         init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
@@ -1106,7 +1106,7 @@ fn test_query_share() {
             },
         ],
         token_code_id: 10u64,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: String::from("factory"),
         init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 

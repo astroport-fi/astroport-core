@@ -443,7 +443,7 @@ fn create_pair() {
         vec![SubMsg {
             msg: WasmMsg::Instantiate {
                 msg: to_binary(&PairInstantiateMsg {
-                    factory_addr: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                    factory_addr: String::from(MOCK_CONTRACT_ADDR),
                     asset_infos: asset_infos.clone(),
                     token_code_id: msg.token_code_id,
                     init_params: None

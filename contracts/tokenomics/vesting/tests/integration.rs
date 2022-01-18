@@ -128,7 +128,7 @@ fn claim() {
         .unwrap();
 
     let msg = QueryMsg::AvailableAmount {
-        address: user1.clone(),
+        address: user1.to_string(),
     };
 
     let user1_vesting_amount: Uint128 = app
@@ -162,7 +162,7 @@ fn claim() {
         .unwrap();
 
     let msg = QueryMsg::VestingAccount {
-        address: user1.clone(),
+        address: user1.to_string(),
     };
 
     let vesting_res: VestingAccountResponse = app
@@ -191,7 +191,7 @@ fn claim() {
     );
 
     let msg = QueryMsg::AvailableAmount {
-        address: user1.clone(),
+        address: user1.to_string(),
     };
 
     // check user balance after claim
@@ -299,7 +299,7 @@ fn register_vesting_accounts() {
         .unwrap();
 
     let msg = QueryMsg::AvailableAmount {
-        address: user1.clone(),
+        address: user1.to_string(),
     };
 
     let user1_vesting_amount: Uint128 = app
@@ -348,7 +348,7 @@ fn register_vesting_accounts() {
         .unwrap();
 
     let msg = QueryMsg::AvailableAmount {
-        address: user2.clone(),
+        address: user2.to_string(),
     };
 
     let user2_vesting_amount: Uint128 = app
@@ -400,7 +400,7 @@ fn register_vesting_accounts() {
         .unwrap();
 
     let msg = QueryMsg::AvailableAmount {
-        address: user1.clone(),
+        address: user1.to_string(),
     };
 
     let vesting_res: Uint128 = app
@@ -431,7 +431,7 @@ fn register_vesting_accounts() {
         .unwrap();
 
     let msg = QueryMsg::VestingAccount {
-        address: user1.clone(),
+        address: user1.to_string(),
     };
 
     let vesting_res: VestingAccountResponse = app

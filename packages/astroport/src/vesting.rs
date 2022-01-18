@@ -102,19 +102,19 @@ pub enum QueryMsg {
     /// ## Description
     /// Returns information about the vesting account in the [`VestingAccountResponse`] object.
     VestingAccount {
-        address: Addr,
+        address: String,
     },
     /// ## Description
     /// Returns a list of accounts, for the given input parameters, in the [`VestingAccountsResponse`] object.
     VestingAccounts {
-        start_after: Option<Addr>,
+        start_after: Option<String>,
         limit: Option<u32>,
         order_by: Option<OrderBy>,
     },
     /// ## Description
     /// Returns the available amount for specified account.
     AvailableAmount {
-        address: Addr,
+        address: String,
     },
     Timestamp {},
 }

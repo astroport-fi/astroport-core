@@ -172,7 +172,7 @@ fn update_rewards(deps: DepsMut) -> Result<Response, ContractError> {
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **account** is the object of type [`Addr`]. Sets the recipient of rewards.
+/// * **account** is the object of type [`String`]. Sets the recipient of rewards.
 ///
 /// * **amount** is the object of type [`Uint128`].
 ///
@@ -181,9 +181,11 @@ fn update_rewards(deps: DepsMut) -> Result<Response, ContractError> {
 fn send_rewards(
     deps: DepsMut,
     info: MessageInfo,
-    account: Addr,
+    account: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
+    addr_validate_to_lower(deps.api, &account)?;
+
     let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.generator_contract_addr {
@@ -195,7 +197,7 @@ fn send_rewards(
         .push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.reward_token_addr.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: account.to_string(),
+                recipient: account,
                 amount,
             })?,
             funds: vec![],
@@ -213,7 +215,7 @@ fn send_rewards(
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **account** is the object of type [`Addr`]. Sets the recipient for withdrawal.
+/// * **account** is the object of type [`String`]. Sets the recipient for withdrawal.
 ///
 /// * **amount** is the object of type [`Uint128`].
 ///
@@ -223,9 +225,11 @@ fn withdraw(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    account: Addr,
+    account: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
+    let account = addr_validate_to_lower(deps.api, &account)?;
+
     let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.generator_contract_addr {
@@ -308,7 +312,7 @@ pub fn handle_callback(
 ///
 /// * **account** is the object of type [`MessageInfo`]. Sets the recipient of withdrawal.
 ///
-/// * **prev_lp_balance** is the object of type [`CallbackMsg`]. Sets the previous balance for
+/// * **prev_lp_balance** is the object of type [`Uint128`]. Sets the previous balance for
 /// calculating the withdrawal amount.
 pub fn transfer_lp_tokens_after_withdraw(
     deps: DepsMut,

@@ -346,7 +346,7 @@ pub fn execute_create_pair(
             msg: to_binary(&PairInstantiateMsg {
                 asset_infos: asset_infos.clone(),
                 token_code_id: config.token_code_id,
-                factory_addr: env.contract.address,
+                factory_addr: env.contract.address.to_string(),
                 init_params,
             })?,
             funds: vec![],
