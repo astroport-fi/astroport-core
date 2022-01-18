@@ -38,6 +38,9 @@ pub enum ContractError {
 
     #[error("Rewards collecting is already enabled")]
     RewardsAlreadyEnabled {},
+
+    #[error("An error occurred during migration")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {
