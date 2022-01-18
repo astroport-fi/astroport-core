@@ -3,7 +3,8 @@ use crate::contract::{
     query_pool, query_reverse_simulation, query_share, query_simulation, reply,
 };
 use crate::error::ContractError;
-use crate::math::{calc_ask_amount, AMP_PRECISION};
+use crate::math::{calc_ask_amount, calc_offer_amount, AMP_PRECISION};
+
 use crate::mock_querier::mock_dependencies;
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::Config;
@@ -1235,6 +1236,28 @@ proptest! {
             balance_in,
             balance_out,
             diff
+        );
+
+        let reverse_result = calc_offer_amount(
+            balance_in,
+            balance_out,
+            result,
+            amp * AMP_PRECISION
+        ).unwrap();
+
+        let amount_in_f = amount_in as f64;
+        let reverse_diff = (reverse_result as f64 - amount_in_f) / amount_in_f * 100.;
+
+        assert!(
+            reverse_diff <= 0.0001,
+            "result={}, sim_result={}, amp={}, amount_out={}, balance_in={}, balance_out={}, diff(%)={}",
+            reverse_result,
+            amount_in,
+            amp,
+            result,
+            balance_in,
+            balance_out,
+            reverse_diff
         );
     }
 }
