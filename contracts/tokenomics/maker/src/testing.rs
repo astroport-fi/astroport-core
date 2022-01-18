@@ -45,7 +45,7 @@ fn proper_initialization() {
             rewards_enabled: false,
             pre_upgrade_blocks: 0,
             last_distribution_block: 0,
-            remainder_reward: None,
+            remainder_reward: Uint128::zero(),
             pre_upgrade_astro_amount: Uint128::zero(),
         }
     )
