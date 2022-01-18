@@ -191,7 +191,7 @@ pub fn execute(
             update_rewards_and_execute(
                 deps,
                 env,
-                Some(lp_token.to_string()),
+                Some(lp_token.clone()),
                 ExecuteOnReply::UpdatePool { lp_token },
             )
         }
@@ -201,7 +201,7 @@ pub fn execute(
             update_rewards_and_execute(
                 deps,
                 env,
-                Some(lp_token.to_string()),
+                Some(lp_token.clone()),
                 ExecuteOnReply::Withdraw {
                     lp_token,
                     account: info.sender,
@@ -411,13 +411,13 @@ pub fn set(
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **update_single_pool** is an [`Option`] field object of type [`String`].
+/// * **update_single_pool** is an [`Option`] field object of type [`Addr`].
 ///
 /// * **on_reply** is the object of type [`ExecuteOnReply`]. Sets the action to be performed.
 fn update_rewards_and_execute(
     mut deps: DepsMut,
     env: Env,
-    update_single_pool: Option<String>,
+    update_single_pool: Option<Addr>,
     on_reply: ExecuteOnReply,
 ) -> Result<Response, ContractError> {
     TMP_USER_ACTION.update(deps.storage, |v| {
@@ -431,7 +431,6 @@ fn update_rewards_and_execute(
     let pools: Vec<(Addr, PoolInfo)>;
     match update_single_pool {
         Some(lp_token) => {
-            let lp_token = addr_validate_to_lower(deps.api, lp_token.as_str())?;
             let pool = POOL_INFO.load(deps.storage, &lp_token)?;
             pools = vec![(lp_token, pool)];
         }
@@ -733,7 +732,7 @@ fn receive_cw20(
         Cw20HookMsg::Deposit {} => update_rewards_and_execute(
             deps,
             env,
-            Some(lp_token.to_string()),
+            Some(lp_token.clone()),
             ExecuteOnReply::Deposit {
                 lp_token,
                 account: Addr::unchecked(cw20_msg.sender),
@@ -743,7 +742,7 @@ fn receive_cw20(
         Cw20HookMsg::DepositFor(beneficiary) => update_rewards_and_execute(
             deps,
             env,
-            Some(lp_token.to_string()),
+            Some(lp_token.clone()),
             ExecuteOnReply::Deposit {
                 lp_token,
                 account: beneficiary,
