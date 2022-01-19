@@ -114,6 +114,7 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, u64
         fee_address: None,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
+        whitelist_code_id: 234u64,
     };
 
     let factory_instance = router

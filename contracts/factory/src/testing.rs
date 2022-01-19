@@ -54,6 +54,7 @@ fn proper_initialization() {
         fee_address: None,
         generator_address: Some(String::from("generator")),
         owner: owner.clone(),
+        whitelist_code_id: 234u64,
     };
 
     let env = mock_env();
@@ -74,6 +75,7 @@ fn proper_initialization() {
         fee_address: None,
         generator_address: Some(String::from("generator")),
         owner: owner.clone(),
+        whitelist_code_id: 234u64,
     };
 
     let env = mock_env();
@@ -105,6 +107,7 @@ fn proper_initialization() {
         fee_address: None,
         generator_address: Some(String::from("generator")),
         owner: owner.clone(),
+        whitelist_code_id: 234u64,
     };
 
     let env = mock_env();
@@ -138,6 +141,7 @@ fn update_config() {
         fee_address: None,
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
+        whitelist_code_id: 234u64,
     };
 
     let env = mock_env();
@@ -153,6 +157,7 @@ fn update_config() {
         token_code_id: Some(200u64),
         fee_address: Some(String::from("new_fee_addr")),
         generator_address: Some(String::from("new_generator_addr")),
+        whitelist_code_id: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -179,6 +184,7 @@ fn update_config() {
         token_code_id: None,
         fee_address: None,
         generator_address: None,
+        whitelist_code_id: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
@@ -196,6 +202,7 @@ fn update_owner() {
         fee_address: None,
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
+        whitelist_code_id: 234u64,
     };
 
     let env = mock_env();
@@ -280,6 +287,7 @@ fn update_pair_config() {
         fee_address: None,
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
+        whitelist_code_id: 234u64,
     };
 
     let env = mock_env();
@@ -384,6 +392,7 @@ fn create_pair() {
         fee_address: None,
         owner: "owner0000".to_string(),
         generator_address: Some(String::from("generator")),
+        whitelist_code_id: 234u64,
     };
 
     let env = mock_env();
@@ -479,6 +488,7 @@ fn register() {
         fee_address: None,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
+        whitelist_code_id: 234u64,
     };
 
     let env = mock_env();

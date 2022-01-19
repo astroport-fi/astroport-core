@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::prelude::*;
 
 const FILE_NAME: &str = "simulation.py";
-const FILE_PATH: &str = "sim/simulation.py";
+const FILE_PATH: &str = "../sim/simulation.py";
 const MODULE_NAME: &str = "simulation";
 
 const DEFAULT_POOL_TOKENS: u128 = 0;
