@@ -88,7 +88,7 @@ pub fn instantiate(
     let mut messages: Vec<SubMsg> = vec![get_bluna_rewarder_instantiating_message(
         deps.as_ref(),
         &env,
-        &msg.factory_addr,
+        &addr_validate_to_lower(deps.api, &msg.factory_addr)?,
     )?];
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;

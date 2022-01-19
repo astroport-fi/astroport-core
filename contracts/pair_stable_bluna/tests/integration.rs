@@ -120,7 +120,7 @@ fn create_pair_with_same_assets() {
             },
         ],
         token_code_id: token_contract_code_id,
-        factory_addr: factory_instance.clone(),
+        factory_addr: factory_instance.to_string(),
         init_params: None,
     };
 
@@ -179,7 +179,7 @@ fn update_pair_config() {
             },
         ],
         token_code_id: token_contract_code_id,
-        factory_addr: factory_instance,
+        factory_addr: factory_instance.to_string(),
         init_params: Some(
             to_binary(&StablePoolParams {
                 amp: 100,

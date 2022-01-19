@@ -56,7 +56,7 @@ fn proper_initialization() {
     )]);
 
     let msg = InstantiateMsg {
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: "factory".to_string(),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -177,7 +177,7 @@ fn provide_liquidity() {
             },
         ],
         token_code_id: 10u64,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: "factory".to_string(),
         init_params: Some(
             to_binary(&StablePoolParams {
                 amp: 100,
@@ -336,7 +336,7 @@ fn withdraw_liquidity() {
             },
         ],
         token_code_id: 10u64,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: "factory".to_string(),
         init_params: Some(
             to_binary(&StablePoolParams {
                 amp: 100,
@@ -468,7 +468,7 @@ fn try_native_to_token() {
             },
         ],
         token_code_id: 10u64,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: "factory".to_string(),
         init_params: Some(
             to_binary(&StablePoolParams {
                 amp: 100,
@@ -628,7 +628,7 @@ fn try_token_to_native() {
             },
         ],
         token_code_id: 10u64,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: "factory".to_string(),
         init_params: Some(
             to_binary(&StablePoolParams {
                 amp: 100,
@@ -916,7 +916,7 @@ fn test_query_pool() {
             },
         ],
         token_code_id: 10u64,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: "factory".to_string(),
         init_params: Some(
             to_binary(&StablePoolParams {
                 amp: 100,
@@ -987,7 +987,7 @@ fn test_query_share() {
             },
         ],
         token_code_id: 10u64,
-        factory_addr: Addr::unchecked("factory"),
+        factory_addr: "factory".to_string(),
         init_params: Some(
             to_binary(&StablePoolParams {
                 amp: 100,
