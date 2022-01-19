@@ -1885,9 +1885,9 @@ pub fn handle_reward(
 ///
 /// * **previous_reward_balance** is object of type [`Uint128`].
 ///
-/// * **total_share** is object of type [`Uint128`].
-///
 /// * **user_share** is object of type [`Uint128`].
+///
+/// * **total_share** is object of type [`Uint128`].
 ///
 /// * **bluna_reward_global_index** is object of type [`Decimal256`].
 ///
@@ -1895,8 +1895,8 @@ pub fn handle_reward(
 pub fn calc_user_reward(
     reward_balance: Uint128,
     previous_reward_balance: Uint128,
-    total_share: Uint128,
     user_share: Uint128,
+    total_share: Uint128,
     bluna_reward_global_index: cosmwasm_std::Decimal256,
     bluna_reward_user_index: cosmwasm_std::Decimal256,
 ) -> Result<(cosmwasm_std::Decimal256, Uint128, Uint128), ContractError> {

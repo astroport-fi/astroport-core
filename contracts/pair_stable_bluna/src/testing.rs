@@ -1180,8 +1180,8 @@ fn test_calc_user_reward() {
     let (bluna_reward_global_index, latest_reward_amount, user_reward) = calc_user_reward(
         Uint128::new(10000),
         Uint128::new(1000),
-        Uint128::new(100),
         Uint128::new(10),
+        Uint128::new(100),
         Decimal256::from_str("100").unwrap(),
         Decimal256::from_str("100").unwrap(),
     )
