@@ -35,6 +35,12 @@ pub enum ContractError {
 
     #[error("Cannot collect. Remove duplicate asset")]
     DuplicatedAsset {},
+
+    #[error("Rewards collecting is already enabled")]
+    RewardsAlreadyEnabled {},
+
+    #[error("An error occurred during migration")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {

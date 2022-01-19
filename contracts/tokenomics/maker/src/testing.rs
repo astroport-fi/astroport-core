@@ -1,5 +1,5 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{from_binary, Addr, Decimal, Uint64};
+use cosmwasm_std::{from_binary, Addr, Decimal, Uint128, Uint64};
 
 use crate::contract::{execute, instantiate, query};
 use crate::state::{Config, CONFIG};
@@ -42,6 +42,11 @@ fn proper_initialization() {
             governance_percent,
             astro_token_contract: Addr::unchecked("astro-token"),
             max_spread: Decimal::from_str("0.05").unwrap(),
+            rewards_enabled: false,
+            pre_upgrade_blocks: 0,
+            last_distribution_block: 0,
+            remainder_reward: Uint128::zero(),
+            pre_upgrade_astro_amount: Uint128::zero(),
         }
     )
 }

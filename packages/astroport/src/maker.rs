@@ -67,6 +67,8 @@ pub enum ExecuteMsg {
     DropOwnershipProposal {},
     /// Approves ownership.
     ClaimOwnership {},
+    /// Enables rewards collecting
+    EnableRewards { blocks: u64 },
 }
 
 /// ## Description
@@ -101,6 +103,10 @@ pub struct ConfigResponse {
     pub governance_percent: Uint64,
     /// the maximum spread
     pub max_spread: Decimal,
+    /// the remainder of pre-upgrade ASTRO fee
+    pub remainder_reward: Uint128,
+    /// the amount of collected ASTRO fee before enabling rewards distribution
+    pub pre_upgrade_astro_amount: Uint128,
 }
 
 /// ## Description

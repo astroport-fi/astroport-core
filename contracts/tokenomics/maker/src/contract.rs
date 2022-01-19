@@ -1,6 +1,8 @@
 use crate::error::ContractError;
 use crate::state::{Config, BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
+use std::cmp::min;
 
+use crate::migration;
 use crate::utils::{
     build_distribute_msg, build_swap_msg, validate_bridge, BRIDGES_INITIAL_DEPTH, BRIDGES_MAX_DEPTH,
 };
@@ -20,7 +22,7 @@ use cosmwasm_std::{
     MessageInfo, Order, QueryRequest, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
     WasmQuery,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use std::collections::{HashMap, HashSet};
 
 /// Contract name that is used for migration.
@@ -79,6 +81,11 @@ pub fn instantiate(
         astro_token_contract: addr_validate_to_lower(deps.api, &msg.astro_token_contract)?,
         factory_contract: addr_validate_to_lower(deps.api, &msg.factory_contract)?,
         staking_contract: addr_validate_to_lower(deps.api, &msg.staking_contract)?,
+        rewards_enabled: false,
+        pre_upgrade_blocks: 0,
+        last_distribution_block: 0,
+        remainder_reward: Uint128::zero(),
+        pre_upgrade_astro_amount: Uint128::zero(),
         governance_contract,
         governance_percent,
         max_spread,
@@ -124,6 +131,8 @@ pub fn instantiate(
 /// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change ownership.
 ///
 /// * **ExecuteMsg::ClaimOwnership {}** Approves owner.
+///
+/// * **ExecuteMsg::EnableRewards** Enables collected rewards distribution
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -184,6 +193,31 @@ pub fn execute(
             })
             .map_err(|e| e.into())
         }
+        ExecuteMsg::EnableRewards { blocks } => {
+            let mut config: Config = CONFIG.load(deps.storage)?;
+
+            // permission check
+            if info.sender != config.owner {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            // can be enabled only once
+            if config.rewards_enabled {
+                return Err(ContractError::RewardsAlreadyEnabled {});
+            }
+
+            if blocks == 0 {
+                return Err(ContractError::Std(StdError::generic_err(
+                    "Number of blocks should be > 0",
+                )));
+            }
+
+            config.rewards_enabled = true;
+            config.pre_upgrade_blocks = blocks;
+            config.last_distribution_block = env.block.height;
+            CONFIG.save(deps.storage, &config)?;
+            Ok(Response::default())
+        }
     }
 }
 
@@ -204,7 +238,7 @@ fn collect(
     env: Env,
     assets: Vec<AssetWithLimit>,
 ) -> Result<Response, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
+    let mut cfg = CONFIG.load(deps.storage)?;
 
     let astro = token_asset_info(cfg.astro_token_contract.clone());
 
@@ -228,11 +262,10 @@ fn collect(
 
     // If no messages - send astro directly
     if response.messages.is_empty() {
-        let balance = astro.query_pool(&deps.querier, env.contract.address)?;
-        if !balance.is_zero() {
-            response
-                .messages
-                .append(&mut distribute(deps.as_ref(), &cfg, balance)?);
+        let (mut distribute_msg, attributes) = distribute(deps, env, &mut cfg)?;
+        if !distribute_msg.is_empty() {
+            response.messages.append(&mut distribute_msg);
+            response = response.add_attributes(attributes);
         }
     } else {
         response.messages.push(build_distribute_msg(
@@ -430,20 +463,18 @@ fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
         return Err(ContractError::Unauthorized {});
     }
 
-    let cfg = CONFIG.load(deps.storage)?;
-    let astro = token_asset_info(cfg.astro_token_contract.clone());
-
-    let balance = astro.query_pool(&deps.querier, env.contract.address)?;
-    if balance.is_zero() {
+    let mut cfg = CONFIG.load(deps.storage)?;
+    let (distribute_msg, attributes) = distribute(deps, env, &mut cfg)?;
+    if distribute_msg.is_empty() {
         return Ok(Response::default());
     }
 
-    let distribute_msg = distribute(deps.as_ref(), &cfg, balance)?;
-
     Ok(Response::default()
         .add_submessages(distribute_msg)
-        .add_attribute("action", "distribute_astro"))
+        .add_attributes(attributes))
 }
+
+type DistributeMsgParts = (Vec<SubMsg>, Vec<(String, String)>);
 
 /// # Description
 /// Performs the distribute of astro token. Returns an [`ContractError`] on failure,
@@ -452,19 +483,68 @@ fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
 /// # Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
-/// * **cfg** is the object of type [`Config`].
+/// * **env** is the object of type [`Env`].
 ///
-/// * **amount** is the object of type [`Uint128`].
-fn distribute(deps: Deps, cfg: &Config, amount: Uint128) -> Result<Vec<SubMsg>, ContractError> {
+/// * **cfg** is the object of type [`Config`].
+fn distribute(
+    deps: DepsMut,
+    env: Env,
+    cfg: &mut Config,
+) -> Result<DistributeMsgParts, ContractError> {
     let mut result = vec![];
+    let mut attributes = vec![];
+
+    let astro = token_asset_info(cfg.astro_token_contract.clone());
+
+    let mut amount = astro.query_pool(&deps.querier, env.contract.address.clone())?;
+    if amount.is_zero() {
+        return Ok((result, attributes));
+    }
+    let mut pure_astro_reward = amount;
+    let mut current_preupgrade_distribution = Uint128::zero();
+
+    if !cfg.rewards_enabled {
+        cfg.pre_upgrade_astro_amount = amount;
+        cfg.remainder_reward = amount;
+        CONFIG.save(deps.storage, cfg)?;
+        return Ok((result, attributes));
+    } else if !cfg.remainder_reward.is_zero() {
+        let blocks_passed = env.block.height - cfg.last_distribution_block;
+        if blocks_passed == 0 {
+            return Ok((result, attributes));
+        }
+        let mut remainder_reward = cfg.remainder_reward;
+        let astro_distribution_portion =
+            cfg.pre_upgrade_astro_amount / Uint128::from(cfg.pre_upgrade_blocks);
+        current_preupgrade_distribution = min(
+            Uint128::from(blocks_passed) * astro_distribution_portion,
+            remainder_reward,
+        );
+
+        // subtract undistributed remainder reward
+        amount -= remainder_reward;
+        pure_astro_reward = amount;
+
+        // add a portion of reward
+        amount += current_preupgrade_distribution;
+
+        remainder_reward -= current_preupgrade_distribution;
+
+        // reduce the number of pre-upgrade astro amount
+        cfg.remainder_reward = remainder_reward;
+        cfg.last_distribution_block = env.block.height;
+        CONFIG.save(deps.storage, cfg)?;
+    }
 
     let governance_amount = if let Some(governance_contract) = cfg.governance_contract.clone() {
         let amount =
             amount.multiply_ratio(Uint128::from(cfg.governance_percent), Uint128::new(100));
-        let to_governance_asset = token_asset(cfg.astro_token_contract.clone(), amount);
-        result.push(SubMsg::new(
-            to_governance_asset.into_msg(&deps.querier, governance_contract)?,
-        ));
+        if amount.u128() > 0 {
+            let to_governance_asset = token_asset(cfg.astro_token_contract.clone(), amount);
+            result.push(SubMsg::new(
+                to_governance_asset.into_msg(&deps.querier, governance_contract)?,
+            ))
+        }
         amount
     } else {
         Uint128::zero()
@@ -473,10 +553,22 @@ fn distribute(deps: Deps, cfg: &Config, amount: Uint128) -> Result<Vec<SubMsg>, 
     let to_staking_asset =
         token_asset(cfg.astro_token_contract.clone(), amount - governance_amount);
 
+    attributes.push(("action".to_string(), "distribute_astro".to_string()));
+    attributes.push((
+        "astro_distribution".to_string(),
+        pure_astro_reward.to_string(),
+    ));
+    if !current_preupgrade_distribution.is_zero() {
+        attributes.push((
+            "preupgrade_astro_distribution".to_string(),
+            current_preupgrade_distribution.to_string(),
+        ));
+    }
+
     result.push(SubMsg::new(
         to_staking_asset.into_msg(&deps.querier, cfg.staking_contract.clone())?,
     ));
-    Ok(result)
+    Ok((result, attributes))
 }
 
 /// ## Description
@@ -664,6 +756,8 @@ fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
         governance_percent: config.governance_percent,
         astro_token_contract: config.astro_token_contract,
         max_spread: config.max_spread,
+        remainder_reward: config.remainder_reward,
+        pre_upgrade_astro_amount: config.pre_upgrade_astro_amount,
     })
 }
 
@@ -737,6 +831,41 @@ pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<[AssetInfo; 2]> 
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-maker" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                let config_v100 = migration::CONFIGV100.load(deps.storage)?;
+
+                let new_config = Config {
+                    owner: config_v100.owner,
+                    factory_contract: config_v100.factory_contract,
+                    staking_contract: config_v100.staking_contract,
+                    governance_contract: config_v100.governance_contract,
+                    governance_percent: config_v100.governance_percent,
+                    astro_token_contract: config_v100.astro_token_contract,
+                    max_spread: config_v100.max_spread,
+                    rewards_enabled: false,
+                    pre_upgrade_blocks: 0,
+                    last_distribution_block: 0,
+                    remainder_reward: Uint128::zero(),
+                    pre_upgrade_astro_amount: Uint128::zero(),
+                };
+
+                CONFIG.save(deps.storage, &new_config)?;
+            }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

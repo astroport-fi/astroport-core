@@ -12,7 +12,9 @@ use cosmwasm_std::{
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use std::str::FromStr;
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
+use terra_multi_test::{
+    next_block, AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
+};
 
 fn mock_app() -> TerraApp {
     let env = mock_env();
@@ -575,6 +577,16 @@ fn collect_all() {
                 ]),
                 remove: None,
             },
+            &[],
+        )
+        .unwrap();
+
+    // enable rewards distribution
+    router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::EnableRewards { blocks: 1 },
             &[],
         )
         .unwrap();
@@ -1156,6 +1168,16 @@ fn collect_with_asset_limit() {
         )
         .unwrap();
 
+    // enable rewards distribution
+    router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::EnableRewards { blocks: 1 },
+            &[],
+        )
+        .unwrap();
+
     // Mint all tokens for maker
     for t in vec![
         (astro_token_instance.clone(), 10u128),
@@ -1311,4 +1333,459 @@ fn collect_with_asset_limit() {
         test_token_instance.clone(),
         Uint128::zero(),
     );
+}
+
+struct CheckDistributedAstro {
+    maker_amount: Uint128,
+    governance_amount: Uint128,
+    staking_amount: Uint128,
+    governance_percent: Uint64,
+    maker: Addr,
+    astro_token: Addr,
+    governance: Addr,
+    staking: Addr,
+}
+
+impl CheckDistributedAstro {
+    fn check(&mut self, router: &mut TerraApp, distributed_amount: u32) {
+        let distributed_amount = Uint128::from(distributed_amount as u128);
+        let cur_governance_amount = distributed_amount
+            .multiply_ratio(Uint128::from(self.governance_percent), Uint128::new(100));
+        self.governance_amount += cur_governance_amount;
+        self.staking_amount += distributed_amount - cur_governance_amount;
+        self.maker_amount -= distributed_amount;
+
+        check_balance(
+            router,
+            self.maker.clone(),
+            self.astro_token.clone(),
+            self.maker_amount,
+        );
+
+        check_balance(
+            router,
+            self.governance.clone(),
+            self.astro_token.clone(),
+            self.governance_amount,
+        );
+
+        check_balance(
+            router,
+            self.staking.clone(),
+            self.astro_token.clone(),
+            self.staking_amount,
+        );
+    }
+}
+
+#[test]
+fn distribute_initially_accrued_fees() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+    let staking = Addr::unchecked("staking");
+    let governance = Addr::unchecked("governance");
+    let governance_percent = Uint64::new(10);
+    let user = Addr::unchecked("user0000");
+
+    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
+        &mut router,
+        owner.clone(),
+        staking.clone(),
+        &governance,
+        governance_percent,
+        None,
+    );
+
+    let usdc_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Usdc token".to_string(),
+        "USDC".to_string(),
+    );
+
+    let test_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Test token".to_string(),
+        "TEST".to_string(),
+    );
+
+    let bridge2_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Bridge 2 depth token".to_string(),
+        "BRIDGE".to_string(),
+    );
+
+    let uusd_asset = String::from("uusd");
+    let uluna_asset = String::from("uluna");
+
+    // Create pairs
+    for t in vec![
+        [
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+            token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+    ] {
+        create_pair(
+            &mut router,
+            owner.clone(),
+            user.clone(),
+            &factory_instance,
+            t,
+        );
+    }
+
+    // set asset to swap
+    let assets = vec![
+        AssetWithLimit {
+            info: native_asset(uusd_asset.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(astro_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: native_asset(uluna_asset.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(usdc_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(test_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(bridge2_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+    ];
+
+    // Setup bridge to withdraw USDC via USDC -> TEST -> UUSD -> ASTRO route
+    router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::UpdateBridges {
+                add: Some(vec![
+                    (
+                        token_asset_info(test_token_instance.clone()),
+                        token_asset_info(bridge2_token_instance.clone()),
+                    ),
+                    (
+                        token_asset_info(usdc_token_instance.clone()),
+                        token_asset_info(test_token_instance.clone()),
+                    ),
+                    (
+                        native_asset_info(uluna_asset.clone()),
+                        native_asset_info(uusd_asset.clone()),
+                    ),
+                ]),
+                remove: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+    // Mint all tokens for maker
+    for t in vec![
+        (astro_token_instance.clone(), 10u128),
+        (usdc_token_instance, 20u128),
+        (test_token_instance, 30u128),
+    ] {
+        let (token, amount) = t;
+        mint_some_token(
+            &mut router,
+            owner.clone(),
+            token.clone(),
+            maker_instance.clone(),
+            Uint128::from(amount),
+        );
+
+        // Check initial balance
+        check_balance(
+            &mut router,
+            maker_instance.clone(),
+            token,
+            Uint128::from(amount),
+        );
+    }
+
+    router
+        .init_bank_balance(
+            &maker_instance,
+            vec![
+                Coin {
+                    denom: uusd_asset,
+                    amount: Uint128::new(100),
+                },
+                Coin {
+                    denom: uluna_asset,
+                    amount: Uint128::new(110),
+                },
+            ],
+        )
+        .unwrap();
+
+    // unauthorized check
+    let err = router
+        .execute_contract(
+            user.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::EnableRewards { blocks: 1 },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Unauthorized");
+
+    // check pre_update_blocks = 0
+    let err = router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::EnableRewards { blocks: 0 },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Number of blocks should be > 0"
+    );
+
+    // check collect does not distribute until rewards are enabled
+    router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect { assets },
+            &[],
+        )
+        .unwrap();
+
+    // balances checker
+    let mut checker = CheckDistributedAstro {
+        maker_amount: Uint128::new(218_u128),
+        governance_amount: Uint128::zero(),
+        staking_amount: Uint128::zero(),
+        maker: maker_instance.clone(),
+        astro_token: astro_token_instance.clone(),
+        governance_percent,
+        governance,
+        staking,
+    };
+    checker.check(&mut router, 0);
+
+    // enabling rewards distribution
+    router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::EnableRewards { blocks: 10 },
+            &[],
+        )
+        .unwrap();
+
+    // trying to enable again
+    let err = router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::EnableRewards { blocks: 1 },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Rewards collecting is already enabled");
+
+    let astro_asset = AssetWithLimit {
+        info: token_asset_info(astro_token_instance.clone()),
+        limit: None,
+    };
+    let assets = vec![astro_asset];
+
+    router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect {
+                assets: assets.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    // since the block number is the same nothing happened
+    checker.check(&mut router, 0);
+
+    router.update_block(next_block);
+
+    router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect {
+                assets: assets.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    checker.check(&mut router, 21);
+
+    // lets try to collect again within the same block
+    router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect {
+                assets: assets.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    // but no astro were distributed
+    checker.check(&mut router, 0);
+
+    router.update_block(next_block);
+
+    // imagine that we received new fee while pre-ugrade astro is under distribution
+    mint_some_token(
+        &mut router,
+        owner.clone(),
+        astro_token_instance.clone(),
+        maker_instance.clone(),
+        Uint128::from(30_u128),
+    );
+
+    let resp = router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect {
+                assets: assets.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    checker.maker_amount += Uint128::from(30_u128);
+    // 51 = 30 minted astro + 21 distributed astro
+    checker.check(&mut router, 51);
+
+    // checking attributes are set properly
+    for (attr, value) in [
+        ("astro_distribution", 30_u128),
+        ("preupgrade_astro_distribution", 21_u128),
+    ] {
+        let a = resp.events[1]
+            .attributes
+            .iter()
+            .find(|a| a.key == attr)
+            .unwrap();
+        assert_eq!(a.value, value.to_string());
+    }
+
+    // increment 8 blocks
+    for _ in 0..8 {
+        router.update_block(next_block);
+    }
+
+    router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect {
+                assets: assets.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    // 168 = 21 * 8
+    checker.check(&mut router, 168);
+
+    // check reminder reward
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(&maker_instance, &QueryMsg::Config {})
+        .unwrap();
+
+    assert_eq!(res.remainder_reward.u128(), 8_u128);
+
+    // check remainder reward distribution
+    router.update_block(next_block);
+
+    router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect {
+                assets: assets.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    checker.check(&mut router, 8);
+
+    // check pre-upgrade astro was fully distributed
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(&maker_instance, &QueryMsg::Config {})
+        .unwrap();
+
+    assert_eq!(res.remainder_reward.u128(), 0_u128);
+    assert_eq!(res.pre_upgrade_astro_amount.u128(), 218_u128);
+
+    // check usual collect works
+    mint_some_token(
+        &mut router,
+        owner,
+        astro_token_instance,
+        maker_instance.clone(),
+        Uint128::from(115_u128),
+    );
+
+    let resp = router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect { assets },
+            &[],
+        )
+        .unwrap();
+
+    checker.maker_amount += Uint128::from(115_u128);
+    checker.check(&mut router, 115);
+
+    // checking attributes are set properly
+    let a = resp.events[1]
+        .attributes
+        .iter()
+        .find(|a| a.key == "astro_distribution")
+        .unwrap();
+    assert_eq!(a.value, 115_u128.to_string());
+    assert!(!resp.events[1]
+        .attributes
+        .iter()
+        .any(|a| a.key == "preupgrade_astro_distribution"));
 }
