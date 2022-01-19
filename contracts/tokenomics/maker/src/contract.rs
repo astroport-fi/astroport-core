@@ -545,14 +545,6 @@ fn distribute(
                 to_governance_asset.into_msg(&deps.querier, governance_contract)?,
             ))
         }
-        pure_astro_reward -= pure_astro_reward.multiply_ratio(
-            Uint128::from(cfg.governance_percent.u64()),
-            Uint128::new(100),
-        );
-        current_preupgrade_distribution -= current_preupgrade_distribution.multiply_ratio(
-            Uint128::from(cfg.governance_percent.u64()),
-            Uint128::new(100),
-        );
         amount
     } else {
         Uint128::zero()

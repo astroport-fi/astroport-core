@@ -1693,8 +1693,8 @@ fn distribute_initially_accrued_fees() {
 
     // checking attributes are set properly
     for (attr, value) in [
-        ("astro_distribution", 27_u128),
-        ("preupgrade_astro_distribution", 19_u128),
+        ("astro_distribution", 30_u128),
+        ("preupgrade_astro_distribution", 21_u128),
     ] {
         let a = resp.events[1]
             .attributes
@@ -1783,7 +1783,7 @@ fn distribute_initially_accrued_fees() {
         .iter()
         .find(|a| a.key == "astro_distribution")
         .unwrap();
-    assert_eq!(a.value, 104_u128.to_string());
+    assert_eq!(a.value, 115_u128.to_string());
     assert!(!resp.events[1]
         .attributes
         .iter()
