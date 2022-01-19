@@ -42,7 +42,7 @@ pub enum ExecuteMsg {
         user_share: Uint128,
         total_share: Uint128,
         user: Addr,
-        receiver: Addr,
+        receiver: Option<Addr>,
     },
 }
 

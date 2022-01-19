@@ -537,7 +537,7 @@ pub fn provide_liquidity(
             config.bluna_rewarder.as_str(),
             user_share,
             total_share,
-            info.sender.clone(),
+            None,
         )?);
     }
 
@@ -701,7 +701,7 @@ pub fn withdraw_liquidity(
             config.bluna_rewarder.as_str(),
             user_share,
             total_share,
-            info.sender.clone(),
+            None,
         )?);
     }
 
@@ -1708,7 +1708,7 @@ fn get_bluna_reward_holder_instantiating_message(
 ///
 /// * **total_share** is object of type [`Uint128`].
 ///
-/// * **receiver** is object of type [`Addr`]
+/// * **receiver** is object of type [`Option<Addr>`]
 fn get_bluna_reward_handling_messages(
     deps: Deps,
     env: &Env,
@@ -1716,7 +1716,7 @@ fn get_bluna_reward_handling_messages(
     bluna_rewarder: &str,
     user_share: Uint128,
     total_share: Uint128,
-    receiver: Addr,
+    receiver: Option<Addr>,
 ) -> Result<Vec<CosmosMsg>, ContractError> {
     let bluna_reward_holder = BLUNA_REWARD_HOLDER.load(deps.storage)?;
 
@@ -1759,7 +1759,7 @@ fn get_bluna_reward_handling_messages(
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **receiver** is object of type [`Addr`]
+/// * **receiver** is object of type [`Option<String>`]
 fn claim_reward(
     deps: DepsMut,
     env: Env,
@@ -1768,8 +1768,7 @@ fn claim_reward(
 ) -> Result<Response, ContractError> {
     let receiver = receiver
         .map(|receiver| addr_validate_to_lower(deps.api, &receiver))
-        .transpose()?
-        .unwrap_or_else(|| info.sender.clone());
+        .transpose()?;
 
     let config: Config = CONFIG.load(deps.storage)?;
     let user_share = query_token_balance(
@@ -1812,7 +1811,7 @@ fn claim_reward(
 ///
 /// * **user** is object of type [`Addr`].
 ///
-/// * **receiver** is object of type [`Addr`].
+/// * **receiver** is object of type [`Option<Addr>`].
 #[allow(clippy::too_many_arguments)]
 pub fn handle_reward(
     deps: DepsMut,
@@ -1822,13 +1821,15 @@ pub fn handle_reward(
     user_share: Uint128,
     total_share: Uint128,
     user: Addr,
-    receiver: Addr,
+    receiver: Option<Addr>,
 ) -> Result<Response, ContractError> {
     use astroport::whitelist::ExecuteMsg;
 
     if info.sender != env.contract.address {
         return Err(ContractError::Unauthorized {});
     }
+
+    let receiver = receiver.unwrap_or_else(|| user.clone());
 
     let bluna_reward_holder = BLUNA_REWARD_HOLDER.load(deps.storage)?;
 
