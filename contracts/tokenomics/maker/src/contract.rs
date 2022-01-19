@@ -471,7 +471,6 @@ fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
 
     Ok(Response::default()
         .add_submessages(distribute_msg)
-        .add_attribute("action", "distribute_astro")
         .add_attributes(attributes))
 }
 
@@ -562,6 +561,7 @@ fn distribute(
     let to_staking_asset =
         token_asset(cfg.astro_token_contract.clone(), amount - governance_amount);
 
+    attributes.push(("action".to_string(), "distribute_astro".to_string()));
     attributes.push((
         "astro_distribution".to_string(),
         pure_astro_reward.to_string(),
