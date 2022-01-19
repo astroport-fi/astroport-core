@@ -85,7 +85,7 @@ pub fn instantiate(
         return Err(ContractError::IncorrectAmp {});
     }
 
-    let mut messages: Vec<SubMsg> = vec![get_bluna_rewarder_instantiating_message(
+    let mut messages: Vec<SubMsg> = vec![get_bluna_reward_holder_instantiating_message(
         deps.as_ref(),
         &env,
         &addr_validate_to_lower(deps.api, &msg.factory_addr)?,
@@ -1479,7 +1479,7 @@ pub fn migrate(deps: DepsMut, env: Env, _msg: MigrateMsg) -> Result<Response, Co
                 let config = CONFIG.load(deps.storage)?;
                 response
                     .messages
-                    .push(get_bluna_rewarder_instantiating_message(
+                    .push(get_bluna_reward_holder_instantiating_message(
                         deps.as_ref(),
                         &env,
                         &config.factory_addr,
@@ -1660,7 +1660,7 @@ fn compute_current_amp(config: &Config, env: &Env) -> StdResult<u64> {
 }
 
 /// ## Description
-/// Get bLuna reward instantiating message
+/// Get bLuna reward holder instantiating message
 /// Returns an [`ContractError`] on failure, otherwise returns the object
 /// of type [`SubMsg`].
 /// ## Params
@@ -1669,7 +1669,7 @@ fn compute_current_amp(config: &Config, env: &Env) -> StdResult<u64> {
 /// * **env** is the object of type [`Env`].
 ///
 /// * **factory_addr** is the object of type [`Addr`].
-fn get_bluna_rewarder_instantiating_message(
+fn get_bluna_reward_holder_instantiating_message(
     deps: Deps,
     env: &Env,
     factory_addr: &Addr,
