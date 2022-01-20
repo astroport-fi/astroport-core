@@ -1,9 +1,18 @@
 import {
     newClient,
     readArtifact,
-    queryContract, Client, toEncodedBinary, executeContract, NativeAsset, TokenAsset,
+    queryContract,
+    Client,
+    toEncodedBinary,
+    executeContract,
+    NativeAsset,
+    TokenAsset,
+    NativeSwap,
+    AstroSwap,
+    performTransaction
 } from "../helpers.js"
-import {LCDClient, Coin} from '@terra-money/terra.js';
+import {LCDClient, Coin, MsgExecuteContract, Numeric, Coins} from '@terra-money/terra.js';
+import util from 'util';
 
 export class Astroport {
     terra: LCDClient;
@@ -42,6 +51,10 @@ export class Astroport {
 
     factory(addr: string) {
         return new Factory(this.terra, this.wallet, addr);
+    }
+
+    router(addr: string) {
+        return new Router(this.terra, this.wallet, addr);
     }
 }
 
@@ -135,6 +148,7 @@ class Pair {
         })
     }
 }
+
 class Staking {
     terra: any;
     wallet: any;
@@ -217,6 +231,60 @@ class Factory {
 
         let resp = await queryContract(this.terra, this.addr, {fee_info: {pair_type: pt}});
         return resp
+    }
+}
+
+export class Router {
+    terra: any;
+    wallet: any;
+    addr: string;
+
+    constructor(terra: any, wallet: any, addr:string) {
+        this.terra = terra
+        this.wallet = wallet
+        this.addr = addr;
+    }
+
+    async queryConfig() {
+        return await queryContract(this.terra, this.addr, {config: {}})
+    }
+
+    async assertMinimumReceive(asset_info: TokenAsset | NativeAsset, prev_balance: string, minimum_receive: string, receiver: string) {
+        return await executeContract(this.terra, this.wallet, this.addr, {
+            "assert_minimum_receive": {
+                "asset_info": asset_info.getInfo(),
+                "minimum_receive": minimum_receive,
+                "prev_balance": prev_balance,
+                "receiver": receiver
+            }
+        });
+    }
+
+    async swapOperationsCW20(token_addr: string, amount: string, minimum_receive: string, operations: (NativeSwap|AstroSwap)[], to?: string) {
+        let msg = Buffer.from(JSON.stringify({
+            execute_swap_operations: {
+                    operations: operations.map(value => value.getInfo()),
+                    minimum_receive: minimum_receive,
+                    to: to
+            }})).toString("base64");
+
+        return await executeContract(this.terra, this.wallet, token_addr, {
+            send: {
+                contract: this.addr,
+                amount,
+                msg
+            }
+        })
+    }
+
+    async swapOperations(operations: (NativeSwap | AstroSwap)[], coins: Coin, minimum_receive?: string, to?: string) {
+        return await executeContract(this.terra, this.wallet, this.addr, {
+            "execute_swap_operations": {
+                "operations": operations.map(value => value.getInfo()),
+                "minimum_receive": minimum_receive,
+                "to": to
+            }
+        },  [coins]);
     }
 }
 

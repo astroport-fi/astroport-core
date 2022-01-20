@@ -410,9 +410,9 @@ pub fn query_timestamp(env: Env) -> StdResult<u64> {
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **address** is the object of type [`Addr`].
-pub fn query_vesting_account(deps: Deps, address: Addr) -> StdResult<VestingAccountResponse> {
-    let address = addr_validate_to_lower(deps.api, address.as_str())?;
+/// * **address** is the object of type [`String`].
+pub fn query_vesting_account(deps: Deps, address: String) -> StdResult<VestingAccountResponse> {
+    let address = addr_validate_to_lower(deps.api, &address)?;
     let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
 
     let resp = VestingAccountResponse { address, info };
@@ -426,17 +426,21 @@ pub fn query_vesting_account(deps: Deps, address: Addr) -> StdResult<VestingAcco
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **start_after** is an [`Option`] field of type [`Addr`].
+/// * **start_after** is an [`Option`] field of type [`String`].
 ///
 /// * **limit** is an [`Option`] field of type [`u32`].
 ///
 /// * **order_by** is an [`Option`] field of type [`OrderBy`].
 pub fn query_vesting_accounts(
     deps: Deps,
-    start_after: Option<Addr>,
+    start_after: Option<String>,
     limit: Option<u32>,
     order_by: Option<OrderBy>,
 ) -> StdResult<VestingAccountsResponse> {
+    let start_after = start_after
+        .map(|v| addr_validate_to_lower(deps.api, &v))
+        .transpose()?;
+
     let vesting_infos = read_vesting_infos(deps, start_after, limit, order_by)?;
 
     let vesting_account_responses: Vec<VestingAccountResponse> = vesting_infos
@@ -457,9 +461,9 @@ pub fn query_vesting_accounts(
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **address** is the object of type [`Addr`].
-pub fn query_vesting_available_amount(deps: Deps, env: Env, address: Addr) -> StdResult<Uint128> {
-    let address = addr_validate_to_lower(deps.api, address.as_str())?;
+/// * **address** is the object of type [`String`].
+pub fn query_vesting_available_amount(deps: Deps, env: Env, address: String) -> StdResult<Uint128> {
+    let address = addr_validate_to_lower(deps.api, &address)?;
 
     let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
     let available_amount = compute_available_amount(env.block.time.seconds(), &info)?;

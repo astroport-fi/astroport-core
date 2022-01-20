@@ -1,9 +1,9 @@
-use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
     attr, to_binary, Addr, BlockInfo, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
+use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
@@ -14,19 +14,24 @@ use astroport::oracle::QueryMsg::Consult;
 use astroport::oracle::{ExecuteMsg, InstantiateMsg};
 use astroport::pair::StablePoolParams;
 
-fn mock_app() -> App {
+fn mock_app() -> TerraApp {
     let env = mock_env();
     let api = MockApi::default();
     let bank = BankKeeper::new();
-    let mut tmq = TerraMockQuerier::new(MockQuerier::new(&[]));
+    let storage = MockStorage::new();
+    let custom = TerraMock::luna_ust_case();
 
-    tmq.with_market(&[]);
-
-    App::new(api, env.block, bank, MockStorage::new(), tmq)
+    AppBuilder::new()
+        .with_api(api)
+        .with_block(env.block)
+        .with_bank(bank)
+        .with_storage(storage)
+        .with_custom(custom)
+        .build()
 }
 
-fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
-    let astro_token_contract = Box::new(ContractWrapper::new(
+fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, u64) {
+    let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
         astroport_token::contract::query,
@@ -57,34 +62,34 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
         .unwrap();
 
     let pair_contract = Box::new(
-        ContractWrapper::new(
+        ContractWrapper::new_with_empty(
             astroport_pair::contract::execute,
             astroport_pair::contract::instantiate,
             astroport_pair::contract::query,
         )
-        .with_reply(astroport_pair::contract::reply),
+        .with_reply_empty(astroport_pair::contract::reply),
     );
 
     let pair_code_id = router.store_code(pair_contract);
 
     let pair_stable_contract = Box::new(
-        ContractWrapper::new(
+        ContractWrapper::new_with_empty(
             astroport_pair_stable::contract::execute,
             astroport_pair_stable::contract::instantiate,
             astroport_pair_stable::contract::query,
         )
-        .with_reply(astroport_pair_stable::contract::reply),
+        .with_reply_empty(astroport_pair_stable::contract::reply),
     );
 
     let pair_stable_code_id = router.store_code(pair_stable_contract);
 
     let factory_contract = Box::new(
-        ContractWrapper::new(
+        ContractWrapper::new_with_empty(
             astroport_factory::contract::execute,
             astroport_factory::contract::instantiate,
             astroport_factory::contract::query,
         )
-        .with_reply(astroport_factory::contract::reply),
+        .with_reply_empty(astroport_factory::contract::reply),
     );
 
     let factory_code_id = router.store_code(factory_contract);
@@ -109,6 +114,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
         fee_address: None,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
+        whitelist_code_id: 234u64,
     };
 
     let factory_instance = router
@@ -122,7 +128,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
         )
         .unwrap();
 
-    let oracle_contract = Box::new(ContractWrapper::new(
+    let oracle_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_oracle::contract::execute,
         astroport_oracle::contract::instantiate,
         astroport_oracle::contract::query,
@@ -131,8 +137,8 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
     (astro_token_instance, factory_instance, oracle_code_id)
 }
 
-fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String) -> Addr {
-    let token_contract = Box::new(ContractWrapper::new(
+fn instantiate_token(router: &mut TerraApp, owner: Addr, name: String, symbol: String) -> Addr {
+    let token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
         astroport_token::contract::query,
@@ -164,7 +170,13 @@ fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String
     token_instance
 }
 
-fn mint_some_token(router: &mut App, owner: Addr, token_instance: Addr, to: Addr, amount: Uint128) {
+fn mint_some_token(
+    router: &mut TerraApp,
+    owner: Addr,
+    token_instance: Addr,
+    to: Addr,
+    amount: Uint128,
+) {
     let msg = cw20::Cw20ExecuteMsg::Mint {
         recipient: to.to_string(),
         amount,
@@ -177,7 +189,13 @@ fn mint_some_token(router: &mut App, owner: Addr, token_instance: Addr, to: Addr
     assert_eq!(res.events[1].attributes[3], attr("amount", amount));
 }
 
-fn allowance_token(router: &mut App, owner: Addr, spender: Addr, token: Addr, amount: Uint128) {
+fn allowance_token(
+    router: &mut TerraApp,
+    owner: Addr,
+    spender: Addr,
+    token: Addr,
+    amount: Uint128,
+) {
     let msg = cw20::Cw20ExecuteMsg::IncreaseAllowance {
         spender: spender.to_string(),
         amount,
@@ -201,7 +219,7 @@ fn allowance_token(router: &mut App, owner: Addr, spender: Addr, token: Addr, am
     assert_eq!(res.events[1].attributes[4], attr("amount", amount));
 }
 
-fn check_balance(router: &mut App, user: Addr, token: Addr, expected_amount: Uint128) {
+fn check_balance(router: &mut TerraApp, user: Addr, token: Addr, expected_amount: Uint128) {
     let msg = Cw20QueryMsg::Balance {
         address: user.to_string(),
     };
@@ -218,7 +236,7 @@ fn check_balance(router: &mut App, user: Addr, token: Addr, expected_amount: Uin
 }
 
 fn create_pair(
-    mut router: &mut App,
+    mut router: &mut TerraApp,
     owner: Addr,
     user: Addr,
     factory_instance: &Addr,
@@ -323,7 +341,7 @@ fn create_pair(
 }
 
 fn create_pair_stable(
-    mut router: &mut App,
+    mut router: &mut TerraApp,
     owner: Addr,
     user: Addr,
     factory_instance: &Addr,
@@ -428,7 +446,7 @@ fn create_pair_stable(
 }
 
 fn change_provide_liquidity(
-    mut router: &mut App,
+    mut router: &mut TerraApp,
     owner: Addr,
     user: Addr,
     pair_contract: Addr,

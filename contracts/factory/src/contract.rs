@@ -4,6 +4,7 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
+use crate::migration;
 use crate::querier::query_pair_info;
 
 use crate::state::{
@@ -21,7 +22,7 @@ use astroport::factory::{
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use protobuf::Message;
 use std::collections::HashSet;
 
@@ -57,6 +58,7 @@ pub fn instantiate(
         token_code_id: msg.token_code_id,
         fee_address: None,
         generator_address: None,
+        whitelist_code_id: msg.whitelist_code_id,
     };
 
     if let Some(generator_address) = msg.generator_address {
@@ -101,6 +103,8 @@ pub struct UpdateConfig {
     fee_address: Option<String>,
     /// Sets contract address that used for auto_stake from pools
     generator_address: Option<String>,
+    /// cw1 whitelist contract code id used to store 3rd party rewards in pools
+    whitelist_code_id: Option<u64>,
 }
 
 /// ## Description
@@ -148,6 +152,7 @@ pub fn execute(
             token_code_id,
             fee_address,
             generator_address,
+            whitelist_code_id,
         } => execute_update_config(
             deps,
             env,
@@ -156,6 +161,7 @@ pub fn execute(
                 token_code_id,
                 fee_address,
                 generator_address,
+                whitelist_code_id,
             },
         ),
         ExecuteMsg::UpdatePairConfig { config } => execute_update_pair_config(deps, info, config),
@@ -242,6 +248,10 @@ pub fn execute_update_config(
 
     if let Some(token_code_id) = param.token_code_id {
         config.token_code_id = token_code_id;
+    }
+
+    if let Some(code_id) = param.whitelist_code_id {
+        config.whitelist_code_id = code_id;
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -346,7 +356,7 @@ pub fn execute_create_pair(
             msg: to_binary(&PairInstantiateMsg {
                 asset_infos: asset_infos.clone(),
                 token_code_id: config.token_code_id,
-                factory_addr: env.contract.address,
+                factory_addr: env.contract.address.to_string(),
                 init_params,
             })?,
             funds: vec![],
@@ -483,6 +493,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
             .collect(),
         fee_address: config.fee_address,
         generator_address: config.generator_address,
+        whitelist_code_id: config.whitelist_code_id,
     };
 
     Ok(resp)
@@ -546,6 +557,34 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-factory" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                let config_v100 = migration::CONFIGV100.load(deps.storage)?;
+
+                let new_config = Config {
+                    whitelist_code_id: msg.whitelist_code_id,
+                    fee_address: config_v100.fee_address,
+                    generator_address: config_v100.generator_address,
+                    owner: config_v100.owner,
+                    token_code_id: config_v100.token_code_id,
+                };
+
+                CONFIG.save(deps.storage, &new_config)?;
+            }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

@@ -21,6 +21,8 @@ pub struct Config {
     pub generator_address: Option<Addr>,
     /// contract address to send fees to
     pub fee_address: Option<Addr>,
+    /// cw1 whitelist contract code id used to store 3rd party rewards in pools
+    pub whitelist_code_id: u64,
 }
 
 /// ## Description

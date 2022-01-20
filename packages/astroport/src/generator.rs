@@ -38,7 +38,7 @@ pub enum ExecuteMsg {
     /// Only owner can execute it
     Add {
         /// the LP token contract address
-        lp_token: Addr,
+        lp_token: String,
         /// the allocation point of liquidity pool
         alloc_point: Uint64,
         /// the reward proxy contract
@@ -50,7 +50,7 @@ pub enum ExecuteMsg {
     /// Only owner can execute it
     Set {
         /// the LP token contract address
-        lp_token: Addr,
+        lp_token: String,
         /// the allocation point of liquidity pool
         alloc_point: Uint64,
     },
@@ -61,13 +61,13 @@ pub enum ExecuteMsg {
     /// Updates reward variables of the given pool to be up-to-date
     UpdatePool {
         /// the LP token contract address
-        lp_token: Addr,
+        lp_token: String,
     },
     /// ## Description
     /// Withdraw LP tokens from Generator.
     Withdraw {
         /// the LP token contract address
-        lp_token: Addr,
+        lp_token: String,
         /// the amount of withdrawal
         amount: Uint128,
     },
@@ -75,7 +75,7 @@ pub enum ExecuteMsg {
     /// Withdraw LP tokens from Generator without caring about rewards.
     EmergencyWithdraw {
         /// the LP token contract address
-        lp_token: Addr,
+        lp_token: String,
     },
     /// ## Description
     /// allowed reward proxies contracts
@@ -130,19 +130,19 @@ pub enum QueryMsg {
     /// PoolLength
     PoolLength {},
     /// Deposit
-    Deposit { lp_token: Addr, user: Addr },
+    Deposit { lp_token: String, user: String },
     /// PendingToken
-    PendingToken { lp_token: Addr, user: Addr },
+    PendingToken { lp_token: String, user: String },
     /// Config returns the base setting of the generator
     Config {},
     /// RewardInfo returns reward information for the specified token.
-    RewardInfo { lp_token: Addr },
+    RewardInfo { lp_token: String },
     /// OrphanProxyRewards returns reward information for the specified token.
-    OrphanProxyRewards { lp_token: Addr },
+    OrphanProxyRewards { lp_token: String },
     /// PoolInfo returns currently stored information regarding that Pool alongwith the pending total ASTRO and proxy rewards claimable by the users
-    PoolInfo { lp_token: Addr },
+    PoolInfo { lp_token: String },
     /// SimulateFutureReward returns the amount of ASTRO distributed at the future block
-    SimulateFutureReward { lp_token: Addr, future_block: u64 },
+    SimulateFutureReward { lp_token: String, future_block: u64 },
 }
 
 /// ## Description

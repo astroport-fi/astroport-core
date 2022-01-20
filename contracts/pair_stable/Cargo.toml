@@ -40,7 +40,7 @@ cosmwasm-vm = { version = "0.16.2", default-features = false, features = ["itera
 cosmwasm-schema = "0.16.2"
 terra-cosmwasm = { version = "2.2.0" }
 proptest = "1.0.0"
-sim =  { path = "./sim" }
+sim =  { path = "../sim" }
 astroport-token = {path = "../token"}
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.8.0-terra1"}
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
 astroport-factory = {path = "../factory"}

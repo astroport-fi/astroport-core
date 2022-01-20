@@ -1,6 +1,6 @@
 [package]
 name = "astroport-maker"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Astroport"]
 edition = "2018"
 
@@ -35,5 +35,5 @@ cosmwasm-schema = { version = "0.16.2" }
 astroport-token = {path = "../../token"}
 astroport-factory = {path = "../../factory"}
 astroport-pair = {path = "../../pair"}
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.8.0-terra1"}
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
 cosmwasm-bignumber = "2.2.0"

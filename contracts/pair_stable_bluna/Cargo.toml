@@ -1,0 +1,48 @@
+[package]
+name = "astroport-pair-stable-bluna"
+version = "1.0.0"
+authors = ["Astroport"]
+edition = "2018"
+description = "An Astroport pair contract"
+license = "MIT"
+
+exclude = [
+  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+  "contract.wasm",
+  "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces", "cosmwasm-vm/backtraces"]
+
+[dependencies]
+integer-sqrt = "0.1.5"
+astroport = { path = "../../packages/astroport", default-features = false }
+cw2 = { version = "0.8" }
+cw20 = { version = "0.8" }
+cosmwasm-std = { version = "0.16.0" }
+cw-storage-plus = {version = "0.8.0"}
+schemars = "0.8.1"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.20" }
+cosmwasm-bignumber = "2.2.0"
+protobuf = { version = "2", features = ["with-bytes"] }
+anchor-basset = {git = "https://github.com/astroport-fi/anchor-bAsset-contracts.git", branch = "master", package = "basset"}
+
+[dev-dependencies]
+proptest = "1.0.0"
+sim =  { path = "../sim" }
+terra-cosmwasm = { version = "2.2.0" }
+cosmwasm-vm = { version = "0.16.0", default-features = false, features = ["iterator"] }
+cosmwasm-schema = "0.16.0"
+astroport-token = {path = "../token"}
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
+astroport-factory = {path = "../factory"}
+astroport-whitelist = {path = "../whitelist"}

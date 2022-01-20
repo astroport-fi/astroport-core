@@ -1,29 +1,35 @@
 use astroport::staking::{ConfigResponse, Cw20HookMsg, InstantiateMsg as xInstatiateMsg, QueryMsg};
 use astroport::token::InstantiateMsg;
-use cosmwasm_std::testing::MockQuerier;
 use cosmwasm_std::{
     attr,
     testing::{mock_env, MockApi, MockStorage},
     to_binary, Addr, QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
+use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
 
 const ALICE: &str = "Alice";
 const BOB: &str = "Bob";
 const CAROL: &str = "Carol";
 
-fn mock_app() -> App {
+fn mock_app() -> TerraApp {
     let env = mock_env();
     let api = MockApi::default();
     let bank = BankKeeper::new();
+    let storage = MockStorage::new();
+    let custom = TerraMock::luna_ust_case();
 
-    let terra_mock_querier = TerraMockQuerier::new(MockQuerier::new(&[]));
-    App::new(api, env.block, bank, MockStorage::new(), terra_mock_querier)
+    AppBuilder::new()
+        .with_api(api)
+        .with_block(env.block)
+        .with_bank(bank)
+        .with_storage(storage)
+        .with_custom(custom)
+        .build()
 }
 
-fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
-    let astro_token_contract = Box::new(ContractWrapper::new(
+fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Addr) {
+    let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
         astroport_token::contract::query,
@@ -54,12 +60,12 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
         .unwrap();
 
     let staking_contract = Box::new(
-        ContractWrapper::new(
+        ContractWrapper::new_with_empty(
             astroport_staking::contract::execute,
             astroport_staking::contract::instantiate,
             astroport_staking::contract::query,
         )
-        .with_reply(astroport_staking::contract::reply),
+        .with_reply_empty(astroport_staking::contract::reply),
     );
 
     let staking_code_id = router.store_code(staking_contract);
@@ -102,7 +108,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
     )
 }
 
-fn mint_some_astro(router: &mut App, owner: Addr, astro_token_instance: Addr, to: &str) {
+fn mint_some_astro(router: &mut TerraApp, owner: Addr, astro_token_instance: Addr, to: &str) {
     let msg = cw20::Cw20ExecuteMsg::Mint {
         recipient: String::from(to),
         amount: Uint128::from(100u128),

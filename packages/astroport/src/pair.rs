@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{Asset, AssetInfo};
 
-use cosmwasm_std::{Addr, Binary, Decimal, Uint128};
+use cosmwasm_std::{Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 /// the default slippage
@@ -22,7 +22,7 @@ pub struct InstantiateMsg {
     /// the token contract code id for initialization
     pub token_code_id: u64,
     /// the factory contract address
-    pub factory_addr: Addr,
+    pub factory_addr: String,
     /// the optional binary serialised parameters for custom pool types
     pub init_params: Option<Binary>,
 }
