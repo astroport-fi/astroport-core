@@ -16,7 +16,7 @@ use astroport::DecimalCheckedOps;
 use astroport::{
     generator::{
         ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse,
-        PoolLengthResponse, QueryMsg, RewardInfoResponse,
+        PoolInfoResponse, PoolLengthResponse, QueryMsg, RewardInfoResponse,
     },
     generator_proxy::{
         Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
@@ -1133,6 +1133,11 @@ fn send_orphan_proxy_rewards(
 /// in a [`RewardInfoResponse`] object.
 ///
 /// * **QueryMsg::OrphanProxyRewards { lp_token }** Returns information about the orphan proxy rewards.
+///
+/// * **QueryMsg::PoolInfo { lp_token }** Returns information about the pool
+/// in a [`PoolInfoResponse`] object.
+///
+/// * **QueryMsg::SimulateFutureReward { lp_token, future_block }** Returns information about the reward at the future block
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
@@ -1148,6 +1153,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::OrphanProxyRewards { lp_token } => {
             Ok(to_binary(&query_orphan_proxy_rewards(deps, lp_token)?)?)
         }
+        QueryMsg::PoolInfo { lp_token } => Ok(to_binary(&query_pool_info(deps, env, lp_token)?)?),
+        QueryMsg::SimulateFutureReward {
+            lp_token,
+            future_block,
+        } => Ok(to_binary(&query_simulate_future_reward(
+            deps,
+            env,
+            lp_token,
+            future_block,
+        )?)?),
     }
 }
 
@@ -1325,6 +1340,111 @@ fn query_orphan_proxy_rewards(deps: Deps, lp_token: String) -> Result<Uint128, C
     }
 
     Ok(pool.orphan_proxy_rewards)
+}
+
+/// ## Description
+/// Returns an [`ContractError`] on failure, otherwise returns information about the LP Pool rewards
+/// configs in a [`PoolInfoResponse`] object .
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **lp_token** is the object of type [`Addr`].
+fn query_pool_info(
+    deps: Deps,
+    env: Env,
+    lp_token: String,
+) -> Result<PoolInfoResponse, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+    let pool = POOL_INFO.load(deps.storage, &lp_token)?;
+
+    let lp_supply: Uint128;
+    let mut pending_on_proxy = None;
+    let mut pending_astro_rewards = Uint128::zero();
+
+    // If proxy rewards are live for this LP token, calculate its Pending Proxy rewards
+    match &pool.reward_proxy {
+        Some(proxy) => {
+            lp_supply = deps
+                .querier
+                .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?;
+
+            // If LP tokens are staked via proxy contract, fetch currently pending proxy rewards
+            if !lp_supply.is_zero() {
+                let res: Uint128 = deps
+                    .querier
+                    .query_wasm_smart(proxy, &ProxyQueryMsg::PendingToken {})?;
+
+                if !res.is_zero() {
+                    pending_on_proxy = Some(res);
+                }
+            }
+        }
+        None => {
+            lp_supply = query_token_balance(&deps.querier, lp_token, env.contract.address.clone())?;
+        }
+    }
+
+    // Calculate pending ASTRO rewards
+    if env.block.height > pool.last_reward_block.u64() && !lp_supply.is_zero() {
+        pending_astro_rewards = calculate_rewards(&env, &pool, &config)?;
+    }
+
+    // Calculate ASTRO tokens being distributed per block to this LP token pool
+    let astro_tokens_per_block: Uint128;
+    astro_tokens_per_block = config
+        .tokens_per_block
+        .checked_mul(Uint128::from(pool.alloc_point.u64()))?
+        .checked_div(Uint128::from(config.total_alloc_point.u64()))
+        .unwrap_or_else(|_| Uint128::zero());
+
+    Ok(PoolInfoResponse {
+        alloc_point: pool.alloc_point,
+        astro_tokens_per_block,
+        last_reward_block: pool.last_reward_block.u64(),
+        current_block: env.block.height,
+        accumulated_rewards_per_share: pool.accumulated_rewards_per_share,
+        pending_astro_rewards,
+        reward_proxy: pool.reward_proxy,
+        pending_proxy_rewards: pending_on_proxy,
+        accumulated_proxy_rewards_per_share: pool.accumulated_proxy_rewards_per_share,
+        proxy_reward_balance_before_update: pool.proxy_reward_balance_before_update,
+        orphan_proxy_rewards: pool.orphan_proxy_rewards,
+    })
+}
+
+/// ## Description
+/// Returns an [`ContractError`] on failure, otherwise returns information about the reward at the future block
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **lp_token** is the object of type [`Addr`].
+pub fn query_simulate_future_reward(
+    deps: Deps,
+    env: Env,
+    lp_token: String,
+    future_block: u64,
+) -> Result<Uint128, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
+    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+    let pool = POOL_INFO.load(deps.storage, &lp_token)?;
+    let n_blocks = Uint128::from(future_block)
+        .checked_sub(env.block.height.into())
+        .unwrap_or_else(|_| Uint128::zero());
+
+    let simulated_reward = n_blocks
+        .checked_mul(cfg.tokens_per_block)?
+        .checked_mul(Uint128::from(pool.alloc_point.u64()))?
+        .checked_div(Uint128::from(cfg.total_alloc_point.u64()))
+        .unwrap_or_else(|_| Uint128::zero());
+
+    Ok(simulated_reward)
 }
 
 /// ## Description

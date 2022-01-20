@@ -15,7 +15,7 @@ library = []
 [dependencies]
 cw2 = { version = "0.8" }
 cw20 = { version = "0.8" }
-cosmwasm-std = { version = "0.16.0" }
+cosmwasm-std = { version = "0.16.2" }
 cw-storage-plus = {version = "0.8.0", features = ['iterator']}
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
@@ -23,6 +23,6 @@ astroport = { path = "../../../packages/astroport", default-features = false }
 thiserror = { version = "1.0.20" }
 
 [dev-dependencies]
-cosmwasm-schema = { version = "0.16.0", default-features = false  }
+cosmwasm-schema = { version = "0.16.2", default-features = false  }
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
 astroport-token = {path = "../../token"}

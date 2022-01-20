@@ -27,7 +27,7 @@ serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
 cw2 = "0.8.0"
 cw20 = "0.8.0"
-astroport = "0.3.1"
+astroport = "1.1.0"
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }

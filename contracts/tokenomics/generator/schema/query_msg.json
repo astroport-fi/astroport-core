@@ -113,6 +113,52 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "pool_info"
+      ],
+      "properties": {
+        "pool_info": {
+          "type": "object",
+          "required": [
+            "lp_token"
+          ],
+          "properties": {
+            "lp_token": {
+              "$ref": "#/definitions/Addr"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "simulate_future_reward"
+      ],
+      "properties": {
+        "simulate_future_reward": {
+          "type": "object",
+          "required": [
+            "future_block",
+            "lp_token"
+          ],
+          "properties": {
+            "future_block": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "lp_token": {
+              "$ref": "#/definitions/Addr"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
