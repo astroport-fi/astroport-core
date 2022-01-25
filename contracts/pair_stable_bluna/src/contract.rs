@@ -1866,9 +1866,7 @@ pub fn handle_reward(
     )?;
 
     let bluna_reward_global_index = BLUNA_REWARD_GLOBAL_INDEX.load(deps.storage)?;
-    let bluna_reward_user_index = BLUNA_REWARD_USER_INDEXES
-        .may_load(deps.storage, &user)?
-        .unwrap_or_default();
+    let bluna_reward_user_index = BLUNA_REWARD_USER_INDEXES.may_load(deps.storage, &user)?;
 
     let (bluna_reward_global_index, latest_reward_amount, user_reward) = calc_user_reward(
         reward_balance,
@@ -1927,7 +1925,7 @@ pub fn calc_user_reward(
     user_share: Uint128,
     total_share: Uint128,
     bluna_reward_global_index: cosmwasm_std::Decimal256,
-    bluna_reward_user_index: cosmwasm_std::Decimal256,
+    bluna_reward_user_index: Option<cosmwasm_std::Decimal256>,
 ) -> Result<(cosmwasm_std::Decimal256, Uint128, Uint128), ContractError> {
     use cosmwasm_std::Decimal256;
 
@@ -1936,10 +1934,13 @@ pub fn calc_user_reward(
     let bluna_reward_global_index =
         bluna_reward_global_index + Decimal256::from_ratio(latest_reward_amount, total_share);
 
-    let user_reward: Uint128 = ((bluna_reward_global_index - bluna_reward_user_index)
-        * Uint256::from(user_share))
-    .try_into()
-    .map_err(|e| ContractError::Std(StdError::from(e)))?;
+    let user_reward: Uint128 = if let Some(bluna_reward_user_index) = bluna_reward_user_index {
+        ((bluna_reward_global_index - bluna_reward_user_index) * Uint256::from(user_share))
+            .try_into()
+            .map_err(|e| ContractError::Std(StdError::from(e)))?
+    } else {
+        Uint128::zero()
+    };
 
     Ok((bluna_reward_global_index, latest_reward_amount, user_reward))
 }

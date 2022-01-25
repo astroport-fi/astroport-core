@@ -1163,7 +1163,7 @@ fn test_calc_user_reward() {
         Uint128::new(1000000000000000000000000000),
         Uint128::new(1000000000000000000000000000),
         Decimal256::from_str("100000000000000000000000000").unwrap(),
-        Decimal256::from_str("100").unwrap(),
+        Some(Decimal256::from_str("100").unwrap()),
     )
     .unwrap_err();
 
@@ -1174,7 +1174,7 @@ fn test_calc_user_reward() {
         Uint128::new(100),
         Uint128::new(100),
         Decimal256::from_str("100").unwrap(),
-        Decimal256::from_str("100").unwrap(),
+        Some(Decimal256::from_str("100").unwrap()),
     )
     .unwrap();
     assert_eq!(
@@ -1191,7 +1191,7 @@ fn test_calc_user_reward() {
         Uint128::new(10),
         Uint128::new(100),
         Decimal256::from_str("100").unwrap(),
-        Decimal256::from_str("100").unwrap(),
+        Some(Decimal256::from_str("100").unwrap()),
     )
     .unwrap();
     assert_eq!(
