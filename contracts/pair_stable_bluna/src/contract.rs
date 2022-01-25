@@ -1795,6 +1795,10 @@ fn claim_reward(
             },
         )?;
 
+        if user_share.is_zero() {
+            return Err(StdError::generic_err("No lp tokens staked to the generator!").into());
+        }
+
         let pool_info: PoolInfoResponse = deps.querier.query_wasm_smart(
             &config.generator,
             &GeneratorQueryMsg::PoolInfo {
