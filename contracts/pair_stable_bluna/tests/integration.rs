@@ -184,6 +184,7 @@ fn update_pair_config() {
             to_binary(&StablePoolParams {
                 amp: 100,
                 bluna_rewarder: "bluna_rewarder".to_string(),
+                generator: "generator".to_string(),
             })
             .unwrap(),
         ),

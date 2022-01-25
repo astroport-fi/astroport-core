@@ -35,7 +35,14 @@ pub enum ExecuteMsg {
     /// Update pair config if required
     UpdateConfig { params: Binary },
     /// Claims the Bluna reward and sends it to the receiver
-    ClaimReward { receiver: Option<String> },
+    ClaimReward {
+        /// An address which will receive the reward
+        receiver: Option<String>,
+        /// Only the generator can use this parameter on changing the amount of user's staked lp tokens
+        user_share: Option<Uint128>,
+        /// Only the generator can use this parameter on changing the amount of user's staked lp tokens
+        total_share: Option<Uint128>,
+    },
     /// Callback for distributing Bluna reward
     HandleReward {
         previous_reward_balance: Uint128,
@@ -74,6 +81,7 @@ pub enum QueryMsg {
 pub struct StablePoolParams {
     pub amp: u64,
     pub bluna_rewarder: String,
+    pub generator: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -81,6 +89,7 @@ pub struct StablePoolParams {
 pub struct StablePoolConfig {
     pub amp: Decimal,
     pub bluna_rewarder: Addr,
+    pub generator: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -94,4 +103,5 @@ pub enum StablePoolUpdateParams {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
     pub bluna_rewarder: String,
+    pub generator: String,
 }

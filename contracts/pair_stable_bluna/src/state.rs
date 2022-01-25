@@ -24,6 +24,8 @@ pub struct Config {
     pub next_amp_time: u64,
     /// Contract to claim rewards from
     pub bluna_rewarder: Addr,
+    /// The generator address used for determining the users' reward shares
+    pub generator: Addr,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

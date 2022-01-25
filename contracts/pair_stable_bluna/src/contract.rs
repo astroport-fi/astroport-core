@@ -18,7 +18,9 @@ use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{addr_validate_to_lower, format_lp_token_name, Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
 
-use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
+use astroport::generator::{
+    Cw20HookMsg as GeneratorHookMsg, PoolInfoResponse, QueryMsg as GeneratorQueryMsg,
+};
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, InstantiateMsg, PoolResponse,
     ReverseSimulationResponse, SimulationResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
@@ -30,7 +32,7 @@ use astroport::pair_stable_bluna::{
 use astroport::whitelist::InstantiateMsg as WhitelistInstantiateMsg;
 
 use astroport::querier::{
-    query_factory_config, query_fee_info, query_supply, query_token_balance, query_token_precision,
+    query_factory_config, query_fee_info, query_supply, query_token_precision,
 };
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
 use cw2::{get_contract_version, set_contract_version};
@@ -109,6 +111,7 @@ pub fn instantiate(
         next_amp: params.amp * AMP_PRECISION,
         next_amp_time: env.block.time.seconds(),
         bluna_rewarder: addr_validate_to_lower(deps.api, params.bluna_rewarder.as_str())?,
+        generator: addr_validate_to_lower(deps.api, params.generator.as_str())?,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -222,6 +225,8 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///
 /// * **ExecuteMsg::ClaimReward {
 ///     receiver,
+///     user_share,
+///     total_share,
 /// }** Claims the Bluna reward and sends it to the receiver
 ///
 /// * **ExecuteMsg::HandleReward {
@@ -282,7 +287,11 @@ pub fn execute(
                 to_addr,
             )
         }
-        ExecuteMsg::ClaimReward { receiver } => claim_reward(deps, env, info, receiver),
+        ExecuteMsg::ClaimReward {
+            receiver,
+            user_share,
+            total_share,
+        } => claim_reward(deps, env, info, receiver, user_share, total_share),
         ExecuteMsg::HandleReward {
             previous_reward_balance,
             user_share,
@@ -524,23 +533,6 @@ pub fn provide_liquidity(
         auto_stake,
     )?);
 
-    if !total_share.is_zero() {
-        let user_share = query_token_balance(
-            &deps.querier,
-            config.pair_info.liquidity_token.clone(),
-            info.sender.clone(),
-        )?;
-        messages.extend(get_bluna_reward_handling_messages(
-            deps.as_ref(),
-            &env,
-            &info,
-            config.bluna_rewarder.as_str(),
-            user_share,
-            total_share,
-            None,
-        )?);
-    }
-
     // Accumulate prices for oracle
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) = accumulate_prices(
         env,
@@ -661,7 +653,7 @@ pub fn withdraw_liquidity(
 
     // Accumulate prices for oracle
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) = accumulate_prices(
-        env.clone(),
+        env,
         &config,
         pools[0].amount,
         query_token_precision(&deps.querier, pools[0].info.clone())?,
@@ -674,7 +666,7 @@ pub fn withdraw_liquidity(
         CONFIG.save(deps.storage, &config)?;
     }
 
-    let mut messages: Vec<CosmosMsg> = vec![
+    let messages: Vec<CosmosMsg> = vec![
         refund_assets[0]
             .clone()
             .into_msg(&deps.querier, sender.clone())?,
@@ -687,23 +679,6 @@ pub fn withdraw_liquidity(
             funds: vec![],
         }),
     ];
-
-    if !total_share.is_zero() {
-        let user_share = query_token_balance(
-            &deps.querier,
-            config.pair_info.liquidity_token.clone(),
-            info.sender.clone(),
-        )? + amount;
-        messages.extend(get_bluna_reward_handling_messages(
-            deps.as_ref(),
-            &env,
-            &info,
-            config.bluna_rewarder.as_str(),
-            user_share,
-            total_share,
-            None,
-        )?);
-    }
 
     let attributes = vec![
         attr("action", "withdraw_liquidity"),
@@ -1229,6 +1204,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
         params: Some(to_binary(&StablePoolConfig {
             amp: Decimal::from_ratio(compute_current_amp(&config, &env)?, AMP_PRECISION),
             bluna_rewarder: config.bluna_rewarder,
+            generator: config.generator,
         })?),
     })
 }
@@ -1242,13 +1218,18 @@ pub fn query_pending_reward(deps: Deps, _env: Env, user: String) -> StdResult<As
 
     let config = CONFIG.load(deps.storage)?;
 
-    let user_share = query_token_balance(
-        &deps.querier,
-        config.pair_info.liquidity_token,
-        user.clone(),
+    let user_share: Uint128 = deps.querier.query_wasm_smart(
+        &config.generator,
+        &GeneratorQueryMsg::Deposit {
+            lp_token: config.pair_info.liquidity_token.to_string(),
+            user: user.to_string(),
+        },
     )?;
+
     let global_index = BLUNA_REWARD_GLOBAL_INDEX.load(deps.storage)?;
-    let user_index = BLUNA_REWARD_USER_INDEXES.load(deps.storage, &user)?;
+    let user_index = BLUNA_REWARD_USER_INDEXES
+        .may_load(deps.storage, &user)?
+        .unwrap_or_default();
 
     Ok(Asset {
         info: AssetInfo::NativeToken {
@@ -1466,7 +1447,7 @@ fn assert_slippage_tolerance(
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     let mut response = Response::new()
@@ -1476,14 +1457,19 @@ pub fn migrate(deps: DepsMut, env: Env, _msg: MigrateMsg) -> Result<Response, Co
     match contract_version.contract.as_ref() {
         "astroport-pair-stable" => match contract_version.version.as_ref() {
             "1.0.0" => {
-                let config = CONFIG.load(deps.storage)?;
+                let mut config = CONFIG.load(deps.storage)?;
+                config.bluna_rewarder = addr_validate_to_lower(deps.api, &msg.bluna_rewarder)?;
+                config.generator = addr_validate_to_lower(deps.api, &msg.generator)?;
+                CONFIG.save(deps.storage, &config)?;
                 response
                     .messages
                     .push(get_bluna_reward_holder_instantiating_message(
                         deps.as_ref(),
                         &env,
                         &config.factory_addr,
-                    )?)
+                    )?);
+
+                BLUNA_REWARD_GLOBAL_INDEX.save(deps.storage, &cosmwasm_std::Decimal256::zero())?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },
@@ -1759,25 +1745,65 @@ fn get_bluna_reward_handling_messages(
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **receiver** is object of type [`Option<String>`]
+/// * **receiver** is the object of type [`Option<String>`]
+///
+/// * **user_share** is the object of type [`Option<Uint128>`]
+///
+/// * **total_share** is the object of type [`Option<Uint128>`]
 fn claim_reward(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     receiver: Option<String>,
+    user_share: Option<Uint128>,
+    total_share: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     let receiver = receiver
         .map(|receiver| addr_validate_to_lower(deps.api, &receiver))
         .transpose()?;
 
     let config: Config = CONFIG.load(deps.storage)?;
-    let user_share = query_token_balance(
-        &deps.querier,
-        config.pair_info.liquidity_token.clone(),
-        info.sender.clone(),
-    )?;
 
-    let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;
+    if user_share.is_some() != total_share.is_some() {
+        return Err(StdError::generic_err(
+            "User and total shares should be both set or not at the same time!",
+        )
+        .into());
+    }
+
+    let (user_share, total_share) = if let Some(user_share) = user_share {
+        if let Some(total_share) = total_share {
+            if info.sender != config.generator {
+                return Err(
+                    StdError::generic_err("Only the generator can use share parameters!").into(),
+                );
+            }
+            (user_share, total_share)
+        } else {
+            unreachable!()
+        }
+    } else {
+        if info.sender == config.generator {
+            return Err(StdError::generic_err("The generator should use share parameters!").into());
+        }
+
+        let user_share: Uint128 = deps.querier.query_wasm_smart(
+            &config.generator,
+            &GeneratorQueryMsg::Deposit {
+                lp_token: config.pair_info.liquidity_token.to_string(),
+                user: info.sender.to_string(),
+            },
+        )?;
+
+        let pool_info: PoolInfoResponse = deps.querier.query_wasm_smart(
+            &config.generator,
+            &GeneratorQueryMsg::PoolInfo {
+                lp_token: config.pair_info.liquidity_token.to_string(),
+            },
+        )?;
+
+        (user_share, pool_info.lp_supply)
+    };
 
     Ok(
         Response::new().add_messages(get_bluna_reward_handling_messages(
@@ -1840,7 +1866,9 @@ pub fn handle_reward(
     )?;
 
     let bluna_reward_global_index = BLUNA_REWARD_GLOBAL_INDEX.load(deps.storage)?;
-    let bluna_reward_user_index = BLUNA_REWARD_USER_INDEXES.load(deps.storage, &user)?;
+    let bluna_reward_user_index = BLUNA_REWARD_USER_INDEXES
+        .may_load(deps.storage, &user)?
+        .unwrap_or_default();
 
     let (bluna_reward_global_index, latest_reward_amount, user_reward) = calc_user_reward(
         reward_balance,

@@ -25,6 +25,9 @@ pub enum ContractError {
 
     #[error("Insufficient amount of orphan rewards!")]
     OrphanRewardsTooSmall {},
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {

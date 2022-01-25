@@ -70,6 +70,7 @@ fn proper_initialization() {
             to_binary(&StablePoolParams {
                 amp: 100,
                 bluna_rewarder: "bluna_rewarder".to_string(),
+                generator: "generator".to_string(),
             })
             .unwrap(),
         ),
@@ -182,6 +183,7 @@ fn provide_liquidity() {
             to_binary(&StablePoolParams {
                 amp: 100,
                 bluna_rewarder: "bluna_rewarder".to_string(),
+                generator: "generator".to_string(),
             })
             .unwrap(),
         ),
@@ -341,6 +343,7 @@ fn withdraw_liquidity() {
             to_binary(&StablePoolParams {
                 amp: 100,
                 bluna_rewarder: "bluna_rewarder".to_string(),
+                generator: "generator".to_string(),
             })
             .unwrap(),
         ),
@@ -473,6 +476,7 @@ fn try_native_to_token() {
             to_binary(&StablePoolParams {
                 amp: 100,
                 bluna_rewarder: "bluna_rewarder".to_string(),
+                generator: "generator".to_string(),
             })
             .unwrap(),
         ),
@@ -633,6 +637,7 @@ fn try_token_to_native() {
             to_binary(&StablePoolParams {
                 amp: 100,
                 bluna_rewarder: "bluna_rewarder".to_string(),
+                generator: "generator".to_string(),
             })
             .unwrap(),
         ),
@@ -921,6 +926,7 @@ fn test_query_pool() {
             to_binary(&StablePoolParams {
                 amp: 100,
                 bluna_rewarder: "bluna_rewarder".to_string(),
+                generator: "generator".to_string(),
             })
             .unwrap(),
         ),
@@ -992,6 +998,7 @@ fn test_query_share() {
             to_binary(&StablePoolParams {
                 amp: 100,
                 bluna_rewarder: "bluna_rewarder".to_string(),
+                generator: "generator".to_string(),
             })
             .unwrap(),
         ),
@@ -1112,6 +1119,7 @@ fn test_accumulate_prices() {
                 next_amp: 100 * AMP_PRECISION,
                 next_amp_time: env.block.time.seconds(),
                 bluna_rewarder: Addr::unchecked(""),
+                generator: Addr::unchecked("generator"),
             },
             Uint128::new(case.x_amount),
             6,

@@ -41,6 +41,8 @@ pub enum ExecuteMsg {
         lp_token: String,
         /// the allocation point of liquidity pool
         alloc_point: Uint64,
+        /// The flag determines whether the pool has its asset related rewards or not
+        has_asset_rewards: bool,
         /// the reward proxy contract
         reward_proxy: Option<String>,
     },
@@ -53,6 +55,8 @@ pub enum ExecuteMsg {
         lp_token: String,
         /// the allocation point of liquidity pool
         alloc_point: Uint64,
+        /// The flag determines whether the pool has its asset related rewards or not
+        has_asset_rewards: bool,
     },
     /// ## Description
     /// Updates reward variables for all pools
@@ -196,6 +200,8 @@ pub struct PoolInfoResponse {
     pub proxy_reward_balance_before_update: Uint128,
     /// the orphan proxy rewards which are left by emergency withdrawals
     pub orphan_proxy_rewards: Uint128,
+    /// Total amount of lp tokens staked to the pool
+    pub lp_supply: Uint128,
 }
 
 /// ## Description
