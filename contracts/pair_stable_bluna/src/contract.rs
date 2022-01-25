@@ -1883,19 +1883,21 @@ pub fn handle_reward(
     let mut response =
         Response::new().add_attribute("bluna_claimed_reward_to_pool", latest_reward_amount);
 
-    response.messages.push(SubMsg::new(WasmMsg::Execute {
-        contract_addr: bluna_reward_holder.to_string(),
-        funds: vec![],
-        msg: to_binary(&ExecuteMsg::Execute {
-            msgs: vec![Asset {
-                info: AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-                amount: user_reward,
-            }
-            .into_msg(&deps.querier, receiver.clone())?],
-        })?,
-    }));
+    if !user_reward.is_zero() {
+        response.messages.push(SubMsg::new(WasmMsg::Execute {
+            contract_addr: bluna_reward_holder.to_string(),
+            funds: vec![],
+            msg: to_binary(&ExecuteMsg::Execute {
+                msgs: vec![Asset {
+                    info: AssetInfo::NativeToken {
+                        denom: "uusd".to_string(),
+                    },
+                    amount: user_reward,
+                }
+                .into_msg(&deps.querier, receiver.clone())?],
+            })?,
+        }));
+    }
 
     Ok(response
         .add_attribute("user", user)
