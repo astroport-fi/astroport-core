@@ -7,7 +7,7 @@ README has updated with new messages (Astroport v1 messages follow).
 
 This is a basic implementation of a cw20-base contract [CW20-base](https://github.com/CosmWasm/cw-plus/tree/main/contracts/cw20-base). It implements the [CW20 spec](https://github.com/CosmWasm/cosmwasm-plus/tree/master/packages/cw20) and is designed to be imported into other contracts to easily build cw20-compatible tokens with custom logic.
 
-Astroport contracts logic based on native and token assets. So, they use this contract for creating tokens (LP, ASTRO, xASTRO, etc.).
+Astroport contracts logic based on native and token assets. So, they use this contract for creating tokens (LP, ASTRO, etc.).
 
 ## Importing this contract
 
