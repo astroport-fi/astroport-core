@@ -1,4 +1,4 @@
 pub mod contract;
 pub mod error;
-pub mod migration;
+mod migration;
 pub mod state;

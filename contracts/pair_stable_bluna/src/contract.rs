@@ -1935,7 +1935,7 @@ pub fn handle_reward(
 ///
 /// * **bluna_reward_global_index** is object of type [`Decimal256`].
 ///
-/// * **bluna_reward_user_index** is object of type [`Decimal256`].
+/// * **bluna_reward_user_index** is object of type [`Option<Decimal256>`].
 pub fn calc_user_reward(
     reward_balance: Uint128,
     previous_reward_balance: Uint128,

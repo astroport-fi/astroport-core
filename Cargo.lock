@@ -75,7 +75,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-generator"
-version = "1.1.1"
+version = "1.1.0"
 dependencies = [
  "astroport",
  "astroport-generator-proxy-to-mirror",
@@ -203,7 +203,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-stable-bluna"
-version = "1.1.1"
+version = "1.0.1"
 dependencies = [
  "astroport",
  "astroport-factory",

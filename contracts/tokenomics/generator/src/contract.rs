@@ -316,6 +316,8 @@ pub fn execute_update_config(
 ///
 /// * **alloc_point** is the object of type [`Uint64`].
 ///
+/// * **has_asset_rewards** is the object of type [`bool`].
+///
 /// * **reward_proxy** is an [`Option`] field object of type [`String`].
 ///
 /// ##Executor
@@ -379,6 +381,8 @@ pub fn add(
 /// * **lp_token** is the object of type [`Addr`].
 ///
 /// * **alloc_point** is the object of type [`Uint64`].
+///
+/// * **has_asset_rewards** is the object of type [`bool`].
 ///
 /// ##Executor
 /// Can only be called by the owner
