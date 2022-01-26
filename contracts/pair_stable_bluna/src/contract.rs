@@ -1226,10 +1226,12 @@ pub fn query_pending_reward(deps: Deps, _env: Env, user: String) -> StdResult<As
         },
     )?;
 
-    let global_index = BLUNA_REWARD_GLOBAL_INDEX.load(deps.storage)?;
+    let global_index = BLUNA_REWARD_GLOBAL_INDEX
+        .may_load(deps.storage)?
+        .unwrap_or_default();
     let user_index = BLUNA_REWARD_USER_INDEXES
         .may_load(deps.storage, &user)?
-        .unwrap_or_default();
+        .unwrap_or(global_index);
 
     Ok(Asset {
         info: AssetInfo::NativeToken {
@@ -1468,8 +1470,6 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, Con
                         &env,
                         &config.factory_addr,
                     )?);
-
-                BLUNA_REWARD_GLOBAL_INDEX.save(deps.storage, &cosmwasm_std::Decimal256::zero())?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },
@@ -1869,7 +1869,9 @@ pub fn handle_reward(
         "uusd".to_string(),
     )?;
 
-    let bluna_reward_global_index = BLUNA_REWARD_GLOBAL_INDEX.load(deps.storage)?;
+    let bluna_reward_global_index = BLUNA_REWARD_GLOBAL_INDEX
+        .may_load(deps.storage)?
+        .unwrap_or_default();
     let bluna_reward_user_index = BLUNA_REWARD_USER_INDEXES.may_load(deps.storage, &user)?;
 
     let (bluna_reward_global_index, latest_reward_amount, user_reward) = calc_user_reward(
