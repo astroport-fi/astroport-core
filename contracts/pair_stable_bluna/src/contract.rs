@@ -1944,6 +1944,10 @@ pub fn calc_user_reward(
         ((bluna_reward_global_index - bluna_reward_user_index) * Uint256::from(user_share))
             .try_into()
             .map_err(|e| ContractError::Std(StdError::from(e)))?
+    } else if !user_share.is_zero() {
+        (bluna_reward_global_index * Uint256::from(user_share))
+            .try_into()
+            .map_err(|e| ContractError::Std(StdError::from(e)))?
     } else {
         Uint128::zero()
     };
