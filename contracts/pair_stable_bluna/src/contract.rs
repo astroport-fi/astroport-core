@@ -1214,6 +1214,8 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
 /// ## Params
 /// * **user** is the object of type [`String`] whose reward is querying
 pub fn query_pending_reward(deps: Deps, _env: Env, user: String) -> StdResult<Asset> {
+    use cosmwasm_std::Decimal256;
+
     let user = addr_validate_to_lower(deps.api, &user)?;
 
     let config = CONFIG.load(deps.storage)?;
@@ -1229,9 +1231,16 @@ pub fn query_pending_reward(deps: Deps, _env: Env, user: String) -> StdResult<As
     let global_index = BLUNA_REWARD_GLOBAL_INDEX
         .may_load(deps.storage)?
         .unwrap_or_default();
-    let user_index = BLUNA_REWARD_USER_INDEXES
-        .may_load(deps.storage, &user)?
-        .unwrap_or(global_index);
+
+    let user_index_opt = BLUNA_REWARD_USER_INDEXES.may_load(deps.storage, &user)?;
+
+    let user_index = if let Some(user_index) = user_index_opt {
+        user_index
+    } else if user_share.is_zero() {
+        global_index
+    } else {
+        Decimal256::zero()
+    };
 
     Ok(Asset {
         info: AssetInfo::NativeToken {
