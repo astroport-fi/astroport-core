@@ -36,9 +36,8 @@ pub fn capture_total_supply_history(
 /// * **storage** is the object of type [`Storage`].
 pub fn get_total_supply_at(storage: &dyn Storage, block: u64) -> StdResult<Uint128> {
     // Look for the last value recorded before the current block (if none then value is zero)
-    let prefix = TOTAL_SUPPLY_HISTORY.prefix(());
     let end = Bound::inclusive(U64Key::new(block));
-    let last_value_up_to_block = prefix
+    let last_value_up_to_block = TOTAL_SUPPLY_HISTORY
         .range(storage, None, Some(end), Order::Descending)
         .next();
 

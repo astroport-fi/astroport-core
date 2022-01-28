@@ -57,7 +57,9 @@ pub fn instantiate(
     // Create initial accounts
     let total_supply = create_accounts(&mut deps, &env, msg.initial_balances.as_slice())?;
 
-    capture_total_supply_history(deps.storage, &env, total_supply)?;
+    if !total_supply.is_zero() {
+        capture_total_supply_history(deps.storage, &env, total_supply)?;
+    }
 
     // Check supply cap
     if let Some(limit) = msg.get_cap() {
