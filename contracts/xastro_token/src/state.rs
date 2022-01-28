@@ -14,6 +14,14 @@ pub const BALANCES: SnapshotMap<&Addr, Uint128> = SnapshotMap::new(
 /// Contains saved total supply history.
 pub const TOTAL_SUPPLY_HISTORY: Map<U64Key, Uint128> = Map::new("total_supply_history");
 
+/// ## Description
+/// Captures total supply at current block.
+/// ## Params
+/// * **storage** is the object of type [`Storage`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **total_supply** is the object of type [`Uint128`].
 pub fn capture_total_supply_history(
     storage: &mut dyn Storage,
     env: &Env,
@@ -22,6 +30,10 @@ pub fn capture_total_supply_history(
     TOTAL_SUPPLY_HISTORY.save(storage, U64Key::new(env.block.height), &total_supply)
 }
 
+/// ## Description
+/// Returns an [`StdError`] on failure, otherwise returns total supply at given block.
+/// ## Params
+/// * **storage** is the object of type [`Storage`].
 pub fn get_total_supply_at(storage: &dyn Storage, block: u64) -> StdResult<Uint128> {
     // Look for the last value recorded before the current block (if none then value is zero)
     let prefix = TOTAL_SUPPLY_HISTORY.prefix(());

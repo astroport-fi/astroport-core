@@ -46,7 +46,7 @@ const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 pub fn instantiate(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -63,7 +63,7 @@ pub fn instantiate(
     // Create token
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
-            admin: Some(info.sender.to_string()),
+            admin: Some(msg.owner),
             code_id: msg.token_code_id,
             msg: to_binary(&TokenInstantiateMsg {
                 name: TOKEN_NAME.to_string(),
