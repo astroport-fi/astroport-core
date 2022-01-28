@@ -505,7 +505,7 @@ pub fn provide_liquidity(
 ///
 /// * **amount** is the object of type [`Uint128`]. The amount that will be mint to the recipient.
 ///
-/// * **auto_stake** is the object of type [`bool`]. Determines whether an autostake will be performed on the generator
+/// * **auto_stake** is the field of type [`bool`]. Determines whether an autostake will be performed on the generator
 fn mint_liquidity_token_message(
     deps: Deps,
     config: &Config,
