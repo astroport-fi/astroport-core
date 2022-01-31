@@ -287,25 +287,26 @@ pub fn execute(
                 to_addr,
             )
         }
-        ExecuteMsg::ClaimReward {
-            receiver,
+        ExecuteMsg::ClaimReward { receiver } => claim_reward(deps, env, info, receiver),
+        ExecuteMsg::ClaimRewardByGenerator {
+            user,
             user_share,
             total_share,
-        } => claim_reward(deps, env, info, receiver, user_share, total_share),
+        } => claim_reward_by_generator(deps, env, info, user, user_share, total_share),
         ExecuteMsg::HandleReward {
             previous_reward_balance,
+            user,
             user_share,
             total_share,
-            user,
             receiver,
         } => handle_reward(
             deps,
             env,
             info,
             previous_reward_balance,
+            user,
             user_share,
             total_share,
-            user,
             receiver,
         ),
     }
@@ -1695,9 +1696,9 @@ fn get_bluna_reward_holder_instantiating_message(
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
-///
 /// * **bluna_rewarder** is object of type [`str`].
+///
+/// * **user** is object of type [`Addr`].
 ///
 /// * **user_share** is object of type [`Uint128`].
 ///
@@ -1707,8 +1708,8 @@ fn get_bluna_reward_holder_instantiating_message(
 fn get_bluna_reward_handling_messages(
     deps: Deps,
     env: &Env,
-    info: &MessageInfo,
     bluna_rewarder: &str,
+    user: Addr,
     user_share: Uint128,
     total_share: Uint128,
     receiver: Option<Addr>,
@@ -1734,9 +1735,9 @@ fn get_bluna_reward_handling_messages(
             funds: vec![],
             msg: to_binary(&ExecuteMsg::HandleReward {
                 previous_reward_balance: reward_balance,
+                user,
                 user_share,
                 total_share,
-                user: info.sender.clone(),
                 receiver,
             })?,
         }),
@@ -1755,17 +1756,11 @@ fn get_bluna_reward_handling_messages(
 /// * **info** is the object of type [`MessageInfo`].
 ///
 /// * **receiver** is the object of type [`Option<String>`]
-///
-/// * **user_share** is the object of type [`Option<Uint128>`]
-///
-/// * **total_share** is the object of type [`Option<Uint128>`]
 fn claim_reward(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     receiver: Option<String>,
-    user_share: Option<Uint128>,
-    total_share: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     let receiver = receiver
         .map(|receiver| addr_validate_to_lower(deps.api, &receiver))
@@ -1773,60 +1768,79 @@ fn claim_reward(
 
     let config: Config = CONFIG.load(deps.storage)?;
 
-    if user_share.is_some() != total_share.is_some() {
-        return Err(StdError::generic_err(
-            "User and total shares should be both set or not at the same time!",
-        )
-        .into());
+    let user_share: Uint128 = deps.querier.query_wasm_smart(
+        &config.generator,
+        &GeneratorQueryMsg::Deposit {
+            lp_token: config.pair_info.liquidity_token.to_string(),
+            user: info.sender.to_string(),
+        },
+    )?;
+
+    if user_share.is_zero() {
+        return Err(StdError::generic_err("No lp tokens staked to the generator!").into());
     }
 
-    let (user_share, total_share) = if let Some(user_share) = user_share {
-        if let Some(total_share) = total_share {
-            if info.sender != config.generator {
-                return Err(
-                    StdError::generic_err("Only the generator can use share parameters!").into(),
-                );
-            }
-            (user_share, total_share)
-        } else {
-            unreachable!()
-        }
-    } else {
-        if info.sender == config.generator {
-            return Err(StdError::generic_err("The generator should use share parameters!").into());
-        }
-
-        let user_share: Uint128 = deps.querier.query_wasm_smart(
-            &config.generator,
-            &GeneratorQueryMsg::Deposit {
-                lp_token: config.pair_info.liquidity_token.to_string(),
-                user: info.sender.to_string(),
-            },
-        )?;
-
-        if user_share.is_zero() {
-            return Err(StdError::generic_err("No lp tokens staked to the generator!").into());
-        }
-
-        let pool_info: PoolInfoResponse = deps.querier.query_wasm_smart(
-            &config.generator,
-            &GeneratorQueryMsg::PoolInfo {
-                lp_token: config.pair_info.liquidity_token.to_string(),
-            },
-        )?;
-
-        (user_share, pool_info.lp_supply)
-    };
+    let pool_info: PoolInfoResponse = deps.querier.query_wasm_smart(
+        &config.generator,
+        &GeneratorQueryMsg::PoolInfo {
+            lp_token: config.pair_info.liquidity_token.to_string(),
+        },
+    )?;
 
     Ok(
         Response::new().add_messages(get_bluna_reward_handling_messages(
             deps.as_ref(),
             &env,
-            &info,
             config.bluna_rewarder.as_str(),
+            info.sender,
+            user_share,
+            pool_info.lp_supply,
+            receiver,
+        )?),
+    )
+}
+
+/// ## Description
+/// Claims the Bluna reward on changing of user lp token amount deposited to the generator
+/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the
+/// specified attributes if the operation was successful.
+/// ## Params
+/// * **deps** is the object of type [`Deps`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **user** is the object of type [`String`]
+///
+/// * **user_share** is the object of type [`Uint128`]
+///
+/// * **total_share** is the object of type [`Uint128`]
+fn claim_reward_by_generator(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    user: String,
+    user_share: Uint128,
+    total_share: Uint128,
+) -> Result<Response, ContractError> {
+    let config: Config = CONFIG.load(deps.storage)?;
+
+    let user = addr_validate_to_lower(deps.api, &user)?;
+
+    if info.sender != config.generator {
+        return Err(StdError::generic_err("Only the generator can use this method!").into());
+    }
+
+    Ok(
+        Response::new().add_messages(get_bluna_reward_handling_messages(
+            deps.as_ref(),
+            &env,
+            config.bluna_rewarder.as_str(),
+            user,
             user_share,
             total_share,
-            receiver,
+            None,
         )?),
     )
 }
@@ -1844,11 +1858,11 @@ fn claim_reward(
 ///
 /// * **previous_reward_balance** is object of type [`Uint128`].
 ///
+/// * **user** is object of type [`Addr`].
+///
 /// * **user_share** is object of type [`Uint128`].
 ///
 /// * **total_share** is object of type [`Uint128`].
-///
-/// * **user** is object of type [`Addr`].
 ///
 /// * **receiver** is object of type [`Option<Addr>`].
 #[allow(clippy::too_many_arguments)]
@@ -1857,9 +1871,9 @@ pub fn handle_reward(
     env: Env,
     info: MessageInfo,
     previous_reward_balance: Uint128,
+    user: Addr,
     user_share: Uint128,
     total_share: Uint128,
-    user: Addr,
     receiver: Option<Addr>,
 ) -> Result<Response, ContractError> {
     use astroport::whitelist::ExecuteMsg;

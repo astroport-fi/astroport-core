@@ -38,17 +38,22 @@ pub enum ExecuteMsg {
     ClaimReward {
         /// An address which will receive the reward
         receiver: Option<String>,
-        /// Only the generator can use this parameter on changing the amount of user's staked lp tokens
-        user_share: Option<Uint128>,
-        /// Only the generator can use this parameter on changing the amount of user's staked lp tokens
-        total_share: Option<Uint128>,
+    },
+    /// Claims the Bluna reward on changing of user lp token amount deposited to the generator
+    ClaimRewardByGenerator {
+        /// The user whose lp token amount is changing
+        user: String,
+        /// The user's lp token amount before the change
+        user_share: Uint128,
+        /// The total lp token amount deposited to the generator before the change
+        total_share: Uint128,
     },
     /// Callback for distributing Bluna reward
     HandleReward {
         previous_reward_balance: Uint128,
+        user: Addr,
         user_share: Uint128,
         total_share: Uint128,
-        user: Addr,
         receiver: Option<Addr>,
     },
 }

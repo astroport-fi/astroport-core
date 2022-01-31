@@ -891,36 +891,15 @@ pub fn deposit(
         vec![]
     };
 
-    let reward_msg = if pool.has_asset_rewards {
-        let total_share = match &pool.reward_proxy {
-            Some(proxy) => deps
-                .querier
-                .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?,
-            None => {
-                query_token_balance(
-                    &deps.querier,
-                    lp_token.clone(),
-                    env.contract.address.clone(),
-                )? - amount
-            }
-        };
-
-        let minter_response: MinterResponse = deps
-            .querier
-            .query_wasm_smart(&lp_token, &Cw20QueryMsg::Minter {})?;
-
-        vec![WasmMsg::Execute {
-            contract_addr: minter_response.minter,
-            funds: vec![],
-            msg: to_binary(&astroport::pair_stable_bluna::ExecuteMsg::ClaimReward {
-                receiver: Some(beneficiary.to_string()),
-                user_share: Some(user.amount),
-                total_share: Some(total_share),
-            })?,
-        }]
-    } else {
-        vec![]
-    };
+    let reward_msg = build_claim_pools_asset_reward_messages(
+        deps.as_ref(),
+        &env,
+        &lp_token,
+        &pool,
+        &beneficiary,
+        user.amount,
+        amount,
+    )?;
 
     // Update user balance
     let updated_amount = user.amount.checked_add(amount)?;
@@ -996,34 +975,15 @@ pub fn withdraw(
         vec![]
     };
 
-    let reward_msg = if pool.has_asset_rewards {
-        let total_share = match &pool.reward_proxy {
-            Some(proxy) => deps
-                .querier
-                .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?,
-            None => query_token_balance(
-                &deps.querier,
-                lp_token.clone(),
-                env.contract.address.clone(),
-            )?,
-        };
-
-        let minter_response: MinterResponse = deps
-            .querier
-            .query_wasm_smart(&lp_token, &Cw20QueryMsg::Minter {})?;
-
-        vec![WasmMsg::Execute {
-            contract_addr: minter_response.minter,
-            funds: vec![],
-            msg: to_binary(&astroport::pair_stable_bluna::ExecuteMsg::ClaimReward {
-                receiver: Some(account.to_string()),
-                user_share: Some(user.amount),
-                total_share: Some(total_share),
-            })?,
-        }]
-    } else {
-        vec![]
-    };
+    let reward_msg = build_claim_pools_asset_reward_messages(
+        deps.as_ref(),
+        &env,
+        &lp_token,
+        &pool,
+        &account,
+        user.amount,
+        Uint128::zero(),
+    )?;
 
     // Update user balance
     let updated_amount = user.amount.checked_sub(amount)?;
@@ -1043,6 +1003,50 @@ pub fn withdraw(
         .add_messages(reward_msg)
         .add_attribute("action", "withdraw")
         .add_attribute("amount", amount))
+}
+
+/// # Builds claim reward messages from the pool if they are supported
+pub fn build_claim_pools_asset_reward_messages(
+    deps: Deps,
+    env: &Env,
+    lp_token: &Addr,
+    pool: &PoolInfo,
+    account: &Addr,
+    user_amount: Uint128,
+    deposit: Uint128,
+) -> Result<Vec<WasmMsg>, ContractError> {
+    Ok(if pool.has_asset_rewards {
+        let total_share = match &pool.reward_proxy {
+            Some(proxy) => deps
+                .querier
+                .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?,
+            None => {
+                query_token_balance(
+                    &deps.querier,
+                    lp_token.clone(),
+                    env.contract.address.clone(),
+                )? - deposit
+            }
+        };
+
+        let minter_response: MinterResponse = deps
+            .querier
+            .query_wasm_smart(lp_token, &Cw20QueryMsg::Minter {})?;
+
+        vec![WasmMsg::Execute {
+            contract_addr: minter_response.minter,
+            funds: vec![],
+            msg: to_binary(
+                &astroport::pair_stable_bluna::ExecuteMsg::ClaimRewardByGenerator {
+                    user: account.to_string(),
+                    user_share: user_amount,
+                    total_share,
+                },
+            )?,
+        }]
+    } else {
+        vec![]
+    })
 }
 
 /// # Description
