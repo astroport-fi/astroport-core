@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InstantiateMsg {
+    /// the owner address
+    pub owner: String,
     /// the token code identifier
     pub token_code_id: u64,
     /// the deposit token address

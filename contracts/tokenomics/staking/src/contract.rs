@@ -63,7 +63,7 @@ pub fn instantiate(
     // Create token
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
-            admin: None,
+            admin: Some(msg.owner),
             code_id: msg.token_code_id,
             msg: to_binary(&TokenInstantiateMsg {
                 name: TOKEN_NAME.to_string(),

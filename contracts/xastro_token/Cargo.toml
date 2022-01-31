@@ -1,0 +1,35 @@
+[package]
+name = "astroport-xastro-token"
+version = "1.0.0"
+authors = ["Astroport"]
+edition = "2018"
+description = "Expanded implementation of a CosmWasm-20 compliant token for post intialization and saving history"
+license = "MIT"
+repository = "https://github.com/CosmWasm/cosmwasm-plus"
+homepage = "https://cosmwasm.com"
+documentation = "https://docs.cosmwasm.com"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all init/handle/query exports
+library = []
+
+[dependencies]
+astroport = { path = "../../packages/astroport", default-features = false }
+cw2 = "0.8"
+cw20 = "0.8"
+cw20-base = { version = "0.8", features = ["library"] }
+cw-storage-plus = {version = "0.8", features = ['iterator']}
+cosmwasm-std = { version = "0.16.2", features = ["iterator"] }
+schemars = "0.8.1"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+snafu = { version = "0.6.3" }
+
+[dev-dependencies]
+# we only need to enable this if we use integration tests
+#cosmwasm-vm = { version = "0.10.1", default-features = false }
+cosmwasm-schema = { version = "0.16.2" }
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}

@@ -71,6 +71,7 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Add
     let staking_code_id = router.store_code(staking_contract);
 
     let msg = xInstatiateMsg {
+        owner: owner.to_string(),
         token_code_id: astro_token_code_id,
         deposit_token_addr: astro_token_instance.to_string(),
     };
