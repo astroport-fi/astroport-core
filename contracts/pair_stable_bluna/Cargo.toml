@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-stable-bluna"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Astroport"]
 edition = "2018"
 description = "An Astroport pair contract"
@@ -34,7 +34,7 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }
 cosmwasm-bignumber = "2.2.0"
 protobuf = { version = "2", features = ["with-bytes"] }
-anchor-basset = {git = "https://github.com/astroport-fi/anchor-bAsset-contracts.git", branch = "master", package = "basset"}
+anchor-basset = {git = "https://github.com/Anchor-Protocol/anchor-bAsset-contracts.git", tag = "v0.2.1", package = "basset"}
 
 [dev-dependencies]
 proptest = "1.0.0"

@@ -2,9 +2,10 @@ use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
     Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
-use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
 
 use crate::error::ContractError;
+use crate::migration;
 use crate::state::{
     get_pools, update_user_balance, Config, ExecuteOnReply, PoolInfo, UserInfo, CONFIG,
     OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
@@ -23,7 +24,7 @@ use astroport::{
     },
     vesting::ExecuteMsg as VestingExecuteMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-generator";
@@ -138,6 +139,7 @@ pub fn execute(
         ExecuteMsg::Add {
             lp_token,
             alloc_point,
+            has_asset_rewards,
             reward_proxy,
         } => {
             let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
@@ -157,6 +159,7 @@ pub fn execute(
                 ExecuteOnReply::Add {
                     lp_token,
                     alloc_point,
+                    has_asset_rewards,
                     reward_proxy,
                 },
             )
@@ -164,6 +167,7 @@ pub fn execute(
         ExecuteMsg::Set {
             lp_token,
             alloc_point,
+            has_asset_rewards,
         } => {
             let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
@@ -179,6 +183,7 @@ pub fn execute(
                 ExecuteOnReply::Set {
                     lp_token,
                     alloc_point,
+                    has_asset_rewards,
                 },
             )
         }
@@ -311,6 +316,8 @@ pub fn execute_update_config(
 ///
 /// * **alloc_point** is the object of type [`Uint64`].
 ///
+/// * **has_asset_rewards** is the field of type [`bool`].
+///
 /// * **reward_proxy** is an [`Option`] field object of type [`String`].
 ///
 /// ##Executor
@@ -320,6 +327,7 @@ pub fn add(
     env: Env,
     lp_token: Addr,
     alloc_point: Uint64,
+    has_asset_rewards: bool,
     reward_proxy: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
@@ -350,6 +358,7 @@ pub fn add(
         accumulated_proxy_rewards_per_share: Decimal::zero(),
         proxy_reward_balance_before_update: Uint128::zero(),
         orphan_proxy_rewards: Uint128::zero(),
+        has_asset_rewards,
     };
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -373,6 +382,8 @@ pub fn add(
 ///
 /// * **alloc_point** is the object of type [`Uint64`].
 ///
+/// * **has_asset_rewards** is the field of type [`bool`].
+///
 /// ##Executor
 /// Can only be called by the owner
 pub fn set(
@@ -380,6 +391,7 @@ pub fn set(
     env: Env,
     lp_token: Addr,
     alloc_point: Uint64,
+    has_asset_rewards: bool,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
@@ -392,6 +404,8 @@ pub fn set(
         .checked_sub(pool_info.alloc_point)?
         .checked_add(alloc_point)?;
     pool_info.alloc_point = alloc_point;
+
+    pool_info.has_asset_rewards = has_asset_rewards;
 
     CONFIG.save(deps.storage, &cfg)?;
     POOL_INFO.save(deps.storage, &lp_token, &pool_info)?;
@@ -527,12 +541,21 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                 ExecuteOnReply::Add {
                     lp_token,
                     alloc_point,
+                    has_asset_rewards,
                     reward_proxy,
-                } => add(deps, env, lp_token, alloc_point, reward_proxy),
+                } => add(
+                    deps,
+                    env,
+                    lp_token,
+                    alloc_point,
+                    has_asset_rewards,
+                    reward_proxy,
+                ),
                 ExecuteOnReply::Set {
                     lp_token,
                     alloc_point,
-                } => set(deps, env, lp_token, alloc_point),
+                    has_asset_rewards,
+                } => set(deps, env, lp_token, alloc_point, has_asset_rewards),
                 ExecuteOnReply::UpdatePool { lp_token } => update_pool(deps, env, lp_token),
                 ExecuteOnReply::Deposit {
                     lp_token,
@@ -868,6 +891,16 @@ pub fn deposit(
         vec![]
     };
 
+    let reward_msg = build_claim_pools_asset_reward_messages(
+        deps.as_ref(),
+        &env,
+        &lp_token,
+        &pool,
+        &beneficiary,
+        user.amount,
+        amount,
+    )?;
+
     // Update user balance
     let updated_amount = user.amount.checked_add(amount)?;
     let user = update_user_balance(user, &pool, updated_amount)?;
@@ -878,6 +911,7 @@ pub fn deposit(
     Ok(Response::new()
         .add_messages(send_rewards_msg)
         .add_messages(transfer_msg)
+        .add_messages(reward_msg)
         .add_attribute("action", "deposit")
         .add_attribute("amount", amount))
 }
@@ -941,6 +975,16 @@ pub fn withdraw(
         vec![]
     };
 
+    let reward_msg = build_claim_pools_asset_reward_messages(
+        deps.as_ref(),
+        &env,
+        &lp_token,
+        &pool,
+        &account,
+        user.amount,
+        Uint128::zero(),
+    )?;
+
     // Update user balance
     let updated_amount = user.amount.checked_sub(amount)?;
     let user = update_user_balance(user, &pool, updated_amount)?;
@@ -956,8 +1000,53 @@ pub fn withdraw(
     Ok(Response::new()
         .add_messages(send_rewards_msg)
         .add_messages(transfer_msg)
+        .add_messages(reward_msg)
         .add_attribute("action", "withdraw")
         .add_attribute("amount", amount))
+}
+
+/// # Builds claim reward messages from the pool if they are supported
+pub fn build_claim_pools_asset_reward_messages(
+    deps: Deps,
+    env: &Env,
+    lp_token: &Addr,
+    pool: &PoolInfo,
+    account: &Addr,
+    user_amount: Uint128,
+    deposit: Uint128,
+) -> Result<Vec<WasmMsg>, ContractError> {
+    Ok(if pool.has_asset_rewards {
+        let total_share = match &pool.reward_proxy {
+            Some(proxy) => deps
+                .querier
+                .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?,
+            None => {
+                query_token_balance(
+                    &deps.querier,
+                    lp_token.clone(),
+                    env.contract.address.clone(),
+                )? - deposit
+            }
+        };
+
+        let minter_response: MinterResponse = deps
+            .querier
+            .query_wasm_smart(lp_token, &Cw20QueryMsg::Minter {})?;
+
+        vec![WasmMsg::Execute {
+            contract_addr: minter_response.minter,
+            funds: vec![],
+            msg: to_binary(
+                &astroport::pair_stable_bluna::ExecuteMsg::ClaimRewardByGenerator {
+                    user: account.to_string(),
+                    user_share: user_amount,
+                    total_share,
+                },
+            )?,
+        }]
+    } else {
+        vec![]
+    })
 }
 
 /// # Description
@@ -1413,6 +1502,7 @@ fn query_pool_info(
         accumulated_proxy_rewards_per_share: pool.accumulated_proxy_rewards_per_share,
         proxy_reward_balance_before_update: pool.proxy_reward_balance_before_update,
         orphan_proxy_rewards: pool.orphan_proxy_rewards,
+        lp_supply,
     })
 }
 
@@ -1480,6 +1570,45 @@ pub fn calculate_rewards(env: &Env, pool: &PoolInfo, cfg: &Config) -> StdResult<
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-generator" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                let keys = POOL_INFO
+                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
+                    .map(|v| String::from_utf8(v).map_err(StdError::from))
+                    .collect::<Result<Vec<String>, StdError>>()?;
+
+                for key in keys {
+                    let pool_info_v100 = migration::POOL_INFOV100
+                        .load(deps.storage, &Addr::unchecked(key.clone()))?;
+                    let pool_info = PoolInfo {
+                        has_asset_rewards: false,
+                        accumulated_proxy_rewards_per_share: pool_info_v100
+                            .accumulated_proxy_rewards_per_share,
+                        alloc_point: pool_info_v100.alloc_point,
+                        accumulated_rewards_per_share: pool_info_v100.accumulated_rewards_per_share,
+                        last_reward_block: pool_info_v100.last_reward_block,
+                        orphan_proxy_rewards: pool_info_v100.orphan_proxy_rewards,
+                        proxy_reward_balance_before_update: pool_info_v100
+                            .proxy_reward_balance_before_update,
+                        reward_proxy: pool_info_v100.reward_proxy,
+                    };
+                    POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
+                }
+            }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

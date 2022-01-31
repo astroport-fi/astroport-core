@@ -75,7 +75,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-generator"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "astroport",
  "astroport-generator-proxy-to-mirror",
@@ -203,7 +203,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-stable-bluna"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "astroport",
  "astroport-factory",
@@ -362,7 +362,7 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 [[package]]
 name = "basset"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/anchor-bAsset-contracts.git?branch=master#912f2f4c0e500ad171c0d5deb18f079268c7daec"
+source = "git+https://github.com/Anchor-Protocol/anchor-bAsset-contracts.git?tag=v0.2.1#486f1cd495325798f884e19880180a62566b5e48"
 dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
