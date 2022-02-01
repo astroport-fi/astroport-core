@@ -5,18 +5,18 @@ use cosmwasm_std::Addr;
 use cw_storage_plus::Item;
 
 /// ## Description
-/// This structure describes the main controls configs of generator_proxy_template contract.
+/// This structure stores the main params for the generator_proxy_template contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// the generator contract address
+    /// The Generator contract address
     pub generator_contract_addr: Addr,
-    /// the pair contract address
+    /// The target Astroprot pair contract address
     pub pair_addr: Addr,
-    /// the contract address for liquidity pool token
+    /// The contract address for the Astroport LP token associated with pair_addr
     pub lp_token_addr: Addr,
-    /// the reward contract address
+    /// The reward contract address (3rd party staking contract)
     pub reward_contract_addr: Addr,
-    /// the reward token contract address
+    /// The 3rd party reward token
     pub reward_token_addr: Addr,
 }
 
