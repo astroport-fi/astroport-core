@@ -6,9 +6,9 @@ async function main() {
     const {terra, wallet} = newClient()
     console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
     const network = readArtifact(terra.config.chainID)
-    console.log('network:', network)
+    console.log('Network:', network)
 
-    console.log("uploading...");
+    console.log("Uploading...");
 
     let config = {
         contract_address: "terra13q7ekd3phju3emd4u84wsylzx0x24tg88rr8qe",
@@ -18,10 +18,10 @@ async function main() {
 
     const newCodeId = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, config.file_path)!);
 
-    console.log('migrating...');
+    console.log('Migrating...');
     const migrateResult = await migrate(terra, wallet, config.contract_address, newCodeId, config.message);
 
-    console.log("migration complete: ");
+    console.log("Migration complete: ");
     console.log(migrateResult);
 
 }
