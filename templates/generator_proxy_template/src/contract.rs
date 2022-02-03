@@ -380,11 +380,11 @@ pub fn transfer_lp_tokens_after_withdraw(
 /// * **msg** is the object of type [`QueryMsg`].
 ///
 /// ## Queries
-/// * **QueryMsg::Deposit {}** returns the amount of LP tokens deposited by a specific account.
+/// * **QueryMsg::Deposit {}** returns the amount of LP tokens deposited in a third party rewards contract.
 ///
-/// * **QueryMsg::Reward {}** returns the amount of rewards held by a specific contract.
+/// * **QueryMsg::Reward {}** returns the amount of rewards held by the proxy contract.
 ///
-/// * **QueryMsg::PendingToken {}** returns the amount of pending rewards that can be claimed by a specific account.
+/// * **QueryMsg::PendingToken {}** returns the amount of pending rewards that can be claimed from the third party rewards contract.
 ///
 /// * **QueryMsg::RewardInfo {}** returns the reward token contract address.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -399,7 +399,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             reward_token_addr: cfg.reward_token_addr.to_string(),
         }),
         QueryMsg::Deposit {} => {
-            // query the 3rd party reward contract to retrieve the amont of staked LP tokens or implement local storage and retrieve from it
+            // query the 3rd party reward contract to retrieve the amount of staked LP tokens or implement local storage and retrieve from it
             // the returned value must be a Uint128
             unimplemented!();
         }

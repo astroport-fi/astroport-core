@@ -130,7 +130,7 @@ pub fn query_token_precision(querier: &QuerierWrapper, asset_info: AssetInfo) ->
 /// ## Params
 /// * **querier** is the object of type [`QuerierWrapper`].
 ///
-/// * **factory_contract** is ab object of type [`Addr`] which is the Astroport factory contract address.
+/// * **factory_contract** is an object of type [`Addr`] which is the Astroport factory contract address.
 pub fn query_factory_config(
     querier: &QuerierWrapper,
     factory_contract: Addr,

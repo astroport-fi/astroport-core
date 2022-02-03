@@ -52,7 +52,7 @@ pub struct MigrateMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    /// Deposits ASTRo in exchange for xASTRO
+    /// Deposits ASTRO in exchange for xASTRO
     Enter {},
     /// Burns xASTRO in exchange for ASTRO
     Leave {},

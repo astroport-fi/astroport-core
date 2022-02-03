@@ -26,7 +26,7 @@ pub enum Cw20HookMsg {
 }
 
 /// ## Description
-/// This structure describes the execute messages avilable in the contract.
+/// This structure describes the execute messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
@@ -62,7 +62,8 @@ pub enum CallbackMsg {
     TransferLpTokensAfterWithdraw {
         /// The LP token recipient
         account: Addr,
-        /// The previous LP balance for the sender used to calculate the amount of LP tokens to send
+        /// The previous LP balance for the contract. This is used to calculate
+        /// the amount of received LP tokens after withdrawing from a third party contract
         prev_lp_balance: Uint128,
     },
 }

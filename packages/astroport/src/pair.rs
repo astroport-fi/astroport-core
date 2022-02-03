@@ -88,7 +88,7 @@ pub enum QueryMsg {
     Share { amount: Uint128 },
     /// Returns information about a swap simulation in a [`SimulationResponse`] object.
     Simulation { offer_asset: Asset },
-    /// Returns information about cumulative prices (used for TWAPs) in a [`CumulativePricesResponse`] object.
+    /// Returns information about cumulative prices in a [`CumulativePricesResponse`] object.
     ReverseSimulation { ask_asset: Asset },
     /// Returns information about the cumulative prices in a [`CumulativePricesResponse`] object
     CumulativePrices {},

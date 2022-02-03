@@ -62,7 +62,7 @@ pub enum ExecuteMsg {
     /// Updates reward variables for multiple pools
     MassUpdatePools {},
     /// ## Description
-    /// Updates the LP token contract address associated with a specific pool
+    /// Updates reward variables for a specific pool
     UpdatePool {
         /// the LP token contract address
         lp_token: String,
@@ -133,7 +133,7 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     /// PoolLength returns the length of the array that contains all the instantiated pool generators
     PoolLength {},
-    /// Deposit deposits LP tokens in a generator in order to receive ASTRO rewards and potentially 3rd party rewards
+    /// Deposit returns the LP token amount deposited in a specific generator
     Deposit { lp_token: String, user: String },
     /// PendingToken returns the amount of rewards that can be claimed by an account that deposited a specific LP token in a generator
     PendingToken { lp_token: String, user: String },
@@ -151,7 +151,7 @@ pub enum QueryMsg {
 }
 
 /// ## Description
-/// This structure holds the response returned when querying the total lenght of the array that keeps track of instantiated generators
+/// This structure holds the response returned when querying the total length of the array that keeps track of instantiated generators
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolLengthResponse {
     pub length: usize,
@@ -186,7 +186,7 @@ pub struct PoolInfoResponse {
     pub alloc_point: Uint64,
     /// Amount of ASTRO tokens being distributed per block to this LP pool
     pub astro_tokens_per_block: Uint128,
-    /// Accumulated amount of ASTRO rewards per LP token. Used for pro-rata reward calculations
+    /// The last block when token emissions were snapshotted (distributed)
     pub last_reward_block: u64,
     /// Current block number. Useful for computing APRs off-chain
     pub current_block: u64,

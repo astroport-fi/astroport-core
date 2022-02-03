@@ -55,7 +55,7 @@ impl SwapOperation {
 pub enum ExecuteMsg {
     /// Receive receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template
     Receive(Cw20ReceiveMsg),
-    /// ExecuteSwapOperations processes multiple swaps while mentioning minimum amounts of tokens to receive for each operation
+    /// ExecuteSwapOperations processes multiple swaps while mentioning the minimum amount of tokens to receive for the last swap operation
     ExecuteSwapOperations {
         operations: Vec<SwapOperation>,
         minimum_receive: Option<Uint128>,

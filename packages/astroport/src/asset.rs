@@ -12,7 +12,7 @@ use cw20::Cw20ExecuteMsg;
 use terra_cosmwasm::TerraQuerier;
 
 /// ## Description
-/// This enum describes a CW20 asset.
+/// This enum describes a Terra asset (native or CW20).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Asset {
     /// Information about an asset stored in a [`AssetInfo`] struct
@@ -64,7 +64,7 @@ impl Asset {
     }
 
     /// ## Description
-    /// Calculates and returns s deducted tax for transferring the native token from the chain. For other tokens it returns an [`Err`].
+    /// Calculates and returns a deducted tax for transferring the native token from the chain. For other tokens it returns an [`Err`].
     /// ## Params
     /// * **self** is the type of the caller object.
     ///

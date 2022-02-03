@@ -36,7 +36,7 @@ pub enum QueryMsg {
     TokenInfo {},
     /// Returns who can mint and the hard cap on maximum tokens after minting.
     Minter {},
-    /// Allowance returns returns an amount of tokens the spender can spend from the owner account, 0 if unset.
+    /// Allowance returns an amount of tokens the spender can spend from the owner account, 0 if unset.
     Allowance { owner: String, spender: String },
     /// AllAllowances returns all allowances this owner has approved. Supports pagination.
     AllAllowances {

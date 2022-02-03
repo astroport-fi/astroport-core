@@ -45,7 +45,7 @@ pub enum ExecuteMsg {
         user: String,
         /// The user's LP token amount before the LP token transfer between their wallet and the Generator
         user_share: Uint128,
-        /// The total LP token amount already deposited by the user in the Generator
+        /// The total LP token amount already deposited by all users in the Generator
         total_share: Uint128,
     },
     /// Callback for distributing bLUNA rewards

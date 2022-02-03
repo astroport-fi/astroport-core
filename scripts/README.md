@@ -23,7 +23,7 @@ CHAIN_ID=bombay-12
 TOKEN_INITIAL_AMOUNT="1000000000000000"
 ```
 
-Deploy the contract:
+Deploy the contracts:
 ```shell
 npm run build-app
 ```

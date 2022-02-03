@@ -66,7 +66,7 @@ pub struct VestingAccount {
 pub struct VestingInfo {
     /// The vesting schedules
     pub schedules: Vec<VestingSchedule>,
-    /// The total amount of ASTRO being vested
+    /// The total amount of ASTRO already claimed
     pub released_amount: Uint128,
 }
 
@@ -133,14 +133,14 @@ pub struct ConfigResponse {
 /// This structure describes a custom struct used to return vesting data about a specific vesting target.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccountResponse {
-    /// The address of the token being vested
+    /// The address that's vesting tokens
     pub address: Addr,
     /// Vesting information
     pub info: VestingInfo,
 }
 
 /// ## Description
-/// This structure describes a custom struct used to return vesting data for multipel vesting targets.
+/// This structure describes a custom struct used to return vesting data for multiple vesting targets.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccountsResponse {
     /// A list of accounts that are vesting tokens
