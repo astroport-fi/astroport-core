@@ -557,23 +557,30 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-factory" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                let config_v100 = migration::CONFIGV100.load(deps.storage)?;
+            "1.1.0" => {
+                let keys = migration::PAIR_CONFIGSV110
+                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
+                    .map(|v| String::from_utf8(v).map_err(StdError::from))
+                    .collect::<Result<Vec<String>, StdError>>()?;
 
-                let new_config = Config {
-                    whitelist_code_id: msg.whitelist_code_id,
-                    fee_address: config_v100.fee_address,
-                    generator_address: config_v100.generator_address,
-                    owner: config_v100.owner,
-                    token_code_id: config_v100.token_code_id,
-                };
-
-                CONFIG.save(deps.storage, &new_config)?;
+                for key in keys {
+                    let pair_configs_v110 =
+                        migration::PAIR_CONFIGSV110.load(deps.storage, key.clone())?;
+                    let pair_config = PairConfig {
+                        code_id: pair_configs_v110.code_id,
+                        pair_type: pair_configs_v110.pair_type,
+                        total_fee_bps: pair_configs_v110.total_fee_bps,
+                        maker_fee_bps: pair_configs_v110.maker_fee_bps,
+                        is_disabled: pair_configs_v110.is_disabled,
+                        is_generator_disabled: None,
+                    };
+                    PAIR_CONFIGS.save(deps.storage, key, &pair_config)?;
+                }
             }
             _ => return Err(ContractError::MigrationError {}),
         },

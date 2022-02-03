@@ -50,7 +50,7 @@ pub struct PairConfig {
     /// We disable pair configs instead of removing them. If it is disabled, new pairs cannot be
     /// created, but existing ones can still obtain proper settings, such as fee amounts
     pub is_disabled: Option<bool>,
-    /// Is the generator of the pair disabled
+    /// Setting to true will disable creating a pool in generator for this pair type
     pub is_generator_disabled: Option<bool>,
 }
 
@@ -177,10 +177,7 @@ pub struct ConfigResponse {
 /// ## Description
 /// This structure describes a migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    /// cw1 whitelist contract code id used to store 3rd party rewards in pools
-    pub whitelist_code_id: u64,
-}
+pub struct MigrateMsg {}
 
 /// ## Description
 /// A custom struct for each query response that returns an array of objects type [`PairInfo`].
