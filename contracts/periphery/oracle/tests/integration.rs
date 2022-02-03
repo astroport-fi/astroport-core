@@ -101,6 +101,7 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, u64
                 total_fee_bps: 0,
                 maker_fee_bps: 0,
                 is_disabled: None,
+                is_generator_disabled: None,
             },
             PairConfig {
                 code_id: pair_stable_code_id,
@@ -108,6 +109,7 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, u64
                 total_fee_bps: 0,
                 maker_fee_bps: 0,
                 is_disabled: None,
+                is_generator_disabled: None,
             },
         ],
         token_code_id: 1u64,

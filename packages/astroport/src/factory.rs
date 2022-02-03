@@ -50,6 +50,8 @@ pub struct PairConfig {
     /// We disable pair configs instead of removing them. If it is disabled, new pairs cannot be
     /// created, but existing ones can still obtain proper settings, such as fee amounts
     pub is_disabled: Option<bool>,
+    /// Is the generator of the pair disabled
+    pub is_generator_disabled: Option<bool>,
 }
 
 impl PairConfig {

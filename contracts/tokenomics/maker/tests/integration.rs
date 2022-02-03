@@ -98,6 +98,7 @@ fn instantiate_contracts(
             total_fee_bps: 0,
             maker_fee_bps: 0,
             is_disabled: None,
+            is_generator_disabled: None,
         }],
         token_code_id: 1u64,
         fee_address: None,

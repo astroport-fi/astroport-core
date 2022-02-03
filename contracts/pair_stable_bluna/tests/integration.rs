@@ -92,6 +92,7 @@ fn create_pair_with_same_assets() {
             total_fee_bps: 0,
             pair_type: PairType::Stable {},
             is_disabled: None,
+            is_generator_disabled: None,
         }],
         token_code_id: token_contract_code_id,
         generator_address: Some(String::from("generator")),
