@@ -177,7 +177,9 @@ pub struct ConfigResponse {
 /// ## Description
 /// This structure describes a migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub params: Binary,
+}
 
 /// ## Description
 /// A custom struct for each query response that returns an array of objects type [`PairInfo`].

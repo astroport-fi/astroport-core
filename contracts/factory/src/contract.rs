@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Reply,
-    ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
+    Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -557,11 +557,26 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-factory" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                let msg: migration::MigrationMsgV100 = from_binary(&msg.params)?;
+
+                let config_v100 = migration::CONFIGV100.load(deps.storage)?;
+
+                let new_config = Config {
+                    whitelist_code_id: msg.whitelist_code_id,
+                    fee_address: config_v100.fee_address,
+                    generator_address: config_v100.generator_address,
+                    owner: config_v100.owner,
+                    token_code_id: config_v100.token_code_id,
+                };
+
+                CONFIG.save(deps.storage, &new_config)?;
+            }
             "1.1.0" => {
                 let keys = migration::PAIR_CONFIGSV110
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
