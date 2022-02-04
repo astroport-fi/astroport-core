@@ -21,7 +21,7 @@ async function main() {
     console.log('network:', network)
 
     if (network.tokenAddress == "") {
-        throw new Error("token address is not set, create ASTRO token first")
+        throw new Error("Token address is not set, deploy ASTRO token first")
     }
 
     let pools =  [
@@ -109,10 +109,10 @@ async function main() {
             writeArtifact(network, terra.config.chainID)
         }
 
-        // Deploy oracle
+        // Deploy the oracle
         let pool_oracle_key = "oracle" + pool.identifier
         if (pool.initOracle && network[pool_pair_key] && !network[pool_oracle_key]) {
-            console.log(`Deploying oracle for ${pool.identifier}...`)
+            console.log(`Deploying the oracle for ${pool.identifier}...`)
 
             let resp = await deployContract(terra, wallet, network.multisigAddress, join(ARTIFACTS_PATH, 'astroport_oracle.wasm'), {
                 factory_contract: network.factoryAddress,
@@ -124,12 +124,12 @@ async function main() {
             writeArtifact(network, terra.config.chainID)
         }
 
-        // Initialize generator
+        // Initialize the generator
         if (network[pool_pair_key] && network[pool_lp_token_key] && pool.initGenerator) {
             let pool_generator_proxy_key = "generatorProxy" + pool.identifier
             network[pool_generator_proxy_key] = undefined
             if (pool.initGenerator.generatorProxy) {
-                // Deploy proxy contract
+                // Deploy a proxy contract
                 console.log(`Deploying generator proxy for ${pool.identifier}...`)
                 let resp = await deployContract(terra, wallet, network.multisigAddress, join(ARTIFACTS_PATH, pool.initGenerator.generatorProxy.artifactName), {
                     generator_contract_addr: network.generatorAddress,
@@ -147,7 +147,7 @@ async function main() {
                 })
                 let new_allowed_proxies: Array<String> = config.allowed_reward_proxies
                 new_allowed_proxies.push(network[pool_generator_proxy_key] as String)
-                console.log(`Set the proxy as allowed in generator... Allowed proxies with new one: ${new_allowed_proxies}`)
+                console.log(`Whitelist the proxy in the generator contract. The newly allowed proxy list is: ${new_allowed_proxies}`)
                 await executeContract(terra, wallet, network.generatorAddress, {
                     set_allowed_reward_proxies: {
                         proxies: new_allowed_proxies

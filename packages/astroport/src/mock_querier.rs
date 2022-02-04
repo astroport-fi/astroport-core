@@ -12,7 +12,7 @@ use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
-/// this uses our CustomQuerier.
+/// This uses the Astroport CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
@@ -38,7 +38,7 @@ pub struct WasmMockQuerier {
 
 #[derive(Clone, Default)]
 pub struct TokenQuerier {
-    // this lets us iterate over all pairs that match the first string
+    // This lets us iterate over all pairs that match the first string
     balances: HashMap<String, HashMap<String, Uint128>>,
 }
 
@@ -71,7 +71,7 @@ pub(crate) fn balances_to_map(
 #[derive(Clone, Default)]
 pub struct TaxQuerier {
     rate: Decimal,
-    // this lets us iterate over all pairs that match the first string
+    // This lets us iterate over all pairs that match the first string
     caps: HashMap<String, Uint128>,
 }
 
@@ -268,17 +268,17 @@ impl WasmMockQuerier {
         }
     }
 
-    // configure the mint whitelist mock querier
+    // Configure the mint whitelist mock querier
     pub fn with_token_balances(&mut self, balances: &[(&String, &[(&String, &Uint128)])]) {
         self.cw20_query_handler.token_querier = TokenQuerier::new(balances);
     }
 
-    // configure the token owner mock querier
+    // Configure the token owner mock querier
     pub fn with_tax(&mut self, rate: Decimal, caps: &[(&String, &Uint128)]) {
         self.query_handler.tax_querier = TaxQuerier::new(rate, caps);
     }
 
-    // configure the astroport pair
+    // Configure the Astroport pair
     pub fn with_astroport_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
         self.query_handler.astroport_factory_querier = AstroportFactoryQuerier::new(pairs);
     }
