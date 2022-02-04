@@ -19,5 +19,9 @@ fn main() {
     export_schema_with_title(&schema_for!(MigrateMsg), &out_dir, "MigrateMsg");
     export_schema_with_title(&schema_for!(QueryMsg), &out_dir, "QueryMsg");
     export_schema_with_title(&schema_for!(ConfigResponse), &out_dir, "ConfigResponse");
-    export_schema_with_title(&schema_for!(SimulateSwapOperationsResponse), &out_dir, "SimulateSwapOperationsResponse");
+    export_schema_with_title(
+        &schema_for!(SimulateSwapOperationsResponse),
+        &out_dir,
+        "SimulateSwapOperationsResponse",
+    );
 }

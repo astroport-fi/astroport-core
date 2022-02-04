@@ -22,8 +22,20 @@ fn main() {
     export_schema_with_title(&schema_for!(QueryMsg), &out_dir, "QueryMsg");
     export_schema_with_title(&schema_for!(PairInfo), &out_dir, "PairInfo");
     export_schema_with_title(&schema_for!(PoolResponse), &out_dir, "PoolResponse");
-    export_schema_with_title(&schema_for!(ReverseSimulationResponse), &out_dir, "ReverseSimulationResponse");
-    export_schema_with_title(&schema_for!(SimulationResponse), &out_dir, "SimulationResponse");
+    export_schema_with_title(
+        &schema_for!(ReverseSimulationResponse),
+        &out_dir,
+        "ReverseSimulationResponse",
+    );
+    export_schema_with_title(
+        &schema_for!(SimulationResponse),
+        &out_dir,
+        "SimulationResponse",
+    );
     export_schema_with_title(&schema_for!(MigrateMsg), &out_dir, "MigrateMsg");
-    export_schema_with_title(&schema_for!(CumulativePricesResponse), &out_dir, "CumulativePricesResponse");
+    export_schema_with_title(
+        &schema_for!(CumulativePricesResponse),
+        &out_dir,
+        "CumulativePricesResponse",
+    );
 }

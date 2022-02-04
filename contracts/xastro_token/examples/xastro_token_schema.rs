@@ -19,10 +19,26 @@ fn main() {
     export_schema_with_title(&schema_for!(InstantiateMsg), &out_dir, "InstantiateMsg");
     export_schema_with_title(&schema_for!(ExecuteMsg), &out_dir, "ExecuteMsg");
     export_schema_with_title(&schema_for!(QueryMsg), &out_dir, "QueryMsg");
-    export_schema_with_title(&schema_for!(AllowanceResponse), &out_dir, "AllowanceResponse");
+    export_schema_with_title(
+        &schema_for!(AllowanceResponse),
+        &out_dir,
+        "AllowanceResponse",
+    );
     export_schema_with_title(&schema_for!(BalanceResponse), &out_dir, "BalanceResponse");
-    export_schema_with_title(&schema_for!(TokenInfoResponse), &out_dir, "TokenInfoResponse");
+    export_schema_with_title(
+        &schema_for!(TokenInfoResponse),
+        &out_dir,
+        "TokenInfoResponse",
+    );
     export_schema_with_title(&schema_for!(MinterResponse), &out_dir, "MinterResponse");
-    export_schema_with_title(&schema_for!(AllAllowancesResponse), &out_dir, "AllAllowancesResponse");
-    export_schema_with_title(&schema_for!(AllAccountsResponse), &out_dir, "AllAccountsResponse");
+    export_schema_with_title(
+        &schema_for!(AllAllowancesResponse),
+        &out_dir,
+        "AllAllowancesResponse",
+    );
+    export_schema_with_title(
+        &schema_for!(AllAccountsResponse),
+        &out_dir,
+        "AllAccountsResponse",
+    );
 }

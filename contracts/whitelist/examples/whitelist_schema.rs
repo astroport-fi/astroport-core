@@ -14,5 +14,9 @@ fn main() {
     export_schema_with_title(&schema_for!(InstantiateMsg), &out_dir, "InstantiateMsg");
     export_schema_with_title(&schema_for!(ExecuteMsg), &out_dir, "ExecuteMsg");
     export_schema_with_title(&schema_for!(QueryMsg), &out_dir, "QueryMsg");
-    export_schema_with_title(&schema_for!(AdminListResponse), &out_dir, "AdminListResponse");
+    export_schema_with_title(
+        &schema_for!(AdminListResponse),
+        &out_dir,
+        "AdminListResponse",
+    );
 }

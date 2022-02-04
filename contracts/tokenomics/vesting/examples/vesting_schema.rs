@@ -18,7 +18,15 @@ fn main() {
     export_schema_with_title(&schema_for!(ExecuteMsg), &out_dir, "ExecuteMsg");
     export_schema_with_title(&schema_for!(QueryMsg), &out_dir, "QueryMsg");
     export_schema_with_title(&schema_for!(ConfigResponse), &out_dir, "ConfigResponse");
-    export_schema_with_title(&schema_for!(VestingAccountResponse), &out_dir, "VestingAccountResponse");
-    export_schema_with_title(&schema_for!(VestingAccountsResponse), &out_dir, "VestingAccountsResponse");
+    export_schema_with_title(
+        &schema_for!(VestingAccountResponse),
+        &out_dir,
+        "VestingAccountResponse",
+    );
+    export_schema_with_title(
+        &schema_for!(VestingAccountsResponse),
+        &out_dir,
+        "VestingAccountsResponse",
+    );
     export_schema_with_title(&schema_for!(MigrateMsg), &out_dir, "MigrateMsg");
 }
