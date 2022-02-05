@@ -100,9 +100,7 @@ pub enum QueryMsg {
     Config {},
     /// ## Description
     /// Returns information about an address vesting tokens using a [`VestingAccountResponse`] object.
-    VestingAccount {
-        address: String,
-    },
+    VestingAccount { address: String },
     /// ## Description
     /// Returns a list of addresses that are vesting tokens using a [`VestingAccountsResponse`] object.
     VestingAccounts {
@@ -112,9 +110,7 @@ pub enum QueryMsg {
     },
     /// ## Description
     /// Returns the total unvested amount of tokens for a specific address.
-    AvailableAmount {
-        address: String,
-    },
+    AvailableAmount { address: String },
     /// Timestamp returns the current timestamp
     Timestamp {},
 }
