@@ -30,12 +30,12 @@ use std::collections::HashSet;
 const CONTRACT_NAME: &str = "astroport-factory";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-/// A `reply` call code ID of sub-message.
+/// A `reply` call code ID used in a sub-message.
 const INSTANTIATE_PAIR_REPLY_ID: u64 = 1;
 
 /// ## Description
-/// Creates a new contract with the specified parameters in the `msg` variable.
-/// Returns the [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if the contract was not created
+/// Creates a new contract with the specified parameters from the `msg` variable.
+/// Returns a [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if the contract was not created
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -43,7 +43,7 @@ const INSTANTIATE_PAIR_REPLY_ID: u64 = 1;
 ///
 /// * **_info** is the object of type [`MessageInfo`]
 ///
-/// * **msg**  is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
+/// * **msg**  is a message of type [`InstantiateMsg`] which contains the parameters used for creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -83,7 +83,7 @@ pub fn instantiate(
     }
 
     for pc in msg.pair_configs.iter() {
-        // validate total and maker fee bps
+        // Validate total and maker fee bps
         if !pc.valid_fee_bps() {
             return Err(ContractError::PairConfigInvalidFeeBps {});
         }
@@ -95,20 +95,20 @@ pub fn instantiate(
 }
 
 /// ## Description
-/// Data structure for update the settings of the factory contract.
+/// Data structure used to update general contract parameters.
 pub struct UpdateConfig {
-    /// Sets CW20 token contract code identifier
+    /// This is the CW20 token contract code identifier
     token_code_id: Option<u64>,
-    /// Sets contract address to send fees to
+    /// Contract address to send governance fees to (the Maker)
     fee_address: Option<String>,
-    /// Sets contract address that used for auto_stake from pools
+    /// Generator contract address
     generator_address: Option<String>,
-    /// cw1 whitelist contract code id used to store 3rd party rewards in pools
+    /// CW1 whitelist contract code id used to store 3rd party staking rewards
     whitelist_code_id: Option<u64>,
 }
 
 /// ## Description
-/// Available the execute messages of the contract.
+/// Exposes all the execute functions from the contract.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
@@ -123,9 +123,10 @@ pub struct UpdateConfig {
 ///             token_code_id,
 ///             fee_address,
 ///             generator_address,
-///         }** Updates general settings.
+///         }** Updates general contract parameters.
 ///
-/// * **ExecuteMsg::UpdatePairConfig { config }** Updates pair configuration.
+/// * **ExecuteMsg::UpdatePairConfig { config }** Updates a pair type
+/// * configuration or creates a new pair type if a [`Custom`] name is used (which hasn't been used before)
 ///
 /// * **ExecuteMsg::CreatePair {
 ///             pair_type,
@@ -133,13 +134,14 @@ pub struct UpdateConfig {
 ///             init_params,
 ///         }** Creates a new pair with the specified input parameters
 ///
-/// * **ExecuteMsg::Deregister { asset_infos }** Removes a exists pair with the specified input parameters.
+/// * **ExecuteMsg::Deregister { asset_infos }** Removes an existing pair from the factory.
+/// * The asset information is for the assets that are traded in the pair
 ///
-/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a request to change ownership.
+/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a request to change contract ownership.
 ///
-/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change ownership.
+/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
 ///
-/// * **ExecuteMsg::ClaimOwnership {}** Approves ownership.
+/// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -206,8 +208,7 @@ pub fn execute(
 }
 
 /// ## Description
-/// Updates general settings. Returns an [`ContractError`] on failure or the following [`Config`]
-/// data will be updated if successful.
+/// Updates general contract settings. Returns a [`ContractError`] on failure.
 ///
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
@@ -216,10 +217,10 @@ pub fn execute(
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **param** is the object of type [`UpdateConfig`] that contains information to update.
+/// * **param** is an object of type [`UpdateConfig`] that contains the parameters to update.
 ///
 /// ##Executor
-/// Only owner can execute it
+/// Only the owner can execute this
 pub fn execute_update_config(
     deps: DepsMut,
     _env: Env,
@@ -239,7 +240,7 @@ pub fn execute_update_config(
     }
 
     if let Some(generator_address) = param.generator_address {
-        // validate address format
+        // validate the address format
         config.generator_address = Some(addr_validate_to_lower(
             deps.api,
             generator_address.as_str(),
@@ -260,18 +261,17 @@ pub fn execute_update_config(
 }
 
 /// ## Description
-/// Updates pair configuration. Returns an [`ContractError`] on failure or
-/// the following [`PairConfig`] data will be updated if successful.
+/// Updates a pair type's configuration. Returns [`ContractError`] on failure.
 ///
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **info** is the object of type [`MessageInfo`]
 ///
-/// * **pair_config** is the object of type [`PairConfig`] that contains information to update.
+/// * **pair_config** is an object of type [`PairConfig`] that contains the pair type information to update.
 ///
 /// ## Executor
-/// Only owner can execute it
+/// Only the owner can execute this
 pub fn execute_update_pair_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -299,19 +299,19 @@ pub fn execute_update_pair_config(
 }
 
 /// ## Description
-/// Creates a new pair with the specified parameters in the `asset_infos` variable. Returns an [`ContractError`] on failure or
-/// returns the address of the contract if the creation was successful.
+/// Creates a new pair of `pair_type` with the assets specified in `asset_infos`. Returns a [`ContractError`] on failure or
+/// returns the address of the pair contract if the transaction was successful.
 ///
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **pair_type** is the object of type [`PairType`].
+/// * **pair_type** is an object of type [`PairType`]. This is the pair type of the newly created pair.
 ///
-/// * **asset_infos** is an array with two items the type of [`AssetInfo`].
+/// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the assets for which we create a pair.
 ///
-/// * **init_params** is an [`Option`] type. Receive a binary data.
+/// * **init_params** is an [`Option`] type. These are packed params used for custom pair types that need more data to be instantiated.
 pub fn execute_create_pair(
     deps: DepsMut,
     env: Env,
@@ -376,7 +376,7 @@ pub fn execute_create_pair(
 }
 
 /// # Description
-/// The entry point to the contract for processing the reply from the submessage
+/// The entry point to the contract for processing replies from submessages
 /// # Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -407,19 +407,18 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 }
 
 /// ## Description
-/// Removes a exists pair with the specified parameters in the `asset_infos` variable.
-/// Returns an [`ContractError`] on failure or returns the [`Response`] with the specified attributes
-/// if the operation was successful.
+/// Removes an existing pair from the factory. Returns an [`ContractError`] on failure or returns a [`Response`]
+/// with the specified attributes if the operation was successful.
 ///
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **asset_infos** are an array with two items the type of [`AssetInfo`].
+/// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the asets for which we deregister the pair.
 ///
 /// ## Executor
-/// Only owner can execute it
+/// Only the owner can execute this
 pub fn deregister(
     deps: DepsMut,
     info: MessageInfo,
@@ -444,7 +443,7 @@ pub fn deregister(
 }
 
 /// ## Description
-/// Available the query messages of the contract.
+/// Exposes all the queries available in the contract.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
@@ -453,15 +452,14 @@ pub fn deregister(
 /// * **msg** is the object of type [`QueryMsg`].
 ///
 /// ## Queries
-/// * **QueryMsg::Config {}** Returns controls settings that specified in custom [`ConfigResponse`] structure.
+/// * **QueryMsg::Config {}** Returns general contract parameters using a custom [`ConfigResponse`] structure.
 ///
-/// * **QueryMsg::Pair { asset_infos }** Returns the [`PairInfo`] object with the specified input parameters
+/// * **QueryMsg::Pair { asset_infos }** Returns a [`PairInfo`] object with information about a specific Astroport pair.
 ///
-/// * **QueryMsg::Pairs { start_after, limit }** Returns an array that contains items of [`PairInfo`]
-/// according to the specified input parameters.
+/// * **QueryMsg::Pairs { start_after, limit }** Returns an array that contains items of type [`PairInfo`].
+/// This returns information about multiple Astroport pairs
 ///
-/// * **QueryMsg::FeeInfo { pair_type }** Returns the settings specified in the custom
-/// structure [`FeeInfoResponse`].
+/// * **QueryMsg::FeeInfo { pair_type }** Returns the fee structure (total and maker fees) for a specific pair type.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -475,7 +473,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// ## Description
-/// Returns controls settings that specified in custom [`ConfigResponse`] structure
+/// Returns general contract parameters using a custom [`ConfigResponse`] structure.
 ///
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
@@ -500,24 +498,25 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 /// ## Description
-/// Returns a pair with the specified parameters in the `asset_infos` variable.
+/// Returns a pair's data using the assets in `asset_infos` as input (those being the assets that are traded in the pair)
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **asset_infos** it is array with two items the type of [`AssetInfo`].
+/// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the assets traded in the pair.
 pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     query_pair_info(deps, &pair_addr)
 }
 
 /// ## Description
-/// Returns an array that contains items of [`PairInfo`] according to the specified parameters in `start_after` and `limit` variables.
+/// Returns an array with pair data that contains items of type [`PairInfo`]. Querying starts at `start_after` and returns `limit` pairs.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **start_after** is an [`Option`] field that accepts an array with two items the type of [`AssetInfo`].
+/// * **start_after** is an [`Option`] field which accepts an array with two items of type [`AssetInfo`].
+/// This is the pair from which we start to query.
 ///
-/// * **limit** is a [`Option`] type. Sets the number of items to be read.
+/// * **limit** is a [`Option`] type. Sets the number of pairs to be retrieved.
 pub fn query_pairs(
     deps: Deps,
     start_after: Option<[AssetInfo; 2]>,
@@ -532,11 +531,11 @@ pub fn query_pairs(
 }
 
 /// ## Description
-/// Returns the settings specified in the custom structure [`FeeInfoResponse`] for the specified parameters in the `pair_type` variable.
+/// Returns the fee setup for a specific pair type in a [`FeeInfoResponse`] struct.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **pair_type** is the type of pair available in [`PairType`]
+/// * **pair_type** is a [`PairType`] struct that returns the fee information (total and maker fees) for a specific pair type.
 pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoResponse> {
     let config = CONFIG.load(deps.storage)?;
     let pair_config = PAIR_CONFIGS.load(deps.storage, pair_type.to_string())?;
@@ -549,7 +548,7 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
 }
 
 /// ## Description
-/// Used for migration of contract. Returns the default object of type [`Response`].
+/// Used for the contract migration. Returns a default object of type [`Response`].
 /// ## Params
 /// * **_deps** is the object of type [`Deps`].
 ///

@@ -97,7 +97,7 @@ impl WasmMockQuerier {
         }
     }
 
-    // configure the astroport pair
+    // configure the Astroport pair
     pub fn with_astroport_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
         self.astroport_pair_querier = AstroportPairQuerier::new(pairs);
     }
