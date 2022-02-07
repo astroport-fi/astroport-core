@@ -241,6 +241,32 @@ Used to claim(approve) new owner proposal, thus changing contract's owner.
 }
 ```
 
+### `update_pool_config`
+
+Sets a proxy for the pool.
+
+```json
+{
+  "update_pool_config": {
+    "lp_token": "terra...",
+    "proxy": "terra..."
+  }
+}
+```
+
+### `update_proxies`
+
+Add or remove proxy contract that can interact with the Generator
+
+```json
+{
+  "update_proxies": {
+    "add": ["terra...", "terra..."],
+    "remove": ["terra...", "terra...", "terra..."]
+  }
+}
+```
+
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.

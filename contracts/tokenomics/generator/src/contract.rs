@@ -1,14 +1,15 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
 
 use crate::error::ContractError;
 use crate::migration;
 use crate::state::{
-    get_pools, update_user_balance, Config, ExecuteOnReply, PoolInfo, UserInfo, CONFIG,
-    OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
+    get_pools, update_user_balance, Config, ExecuteOnReply, PoolInfo, UserInfo,
+    ADD_OR_REMOVE_PROXY_BY_USER_ONCE, CONFIG, OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION,
+    USER_INFO,
 };
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
@@ -133,6 +134,10 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::UpdatePoolConfig { lp_token, proxy } => {
+            update_pool_config(deps, lp_token, proxy)
+        }
+        ExecuteMsg::UpdateProxies { add, remove } => update_proxies(deps, info, add, remove),
         ExecuteMsg::UpdateConfig { vesting_contract } => {
             execute_update_config(deps, info, vesting_contract)
         }
@@ -1195,6 +1200,83 @@ fn send_orphan_proxy_rewards(
         .add_attribute("recipient", recipient)
         .add_attribute("lp_token", lp_token.to_string())
         .add_attribute("amount", amount))
+}
+
+/// ## Description
+/// Sets the reward proxy contract for the pool. Returns an [`ContractError`] on failure, otherwise
+/// returns the [`Response`] with the specified attributes if the operation was successful.
+fn update_pool_config(
+    deps: DepsMut,
+    lp_token: String,
+    proxy: String,
+) -> Result<Response, ContractError> {
+    let lp_addr = addr_validate_to_lower(deps.api, &lp_token)?;
+    let proxy_addr = addr_validate_to_lower(deps.api, &proxy)?;
+
+    let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
+    pool_info.reward_proxy = Some(proxy_addr);
+
+    POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "update_pool_config"),
+        attr("new_proxy", proxy),
+    ]))
+}
+
+/// ## Description
+/// Adds or removes the proxy contracts to the list of allowed. Returns an [`ContractError`] on failure
+fn update_proxies(
+    deps: DepsMut,
+    info: MessageInfo,
+    add: Option<Vec<String>>,
+    remove: Option<Vec<String>>,
+) -> Result<Response, ContractError> {
+    if add.is_none() && remove.is_none() {
+        return Err(ContractError::Std(StdError::generic_err(
+            "Need to provide add or remove parameters",
+        )));
+    }
+
+    let user_action = ADD_OR_REMOVE_PROXY_BY_USER_ONCE.may_load(deps.storage, &info.sender)?;
+    if let Some(action) = user_action {
+        if action {
+            return Err(ContractError::UserAlreadyAddedOrRemovedProxy {});
+        }
+    }
+
+    let mut cfg = CONFIG.load(deps.storage)?;
+
+    // remove old proxy
+    if let Some(remove_proxies) = remove {
+        for remove_proxy in remove_proxies {
+            let remove_proxy_addr = addr_validate_to_lower(deps.api, &remove_proxy)?;
+            let index = cfg
+                .allowed_reward_proxies
+                .iter()
+                .position(|x| *x == remove_proxy_addr)
+                .ok_or_else(|| {
+                    StdError::generic_err(
+                        "Can't remove proxy contract. It is not found in allowed list.",
+                    )
+                })?;
+            cfg.allowed_reward_proxies.remove(index);
+        }
+    }
+
+    // add new proxy
+    if let Some(add_proxies) = add {
+        for add_proxy in add_proxies {
+            let proxy_addr = addr_validate_to_lower(deps.api, &add_proxy)?;
+            if !cfg.allowed_reward_proxies.contains(&proxy_addr) {
+                cfg.allowed_reward_proxies.push(proxy_addr);
+            }
+        }
+    }
+
+    ADD_OR_REMOVE_PROXY_BY_USER_ONCE.save(deps.storage, &info.sender, &true)?;
+    CONFIG.save(deps.storage, &cfg)?;
+    Ok(Response::default().add_attribute("action", "update_proxies"))
 }
 
 /// ## Description

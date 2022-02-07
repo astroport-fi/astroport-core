@@ -128,6 +128,11 @@ pub const TMP_USER_ACTION: Item<Option<ExecuteOnReply>> = Item::new("tmp_user_ac
 pub const USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
 
 /// ## Description
+/// This is a map containing information about all users who added or removed a proxy contracts.
+pub const ADD_OR_REMOVE_PROXY_BY_USER_ONCE: Map<&Addr, bool> =
+    Map::new("add_or_remove_proxy_by_user");
+
+/// ## Description
 /// Contains proposal for change ownership.
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 

@@ -28,6 +28,9 @@ pub enum ContractError {
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
+
+    #[error("The user has already added or removed the proxy contracts!")]
+    UserAlreadyAddedOrRemovedProxy,
 }
 
 impl From<OverflowError> for ContractError {
