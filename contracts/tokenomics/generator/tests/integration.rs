@@ -1341,7 +1341,7 @@ fn update_proxy_pool() {
 
     // set the proxy for the pool
     let msg = ExecuteMsg::UpdatePoolConfig {
-        pool: lp_cny_eur_instance.to_string(),
+        lp_token: lp_cny_eur_instance.to_string(),
         proxy: proxy_to_mirror_instance.to_string(),
     };
 
