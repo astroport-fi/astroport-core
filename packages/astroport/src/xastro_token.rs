@@ -5,55 +5,54 @@ use cosmwasm_std::{StdError, StdResult, Uint128};
 use cw20::{Cw20Coin, MinterResponse};
 
 /// ## Description
-/// This structure describes the basic settings for creating a token contract.
+/// This structure describes the parameters used for creating a xASTRO token contract.
 /// TokenContract InstantiateMsg
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InstantiateMsg {
-    /// the name
+    /// Token name
     pub name: String,
-    /// the symbol
+    /// Token symbol
     pub symbol: String,
-    /// the precision after the decimal point
+    /// The number of decimals the token has
     pub decimals: u8,
-    /// the initial balance of token
+    /// Initial token balances
     pub initial_balances: Vec<Cw20Coin>,
-    /// the controls configs of type [`MinterResponse`]
+    /// Token minting permissions
     pub mint: Option<MinterResponse>,
 }
 
 /// ## Description
-/// This enum describes the query messages of the contract.
+/// This enum describes the query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Returns the current balance of the given address, 0 if unset.
+    /// Balance returns the current balance of a given address, 0 if unset.
     Balance { address: String },
-    /// Returns balance of the given address at the given block, 0 if unset.
+    /// BalanceAt returns balance of the given address at the given block, 0 if unset.
     BalanceAt { address: String, block: u64 },
-    /// Returns total supply at the given block.
+    /// TotalSupplyAt returns the total token supply at the given block.
     TotalSupplyAt { block: u64 },
-    /// Returns metadata on the contract - name, decimals, supply, etc.
+    /// TokenInfo returns the contract's metadata - name, decimals, supply, etc.
     TokenInfo {},
     /// Returns who can mint and the hard cap on maximum tokens after minting.
     Minter {},
-    /// Returns how much spender can use from owner account, 0 if unset.
+    /// Allowance returns an amount of tokens the spender can spend from the owner account, 0 if unset.
     Allowance { owner: String, spender: String },
-    /// Returns all allowances this owner has approved. Supports pagination.
+    /// AllAllowances returns all allowances this owner has approved. Supports pagination.
     AllAllowances {
         owner: String,
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns all accounts that have balances. Supports pagination.
+    /// AllAccounts returns all accounts that have balances. Supports pagination.
     AllAccounts {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns more metadata on the contract to display in the client:
+    /// Returns marketing related contract metadata:
     /// - description, logo, project url, etc.
     MarketingInfo {},
-    /// Downloads the mbeded logo data (if stored on chain). Errors if no logo data ftored for this
-    /// contract.
+    /// Downloads embeded logo data (if stored on chain). Errors if no logo data was stored for this contract.
     DownloadLogo {},
 }
 
@@ -88,9 +87,9 @@ impl InstantiateMsg {
 }
 
 /// ## Description
-/// Checks the validity of the token name
+/// Checks the validity of a token's name
 /// ## Params
-/// * **name** is the object of type [`str`]. the name to check
+/// * **name** is an object of type [`str`]. It is the token name to check
 fn is_valid_name(name: &str) -> bool {
     let bytes = name.as_bytes();
     if bytes.len() < 3 || bytes.len() > 50 {
@@ -100,9 +99,9 @@ fn is_valid_name(name: &str) -> bool {
 }
 
 /// ## Description
-/// Checks the validity of the token symbol
+/// Checks the validity of a token's symbol
 /// ## Params
-/// * **symbol** is the object of type [`str`]. the symbol to check
+/// * **symbol** is an object of type [`str`]. It is the token symbol to check
 fn is_valid_symbol(symbol: &str) -> bool {
     let bytes = symbol.as_bytes();
     if bytes.len() < 3 || bytes.len() > 12 {

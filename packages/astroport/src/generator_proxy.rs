@@ -4,18 +4,18 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// ## Description
-/// This structure describes the basic settings for creating a contract.
+/// This structure describes the basic parameters for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// the generator contract address
+    /// The generator contract address
     pub generator_contract_addr: String,
-    /// the pair contract address
+    /// The pair contract address used in this generator proxy
     pub pair_addr: String,
-    /// the liquidity pool token contract address
+    /// The LP contract address which can be staked in the reward_contract
     pub lp_token_addr: String,
-    /// the reward contract address
+    /// The 3rd party reward contract address
     pub reward_contract_addr: String,
-    /// the reward token contract address
+    /// The 3rd party reward token contract address
     pub reward_token_addr: String,
 }
 
@@ -26,61 +26,62 @@ pub enum Cw20HookMsg {
 }
 
 /// ## Description
-/// This structure describes the execute messages of the contract.
+/// This structure describes the execute messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     /// Receives a message of type [`Cw20ReceiveMsg`]
     Receive(Cw20ReceiveMsg),
-    /// Withdrawal pending rewards
+    /// Withdraw pending token rewards from the 3rd party staking contract
     UpdateRewards {},
-    /// Sends rewards to the recipient
+    /// Sends rewards to a recipient
     SendRewards { account: String, amount: Uint128 },
-    /// Withdrawal the rewards
+    /// Withdraw LP tokens and outstanding token rewards
     Withdraw {
-        /// the recipient for withdrawal
+        /// The address that will receive the withdrawn tokens and rewards
         account: String,
-        /// the amount of withdraw
+        /// The amount of LP tokens to withdraw
         amount: Uint128,
     },
-    /// Withdrawal the rewards
+    /// Withdraw LP tokens without claiming rewards
     EmergencyWithdraw {
-        /// the recipient for withdrawal
+        /// The address that will receive the withdrawn tokens
         account: String,
-        /// the amount of withdraw
+        /// The amount of LP tokens to withdraw
         amount: Uint128,
     },
-    /// the callback of type [`CallbackMsg`]
+    /// Callback of type [`CallbackMsg`]
     Callback(CallbackMsg),
 }
 
 /// ## Description
-/// This structure describes the callback messages of the contract.
+/// This structure describes the callback messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CallbackMsg {
     TransferLpTokensAfterWithdraw {
-        /// the recipient
+        /// The LP token recipient
         account: Addr,
-        /// the previous lp balance for calculate withdraw amount
+        /// The previous LP balance for the contract. This is used to calculate
+        /// the amount of received LP tokens after withdrawing from a third party contract
         prev_lp_balance: Uint128,
     },
 }
 
 /// ## Description
-/// This structure describes the query messages of the contract.
+/// This structure describes query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Returns the contract's configuration
+    /// Returns the contract's core configuration
     Config {},
-    /// Returns the deposit amount
+    /// Returns the amount of deposited LP tokens
     Deposit {},
-    /// Returns the balance of reward token
+    /// Returns the amount of rewards to be distributed
     Reward {},
-    /// Returns the pending rewards
+    /// Returns the amount of pending rewards which can be claimed right now
     PendingToken {},
-    /// Returns the reward token contract address
+    /// Returns the 3rd party reward token contract address
     RewardInfo {},
 }
 

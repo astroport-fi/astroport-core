@@ -5,150 +5,146 @@ use cosmwasm_std::{Addr, Order, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 /// ## Description
-/// This structure describes the basic settings for creating a contract.
+/// This structure describes the parameters used for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// contract address that used to control settings
+    /// Address allowed to change contract parameters
     pub owner: String,
-    /// the token address
+    /// The address of the token that's being vested
     pub token_addr: String,
 }
 
 /// ## Description
-/// This structure describes the execute messages of the contract.
+/// This structure describes the execute messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// Claims the amount from Vesting for transfer to the recipient
+    /// Claim claims vested tokens and sends them to a recipient
     Claim {
-        /// the recipient of claim
+        /// The address that receives the vested tokens
         recipient: Option<String>,
-        /// the amount of claim
+        /// The amount of tokens to claim
         amount: Option<Uint128>,
     },
-    /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received
-    /// template.
+    /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template
     Receive(Cw20ReceiveMsg),
     /// ## Description
-    /// Creates a request to change ownership
+    /// Creates a request to change contract ownership
     /// ## Executor
-    /// Only owner can execute it
+    /// Only the current owner can execute this
     ProposeNewOwner {
-        /// a new ownership
+        /// The newly proposed owner
         owner: String,
-        /// the validity period of the offer to change the owner
+        /// The validity period of the offer to change the owner
         expires_in: u64,
     },
     /// ## Description
-    /// Removes a request to change ownership
+    /// Removes a request to change contract ownership
     /// ## Executor
-    /// Only owner can execute it
+    /// Only the current owner can execute this
     DropOwnershipProposal {},
     /// ## Description
-    /// Approves ownership
+    /// Claims contract ownership
     /// ## Executor
-    /// Only owner can execute it
+    /// Only the newly proposed owner can execute this
     ClaimOwnership {},
 }
 
 /// ## Description
-/// This structure describes the basic settings for vesting account.
+/// This structure stores vesting information for a specific address that is getting tokens.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
-    /// the address of account
+    /// The address that is getting tokens
     pub address: String,
-    /// the schedules of account
+    /// The vesting schedules targeted at the `address`
     pub schedules: Vec<VestingSchedule>,
 }
 
 /// ## Description
-/// This structure describes the basic settings for vesting information.
+/// This structure stores parameters for a batch of vesting schedules.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingInfo {
-    /// the schedules
+    /// The vesting schedules
     pub schedules: Vec<VestingSchedule>,
-    /// the released amount
+    /// The total amount of ASTRO already claimed
     pub released_amount: Uint128,
 }
 
 /// ## Description
-/// This structure describes the basic settings for vesting schedule.
+/// This structure stores parameters for a specific vesting schedule
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingSchedule {
-    /// the start point of schedule
+    /// The start date for the vesting schedule
     pub start_point: VestingSchedulePoint,
-    /// the end point of schedule
+    /// The end point for the vesting schedule
     pub end_point: Option<VestingSchedulePoint>,
 }
 
 /// ## Description
-/// This structure describes the basic settings for vesting schedule point.
+/// This structure stores the parameters used to create a vesting schedule.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingSchedulePoint {
-    /// the time
+    /// The start time for the vesting schedule
     pub time: u64,
-    /// the amount
+    /// The amount of tokens being vested
     pub amount: Uint128,
 }
 
 /// ## Description
-/// This structure describes the query messages of the contract.
+/// This structure describes the query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     /// ## Description
-    /// Returns information about the vesting configs in the [`ConfigResponse`] object.
+    /// Returns the configuration for the contract using a [`ConfigResponse`] object.
     Config {},
     /// ## Description
-    /// Returns information about the vesting account in the [`VestingAccountResponse`] object.
-    VestingAccount {
-        address: String,
-    },
+    /// Returns information about an address vesting tokens using a [`VestingAccountResponse`] object.
+    VestingAccount { address: String },
     /// ## Description
-    /// Returns a list of accounts, for the given input parameters, in the [`VestingAccountsResponse`] object.
+    /// Returns a list of addresses that are vesting tokens using a [`VestingAccountsResponse`] object.
     VestingAccounts {
         start_after: Option<String>,
         limit: Option<u32>,
         order_by: Option<OrderBy>,
     },
     /// ## Description
-    /// Returns the available amount for specified account.
-    AvailableAmount {
-        address: String,
-    },
+    /// Returns the total unvested amount of tokens for a specific address.
+    AvailableAmount { address: String },
+    /// Timestamp returns the current timestamp
     Timestamp {},
 }
 
 /// ## Description
-/// This structure describes the custom struct for each query response.
+/// This structure describes a custom struct used to return the contract configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    /// contract address that controls settings
+    /// Address allowed to set contract parameters
     pub owner: Addr,
-    /// the token address
+    /// The address of the token being vested
     pub token_addr: Addr,
 }
 
 /// ## Description
-/// This structure describes the custom struct for each query response.
+/// This structure describes a custom struct used to return vesting data about a specific vesting target.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccountResponse {
-    /// the token address
+    /// The address that's vesting tokens
     pub address: Addr,
-    /// the information object of type [`VestingInfo`]
+    /// Vesting information
     pub info: VestingInfo,
 }
 
 /// ## Description
-/// This structure describes the custom struct for each query response.
+/// This structure describes a custom struct used to return vesting data for multiple vesting targets.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccountsResponse {
-    /// the vesting accounts information
+    /// A list of accounts that are vesting tokens
     pub vesting_accounts: Vec<VestingAccountResponse>,
 }
 
 /// ## Description
-/// This enum describes the type of sort
+/// This enum describes the types of sorting that can be applied to some piece of data
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OrderBy {
@@ -159,8 +155,7 @@ pub enum OrderBy {
 }
 
 // We suppress this clippy warning because Order in cosmwasm doesn't implement Debug and
-// PartialEq for usage in QueryMsg, we need to use our own OrderBy and
-// convert it finally to cosmwasm's Order
+// PartialEq for usage in QueryMsg. We need to use our own OrderBy and convert the result to cosmwasm's Order
 #[allow(clippy::from_over_into)]
 impl Into<Order> for OrderBy {
     fn into(self) -> Order {
@@ -183,7 +178,7 @@ pub struct MigrateMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    /// Register vesting accounts
+    /// RegisterVestingAccounts registers vesting targets/accounts
     RegisterVestingAccounts {
         vesting_accounts: Vec<VestingAccount>,
     },

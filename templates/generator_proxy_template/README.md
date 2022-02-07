@@ -1,14 +1,12 @@
-# Astroport Generator proxy Rewards template
+# Astroport Generator Proxy Rewards template
 
-The generator proxy contract interacts with a staking contract. Stake and rewards based on locked LP token amount by liquidity pool providers (dual rewards feature).
-
-README has updated with new messages (Astroport v1 messages follow).
+The generator proxy contract allows an external staking contract to be connected to the Generator and it gives generator stakers the ability to claim both ASTRO emissions as well as 3rd party tokens at the same time. This is called "dual rewards" in Astroport.
 
 ---
 
 ## InstantiateMsg
 
-Inits with required contract addresses for depositing and reward distribution.
+Initialize the proxy contract.
 
 ```json
 {
@@ -38,7 +36,7 @@ CW20 receive msg.
 
 ### `update_rewards`
 
-Updates token proxy rewards.
+Updates 3rd party token proxy rewards and withdraws rewards from the 3rd party staking contract.
 
 ```json
 {
@@ -61,7 +59,7 @@ Sends token rewards amount for given address.
 
 ### `withdraw`
 
-Withdraws token rewards amount for given address.
+Withdraws LP tokens alongside any outstanding token rewards and sends them to the specified address.
 
 ```json
 {
