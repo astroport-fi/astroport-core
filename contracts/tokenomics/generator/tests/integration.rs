@@ -1360,13 +1360,27 @@ fn update_proxy_pool() {
         &mirror_token_instance,
     );
 
+    // can't add proxy if proxy reward isn't allowed
+    let msg = ExecuteMsg::UpdatePoolConfig {
+        lp_token: lp_cny_eur_instance.to_string(),
+        proxy: proxy_to_mirror_instance.to_string(),
+    };
+    let err = app
+        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!("Reward proxy not allowed!", err.to_string());
+
+    let msg = GeneratorExecuteMsg::SetAllowedRewardProxies {
+        proxies: vec![proxy_to_mirror_instance.to_string()],
+    };
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
     // set the proxy for the pool
     let msg = ExecuteMsg::UpdatePoolConfig {
         lp_token: lp_cny_eur_instance.to_string(),
         proxy: proxy_to_mirror_instance.to_string(),
     };
-
-    // can execute anyone
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
 

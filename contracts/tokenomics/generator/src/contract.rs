@@ -134,7 +134,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdatePoolConfig { lp_token, proxy } => {
-            update_pool_config(deps, lp_token, proxy)
+            update_pool_config(deps, env, lp_token, proxy)
         }
         ExecuteMsg::UpdateProxies { add, remove } => update_proxies(deps, add, remove),
         ExecuteMsg::UpdateConfig { vesting_contract } => {
@@ -1205,15 +1205,24 @@ fn send_orphan_proxy_rewards(
 /// Sets the reward proxy contract for the pool. Returns an [`ContractError`] on failure, otherwise
 /// returns the [`Response`] with the specified attributes if the operation was successful.
 fn update_pool_config(
-    deps: DepsMut,
+    mut deps: DepsMut,
+    env: Env,
     lp_token: String,
     proxy: String,
 ) -> Result<Response, ContractError> {
     let lp_addr = addr_validate_to_lower(deps.api, &lp_token)?;
     let proxy_addr = addr_validate_to_lower(deps.api, &proxy)?;
 
+    let cfg = CONFIG.load(deps.storage)?;
+
+    if !cfg.allowed_reward_proxies.contains(&proxy_addr) {
+        return Err(ContractError::RewardProxyNotAllowed {});
+    }
+
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
     pool_info.reward_proxy = Some(proxy_addr);
+
+    accumulate_rewards_per_share(deps.branch(), &env, &lp_addr, &mut pool_info, &cfg, None)?;
 
     POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
 
