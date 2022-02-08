@@ -1,5 +1,6 @@
 # Astroport
-![coverage](./coverage/badges/flat.svg)
+
+[![codecov](https://codecov.io/gh/astroport-fi/astroport-core/branch/master/graph/badge.svg?token=ROOLZTGZMM)](https://codecov.io/gh/astroport-fi/astroport-core)
 
 Uniswap-inspired automated market-maker (AMM) protocol powered by Smart Contracts on the [Terra](https://terra.money) blockchain.
 
