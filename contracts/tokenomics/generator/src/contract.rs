@@ -7,9 +7,8 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, Minter
 use crate::error::ContractError;
 use crate::migration;
 use crate::state::{
-    get_pools, update_user_balance, Config, ExecuteOnReply, PoolInfo, UserInfo,
-    ADD_OR_REMOVE_PROXY_BY_USER_ONCE, CONFIG, OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION,
-    USER_INFO,
+    get_pools, update_user_balance, Config, ExecuteOnReply, PoolInfo, UserInfo, CONFIG,
+    OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
@@ -137,7 +136,7 @@ pub fn execute(
         ExecuteMsg::UpdatePoolConfig { lp_token, proxy } => {
             update_pool_config(deps, lp_token, proxy)
         }
-        ExecuteMsg::UpdateProxies { add, remove } => update_proxies(deps, info, add, remove),
+        ExecuteMsg::UpdateProxies { add, remove } => update_proxies(deps, add, remove),
         ExecuteMsg::UpdateConfig { vesting_contract } => {
             execute_update_config(deps, info, vesting_contract)
         }
@@ -1228,7 +1227,6 @@ fn update_pool_config(
 /// Adds or removes the proxy contracts to the list of allowed. Returns an [`ContractError`] on failure
 fn update_proxies(
     deps: DepsMut,
-    info: MessageInfo,
     add: Option<Vec<String>>,
     remove: Option<Vec<String>>,
 ) -> Result<Response, ContractError> {
@@ -1236,13 +1234,6 @@ fn update_proxies(
         return Err(ContractError::Std(StdError::generic_err(
             "Need to provide add or remove parameters",
         )));
-    }
-
-    let user_action = ADD_OR_REMOVE_PROXY_BY_USER_ONCE.may_load(deps.storage, &info.sender)?;
-    if let Some(action) = user_action {
-        if action {
-            return Err(ContractError::UserAlreadyAddedOrRemovedProxy {});
-        }
     }
 
     let mut cfg = CONFIG.load(deps.storage)?;
@@ -1274,7 +1265,6 @@ fn update_proxies(
         }
     }
 
-    ADD_OR_REMOVE_PROXY_BY_USER_ONCE.save(deps.storage, &info.sender, &true)?;
     CONFIG.save(deps.storage, &cfg)?;
     Ok(Response::default().add_attribute("action", "update_proxies"))
 }

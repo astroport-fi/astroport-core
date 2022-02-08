@@ -1277,7 +1277,7 @@ fn update_proxies() {
     ];
     assert_eq!(allowed_reward_proxies, reps.allowed_reward_proxies);
 
-    // check whether the user can really delete or add proxy contracts once
+    // check if proxy was removed already
     let msg = ExecuteMsg::UpdateProxies {
         add: None,
         remove: Some(vec!["proxy1".to_string(), "proxy2".to_string()]),
@@ -1287,9 +1287,30 @@ fn update_proxies() {
         .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(
-        "The user has already added or removed the proxy contracts!",
+        "Generic error: Can't remove proxy contract. It is not found in allowed list.",
         err.to_string()
     );
+
+    // only add proxy
+    let msg = ExecuteMsg::UpdateProxies {
+        add: Some(vec!["proxy1".to_string(), "proxy2".to_string()]),
+        remove: None,
+    };
+
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+    let reps: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &QueryMsg::Config {})
+        .unwrap();
+    let allowed_reward_proxies: Vec<Addr> = vec![
+        Addr::unchecked("proxy2"),
+        Addr::unchecked("proxy4"),
+        Addr::unchecked("proxy5"),
+        Addr::unchecked("proxy6"),
+        Addr::unchecked("proxy1"),
+    ];
+    assert_eq!(allowed_reward_proxies, reps.allowed_reward_proxies);
 }
 
 #[test]
