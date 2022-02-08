@@ -4,41 +4,40 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// ## Description
-/// This structure describes the basic settings for creating a contract.
+/// This structure describes the parameters used for creating a contract.
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InstantiateMsg {
-    /// the owner address
+    /// The contract owner address
     pub owner: String,
-    /// the token code identifier
+    /// CW20 token code identifier
     pub token_code_id: u64,
-    /// the deposit token address
+    /// The ASTRO token contract address
     pub deposit_token_addr: String,
 }
 
 /// ## Description
-/// This structure describes the execute messages of the contract.
+/// This structure describes the execute messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received
-    /// template.
+    /// Receive receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
     Receive(Cw20ReceiveMsg),
 }
 
 /// ## Description
-/// This structure describes the query messages of the contract.
+/// This structure describes the query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Config returns controls settings that specified in custom [`ConfigResponse`] structure
+    /// Config returns the contract configuration specified in a custom [`ConfigResponse`] structure
     Config {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    /// the deposit token address
+    /// The ASTRO token address
     pub deposit_token_addr: Addr,
-    /// the share token address
+    /// The xASTRO token address
     pub share_token_addr: Addr,
 }
 
@@ -53,8 +52,8 @@ pub struct MigrateMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    /// Deposits token to get share token amount
+    /// Deposits ASTRO in exchange for xASTRO
     Enter {},
-    /// Unstakes share token to move back deposit token amount. Burns share.
+    /// Burns xASTRO in exchange for ASTRO
     Leave {},
 }

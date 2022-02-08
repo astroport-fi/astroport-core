@@ -18,13 +18,13 @@ async function main() {
     // 1. Provide liquidity
     await provideLiquidity(network, astroport, wallet.key.accAddress)
 
-    // 2. Deposit ASTRO to staking
+    // 2. Stake ASTRO
     await stake(network, astroport, wallet.key.accAddress)
 
     // 3. Swap tokens in pool
     await swap(network, astroport, wallet.key.accAddress)
 
-    // 4. Maker collect fees
+    // 4. Collect Maker fees
     await collectFees(network, astroport, wallet.key.accAddress)
 
     // 5. Withdraw liquidity
@@ -38,7 +38,7 @@ async function provideLiquidity(network: any, astroport: Astroport, accAddress: 
     const liquidity_amount = 100000000;
     const pool_uust_astro = astroport.pair(network.poolAstroUst);
 
-    // Provide liquidity to swap
+    // Provide liquidity in order to swap
     await pool_uust_astro.provideLiquidity(new NativeAsset('uusd', liquidity_amount.toString()), new TokenAsset(network.tokenAddress, liquidity_amount.toString()))
 
     let astro_balance = await astroport.getTokenBalance(network.tokenAddress, accAddress);

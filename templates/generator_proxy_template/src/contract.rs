@@ -27,7 +27,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// * **_env** is the object of type [`Env`].
 ///
 /// * **_info** is the object of type [`MessageInfo`].
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
+/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -50,7 +50,7 @@ pub fn instantiate(
 }
 
 /// ## Description
-/// Available the execute messages of the contract.
+/// Execute a function in the contract.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
@@ -64,15 +64,15 @@ pub fn instantiate(
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
 /// it depending on the received template.
 ///
-/// * **ExecuteMsg::UpdateRewards {}** Withdrawal pending rewards.
+/// * **ExecuteMsg::UpdateRewards {}** Withdraw pending 3rd party rewards from the 3rd party staking contract.
 ///
-/// * **ExecuteMsg::SendRewards { account, amount }** Sends rewards to the recipient.
+/// * **ExecuteMsg::SendRewards { account, amount }** Sends token rewards to the recipient.
 ///
-/// * **ExecuteMsg::Withdraw { account, amount }** Withdrawal the rewards.
+/// * **ExecuteMsg::Withdraw { account, amount }** Withdraw token rewards and send them to the recipient.
 ///
-/// * **ExecuteMsg::EmergencyWithdraw { account, amount }** Withdrawal the rewards.
+/// * **ExecuteMsg::EmergencyWithdraw { account, amount }** Withdraw LP tokens without withdrawing token rewards.
 ///
-/// * **ExecuteMsg::Callback(msg)** Handles the callbacks describes in the [`CallbackMsg`].
+/// * **ExecuteMsg::Callback(msg)** Handles the callbacks described in the [`CallbackMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -95,7 +95,7 @@ pub fn execute(
 /// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
 /// If the template is not found in the received message, then an [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -117,7 +117,7 @@ fn receive_cw20(
         if cw20_msg.sender != cfg.generator_contract_addr || info.sender != cfg.lp_token_addr {
             return Err(ContractError::Unauthorized {});
         }
-        // deposit to the end reward contract here
+        // deposit tokens in the end reward contract
         unimplemented!()
     } else {
         return Err(ContractError::IncorrectCw20HookMessageVariant {});
@@ -126,8 +126,8 @@ fn receive_cw20(
 }
 
 /// ## Description
-/// Withdraw pending rewards. Returns an [`ContractError`] on failure,
-/// otherwise returns the [`Response`] object with the specified submessages.
+/// Withdraw pending rewards. Returns [`ContractError`] on failure,
+/// otherwise returns a [`Response`] object with the specified submessages.
 ///
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
@@ -140,7 +140,7 @@ fn update_rewards(deps: DepsMut) -> Result<Response, ContractError> {
         .push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.reward_contract_addr.to_string(),
             funds: vec![],
-            // specify withdraw rewards message from the end reward contract here
+            // specify a withdraw rewards message that withdraws rewards from the end reward contract
             msg: unimplemented!(),
         })));
 
@@ -148,20 +148,20 @@ fn update_rewards(deps: DepsMut) -> Result<Response, ContractError> {
 }
 
 /// ## Description
-/// Sends rewards to the recipient. Returns an [`ContractError`] on failure,
-/// otherwise returns the [`Response`] object with the specified submessages.
+/// Sends rewards to the recipient. Returns [`ContractError`] on failure,
+/// otherwise returns a [`Response`] object with the specified submessages.
 ///
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **account** is the object of type [`Addr`]. Sets the recipient of rewards.
+/// * **account** is the object of type [`Addr`]. This is the address that will receive rewards.
 ///
 /// * **amount** is the object of type [`Uint128`].
 ///
 /// ## Executor
-/// Only the contract of generator can execute it
+/// Only the generator contract can execute this.
 fn send_rewards(
     deps: DepsMut,
     info: MessageInfo,
@@ -188,8 +188,8 @@ fn send_rewards(
 }
 
 /// # Description
-/// Withdrawal the rewards. Returns an [`ContractError`] on
-/// failure, otherwise returns the [`Response`] object with the specified submessages if the operation was successful.
+/// Withdraw LP tokens alongside any outstanding rewards. Returns [`ContractError`] on
+/// failure, otherwise returns a [`Response`] object with the specified submessages if the operation was successful.
 /// # Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -197,12 +197,12 @@ fn send_rewards(
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **account** is the object of type [`Addr`]. Sets the recipient for withdrawal.
+/// * **account** is the object of type [`Addr`]. This is the withdrawal recipient.
 ///
-/// * **amount** is the object of type [`Uint128`].
+/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to withdraw.
 ///
 /// ## Executor
-/// Only the contract of generator can execute it
+/// Only the generator contract can execute this.
 fn withdraw(
     deps: DepsMut,
     env: Env,
@@ -226,7 +226,7 @@ fn withdraw(
         res.balance
     };
 
-    // withdraw from the end reward contract here
+    // withdraw from the 3rd party reward contract
     unimplemented!();
 
     response.messages.push(SubMsg::new(WasmMsg::Execute {
@@ -243,6 +243,22 @@ fn withdraw(
     Ok(response)
 }
 
+/// # Description
+/// Withdraw LP tokens without withdrawing rewards. Returns [`ContractError`] on
+/// failure, otherwise returns a [`Response`] object with the specified submessages if the operation was successful.
+/// # Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **account** is the object of type [`Addr`]. This is the withdrawal recipient.
+///
+/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to withdraw.
+///
+/// ## Executor
+/// Only the generator contract can execute this.
 fn emergency_withdraw(
     deps: DepsMut,
     env: Env,
@@ -266,7 +282,7 @@ fn emergency_withdraw(
         res.balance
     };
 
-    // emergency withdraw from the end reward contract here
+    // emergency withdraw from the 3rd party rewards contract
     unimplemented!();
 
     response.messages.push(SubMsg::new(WasmMsg::Execute {
@@ -284,7 +300,7 @@ fn emergency_withdraw(
 }
 
 /// # Description
-/// Handle the callbacks describes in the [`CallbackMsg`]. Returns an [`ContractError`] on failure, otherwise returns the [`Response`]
+/// Handle the callbacks described in the [`CallbackMsg`]. Returns [`ContractError`] on failure, otherwise returns a [`Response`]
 /// object with the specified submessages if the operation was successful.
 /// # Params
 /// * **deps** is the object of type [`DepsMut`].
@@ -293,17 +309,17 @@ fn emergency_withdraw(
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **msg** is the object of type [`CallbackMsg`]. Sets the callback action.
+/// * **msg** is the object of type [`CallbackMsg`]. This is the callback action.
 ///
 /// ## Executor
-/// Callback functions can only be called this contract itself
+/// Callback functions can only be specified/called by this contract.
 pub fn handle_callback(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: CallbackMsg,
 ) -> Result<Response, ContractError> {
-    // Callback functions can only be called this contract itself
+    // Callback functions can only be called by this contract
     if info.sender != env.contract.address {
         return Err(ContractError::Unauthorized {});
     }
@@ -316,17 +332,16 @@ pub fn handle_callback(
 }
 
 /// # Description
-/// Transfers lp tokens after withdrawal to the recipient. Returns an [`ContractError`] on failure,
-/// otherwise returns the [`Response`] object with the specified submessages if the operation was successful.
+/// Transfers LP tokens after withdrawal to the recipient. Returns [`ContractError`] on failure,
+/// otherwise returns a [`Response`] object with the specified submessages if the operation was successful.
 /// # Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **account** is the object of type [`MessageInfo`]. Sets the recipient of withdrawal.
+/// * **account** is the object of type [`MessageInfo`]. This address receives the LP tokens.
 ///
-/// * **prev_lp_balance** is the object of type [`CallbackMsg`]. Sets the previous balance for
-/// calculating the withdrawal amount.
+/// * **prev_lp_balance** is the object of type [`CallbackMsg`]. This is the previous LP token balance that the account had.
 pub fn transfer_lp_tokens_after_withdraw(
     deps: DepsMut,
     env: Env,
@@ -356,7 +371,7 @@ pub fn transfer_lp_tokens_after_withdraw(
 }
 
 /// # Description
-/// Describes all query messages.
+/// Exposes queries that can be performed to read contract data.
 /// # Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -365,11 +380,11 @@ pub fn transfer_lp_tokens_after_withdraw(
 /// * **msg** is the object of type [`QueryMsg`].
 ///
 /// ## Queries
-/// * **QueryMsg::Deposit {}** returns the deposit amount.
+/// * **QueryMsg::Deposit {}** returns the amount of LP tokens deposited in a third party rewards contract.
 ///
-/// * **QueryMsg::Reward {}** returns the balance of reward token.
+/// * **QueryMsg::Reward {}** returns the amount of rewards held by the proxy contract.
 ///
-/// * **QueryMsg::PendingToken {}** returns the pending rewards.
+/// * **QueryMsg::PendingToken {}** returns the amount of pending rewards that can be claimed from the third party rewards contract.
 ///
 /// * **QueryMsg::RewardInfo {}** returns the reward token contract address.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -384,10 +399,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             reward_token_addr: cfg.reward_token_addr.to_string(),
         }),
         QueryMsg::Deposit {} => {
-            // query the end reward contract for total deposit amount if possible or implement storing local balance
+            // query the 3rd party reward contract to retrieve the amount of staked LP tokens or implement local storage and retrieve from it
+            // the returned value must be a Uint128
             unimplemented!();
-
-            // return amount (Uint128)
         }
         QueryMsg::Reward {} => {
             let res: Result<BalanceResponse, StdError> = deps.querier.query_wasm_smart(
@@ -401,10 +415,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&reward_amount)
         },
         QueryMsg::PendingToken {
-            // query the end reward contract for pending token amount if possible
+            // query the 3rd party reward contract and retrieve the pending token amount
+            // the returned value must be a Uint128
             unimplemented!();
-
-            // return pending token amount if possible or non-zero amount Uint128
         }
         QueryMsg::RewardInfo {} => {
             let config = CONFIG.load(deps.storage)?;
@@ -414,7 +427,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// ## Description
-/// Used for migration of contract. Returns the default object of type [`Response`].
+/// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
 /// * **_deps** is the object of type [`DepsMut`].
 ///

@@ -5,74 +5,74 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// ## Description
-/// This structure describes the basic settings for creating a contract.
+/// This structure stores general parameters for the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// contract address that used for controls settings for maker
+    /// Address that's allowed to change contract parameters
     pub owner: String,
-    /// the ASTRO token contract address
+    /// The ASTRO token contract address
     pub astro_token_contract: String,
-    /// the factory contract address
+    /// The factory contract address
     pub factory_contract: String,
-    /// the staking contract address
+    /// The xASTRO staking contract address
     pub staking_contract: String,
-    /// the governance contract address
+    /// The governance contract address (fee distributor for vxASTRO)
     pub governance_contract: Option<String>,
-    /// the governance percent
+    /// The percentage of fees that go to governance_contract
     pub governance_percent: Option<Uint64>,
-    /// the maximum spread
+    /// The maximum spread used when swapping fee tokens to ASTRO
     pub max_spread: Option<Decimal>,
 }
 
 /// ## Description
-/// This structure describes the execute messages of the contract.
+/// This structure describes the functions that can be executed in this contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// Collects astro tokens from the given assets
+    /// Collects and swaps fee tokens to ASTRO
     Collect {
-        /// the assets to collect
+        /// The assets to swap to ASTRO
         assets: Vec<AssetWithLimit>,
     },
-    /// Updates general settings that contains in the  [`Config`]
+    /// Updates general settings contained in the [`Config`] struct
     UpdateConfig {
-        /// the factory contract address
+        /// The factory contract address
         factory_contract: Option<String>,
-        /// the staking contract address
+        /// The xASTRO staking contract address
         staking_contract: Option<String>,
-        /// the governance contract address
+        /// The governance contract address (fee distributor for vxASTRO)
         governance_contract: Option<UpdateAddr>,
-        /// the governance percent
+        /// The percentage of fees that go to governance_contract
         governance_percent: Option<Uint64>,
-        /// the maximum spread
+        /// The maximum spread used when swapping fee tokens to ASTRO
         max_spread: Option<Decimal>,
     },
-    /// Add bridges
+    /// Add bridge tokens used to swap specific fee tokens to ASTRO (effectively declaring a swap route)
     UpdateBridges {
         add: Option<Vec<(AssetInfo, AssetInfo)>>,
         remove: Option<Vec<AssetInfo>>,
     },
-    /// Swap rewards via bridge assets
+    /// Swap fee tokens via bridge assets
     SwapBridgeAssets { assets: Vec<AssetInfo>, depth: u64 },
-    /// Distribute rewards in ASTRO tokens
+    /// Distribute ASTRO to stakers and to governance
     DistributeAstro {},
-    /// Creates a request to change ownership.
+    /// Creates a request to change the contract's ownership
     ProposeNewOwner {
-        /// a new owner
+        /// The newly proposed owner
         owner: String,
-        /// the validity period of the offer to change the owner
+        /// The validity period of the proposal to change the owner
         expires_in: u64,
     },
-    /// Removes a request to change ownership.
+    /// Removes a request to change contract ownership
     DropOwnershipProposal {},
-    /// Approves ownership.
+    /// Claims contract ownership
     ClaimOwnership {},
-    /// Enables rewards collecting
+    /// Enables the distribution of current fees accrued in the contract over "blocks" number of blocks
     EnableRewards { blocks: u64 },
 }
 
 /// ## Description
-/// This structure describes the query messages of the contract.
+/// This structure describes the query functions available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
@@ -86,31 +86,31 @@ pub enum QueryMsg {
 }
 
 /// ## Description
-/// A custom struct for each query response that returns controls settings of contract.
+/// A custom struct that holds contract parameters and is used to retrieve them.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    /// Contract address that used for controls settings for factory, pools and tokenomics contracts
+    /// Address that is allowed to update contract parameters
     pub owner: Addr,
-    /// the ASTRO token contract address
+    /// The ASTRO token contract address
     pub astro_token_contract: Addr,
-    /// the factory contract address
+    /// The factory contract address
     pub factory_contract: Addr,
-    /// the staking contract address
+    /// The xASTRO staking contract address
     pub staking_contract: Addr,
-    /// the governance contract address
+    /// The governance contract address (fee distributor for vxASTRO stakers)
     pub governance_contract: Option<Addr>,
-    /// the governance percent
+    /// The percentage of fees that go to governance_contract
     pub governance_percent: Uint64,
-    /// the maximum spread
+    /// The maximum spread used when swapping fee tokens to ASTRO
     pub max_spread: Decimal,
-    /// the remainder of pre-upgrade ASTRO fee
+    /// The remainder ASTRO tokens (accrued before the Maker is upgraded) to be distributed to xASTRO stakers
     pub remainder_reward: Uint128,
-    /// the amount of collected ASTRO fee before enabling rewards distribution
+    /// The amount of ASTRO tokens accrued before upgrading the Maker implementation and enabling reward distribution
     pub pre_upgrade_astro_amount: Uint128,
 }
 
 /// ## Description
-/// A custom struct for each query response that returns the balance of asset.
+/// A custom struct used to return multiple asset balances.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BalancesResponse {
     pub balances: Vec<Asset>,
@@ -123,11 +123,11 @@ pub struct BalancesResponse {
 pub struct MigrateMsg {}
 
 /// ## Description
-/// This enum describes asset with limits to be collected by maker.
+/// This struct holds parameters to help with swapping a specific amount of a fee token to ASTRO.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AssetWithLimit {
-    /// the available type of asset from [`AssetInfo`]
+    /// Information about the fee token to swap
     pub info: AssetInfo,
-    /// the amount of an asset
+    /// The amount of tokens to swap
     pub limit: Option<Uint128>,
 }
