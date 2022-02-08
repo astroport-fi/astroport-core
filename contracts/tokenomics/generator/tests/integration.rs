@@ -1318,6 +1318,7 @@ fn update_proxy_pool() {
     let mut app = mock_app();
 
     let owner = Addr::unchecked(OWNER);
+    let user1 = Addr::unchecked(USER1);
     let token_code_id = store_token_code(&mut app);
 
     let lp_cny_eur_instance = instantiate_token(&mut app, token_code_id, "cny-eur", None);
@@ -1394,6 +1395,56 @@ fn update_proxy_pool() {
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
     assert_eq!(Some(Addr::unchecked("contract #6")), reps.reward_proxy);
+
+    // Mint tokens, so user can deposit
+    mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 10);
+
+    deposit_lp_tokens_to_generator(
+        &mut app,
+        &generator_instance,
+        USER1,
+        &[(&lp_cny_eur_instance, 10)],
+    );
+
+    // With the proxy the generator contract doesn't have the deposited lp tokens
+    check_token_balance(&mut app, &lp_cny_eur_instance, &generator_instance, 0);
+    // the lp tokens are in the end contract now
+    check_token_balance(&mut app, &lp_cny_eur_instance, &mirror_staking_instance, 10);
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_cny_eur_instance,
+        USER1,
+        (0, Some(0)),
+    );
+
+    app.update_block(|bi| next_block(bi));
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: mirror_staking_instance.to_string(),
+        msg: to_binary(&MirrorStakingHookMsg::DepositReward {
+            rewards: vec![(pair_cny_eur_instance.to_string(), Uint128::new(50_000000))],
+        })
+        .unwrap(),
+        amount: Uint128::new(50_000000),
+    };
+
+    mint_tokens(&mut app, &mirror_token_instance, &owner, 50_000000);
+    app.execute_contract(owner.clone(), mirror_token_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // 10 per block by 10 for one pool
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_cny_eur_instance,
+        USER1,
+        (10_000000, Some(50_000000)),
+    );
+
+    check_token_balance(&mut app, &lp_cny_eur_instance, &generator_instance, 0);
+    check_token_balance(&mut app, &lp_cny_eur_instance, &mirror_staking_instance, 10);
 }
 
 fn mock_app() -> TerraApp {
