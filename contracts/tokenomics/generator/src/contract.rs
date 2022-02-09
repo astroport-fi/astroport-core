@@ -1245,16 +1245,7 @@ fn move_to_proxy(
 
     POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
 
-    update_rewards_and_execute(
-        deps.branch(),
-        env,
-        Some(lp_addr.clone()),
-        ExecuteOnReply::UpdatePool {
-            lp_token: lp_addr.clone(),
-        },
-    )?;
-
-    Ok(Response::new()
+    Ok(response
         .add_messages(messages)
         .add_attributes(vec![attr("action", "move_to_proxy"), attr("proxy", proxy)]))
 }
