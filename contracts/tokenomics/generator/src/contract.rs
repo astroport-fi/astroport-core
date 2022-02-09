@@ -1243,6 +1243,8 @@ fn move_to_proxy(
         vec![]
     };
 
+    POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
+
     update_rewards_and_execute(
         deps.branch(),
         env,
@@ -1251,8 +1253,6 @@ fn move_to_proxy(
             lp_token: lp_addr.clone(),
         },
     )?;
-
-    POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
 
     Ok(Response::new()
         .add_messages(messages)
