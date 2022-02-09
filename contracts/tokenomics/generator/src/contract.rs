@@ -1220,6 +1220,7 @@ fn move_to_proxy(
     }
 
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr.clone())?;
+    accumulate_rewards_per_share(deps.branch(), &env, &lp_addr, &mut pool_info, &cfg, None)?;
     pool_info.reward_proxy = Some(proxy_addr);
 
     let res: BalanceResponse = deps.querier.query_wasm_smart(
