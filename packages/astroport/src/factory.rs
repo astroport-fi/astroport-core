@@ -185,6 +185,7 @@ pub struct MigrateMsg {
 /// A custom struct for each query response that returns an array of objects of type [`PairInfo`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairsResponse {
+    /// Arrays of structs containing information about multiple pairs
     pub pairs: Vec<PairInfo>,
 }
 
