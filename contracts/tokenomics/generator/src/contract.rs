@@ -1219,14 +1219,42 @@ fn move_to_proxy(
         return Err(ContractError::RewardProxyNotAllowed {});
     }
 
-    let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
+    let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr.clone())?;
     pool_info.reward_proxy = Some(proxy_addr);
 
-    accumulate_rewards_per_share(deps.branch(), &env, &lp_addr, &mut pool_info, &cfg, None)?;
+    let res: BalanceResponse = deps.querier.query_wasm_smart(
+        lp_addr.clone(),
+        &cw20::Cw20QueryMsg::Balance {
+            address: env.contract.address.to_string(),
+        },
+    )?;
+
+    let messages = if !res.balance.is_zero() {
+        vec![WasmMsg::Execute {
+            contract_addr: lp_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: pool_info.reward_proxy.clone().unwrap().to_string(),
+                msg: to_binary(&ProxyCw20HookMsg::Deposit {})?,
+                amount: res.balance,
+            })?,
+            funds: vec![],
+        }]
+    } else {
+        vec![]
+    };
+
+    update_rewards_and_execute(
+        deps.branch(),
+        env,
+        Some(lp_addr.clone()),
+        ExecuteOnReply::UpdatePool {
+            lp_token: lp_addr.clone(),
+        },
+    )?;
 
     POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
 
-    Ok(Response::new().add_attributes(vec![
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "update_pool_config"),
         attr("new_proxy", proxy),
     ]))
