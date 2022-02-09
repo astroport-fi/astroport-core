@@ -2,7 +2,7 @@ use astroport::generator::{ExecuteMsg, QueryMsg};
 use astroport::{
     generator::{
         ConfigResponse, Cw20HookMsg as GeneratorHookMsg, ExecuteMsg as GeneratorExecuteMsg,
-        InstantiateMsg as GeneratorInstantiateMsg, PendingTokenResponse,
+        InstantiateMsg as GeneratorInstantiateMsg, PendingTokenResponse, PoolInfoResponse,
         QueryMsg as GeneratorQueryMsg,
     },
     generator_proxy::InstantiateMsg as ProxyInstantiateMsg,
@@ -44,7 +44,7 @@ fn disabling_pool() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance, None);
 
     register_lp_tokens_in_generator(
         &mut app,
@@ -201,7 +201,7 @@ fn set_tokens_per_block() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance, None);
 
     let msg = QueryMsg::Config {};
     let res: ConfigResponse = app
@@ -241,7 +241,7 @@ fn update_config() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance, None);
 
     let msg = QueryMsg::Config {};
     let res: ConfigResponse = app
@@ -296,7 +296,7 @@ fn update_owner() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance, None);
 
     let new_owner = String::from("new_owner");
 
@@ -383,7 +383,7 @@ fn send_from_unregistered_lp() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance, None);
 
     // Mint tokens, so user can deposit
     mint_tokens(&mut app, &lp_eur_usdt_instance, &user1, 10);
@@ -433,7 +433,7 @@ fn generator_without_reward_proxies() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance, None);
 
     register_lp_tokens_in_generator(
         &mut app,
@@ -755,7 +755,7 @@ fn generator_with_mirror_reward_proxy() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(&mut app, &astro_token_instance);
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance, None);
 
     let (mirror_token_instance, mirror_staking_instance) = instantiate_mirror_protocol(
         &mut app,
@@ -1224,6 +1224,242 @@ fn generator_with_mirror_reward_proxy() {
     );
 }
 
+#[test]
+fn update_allowed_proxies() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked(OWNER);
+    let token_code_id = store_token_code(&mut app);
+    let allowed_proxies = Some(vec![
+        "proxy1".to_string(),
+        "proxy2".to_string(),
+        "proxy3".to_string(),
+        "proxy4".to_string(),
+    ]);
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+
+    let generator_instance =
+        instantiate_generator(&mut app, &astro_token_instance, allowed_proxies);
+
+    let msg = ExecuteMsg::UpdateAllowedProxies {
+        add: None,
+        remove: None,
+    };
+
+    let err = app
+        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        "Generic error: Need to provide add or remove parameters",
+        err.to_string()
+    );
+
+    let msg = ExecuteMsg::UpdateAllowedProxies {
+        add: Some(vec!["proxy5".to_string(), "proxy6".to_string()]),
+        remove: Some(vec!["PROXY1".to_string(), "proxy3".to_string()]),
+    };
+
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // check if some proxy was added and removed
+    let reps: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &QueryMsg::Config {})
+        .unwrap();
+
+    let allowed_reward_proxies: Vec<Addr> = vec![
+        Addr::unchecked("proxy2"),
+        Addr::unchecked("proxy4"),
+        Addr::unchecked("proxy5"),
+        Addr::unchecked("proxy6"),
+    ];
+    assert_eq!(allowed_reward_proxies, reps.allowed_reward_proxies);
+
+    // check if proxy was removed already
+    let msg = ExecuteMsg::UpdateAllowedProxies {
+        add: None,
+        remove: Some(vec!["proxy1".to_string(), "proxy2".to_string()]),
+    };
+
+    let err = app
+        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        "Generic error: Can't remove proxy contract. It is not found in allowed list.",
+        err.to_string()
+    );
+
+    // only add proxy
+    let msg = ExecuteMsg::UpdateAllowedProxies {
+        add: Some(vec!["proxy1".to_string(), "proxy2".to_string()]),
+        remove: None,
+    };
+
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+    let reps: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &QueryMsg::Config {})
+        .unwrap();
+    let allowed_reward_proxies: Vec<Addr> = vec![
+        Addr::unchecked("proxy2"),
+        Addr::unchecked("proxy4"),
+        Addr::unchecked("proxy5"),
+        Addr::unchecked("proxy6"),
+        Addr::unchecked("proxy1"),
+    ];
+    assert_eq!(allowed_reward_proxies, reps.allowed_reward_proxies);
+}
+
+#[test]
+fn move_to_proxy() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked(OWNER);
+    let user1 = Addr::unchecked(USER1);
+    let token_code_id = store_token_code(&mut app);
+
+    let lp_cny_eur_instance = instantiate_token(&mut app, token_code_id, "cny-eur", None);
+    let pair_cny_eur_instance = Addr::unchecked("cny-eur pair");
+
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance, None);
+
+    register_lp_tokens_in_generator(&mut app, &generator_instance, None, &[&lp_cny_eur_instance]);
+
+    let msg_cny_eur = QueryMsg::PoolInfo {
+        lp_token: lp_cny_eur_instance.to_string(),
+    };
+
+    // check if proxy reward is none
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .unwrap();
+    assert_eq!(None, reps.reward_proxy);
+
+    let (mirror_token_instance, mirror_staking_instance) = instantiate_mirror_protocol(
+        &mut app,
+        token_code_id,
+        &pair_cny_eur_instance,
+        &lp_cny_eur_instance,
+    );
+
+    let proxy_code_id = store_proxy_code(&mut app);
+
+    let proxy_to_mirror_instance = instantiate_proxy(
+        &mut app,
+        proxy_code_id,
+        &generator_instance,
+        &pair_cny_eur_instance,
+        &lp_cny_eur_instance,
+        &mirror_staking_instance,
+        &mirror_token_instance,
+    );
+
+    // can't add proxy if proxy reward isn't allowed
+    let msg = ExecuteMsg::MoveToProxy {
+        lp_token: lp_cny_eur_instance.to_string(),
+        proxy: proxy_to_mirror_instance.to_string(),
+    };
+    let err = app
+        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!("Reward proxy not allowed!", err.to_string());
+
+    let msg = GeneratorExecuteMsg::SetAllowedRewardProxies {
+        proxies: vec![proxy_to_mirror_instance.to_string()],
+    };
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // set the proxy for the pool
+    let msg = ExecuteMsg::MoveToProxy {
+        lp_token: lp_cny_eur_instance.to_string(),
+        proxy: proxy_to_mirror_instance.to_string(),
+    };
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg_cny_eur = QueryMsg::PoolInfo {
+        lp_token: lp_cny_eur_instance.to_string(),
+    };
+
+    // check if proxy reward is exists
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .unwrap();
+    assert_eq!(Some(Addr::unchecked("contract #6")), reps.reward_proxy);
+
+    // Mint tokens, so user can deposit
+    mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 10);
+
+    deposit_lp_tokens_to_generator(
+        &mut app,
+        &generator_instance,
+        USER1,
+        &[(&lp_cny_eur_instance, 10)],
+    );
+
+    // With the proxy the generator contract doesn't have the deposited lp tokens
+    check_token_balance(&mut app, &lp_cny_eur_instance, &generator_instance, 0);
+    // the lp tokens are in the end contract now
+    check_token_balance(&mut app, &lp_cny_eur_instance, &mirror_staking_instance, 10);
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_cny_eur_instance,
+        USER1,
+        (0, Some(0)),
+    );
+
+    app.update_block(|bi| next_block(bi));
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: mirror_staking_instance.to_string(),
+        msg: to_binary(&MirrorStakingHookMsg::DepositReward {
+            rewards: vec![(pair_cny_eur_instance.to_string(), Uint128::new(50_000000))],
+        })
+        .unwrap(),
+        amount: Uint128::new(50_000000),
+    };
+
+    mint_tokens(&mut app, &mirror_token_instance, &owner, 50_000000);
+    app.execute_contract(owner.clone(), mirror_token_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // 10 per block by 10 for one pool
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_cny_eur_instance,
+        USER1,
+        (10_000000, Some(50_000000)),
+    );
+
+    check_token_balance(&mut app, &lp_cny_eur_instance, &generator_instance, 0);
+    check_token_balance(&mut app, &lp_cny_eur_instance, &mirror_staking_instance, 10);
+
+    // check if the pool already has a reward proxy contract
+    let msg = ExecuteMsg::MoveToProxy {
+        lp_token: lp_cny_eur_instance.to_string(),
+        proxy: proxy_to_mirror_instance.to_string(),
+    };
+    let err = app
+        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        "The pool already has a reward proxy contract!",
+        err.to_string()
+    );
+}
+
 fn mock_app() -> TerraApp {
     let env = mock_env();
     let api = MockApi::default();
@@ -1273,7 +1509,11 @@ fn instantiate_token(
         .unwrap()
 }
 
-fn instantiate_generator(mut app: &mut TerraApp, astro_token_instance: &Addr) -> Addr {
+fn instantiate_generator(
+    mut app: &mut TerraApp,
+    astro_token_instance: &Addr,
+    allowed_proxies: Option<Vec<String>>,
+) -> Addr {
     // Vesting
     let vesting_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_vesting::contract::execute,
@@ -1320,7 +1560,7 @@ fn instantiate_generator(mut app: &mut TerraApp, astro_token_instance: &Addr) ->
 
     let init_msg = GeneratorInstantiateMsg {
         owner: owner.to_string(),
-        allowed_reward_proxies: vec![],
+        allowed_reward_proxies: allowed_proxies.unwrap_or_default(),
         start_block: Uint64::from(app.block_info().height),
         astro_token: astro_token_instance.to_string(),
         tokens_per_block: Uint128::new(10_000000),

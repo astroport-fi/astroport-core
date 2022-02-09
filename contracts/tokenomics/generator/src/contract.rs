@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
 
@@ -133,6 +133,10 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::MoveToProxy { lp_token, proxy } => move_to_proxy(deps, env, lp_token, proxy),
+        ExecuteMsg::UpdateAllowedProxies { add, remove } => {
+            update_allowed_proxies(deps, add, remove)
+        }
         ExecuteMsg::UpdateConfig { vesting_contract } => {
             execute_update_config(deps, info, vesting_contract)
         }
@@ -1195,6 +1199,103 @@ fn send_orphan_proxy_rewards(
         .add_attribute("recipient", recipient)
         .add_attribute("lp_token", lp_token.to_string())
         .add_attribute("amount", amount))
+}
+
+/// ## Description
+/// Sets the reward proxy contract for the pool. Returns an [`ContractError`] on failure, otherwise
+/// returns the [`Response`] with the specified attributes if the operation was successful.
+fn move_to_proxy(
+    deps: DepsMut,
+    env: Env,
+    lp_token: String,
+    proxy: String,
+) -> Result<Response, ContractError> {
+    let lp_addr = addr_validate_to_lower(deps.api, &lp_token)?;
+    let proxy_addr = addr_validate_to_lower(deps.api, &proxy)?;
+
+    let cfg = CONFIG.load(deps.storage)?;
+
+    if !cfg.allowed_reward_proxies.contains(&proxy_addr) {
+        return Err(ContractError::RewardProxyNotAllowed {});
+    }
+
+    let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr.clone())?;
+    if pool_info.reward_proxy.is_some() {
+        return Err(ContractError::PoolAlreadyHasRewardProxyContract {});
+    }
+    pool_info.reward_proxy = Some(proxy_addr);
+
+    let res: BalanceResponse = deps.querier.query_wasm_smart(
+        lp_addr.clone(),
+        &cw20::Cw20QueryMsg::Balance {
+            address: env.contract.address.to_string(),
+        },
+    )?;
+
+    let messages = if !res.balance.is_zero() {
+        vec![WasmMsg::Execute {
+            contract_addr: lp_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: pool_info.reward_proxy.clone().unwrap().to_string(),
+                msg: to_binary(&ProxyCw20HookMsg::Deposit {})?,
+                amount: res.balance,
+            })?,
+            funds: vec![],
+        }]
+    } else {
+        vec![]
+    };
+
+    POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
+
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attributes(vec![attr("action", "move_to_proxy"), attr("proxy", proxy)]))
+}
+
+/// ## Description
+/// Adds or removes the proxy contracts to the list of allowed. Returns an [`ContractError`] on failure
+fn update_allowed_proxies(
+    deps: DepsMut,
+    add: Option<Vec<String>>,
+    remove: Option<Vec<String>>,
+) -> Result<Response, ContractError> {
+    if add.is_none() && remove.is_none() {
+        return Err(ContractError::Std(StdError::generic_err(
+            "Need to provide add or remove parameters",
+        )));
+    }
+
+    let mut cfg = CONFIG.load(deps.storage)?;
+
+    // remove old proxy
+    if let Some(remove_proxies) = remove {
+        for remove_proxy in remove_proxies {
+            let index = cfg
+                .allowed_reward_proxies
+                .iter()
+                .position(|x| *x.as_str() == remove_proxy.as_str().to_lowercase())
+                .ok_or_else(|| {
+                    StdError::generic_err(
+                        "Can't remove proxy contract. It is not found in allowed list.",
+                    )
+                })?;
+            cfg.allowed_reward_proxies.remove(index);
+        }
+    }
+
+    // add new proxy
+    if let Some(add_proxies) = add {
+        for add_proxy in add_proxies {
+            let proxy_addr = addr_validate_to_lower(deps.api, &add_proxy)?;
+            if !cfg.allowed_reward_proxies.contains(&proxy_addr) {
+                cfg.allowed_reward_proxies.push(proxy_addr);
+            }
+        }
+    }
+
+    CONFIG.save(deps.storage, &cfg)?;
+    Ok(Response::default().add_attribute("action", "update_allowed_proxies"))
 }
 
 /// ## Description
