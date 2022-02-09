@@ -40,16 +40,16 @@ fn proper_initialization() {
                 pair_type: PairType::Xyk {},
                 total_fee_bps: 100,
                 maker_fee_bps: 10,
-                is_disabled: None,
-                is_generator_disabled: None,
+                is_disabled: false,
+                is_generator_disabled: false,
             },
             PairConfig {
                 code_id: 325u64,
                 pair_type: PairType::Xyk {},
                 total_fee_bps: 100,
                 maker_fee_bps: 10,
-                is_disabled: None,
-                is_generator_disabled: None,
+                is_disabled: false,
+                is_generator_disabled: false,
             },
         ],
         token_code_id: 123u64,
@@ -71,8 +71,8 @@ fn proper_initialization() {
             pair_type: PairType::Xyk {},
             total_fee_bps: 10_001,
             maker_fee_bps: 10,
-            is_disabled: None,
-            is_generator_disabled: None,
+            is_disabled: false,
+            is_generator_disabled: false,
         }],
         token_code_id: 123u64,
         fee_address: None,
@@ -96,16 +96,16 @@ fn proper_initialization() {
                 pair_type: PairType::Stable {},
                 total_fee_bps: 100,
                 maker_fee_bps: 10,
-                is_disabled: None,
-                is_generator_disabled: None,
+                is_disabled: false,
+                is_generator_disabled: false,
             },
             PairConfig {
                 code_id: 123u64,
                 pair_type: PairType::Xyk {},
                 total_fee_bps: 100,
                 maker_fee_bps: 10,
-                is_disabled: None,
-                is_generator_disabled: None,
+                is_disabled: false,
+                is_generator_disabled: false,
             },
         ],
         token_code_id: 123u64,
@@ -137,8 +137,8 @@ fn update_config() {
         pair_type: PairType::Xyk {},
         total_fee_bps: 3,
         maker_fee_bps: 166,
-        is_disabled: None,
-        is_generator_disabled: None,
+        is_disabled: false,
+        is_generator_disabled: false,
     }];
 
     let msg = InstantiateMsg {
@@ -284,8 +284,8 @@ fn update_pair_config() {
         pair_type: PairType::Xyk {},
         total_fee_bps: 100,
         maker_fee_bps: 10,
-        is_disabled: None,
-        is_generator_disabled: None,
+        is_disabled: false,
+        is_generator_disabled: false,
     }];
 
     let msg = InstantiateMsg {
@@ -314,8 +314,8 @@ fn update_pair_config() {
         pair_type: PairType::Xyk {},
         total_fee_bps: 1,
         maker_fee_bps: 2,
-        is_disabled: None,
-        is_generator_disabled: None,
+        is_disabled: false,
+        is_generator_disabled: false,
     };
 
     // Unauthorized err
@@ -337,8 +337,8 @@ fn update_pair_config() {
             pair_type: PairType::Xyk {},
             total_fee_bps: 3,
             maker_fee_bps: 10_001,
-            is_disabled: None,
-            is_generator_disabled: None,
+            is_disabled: false,
+            is_generator_disabled: false,
         },
     };
 
@@ -364,8 +364,8 @@ fn update_pair_config() {
         pair_type: PairType::Custom("test".to_string()),
         total_fee_bps: 10,
         maker_fee_bps: 20,
-        is_disabled: None,
-        is_generator_disabled: None,
+        is_disabled: false,
+        is_generator_disabled: false,
     };
 
     let info = mock_info(owner.clone(), &[]);
@@ -393,8 +393,8 @@ fn create_pair() {
         pair_type: PairType::Xyk {},
         total_fee_bps: 100,
         maker_fee_bps: 10,
-        is_disabled: None,
-        is_generator_disabled: None,
+        is_disabled: false,
+        is_generator_disabled: false,
     };
 
     let msg = InstantiateMsg {
@@ -493,8 +493,8 @@ fn register() {
             pair_type: PairType::Xyk {},
             total_fee_bps: 100,
             maker_fee_bps: 10,
-            is_disabled: None,
-            is_generator_disabled: None,
+            is_disabled: false,
+            is_generator_disabled: false,
         }],
         token_code_id: 123u64,
         fee_address: None,

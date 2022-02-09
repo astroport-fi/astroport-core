@@ -49,9 +49,9 @@ pub struct PairConfig {
     pub maker_fee_bps: u16,
     /// Whether a pair type is disabled or not. If it is disabled, new pairs cannot be
     /// created, but existing ones can still read the pair configuration
-    pub is_disabled: Option<bool>,
+    pub is_disabled: bool,
     /// Setting to true will disable creating a pool in generator for this pair type
-    pub is_generator_disabled: Option<bool>,
+    pub is_generator_disabled: bool,
 }
 
 impl PairConfig {
