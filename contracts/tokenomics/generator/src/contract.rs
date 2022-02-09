@@ -1246,7 +1246,7 @@ fn move_to_proxy(
 
     POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
 
-    Ok(response
+    Ok(Response::new()
         .add_messages(messages)
         .add_attributes(vec![attr("action", "move_to_proxy"), attr("proxy", proxy)]))
 }
