@@ -56,9 +56,9 @@ pub fn pair_key(asset_infos: &[AssetInfo; 2]) -> Vec<u8> {
 pub const PAIR_CONFIGS: Map<String, PairConfig> = Map::new("pair_configs");
 
 /// ## Pagination settings
-/// The maximum limit for reading pairs from a [`PAIRS`]
+/// The maximum limit for reading pairs from [`PAIRS`]
 const MAX_LIMIT: u32 = 30;
-/// The default limit for reading pairs from a [`PAIRS`]
+/// The default limit for reading pairs from [`PAIRS`]
 const DEFAULT_LIMIT: u32 = 10;
 
 /// ## Description
