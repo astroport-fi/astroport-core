@@ -17,6 +17,9 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
