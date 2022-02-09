@@ -1,7 +1,6 @@
 name: Code coverage
 
 on:
-  pull_request:
   push:
     branches:
       - master
@@ -32,8 +31,8 @@ jobs:
           version: '0.15.0'
           args: '-- --test-threads 1'
 
-#      - name: Upload to codecov.io
-#        uses: codecov/codecov-action@v2
-#        with:
-#          token: ${{secrets.CODECOV_TOKEN}}
-#          fail_ci_if_error: true
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v2
+        with:
+          token: ${{secrets.CODECOV_TOKEN}}
+          fail_ci_if_error: true
