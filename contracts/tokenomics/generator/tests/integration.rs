@@ -1225,7 +1225,7 @@ fn generator_with_mirror_reward_proxy() {
 }
 
 #[test]
-fn update_proxies() {
+fn update_allowed_proxies() {
     let mut app = mock_app();
 
     let owner = Addr::unchecked(OWNER);
@@ -1242,7 +1242,7 @@ fn update_proxies() {
     let generator_instance =
         instantiate_generator(&mut app, &astro_token_instance, allowed_proxies);
 
-    let msg = ExecuteMsg::UpdateProxies {
+    let msg = ExecuteMsg::UpdateAllowedProxies {
         add: None,
         remove: None,
     };
@@ -1255,9 +1255,9 @@ fn update_proxies() {
         err.to_string()
     );
 
-    let msg = ExecuteMsg::UpdateProxies {
+    let msg = ExecuteMsg::UpdateAllowedProxies {
         add: Some(vec!["proxy5".to_string(), "proxy6".to_string()]),
-        remove: Some(vec!["proxy1".to_string(), "proxy3".to_string()]),
+        remove: Some(vec!["PROXY1".to_string(), "proxy3".to_string()]),
     };
 
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
@@ -1278,7 +1278,7 @@ fn update_proxies() {
     assert_eq!(allowed_reward_proxies, reps.allowed_reward_proxies);
 
     // check if proxy was removed already
-    let msg = ExecuteMsg::UpdateProxies {
+    let msg = ExecuteMsg::UpdateAllowedProxies {
         add: None,
         remove: Some(vec!["proxy1".to_string(), "proxy2".to_string()]),
     };
@@ -1292,7 +1292,7 @@ fn update_proxies() {
     );
 
     // only add proxy
-    let msg = ExecuteMsg::UpdateProxies {
+    let msg = ExecuteMsg::UpdateAllowedProxies {
         add: Some(vec!["proxy1".to_string(), "proxy2".to_string()]),
         remove: None,
     };
@@ -1314,7 +1314,7 @@ fn update_proxies() {
 }
 
 #[test]
-fn update_proxy_pool() {
+fn move_to_proxy() {
     let mut app = mock_app();
 
     let owner = Addr::unchecked(OWNER);
@@ -1362,7 +1362,7 @@ fn update_proxy_pool() {
     );
 
     // can't add proxy if proxy reward isn't allowed
-    let msg = ExecuteMsg::UpdatePoolConfig {
+    let msg = ExecuteMsg::MoveToProxy {
         lp_token: lp_cny_eur_instance.to_string(),
         proxy: proxy_to_mirror_instance.to_string(),
     };
@@ -1378,7 +1378,7 @@ fn update_proxy_pool() {
         .unwrap();
 
     // set the proxy for the pool
-    let msg = ExecuteMsg::UpdatePoolConfig {
+    let msg = ExecuteMsg::MoveToProxy {
         lp_token: lp_cny_eur_instance.to_string(),
         proxy: proxy_to_mirror_instance.to_string(),
     };

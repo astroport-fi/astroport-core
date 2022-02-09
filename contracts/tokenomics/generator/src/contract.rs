@@ -133,10 +133,10 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::UpdatePoolConfig { lp_token, proxy } => {
-            update_pool_config(deps, env, lp_token, proxy)
+        ExecuteMsg::MoveToProxy { lp_token, proxy } => move_to_proxy(deps, env, lp_token, proxy),
+        ExecuteMsg::UpdateAllowedProxies { add, remove } => {
+            update_allowed_proxies(deps, add, remove)
         }
-        ExecuteMsg::UpdateProxies { add, remove } => update_proxies(deps, add, remove),
         ExecuteMsg::UpdateConfig { vesting_contract } => {
             execute_update_config(deps, info, vesting_contract)
         }
@@ -1204,7 +1204,7 @@ fn send_orphan_proxy_rewards(
 /// ## Description
 /// Sets the reward proxy contract for the pool. Returns an [`ContractError`] on failure, otherwise
 /// returns the [`Response`] with the specified attributes if the operation was successful.
-fn update_pool_config(
+fn move_to_proxy(
     mut deps: DepsMut,
     env: Env,
     lp_token: String,
@@ -1234,7 +1234,7 @@ fn update_pool_config(
 
 /// ## Description
 /// Adds or removes the proxy contracts to the list of allowed. Returns an [`ContractError`] on failure
-fn update_proxies(
+fn update_allowed_proxies(
     deps: DepsMut,
     add: Option<Vec<String>>,
     remove: Option<Vec<String>>,
@@ -1250,11 +1250,10 @@ fn update_proxies(
     // remove old proxy
     if let Some(remove_proxies) = remove {
         for remove_proxy in remove_proxies {
-            let remove_proxy_addr = addr_validate_to_lower(deps.api, &remove_proxy)?;
             let index = cfg
                 .allowed_reward_proxies
                 .iter()
-                .position(|x| *x == remove_proxy_addr)
+                .position(|x| *x.as_str() == remove_proxy.as_str().to_lowercase())
                 .ok_or_else(|| {
                     StdError::generic_err(
                         "Can't remove proxy contract. It is not found in allowed list.",
