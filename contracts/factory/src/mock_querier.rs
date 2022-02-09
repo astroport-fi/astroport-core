@@ -101,10 +101,4 @@ impl WasmMockQuerier {
     pub fn with_astroport_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
         self.astroport_pair_querier = AstroportPairQuerier::new(pairs);
     }
-
-    // pub fn with_balance(&mut self, balances: &[(&String, &[Coin])]) {
-    //     for (addr, balance) in balances {
-    //         self.base.update_balance(addr, balance.to_vec());
-    //     }
-    // }
 }
