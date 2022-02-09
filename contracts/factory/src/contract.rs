@@ -20,7 +20,7 @@ use astroport::factory::{
     PairsResponse, QueryMsg,
 };
 
-use crate::migration::update_pair_configs_v110;
+use crate::migration::migrate_pair_configs;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cw2::{get_contract_version, set_contract_version};
@@ -578,9 +578,9 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
 
                 CONFIG.save(deps.storage, &new_config)?;
 
-                update_pair_configs_v110(deps.storage)?
+                migrate_pair_configs(deps.storage)?
             }
-            "1.1.0" => update_pair_configs_v110(deps.storage)?,
+            "1.1.0" => migrate_pair_configs(deps.storage)?,
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
