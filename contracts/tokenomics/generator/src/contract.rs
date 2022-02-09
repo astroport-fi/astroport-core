@@ -1254,10 +1254,9 @@ fn move_to_proxy(
 
     POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
 
-    Ok(Response::new().add_messages(messages).add_attributes(vec![
-        attr("action", "update_pool_config"),
-        attr("new_proxy", proxy),
-    ]))
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attributes(vec![attr("action", "move_to_proxy"), attr("proxy", proxy)]))
 }
 
 /// ## Description
@@ -1302,7 +1301,7 @@ fn update_allowed_proxies(
     }
 
     CONFIG.save(deps.storage, &cfg)?;
-    Ok(Response::default().add_attribute("action", "update_proxies"))
+    Ok(Response::default().add_attribute("action", "update_allowed_proxies"))
 }
 
 /// ## Description
