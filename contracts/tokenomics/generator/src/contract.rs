@@ -1220,6 +1220,9 @@ fn move_to_proxy(
     }
 
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr.clone())?;
+    if pool_info.reward_proxy.is_some() {
+        return Err(ContractError::PoolAlreadyHasRewardProxyContract {});
+    }
     pool_info.reward_proxy = Some(proxy_addr);
 
     let res: BalanceResponse = deps.querier.query_wasm_smart(

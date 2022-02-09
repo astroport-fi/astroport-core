@@ -1445,6 +1445,19 @@ fn move_to_proxy() {
 
     check_token_balance(&mut app, &lp_cny_eur_instance, &generator_instance, 0);
     check_token_balance(&mut app, &lp_cny_eur_instance, &mirror_staking_instance, 10);
+
+    // check if the pool already has a reward proxy contract
+    let msg = ExecuteMsg::MoveToProxy {
+        lp_token: lp_cny_eur_instance.to_string(),
+        proxy: proxy_to_mirror_instance.to_string(),
+    };
+    let err = app
+        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        "The pool already has a reward proxy contract!",
+        err.to_string()
+    );
 }
 
 fn mock_app() -> TerraApp {

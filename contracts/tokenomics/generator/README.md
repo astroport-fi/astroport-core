@@ -241,26 +241,26 @@ Used to claim(approve) new owner proposal, thus changing contract's owner.
 }
 ```
 
-### `update_pool_config`
+### `move_to_proxy`
 
 Sets a proxy for the pool.
 
 ```json
 {
-  "update_pool_config": {
+  "move_to_proxy": {
     "lp_token": "terra...",
     "proxy": "terra..."
   }
 }
 ```
 
-### `update_proxies`
+### `UpdateAllowedProxies`
 
 Add or remove proxy contract that can interact with the Generator
 
 ```json
 {
-  "update_proxies": {
+  "UpdateAllowedProxies": {
     "add": ["terra...", "terra..."],
     "remove": ["terra...", "terra...", "terra..."]
   }
