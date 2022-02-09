@@ -1205,7 +1205,7 @@ fn send_orphan_proxy_rewards(
 /// Sets the reward proxy contract for the pool. Returns an [`ContractError`] on failure, otherwise
 /// returns the [`Response`] with the specified attributes if the operation was successful.
 fn move_to_proxy(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     lp_token: String,
     proxy: String,
@@ -1220,7 +1220,6 @@ fn move_to_proxy(
     }
 
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr.clone())?;
-    accumulate_rewards_per_share(deps.branch(), &env, &lp_addr, &mut pool_info, &cfg, None)?;
     pool_info.reward_proxy = Some(proxy_addr);
 
     let res: BalanceResponse = deps.querier.query_wasm_smart(
