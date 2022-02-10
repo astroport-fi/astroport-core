@@ -54,6 +54,7 @@ fn execute_swap_operations() {
         operations: vec![],
         minimum_receive: None,
         to: None,
+        max_spread: None,
     };
 
     let env = mock_env();
@@ -94,6 +95,7 @@ fn execute_swap_operations() {
         ],
         minimum_receive: Some(Uint128::from(1000000u128)),
         to: None,
+        max_spread: None,
     };
 
     let env = mock_env();
@@ -112,6 +114,7 @@ fn execute_swap_operations() {
                             ask_denom: "ukrw".to_string(),
                         },
                         to: None,
+                        max_spread: None,
                     })
                     .unwrap(),
                 }
@@ -134,6 +137,7 @@ fn execute_swap_operations() {
                             },
                         },
                         to: None,
+                        max_spread: None,
                     })
                     .unwrap(),
                 }
@@ -156,6 +160,7 @@ fn execute_swap_operations() {
                             },
                         },
                         to: None,
+                        max_spread: None,
                     })
                     .unwrap(),
                 }
@@ -178,6 +183,7 @@ fn execute_swap_operations() {
                             },
                         },
                         to: Some(String::from("addr0000")),
+                        max_spread: None,
                     })
                     .unwrap(),
                 }
@@ -244,6 +250,7 @@ fn execute_swap_operations() {
             ],
             minimum_receive: None,
             to: Some(String::from("addr0002")),
+            max_spread: None,
         })
         .unwrap(),
     });
@@ -264,6 +271,7 @@ fn execute_swap_operations() {
                             ask_denom: "ukrw".to_string(),
                         },
                         to: None,
+                        max_spread: None,
                     })
                     .unwrap(),
                 }
@@ -286,6 +294,7 @@ fn execute_swap_operations() {
                             },
                         },
                         to: None,
+                        max_spread: None,
                     })
                     .unwrap(),
                 }
@@ -308,6 +317,7 @@ fn execute_swap_operations() {
                             },
                         },
                         to: None,
+                        max_spread: None,
                     })
                     .unwrap(),
                 }
@@ -330,6 +340,7 @@ fn execute_swap_operations() {
                             },
                         },
                         to: Some(String::from("addr0002")),
+                        max_spread: None,
                     })
                     .unwrap(),
                 }
@@ -374,6 +385,7 @@ fn execute_swap_operation() {
             ask_denom: "uluna".to_string(),
         },
         to: None,
+        max_spread: None,
     };
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
@@ -407,6 +419,7 @@ fn execute_swap_operation() {
             ask_denom: "uluna".to_string(),
         },
         to: Some(String::from("addr0000")),
+        max_spread: None,
     };
     let env = mock_env();
     let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
@@ -447,6 +460,7 @@ fn execute_swap_operation() {
             },
         },
         to: Some(String::from("addr0000")),
+        max_spread: None,
     };
     let env = mock_env();
     let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
@@ -676,6 +690,7 @@ fn assert_maximum_receive_swap_operations() {
         ],
         minimum_receive: None,
         to: None,
+        max_spread: None,
     };
 
     let env = mock_env();
