@@ -49,7 +49,9 @@ pub struct PairConfig {
     pub maker_fee_bps: u16,
     /// Whether a pair type is disabled or not. If it is disabled, new pairs cannot be
     /// created, but existing ones can still read the pair configuration
-    pub is_disabled: Option<bool>,
+    pub is_disabled: bool,
+    /// Setting to true will disable creating a pool in generator for this pair type
+    pub is_generator_disabled: bool,
 }
 
 impl PairConfig {
@@ -177,8 +179,7 @@ pub struct ConfigResponse {
 /// This structure stores the parameters used in a migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
-    /// CW1 whitelist contract code id used to store 3rd party staking rewards for Astroport LP tokens
-    pub whitelist_code_id: u64,
+    pub params: Binary,
 }
 
 /// ## Description

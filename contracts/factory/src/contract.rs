@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Reply,
-    ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
+    Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -20,6 +20,7 @@ use astroport::factory::{
     PairsResponse, QueryMsg,
 };
 
+use crate::migration::migrate_pair_configs_to_v120;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cw2::{get_contract_version, set_contract_version};
@@ -341,7 +342,7 @@ pub fn execute_create_pair(
         .map_err(|_| ContractError::PairConfigNotFound {})?;
 
     // Check if pair config is disabled
-    if pair_config.is_disabled.is_some() && pair_config.is_disabled.unwrap() {
+    if pair_config.is_disabled {
         return Err(ContractError::PairConfigDisabled {});
     }
 
@@ -563,6 +564,8 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
     match contract_version.contract.as_ref() {
         "astroport-factory" => match contract_version.version.as_ref() {
             "1.0.0" => {
+                let msg: migration::MigrationMsgV100 = from_binary(&msg.params)?;
+
                 let config_v100 = migration::CONFIGV100.load(deps.storage)?;
 
                 let new_config = Config {
@@ -574,7 +577,10 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
                 };
 
                 CONFIG.save(deps.storage, &new_config)?;
+
+                migrate_pair_configs_to_v120(deps.storage)?
             }
+            "1.1.0" => migrate_pair_configs_to_v120(deps.storage)?,
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
