@@ -61,6 +61,7 @@ pub enum ExecuteMsg {
         operations: Vec<SwapOperation>,
         minimum_receive: Option<Uint128>,
         to: Option<Addr>,
+        max_spread: Option<Decimal>,
     },
 
     /// Internal use
@@ -90,6 +91,8 @@ pub enum Cw20HookMsg {
         minimum_receive: Option<Uint128>,
         /// the recipient
         to: Option<String>,
+        /// Max spread
+        max_spread: Option<Decimal>
     },
 }
 

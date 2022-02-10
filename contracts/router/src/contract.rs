@@ -1,7 +1,4 @@
-use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Api, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
-};
+use cosmwasm_std::{entry_point, from_binary, to_binary, Addr, Api, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, Decimal};
 
 use crate::error::ContractError;
 use crate::operations::execute_swap_operation;
@@ -98,6 +95,7 @@ pub fn execute(
             operations,
             minimum_receive,
             to,
+            max_spread,
         } => execute_swap_operations(
             deps,
             env,
@@ -106,6 +104,7 @@ pub fn execute(
             operations,
             minimum_receive,
             to,
+            max_spread
         ),
         ExecuteMsg::ExecuteSwapOperation {
             operation,
@@ -151,6 +150,7 @@ pub fn receive_cw20(
             operations,
             minimum_receive,
             to,
+            max_spread
         } => {
             let to_addr = if let Some(to_addr) = to {
                 Some(addr_validate_to_lower(deps.api, to_addr.as_str())?)
@@ -166,6 +166,7 @@ pub fn receive_cw20(
                 operations,
                 minimum_receive,
                 to_addr,
+                max_spread
             )
         }
     }
@@ -188,6 +189,7 @@ pub fn receive_cw20(
 /// * **minimum_receive** is the object of type [`Option<Uint128>`]. Used to minimum amount assertion.
 ///
 /// * **to** is the object of type [`Option<Addr>`]. Sets the recipient of the swap operation.
+#[allow(clippy::too_many_arguments)]
 pub fn execute_swap_operations(
     deps: DepsMut,
     env: Env,
@@ -196,6 +198,7 @@ pub fn execute_swap_operations(
     operations: Vec<SwapOperation>,
     minimum_receive: Option<Uint128>,
     to: Option<Addr>,
+    max_spread: Option<Decimal>
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let operations_len = operations.len();
     if operations_len == 0 {
@@ -232,7 +235,7 @@ pub fn execute_swap_operations(
                     } else {
                         None
                     },
-                    max_spread: None,
+                    max_spread,
                 })?,
             }))
         })

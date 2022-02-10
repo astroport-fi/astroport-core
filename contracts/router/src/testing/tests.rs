@@ -54,6 +54,7 @@ fn execute_swap_operations() {
         operations: vec![],
         minimum_receive: None,
         to: None,
+        max_spread: None,
     };
 
     let env = mock_env();
@@ -94,6 +95,7 @@ fn execute_swap_operations() {
         ],
         minimum_receive: Some(Uint128::from(1000000u128)),
         to: None,
+        max_spread: None,
     };
 
     let env = mock_env();
@@ -248,6 +250,7 @@ fn execute_swap_operations() {
             ],
             minimum_receive: None,
             to: Some(String::from("addr0002")),
+            max_spread: None,
         })
         .unwrap(),
     });
@@ -687,6 +690,7 @@ fn assert_maximum_receive_swap_operations() {
         ],
         minimum_receive: None,
         to: None,
+        max_spread: None,
     };
 
     let env = mock_env();

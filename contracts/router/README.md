@@ -65,7 +65,7 @@ Swap UST => mABNB
         }
       },
      "to": "terra...",
-     "max_spread": 0.05
+     "max_spread": "0.05"
    }
 }
 ```
@@ -104,7 +104,8 @@ Swap KRT => UST => mABNB
       }
     ],
     "minimum_receive": "123",
-    "to": "terra..."
+    "to": "terra...",
+    "max_spread": "0.05"
   }
 }
 ```
