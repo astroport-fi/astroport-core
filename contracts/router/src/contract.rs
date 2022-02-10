@@ -107,9 +107,11 @@ pub fn execute(
             minimum_receive,
             to,
         ),
-        ExecuteMsg::ExecuteSwapOperation { operation, to } => {
-            execute_swap_operation(deps, env, info, operation, to)
-        }
+        ExecuteMsg::ExecuteSwapOperation {
+            operation,
+            to,
+            max_spread,
+        } => execute_swap_operation(deps, env, info, operation, to, max_spread),
         ExecuteMsg::AssertMinimumReceive {
             asset_info,
             prev_balance,
@@ -230,6 +232,7 @@ pub fn execute_swap_operations(
                     } else {
                         None
                     },
+                    max_spread: None,
                 })?,
             }))
         })

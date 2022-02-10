@@ -64,7 +64,8 @@ Swap UST => mABNB
           }
         }
       },
-     "to": "terra..."
+     "to": "terra...",
+     "max_spread": 0.05
    }
 }
 ```
