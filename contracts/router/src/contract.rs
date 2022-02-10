@@ -1,4 +1,8 @@
-use cosmwasm_std::{entry_point, from_binary, to_binary, Addr, Api, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, Decimal};
+use cosmwasm_std::{
+    entry_point, from_binary, to_binary, Addr, Api, Binary, Coin, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg,
+    WasmQuery,
+};
 
 use crate::error::ContractError;
 use crate::operations::execute_swap_operation;
@@ -104,7 +108,7 @@ pub fn execute(
             operations,
             minimum_receive,
             to,
-            max_spread
+            max_spread,
         ),
         ExecuteMsg::ExecuteSwapOperation {
             operation,
@@ -150,7 +154,7 @@ pub fn receive_cw20(
             operations,
             minimum_receive,
             to,
-            max_spread
+            max_spread,
         } => {
             let to_addr = if let Some(to_addr) = to {
                 Some(addr_validate_to_lower(deps.api, to_addr.as_str())?)
@@ -166,7 +170,7 @@ pub fn receive_cw20(
                 operations,
                 minimum_receive,
                 to_addr,
-                max_spread
+                max_spread,
             )
         }
     }
@@ -198,7 +202,7 @@ pub fn execute_swap_operations(
     operations: Vec<SwapOperation>,
     minimum_receive: Option<Uint128>,
     to: Option<Addr>,
-    max_spread: Option<Decimal>
+    max_spread: Option<Decimal>,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let operations_len = operations.len();
     if operations_len == 0 {

@@ -92,7 +92,7 @@ pub enum Cw20HookMsg {
         /// the recipient
         to: Option<String>,
         /// Max spread
-        max_spread: Option<Decimal>
+        max_spread: Option<Decimal>,
     },
 }
 
