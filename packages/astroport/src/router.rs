@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 use crate::asset::AssetInfo;
@@ -61,6 +61,7 @@ pub enum ExecuteMsg {
         operations: Vec<SwapOperation>,
         minimum_receive: Option<Uint128>,
         to: Option<Addr>,
+        max_spread: Option<Decimal>,
     },
 
     /// Internal use
@@ -68,6 +69,7 @@ pub enum ExecuteMsg {
     ExecuteSwapOperation {
         operation: SwapOperation,
         to: Option<String>,
+        max_spread: Option<Decimal>,
     },
     /// Internal use
     /// Check the swap amount is exceed minimum_receive
@@ -89,6 +91,8 @@ pub enum Cw20HookMsg {
         minimum_receive: Option<Uint128>,
         /// the recipient
         to: Option<String>,
+        /// Max spread
+        max_spread: Option<Decimal>,
     },
 }
 
