@@ -5,7 +5,7 @@ README has updated with new messages (Astroport v1 messages follow).
 ---
 # CW20 based token contract
 
-This is a basic implementation of a cw20-base contract [CW20-base](https://github.com/CosmWasm/cw-plus/tree/main/contracts/cw20-base). It implements the [CW20 spec](https://github.com/CosmWasm/cosmwasm-plus/tree/master/packages/cw20) and is designed to be imported into other contracts to easily build cw20-compatible tokens with history saving logic.
+This is a basic implementation of a cw20-base contract [CW20-base](https://github.com/CosmWasm/cw-plus/tree/main/contracts/cw20-base). It implements the [CW20 spec](https://github.com/CosmWasm/cosmwasm-plus/tree/main/packages/cw20) and is designed to be imported into other contracts to easily build cw20-compatible tokens with history saving logic.
 
 ## Importing this contract
 
