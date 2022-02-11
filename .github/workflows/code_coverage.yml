@@ -3,7 +3,7 @@ name: Code coverage
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   code-coverage:
