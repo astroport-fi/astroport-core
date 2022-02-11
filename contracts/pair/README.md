@@ -1,4 +1,4 @@
-# Astroport Pair
+# Astroport Constant Product Pair
 
 The factory may instantiate this contract to create a new x*y=k. It initializes all swap created parameters which can be updated later with owner key.
 
