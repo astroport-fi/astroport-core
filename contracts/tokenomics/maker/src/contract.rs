@@ -1,5 +1,6 @@
 use crate::error::ContractError;
 use crate::state::{Config, BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
+use astroport_governance::escrow_fee_distributor;
 use std::cmp::min;
 
 use crate::migration;
@@ -18,11 +19,12 @@ use astroport::maker::{
 use astroport::pair::QueryMsg as PairQueryMsg;
 use astroport::querier::query_pair_info;
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Attribute, Binary, Decimal, Deps, DepsMut, Env,
+    attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Order, QueryRequest, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
-    WasmQuery,
+    WasmMsg, WasmQuery,
 };
 use cw2::{get_contract_version, set_contract_version};
+use cw20::Cw20ExecuteMsg;
 use std::collections::{HashMap, HashSet};
 
 /// Contract name that is used for migration.
@@ -540,10 +542,16 @@ fn distribute(
         let amount =
             amount.multiply_ratio(Uint128::from(cfg.governance_percent), Uint128::new(100));
         if amount.u128() > 0 {
-            let to_governance_asset = token_asset(cfg.astro_token_contract.clone(), amount);
-            result.push(SubMsg::new(
-                to_governance_asset.into_msg(&deps.querier, governance_contract)?,
-            ))
+            let send_msg = CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: cfg.astro_token_contract.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: governance_contract.to_string(),
+                    msg: to_binary(&escrow_fee_distributor::Cw20HookMsg::Burn {})?,
+                    amount,
+                })?,
+                funds: vec![],
+            });
+            result.push(SubMsg::new(send_msg))
         }
         amount
     } else {
