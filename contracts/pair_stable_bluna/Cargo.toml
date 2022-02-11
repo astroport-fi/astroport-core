@@ -38,7 +38,7 @@ anchor-basset = {git = "https://github.com/Anchor-Protocol/anchor-bAsset-contrac
 
 [dev-dependencies]
 proptest = "1.0.0"
-sim =  { path = "../sim" }
+sim = { git = "https://github.com/astroport-fi/astroport-sims.git", rev = "d617510737ee2c529d3aaa7afbdac5ccb5a385c9", package = "sim" }
 terra-cosmwasm = { version = "2.2.0" }
 cosmwasm-vm = { version = "0.16.0", default-features = false, features = ["iterator"] }
 cosmwasm-schema = "0.16.0"
