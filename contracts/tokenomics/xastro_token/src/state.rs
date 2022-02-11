@@ -31,7 +31,7 @@ pub fn capture_total_supply_history(
 }
 
 /// ## Description
-/// Returns an [`StdError`] on failure, otherwise returns total supply at given block.
+/// Returns an [`cosmwasm_std::StdError`] on failure, otherwise returns total supply at given block.
 /// ## Params
 /// * **storage** is the object of type [`Storage`].
 pub fn get_total_supply_at(storage: &dyn Storage, block: u64) -> StdResult<Uint128> {

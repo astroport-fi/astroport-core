@@ -727,9 +727,9 @@ pub fn swap(
 ///
 /// * **config** is the object of type [`Config`].
 ///
-/// * **x** is the balance of asset[0] within a pool
+/// * **x** is the balance of asset\[0\] within a pool
 ///
-/// * **y** is the balance of asset[1] within a pool
+/// * **y** is the balance of asset\[1\] within a pool
 pub fn accumulate_prices(
     env: Env,
     config: &Config,
@@ -1012,7 +1012,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 /// ## Description
-/// Returns an amount in the coin if the coin is found, otherwise returns [`zero`].
+/// Returns an amount in the coin if the coin is found, otherwise returns `Uint128::zero()`.
 /// ## Params
 /// * **coins** are an array of [`Coin`] type items. Sets the list of coins.
 ///

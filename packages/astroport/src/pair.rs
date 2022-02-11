@@ -78,7 +78,7 @@ pub enum Cw20HookMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Returns information about a pair in an object of type [`PairInfo`].
+    /// Returns information about a pair in an object of type [`super::asset::PairInfo`].
     Pair {},
     /// Returns information about a pool in an object of type [`PoolResponse`].
     Pool {},
