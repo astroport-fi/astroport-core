@@ -63,21 +63,21 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Returns information about a pair in an object of type [`PairInfo`].
+    /// Returns information about a pair in an object of type [`super::asset::PairInfo`].
     Pair {},
-    /// Returns information about a pool in an object of type [`PoolResponse`].
+    /// Returns information about a pool in an object of type [`super::pair::PoolResponse`].
     Pool {},
-    /// Returns contract configuration settings in a custom [`ConfigResponse`] structure.
+    /// Returns contract configuration settings in a custom [`super::pair::ConfigResponse`] structure.
     Config {},
     /// Returns information about the share of the pool in a vector that contains objects of type [`Asset`].
     Share { amount: Uint128 },
-    /// Returns information about a swap simulation in a [`SimulationResponse`] object.
+    /// Returns information about a swap simulation in a [`super::pair::SimulationResponse`] object.
     Simulation { offer_asset: Asset },
-    /// Returns information about a reverse simulation in a [`ReverseSimulationResponse`] object.
+    /// Returns information about a reverse simulation in a [`super::pair::ReverseSimulationResponse`] object.
     ReverseSimulation { ask_asset: Asset },
-    /// Returns information about cumulative prices (used for TWAPs) in a [`CumulativePricesResponse`] object.
+    /// Returns information about cumulative prices (used for TWAPs) in a [`super::pair::CumulativePricesResponse`] object.
     CumulativePrices {},
-    /// Returns pending token rewards that can be claimed by a specific user in a [`PendingRewardResponse`] object.
+    /// Returns pending token rewards that can be claimed by a specific user in a [`Asset`] object.
     PendingReward { user: String },
 }
 

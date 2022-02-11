@@ -2,7 +2,7 @@ pub mod contract;
 mod migration;
 pub mod state;
 
-mod error;
+pub mod error;
 
 mod querier;
 

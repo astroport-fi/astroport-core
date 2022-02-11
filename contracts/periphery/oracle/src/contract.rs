@@ -18,7 +18,7 @@ const CONTRACT_NAME: &str = "astroport-oracle";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Update time interval that is used for update method
-const PERIOD: u64 = 86400;
+pub const PERIOD: u64 = 86400;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].

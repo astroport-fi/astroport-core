@@ -34,7 +34,7 @@ pub enum ExecuteMsg {
         /// The assets to swap to ASTRO
         assets: Vec<AssetWithLimit>,
     },
-    /// Updates general settings contained in the [`Config`] struct
+    /// Updates general settings
     UpdateConfig {
         /// The factory contract address
         factory_contract: Option<String>,
@@ -76,7 +76,7 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Returns information about the maker configs that contains in the [`Config`]
+    /// Returns information about the maker configs that contains in the [`ConfigResponse`]
     Config {},
     /// Returns the balance for each asset in the specified input parameters
     Balances {

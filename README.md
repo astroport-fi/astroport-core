@@ -32,11 +32,11 @@ Tokenomics related smart contracts are hosted on ../contracts/tokenomics.
 | [`maker`](contracts/tokenomics/maker)                                           | Fee collector and swapper                        |
 | [`staking`](contracts/tokenomics/staking)                                       | xASTRO staking contract                          |
 | [`vesting`](contracts/tokenomics/vesting)                                       | ASTRO distributor for generator rewards          |
-| [`xASTRO`](contracts/xastro_token)                                              | xASTRO token contract                            |
+| [`xastro_token`](contracts/tokenomics/xastro_token)                             | xASTRO token contract                            |
 
 ## Running Contracts from this Repository
 
-You will need Rust 1.44.1+ with wasm32-unknown-unknown target installed.
+You will need Rust 1.58.1+ with wasm32-unknown-unknown target installed.
 
 You can run unit tests for each contract directory via:
 
@@ -48,9 +48,9 @@ You can compile each contract using:
 
 ```
 RUSTFLAGS='-C link-arg=-s' cargo wasm
-cp ../../target/wasm32-unknown-unknown/release/cw1_subkeys.wasm .
-ls -l cw1_subkeys.wasm
-sha256sum cw1_subkeys.wasm
+cp ../../target/wasm32-unknown-unknown/release/astroport_token.wasm .
+ls -l astroport_token.wasm
+sha256sum astroport_token.wasm
 ```
 
 For a production-ready (compressed) build, run the following from the repository root:
@@ -59,7 +59,7 @@ For a production-ready (compressed) build, run the following from the repository
 docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/workspace-optimizer:0.12.3
+  cosmwasm/workspace-optimizer:0.12.5
 ```
 
 The optimized contracts are generated in the artifacts/ directory.

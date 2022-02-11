@@ -598,25 +598,25 @@ pub fn execute_send_from(
 /// * **TotalSupplyAt { block }** Returns total supply at the given block.
 ///
 /// * **TokenInfo {}** Returns the metadata on the contract - name, decimals, supply, etc
-/// in a [`TokenInfoResponse`] object.
+/// in a [`cw20::TokenInfoResponse`] object.
 ///
 /// * **Minter {}** Returns who can mint and the hard cap on maximum tokens after minting
-/// in a [`MinterResponse`] object.
+/// in a [`cw20::MinterResponse`] object.
 ///
 /// * **QueryMsg::Allowance { owner, spender }** Returns how much spender can use from owner account, 0 if unset
-/// in a [`AllowanceResponse`] object.
+/// in a [`cw20::AllowanceResponse`] object.
 ///
 /// * **QueryMsg::AllAllowances { owner, start_after, limit }** Returns all allowances this owner has approved
-/// in a [`AllAllowancesResponse`] object.
+/// in a [`cw20::AllAllowancesResponse`] object.
 ///
 /// * **QueryMsg::AllAccounts { start_after, limit }** Returns all accounts that have balances
-/// in a [`AllAccountsResponse`] object.
+/// in a [`cw20::AllAccountsResponse`] object.
 ///
 /// * **QueryMsg::MarketingInfo {}** Returns more metadata on the contract
-/// in a [`MarketingInfoResponse`] object.
+/// in a [`cw20::MarketingInfoResponse`] object.
 ///
 /// * **QueryMsg::DownloadLogo {}** Downloads the mbeded logo data (if stored on chain)
-/// in a [`DownloadLogoResponse`] object.
+/// in a [`cw20::DownloadLogoResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
