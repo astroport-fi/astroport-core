@@ -5,7 +5,7 @@ It contains a set of admins that are defined upon creation.
 Any of those admins may `Execute` any message via the contract,
 per the CW1 spec.
 
-To make this slighly less minimalistic, you can allow the admin set
+To make this slightly less minimalistic, you can allow the admin set
 to be mutable or immutable. If it is mutable, then any admin may
 (a) change the admin set and (b) freeze it (making it immutable).
 
