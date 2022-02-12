@@ -730,9 +730,9 @@ pub fn swap(
 ///
 /// * **config** is an object of type [`Config`].
 ///
-/// * **x** is the balance of asset[0] in the pool.
+/// * **x** is the balance of asset\[\0] in the pool.
 ///
-/// * **y** is the balance of asset[1] in the pool.
+/// * **y** is the balance of asset\[\1] in the pool.
 pub fn accumulate_prices(
     env: Env,
     config: &Config,
@@ -768,7 +768,7 @@ pub fn accumulate_prices(
 }
 
 /// ## Description
-/// Calculates the maker commission according to specified pair parameters.
+/// Calculates the amount of fees the Maker contract gets according to specified pair parameters.
 /// Returns a [`None`] if the Maker fee is zero, otherwise returns a [`Asset`] struct with the specified attributes.
 /// ## Params
 /// * **pool_info** is an object of type [`AssetInfo`]. Contains information about the pool asset for which the commission will be calculated.
@@ -1016,7 +1016,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 /// ## Description
-/// Returns an amount of coins. For each coin in the specified vector, if the coin is null, we return [`zero`],
+/// Returns an amount of coins. For each coin in the specified vector, if the coin is null, we return `Uint128::zero()`,
 /// otherwise we return the specified coin amount.
 /// ## Params
 /// * **coins** is an array of [`Coin`] type items. This is a list of coins for which we return amounts.

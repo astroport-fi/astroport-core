@@ -126,6 +126,17 @@ pub enum ExecuteMsg {
     /// ## Executor
     /// Only the newly proposed owner can execute this
     ClaimOwnership {},
+    /// ## Description
+    /// Add or remove a proxy contract that can interact with the Generator
+    UpdateAllowedProxies {
+        /// Allowed proxy contract
+        add: Option<Vec<String>>,
+        // Proxy contracts to remove
+        remove: Option<Vec<String>>,
+    },
+    /// ## Description
+    /// Sets a new proxy contract for a specific generator
+    MoveToProxy { lp_token: String, proxy: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -17,7 +17,7 @@ use terra_cosmwasm::TerraQuerier;
 pub struct Asset {
     /// Information about an asset stored in a [`AssetInfo`] struct
     pub info: AssetInfo,
-    /// An asset amount
+    /// A token amount
     pub amount: Uint128,
 }
 

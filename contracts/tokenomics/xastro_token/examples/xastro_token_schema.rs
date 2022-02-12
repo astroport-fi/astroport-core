@@ -3,12 +3,12 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema_with_title, remove_schemas, schema_for};
 
-use astroport::token::InstantiateMsg;
+use astroport::xastro_token::{InstantiateMsg, QueryMsg};
 use cw20::{
     AllAccountsResponse, AllAllowancesResponse, AllowanceResponse, BalanceResponse, MinterResponse,
     TokenInfoResponse,
 };
-use cw20_base::msg::{ExecuteMsg, QueryMsg};
+use cw20_base::msg::ExecuteMsg;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

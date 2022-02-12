@@ -18,7 +18,7 @@ const CONTRACT_NAME: &str = "astroport-oracle";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Time between two consecutive TWAP updates.
-const PERIOD: u64 = 86400;
+pub const PERIOD: u64 = 86400;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].

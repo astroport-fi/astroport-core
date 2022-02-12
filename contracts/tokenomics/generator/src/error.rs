@@ -28,6 +28,9 @@ pub enum ContractError {
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
+
+    #[error("The pool already has a reward proxy contract!")]
+    PoolAlreadyHasRewardProxyContract {},
 }
 
 impl From<OverflowError> for ContractError {
