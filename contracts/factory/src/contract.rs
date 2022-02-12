@@ -40,11 +40,11 @@ const INSTANTIATE_PAIR_REPLY_ID: u64 = 1;
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is an object of type [`Env`]
+/// * **_env** is an object of type [`Env`].
 ///
-/// * **_info** is an object of type [`MessageInfo`]
+/// * **_info** is an object of type [`MessageInfo`].
 ///
-/// * **msg**  is a message of type [`InstantiateMsg`] which contains the parameters used for creating a contract
+/// * **msg**  is a message of type [`InstantiateMsg`] which contains the parameters used for creating a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
