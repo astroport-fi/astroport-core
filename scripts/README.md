@@ -11,7 +11,7 @@ npm start
 
 Build contract:
 ```shell
-npm run build-artifacts
+npm run build-release
 ```
 
 Create `.env`:
