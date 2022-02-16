@@ -1,8 +1,12 @@
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    MessageInfo, QueryRequest, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
+    Uint64, WasmMsg, WasmQuery,
 };
-use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
+use cw20::{
+    AllAccountsResponse, BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg,
+    MinterResponse,
+};
 
 use crate::error::ContractError;
 use crate::migration;
@@ -12,6 +16,7 @@ use crate::state::{
 };
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::generator::StakerResponse;
 use astroport::querier::{query_supply, query_token_balance};
 use astroport::DecimalCheckedOps;
 use astroport::{
@@ -1353,6 +1358,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             lp_token,
             future_block,
         )?)?),
+        QueryMsg::ListOfStakers {
+            lp_token,
+            start_after,
+            limit,
+        } => Ok(to_binary(&query_list_of_stakers(
+            deps,
+            lp_token,
+            start_after,
+            limit,
+        )?)?),
     }
 }
 
@@ -1636,6 +1651,41 @@ pub fn query_simulate_future_reward(
         .unwrap_or_else(|_| Uint128::zero());
 
     Ok(simulated_reward)
+}
+
+/// ## Description
+/// Returns an [`ContractError`] on failure, otherwise returns a list of stakers for each generator
+pub fn query_list_of_stakers(
+    deps: Deps,
+    lp_token: String,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> Result<Vec<StakerResponse>, ContractError> {
+    let lp_addr = addr_validate_to_lower(deps.api, lp_token.as_str())?;
+    if POOL_INFO.has(deps.storage, &lp_addr) {
+        let res: AllAccountsResponse =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: lp_token.clone(),
+                msg: to_binary(&Cw20QueryMsg::AllAccounts { start_after, limit })?,
+            }))?;
+
+        return Ok(res
+            .accounts
+            .into_iter()
+            .filter(|account| {
+                !query_deposit(deps, lp_token.clone(), account.clone())
+                    .unwrap_or_default()
+                    .is_zero()
+            })
+            .into_iter()
+            .map(|account| StakerResponse {
+                account: account.clone(),
+                amount: query_deposit(deps, lp_token.clone(), account).unwrap_or_default(),
+            })
+            .collect());
+    }
+
+    Ok(vec![])
 }
 
 /// ## Description

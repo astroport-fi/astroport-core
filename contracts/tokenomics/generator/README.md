@@ -339,6 +339,8 @@ Returns reward information for the specified token.
 }
 ```
 
+### `pool_info`
+
 Returns pool information for the specified token.
 
 ```json
@@ -349,6 +351,8 @@ Returns pool information for the specified token.
 }
 ```
 
+### `simulate_future_reward`
+
 Returns the amount of ASTRO distributed at the future block and specified token.
 
 ```json
@@ -356,6 +360,20 @@ Returns the amount of ASTRO distributed at the future block and specified token.
   "simulate_future_reward": {
     "lp_token": "terra...",
     "future_block": 999
+  }
+}
+```
+
+### `list_of_stakers`
+
+Return a list of stakers for each generator.
+
+```json
+{
+  "list_of_stakers": {
+    "lp_token": "terra...",
+    "start_after": "terra...",
+    "limit": 5
   }
 }
 ```
