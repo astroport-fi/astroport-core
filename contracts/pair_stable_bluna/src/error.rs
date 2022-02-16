@@ -3,7 +3,7 @@ use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
 /// ## Description
-/// This enum describes pair stable contract errors!
+/// This enum describes stableswap contract errors!
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
@@ -57,7 +57,7 @@ pub enum ContractError {
     #[error("You need to provide init params")]
     InitParamsNotFound {},
 
-    #[error("GeneratorAddress is not set in factory. Cannot autostake")]
+    #[error("Generator address is not set in factory. Cannot autostake")]
     AutoStakeError {},
 
     #[error("Contract can't be migrated!")]

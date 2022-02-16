@@ -330,6 +330,8 @@ pub fn receive_cw20(
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
+/// * **assets** is an array with two objects of type [`Asset`]. These are the assets available in the pool.
+///
 /// * **slippage_tolerance** is object of type [`Option<Decimal>`]. This is the slippage tolerance for providing liquidity.
 ///
 /// * **auto_stake** is object of type [`Option<bool>`]. Determines whether the resulting LP tokens are automatically staked in the Generator contract to receive token incentives.
@@ -824,7 +826,11 @@ pub fn swap(
 ///
 /// * **x** is the balance of asset\[\0] in the pool.
 ///
+/// * **x_precision** is the precision for the x token.
+///
 /// * **y** is the balance of asset\[\1] in the pool.
+///
+/// * **y_precision** is the precision for the y token.
 pub fn accumulate_prices(
     env: Env,
     config: &Config,

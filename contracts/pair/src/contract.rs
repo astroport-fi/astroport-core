@@ -300,6 +300,8 @@ pub fn receive_cw20(
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
+/// * **assets** is an array with two objects of type [`Asset`]. These are the assets available in the pool.
+///
 /// * **slippage_tolerance** is an [`Option`] field of type [`Decimal`]. It is used to specify how much
 /// the pool price can move until the provide liquidity transaction goes through.
 ///
