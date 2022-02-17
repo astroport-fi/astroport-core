@@ -5,41 +5,41 @@ use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// This structure describes migration message.
+/// This structure describes a migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrationMsgV100 {
-    /// cw1 whitelist contract code id used to store 3rd party rewards in pools
+    /// CW1 whitelist contract code id used to store 3rd party staking rewards
     pub whitelist_code_id: u64,
 }
 
-/// This structure describes the main control config of factory.
+/// This structure holds the main parameters for the factory contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigV100 {
-    /// The Contract address that used for controls settings for factory, pools and tokenomics contracts
+    /// Address allowed to change contract parameters
     pub owner: Addr,
     /// CW20 token contract code identifier
     pub token_code_id: u64,
-    /// contract address that used for auto_stake from pools
+    /// Generator contract address
     pub generator_address: Option<Addr>,
-    /// contract address to send fees to
+    /// Contract address to send governance fees to (the Maker contract)
     pub fee_address: Option<Addr>,
 }
 
 pub const CONFIGV100: Item<ConfigV100> = Item::new("config");
 
-/// This structure describes a configuration of pair.
+/// This structure describes a pair's configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairConfigV110 {
-    /// pair contract code ID which are allowed to create pair
+    /// Pair contract code ID that's used to create new pairs of this type
     pub code_id: u64,
-    /// the type of pair available in [`PairType`]
+    /// The pair type (e.g XYK, stable)
     pub pair_type: PairType,
-    /// a pair total fees bps
+    /// The total amount of fees charged for the swap
     pub total_fee_bps: u16,
-    /// a pair fees bps
+    /// The amount of fees that go to the Maker contract
     pub maker_fee_bps: u16,
-    /// We disable pair configs instead of removing them. If it is disabled, new pairs cannot be
-    /// created, but existing ones can still obtain proper settings, such as fee amounts
+    /// We disable pair configs instead of removing them. If a pair type is disabled,
+    // new pairs cannot be created, but existing ones can still function properly
     pub is_disabled: Option<bool>,
 }
 

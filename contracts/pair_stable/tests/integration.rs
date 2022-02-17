@@ -143,7 +143,7 @@ fn test_provide_and_withdraw_liquidity() {
     let alice_address = Addr::unchecked("alice");
     let mut router = mock_app();
 
-    // Set alice balances
+    // Set Alice's balances
     router
         .init_bank_balance(
             &alice_address,
@@ -181,7 +181,7 @@ fn test_provide_and_withdraw_liquidity() {
         ],
     );
 
-    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
+    // When dealing with native tokens, the transfer should happen before the contract call, which cw-multitest doesn't support
     router
         .init_bank_balance(
             &pair_instance,
@@ -224,7 +224,7 @@ fn test_provide_and_withdraw_liquidity() {
         attr("amount", 100u128.to_string())
     );
 
-    // Provide liquidity for receiver
+    // Provide liquidity for a custom receiver
     let (msg, coins) = provide_liquidity_msg(
         Uint128::new(100),
         Uint128::new(100),
@@ -512,10 +512,10 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     )
     .unwrap();
 
-    // instantiate pair
+    // Instantiate pair
     let pair_instance = instantiate_pair(&mut app, &user1);
 
-    // provide liquidity, accumulators are empty
+    // Provide liquidity, accumulators are empty
     let (msg, coins) = provide_liquidity_msg(
         Uint128::new(1000000_000000),
         Uint128::new(1000000_000000),
@@ -527,13 +527,13 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     const BLOCKS_PER_DAY: u64 = 17280;
     const ELAPSED_SECONDS: u64 = BLOCKS_PER_DAY * 5;
 
-    // a day later
+    // A day later
     app.update_block(|b| {
         b.height += BLOCKS_PER_DAY;
         b.time = b.time.plus_seconds(ELAPSED_SECONDS);
     });
 
-    // provide liquidity, accumulators firstly filled with the same prices
+    // Provide liquidity, accumulators firstly filled with the same prices
     let (msg, coins) = provide_liquidity_msg(
         Uint128::new(3000000_000000),
         Uint128::new(1000000_000000),
@@ -542,18 +542,18 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
 
-    // get current twap accumulator values
+    // Get current twap accumulator values
     let msg = QueryMsg::CumulativePrices {};
     let cpr_old: CumulativePricesResponse =
         app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
 
-    // a day later
+    // A day later
     app.update_block(|b| {
         b.height += BLOCKS_PER_DAY;
         b.time = b.time.plus_seconds(ELAPSED_SECONDS);
     });
 
-    // get current twap accumulator values, it should be added up by the query method with new 2/1 ratio
+    // Get current twap accumulator values
     let msg = QueryMsg::CumulativePrices {};
     let cpr_new: CumulativePricesResponse =
         app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
@@ -667,7 +667,7 @@ fn update_pair_config() {
 
     assert_eq!(params.amp, Decimal::from_ratio(100u32, 1u32));
 
-    //Start changing amp with incorrect next amp
+    // Start changing amp with incorrect next amp
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: MAX_AMP + 1,
@@ -688,7 +688,7 @@ fn update_pair_config() {
         )
     );
 
-    //Start changing amp with big difference between the old and new amp value
+    // Start changing amp with big difference between the old and new amp value
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: 100 * MAX_AMP_CHANGE + 1,
@@ -709,7 +709,7 @@ fn update_pair_config() {
         )
     );
 
-    //Start changing amp earlier than the MIN_AMP_CHANGING_TIME has elapsed
+    // Start changing amp earlier than the MIN_AMP_CHANGING_TIME has elapsed
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: 250,

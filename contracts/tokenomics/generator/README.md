@@ -1,14 +1,12 @@
 # Astroport Generator
 
-The generator contract generates token rewards (ASTRO) based on locked LP token amount by liquidity pool providers. Also supports proxy staking via 3-d party contracts for getting dual rewards. Allowed reward proxies are managed via a whitelist. [Staking via proxy](https://miro.medium.com/max/1400/0*8hn2NSnZJZTa9YGV)
-
-README has updated with new messages (Astroport v1 messages follow).
+The generator contract sends token rewards (ASTRO) to various LP tokens and distributes them pro-rata to stakers. The Generator supports proxy staking via 3rd party contracts that offer a second reward besides ASTRO token emissions. Allowed reward proxies are managed via a whitelist.
 
 ---
 
 ## InstantiateMsg
 
-Inits with required contract addresses for depositing and reward distribution.
+Initializes the contract with required addresses and contracts used for reward distributions.
 
 ```json
 {
@@ -27,7 +25,7 @@ Inits with required contract addresses for depositing and reward distribution.
 
 ### `update_config`
 
-Update current vesting contract. Only owner can execute it.
+Update the vesting contract address. Only the contract owner can execute this.
 
 ```json
 {
@@ -39,7 +37,7 @@ Update current vesting contract. Only owner can execute it.
 
 ### `add`
 
-Adds support of a new LP with optional reward_proxy address.
+Create a new generator (emissions schedule) for a specific LP token and optionallly add a 3rd party reward_proxy address used for dual rewards.
 
 ```json
 {
@@ -53,7 +51,7 @@ Adds support of a new LP with optional reward_proxy address.
 
 ### `set`
 
-Update the given pool's ASTRO allocation point. Only owner can execute it.
+Update the share of ASTRO emissions that a LP token gets. Only the contract owner can execute this.
 
 ```json
 {
@@ -66,7 +64,7 @@ Update the given pool's ASTRO allocation point. Only owner can execute it.
 
 ### `mass_update_pools`
 
-Updates reward variables for all pools.
+Updates the share of ASTRO emissions for multiple LP tokens. Only the contract owner can execute this.
 
 ```json
 {
@@ -76,7 +74,7 @@ Updates reward variables for all pools.
 
 ### `update_pool`
 
-Updates reward variables of the given pool to be up-to-date.
+Updates a generator for a specific LP token by snapshotting the amount of rewards that have been accrued and not yet claimed.
 
 ```json
 {
@@ -100,10 +98,10 @@ CW20 receive msg.
 }
 ```
 
-#### `Deposit`
+### `deposit`
 
-Deposits given lp amount and allocates ASTRO.
-Execute this message by the LP token contract address from which you want to make a deposit.
+Stakes LP tokens in a specific generator (inside the Generator contract).
+In order to stake in the Generator contract, you should execute this message inside the contract of the LP token you want to stake.
 ```json
 {
   "send": {
@@ -114,17 +112,17 @@ Execute this message by the LP token contract address from which you want to mak
 }
 ```
 
-In send.msg, you may decode this JSON string into base64 encoding.
+Inside `send.msg`, you may encode this JSON string into base64 encoding:
 ```json
 {
   "Deposit": {}
 }
 ```
 
-#### `DepositFor`
+### `depositFor`
 
-Deposits given lp amount and allocates ASTRO to beneficiary.
-Execute this message by the LP token contract address from which you want to make a deposit.
+Stakes a LP token in the Generator on behalf of another address.
+In order to stake in the Generator contract, you should execute this message inside the contract of the LP token you want to stake.
 
 ```json
 {
@@ -136,7 +134,7 @@ Execute this message by the LP token contract address from which you want to mak
 }
 ```
 
-In send.msg, you may decode this JSON string into base64 encoding.
+In `send.msg`, you may encode this JSON string into base64 encoding:
 ```json
 {
   "DepositFor": "terra..."
@@ -145,7 +143,7 @@ In send.msg, you may decode this JSON string into base64 encoding.
 
 ### `withdraw`
 
-Withdraws given lp amount and rewards.
+Unstakes LP tokens from the Generator contract and claims outstanding token emissions.
 
 ```json
 {
@@ -158,7 +156,7 @@ Withdraws given lp amount and rewards.
 
 ### `emergency_withdraw`
 
-Withdraws deposited lp without caring about rewards. Use emergency only.
+Unstakes LP tokens without caring about rewards. To be used only in emergencies such as a critical bug found in the Generator contract.
 
 ```json
 {
@@ -170,7 +168,7 @@ Withdraws deposited lp without caring about rewards. Use emergency only.
 
 ### `set_allowed_reward_proxies`
 
-Updates allowed proxies whitelist for 3-d party staking.
+Updates the list of allowed 3rd party proxy contracts (that connect 3rd party staking contracts to the Generator for dual rewards).
 
 ```json
 {
@@ -185,7 +183,7 @@ Updates allowed proxies whitelist for 3-d party staking.
 
 ### `send_orphan_reward`
 
-Orphan rewards accumulate after emergency withdraws. Owner can send orphan rewards to recipient.
+Sends orphaned rewards (left behind by emergency withdraws) to another address. Only the contract owner can transfer orphan rewards.
 
 ```json
 {
@@ -198,7 +196,7 @@ Orphan rewards accumulate after emergency withdraws. Owner can send orphan rewar
 
 ### `set_tokens_per_block`
 
-Sets reward amount that will be generated per block.
+Sets the total amount of ASTRO distributed per block among all active generators. Only the owner can execute this.
 
 ```json
 {
@@ -210,7 +208,7 @@ Sets reward amount that will be generated per block.
 
 ### `propose_new_owner`
 
-Creates a request to change ownership. The validity period of the offer is set in the `expires_in` variable.
+Creates a request to change contract ownership. The validity period of the offer is set by the `expires_in` variable. Only the current owner can execute this.
 
 ```json
 {
@@ -223,7 +221,7 @@ Creates a request to change ownership. The validity period of the offer is set i
 
 ### `drop_ownership_proposal`
 
-Removes the existing offer for the new owner.
+Removes the existing offer to change contract ownership. Only the contract owner can execute this.
 
 ```json
 {
@@ -233,7 +231,7 @@ Removes the existing offer for the new owner.
 
 ### `claim_ownership`
 
-Used to claim(approve) new owner proposal, thus changing contract's owner.
+Used by the newly proposed contract owner to claim contract ownership.
 
 ```json
 {
@@ -243,7 +241,7 @@ Used to claim(approve) new owner proposal, thus changing contract's owner.
 
 ### `move_to_proxy`
 
-Sets a proxy for the pool.
+Change the current dual rewards proxy for a specific LP token. Only the contract owner can execute this.
 
 ```json
 {
@@ -256,7 +254,7 @@ Sets a proxy for the pool.
 
 ### `UpdateAllowedProxies`
 
-Add or remove proxy contract that can interact with the Generator
+Add or remove dual rewards proxy contracts that can interact with the Generator. Only the contract owner can execute this.
 
 ```json
 {
@@ -273,7 +271,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `pool_length`
 
-Returns pools count.
+Returns the total amount of generators that have been created unntil now.
 
 ```json
 {
@@ -283,7 +281,7 @@ Returns pools count.
 
 ### `deposit`
 
-Returns deposited lp token amount by user.
+Returns the amount of a specific LP token that a user currently has staked in the Generator.
 
 ```json
 {
@@ -296,7 +294,7 @@ Returns deposited lp token amount by user.
 
 ### `pending_token`
 
-Gives pending ASTRO and proxy amounts.
+Returns the amount of pending ASTRO and 3rd party token rewards that can be claimed by a user that staked a specific LP token.
 
 ```json
 {
@@ -309,6 +307,8 @@ Gives pending ASTRO and proxy amounts.
 
 ### `config`
 
+Returns the main Generator contract configuration.
+
 ```json
 {
   "config": {}
@@ -317,7 +317,7 @@ Gives pending ASTRO and proxy amounts.
 
 ### `orphan_proxy_rewards`
 
-Returns orphan rewards amount.
+Returns the amount of orphaned proxy rewards left behind by emergency withdrawals.
 
 ```json
 {
@@ -329,7 +329,7 @@ Returns orphan rewards amount.
 
 ### `reward_info`
 
-Returns reward information for the specified token.
+Returns information about token emissions for the specified LP token.
 
 ```json
 {
@@ -339,7 +339,9 @@ Returns reward information for the specified token.
 }
 ```
 
-Returns pool information for the specified token.
+### `pool_info`
+
+Returns pool information for the specified LP token.
 
 ```json
 {
@@ -349,7 +351,7 @@ Returns pool information for the specified token.
 }
 ```
 
-Returns the amount of ASTRO distributed at the future block and specified token.
+Returns the amount of ASTRO that will be distributed up to a future block and for a specific LP token.
 
 ```json
 {

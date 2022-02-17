@@ -1,18 +1,18 @@
 # CW1 Whitelist
 
-This may be the simplest implementation of CW1, a whitelist of addresses.
+This may be the simplest implementation of CW1, an address whitelist registry.
 It contains a set of admins that are defined upon creation.
 Any of those admins may `Execute` any message via the contract,
 per the CW1 spec.
 
-To make this slighly less minimalistic, you can allow the admin set
+To make this slightly less minimalistic, you can allow the admin set
 to be mutable or immutable. If it is mutable, then any admin may
 (a) change the admin set and (b) freeze it (making it immutable).
 
 While largely an example contract for CW1, this has various real-world use-cases,
 such as a common account that is shared among multiple trusted devices,
 or trading an entire account (used as 1 of 1 mutable). Most of the time,
-this can be used as a framework to build your own, 
+this can be used as a framework to build your own,
 more advanced cw1 implementations.
 
 ## Allowing Custom Messages
@@ -23,11 +23,11 @@ fixed in `handle`. You can import this contract and just redefine your `handle`
 function, setting a different parameter to `ExecuteMsg`, and you can produce
 a chain-specific message.
 
-## Running this contract
+## Running This Contract
 
 You will need Rust 1.44.1+ with `wasm32-unknown-unknown` target installed.
 
-You can run unit tests on this via: 
+You can run unit tests on this via:
 
 `cargo test`
 

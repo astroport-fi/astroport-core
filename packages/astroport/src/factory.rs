@@ -50,7 +50,8 @@ pub struct PairConfig {
     /// Whether a pair type is disabled or not. If it is disabled, new pairs cannot be
     /// created, but existing ones can still read the pair configuration
     pub is_disabled: bool,
-    /// Setting to true will disable creating a pool in generator for this pair type
+    /// Setting this to true means that pairs of this type will not be able
+    /// to get an ASTRO generator
     pub is_generator_disabled: bool,
 }
 
@@ -186,6 +187,7 @@ pub struct MigrateMsg {
 /// A custom struct for each query response that returns an array of objects of type [`PairInfo`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairsResponse {
+    /// Arrays of structs containing information about multiple pairs
     pub pairs: Vec<PairInfo>,
 }
 

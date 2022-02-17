@@ -77,7 +77,7 @@ pub enum QueryMsg {
     ReverseSimulation { ask_asset: Asset },
     /// Returns information about cumulative prices (used for TWAPs) in a [`super::pair::CumulativePricesResponse`] object.
     CumulativePrices {},
-    /// Returns pending token rewards that can be claimed by a specific user in a [`Asset`] object.
+    /// Returns pending token rewards that can be claimed by a specific user using a [`Asset`] object.
     PendingReward { user: String },
 }
 

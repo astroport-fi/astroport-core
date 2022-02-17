@@ -1,14 +1,12 @@
 # Astroport Factory
 
-The factory contract can perform creation of astroport pair contract and used as directory contract for all pairs. Available pair types are stable and xyk only.
-
-README has updated with new messages (Astroport v1 messages follow).
+The factory contract can create new Astroport pair contracts (and associated LP token contracts) and it is used as a directory for all pairs. The default pair types are xyk and stableswap but governance may decide to add custom pools that can have any implementation.
 
 ---
 
 ## InstantiateMsg
 
-Code ID for a pair type is provided when instantiating a new pair. So, you donâ€™t have to execute pair contract additionally.
+The instantiate message takes in the token code ID for the token type supported on Astroport. It also takes in the fee_address that collects fees for governance, the contract owner, the Generator contract address and the initial pair types available to instantiate.
 
 ```json
 {
@@ -33,7 +31,7 @@ Code ID for a pair type is provided when instantiating a new pair. So, you donâ€
 
 ### `update_config`
 
-Updates relevant code IDs.
+Updates contract variables, namely the code ID of the token implementation used in Astroport, the address that receives governance fees and the Generator contract address.
 
 ```json
 {
@@ -47,7 +45,14 @@ Updates relevant code IDs.
 
 ### `update_pair_config`
 
-Updating code id and fees for specified pair type or disable pair configs. All fields are optional.
+Update the code ID used to instantiate new pairs of a specific type. Change the fee structure for the pair. Disable the pair type so no other pairs can be instantiated. All fields are optional.
+
+The fee structure is set up as follows:
+
+- `total_fee_bps` is the total amount of fees (in bps) that are charged on each swap
+- `maker_fee_bps` is the percentage of fees out of `total_fee_bps` that is sent to governance. 100% is 10,000
+
+As an example, let's say a pool charged 30bps (`total_fee_bps` is 30) and we want 1/3r of the fees to go to governance. In this case, `maker_fee_bps` should be 3333 because 3333 / 10,000 * 30 / 100 = 0.1%
 
 ```json
 {
@@ -67,7 +72,9 @@ Updating code id and fees for specified pair type or disable pair configs. All f
 
 ### `create_pair`
 
-Anyone can execute it to create swap pair. When a user executes `CreatePair` operation, it creates `Pair` contract and `LP(liquidity provider)` token contract. It also creates not fully initialized `PairInfo`. Pair `contract_address` for the given asset_infos will be initialized with reply, which is only allowed for a pair, which is not fully initialized.
+Anyone can execute this function to create an Astroport pair. `CreatePair` creates both a `Pair` contract and a `LP(liquidity provider)` token contract. The account that instantiates the pair must specify the pair type they want as well as the assets for which the pool is created.
+
+Custom pool types may also need extra parameters which can be packed in `init_params`.
 
 ```json
 {
@@ -94,7 +101,7 @@ Anyone can execute it to create swap pair. When a user executes `CreatePair` ope
 
 ### `deregister`
 
-Deregisters already registered pair (deletes pair).
+Deregisters an already registered pair. This allows someone else to create a new pair (of any type) for the tokens that don't have a registered pair anymore. This is how pairs can be "upgraded".
 
 ```json
 {
@@ -117,7 +124,7 @@ Deregisters already registered pair (deletes pair).
 
 ### `propose_new_owner`
 
-Creates an offer for a new owner. The validity period of the offer is set in the `expires_in` variable.
+Creates an offer to change the contract ownership. The validity period of the offer is set in the `expires_in` variable. After `expires_in` seconds pass, the offer expires and cannot be accepted anymore.
 
 ```json
 {
@@ -130,7 +137,7 @@ Creates an offer for a new owner. The validity period of the offer is set in the
 
 ### `drop_ownership_proposal`
 
-Removes the existing offer for the new owner.
+Removes an existing offer to change the contract owner.
 
 ```json
 {
@@ -140,7 +147,7 @@ Removes the existing offer for the new owner.
 
 ### `claim_ownership`
 
-Used to claim(approve) new owner proposal, thus changing contract's owner.
+Used to claim contract ownership.
 
 ```json
 {
@@ -154,7 +161,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `config`
 
-Returns general settings of the factory
+Returns general factory parameters (owner, token code ID, pair type configurations).
 
 ```json
 {
@@ -164,7 +171,7 @@ Returns general settings of the factory
 
 ### `pair`
 
-Gives info for specified assets pair.
+Returns information for a specific pair.
 
 ```json
 {
@@ -187,7 +194,7 @@ Gives info for specified assets pair.
 
 ### `pairs`
 
-Gives paginated pair infos using specified start_after and limit. Given fields are optional.
+Returns information for multiple pairs (the result is paginated). The function starts returning pair information starting after the pair  `start_after`. The function returns maximum `limit` pairs.
 
 ```json
 {
@@ -211,7 +218,7 @@ Gives paginated pair infos using specified start_after and limit. Given fields a
 
 ### `fee_info`
 
-Gives fees for specified pair type.
+Returns the fee information for a specific pair type (`total_fee_bps` and `maker_fee_bps`).
 
 ```json
 {
