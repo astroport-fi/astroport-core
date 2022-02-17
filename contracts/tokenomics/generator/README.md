@@ -366,7 +366,7 @@ Returns the amount of ASTRO distributed at the future block and specified token.
 
 ### `list_of_stakers`
 
-Return a list of stakers for each generator.
+Returns a list of stakers for certain generator
 
 ```json
 {

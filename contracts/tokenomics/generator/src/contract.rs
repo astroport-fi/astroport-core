@@ -1654,7 +1654,7 @@ pub fn query_simulate_future_reward(
 }
 
 /// ## Description
-/// Returns an [`ContractError`] on failure, otherwise returns a list of stakers for each generator
+/// Returns an [`ContractError`] on failure, otherwise returns a list of stakers for certain generator
 pub fn query_list_of_stakers(
     deps: Deps,
     lp_token: String,
@@ -1672,15 +1672,11 @@ pub fn query_list_of_stakers(
         return Ok(res
             .accounts
             .into_iter()
-            .filter(|account| {
-                !query_deposit(deps, lp_token.clone(), account.clone())
-                    .unwrap_or_default()
-                    .is_zero()
-            })
-            .into_iter()
-            .map(|account| StakerResponse {
-                account: account.clone(),
-                amount: query_deposit(deps, lp_token.clone(), account).unwrap_or_default(),
+            .filter_map(|account| {
+                query_deposit(deps, lp_token.clone(), account.clone())
+                    .map(|amount| StakerResponse { amount, account })
+                    .ok()
+                    .filter(|am| !am.amount.is_zero())
             })
             .collect());
     }

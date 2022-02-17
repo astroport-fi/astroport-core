@@ -1483,6 +1483,12 @@ fn query_all_stakers() {
 
     register_lp_tokens_in_generator(&mut app, &generator_instance, None, &[&lp_cny_eur_instance]);
 
+    mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 10);
+    mint_tokens(&mut app, &lp_cny_eur_instance, &user2, 10);
+    mint_tokens(&mut app, &lp_cny_eur_instance, &user3, 10);
+    mint_tokens(&mut app, &lp_cny_eur_instance, &user4, 10);
+    mint_tokens(&mut app, &lp_cny_eur_instance, &user5, 10);
+
     let msg_cny_eur = QueryMsg::ListOfStakers {
         lp_token: lp_cny_eur_instance.to_string(),
         start_after: None,
@@ -1497,55 +1503,16 @@ fn query_all_stakers() {
     let empty: Vec<StakerResponse> = vec![];
     assert_eq!(empty, reps);
 
-    // Mint tokens, so each user can deposit
-    mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 10);
-    mint_tokens(&mut app, &lp_cny_eur_instance, &user2, 10);
-    mint_tokens(&mut app, &lp_cny_eur_instance, &user3, 10);
-    mint_tokens(&mut app, &lp_cny_eur_instance, &user4, 10);
-    mint_tokens(&mut app, &lp_cny_eur_instance, &user5, 10);
-
-    deposit_lp_tokens_to_generator(
-        &mut app,
-        &generator_instance,
-        USER1,
-        &[(&lp_cny_eur_instance, 10)],
-    );
-
-    deposit_lp_tokens_to_generator(
-        &mut app,
-        &generator_instance,
-        USER2,
-        &[(&lp_cny_eur_instance, 10)],
-    );
-
-    deposit_lp_tokens_to_generator(
-        &mut app,
-        &generator_instance,
-        USER3,
-        &[(&lp_cny_eur_instance, 10)],
-    );
-
-    deposit_lp_tokens_to_generator(
-        &mut app,
-        &generator_instance,
-        USER4,
-        &[(&lp_cny_eur_instance, 10)],
-    );
-
-    deposit_lp_tokens_to_generator(
-        &mut app,
-        &generator_instance,
-        USER5,
-        &[(&lp_cny_eur_instance, 10)],
-    );
+    for user in [USER1, USER2, USER3, USER4, USER5] {
+        deposit_lp_tokens_to_generator(
+            &mut app,
+            &generator_instance,
+            user,
+            &[(&lp_cny_eur_instance, 10)],
+        );
+    }
 
     check_token_balance(&mut app, &lp_cny_eur_instance, &generator_instance, 50);
-
-    let msg_cny_eur = QueryMsg::ListOfStakers {
-        lp_token: lp_cny_eur_instance.to_string(),
-        start_after: None,
-        limit: None,
-    };
 
     let reps: Vec<StakerResponse> = app
         .wrap()

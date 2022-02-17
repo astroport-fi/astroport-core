@@ -158,7 +158,7 @@ pub enum QueryMsg {
     PoolInfo { lp_token: String },
     /// SimulateFutureReward returns the amount of ASTRO that will be distributed until a future block and for a specific generator
     SimulateFutureReward { lp_token: String, future_block: u64 },
-    /// Return a list of stakers for each generator
+    /// Returns a list of stakers for certain generator
     ListOfStakers {
         lp_token: String,
         start_after: Option<String>,
