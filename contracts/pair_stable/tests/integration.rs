@@ -725,7 +725,7 @@ fn update_pair_config() {
     assert_eq!(
         resp.to_string(),
         format!(
-            "Amp coefficient cannot be changed more often than once every {} seconds",
+            "Amp coefficient cannot be changed more often than once per {} seconds",
             MIN_AMP_CHANGING_TIME
         )
     );

@@ -1,14 +1,12 @@
-# Astroport Generator proxy to Mirror Protocol Rewards
+# Astroport Generator Proxy for Mirror Protocol Staking Rewards
 
-The generator proxy contract interacts with staking contract MIR token. Stake and rewards based on locked LP token amount by liquidity pool providers (dual rewards feature). [Staking via proxy](https://miro.medium.com/max/1400/0*8hn2NSnZJZTa9YGV)
-
-README has updated with new messages (Astroport v1 messages follow).
+This generator proxy contract interacts with the MIR-UST staking contract. Stake and rewards based on locked LP token amount by liquidity pool providers (dual rewards feature). For a diagram of how dual reward proxies work, you can take a look [here](https://miro.medium.com/max/1400/0*8hn2NSnZJZTa9YGV).
 
 ---
 
 ## InstantiateMsg
 
-Inits with required contract addresses for depositing and reward distribution.
+Initializes the contract with required addresses (generator, LP token to stake etc).
 
 ```json
 {
