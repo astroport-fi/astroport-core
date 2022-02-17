@@ -1,4 +1,4 @@
-# Astroport bLUNA Stableswap Pair
+# Astroport bLUNA Specific Stableswap Pair
 
 This pool is an extension to the vanilla stableswap implementation. It allows bLUNA-LUNA stableswap LPs to claim bLUNA rewards instead of leacing these rewards stuck in the pool contract.
 
