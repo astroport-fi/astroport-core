@@ -36,7 +36,7 @@ CW20 receive msg.
 
 ### `update_rewards`
 
-Updates token proxy rewards.
+Updates the amount of rewards that were already accrued.
 
 ```json
 {
@@ -46,7 +46,7 @@ Updates token proxy rewards.
 
 ### `send_rewards`
 
-Sends token rewards amount for given address.
+Sends accrued token rewards to a specific account.
 
 ```json
 {
@@ -59,7 +59,7 @@ Sends token rewards amount for given address.
 
 ### `withdraw`
 
-Withdraws token rewards amount for given address.
+Withdraw token rewards for a specific address and then unstake a LP token amount.
 
 ```json
 {
@@ -72,7 +72,7 @@ Withdraws token rewards amount for given address.
 
 ### `emergency_withdraw`
 
-Withdraws token rewards amount for given address.
+Unstake LP tokens without caring about accrued rewards.
 
 ```json
 {
@@ -85,8 +85,9 @@ Withdraws token rewards amount for given address.
 
 ### `callback`
 
-Handles the callbacks messages of the contract.
-In the current example used for transfer liquidity tokens after withdraw.
+Handles callback mesasges.
+
+One example is for transferring LP tokens after a withdrawal from the 3rd party staking contract.
 
 ```json
 {
@@ -97,6 +98,7 @@ In the current example used for transfer liquidity tokens after withdraw.
     }
   }
 }
+
 ```
 ## QueryMsg
 
@@ -104,7 +106,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `config`
 
-Returns the contract's configuration
+Returns the contract's configuration.
 
 ```json
 {
@@ -114,7 +116,7 @@ Returns the contract's configuration
 
 ### `deposit`
 
-Returns deposited/staked token amount.
+Returns the deposited/staked token amount for a specific account.
 
 ```json
 {
@@ -124,7 +126,7 @@ Returns deposited/staked token amount.
 
 ### `reward`
 
-Gives token proxy reward amount.
+Returns the total amount of 3rd party rewards.
 
 ```json
 {
@@ -134,7 +136,7 @@ Gives token proxy reward amount.
 
 ### `pending_token`
 
-Gives token proxy reward pending amount.
+Returns the total amount of pending rewards for all stakers.
 
 ```json
 {
@@ -144,7 +146,7 @@ Gives token proxy reward pending amount.
 
 ### `reward_info`
 
-Returns the reward token contract address
+Returns the reward (3rd party) token contract address.
 
 ```json
 {

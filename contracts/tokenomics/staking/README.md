@@ -1,12 +1,12 @@
-# Astroport Staking
+# Astroport xASTRO Staking
 
-The staking contract provide staking ASTRO tokens.
-
-README has updated with new messages (Astroport v1 messages follow).
+This staking contract allows ASTRO holders to stake their tokens in exchange for xASTRO. The amount of ASTRO they can claim later increases as accrued fees in the Maker contract get swapped to ASTRO which is then sent to stakers.
 
 ---
 
 ## InstantiateMsg
+
+Initializes the contract with the token code ID used by ASTRO and the ASTRO token address.
 
 ```json
 {
@@ -33,9 +33,9 @@ CW20 receive msg.
 
 #### `Enter`
 
-Deposits token to get share token amount.
+Deposits ASTRO in the xASTRO staking contract.
 
-Execute this message by the ASTRO token contract address from which you want to make a deposit.
+Execute this message by calling the ASTRO token contract and use a message like this:
 ```json
 {
   "send": {
@@ -46,7 +46,7 @@ Execute this message by the ASTRO token contract address from which you want to 
 }
 ```
 
-In send.msg, you may decode this JSON string into base64 encoding.
+In `send.msg`, you may encode this JSON string into base64 encoding:
 ```json
 {
   "Enter": {}
@@ -55,9 +55,9 @@ In send.msg, you may decode this JSON string into base64 encoding.
 
 #### `Leave`
 
-Unstakes share token to move back deposit token amount. Burns share.
+Burns xASTRO and unstakes underlying ASTRO (initial staked amount + accrued ASTRO since staking).
 
-Execute this message by the xASTRO token contract address from which you want to move back deposit.
+Execute this message by calling the xASTRO token contract and use a message like this:
 ```json
 {
   "send": {
@@ -68,13 +68,12 @@ Execute this message by the xASTRO token contract address from which you want to
 }
 ```
 
-In send.msg, you may decode this JSON string into base64 encoding.
+In `send.msg` you may encode this JSON string into base64 encoding:
 ```json
 {
   "Leave": {}
 }
 ```
-
 
 ## QueryMsg
 
@@ -82,10 +81,30 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `config`
 
-Returns deposit and share token addresses.
+Returns the ASTRO and xASTRO addresses.
 
 ```json
 {
   "config": {}
+}
+```
+
+### `get_total_shares`
+
+Returns the total amount of xASTRO tokens.
+
+```json
+{
+  "get_total_shares": {}
+}
+```
+
+### `get_total_deposit`
+
+Returns the total amount of ASTRO deposits in the staking contract.
+
+```json
+{
+  "get_total_deposit": {}
 }
 ```

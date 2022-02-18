@@ -22,17 +22,17 @@ const CONTRACT_NAME: &str = "astroport-staking";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Staking information.
-const TOKEN_NAME: &str = "astroport-staking-token";
+/// xASTRO information.
+const TOKEN_NAME: &str = "Staked Astroport";
 const TOKEN_SYMBOL: &str = "xASTRO";
 
-/// A `reply` call code ID of sub-message.
+/// A `reply` call code ID used for sub-messages.
 const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns the [`Response`] with the specified attributes if the operation was successful,
-/// or the [`ContractError`] if the contract was not created.
+/// Returns a [`Response`] with the specified attributes if the operation was successful,
+/// or a [`ContractError`] if the contract was not created.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -40,8 +40,7 @@ const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 ///
 /// * **_info** is the object of type [`MessageInfo`].
 ///
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for
-/// creating a contract
+/// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -60,7 +59,7 @@ pub fn instantiate(
         },
     )?;
 
-    // Create token
+    // Create xASTRO token
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
             admin: Some(msg.owner),
@@ -88,7 +87,7 @@ pub fn instantiate(
 }
 
 /// ## Description
-/// Available the execute messages of the contract.
+/// Exposes execute functions available in the contract.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
@@ -114,8 +113,7 @@ pub fn execute(
 }
 
 /// # Description
-/// The entry point to the contract for processing the reply from the submessage.
-/// Sets the xASTRO contract address.
+/// The entry point to the contract for processing replies from submessages. For now it only sets the xASTRO contract address.
 /// # Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -136,7 +134,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
         })?;
 
-    // Set token addr
+    // Set xASTRO addr
     config.xastro_token_addr = addr_validate_to_lower(deps.api, res.get_contract_address())?;
 
     CONFIG.save(deps.storage, &config)?;
@@ -146,8 +144,8 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 
 /// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// If the template is not found in the received message, then an [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+/// If the template is not found in the received message, then a [`ContractError`] is returned,
+/// otherwise returns a [`Response`] with the specified attributes if the operation was successful
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -155,7 +153,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
+/// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -175,8 +173,8 @@ fn receive_cw20(
             if info.sender != config.astro_token_addr {
                 return Err(ContractError::Unauthorized {});
             }
-            // In cw20 send total balance is already increased,
-            // To calculated properly we should subtract user deposit from the pool
+            // In a CW20 `send`, the total balance of the recipient is is already increased.
+            // To properly calculate the total amount of ASTRO deposited in staking, we should subtract the user deposit from the pool
             total_deposit -= amount;
             let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
                 amount
@@ -230,11 +228,11 @@ fn receive_cw20(
 }
 
 /// ## Description
-/// Returns the total shares of staked xASTRO tokens.
+/// Returns the total amount of xASTRO currently issued.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **config** is the object of type [`Config`].
+/// * **config** is the object of type [`Config`]. This is the staking contract configuration.
 pub fn get_total_shares(deps: Deps, config: Config) -> StdResult<Uint128> {
     let result: TokenInfoResponse = deps
         .querier
@@ -244,13 +242,13 @@ pub fn get_total_shares(deps: Deps, config: Config) -> StdResult<Uint128> {
 }
 
 /// ## Description
-/// Returns the total deposit of staked ASTRO tokens.
+/// Returns the total amount of ASTRO deposited in the contract.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **config** is the object of type [`Config`].
+/// * **config** is the object of type [`Config`]. This is the staking contract configuration.
 pub fn get_total_deposit(deps: Deps, env: Env, config: Config) -> StdResult<Uint128> {
     let result: BalanceResponse = deps.querier.query_wasm_smart(
         &config.astro_token_addr,
@@ -262,7 +260,7 @@ pub fn get_total_deposit(deps: Deps, env: Env, config: Config) -> StdResult<Uint
 }
 
 /// # Description
-/// Describes all query messages.
+/// Exposes all the queries available in the contract.
 /// # Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -271,8 +269,7 @@ pub fn get_total_deposit(deps: Deps, env: Env, config: Config) -> StdResult<Uint
 /// * **msg** is the object of type [`QueryMsg`].
 ///
 /// ## Queries
-/// * **QueryMsg::Config {}** Returns information about the staking configs
-/// in a [`ConfigResponse`] object.
+/// * **QueryMsg::Config {}** Returns the staking contract configuration using a [`ConfigResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let config = CONFIG.load(deps.storage)?;
