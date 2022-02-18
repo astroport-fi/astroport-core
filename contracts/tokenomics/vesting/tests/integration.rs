@@ -79,7 +79,7 @@ fn claim() {
     let res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(res.to_string(), "Vesting schedule amount error. Schedules total amount should be equal to cw20 receive amount.");
+    assert_eq!(res.to_string(), "Vesting schedule amount error. Total amount should be equal to the CW20 receive amount.");
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
@@ -446,7 +446,7 @@ fn register_vesting_accounts() {
         200u128,
     );
     check_token_balance(&mut app, &astro_token_instance, &user1.clone(), 110u128);
-    
+
     // Owner balance mustn't change after claim
     check_token_balance(
         &mut app,
