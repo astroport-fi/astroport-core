@@ -116,11 +116,7 @@ pub fn execute(
 /// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
 /// If the template is not found in the received message, then a [`ContractError`] is returned,
-<<<<<<< HEAD
 /// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
-=======
-/// otherwise returns a [`Response`] with the specified attributes if the operation was successful
->>>>>>> upstream/main
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -128,11 +124,7 @@ pub fn execute(
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-<<<<<<< HEAD
 /// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
-=======
-/// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
->>>>>>> upstream/main
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
