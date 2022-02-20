@@ -1,18 +1,15 @@
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env,
-    MessageInfo, QueryRequest, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
-    Uint64, WasmMsg, WasmQuery,
+    MessageInfo, Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
+    WasmMsg,
 };
-use cw20::{
-    AllAccountsResponse, BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg,
-    MinterResponse,
-};
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
 
 use crate::error::ContractError;
 use crate::migration;
 use crate::state::{
     get_pools, update_user_balance, Config, ExecuteOnReply, PoolInfo, UserInfo, CONFIG,
-    OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
+    DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
@@ -30,6 +27,7 @@ use astroport::{
     vesting::ExecuteMsg as VestingExecuteMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
+use cw_storage_plus::{Bound, PrimaryKey};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-generator";
@@ -1662,26 +1660,31 @@ pub fn query_list_of_stakers(
     limit: Option<u32>,
 ) -> Result<Vec<StakerResponse>, ContractError> {
     let lp_addr = addr_validate_to_lower(deps.api, lp_token.as_str())?;
-    if POOL_INFO.has(deps.storage, &lp_addr) {
-        let res: AllAccountsResponse =
-            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: lp_token.clone(),
-                msg: to_binary(&Cw20QueryMsg::AllAccounts { start_after, limit })?,
-            }))?;
+    let mut active_stakers: Vec<StakerResponse> = vec![];
 
-        return Ok(res
-            .accounts
-            .into_iter()
-            .filter_map(|account| {
-                query_deposit(deps, lp_token.clone(), account.clone())
-                    .map(|amount| StakerResponse { amount, account })
+    if POOL_INFO.has(deps.storage, &lp_addr) {
+        let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+        let start = start_after
+            .map(|start| start.joined_key())
+            .map(Bound::Exclusive);
+
+        active_stakers = USER_INFO
+            .prefix(&lp_addr)
+            .range(deps.storage, start, None, Order::Ascending)
+            .filter_map(|stakers| {
+                stakers
                     .ok()
-                    .filter(|am| !am.amount.is_zero())
+                    .map(|staker| StakerResponse {
+                        account: String::from_utf8(staker.0).unwrap(),
+                        amount: staker.1.amount,
+                    })
+                    .filter(|active_staker| !active_staker.amount.is_zero())
             })
-            .collect());
+            .take(limit)
+            .collect();
     }
 
-    Ok(vec![])
+    Ok(active_stakers)
 }
 
 /// ## Description
