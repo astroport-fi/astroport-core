@@ -29,7 +29,7 @@ fn pair_type_to_string() {
 
 #[test]
 fn proper_initialization() {
-    // check validation of total and maker fee bps
+    // validate total and maker fee bps
     let mut deps = mock_dependencies(&[]);
     let owner = "owner0000".to_string();
 
@@ -242,12 +242,12 @@ fn update_owner() {
     )
     .unwrap_err();
 
-    // propose new owner
+    // Propose new owner
     let info = mock_info(owner, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    // unauthorized ownership claim
+    // Unauthorized ownership claim
     let info = mock_info("invalid_addr", &[]);
     let err = execute(
         deps.as_mut(),
@@ -269,7 +269,7 @@ fn update_owner() {
     .unwrap();
     assert_eq!(0, res.messages.len());
 
-    // let's query the state
+    // Let's query the state
     let config: ConfigResponse =
         from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap()).unwrap();
     assert_eq!(new_owner, config.owner);
@@ -300,15 +300,15 @@ fn update_pair_config() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
 
-    // we can just call .unwrap() to assert this was a success
+    // We can just call .unwrap() to assert this was a success
     instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    // it worked, let's query the state
+    // It worked, let's query the state
     let query_res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(pair_configs, config_res.pair_configs);
 
-    // update config
+    // Update config
     let pair_config = PairConfig {
         code_id: 800,
         pair_type: PairType::Xyk {},
@@ -328,7 +328,7 @@ fn update_pair_config() {
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
 
-    // check validation of total and maker fee bps
+    // Check validation of total and maker fee bps
     let env = mock_env();
     let info = mock_info(owner.clone(), &[]);
     let msg = ExecuteMsg::UpdatePairConfig {
@@ -353,12 +353,12 @@ fn update_pair_config() {
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    // it worked, let's query the state
+    // It worked, let's query the state
     let query_res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(vec![pair_config.clone()], config_res.pair_configs);
 
-    // add second config
+    // Add second config
     let pair_config_custom = PairConfig {
         code_id: 100,
         pair_type: PairType::Custom("test".to_string()),
@@ -375,7 +375,7 @@ fn update_pair_config() {
 
     execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    // it worked, let's query the state
+    // It worked, let's query the state
     let query_res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(
@@ -409,7 +409,7 @@ fn create_pair() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
 
-    // we can just call .unwrap() to assert this was a success
+    // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg.clone()).unwrap();
 
     let asset_infos = [
@@ -536,7 +536,7 @@ fn register() {
 
     let mut deployed_pairs = vec![(&pair0_addr, &pair0_info)];
 
-    // register astroport pair querier
+    // Register astroport pair querier
     deps.querier.with_astroport_pairs(&deployed_pairs);
 
     let data = MsgInstantiateContractResponse {
@@ -578,7 +578,7 @@ fn register() {
         }
     );
 
-    // check pair was registered
+    // Check pair was registered
     let res = reply(deps.as_mut(), mock_env(), reply_msg).unwrap_err();
     assert_eq!(res, ContractError::PairWasRegistered {});
 
@@ -612,7 +612,7 @@ fn register() {
 
     deployed_pairs.push((&pair1_addr, &pair1_info));
 
-    // register astroport pair querier
+    // Register astroport pair querier
     deps.querier.with_astroport_pairs(&deployed_pairs);
 
     let data = MsgInstantiateContractResponse {

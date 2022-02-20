@@ -303,7 +303,7 @@ fn create_pair() {
         )
         .unwrap();
 
-    // in multitest, contract names are named in the order in which contracts are created.
+    // in multitest, contract names are counted in the order in which contracts are created
     assert_eq!("contract #0", factory_instance.to_string());
     assert_eq!("contract #3", res.contract_addr.to_string());
     assert_eq!("contract #4", res.liquidity_token.to_string());

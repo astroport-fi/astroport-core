@@ -4,13 +4,13 @@ use astroport::pair::{CumulativePricesResponse, QueryMsg as PairQueryMsg, Simula
 use cosmwasm_std::{to_binary, Addr, QuerierWrapper, QueryRequest, StdResult, WasmQuery};
 
 /// ## Description
-/// Returns information about the pair in a [`PairInfo`] object.
+/// Returns information about the target pair using a [`PairInfo`] object.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
-/// * **factory_contract** is the object of type [`Addr`].
+/// * **factory_contract** is an object of type [`Addr`]. This is the Astroport factory contract address.
 ///
-/// * **asset_infos** is array with two items the type of [`AssetInfo`].
+/// * **asset_infos** is an array with two items of type [`AssetInfo`]. These objects holds information about two assets in an Astroport pool.
 pub fn query_pair_info(
     querier: &QuerierWrapper,
     factory_contract: Addr,
@@ -23,11 +23,11 @@ pub fn query_pair_info(
 }
 
 /// ## Description
-/// Returns information about the cumulative prices in a [`CumulativePricesResponse`] object.
+/// Returns information about a pair's asset cumulative prices using a [`CumulativePricesResponse`] object.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
-/// * **pair_contract** is the object of type [`Addr`].
+/// * **pair_contract** is an object of type [`Addr`]. This is the address of the pair for which we return data.
 pub fn query_cumulative_prices(
     querier: &QuerierWrapper,
     pair_contract: Addr,
@@ -39,13 +39,13 @@ pub fn query_cumulative_prices(
 }
 
 /// ## Description
-/// Returns information about the prices in a [`SimulationResponse`] object.
+/// Returns information about an asset's price from a specific pair using a [`SimulationResponse`] object.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
-/// * **pair_contract** is the object of type [`Addr`].
+/// * **pair_contract** is an object of type [`Addr`]. This is the pair that holds the target asset.
 ///
-/// * **asset** is the object of type [`Asset`].
+/// * **asset** is an object of type [`Asset`]. This is the asset for which we return the simulated price.
 pub fn query_prices(
     querier: &QuerierWrapper,
     pair_contract: Addr,

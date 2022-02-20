@@ -2096,6 +2096,7 @@ dependencies = [
 [[package]]
 name = "sim"
 version = "0.1.0"
+source = "git+https://github.com/astroport-fi/astroport-sims.git?rev=d617510737ee2c529d3aaa7afbdac5ccb5a385c9#d617510737ee2c529d3aaa7afbdac5ccb5a385c9"
 dependencies = [
  "pyo3",
 ]

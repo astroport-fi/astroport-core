@@ -11,7 +11,7 @@ use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
-/// this uses our CustomQuerier.
+/// This uses the Astroport CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
@@ -33,7 +33,7 @@ pub struct WasmMockQuerier {
 
 #[derive(Clone, Default)]
 pub struct TokenQuerier {
-    // this lets us iterate over all pairs that match the first string
+    // This lets us iterate over all pairs that match the first string
     balances: HashMap<String, HashMap<String, Uint128>>,
 }
 
@@ -63,7 +63,7 @@ pub(crate) fn balances_to_map(
 #[derive(Clone, Default)]
 pub struct TaxQuerier {
     rate: Decimal,
-    // this lets us iterate over all pairs that match the first string
+    // This lets us iterate over all pairs that match the first string
     caps: HashMap<String, Uint128>,
 }
 
@@ -86,7 +86,7 @@ pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint1
 
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
-        // MockQuerier doesn't support Custom, so we ignore it completely here
+        // MockQuerier doesn't support Custom, so we ignore it completely
         let request: QueryRequest<TerraQueryWrapper> = match from_slice(bin_request) {
             Ok(v) => v,
             Err(e) => {
@@ -206,12 +206,12 @@ impl WasmMockQuerier {
         }
     }
 
-    // configure the mint whitelist mock querier
+    // Configure the mint whitelist mock querier
     pub fn with_token_balances(&mut self, balances: &[(&String, &[(&String, &Uint128)])]) {
         self.token_querier = TokenQuerier::new(balances);
     }
 
-    // configure the token owner mock querier
+    // Configure the token owner mock querier
     pub fn with_tax(&mut self, rate: Decimal, caps: &[(&String, &Uint128)]) {
         self.tax_querier = TaxQuerier::new(rate, caps);
     }

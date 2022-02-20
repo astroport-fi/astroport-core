@@ -1,14 +1,12 @@
 # Astroport Oracle
 
-The oracle contract performs calculation x*y=k pair assets average prices based on accumulations and time period (day).
-
-README has updated with new messages (Astroport v1 messages follow).
+This demo oracle contract calculates a 1 day TWAP for a xy=k Astroport pool.
 
 ---
 
 ## InstantiateMsg
 
-Inits with factory contract to check asset pair type is x*y=k.
+Initializes the oracle and checks that the target asset pair type is x*y=k.
 
 ```json
 {
@@ -32,7 +30,7 @@ Inits with factory contract to check asset pair type is x*y=k.
 
 ### `update`
 
-Updates pair average and cumulative prices.
+Updates the local TWAP value and the target pair's cumulative prices.
 
 ```json
 {
@@ -46,7 +44,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `consult`
 
-Multiplies a given amount and last average price in common.
+Multiplies a token amount (token that's present in the target pool for the TWAP) by the latest TWAP value for that token.
 
 ```json
 {
