@@ -10,7 +10,7 @@ pub const BRIDGES_INITIAL_DEPTH: u64 = 0;
 /// The depth of bridges to swap
 pub const BRIDGES_MAX_DEPTH: u64 = 2;
 /// Execute depth limit
-pub const EXECUTE_SWAP_DEPTH_LIMIT: u64 = 3;
+pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 3;
 
 /// UST token denom
 pub const UUSD_DENOM: &str = "uusd";
