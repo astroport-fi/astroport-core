@@ -75,12 +75,12 @@ fn update_owner() {
 
     let env = mock_env();
 
-    // we can just call .unwrap() to assert this was a success
+    // We can just call .unwrap() to assert this was a success
     instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     let new_owner = String::from("new_owner");
 
-    // new owner
+    // BNew owner
     let env = mock_env();
     let msg = ExecuteMsg::ProposeNewOwner {
         owner: new_owner.clone(),
@@ -89,11 +89,11 @@ fn update_owner() {
 
     let info = mock_info(new_owner.as_str(), &[]);
 
-    // unauthorized check
+    // Unauthorized check
     let err = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap_err();
     assert_eq!(err.to_string(), "Generic error: Unauthorized");
 
-    // claim before proposal
+    // Claim before a proposal
     let info = mock_info(new_owner.as_str(), &[]);
     execute(
         deps.as_mut(),
@@ -103,12 +103,12 @@ fn update_owner() {
     )
     .unwrap_err();
 
-    // propose new owner
+    // Propose new owner
     let info = mock_info(owner.as_str(), &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    // unauthorized ownership claim
+    // Unauthorized ownership claim
     let info = mock_info("invalid_addr", &[]);
     let err = execute(
         deps.as_mut(),
@@ -130,7 +130,7 @@ fn update_owner() {
     .unwrap();
     assert_eq!(0, res.messages.len());
 
-    // let's query the state
+    // Let's query the state
     let config: ConfigResponse =
         from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap()).unwrap();
     assert_eq!(new_owner, config.owner);

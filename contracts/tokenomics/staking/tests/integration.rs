@@ -134,7 +134,7 @@ fn cw20receive_enter_and_leave() {
     let (astro_token_instance, staking_instance, x_astro_token_instance) =
         instantiate_contracts(&mut router, owner.clone());
 
-    // mint 100 ASTRO for Alice
+    // Mint 100 ASTRO for Alice
     mint_some_astro(
         &mut router,
         owner.clone(),
@@ -144,7 +144,7 @@ fn cw20receive_enter_and_leave() {
 
     let alice_address = Addr::unchecked(ALICE);
 
-    // check if Alice's ASTRO balance is 100
+    // Check if Alice's ASTRO balance is 100
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -160,7 +160,7 @@ fn cw20receive_enter_and_leave() {
         }
     );
 
-    // we can leave tokens only from xAstro token.
+    // We can unstake ASTRO only by calling the xASTRO token.
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
@@ -177,7 +177,7 @@ fn cw20receive_enter_and_leave() {
         .unwrap_err();
     assert_eq!(resp.to_string(), "Unauthorized");
 
-    // try to enter Alice's 100 ASTRO for 100 xASTRO
+    // Tru to stake Alice's 100 ASTRO for 100 xASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
@@ -193,7 +193,7 @@ fn cw20receive_enter_and_leave() {
         )
         .unwrap();
 
-    // check if Alice's xASTRO balance is 100
+    // Check if Alice's xASTRO balance is 100
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -209,7 +209,7 @@ fn cw20receive_enter_and_leave() {
         }
     );
 
-    // check if Alice's ASTRO balance is 0
+    // Check if Alice's ASTRO balance is 0
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -225,7 +225,7 @@ fn cw20receive_enter_and_leave() {
         }
     );
 
-    // check if staking contract's ASTRO balance is 100
+    // Check if the staking contract's ASTRO balance is 100
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
@@ -241,7 +241,7 @@ fn cw20receive_enter_and_leave() {
         }
     );
 
-    // we can enter tokens only from Astro token.
+    // We can stake tokens only by calling the ASTRO token.
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
@@ -258,7 +258,7 @@ fn cw20receive_enter_and_leave() {
         .unwrap_err();
     assert_eq!(resp.to_string(), "Unauthorized");
 
-    // try to leave Alice's 10 xASTRO for 10 ASTRO
+    // Try to unstake Alice's 10 xASTRO for 10 ASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
@@ -274,7 +274,7 @@ fn cw20receive_enter_and_leave() {
         )
         .unwrap();
 
-    // check if Alice's xASTRO balance is 90
+    // Check if Alice's xASTRO balance is 90
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -290,7 +290,7 @@ fn cw20receive_enter_and_leave() {
         }
     );
 
-    // check if Alice's ASTRO balance is 10
+    // Check if Alice's ASTRO balance is 10
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -306,7 +306,7 @@ fn cw20receive_enter_and_leave() {
         }
     );
 
-    // check if staking contract's ASTRO balance is 90
+    // Check if the staking contract's ASTRO balance is 90
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
@@ -322,7 +322,7 @@ fn cw20receive_enter_and_leave() {
         }
     );
 
-    // check if staking contract's xASTRO balance is 0
+    // Check if the staking contract's xASTRO balance is 0
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
@@ -348,7 +348,7 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
     let (astro_token_instance, staking_instance, x_astro_token_instance) =
         instantiate_contracts(&mut router, owner.clone());
 
-    // mint 100 ASTRO for Alice
+    // Mint 100 ASTRO for Alice
     mint_some_astro(
         &mut router,
         owner.clone(),
@@ -373,7 +373,7 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
         )
         .unwrap();
 
-    // check if Alice's xASTRO balance is 100
+    // Check if Alice's xASTRO balance is 100
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -389,7 +389,7 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
         }
     );
 
-    // try to leave Alice's 200 xASTRO
+    // Try to burn Alice's 200 xASTRO and unstake
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
@@ -417,7 +417,7 @@ fn should_work_with_more_than_one_participant() {
     let (astro_token_instance, staking_instance, x_astro_token_instance) =
         instantiate_contracts(&mut router, owner.clone());
 
-    // mint 100 ASTRO for Alice
+    // Mint 100 ASTRO for Alice
     mint_some_astro(
         &mut router,
         owner.clone(),
@@ -426,7 +426,7 @@ fn should_work_with_more_than_one_participant() {
     );
     let alice_address = Addr::unchecked(ALICE);
 
-    // mint 100 ASTRO for Bob
+    // Mint 100 ASTRO for Bob
     mint_some_astro(
         &mut router,
         owner.clone(),
@@ -435,7 +435,7 @@ fn should_work_with_more_than_one_participant() {
     );
     let bob_address = Addr::unchecked(BOB);
 
-    // mint 100 ASTRO for Carol
+    // Mint 100 ASTRO for Carol
     mint_some_astro(
         &mut router,
         owner.clone(),
@@ -444,7 +444,7 @@ fn should_work_with_more_than_one_participant() {
     );
     let carol_address = Addr::unchecked(CAROL);
 
-    // enter Alice's 20 ASTRO for 20 xASTRO
+    // Stake Alice's 20 ASTRO for 20 xASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
@@ -460,7 +460,7 @@ fn should_work_with_more_than_one_participant() {
         )
         .unwrap();
 
-    // enter Bob's 10 ASTRO for 10 xASTRO
+    // Stake Bob's 10 ASTRO for 10 xASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
@@ -471,7 +471,7 @@ fn should_work_with_more_than_one_participant() {
         .execute_contract(bob_address.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap();
 
-    // check if Alice's xASTRO balance is 20
+    // Check if Alice's xASTRO balance is 20
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -487,7 +487,7 @@ fn should_work_with_more_than_one_participant() {
         }
     );
 
-    // check if Bob's xASTRO balance is 10
+    // Check if Bob's xASTRO balance is 10
     let msg = Cw20QueryMsg::Balance {
         address: bob_address.to_string(),
     };
@@ -503,7 +503,7 @@ fn should_work_with_more_than_one_participant() {
         }
     );
 
-    // check if staking contract's ASTRO balance is 30
+    // Check if staking contract's ASTRO balance is 30
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
@@ -519,7 +519,7 @@ fn should_work_with_more_than_one_participant() {
         }
     );
 
-    // staking contract gets 20 more ASTRO from external source
+    // Staking contract gets 20 more ASTRO from external source
     let msg = Cw20ExecuteMsg::Transfer {
         recipient: staking_instance.to_string(),
         amount: Uint128::from(20u128),
@@ -543,7 +543,7 @@ fn should_work_with_more_than_one_participant() {
         attr("amount", Uint128::from(20u128))
     );
 
-    // enter Alice's 10 ASTRO for 6 xASTRO: 10*30/50 = 6
+    // Stake Alice's 10 ASTRO for 6 xASTRO: 10*30/50 = 6
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
@@ -559,7 +559,7 @@ fn should_work_with_more_than_one_participant() {
         )
         .unwrap();
 
-    // check if Alice's xASTRO balance is 26
+    // Check if Alice's xASTRO balance is 26
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -575,7 +575,7 @@ fn should_work_with_more_than_one_participant() {
         }
     );
 
-    // check if Bob's xASTRO balance is 10
+    // Check if Bob's xASTRO balance is 10
     let msg = Cw20QueryMsg::Balance {
         address: bob_address.to_string(),
     };
@@ -591,7 +591,7 @@ fn should_work_with_more_than_one_participant() {
         }
     );
 
-    // leave Bob's 5 xASTRO: gets 5*60/36 = 8 ASTRO
+    // Burn Bob's 5 xASTRO and unstake: gets 5*60/36 = 8 ASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
@@ -607,7 +607,7 @@ fn should_work_with_more_than_one_participant() {
         )
         .unwrap();
 
-    // check if Alice's xASTRO balance is 26
+    // Check if Alice's xASTRO balance is 26
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -623,7 +623,7 @@ fn should_work_with_more_than_one_participant() {
         }
     );
 
-    // check if Bob's xASTRO balance is 5
+    // Check if Bob's xASTRO balance is 5
     let msg = Cw20QueryMsg::Balance {
         address: bob_address.to_string(),
     };
@@ -639,7 +639,7 @@ fn should_work_with_more_than_one_participant() {
         }
     );
 
-    // check if staking contract's ASTRO balance is 52 (60 - 8 (Bob left 5 xASTRO))
+    // Check if the staking contract's ASTRO balance is 52 (60 - 8 (Bob left 5 xASTRO))
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
@@ -655,7 +655,7 @@ fn should_work_with_more_than_one_participant() {
         }
     );
 
-    // check if Alice's ASTRO balance is 70 (100 minted - 20 entered - 10 entered)
+    // Check if Alice's ASTRO balance is 70 (100 minted - 20 entered - 10 entered)
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -671,7 +671,7 @@ fn should_work_with_more_than_one_participant() {
         }
     );
 
-    // check if Bob's ASTRO balance is 98 (100 minted - 10 entered + 8 by leaving)
+    // Check if Bob's ASTRO balance is 98 (100 minted - 10 entered + 8 by leaving)
     let msg = Cw20QueryMsg::Balance {
         address: bob_address.to_string(),
     };

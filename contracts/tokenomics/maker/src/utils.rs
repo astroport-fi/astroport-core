@@ -22,7 +22,7 @@ pub fn build_swap_msg(
             amount: amount_in,
         };
 
-        // deduct tax first
+        // Deduct tax first
         let amount_in = amount_in.checked_sub(offer_asset.compute_tax(&deps.querier)?)?;
 
         offer_asset.amount = amount_in;
@@ -93,7 +93,7 @@ pub fn validate_bridge(
     astro_token: AssetInfo,
     depth: u64,
 ) -> Result<PairInfo, ContractError> {
-    // check if bridge pool exists
+    // Check if bridge pool exists
     let bridge_pool = query_pair_info(
         &deps.querier,
         cfg.factory_contract.clone(),
@@ -101,7 +101,7 @@ pub fn validate_bridge(
     )
     .map_err(|_| ContractError::InvalidBridgeNoPool(from_token.clone(), bridge_token.clone()))?;
 
-    // check bridge token - ASTRO pool exists
+    // Check bridge token - ASTRO pool exists
     let astro_pool = query_pair_info(
         &deps.querier,
         cfg.factory_contract.clone(),
