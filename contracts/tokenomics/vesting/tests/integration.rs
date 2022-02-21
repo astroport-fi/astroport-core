@@ -79,7 +79,7 @@ fn claim() {
     let res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(res.to_string(), "Vesting schedule amount error. Total amount should be equal to the CW20 receive amount.");
+    assert_eq!(res.to_string(), "Vesting schedule amount error. The total amount should be equal to the CW20 receive amount.");
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
