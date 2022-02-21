@@ -1005,17 +1005,17 @@ fn collect_err_no_swap_pair() {
         None,
     );
 
-    let uusd_asset = String::from("uusd");
+    let ukrt_asset = String::from("ukrt");
     let uluna_asset = String::from("uluna");
 
     // Mint all tokens for maker
     for t in vec![
         [
-            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+            native_asset(ukrt_asset.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
         [
-            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+            native_asset(ukrt_asset.clone(), Uint128::from(100_000_u128)),
             native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
         ],
     ] {
@@ -1031,7 +1031,7 @@ fn collect_err_no_swap_pair() {
     // set asset to swap
     let assets = vec![
         AssetWithLimit {
-            info: native_asset(uusd_asset.clone(), Uint128::zero()).info,
+            info: native_asset(ukrt_asset.clone(), Uint128::zero()).info,
             limit: None,
         },
         AssetWithLimit {
@@ -1069,7 +1069,7 @@ fn collect_err_no_swap_pair() {
             &maker_instance,
             vec![
                 Coin {
-                    denom: uusd_asset,
+                    denom: ukrt_asset,
                     amount: Uint128::new(20),
                 },
                 Coin {

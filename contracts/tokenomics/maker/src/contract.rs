@@ -4,8 +4,8 @@ use std::cmp::min;
 
 use crate::migration;
 use crate::utils::{
-    build_distribute_msg, build_swap_msg, uluna_uusd_bridge_exists, uusd_bridge_exists,
-    validate_bridge, BRIDGES_INITIAL_DEPTH, BRIDGES_MAX_DEPTH, ULUNA_DENOM, UUSD_DENOM,
+    build_distribute_msg, build_swap_msg, uluna_uusd_pools_exist, uusd_pool_exists,
+    validate_bridge, BRIDGES_INITIAL_DEPTH, EXECUTE_SWAP_DEPTH_LIMIT, ULUNA_DENOM, UUSD_DENOM,
 };
 use astroport::asset::{
     addr_validate_to_lower, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo,
@@ -260,6 +260,7 @@ fn collect(
         env.clone(),
         &cfg,
         assets.into_iter().filter(|a| a.info.ne(&astro)).collect(),
+        true,
     )?;
 
     // If no messages - send astro directly
@@ -304,6 +305,7 @@ fn swap_assets(
     env: Env,
     cfg: &Config,
     assets: Vec<AssetWithLimit>,
+    with_validation: bool,
 ) -> Result<(Response, Vec<AssetInfo>), ContractError> {
     let mut response = Response::default();
     let mut bridge_assets = HashMap::new();
@@ -320,7 +322,11 @@ fn swap_assets(
         }
 
         if !balance.is_zero() {
-            let swap_msg = swap(deps, cfg, a.info, balance)?;
+            let swap_msg = if with_validation {
+                swap(deps, cfg, a.info, balance)?
+            } else {
+                swap_no_validate(deps, cfg, a.info, balance)?
+            };
 
             match swap_msg {
                 SwapTarget::Astro(msg) => {
@@ -338,7 +344,8 @@ fn swap_assets(
 }
 
 /// # Description
-/// Performs the swap operation to astro token. Returns an [`ContractError`] on failure,
+/// Check if all required pools and bridges exists and performs the swap operation to astro token.
+/// Returns an [`ContractError`] on failure,
 /// otherwise returns the vector that contains the objects of type [`SubMsg`] if the operation
 /// was successful.
 /// # Params
@@ -356,13 +363,12 @@ fn swap(
     amount_in: Uint128,
 ) -> Result<SwapTarget, ContractError> {
     // 1. check direct pair with ASTRO
+    let astro = token_asset_info(cfg.astro_token_contract.clone());
+
     let direct_pool = query_pair_info(
         &deps.querier,
         cfg.factory_contract.clone(),
-        &[
-            from_token.clone(),
-            token_asset_info(cfg.astro_token_contract.clone()),
-        ],
+        &[from_token.clone(), astro.clone()],
     );
 
     if direct_pool.is_ok() {
@@ -370,47 +376,109 @@ fn swap(
         return Ok(SwapTarget::Astro(msg));
     }
 
-    // for initial assets additionally check if bridges via uusd and uluna pools exist
-    // we don't check for these pools if when swapping bridges
     let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
-    // 2. check if ust bridge exists
-    let uusd_pool = uusd_bridge_exists(deps, cfg, from_token.clone());
-    if uusd_pool.is_some() {
+    // 2. If not ust, try to ust
+    let uusd_pool = uusd_pool_exists(deps, cfg, from_token.clone());
+    if let Some(uusd_pool) = uusd_pool {
+        let msg = build_swap_msg(deps, cfg, uusd_pool, from_token, amount_in)?;
+
+        return Ok(SwapTarget::Bridge { asset: uusd, msg });
+    }
+
+    // 3. try to luna
+    let uluna_pool = uluna_uusd_pools_exist(deps, cfg, from_token.clone());
+    if let Some(uluna_pool) = uluna_pool {
+        let msg = build_swap_msg(deps, cfg, uluna_pool, from_token, amount_in)?;
+
+        return Ok(SwapTarget::Bridge { asset: uluna, msg });
+    }
+
+    // 4. try via bridges
+    let bridge_token = BRIDGES.load(deps.storage, from_token.to_string());
+
+    if bridge_token.is_ok() {
+        let bridge_token = bridge_token.unwrap();
+        let bridge_pool = validate_bridge(
+            deps,
+            cfg,
+            from_token.clone(),
+            bridge_token.clone(),
+            astro.clone(),
+            BRIDGES_INITIAL_DEPTH,
+        )?;
+
+        let msg = build_swap_msg(deps, cfg, bridge_pool, from_token, amount_in)?;
+        return Ok(SwapTarget::Bridge {
+            asset: bridge_token,
+            msg,
+        });
+    }
+
+    return Err(ContractError::CannotSwap(from_token.clone()));
+}
+
+/// # Description
+/// Performs the swap operation to astro token without additional checks. Returns an [`ContractError`] on failure,
+/// otherwise returns the vector that contains the objects of type [`SubMsg`] if the operation
+/// was successful.
+/// # Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **cfg** is the object of type [`Config`].
+///
+/// * **from_token** is the object of type [`AssetInfo`].
+///
+/// * **amount_in** is the object of type [`Uint128`].
+fn swap_no_validate(
+    deps: Deps,
+    cfg: &Config,
+    from_token: AssetInfo,
+    amount_in: Uint128,
+) -> Result<SwapTarget, ContractError> {
+    let astro = token_asset_info(cfg.astro_token_contract.clone());
+
+    let direct_pool = query_pair_info(
+        &deps.querier,
+        cfg.factory_contract.clone(),
+        &[from_token.clone(), astro],
+    );
+
+    if direct_pool.is_ok() {
+        let msg = build_swap_msg(deps, cfg, direct_pool.unwrap(), from_token, amount_in)?;
+        return Ok(SwapTarget::Astro(msg));
+    }
+
+    let uusd = native_asset_info(UUSD_DENOM.to_string());
+    let uluna = native_asset_info(ULUNA_DENOM.to_string());
+
+    if from_token.eq(&uluna) {
+        let uusd_pool = uusd_pool_exists(deps, cfg, from_token.clone());
+        if uusd_pool.is_none() {
+            return Err(ContractError::InvalidBridgeNoPool(
+                uluna.clone(),
+                uusd.clone(),
+            ));
+        }
+
         let msg = build_swap_msg(deps, cfg, uusd_pool.unwrap(), from_token, amount_in)?;
 
         return Ok(SwapTarget::Bridge { asset: uusd, msg });
     }
 
-    if from_token.ne(&uluna) {
-        // 3. check if luna-ust bridge exists
-        let uluna_pool = uluna_uusd_bridge_exists(deps, cfg, from_token.clone());
-        if uluna_pool.is_some() {
-            let msg = build_swap_msg(deps, cfg, uluna_pool.unwrap(), from_token, amount_in)?;
-
-            return Ok(SwapTarget::Bridge { asset: uluna, msg });
-        }
-    }
-
-    // 4. check if bridge token exists
-    let bridge_token = BRIDGES
-        .load(deps.storage, from_token.to_string())
-        .map_err(|_| ContractError::CannotSwap(from_token.clone()))?;
-
+    let bridge_token = BRIDGES.load(deps.storage, from_token.to_string())?;
     let bridge_pool = query_pair_info(
         &deps.querier,
         cfg.factory_contract.clone(),
         &[from_token.clone(), bridge_token.clone()],
-    )
-    .map_err(|_| ContractError::InvalidBridgeNoPool(from_token.clone(), bridge_token.clone()))?;
+    );
 
-    let msg = build_swap_msg(deps, cfg, bridge_pool, from_token, amount_in)?;
-
-    Ok(SwapTarget::Bridge {
+    let msg = build_swap_msg(deps, cfg, bridge_pool.unwrap(), from_token, amount_in)?;
+    return Ok(SwapTarget::Bridge {
         asset: bridge_token,
         msg,
-    })
+    });
 }
 
 /// ## Description
@@ -444,7 +512,8 @@ fn swap_bridge_assets(
         return Ok(Response::default());
     }
 
-    if depth >= BRIDGES_MAX_DEPTH {
+    // Check so contract doesn't call itself endlessly
+    if depth >= EXECUTE_SWAP_DEPTH_LIMIT {
         return Err(ContractError::MaxBridgeDepth(depth));
     }
 
@@ -458,7 +527,7 @@ fn swap_bridge_assets(
         })
         .collect();
 
-    let (response, bridge_assets) = swap_assets(deps.as_ref(), env.clone(), &cfg, bridges)?;
+    let (response, bridge_assets) = swap_assets(deps.as_ref(), env.clone(), &cfg, bridges, false)?;
 
     // there always should be some messages, if there are none - something went wrong
     if response.messages.is_empty() {

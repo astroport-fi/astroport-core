@@ -1,13 +1,16 @@
 use crate::error::ContractError;
 use crate::state::{Config, BRIDGES};
-use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
+use astroport::asset::{native_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::maker::ExecuteMsg;
 use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_pair_info;
 use cosmwasm_std::{to_binary, Coin, Deps, Env, StdResult, SubMsg, Uint128, WasmMsg};
 
 pub const BRIDGES_INITIAL_DEPTH: u64 = 0;
+/// The depth of bridges to swap
 pub const BRIDGES_MAX_DEPTH: u64 = 2;
+/// Execute depth limit
+pub const EXECUTE_SWAP_DEPTH_LIMIT: u64 = 3;
 
 /// UST token denom
 pub const UUSD_DENOM: &str = "uusd";
@@ -137,18 +140,16 @@ pub fn validate_bridge(
 }
 
 /// # Description
-/// Checks if required pools exists to swap from_token to ASTRO via UST
+/// Checks if from_token - UST pool exists
 /// # Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **cfg** is the object of type [`Config`].
 ///
 /// * **from_token** is the object of type [`AssetInfo`].
-pub fn uusd_bridge_exists(deps: Deps, cfg: &Config, from_token: AssetInfo) -> Option<PairInfo> {
-    let astro = token_asset_info(cfg.astro_token_contract.clone());
+pub fn uusd_pool_exists(deps: Deps, cfg: &Config, from_token: AssetInfo) -> Option<PairInfo> {
     let uusd = native_asset_info(UUSD_DENOM.to_string());
 
-    // check from_token -> uusd pool exists
     let uusd_pool = query_pair_info(
         &deps.querier,
         cfg.factory_contract.clone(),
@@ -159,28 +160,18 @@ pub fn uusd_bridge_exists(deps: Deps, cfg: &Config, from_token: AssetInfo) -> Op
         return None;
     }
 
-    // check uusd -> astro pool exists
-    let astro_pool = query_pair_info(&deps.querier, cfg.factory_contract.clone(), &[uusd, astro]);
-    if !astro_pool.is_ok() {
-        return None;
-    }
-
     return Some(uusd_pool.unwrap());
 }
 
 /// # Description
-/// Checks if required pools exists to swap from_token to ASTRO via LUNA - UST pool
+/// /// Checks if from_token - luna - ust pool exists
 /// # Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **cfg** is the object of type [`Config`].
 ///
 /// * **from_token** is the object of type [`AssetInfo`].
-pub fn uluna_uusd_bridge_exists(
-    deps: Deps,
-    cfg: &Config,
-    from_token: AssetInfo,
-) -> Option<PairInfo> {
+pub fn uluna_uusd_pools_exist(deps: Deps, cfg: &Config, from_token: AssetInfo) -> Option<PairInfo> {
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
     // check from_token -> uluna pool exists
@@ -194,7 +185,7 @@ pub fn uluna_uusd_bridge_exists(
         return None;
     }
 
-    if uusd_bridge_exists(deps, cfg, uluna).is_none() {
+    if uusd_pool_exists(deps, cfg, uluna).is_none() {
         return None;
     }
 
