@@ -311,8 +311,8 @@ fn swap_assets(
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
     // check uusd - astro pool and luna - uusd pool
-    get_pool(deps, cfg, uusd.clone(), astro.clone())?;
-    get_pool(deps, cfg, uluna.clone(), uusd.clone())?;
+    get_pool(deps, cfg, uusd.clone(), astro)?;
+    get_pool(deps, cfg, uluna, uusd)?;
 
     for a in assets {
         // Get balance
@@ -401,7 +401,7 @@ fn swap(
             cfg,
             from_token.clone(),
             asset.clone(),
-            astro.clone(),
+            astro,
             BRIDGES_INITIAL_DEPTH,
         )?;
 
@@ -409,7 +409,7 @@ fn swap(
         return Ok(SwapTarget::Bridge { asset, msg });
     }
 
-    return Err(ContractError::CannotSwap(from_token.clone()));
+    Err(ContractError::CannotSwap(from_token))
 }
 
 /// # Description
@@ -434,29 +434,23 @@ fn swap_no_validate(
     let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
-    let swap_to_astro = try_build_swap_msg(deps, cfg, from_token.clone(), astro.clone(), amount_in);
+    let swap_to_astro = try_build_swap_msg(deps, cfg, from_token.clone(), astro, amount_in);
     if let Ok(msg) = swap_to_astro {
         return Ok(SwapTarget::Astro(msg));
     }
 
     if from_token.eq(&uluna) {
-        let msg = try_build_swap_msg(deps, cfg, from_token.clone(), uusd.clone(), amount_in)?;
+        let msg = try_build_swap_msg(deps, cfg, from_token, uusd.clone(), amount_in)?;
         return Ok(SwapTarget::Bridge { asset: uusd, msg });
     }
 
     let bridge_token = BRIDGES.load(deps.storage, from_token.to_string())?;
-    let msg = try_build_swap_msg(
-        deps,
-        cfg,
-        from_token.clone(),
-        bridge_token.clone(),
-        amount_in,
-    )?;
+    let msg = try_build_swap_msg(deps, cfg, from_token, bridge_token.clone(), amount_in)?;
 
-    return Ok(SwapTarget::Bridge {
+    Ok(SwapTarget::Bridge {
         asset: bridge_token,
         msg,
-    });
+    })
 }
 
 /// ## Description

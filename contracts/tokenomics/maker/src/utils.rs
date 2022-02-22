@@ -26,7 +26,7 @@ pub fn try_build_swap_msg(
 ) -> Result<SubMsg, ContractError> {
     let pool = get_pool(deps, cfg, from.clone(), to)?;
     let msg = build_swap_msg(deps, cfg, pool, from, amount_in)?;
-    return Ok(msg);
+    Ok(msg)
 }
 
 pub fn build_swap_msg(
