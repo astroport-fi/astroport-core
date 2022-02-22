@@ -145,7 +145,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 /// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
 /// If the template is not found in the received message, then a [`ContractError`] is returned,
-/// otherwise returns a [`Response`] with the specified attributes if the operation was successful
+/// otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///

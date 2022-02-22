@@ -933,7 +933,7 @@ pub fn calculate_maker_fee(
 ///
 /// * **QueryMsg::Simulation { offer_asset }** Returns the result of a swap simulation using a [`SimulationResponse`] object.
 ///
-/// * **QueryMsg::ReverseSimulation { ask_asset }** Returns the result of a reverse swap simulation  using
+/// * **QueryMsg::ReverseSimulation { ask_asset }** Returns the result of a reverse swap simulation using
 /// a [`ReverseSimulationResponse`] object.
 ///
 /// * **QueryMsg::CumulativePrices {}** Returns information about cumulative prices for the assets in the
@@ -1502,7 +1502,7 @@ fn stop_changing_amp(mut config: Config, deps: DepsMut, env: Env) -> StdResult<(
 }
 
 /// ## Description
-/// Compute the current amplification coefficient (AMP).
+/// Compute the current pool amplification coefficient (AMP).
 /// ## Params
 /// * **config** is an object of type [`Config`].
 ///

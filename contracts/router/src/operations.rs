@@ -45,7 +45,7 @@ pub fn execute_swap_operation(
             let amount =
                 query_balance(&deps.querier, env.contract.address, offer_denom.to_string())?;
             if let Some(to) = to {
-                // if this operation requires we send assets to the receiving address and if the offer asset is native, deduct tax
+                // If this operation requires we send assets to the receiving address and if the offer asset is native, deduct tax
                 let asset = Asset {
                     info: AssetInfo::NativeToken {
                         denom: offer_denom.clone(),
@@ -131,7 +131,7 @@ pub fn asset_into_swap_msg(
 ) -> StdResult<CosmosMsg<TerraMsgWrapper>> {
     match offer_asset.info.clone() {
         AssetInfo::NativeToken { denom } => {
-            // deduct tax first
+            // Deduct tax first
             let amount = offer_asset
                 .amount
                 .checked_sub(offer_asset.compute_tax(&deps.querier)?)?;
