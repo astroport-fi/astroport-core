@@ -1005,8 +1005,10 @@ fn collect_err_no_swap_pair() {
         None,
     );
 
-    let ukrt_asset = String::from("ukrt");
+    let uusd_asset = String::from("uusd");
     let uluna_asset = String::from("uluna");
+    let ukrt_asset = String::from("ukrt");
+    let uabc_asset = String::from("uabc");
 
     // Mint all tokens for maker
     for t in vec![
@@ -1016,7 +1018,15 @@ fn collect_err_no_swap_pair() {
         ],
         [
             native_asset(ukrt_asset.clone(), Uint128::from(100_000_u128)),
+            native_asset(uabc_asset.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
             native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+            token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
     ] {
         create_pair(
@@ -1039,7 +1049,7 @@ fn collect_err_no_swap_pair() {
             limit: None,
         },
         AssetWithLimit {
-            info: native_asset(uluna_asset.clone(), Uint128::zero()).info,
+            info: native_asset(uabc_asset.clone(), Uint128::zero()).info,
             limit: None,
         },
     ];
@@ -1073,7 +1083,7 @@ fn collect_err_no_swap_pair() {
                     amount: Uint128::new(20),
                 },
                 Coin {
-                    denom: uluna_asset,
+                    denom: uabc_asset,
                     amount: Uint128::new(30),
                 },
             ],
@@ -1086,7 +1096,7 @@ fn collect_err_no_swap_pair() {
         .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
         .unwrap_err();
 
-    assert_eq!(e.to_string(), "Cannot swap uluna. No swap destinations",);
+    assert_eq!(e.to_string(), "Cannot swap uabc. No swap destinations",);
 }
 
 #[test]
@@ -1260,11 +1270,22 @@ fn collect_with_asset_limit() {
         "BRIDGE".to_string(),
     );
 
+    let uusd_asset = String::from("uusd");
+    let uluna_asset = String::from("uluna");
+
     // Create pairs
     for t in vec![
         [
             token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            native_asset(uluna_asset, Uint128::from(100_000_u128)),
+            native_asset(uusd_asset, Uint128::from(100_000_u128)),
         ],
         [
             token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),

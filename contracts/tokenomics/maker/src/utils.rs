@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::state::{Config, BRIDGES};
-use astroport::asset::{native_asset_info, Asset, AssetInfo, PairInfo};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::maker::ExecuteMsg;
 use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_pair_info;
@@ -16,6 +16,18 @@ pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 3;
 pub const UUSD_DENOM: &str = "uusd";
 /// LUNA token denom
 pub const ULUNA_DENOM: &str = "uluna";
+
+pub fn try_build_swap_msg(
+    deps: Deps,
+    cfg: &Config,
+    from: AssetInfo,
+    to: AssetInfo,
+    amount_in: Uint128,
+) -> Result<SubMsg, ContractError> {
+    let pool = get_pool(deps, cfg, from.clone(), to)?;
+    let msg = build_swap_msg(deps, cfg, pool, from, amount_in)?;
+    return Ok(msg);
+}
 
 pub fn build_swap_msg(
     deps: Deps,
@@ -102,20 +114,10 @@ pub fn validate_bridge(
     depth: u64,
 ) -> Result<PairInfo, ContractError> {
     // check if bridge pool exists
-    let bridge_pool = query_pair_info(
-        &deps.querier,
-        cfg.factory_contract.clone(),
-        &[from_token.clone(), bridge_token.clone()],
-    )
-    .map_err(|_| ContractError::InvalidBridgeNoPool(from_token.clone(), bridge_token.clone()))?;
+    let bridge_pool = get_pool(deps, cfg, from_token.clone(), bridge_token.clone())?;
 
-    // check bridge token - ASTRO pool exists
-    let astro_pool = query_pair_info(
-        &deps.querier,
-        cfg.factory_contract.clone(),
-        &[bridge_token.clone(), astro_token.clone()],
-    );
-
+    // check bridge - astro pool
+    let astro_pool = get_pool(deps, cfg, bridge_token.clone(), astro_token.clone());
     if astro_pool.is_err() {
         if depth >= BRIDGES_MAX_DEPTH {
             return Err(ContractError::MaxBridgeDepth(depth));
@@ -140,54 +142,25 @@ pub fn validate_bridge(
 }
 
 /// # Description
-/// Checks if from_token - UST pool exists
+/// checks if pool exists and maps error
 /// # Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **cfg** is the object of type [`Config`].
 ///
-/// * **from_token** is the object of type [`AssetInfo`].
-pub fn uusd_pool_exists(deps: Deps, cfg: &Config, from_token: AssetInfo) -> Option<PairInfo> {
-    let uusd = native_asset_info(UUSD_DENOM.to_string());
-
-    let uusd_pool = query_pair_info(
+/// * **from** is the object of type [`AssetInfo`].
+///
+/// * **to** is the object of type [`AssetInfo`].
+pub fn get_pool(
+    deps: Deps,
+    cfg: &Config,
+    from: AssetInfo,
+    to: AssetInfo,
+) -> Result<PairInfo, ContractError> {
+    query_pair_info(
         &deps.querier,
         cfg.factory_contract.clone(),
-        &[from_token.clone(), uusd.clone()],
-    );
-
-    if !uusd_pool.is_ok() {
-        return None;
-    }
-
-    return Some(uusd_pool.unwrap());
-}
-
-/// # Description
-/// /// Checks if from_token - luna - ust pool exists
-/// # Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **cfg** is the object of type [`Config`].
-///
-/// * **from_token** is the object of type [`AssetInfo`].
-pub fn uluna_uusd_pools_exist(deps: Deps, cfg: &Config, from_token: AssetInfo) -> Option<PairInfo> {
-    let uluna = native_asset_info(ULUNA_DENOM.to_string());
-
-    // check from_token -> uluna pool exists
-    let uluna_pool = query_pair_info(
-        &deps.querier,
-        cfg.factory_contract.clone(),
-        &[from_token.clone(), uluna.clone()],
-    );
-
-    if !uluna_pool.is_ok() {
-        return None;
-    }
-
-    if uusd_pool_exists(deps, cfg, uluna).is_none() {
-        return None;
-    }
-
-    return Some(uluna_pool.unwrap());
+        &[from.clone(), to.clone()],
+    )
+    .map_err(|_| ContractError::InvalidBridgeNoPool(from.clone(), to.clone()))
 }
