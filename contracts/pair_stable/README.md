@@ -14,13 +14,13 @@ When providing liquidity from a smart contract, the most important thing to keep
 
 As an example, let's say the global ratio between two tokens x:y is 1.01:1 (1 x = 0.99 y), but the current ratio between the tokens in an Astroport pair is 1:1.01 (1 x = 1.01 y). Let's also say that someone may decide to LP in the x:y Astroport pool at the current 1:1.01 ratio. As the Astroport pool gets arbitraged to the global ratio, the amount of x & y tokens that the LP can withdraw changes because the total amounts of x & y tokens in the pool also change.
 
-> Note that before executing the `provide_liqudity` operation, a user must allow the pool contract to take tokens from their wallet and deposit them in the contract
+> Note that before executing the `provide_liqudity` operation, a user must allow the pool contract to take tokens from their wallet
 
 ### Slippage Tolerance for Providing Liquidity
 
 If a user specifies a slippage tolerance when they provide liquidity in a constant product pool, the pool contract makes sure that the transaction goes through only if the pool price does not change more than tolerance.
 
-As an example, let's say someone LPs in a pool and specifies a 1% slippage tolerance. The user LPs 200 UST and 200 ASSET. With a 1% slippage tolerance, `amountUSTMin` (the minimum amount of UST to LP) should be set to 198 UST, and `amountASSETMin` (the minimum amount of ASSET to LP) should be set to .99 ASSET. This means that, in a worst case scenario, liquidity will be added at a pool rate of 198 ASSET/1 UST or 202.02 UST/1 ASSET (200 UST + .99 ASSET). If the contract cannot add liquidity within these bounds (because the pool ratio changed more than the tolerance), the transaction will revert.
+As an example, let's say someone LPs in a pool and specifies a 1% slippage tolerance. The user LPs 200 UST and 200 `ASSET`. With a 1% slippage tolerance, `amountUSTMin` (the minimum amount of UST to LP) should be set to 198 UST, and `amountASSETMin` (the minimum amount of `ASSET` to LP) should be set to .99 `ASSET`. This means that, in a worst case scenario, liquidity will be added at a pool rate of 198 `ASSET`/1 UST or 202.02 UST/1 `ASSET` (200 UST + .99 `ASSET`). If the contract cannot add liquidity within these bounds (because the pool ratio changed more than the tolerance), the transaction will revert.
 
 ## Traders
 
@@ -68,7 +68,7 @@ Initializes a new stableswap pair.
 
 ### `receive`
 
-Withdraws liquidity or assets that were swapped to.
+Withdraws liquidity or assets that were swapped to (ask assets from a swap operation).
 
 ```json
 {
@@ -82,7 +82,9 @@ Withdraws liquidity or assets that were swapped to.
 
 ### `provide_liquidity`
 
-Provides liquidity by sending a user's native or token assets to the pool. __NOTE__: you should increase your token allowance for the pool before providing liquidity!
+Provides liquidity by sending a user's native or token assets to the pool.
+
+__NOTE__: you should increase your token allowance for the pool before providing liquidity!
 
 1. Providing Liquidity Without Specifying Slippage Tolerance
 
@@ -157,7 +159,7 @@ Burn LP tokens and withdraw liquidity from a pool. This call must be sent to a L
 
 Perform a swap. `offer_asset` is your source asset and `to` is the address that will receive the ask assets. All fields are optional except `offer_asset`.
 
-NOTE: You should increase token allowance before swap. This method is only used to swap to contract-based token as a destination.
+NOTE: You should increase your token allowance for the pool before the swap.
 
 ```json
   {
@@ -195,7 +197,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `pair`
 
-Retrieve a pair's configuration (type, assets traded in it etc)
+Retrieve a pair's configuration (type, assets traded in it etc).
 
 ```json
 {

@@ -7,8 +7,8 @@ use cosmwasm_std::{
 };
 use std::collections::HashMap;
 
-/// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
-/// this uses our CustomQuerier.
+/// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies.
+/// This uses the Astroport CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
@@ -50,7 +50,7 @@ pub(crate) fn pairs_to_map(pairs: &[(&String, &PairInfo)]) -> HashMap<String, Pa
 
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
-        // MockQuerier doesn't support Custom, so we ignore it completely here
+        // MockQuerier doesn't support Custom, so we ignore it completely
         let request: QueryRequest<Empty> = match from_slice(bin_request) {
             Ok(v) => v,
             Err(e) => {
@@ -67,7 +67,7 @@ impl Querier for WasmMockQuerier {
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<Empty>) -> QuerierResult {
         match &request {
-            QueryRequest::Wasm(WasmQuery::Smart {contract_addr, msg})// => {
+            QueryRequest::Wasm(WasmQuery::Smart {contract_addr, msg})
                 => match from_binary(&msg).unwrap() {
                     QueryMsg::Pair {} => {
                        let pair_info: PairInfo =
@@ -97,7 +97,7 @@ impl WasmMockQuerier {
         }
     }
 
-    // configure the Astroport pair
+    // Configure the Astroport pair
     pub fn with_astroport_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
         self.astroport_pair_querier = AstroportPairQuerier::new(pairs);
     }

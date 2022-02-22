@@ -542,7 +542,7 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
 
-    // Get current twap accumulator values
+    // Get current TWAP accumulator values
     let msg = QueryMsg::CumulativePrices {};
     let cpr_old: CumulativePricesResponse =
         app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
@@ -709,7 +709,7 @@ fn update_pair_config() {
         )
     );
 
-    // Start changing amp earlier than the MIN_AMP_CHANGING_TIME has elapsed
+    // Start changing amp before the MIN_AMP_CHANGING_TIME has elapsed
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: 250,
