@@ -7,7 +7,27 @@ use astroport::querier::query_pair_info;
 use cosmwasm_std::{to_binary, Coin, Deps, Env, StdResult, SubMsg, Uint128, WasmMsg};
 
 pub const BRIDGES_INITIAL_DEPTH: u64 = 0;
+/// The depth of bridges to swap
 pub const BRIDGES_MAX_DEPTH: u64 = 2;
+/// Execute depth limit
+pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 3;
+
+/// UST token denom
+pub const UUSD_DENOM: &str = "uusd";
+/// LUNA token denom
+pub const ULUNA_DENOM: &str = "uluna";
+
+pub fn try_build_swap_msg(
+    deps: Deps,
+    cfg: &Config,
+    from: AssetInfo,
+    to: AssetInfo,
+    amount_in: Uint128,
+) -> Result<SubMsg, ContractError> {
+    let pool = get_pool(deps, cfg, from.clone(), to)?;
+    let msg = build_swap_msg(deps, cfg, pool, from, amount_in)?;
+    Ok(msg)
+}
 
 pub fn build_swap_msg(
     deps: Deps,
@@ -94,20 +114,10 @@ pub fn validate_bridge(
     depth: u64,
 ) -> Result<PairInfo, ContractError> {
     // Check if bridge pool exists
-    let bridge_pool = query_pair_info(
-        &deps.querier,
-        cfg.factory_contract.clone(),
-        &[from_token.clone(), bridge_token.clone()],
-    )
-    .map_err(|_| ContractError::InvalidBridgeNoPool(from_token.clone(), bridge_token.clone()))?;
+    let bridge_pool = get_pool(deps, cfg, from_token.clone(), bridge_token.clone())?;
 
     // Check bridge token - ASTRO pool exists
-    let astro_pool = query_pair_info(
-        &deps.querier,
-        cfg.factory_contract.clone(),
-        &[bridge_token.clone(), astro_token.clone()],
-    );
-
+    let astro_pool = get_pool(deps, cfg, bridge_token.clone(), astro_token.clone());
     if astro_pool.is_err() {
         if depth >= BRIDGES_MAX_DEPTH {
             return Err(ContractError::MaxBridgeDepth(depth));
@@ -129,4 +139,28 @@ pub fn validate_bridge(
     }
 
     Ok(bridge_pool)
+}
+
+/// # Description
+/// checks if pool exists and maps error
+/// # Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **cfg** is the object of type [`Config`].
+///
+/// * **from** is the object of type [`AssetInfo`].
+///
+/// * **to** is the object of type [`AssetInfo`].
+pub fn get_pool(
+    deps: Deps,
+    cfg: &Config,
+    from: AssetInfo,
+    to: AssetInfo,
+) -> Result<PairInfo, ContractError> {
+    query_pair_info(
+        &deps.querier,
+        cfg.factory_contract.clone(),
+        &[from.clone(), to.clone()],
+    )
+    .map_err(|_| ContractError::InvalidBridgeNoPool(from.clone(), to.clone()))
 }
