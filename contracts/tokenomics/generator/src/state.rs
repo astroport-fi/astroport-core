@@ -129,6 +129,13 @@ pub const TMP_USER_ACTION: Item<Option<ExecuteOnReply>> = Item::new("tmp_user_ac
 /// The first key is an LP token address, the second key is a depositor address.
 pub const USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
 
+//settings for pagination
+/// The maximum limit for reading users from a [`USER_INFO`]
+pub const MAX_LIMIT: u32 = 30;
+
+/// The default limit for reading users from a [`USER_INFO`]
+pub const DEFAULT_LIMIT: u32 = 10;
+
 /// ## Description
 /// Contains a proposal to change contract ownership.
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");

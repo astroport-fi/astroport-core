@@ -159,6 +159,12 @@ pub enum QueryMsg {
     PoolInfo { lp_token: String },
     /// SimulateFutureReward returns the amount of ASTRO that will be distributed until a future block and for a specific generator
     SimulateFutureReward { lp_token: String, future_block: u64 },
+    /// Returns a list of stakers for certain generator
+    PoolStakers {
+        lp_token: String,
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
 }
 
 /// ## Description
@@ -253,4 +259,10 @@ pub enum Cw20HookMsg {
     Deposit {},
     /// DepositFor performs a token deposit on behalf of another address that's not the message sender.
     DepositFor(Addr),
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+pub struct StakerResponse {
+    pub account: String,
+    pub amount: Uint128,
 }

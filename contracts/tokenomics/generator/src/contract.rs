@@ -1,6 +1,7 @@
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    MessageInfo, Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
+    WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
 
@@ -8,10 +9,11 @@ use crate::error::ContractError;
 use crate::migration;
 use crate::state::{
     get_pools, update_user_balance, Config, ExecuteOnReply, PoolInfo, UserInfo, CONFIG,
-    OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
+    DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::generator::StakerResponse;
 use astroport::querier::{query_supply, query_token_balance};
 use astroport::DecimalCheckedOps;
 use astroport::{
@@ -25,6 +27,7 @@ use astroport::{
     vesting::ExecuteMsg as VestingExecuteMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
+use cw_storage_plus::{Bound, PrimaryKey};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-generator";
@@ -1357,6 +1360,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             lp_token,
             future_block,
         )?)?),
+        QueryMsg::PoolStakers {
+            lp_token,
+            start_after,
+            limit,
+        } => Ok(to_binary(&query_list_of_stakers(
+            deps,
+            lp_token,
+            start_after,
+            limit,
+        )?)?),
     }
 }
 
@@ -1641,6 +1654,42 @@ pub fn query_simulate_future_reward(
         .unwrap_or_else(|_| Uint128::zero());
 
     Ok(simulated_reward)
+}
+
+/// ## Description
+/// Returns an [`ContractError`] on failure, otherwise returns a list of stakers for certain generator
+pub fn query_list_of_stakers(
+    deps: Deps,
+    lp_token: String,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> Result<Vec<StakerResponse>, ContractError> {
+    let lp_addr = addr_validate_to_lower(deps.api, lp_token.as_str())?;
+    let mut active_stakers: Vec<StakerResponse> = vec![];
+
+    if POOL_INFO.has(deps.storage, &lp_addr) {
+        let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+        let start = start_after
+            .map(|start| start.joined_key())
+            .map(Bound::Exclusive);
+
+        active_stakers = USER_INFO
+            .prefix(&lp_addr)
+            .range(deps.storage, start, None, Order::Ascending)
+            .filter_map(|stakers| {
+                stakers
+                    .ok()
+                    .map(|staker| StakerResponse {
+                        account: String::from_utf8(staker.0).unwrap(),
+                        amount: staker.1.amount,
+                    })
+                    .filter(|active_staker| !active_staker.amount.is_zero())
+            })
+            .take(limit)
+            .collect();
+    }
+
+    Ok(active_stakers)
 }
 
 /// ## Description
