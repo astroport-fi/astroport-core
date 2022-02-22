@@ -42,7 +42,7 @@ fn get_balance<T: Into<String>>(deps: Deps, address: T) -> Uint128 {
     query_balance(deps, address.into()).unwrap().balance
 }
 
-// this will set up the instantiation for other tests
+// This will set up the instantiation for other tests
 fn do_instantiate_with_minter(
     deps: DepsMut,
     addr: &str,
@@ -61,12 +61,12 @@ fn do_instantiate_with_minter(
     )
 }
 
-// this will set up the instantiation for other tests
+// This will set up the instantiation for other tests
 fn do_instantiate(deps: DepsMut, addr: &str, amount: Uint128) -> TokenInfoResponse {
     _do_instantiate(deps, addr, amount, None)
 }
 
-// this will set up the instantiation for other tests
+// This will set up the instantiation for other tests
 fn _do_instantiate(
     mut deps: DepsMut,
     addr: &str,
@@ -225,7 +225,7 @@ fn can_mint_by_minter() {
     let limit = Uint128::new(511223344);
     do_instantiate_with_minter(deps.as_mut(), &genesis, amount, &minter, Some(limit));
 
-    // minter can mint coins to some winner
+    // Minter can mint coins to some winner
     let winner = String::from("lucky");
     let prize = Uint128::new(222_222_222);
     let msg = ExecuteMsg::Mint {
@@ -240,7 +240,7 @@ fn can_mint_by_minter() {
     assert_eq!(get_balance(deps.as_ref(), genesis), amount);
     assert_eq!(get_balance(deps.as_ref(), winner.clone()), prize);
 
-    // but cannot mint nothing
+    // But cannot mint nothing
     let msg = ExecuteMsg::Mint {
         recipient: winner.clone(),
         amount: Uint128::zero(),
@@ -250,8 +250,7 @@ fn can_mint_by_minter() {
     let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(err, ContractError::InvalidZeroAmount {});
 
-    // but if it exceeds cap (even over multiple rounds), it fails
-    // cap is enforced
+    // But if it exceeds cap (even over multiple rounds), it fails
     let msg = ExecuteMsg::Mint {
         recipient: winner,
         amount: Uint128::new(333_222_222),
@@ -350,7 +349,7 @@ fn transfer() {
 
     do_instantiate(deps.as_mut(), &addr1, amount1);
 
-    // cannot transfer nothing
+    // Cannot transfer nothing
     let info = mock_info(addr1.as_ref(), &[]);
     let env = mock_env();
     let msg = ExecuteMsg::Transfer {
@@ -360,7 +359,7 @@ fn transfer() {
     let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(err, ContractError::InvalidZeroAmount {});
 
-    // cannot send more than we have
+    // Cannot send more than we have
     let info = mock_info(addr1.as_ref(), &[]);
     let env = mock_env();
     let msg = ExecuteMsg::Transfer {
@@ -370,7 +369,7 @@ fn transfer() {
     let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert!(matches!(err, ContractError::Std(StdError::Overflow { .. })));
 
-    // cannot send from empty account
+    // Cannot send from empty account
     let info = mock_info(addr2.as_ref(), &[]);
     let env = mock_env();
     let msg = ExecuteMsg::Transfer {
@@ -380,7 +379,7 @@ fn transfer() {
     let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert!(matches!(err, ContractError::Std(StdError::Overflow { .. })));
 
-    // valid transfer
+    // Valid transfer
     let info = mock_info(addr1.as_ref(), &[]);
     let env = test_mock_env(MockEnvParams {
         block_height: 100_000,
@@ -424,7 +423,7 @@ fn burn() {
 
     do_instantiate(deps.as_mut(), &addr1, amount1);
 
-    // cannot burn nothing
+    // Cannot burn nothing
     let info = mock_info(addr1.as_ref(), &[]);
     let env = mock_env();
     let msg = ExecuteMsg::Burn {
@@ -437,7 +436,7 @@ fn burn() {
         amount1
     );
 
-    // cannot burn more than we have
+    // Cannot burn more than we have
     let info = mock_info(addr1.as_ref(), &[]);
     let env = mock_env();
     let msg = ExecuteMsg::Burn { amount: too_much };
@@ -487,7 +486,7 @@ fn send() {
 
     do_instantiate(deps.as_mut(), &addr1, amount1);
 
-    // cannot send nothing
+    // Cannot send nothing
     let info = mock_info(addr1.as_ref(), &[]);
     let env = mock_env();
     let msg = ExecuteMsg::Send {
@@ -498,7 +497,7 @@ fn send() {
     let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(err, ContractError::InvalidZeroAmount {});
 
-    // cannot send more than we have
+    // Cannot send more than we have
     let info = mock_info(addr1.as_ref(), &[]);
     let env = mock_env();
     let msg = ExecuteMsg::Send {
@@ -509,7 +508,7 @@ fn send() {
     let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert!(matches!(err, ContractError::Std(StdError::Overflow { .. })));
 
-    // valid transfer
+    // Valid transfer
     let info = mock_info(addr1.as_ref(), &[]);
     let env = mock_env();
     let msg = ExecuteMsg::Send {
@@ -520,8 +519,8 @@ fn send() {
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(res.messages.len(), 1);
 
-    // ensure proper send message sent
-    // this is the message we want delivered to the other side
+    // Ensure proper send message was sent
+    // This is the message we want delivered to the other side
     let binary_msg = Cw20ReceiveMsg {
         sender: addr1.clone(),
         amount: transfer,
@@ -529,7 +528,7 @@ fn send() {
     }
     .into_binary()
     .unwrap();
-    // and this is how it must be wrapped for the vm to process it
+    // And this is how it must be wrapped for the vm to process it
     assert_eq!(
         res.messages[0],
         SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -539,7 +538,7 @@ fn send() {
         }))
     );
 
-    // ensure balance is properly transferred
+    // Ensure balance is properly transferred
     let remainder = amount1.checked_sub(transfer).unwrap();
     assert_eq!(get_balance(deps.as_ref(), addr1.clone()), remainder);
     assert_eq!(get_balance(deps.as_ref(), contract.clone()), transfer);
@@ -655,22 +654,22 @@ fn snapshots_are_taken_and_retrieved_correctly() {
         expected_addr2_balances.push((current_block, current_addr2_balance));
     }
 
-    // Check total supplies;
+    // Check total supply
     let mut total_supply_previous_value = Uint128::zero();
     for (block, expected_total_supply) in expected_total_supplies {
-        // block before gives previous value
+        // Previous block gives previous value
         assert_eq!(
             get_total_supply_at(&deps.storage, block - 1).unwrap(),
             total_supply_previous_value
         );
 
-        // block gives expected value
+        // Current block  gives expected value
         assert_eq!(
             get_total_supply_at(&deps.storage, block).unwrap(),
             expected_total_supply,
         );
 
-        // block after still gives expected value
+        // Next block still gives expected value
         assert_eq!(
             get_total_supply_at(&deps.storage, block + 10).unwrap(),
             expected_total_supply,
@@ -682,7 +681,7 @@ fn snapshots_are_taken_and_retrieved_correctly() {
     // Check addr1 balances
     let mut balance_previous_value = Uint128::zero();
     for (block, expected_balance) in expected_addr1_balances {
-        // block before gives previous value
+        // Previous block gives previous value
         assert_eq!(
             query_balance_at(deps.as_ref(), addr1.clone(), block - 10)
                 .unwrap()
@@ -690,7 +689,7 @@ fn snapshots_are_taken_and_retrieved_correctly() {
             balance_previous_value
         );
 
-        // block gives previous value
+        // Current block gives previous value
         assert_eq!(
             query_balance_at(deps.as_ref(), addr1.clone(), block)
                 .unwrap()
@@ -698,7 +697,7 @@ fn snapshots_are_taken_and_retrieved_correctly() {
             balance_previous_value
         );
 
-        // only block after still gives expected value
+        // Only the next block still gives expected value
         assert_eq!(
             query_balance_at(deps.as_ref(), addr1.clone(), block + 1)
                 .unwrap()
@@ -712,7 +711,7 @@ fn snapshots_are_taken_and_retrieved_correctly() {
     // Check addr2 balances
     let mut balance_previous_value = Uint128::zero();
     for (block, expected_balance) in expected_addr2_balances {
-        // block before gives previous value
+        // Previous block gives previous value
         assert_eq!(
             query_balance_at(deps.as_ref(), addr2.clone(), block - 10)
                 .unwrap()
@@ -720,7 +719,7 @@ fn snapshots_are_taken_and_retrieved_correctly() {
             balance_previous_value
         );
 
-        // block gives previous value
+        // The current block gives the previous value
         assert_eq!(
             query_balance_at(deps.as_ref(), addr2.clone(), block)
                 .unwrap()
@@ -728,7 +727,7 @@ fn snapshots_are_taken_and_retrieved_correctly() {
             balance_previous_value
         );
 
-        // only block after still gives expected value
+        // Only the next block still gives expected value
         assert_eq!(
             query_balance_at(deps.as_ref(), addr2.clone(), block + 1)
                 .unwrap()
