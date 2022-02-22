@@ -1360,7 +1360,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             lp_token,
             future_block,
         )?)?),
-        QueryMsg::ListOfStakers {
+        QueryMsg::PoolStakers {
             lp_token,
             start_after,
             limit,

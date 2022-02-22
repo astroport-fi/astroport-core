@@ -31,6 +31,10 @@ const USER2: &str = "user2";
 const USER3: &str = "user3";
 const USER4: &str = "user4";
 const USER5: &str = "user5";
+const USER6: &str = "user6";
+const USER7: &str = "user7";
+const USER8: &str = "user8";
+const USER9: &str = "user9";
 
 #[test]
 fn disabling_pool() {
@@ -1486,7 +1490,7 @@ fn query_all_stakers() {
     mint_tokens(&mut app, &lp_cny_eur_instance, &user4, 10);
     mint_tokens(&mut app, &lp_cny_eur_instance, &user5, 10);
 
-    let msg_cny_eur = QueryMsg::ListOfStakers {
+    let msg_cny_eur = QueryMsg::PoolStakers {
         lp_token: lp_cny_eur_instance.to_string(),
         start_after: None,
         limit: None,
@@ -1576,6 +1580,125 @@ fn query_all_stakers() {
                 account: "user5".to_string(),
                 amount: Uint128::new(10)
             }
+        ],
+        reps
+    );
+}
+
+#[test]
+fn query_pagination_stakers() {
+    let mut app = mock_app();
+
+    let user1 = Addr::unchecked(USER1);
+    let user2 = Addr::unchecked(USER2);
+    let user3 = Addr::unchecked(USER3);
+    let user4 = Addr::unchecked(USER4);
+    let user5 = Addr::unchecked(USER5);
+    let user6 = Addr::unchecked(USER6);
+    let user7 = Addr::unchecked(USER7);
+    let user8 = Addr::unchecked(USER8);
+    let user9 = Addr::unchecked(USER9);
+
+    let token_code_id = store_token_code(&mut app);
+    let lp_cny_eur_instance = instantiate_token(&mut app, token_code_id, "cny-eur", None);
+
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+
+    let generator_instance = instantiate_generator(&mut app, &astro_token_instance, None);
+
+    register_lp_tokens_in_generator(&mut app, &generator_instance, None, &[&lp_cny_eur_instance]);
+
+    for user in [
+        user1, user2, user3, user4, user5, user6, user7, user8, user9,
+    ] {
+        mint_tokens(&mut app, &lp_cny_eur_instance, &user, 10);
+    }
+
+    for user in [
+        USER1, USER2, USER3, USER4, USER5, USER6, USER7, USER8, USER9,
+    ] {
+        deposit_lp_tokens_to_generator(
+            &mut app,
+            &generator_instance,
+            user,
+            &[(&lp_cny_eur_instance, 10)],
+        );
+    }
+
+    check_token_balance(&mut app, &lp_cny_eur_instance, &generator_instance, 90);
+
+    // get the first two stakers
+    let msg_cny_eur = QueryMsg::PoolStakers {
+        lp_token: lp_cny_eur_instance.to_string(),
+        start_after: None,
+        limit: Some(2),
+    };
+
+    let reps: Vec<StakerResponse> = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .unwrap();
+
+    // check count of users
+    assert_eq!(reps.len(), 2 as usize);
+
+    assert_eq!(
+        vec![
+            StakerResponse {
+                account: "user1".to_string(),
+                amount: Uint128::new(10)
+            },
+            StakerResponse {
+                account: "user2".to_string(),
+                amount: Uint128::new(10)
+            },
+        ],
+        reps
+    );
+
+    // get next seven stakers
+    let msg_cny_eur = QueryMsg::PoolStakers {
+        lp_token: lp_cny_eur_instance.to_string(),
+        start_after: Some("user2".to_string()),
+        limit: Some(7),
+    };
+
+    let reps: Vec<StakerResponse> = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .unwrap();
+
+    assert_eq!(
+        vec![
+            StakerResponse {
+                account: "user3".to_string(),
+                amount: Uint128::new(10)
+            },
+            StakerResponse {
+                account: "user4".to_string(),
+                amount: Uint128::new(10)
+            },
+            StakerResponse {
+                account: "user5".to_string(),
+                amount: Uint128::new(10)
+            },
+            StakerResponse {
+                account: "user6".to_string(),
+                amount: Uint128::new(10)
+            },
+            StakerResponse {
+                account: "user7".to_string(),
+                amount: Uint128::new(10)
+            },
+            StakerResponse {
+                account: "user8".to_string(),
+                amount: Uint128::new(10)
+            },
+            StakerResponse {
+                account: "user9".to_string(),
+                amount: Uint128::new(10)
+            },
         ],
         reps
     );
