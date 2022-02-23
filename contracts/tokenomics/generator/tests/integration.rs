@@ -1468,20 +1468,27 @@ fn query_all_stakers() {
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
 
-    let factory_instance = instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
 
     let (pair_cny_eur, lp_cny_eur) = create_pair(&mut app, &factory_instance, "CNY", "EUR");
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
-    register_lp_tokens_in_generator(&mut app, &generator_instance, None, vec![(lp_cny_eur.to_string(), Uint64::new(100u64))]);
+    register_lp_tokens_in_generator(
+        &mut app,
+        &generator_instance,
+        None,
+        vec![(lp_cny_eur.to_string(), Uint64::new(100u64))],
+    );
 
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 10);
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user2, 10);
-    mint_tokens(&mut app, pair_cny_eur.clone(),  &lp_cny_eur, &user3, 10);
+    mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user3, 10);
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user4, 10);
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user5, 10);
 
@@ -1500,12 +1507,7 @@ fn query_all_stakers() {
     assert_eq!(empty, reps);
 
     for user in [USER1, USER2, USER3, USER4, USER5] {
-        deposit_lp_tokens_to_generator(
-            &mut app,
-            &generator_instance,
-            user,
-            &[(&lp_cny_eur, 10)],
-        );
+        deposit_lp_tokens_to_generator(&mut app, &generator_instance, user, &[(&lp_cny_eur, 10)]);
     }
 
     check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 50);
@@ -1598,16 +1600,23 @@ fn query_pagination_stakers() {
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
 
-    let factory_instance = instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
 
     let (pair_cny_eur, lp_cny_eur) = create_pair(&mut app, &factory_instance, "CNY", "EUR");
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
-    register_lp_tokens_in_generator(&mut app, &generator_instance, None, vec![(lp_cny_eur.to_string(), Uint64::from(100u32))]);
+    register_lp_tokens_in_generator(
+        &mut app,
+        &generator_instance,
+        None,
+        vec![(lp_cny_eur.to_string(), Uint64::from(100u32))],
+    );
 
     for user in [
         user1, user2, user3, user4, user5, user6, user7, user8, user9,
@@ -1618,12 +1627,7 @@ fn query_pagination_stakers() {
     for user in [
         USER1, USER2, USER3, USER4, USER5, USER6, USER7, USER8, USER9,
     ] {
-        deposit_lp_tokens_to_generator(
-            &mut app,
-            &generator_instance,
-            user,
-            &[(&lp_cny_eur, 10)],
-        );
+        deposit_lp_tokens_to_generator(&mut app, &generator_instance, user, &[(&lp_cny_eur, 10)]);
     }
 
     check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 90);
