@@ -142,6 +142,11 @@ pub fn execute(
             move_to_proxy(deps, env, lp_token, proxy)
         }
         ExecuteMsg::UpdateAllowedProxies { add, remove } => {
+            let cfg = CONFIG.load(deps.storage)?;
+            if info.sender != cfg.owner {
+                return Err(ContractError::Unauthorized {});
+            }
+
             update_allowed_proxies(deps, add, remove)
         }
         ExecuteMsg::UpdateConfig { vesting_contract } => {
