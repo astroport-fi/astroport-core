@@ -38,4 +38,4 @@ astroport-factory = {path = "../../factory"}
 astroport-pair = {path = "../../pair"}
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
 cosmwasm-bignumber = "2.2.0"
-astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/escrow-fee-distributor-contract" }
+astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
