@@ -27,7 +27,7 @@ cw20 = { version = "0.8.0" }
 cw-storage-plus = { version = "0.8.0", features = ["iterator"] }
 schemars = "0.8.1"
 astroport = { path = "../../../packages/astroport", default-features = false }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/escrow-fee-distributor-contract" }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
 
