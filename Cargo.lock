@@ -143,7 +143,7 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#43aa0d45ad28c88864ba00df02cd0f949b5a2050"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#305067771ae8794f5a86a8d2914b5eaab0277f7f"
 dependencies = [
  "cosmwasm-std",
  "cw20",
