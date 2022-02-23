@@ -37,10 +37,9 @@ fn instantiate_contracts(
     router: &mut TerraApp,
     owner: Addr,
     staking: Addr,
-    governance: &Addr,
     governance_percent: Uint64,
     max_spread: Option<Decimal>,
-) -> (Addr, Addr, Addr) {
+) -> (Addr, Addr, Addr, Addr) {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
@@ -119,6 +118,33 @@ fn instantiate_contracts(
         )
         .unwrap();
 
+    let escrow_fee_distributor_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_escrow_fee_distributor::contract::execute,
+        astroport_escrow_fee_distributor::contract::instantiate,
+        astroport_escrow_fee_distributor::contract::query,
+    ));
+
+    let escrow_fee_distributor_code_id = router.store_code(escrow_fee_distributor_contract);
+
+    let init_msg = astroport_governance::escrow_fee_distributor::InstantiateMsg {
+        owner: owner.to_string(),
+        astro_token: astro_token_instance.to_string(),
+        voting_escrow_addr: "voting".to_string(),
+        claim_many_limit: None,
+        is_claim_disabled: None,
+    };
+
+    let governance_instance = router
+        .instantiate_contract(
+            escrow_fee_distributor_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "Astroport escrow fee distributor",
+            None,
+        )
+        .unwrap();
+
     let maker_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_maker::contract::execute,
         astroport_maker::contract::instantiate,
@@ -131,7 +157,7 @@ fn instantiate_contracts(
         owner: String::from("owner"),
         factory_contract: factory_instance.to_string(),
         staking_contract: staking.to_string(),
-        governance_contract: Option::from(governance.to_string()),
+        governance_contract: Option::from(governance_instance.to_string()),
         governance_percent: Option::from(governance_percent),
         astro_token_contract: astro_token_instance.to_string(),
         max_spread,
@@ -146,7 +172,13 @@ fn instantiate_contracts(
             None,
         )
         .unwrap();
-    (astro_token_instance, factory_instance, maker_instance)
+
+    (
+        astro_token_instance,
+        factory_instance,
+        maker_instance,
+        governance_instance,
+    )
 }
 
 fn instantiate_token(router: &mut TerraApp, owner: Addr, name: String, symbol: String) -> Addr {
@@ -367,17 +399,16 @@ fn update_config() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
     let staking = Addr::unchecked("staking");
-    let governance = Addr::unchecked("governance");
     let governance_percent = Uint64::new(10);
 
-    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
-        &mut router,
-        owner.clone(),
-        staking.clone(),
-        &governance,
-        governance_percent,
-        None,
-    );
+    let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
+        instantiate_contracts(
+            &mut router,
+            owner.clone(),
+            staking.clone(),
+            governance_percent,
+            None,
+        );
 
     let msg = QueryMsg::Config {};
     let res: ConfigResponse = router
@@ -389,7 +420,7 @@ fn update_config() {
     assert_eq!(res.astro_token_contract, astro_token_instance);
     assert_eq!(res.factory_contract, factory_instance);
     assert_eq!(res.staking_contract, staking);
-    assert_eq!(res.governance_contract, Some(governance));
+    assert_eq!(res.governance_contract, Some(governance_instance));
     assert_eq!(res.governance_percent, governance_percent);
     assert_eq!(res.max_spread, Decimal::from_str("0.05").unwrap());
 
@@ -594,18 +625,17 @@ fn collect_all() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
     let staking = Addr::unchecked("staking");
-    let governance = Addr::unchecked("governance");
     let governance_percent = Uint64::new(10);
     let max_spread = Decimal::from_str("0.5").unwrap();
 
-    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
-        &mut router,
-        owner.clone(),
-        staking.clone(),
-        &governance,
-        governance_percent,
-        Some(max_spread),
-    );
+    let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
+        instantiate_contracts(
+            &mut router,
+            owner.clone(),
+            staking.clone(),
+            governance_percent,
+            Some(max_spread),
+        );
 
     let usdc_token_instance = instantiate_token(
         &mut router,
@@ -740,7 +770,7 @@ fn collect_all() {
         factory_instance,
         maker_instance,
         staking,
-        governance,
+        governance_instance,
         governance_percent,
         pairs,
         assets,
@@ -757,18 +787,17 @@ fn collect_default_bridges() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
     let staking = Addr::unchecked("staking");
-    let governance = Addr::unchecked("governance");
     let governance_percent = Uint64::new(10);
     let max_spread = Decimal::from_str("0.5").unwrap();
 
-    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
-        &mut router,
-        owner.clone(),
-        staking.clone(),
-        &governance,
-        governance_percent,
-        Some(max_spread),
-    );
+    let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
+        instantiate_contracts(
+            &mut router,
+            owner.clone(),
+            staking.clone(),
+            governance_percent,
+            Some(max_spread),
+        );
 
     let bridge_uusd_token_instance = instantiate_token(
         &mut router,
@@ -864,7 +893,7 @@ fn collect_default_bridges() {
         factory_instance,
         maker_instance,
         staking,
-        governance,
+        governance_instance,
         governance_percent,
         pairs,
         assets,
@@ -882,15 +911,13 @@ fn collect_maxdepth_test() {
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
     let staking = Addr::unchecked("staking");
-    let governance = Addr::unchecked("governance");
     let governance_percent = Uint64::new(10);
     let max_spread = Decimal::from_str("0.5").unwrap();
 
-    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
+    let (astro_token_instance, factory_instance, maker_instance, _) = instantiate_contracts(
         &mut router,
         owner.clone(),
         staking.clone(),
-        &governance,
         governance_percent,
         Some(max_spread),
     );
@@ -993,14 +1020,12 @@ fn collect_err_no_swap_pair() {
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
     let staking = Addr::unchecked("staking");
-    let governance = Addr::unchecked("governance");
     let governance_percent = Uint64::new(50);
 
-    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
+    let (astro_token_instance, factory_instance, maker_instance, _) = instantiate_contracts(
         &mut router,
         owner.clone(),
         staking.clone(),
-        &governance,
         governance_percent,
         None,
     );
@@ -1104,16 +1129,14 @@ fn update_bridges() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
     let staking = Addr::unchecked("staking");
-    let governance = Addr::unchecked("governance");
     let governance_percent = Uint64::new(10);
     let user = Addr::unchecked("user0000");
     let uusd_asset = String::from("uusd");
 
-    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
+    let (astro_token_instance, factory_instance, maker_instance, _) = instantiate_contracts(
         &mut router,
         owner.clone(),
         staking.clone(),
-        &governance,
         governance_percent,
         None,
     );
@@ -1236,18 +1259,17 @@ fn collect_with_asset_limit() {
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
     let staking = Addr::unchecked("staking");
-    let governance = Addr::unchecked("governance");
     let governance_percent = Uint64::new(10);
     let max_spread = Decimal::from_str("0.5").unwrap();
 
-    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
-        &mut router,
-        owner.clone(),
-        staking.clone(),
-        &governance,
-        governance_percent,
-        Some(max_spread),
-    );
+    let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
+        instantiate_contracts(
+            &mut router,
+            owner.clone(),
+            staking.clone(),
+            governance_percent,
+            Some(max_spread),
+        );
 
     let usdc_token_instance = instantiate_token(
         &mut router,
@@ -1480,7 +1502,7 @@ fn collect_with_asset_limit() {
     // Check the governance contract's balance for the ASTRO token
     check_balance(
         &mut router,
-        governance.clone(),
+        governance_instance.clone(),
         astro_token_instance.clone(),
         governance_amount,
     );
@@ -1488,7 +1510,7 @@ fn collect_with_asset_limit() {
     // Check the governance contract's balance for the USDC token
     check_balance(
         &mut router,
-        governance.clone(),
+        governance_instance.clone(),
         usdc_token_instance.clone(),
         Uint128::zero(),
     );
@@ -1496,7 +1518,7 @@ fn collect_with_asset_limit() {
     // Check the governance contract's balance for the test token
     check_balance(
         &mut router,
-        governance.clone(),
+        governance_instance.clone(),
         test_token_instance.clone(),
         Uint128::zero(),
     );
@@ -1574,18 +1596,17 @@ fn distribute_initially_accrued_fees() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
     let staking = Addr::unchecked("staking");
-    let governance = Addr::unchecked("governance");
     let governance_percent = Uint64::new(10);
     let user = Addr::unchecked("user0000");
 
-    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
-        &mut router,
-        owner.clone(),
-        staking.clone(),
-        &governance,
-        governance_percent,
-        None,
-    );
+    let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
+        instantiate_contracts(
+            &mut router,
+            owner.clone(),
+            staking.clone(),
+            governance_percent,
+            None,
+        );
 
     let usdc_token_instance = instantiate_token(
         &mut router,
@@ -1780,7 +1801,7 @@ fn distribute_initially_accrued_fees() {
         maker: maker_instance.clone(),
         astro_token: astro_token_instance.clone(),
         governance_percent,
-        governance,
+        governance: governance_instance,
         staking,
     };
     checker.check(&mut router, 0);
