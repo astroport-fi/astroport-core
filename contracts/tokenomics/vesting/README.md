@@ -1,19 +1,18 @@
-# Astroport Vesting
+# Astroport Generator Vesting
 
-The vesting contract performs ASTRO token distribution (tokenomic based on it). The maximum supply of ASTRO tokens will be 1 billion. The token allocations for liquidity providers (LPs) is 60%. 20% of these tokens will be distributed during the first year and each next year will decrease by 20%.
-
-README has updated with new messages (Astroport v1 messages follow).
+The Generator Vesting contract progressively unlocks ASTRO that can then be distributed to LP stakers via the Generator contract.
 
 ---
 
 ## InstantiateMsg
+
+Initializes the contract with the address of the ASTRO token.
 
 ```json
 {
   "token_addr": "terra..."
 }
 ```
-
 
 ### `receive`
 
@@ -31,9 +30,10 @@ CW20 receive msg.
 
 #### `RegisterVestingAccounts`
 
-Registers account vesting schedules for future token distributions.
+Creates vesting schedules for the ASTRO token. Each vesting token should have the Generator contract address as the `VestingContractAddress`. Also, each schedule will unlock tokens at a different rate according to its time duration.
 
-Execute this message by the ASTRO token contract address for future token distributions.
+Execute this message by calling the ASTRO token contract address.
+
 ```json
 {
   "send": {
@@ -44,7 +44,8 @@ Execute this message by the ASTRO token contract address for future token distri
 }
 ```
 
-In send.msg, you may decode this JSON string into base64 encoding.
+In `send.msg`, you may encode this JSON string into base64 encoding.
+
 ```json
 {
   "RegisterVestingAccounts": {
@@ -69,7 +70,7 @@ In send.msg, you may decode this JSON string into base64 encoding.
 
 ### `claim`
 
-Claims the amount from Vesting for transfer to the recipient. Fields are optional.
+Transfer vested tokens from all vesting schedules that have the same `VestingContractAddress` (address that's vesting tokens).
 
 ```json
 {
@@ -86,7 +87,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `config`
 
-Returns the vesting token contract address
+Returns the vesting token contract address (the ASTRO token address).
 
 ```json
 {
@@ -96,7 +97,7 @@ Returns the vesting token contract address
 
 ### `vesting_account`
 
-Gives vesting schedules for specified account.
+Returns all vesting schedules with their details for a specific vesting recipient.
 
 ```json
 {
@@ -108,7 +109,7 @@ Gives vesting schedules for specified account.
 
 ### `vesting_accounts`
 
-Gives paginated vesting schedules using specified parameters. Given fields are optional.
+Returns a paginated list of vesting schedules in chronological order. Given fields are optional.
 
 ```json
 {
@@ -124,7 +125,7 @@ Gives paginated vesting schedules using specified parameters. Given fields are o
 
 ### `available amount`
 
-Returns the available amount for specified account.
+Returns the claimable amount (vested but not yet claimed) of ASTRO tokens that a vesting target can claim.
 
 ```json
 {

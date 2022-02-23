@@ -127,14 +127,15 @@ pub enum ExecuteMsg {
     /// Only the newly proposed owner can execute this
     ClaimOwnership {},
     /// ## Description
-    /// Add or remove proxy contract that can interact with the Generator
+    /// Add or remove a proxy contract that can interact with the Generator
     UpdateAllowedProxies {
         /// Allowed proxy contract
         add: Option<Vec<String>>,
+        // Proxy contracts to remove
         remove: Option<Vec<String>>,
     },
     /// ## Description
-    /// Sets a proxy for the pool
+    /// Sets a new proxy contract for a specific generator
     MoveToProxy { lp_token: String, proxy: String },
 }
 
@@ -158,6 +159,12 @@ pub enum QueryMsg {
     PoolInfo { lp_token: String },
     /// SimulateFutureReward returns the amount of ASTRO that will be distributed until a future block and for a specific generator
     SimulateFutureReward { lp_token: String, future_block: u64 },
+    /// Returns a list of stakers for certain generator
+    PoolStakers {
+        lp_token: String,
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
 }
 
 /// ## Description
@@ -252,4 +259,10 @@ pub enum Cw20HookMsg {
     Deposit {},
     /// DepositFor performs a token deposit on behalf of another address that's not the message sender.
     DepositFor(Addr),
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+pub struct StakerResponse {
+    pub account: String,
+    pub amount: Uint128,
 }

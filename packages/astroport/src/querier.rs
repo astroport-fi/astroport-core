@@ -18,9 +18,9 @@ const NATIVE_TOKEN_PRECISION: u8 = 6;
 /// ## Description
 /// Returns a native token's balance for a specific account.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
-/// * **account_addr** is the object of type [`Addr`].
+/// * **account_addr** is an object of type [`Addr`].
 ///
 /// * **denom** is an object of type [`String`] used to specify the denomination used to return the balance (e.g uluna).
 pub fn query_balance(
@@ -38,7 +38,7 @@ pub fn query_balance(
 /// ## Description
 /// Returns the total balances for all coins at a specified account address.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **account_addr** is an object of type [`Addr`] which is the address for which we query balances.
 pub fn query_all_balances(querier: &QuerierWrapper, account_addr: Addr) -> StdResult<Vec<Coin>> {
@@ -52,7 +52,7 @@ pub fn query_all_balances(querier: &QuerierWrapper, account_addr: Addr) -> StdRe
 /// ## Description
 /// Returns a token balance for an account.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **contract_addr** is an object of type [`Addr`]. This is the token contract for which we return a balance.
 ///
@@ -80,7 +80,7 @@ pub fn query_token_balance(
 /// ## Description
 /// Returns a token's symbol.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **contract_addr** is an object of type [`Addr`] which is the token contract address.
 pub fn query_token_symbol(querier: &QuerierWrapper, contract_addr: Addr) -> StdResult<String> {
@@ -95,7 +95,7 @@ pub fn query_token_symbol(querier: &QuerierWrapper, contract_addr: Addr) -> StdR
 /// ## Description
 /// Returns the total supply of a specific token.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **contract_addr** is an object of type [`Addr`] which is the token contract address.
 pub fn query_supply(querier: &QuerierWrapper, contract_addr: Addr) -> StdResult<Uint128> {
@@ -110,9 +110,9 @@ pub fn query_supply(querier: &QuerierWrapper, contract_addr: Addr) -> StdResult<
 /// ## Description
 /// Returns the number of decimals that a token has.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
-/// * **asset_info** is the object of type [`AssetInfo`] and contains the asset details for a specific token.
+/// * **asset_info** is an object of type [`AssetInfo`] and contains the asset details for a specific token.
 pub fn query_token_precision(querier: &QuerierWrapper, asset_info: AssetInfo) -> StdResult<u8> {
     Ok(match asset_info {
         AssetInfo::NativeToken { denom: _ } => NATIVE_TOKEN_PRECISION,
@@ -128,7 +128,7 @@ pub fn query_token_precision(querier: &QuerierWrapper, asset_info: AssetInfo) ->
 /// ## Description
 /// Returns the configuration for the factory contract.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **factory_contract** is an object of type [`Addr`] which is the Astroport factory contract address.
 pub fn query_factory_config(
@@ -155,11 +155,11 @@ pub struct FeeInfo {
 /// ## Description
 /// Returns the fee information for a specific pair type.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
-/// * **factory_contract** is the object of type [`Addr`].
+/// * **factory_contract** is an object of type [`Addr`].
 ///
-/// * **pair_type** is the object of type [`PairType`]. This is the pair type we return information for.
+/// * **pair_type** is an object of type [`PairType`]. This is the pair type we return information for.
 pub fn query_fee_info(
     querier: &QuerierWrapper,
     factory_contract: Addr,
@@ -180,7 +180,7 @@ pub fn query_fee_info(
 /// ## Description
 /// Accepts two tokens as input and returns a pair's information.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **factory_contract** is an object of type [`Addr`] and it's the Astroport factory contract address
 ///
@@ -201,7 +201,7 @@ pub fn query_pair_info(
 /// ## Description
 /// Returns a vector that contains items of type [`PairInfo`] which symbolize pairs instantiated in the Astroport factory
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **factory_contract** is an object of type [`Addr`] and represents the Astroport factory contract address.
 ///
@@ -223,7 +223,7 @@ pub fn query_pairs_info(
 /// ## Description
 /// Returns information about a swap simulation using a [`SimulationResponse`] object.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **pair_contract** is an object of type [`Addr`] and represents the address of the pair for which we return swap simulation info.
 ///
@@ -244,7 +244,7 @@ pub fn simulate(
 /// ## Description
 /// Returns information about a reverse swap simulation using a [`ReverseSimulationResponse`] object.
 /// ## Params
-/// * **querier** is the object of type [`QuerierWrapper`].
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **pair_contract** is an object of type [`Addr`] and represents the address of the pair for which we return swap simulation info.
 ///

@@ -21,7 +21,7 @@ pub enum ContractError {
     #[error("Invalid bridge destination. {0} cannot be swapped to ASTRO")]
     InvalidBridgeDestination(AssetInfo),
 
-    #[error("Max bridge depth {0} is reached")]
+    #[error("Max bridge length of {0} was reached")]
     MaxBridgeDepth(u64),
 
     #[error("Cannot swap {0}. No swap destinations")]

@@ -15,7 +15,7 @@ use crate::error::ContractError;
 use crate::state::{AdminList, ADMIN_LIST};
 use astroport::whitelist::{AdminListResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 
-// version info for migration info
+// Version info for contract migration.
 const CONTRACT_NAME: &str = "astroport-cw1-whitelist";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -44,7 +44,7 @@ pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    // Note: implement this function with different type to add support for custom messages
+    // Note: implement this function with different types to add support for custom messages
     // and then import the rest of this contract code.
     msg: ExecuteMsg<Empty>,
 ) -> Result<Response<Empty>, ContractError> {

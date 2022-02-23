@@ -6,6 +6,7 @@ use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_maker::utils::{ULUNA_DENOM, UUSD_DENOM};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
     attr, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
@@ -113,33 +114,6 @@ fn instantiate_contracts(
             &msg,
             &[],
             String::from("FACTORY"),
-            None,
-        )
-        .unwrap();
-
-    let escrow_fee_distributor_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_escrow_fee_distributor::contract::execute,
-        astroport_escrow_fee_distributor::contract::instantiate,
-        astroport_escrow_fee_distributor::contract::query,
-    ));
-
-    let escrow_fee_distributor_code_id = router.store_code(escrow_fee_distributor_contract);
-
-    let init_msg = astroport_governance::escrow_fee_distributor::InstantiateMsg {
-        owner: owner.to_string(),
-        astro_token: astro_token_instance.to_string(),
-        voting_escrow_addr: "voting".to_string(),
-        emergency_return_addr: owner.to_string(),
-        start_time: 0,
-    };
-
-    let governance_instance = router
-        .instantiate_contract(
-            escrow_fee_distributor_code_id,
-            owner.clone(),
-            &init_msg,
-            &[],
-            "Astroport escrow fee distributor",
             None,
         )
         .unwrap();
@@ -485,11 +459,144 @@ fn update_config() {
     assert_eq!(res.governance_contract, None);
 }
 
+fn test_maker_collect(
+    mut router: TerraApp,
+    owner: Addr,
+    factory_instance: Addr,
+    maker_instance: Addr,
+    staking: Addr,
+    governance: Addr,
+    governance_percent: Uint64,
+    pairs: Vec<[Asset; 2]>,
+    assets: Vec<AssetWithLimit>,
+    bridges: Vec<(AssetInfo, AssetInfo)>,
+    mint_balances: Vec<(Addr, u128)>,
+    native_balances: Vec<Coin>,
+    expected_balances: Vec<Asset>,
+    collected_balances: Vec<(Addr, u128)>,
+) {
+    let user = Addr::unchecked("user0000");
+
+    // Create pairs
+    for t in pairs {
+        create_pair(
+            &mut router,
+            owner.clone(),
+            user.clone(),
+            &factory_instance,
+            t,
+        );
+    }
+
+    // Setup bridge to withdraw USDC via USDC -> TEST -> UUSD -> ASTRO route
+    router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::UpdateBridges {
+                add: Some(bridges),
+                remove: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+    // enable rewards distribution
+    router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::EnableRewards { blocks: 1 },
+            &[],
+        )
+        .unwrap();
+
+    // Mint all tokens for maker
+    for t in mint_balances {
+        let (token, amount) = t;
+        mint_some_token(
+            &mut router,
+            owner.clone(),
+            token.clone(),
+            maker_instance.clone(),
+            Uint128::from(amount),
+        );
+
+        // Check initial balance
+        check_balance(
+            &mut router,
+            maker_instance.clone(),
+            token,
+            Uint128::from(amount),
+        );
+    }
+
+    router
+        .init_bank_balance(&maker_instance, native_balances)
+        .unwrap();
+
+    let balances_resp: BalancesResponse = router
+        .wrap()
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: maker_instance.to_string(),
+            msg: to_binary(&QueryMsg::Balances {
+                assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
+            })
+            .unwrap(),
+        }))
+        .unwrap();
+
+    for b in expected_balances {
+        let found = balances_resp
+            .balances
+            .iter()
+            .find(|n| n.info.equal(&b.info))
+            .unwrap();
+
+        assert_eq!(found, &b);
+    }
+
+    router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect { assets },
+            &[],
+        )
+        .unwrap();
+
+    for t in collected_balances {
+        let (token, amount) = t;
+
+        // Check maker balance
+        check_balance(
+            &mut router,
+            maker_instance.clone(),
+            token.clone(),
+            Uint128::zero(),
+        );
+
+        // Check balances
+        let amount = Uint128::new(amount);
+        let governance_amount =
+            amount.multiply_ratio(Uint128::from(governance_percent), Uint128::new(100));
+        let staking_amount = amount - governance_amount;
+
+        check_balance(
+            &mut router,
+            governance.clone(),
+            token.clone(),
+            governance_amount,
+        );
+
+        check_balance(&mut router, staking.clone(), token, staking_amount);
+    }
+}
+
 #[test]
 fn collect_all() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
-    let user = Addr::unchecked("user0000");
     let staking = Addr::unchecked("staking");
     let governance_percent = Uint64::new(10);
     let max_spread = Decimal::from_str("0.5").unwrap();
@@ -524,11 +631,11 @@ fn collect_all() {
         "BRIDGE".to_string(),
     );
 
-    let uusd_asset = String::from("uusd");
-    let uluna_asset = String::from("uluna");
+    let uusd_asset = String::from(UUSD_DENOM);
+    let uluna_asset = String::from(ULUNA_DENOM);
 
     // Create pairs
-    for t in vec![
+    let pairs = vec![
         [
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
@@ -549,17 +656,9 @@ fn collect_all() {
             token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-    ] {
-        create_pair(
-            &mut router,
-            owner.clone(),
-            user.clone(),
-            &factory_instance,
-            t,
-        );
-    }
+    ];
 
-    // set asset to swap
+    // Specify assets to swap
     let assets = vec![
         AssetWithLimit {
             info: native_asset(uusd_asset.clone(), Uint128::zero()).info,
@@ -587,81 +686,37 @@ fn collect_all() {
         },
     ];
 
-    // Setup bridge to withdraw USDC via USDC -> TEST -> UUSD -> ASTRO route
-    router
-        .execute_contract(
-            owner.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::UpdateBridges {
-                add: Some(vec![
-                    (
-                        token_asset_info(test_token_instance.clone()),
-                        token_asset_info(bridge2_token_instance.clone()),
-                    ),
-                    (
-                        token_asset_info(usdc_token_instance.clone()),
-                        token_asset_info(test_token_instance.clone()),
-                    ),
-                    (
-                        native_asset_info(uluna_asset.clone()),
-                        native_asset_info(uusd_asset.clone()),
-                    ),
-                ]),
-                remove: None,
-            },
-            &[],
-        )
-        .unwrap();
+    let bridges = vec![
+        (
+            token_asset_info(test_token_instance.clone()),
+            token_asset_info(bridge2_token_instance.clone()),
+        ),
+        (
+            token_asset_info(usdc_token_instance.clone()),
+            token_asset_info(test_token_instance.clone()),
+        ),
+        (
+            native_asset_info(uluna_asset.clone()),
+            native_asset_info(uusd_asset.clone()),
+        ),
+    ];
 
-    // enable rewards distribution
-    router
-        .execute_contract(
-            owner.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::EnableRewards { blocks: 1 },
-            &[],
-        )
-        .unwrap();
-
-    // Mint all tokens for maker
-    for t in vec![
+    let mint_balances = vec![
         (astro_token_instance.clone(), 10u128),
         (usdc_token_instance.clone(), 20u128),
         (test_token_instance.clone(), 30u128),
-    ] {
-        let (token, amount) = t;
-        mint_some_token(
-            &mut router,
-            owner.clone(),
-            token.clone(),
-            maker_instance.clone(),
-            Uint128::from(amount),
-        );
+    ];
 
-        // Check initial balance
-        check_balance(
-            &mut router,
-            maker_instance.clone(),
-            token,
-            Uint128::from(amount),
-        );
-    }
-
-    router
-        .init_bank_balance(
-            &maker_instance,
-            vec![
-                Coin {
-                    denom: uusd_asset.clone(),
-                    amount: Uint128::new(100),
-                },
-                Coin {
-                    denom: uluna_asset.clone(),
-                    amount: Uint128::new(110),
-                },
-            ],
-        )
-        .unwrap();
+    let native_balances = vec![
+        Coin {
+            denom: uusd_asset.clone(),
+            amount: Uint128::new(100),
+        },
+        Coin {
+            denom: uluna_asset.clone(),
+            amount: Uint128::new(110),
+        },
+    ];
 
     let expected_balances = vec![
         native_asset(uusd_asset.clone(), Uint128::new(100)),
@@ -671,37 +726,7 @@ fn collect_all() {
         token_asset(test_token_instance.clone(), Uint128::new(30)),
     ];
 
-    let balances_resp: BalancesResponse = router
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: maker_instance.to_string(),
-            msg: to_binary(&QueryMsg::Balances {
-                assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
-            })
-            .unwrap(),
-        }))
-        .unwrap();
-
-    for b in expected_balances {
-        let found = balances_resp
-            .balances
-            .iter()
-            .find(|n| n.info.equal(&b.info))
-            .unwrap();
-
-        assert_eq!(found, &b);
-    }
-
-    router
-        .execute_contract(
-            Addr::unchecked("anyone"),
-            maker_instance.clone(),
-            &ExecuteMsg::Collect { assets },
-            &[],
-        )
-        .unwrap();
-
-    for t in vec![
+    let collected_balances = vec![
         // 218 ASTRO = 10 ASTRO +
         // 84 ASTRO (100 uusd - 15 tax -> 85 - 1 fee) +
         // 79 ASTRO (110 uluna - 0 tax -> 110 uusd - 1 fee - 16 tax -> 93 - 13 tax - 1 fee) +
@@ -710,32 +735,154 @@ fn collect_all() {
         (astro_token_instance.clone(), 218u128),
         (usdc_token_instance.clone(), 0u128),
         (test_token_instance.clone(), 0u128),
-    ] {
-        let (token, amount) = t;
+    ];
 
-        // Check maker balance
-        check_balance(
-            &mut router,
-            maker_instance.clone(),
-            token.clone(),
-            Uint128::zero(),
-        );
+    test_maker_collect(
+        router,
+        owner,
+        factory_instance,
+        maker_instance,
+        staking,
+        governance,
+        governance_percent,
+        pairs,
+        assets,
+        bridges,
+        mint_balances,
+        native_balances,
+        expected_balances,
+        collected_balances,
+    );
+}
 
-        // Check balances
-        let amount = Uint128::new(amount);
-        let governance_amount =
-            amount.multiply_ratio(Uint128::from(governance_percent), Uint128::new(100));
-        let staking_amount = amount - governance_amount;
+#[test]
+fn collect_default_bridges() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+    let staking = Addr::unchecked("staking");
+    let governance = Addr::unchecked("governance");
+    let governance_percent = Uint64::new(10);
+    let max_spread = Decimal::from_str("0.5").unwrap();
 
-        check_balance(
-            &mut router,
-            governance_instance.clone(),
-            token.clone(),
-            governance_amount,
-        );
+    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
+        &mut router,
+        owner.clone(),
+        staking.clone(),
+        &governance,
+        governance_percent,
+        Some(max_spread),
+    );
 
-        check_balance(&mut router, staking.clone(), token, staking_amount);
-    }
+    let bridge_uusd_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Bridge uusd token".to_string(),
+        "BRIDGE-UUSD".to_string(),
+    );
+
+    let bridge_uluna_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Bridge uluna token".to_string(),
+        "BRIDGE-ULUNA".to_string(),
+    );
+    check_balance(
+        &mut router,
+        governance_instance.clone(),
+        token.clone(),
+        governance_amount,
+    );
+
+    let uusd_asset = String::from(UUSD_DENOM);
+    let uluna_asset = String::from(ULUNA_DENOM);
+
+    // Create pairs
+    let pairs = vec![
+        [
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+            token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            token_asset(
+                bridge_uusd_token_instance.clone(),
+                Uint128::from(100_000_u128),
+            ),
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            token_asset(
+                bridge_uluna_token_instance.clone(),
+                Uint128::from(100_000_u128),
+            ),
+            native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
+        ],
+    ];
+
+    // set asset to swap
+    let assets = vec![
+        AssetWithLimit {
+            info: token_asset(bridge_uusd_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+        AssetWithLimit {
+            info: token_asset(bridge_uluna_token_instance.clone(), Uint128::zero()).info,
+            limit: None,
+        },
+    ];
+
+    // No need bridges for this
+    let bridges = vec![];
+
+    let mint_balances = vec![
+        (bridge_uusd_token_instance.clone(), 100u128),
+        (bridge_uluna_token_instance.clone(), 200u128),
+    ];
+
+    let native_balances = vec![];
+
+    let expected_balances = vec![
+        token_asset(bridge_uusd_token_instance.clone(), Uint128::new(100)),
+        token_asset(bridge_uluna_token_instance.clone(), Uint128::new(200)),
+    ];
+
+    let collected_balances = vec![
+        // 1.
+        // 100 uusd-bridge -> 99 uusd (-15 native transfer fee from swap) -> 84 uusd
+        // 200 uluna-bridge -1 fee -> 199 uluna
+
+        // 2.
+        // 84 uusd (-12 native transfer fee) - 1 fee -> 71 ASTRO
+        // 119 uluna -1 fee -> 198 uusd (-28 native transfer fee from swap) -> 170 uusd
+
+        // 3.
+        // 170 uusd (-25 native transfer fee) -> 145 uusd -> 144 ASTRO
+
+        // Total: 25
+        (astro_token_instance, 215u128),
+        // (bridge_uusd_token_instance, 0u128),
+        // (bridge_uluna_token_instance, 0u128),
+    ];
+
+    test_maker_collect(
+        router,
+        owner,
+        factory_instance,
+        maker_instance,
+        staking,
+        governance,
+        governance_percent,
+        pairs,
+        assets,
+        bridges,
+        mint_balances,
+        native_balances,
+        expected_balances,
+        collected_balances,
+    );
 }
 
 #[test]
@@ -814,7 +961,7 @@ fn collect_maxdepth_test() {
         pair_addresses.push(pair_info.contract_addr);
     }
 
-    // Setup bridge to withdraw USDC via USDC -> TEST -> UUSD -> ASTRO route
+    // Setup bridge to withdraw USDC via the USDC -> TEST -> UUSD -> ASTRO route
     let err = router
         .execute_contract(
             owner.clone(),
@@ -844,7 +991,7 @@ fn collect_maxdepth_test() {
         )
         .unwrap_err();
 
-    assert_eq!(err.to_string(), "Max bridge depth 2 is reached")
+    assert_eq!(err.to_string(), "Max bridge length of 2 was reached")
 }
 
 #[test]
@@ -853,6 +1000,7 @@ fn collect_err_no_swap_pair() {
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
     let staking = Addr::unchecked("staking");
+    let governance = Addr::unchecked("governance");
     let governance_percent = Uint64::new(50);
 
     let (astro_token_instance, factory_instance, maker_instance, _) = instantiate_contracts(
@@ -865,16 +1013,26 @@ fn collect_err_no_swap_pair() {
 
     let uusd_asset = String::from("uusd");
     let uluna_asset = String::from("uluna");
+    let ukrt_asset = String::from("ukrt");
+    let uabc_asset = String::from("uabc");
 
-    // Mint all tokens for maker
+    // Mint all tokens for Maker
     for t in vec![
         [
-            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+            native_asset(ukrt_asset.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
         [
-            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+            native_asset(ukrt_asset.clone(), Uint128::from(100_000_u128)),
+            native_asset(uabc_asset.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
             native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+            token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
     ] {
         create_pair(
@@ -886,10 +1044,10 @@ fn collect_err_no_swap_pair() {
         );
     }
 
-    // set asset to swap
+    // Set the assets to swap
     let assets = vec![
         AssetWithLimit {
-            info: native_asset(uusd_asset.clone(), Uint128::zero()).info,
+            info: native_asset(ukrt_asset.clone(), Uint128::zero()).info,
             limit: None,
         },
         AssetWithLimit {
@@ -897,12 +1055,12 @@ fn collect_err_no_swap_pair() {
             limit: None,
         },
         AssetWithLimit {
-            info: native_asset(uluna_asset.clone(), Uint128::zero()).info,
+            info: native_asset(uabc_asset.clone(), Uint128::zero()).info,
             limit: None,
         },
     ];
 
-    // Mint all tokens for maker
+    // Mint all tokens for the Maker
     for t in vec![(astro_token_instance.clone(), 10u128)] {
         let (token, amount) = t;
         mint_some_token(
@@ -927,11 +1085,11 @@ fn collect_err_no_swap_pair() {
             &maker_instance,
             vec![
                 Coin {
-                    denom: uusd_asset,
+                    denom: ukrt_asset,
                     amount: Uint128::new(20),
                 },
                 Coin {
-                    denom: uluna_asset,
+                    denom: uabc_asset,
                     amount: Uint128::new(30),
                 },
             ],
@@ -944,7 +1102,7 @@ fn collect_err_no_swap_pair() {
         .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
         .unwrap_err();
 
-    assert_eq!(e.to_string(), "Cannot swap uluna. No swap destinations",);
+    assert_eq!(e.to_string(), "Cannot swap uabc. No swap destinations",);
 }
 
 #[test]
@@ -978,13 +1136,13 @@ fn update_bridges() {
         remove: None,
     };
 
-    // unauthorized check
+    // Unauthorized check
     let err = router
         .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(err.to_string(), "Unauthorized");
 
-    // add bridges
+    // Add bridges
     let err = router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
         .unwrap_err();
@@ -1013,7 +1171,7 @@ fn update_bridges() {
         );
     }
 
-    // add bridges
+    // Add bridges
     let err = router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
         .unwrap_err();
@@ -1034,7 +1192,7 @@ fn update_bridges() {
         ],
     );
 
-    // add bridges
+    // Add bridges
     router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
         .unwrap();
@@ -1060,7 +1218,7 @@ fn update_bridges() {
         add: None,
     };
 
-    // remove bridges
+    // Remove bridges
     router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
         .unwrap();
@@ -1082,17 +1240,18 @@ fn collect_with_asset_limit() {
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
     let staking = Addr::unchecked("staking");
+    let governance = Addr::unchecked("governance");
     let governance_percent = Uint64::new(10);
     let max_spread = Decimal::from_str("0.5").unwrap();
 
-    let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
-        instantiate_contracts(
-            &mut router,
-            owner.clone(),
-            staking.clone(),
-            governance_percent,
-            Some(max_spread),
-        );
+    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
+        &mut router,
+        owner.clone(),
+        staking.clone(),
+        &governance,
+        governance_percent,
+        Some(max_spread),
+    );
 
     let usdc_token_instance = instantiate_token(
         &mut router,
@@ -1115,11 +1274,22 @@ fn collect_with_asset_limit() {
         "BRIDGE".to_string(),
     );
 
+    let uusd_asset = String::from("uusd");
+    let uluna_asset = String::from("uluna");
+
     // Create pairs
     for t in vec![
         [
             token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+        ],
+        [
+            native_asset(uluna_asset, Uint128::from(100_000_u128)),
+            native_asset(uusd_asset, Uint128::from(100_000_u128)),
         ],
         [
             token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
@@ -1139,7 +1309,7 @@ fn collect_with_asset_limit() {
         );
     }
 
-    // set asset with duplicate
+    // Make a list with duplicate assets
     let assets_with_duplicate = vec![
         AssetWithLimit {
             info: token_asset(usdc_token_instance.clone(), Uint128::zero()).info,
@@ -1151,7 +1321,7 @@ fn collect_with_asset_limit() {
         },
     ];
 
-    // set asset to swap
+    // Set assets to swap
     let assets = vec![
         AssetWithLimit {
             info: token_asset(astro_token_instance.clone(), Uint128::zero()).info,
@@ -1171,7 +1341,7 @@ fn collect_with_asset_limit() {
         },
     ];
 
-    // Setup bridge to withdraw USDC via USDC -> TEST -> UUSD -> ASTRO route
+    // Setup bridge to withdraw USDC via the USDC -> TEST -> UUSD -> ASTRO route
     router
         .execute_contract(
             owner.clone(),
@@ -1193,7 +1363,7 @@ fn collect_with_asset_limit() {
         )
         .unwrap();
 
-    // enable rewards distribution
+    // Enable rewards distribution
     router
         .execute_contract(
             owner.clone(),
@@ -1203,7 +1373,7 @@ fn collect_with_asset_limit() {
         )
         .unwrap();
 
-    // Mint all tokens for maker
+    // Mint all tokens for Maker
     for t in vec![
         (astro_token_instance.clone(), 10u128),
         (usdc_token_instance.clone(), 20u128),
@@ -1277,7 +1447,7 @@ fn collect_with_asset_limit() {
         )
         .unwrap();
 
-    // Check maker balance for astro token
+    // Check Maker's balance of ASTRO tokens
     check_balance(
         &mut router,
         maker_instance.clone(),
@@ -1285,7 +1455,7 @@ fn collect_with_asset_limit() {
         Uint128::zero(),
     );
 
-    // Check maker balance for usdc token
+    // Check Maker's balance of USDC tokens
     check_balance(
         &mut router,
         maker_instance.clone(),
@@ -1293,7 +1463,7 @@ fn collect_with_asset_limit() {
         Uint128::new(15u128),
     );
 
-    // Check maker balance for test token
+    // Check Maker's balance of test tokens
     check_balance(
         &mut router,
         maker_instance.clone(),
@@ -1302,7 +1472,7 @@ fn collect_with_asset_limit() {
     );
 
     // Check balances
-    // We are loosing 1 ASTRO in fees per swap
+    // We are losing 1 ASTRO in fees per swap
     // 40 ASTRO = 10 astro +
     // 2 usdc (5 - fee for 3 swaps)
     // 28 test (30 - fee for 2 swaps)
@@ -1311,31 +1481,31 @@ fn collect_with_asset_limit() {
         amount.multiply_ratio(Uint128::from(governance_percent), Uint128::new(100));
     let staking_amount = amount - governance_amount;
 
-    // check governance balance for astro token
+    // Check the governance contract's balance for the ASTRO token
     check_balance(
         &mut router,
-        governance_instance.clone(),
+        governance.clone(),
         astro_token_instance.clone(),
         governance_amount,
     );
 
-    // check governance balance for usdc token
+    // Check the governance contract's balance for the USDC token
     check_balance(
         &mut router,
-        governance_instance.clone(),
+        governance.clone(),
         usdc_token_instance.clone(),
         Uint128::zero(),
     );
 
-    // check governance balance for test token
+    // Check the governance contract's balance for the test token
     check_balance(
         &mut router,
-        governance_instance.clone(),
+        governance.clone(),
         test_token_instance.clone(),
         Uint128::zero(),
     );
 
-    // check staking balance for astro token
+    // Check the staking contract's balance for the ASTRO token
     check_balance(
         &mut router,
         staking.clone(),
@@ -1343,7 +1513,7 @@ fn collect_with_asset_limit() {
         staking_amount,
     );
 
-    // check staking balance for usdc token
+    // Check the staking contract's balance for the USDC token
     check_balance(
         &mut router,
         staking.clone(),
@@ -1351,7 +1521,7 @@ fn collect_with_asset_limit() {
         Uint128::zero(),
     );
 
-    // check staking balance for test token
+    // Check the staking contract's balance for the test token
     check_balance(
         &mut router,
         staking.clone(),
@@ -1408,17 +1578,18 @@ fn distribute_initially_accrued_fees() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
     let staking = Addr::unchecked("staking");
+    let governance = Addr::unchecked("governance");
     let governance_percent = Uint64::new(10);
     let user = Addr::unchecked("user0000");
 
-    let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
-        instantiate_contracts(
-            &mut router,
-            owner.clone(),
-            staking.clone(),
-            governance_percent,
-            None,
-        );
+    let (astro_token_instance, factory_instance, maker_instance) = instantiate_contracts(
+        &mut router,
+        owner.clone(),
+        staking.clone(),
+        &governance,
+        governance_percent,
+        None,
+    );
 
     let usdc_token_instance = instantiate_token(
         &mut router,
@@ -1476,7 +1647,7 @@ fn distribute_initially_accrued_fees() {
         );
     }
 
-    // set asset to swap
+    // Set assets to swap
     let assets = vec![
         AssetWithLimit {
             info: native_asset(uusd_asset.clone(), Uint128::zero()).info,
@@ -1504,7 +1675,7 @@ fn distribute_initially_accrued_fees() {
         },
     ];
 
-    // Setup bridge to withdraw USDC via USDC -> TEST -> UUSD -> ASTRO route
+    // Setup bridge to withdraw USDC via the USDC -> TEST -> UUSD -> ASTRO route
     router
         .execute_contract(
             owner.clone(),
@@ -1530,7 +1701,7 @@ fn distribute_initially_accrued_fees() {
         )
         .unwrap();
 
-    // Mint all tokens for maker
+    // Mint all tokens for Maker
     for t in vec![
         (astro_token_instance.clone(), 10u128),
         (usdc_token_instance, 20u128),
@@ -1570,7 +1741,7 @@ fn distribute_initially_accrued_fees() {
         )
         .unwrap();
 
-    // unauthorized check
+    // Unauthorized check
     let err = router
         .execute_contract(
             user.clone(),
@@ -1581,7 +1752,7 @@ fn distribute_initially_accrued_fees() {
         .unwrap_err();
     assert_eq!(err.to_string(), "Unauthorized");
 
-    // check pre_update_blocks = 0
+    // Check pre_update_blocks = 0
     let err = router
         .execute_contract(
             owner.clone(),
@@ -1595,7 +1766,7 @@ fn distribute_initially_accrued_fees() {
         "Generic error: Number of blocks should be > 0"
     );
 
-    // check collect does not distribute until rewards are enabled
+    // Check that collec does not distribute ASTRO until rewards are enabled
     router
         .execute_contract(
             Addr::unchecked("anyone"),
@@ -1605,7 +1776,7 @@ fn distribute_initially_accrued_fees() {
         )
         .unwrap();
 
-    // balances checker
+    // Balances checker
     let mut checker = CheckDistributedAstro {
         maker_amount: Uint128::new(218_u128),
         governance_amount: Uint128::zero(),
@@ -1613,12 +1784,12 @@ fn distribute_initially_accrued_fees() {
         maker: maker_instance.clone(),
         astro_token: astro_token_instance.clone(),
         governance_percent,
-        governance: governance_instance,
+        governance,
         staking,
     };
     checker.check(&mut router, 0);
 
-    // enabling rewards distribution
+    // Enable rewards distribution
     router
         .execute_contract(
             owner.clone(),
@@ -1628,7 +1799,7 @@ fn distribute_initially_accrued_fees() {
         )
         .unwrap();
 
-    // trying to enable again
+    // Try to enable again
     let err = router
         .execute_contract(
             owner.clone(),
@@ -1656,7 +1827,7 @@ fn distribute_initially_accrued_fees() {
         )
         .unwrap();
 
-    // since the block number is the same nothing happened
+    // Since the block number is the same, nothing happened
     checker.check(&mut router, 0);
 
     router.update_block(next_block);
@@ -1674,7 +1845,7 @@ fn distribute_initially_accrued_fees() {
 
     checker.check(&mut router, 21);
 
-    // lets try to collect again within the same block
+    // Let's try to collect again within the same block
     router
         .execute_contract(
             Addr::unchecked("anyone"),
@@ -1686,12 +1857,12 @@ fn distribute_initially_accrued_fees() {
         )
         .unwrap();
 
-    // but no astro were distributed
+    // But no ASTRO were distributed
     checker.check(&mut router, 0);
 
     router.update_block(next_block);
 
-    // imagine that we received new fee while pre-ugrade astro is under distribution
+    // Imagine that we received new fees the while pre-ugrade ASTRO is being distributed
     mint_some_token(
         &mut router,
         owner.clone(),
@@ -1715,7 +1886,7 @@ fn distribute_initially_accrued_fees() {
     // 51 = 30 minted astro + 21 distributed astro
     checker.check(&mut router, 51);
 
-    // checking attributes are set properly
+    // Checking that attributes are set properly
     for (attr, value) in [
         ("astro_distribution", 30_u128),
         ("preupgrade_astro_distribution", 21_u128),
@@ -1728,7 +1899,7 @@ fn distribute_initially_accrued_fees() {
         assert_eq!(a.value, value.to_string());
     }
 
-    // increment 8 blocks
+    // Increment 8 blocks
     for _ in 0..8 {
         router.update_block(next_block);
     }
@@ -1747,7 +1918,7 @@ fn distribute_initially_accrued_fees() {
     // 168 = 21 * 8
     checker.check(&mut router, 168);
 
-    // check reminder reward
+    // Check remainder reward
     let res: ConfigResponse = router
         .wrap()
         .query_wasm_smart(&maker_instance, &QueryMsg::Config {})
@@ -1755,7 +1926,7 @@ fn distribute_initially_accrued_fees() {
 
     assert_eq!(res.remainder_reward.u128(), 8_u128);
 
-    // check remainder reward distribution
+    // Check remainder reward distribution
     router.update_block(next_block);
 
     router
@@ -1771,7 +1942,7 @@ fn distribute_initially_accrued_fees() {
 
     checker.check(&mut router, 8);
 
-    // check pre-upgrade astro was fully distributed
+    // Check that the pre-upgrade ASTRO was fully distributed
     let res: ConfigResponse = router
         .wrap()
         .query_wasm_smart(&maker_instance, &QueryMsg::Config {})
@@ -1780,7 +1951,7 @@ fn distribute_initially_accrued_fees() {
     assert_eq!(res.remainder_reward.u128(), 0_u128);
     assert_eq!(res.pre_upgrade_astro_amount.u128(), 218_u128);
 
-    // check usual collect works
+    // Check usual collecting works
     mint_some_token(
         &mut router,
         owner,
@@ -1801,7 +1972,7 @@ fn distribute_initially_accrued_fees() {
     checker.maker_amount += Uint128::from(115_u128);
     checker.check(&mut router, 115);
 
-    // checking attributes are set properly
+    // Check that attributes are set properly
     let a = resp.events[1]
         .attributes
         .iter()

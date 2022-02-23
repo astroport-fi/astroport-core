@@ -1,14 +1,12 @@
 # Astroport Maker
 
-The maker contract collects pair assets per pool (following to factory's `maker_fee`) tries to swap it to ASTRO and sends to staking and governance (following to `governance_percent`).
-
-README has updated with new messages (Astroport v1 messages follow).
+The Maker contract collects part of Astroport's pair fees (according to the factory's `maker_fee`). The accrued fees are swapped to ASTRO and then send to stakers and governance (according to the `governance_percent`).
 
 ---
 
 ## InstantiateMsg
 
-Inits with required contract addresses and `governance_percent`.
+Initializes the contract with required addresses and the `governance_percent`.
 
 ```json
 {
@@ -26,7 +24,7 @@ Inits with required contract addresses and `governance_percent`.
 
 ### `collect`
 
-Collects astro tokens from the given pairs
+Swaps accrued fee tokens to ASTRO.
 
 ```json
 {
@@ -41,7 +39,7 @@ Collects astro tokens from the given pairs
 
 ### `update_config`
 
-Updates general settings. All fields are optional.
+Updates the contract's general settings. All fields are optional.
 
 ```json
 {
@@ -59,7 +57,7 @@ Updates general settings. All fields are optional.
 
 ### `propose_new_owner`
 
-Creates an offer for a new owner. The validity period of the offer is set in the `expires_in` variable.
+Creates a proposal to change contract ownership. The proposal validity period is set in the `expires_in` variable.
 
 ```json
 {
@@ -72,7 +70,7 @@ Creates an offer for a new owner. The validity period of the offer is set in the
 
 ### `drop_ownership_proposal`
 
-Removes the existing offer for the new owner.
+Removes the existing proposal to change contract ownership.
 
 ```json
 {
@@ -82,7 +80,7 @@ Removes the existing offer for the new owner.
 
 ### `claim_ownership`
 
-Used to claim(approve) new owner proposal, thus changing contract's owner.
+Used to claim contract ownership, thus changing the contract's owner.
 
 ```json
 {
@@ -96,7 +94,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `config`
 
-Returns information about the maker configs.
+Returns information about the Maker's configuration.
 
 ```json
 {
@@ -106,7 +104,7 @@ Returns information about the maker configs.
 
 ### `balances`
 
-Returns the balance for each asset in the specified input parameters
+Returns token balances for each specified asset held by the Maker.
 
 ```json
 {

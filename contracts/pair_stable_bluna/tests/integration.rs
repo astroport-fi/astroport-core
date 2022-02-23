@@ -211,7 +211,7 @@ fn update_pair_config() {
 
     assert_eq!(params.amp, Decimal::from_ratio(100u32, 1u32));
 
-    //Start changing amp with incorrect next amp
+    // Start changing amp with incorrect next amp
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: MAX_AMP + 1,
@@ -253,7 +253,7 @@ fn update_pair_config() {
         )
     );
 
-    //Start changing amp earlier than the MIN_AMP_CHANGING_TIME has elapsed
+    // Start changing AMP earlier than the moment when MIN_AMP_CHANGING_TIME has elapsed
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: 250,
@@ -274,7 +274,7 @@ fn update_pair_config() {
         )
     );
 
-    // Start increasing amp
+    // Start increasing AMP
     router.update_block(|b| {
         b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME);
     });
@@ -317,7 +317,7 @@ fn update_pair_config() {
 
     assert_eq!(params.amp, Decimal::from_ratio(250u32, 1u32));
 
-    // Start decreasing amp
+    // Start decreasing AMP
     router.update_block(|b| {
         b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME);
     });
@@ -347,7 +347,7 @@ fn update_pair_config() {
 
     assert_eq!(params.amp, Decimal::from_ratio(150u32, 1u32));
 
-    // Stop changing amp
+    // Stop changing AMP
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StopChangingAmp {}).unwrap(),
     };
