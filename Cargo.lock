@@ -71,10 +71,10 @@ dependencies = [
 [[package]]
 name = "astroport-escrow-fee-distributor"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/escrow-fee-distributor-contract#f51656e9e67bb69b581e74c5b397d6bafd72ebe6"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#305067771ae8794f5a86a8d2914b5eaab0277f7f"
 dependencies = [
  "astroport 0.3.1",
- "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/escrow-fee-distributor-contract)",
+ "astroport-governance",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2",
@@ -143,19 +143,6 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/escrow-fee-distributor-contract#f51656e9e67bb69b581e74c5b397d6bafd72ebe6"
-dependencies = [
- "cosmwasm-std",
- "cw20",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "uint",
-]
-
-[[package]]
-name = "astroport-governance"
-version = "1.0.0"
 source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#43aa0d45ad28c88864ba00df02cd0f949b5a2050"
 dependencies = [
  "cosmwasm-std",
@@ -173,7 +160,7 @@ dependencies = [
  "astroport 1.2.0",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
- "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
+ "astroport-governance",
  "astroport-pair",
  "astroport-token",
  "cosmwasm-bignumber",
