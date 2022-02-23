@@ -1,6 +1,7 @@
 use astroport::common::OwnershipProposal;
+use astroport::generator::PoolInfo;
 use astroport::DecimalCheckedOps;
-use cosmwasm_std::{Addr, Decimal, StdResult, Storage, Uint128, Uint64};
+use cosmwasm_std::{Addr, StdResult, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -18,31 +19,15 @@ pub struct UserInfo {
 }
 
 /// ## Description
-/// This structure describes the main information of pool
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PoolInfo {
-    /// Allocation point is used to control reward distribution among the pools
-    pub alloc_point: Uint64,
-    /// Accumulated amount of reward per share unit. Used for reward calculations
-    pub last_reward_block: Uint64,
-    pub accumulated_rewards_per_share: Decimal,
-    /// the reward proxy contract
-    pub reward_proxy: Option<Addr>,
-    pub accumulated_proxy_rewards_per_share: Decimal,
-    /// for calculation of new proxy rewards
-    pub proxy_reward_balance_before_update: Uint128,
-    /// the orphan proxy rewards which are left by emergency withdrawals
-    pub orphan_proxy_rewards: Uint128,
-    /// The pool has assets giving additional rewards
-    pub has_asset_rewards: bool,
-}
-
-/// ## Description
 /// This structure describes the main control config of generator.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     /// contract address that used for controls settings
     pub owner: Addr,
+    /// the Factory address
+    pub factory: Addr,
+    /// contract address which can only set active generators and their alloc points
+    pub generator_controller: Addr,
     /// the ASTRO token address
     pub astro_token: Addr,
     /// Total amount of ASTRO rewards per block
@@ -55,36 +40,30 @@ pub struct Config {
     pub allowed_reward_proxies: Vec<Addr>,
     /// The vesting contract from which rewards are distributed
     pub vesting_contract: Addr,
+    /// The list of active pools with allocation points
+    pub active_pools: Vec<(Addr, Uint64)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ExecuteOnReply {
-    /// Updates reward for all pools
-    MassUpdatePools {},
     /// Add a new pool with allocation point
-    Add {
-        /// the LP token contract
-        lp_token: Addr,
-        /// the allocation point for LP token contract
-        alloc_point: Uint64,
-        /// The flag determines whether the pool has its asset related rewards or not
-        has_asset_rewards: bool,
-        /// the reward proxy contract
-        reward_proxy: Option<String>,
+    SetupPools {
+        /// The list of pools with allocation points
+        pools: Vec<(Addr, Uint64)>,
     },
     /// update the given pool's ASTRO allocation point
-    Set {
-        /// the LP token contract
-        lp_token: Addr,
-        /// the allocation point for LP token contract
-        alloc_point: Uint64,
-        /// The flag determines whether the pool has its asset related rewards or not
-        has_asset_rewards: bool,
-    },
-    /// Updates reward variables of the given pool to be up-to-date
     UpdatePool {
         /// the LP token contract
         lp_token: Addr,
+        /// The flag determines whether the pool has its asset related rewards or not
+        has_asset_rewards: bool,
+    },
+    /// Updates reward and returns it to user
+    ClaimRewards {
+        /// the LP token contract
+        lp_token: Addr,
+        /// the rewards recipient
+        account: Addr,
     },
     /// Deposit LP tokens to Generator for ASTRO allocation.
     Deposit {
@@ -130,16 +109,6 @@ pub const USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
 /// ## Description
 /// Contains proposal for change ownership.
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
-
-pub fn get_pools(store: &dyn Storage) -> Vec<(Addr, PoolInfo)> {
-    POOL_INFO
-        .range(store, None, None, cosmwasm_std::Order::Ascending)
-        .filter_map(|v| {
-            v.ok()
-                .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
-        })
-        .collect()
-}
 
 pub fn update_user_balance(
     mut user: UserInfo,

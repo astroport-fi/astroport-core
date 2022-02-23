@@ -9,6 +9,10 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {
     /// Address that can change contract settings
     pub owner: String,
+    /// Address of factory contract
+    pub factory: String,
+    /// Address that can set active generators and their alloc points
+    pub generator_controller: String,
     /// ASTRO token contract address
     pub astro_token: String,
     /// Amount of ASTRO distributed per block among all pairs
@@ -35,35 +39,24 @@ pub enum ExecuteMsg {
     /// ## Description
     /// Add a new generator for a LP token
     /// ## Executor
-    /// Only the owner can execute this
-    Add {
-        /// The LP token contract address
-        lp_token: String,
-        /// The slice of ASTRO emissions this generator gets
-        alloc_point: Uint64,
-        /// This flag determines whether the pool gets 3rd party token rewards
-        has_asset_rewards: bool,
-        /// The address of the 3rd party reward proxy contract
-        reward_proxy: Option<String>,
+    /// Only the owner or generator controller can execute this
+    SetupPools {
+        /// The list of pools with allocation point
+        pools: Vec<(String, Uint64)>,
     },
     /// ## Description
     /// Update the given pool's ASTRO allocation slice
     /// ## Executor
-    /// Only the owner can execute this.
-    Set {
+    /// Only the owner or generator controller can execute this.
+    UpdatePool {
         /// The address of the LP token contract address whose allocation we change
         lp_token: String,
-        /// The new allocation
-        alloc_point: Uint64,
         /// This flag determines whether the pool gets 3rd party token rewards
         has_asset_rewards: bool,
     },
     /// ## Description
-    /// Updates reward variables for multiple pools
-    MassUpdatePools {},
-    /// ## Description
     /// Updates reward variables for a specific pool
-    UpdatePool {
+    ClaimRewards {
         /// the LP token contract address
         lp_token: String,
     },
@@ -135,6 +128,8 @@ pub enum ExecuteMsg {
     },
     /// ## Description
     /// Sets a proxy for the pool
+    /// ## Executor
+    /// Only the current owner or generator controller can execute this
     MoveToProxy { lp_token: String, proxy: String },
 }
 
@@ -176,6 +171,24 @@ pub struct PendingTokenResponse {
     pub pending: Uint128,
     /// The amount of pending 3rd party reward tokens
     pub pending_on_proxy: Option<Uint128>,
+}
+
+/// ## Description
+/// This structure describes the main information of pool
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct PoolInfo {
+    /// Accumulated amount of reward per share unit. Used for reward calculations
+    pub last_reward_block: Uint64,
+    pub accumulated_rewards_per_share: Decimal,
+    /// the reward proxy contract
+    pub reward_proxy: Option<Addr>,
+    pub accumulated_proxy_rewards_per_share: Decimal,
+    /// for calculation of new proxy rewards
+    pub proxy_reward_balance_before_update: Uint128,
+    /// the orphan proxy rewards which are left by emergency withdrawals
+    pub orphan_proxy_rewards: Uint128,
+    /// The pool has assets giving additional rewards
+    pub has_asset_rewards: bool,
 }
 
 /// ## Description
@@ -224,6 +237,10 @@ pub struct PoolInfoResponse {
 pub struct ConfigResponse {
     /// Address that's allowed to change contract parameters
     pub owner: Addr,
+    /// the Factory address
+    pub factory: Addr,
+    /// contract address which can only set active generators and their alloc points
+    pub generator_controller: Addr,
     /// ASTRO token contract address
     pub astro_token: Addr,
     /// Total amount of ASTRO distributed per block
@@ -236,6 +253,8 @@ pub struct ConfigResponse {
     pub allowed_reward_proxies: Vec<Addr>,
     /// The ASTRO vesting contract address
     pub vesting_contract: Addr,
+    /// The list of active pools with allocation points
+    pub active_pools: Vec<(Addr, Uint64)>,
 }
 
 /// ## Description

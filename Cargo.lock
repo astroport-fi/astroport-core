@@ -78,7 +78,9 @@ name = "astroport-generator"
 version = "1.1.0"
 dependencies = [
  "astroport",
+ "astroport-factory",
  "astroport-generator-proxy-to-mirror",
+ "astroport-pair",
  "astroport-token",
  "astroport-vesting",
  "cosmwasm-schema",
