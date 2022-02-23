@@ -5,21 +5,21 @@ use cosmwasm_std::Addr;
 use cw_storage_plus::Item;
 
 /// ## Description
-/// This structure describes the main controls configs of generator_proxy_to_mirror contract.
+/// This structure holds the main parameters for the of generator_proxy_to_mirror contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// the generator contract address
+    /// The generator contract address
     pub generator_contract_addr: Addr,
-    /// the pair contract address
+    /// The Astroport pair contract address
     pub pair_addr: Addr,
-    /// the contract address for liquidity pool token
+    /// The contract address for the Astroport MIR LP token
     pub lp_token_addr: Addr,
-    /// the reward contract address
+    /// The 3rd party reward contract address
     pub reward_contract_addr: Addr,
-    /// the reward token contract address
+    /// The reward token contract address
     pub reward_token_addr: Addr,
 }
 
 /// ## Description
-/// Stores config at the given key
+/// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");

@@ -7,36 +7,36 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// ## Description
-/// This structure describes the main information of each user
+/// This structure stores the outstanding amount of token rewards that a user accrued.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct UserInfo {
-    /// An amount
+    /// The amount of LP tokens staked
     pub amount: Uint128,
-    /// A reward amount user already received or is not eligible for, used for proper reward calculation
+    /// The amount of ASTRO rewards a user already received or is not eligible for; used for proper reward calculation
     pub reward_debt: Uint128,
-    /// Proxy reward amount user already received or is not eligible for, used for proper reward calculation
+    /// Proxy reward amount a user already received or is not eligible for; used for proper reward calculation
     pub reward_debt_proxy: Uint128,
 }
 
 /// ## Description
-/// This structure describes the main control config of generator.
+/// This structure stores the core parameters for the Generator contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// contract address that used for controls settings
+    /// Address allowed to change contract parameters
     pub owner: Addr,
     /// the Factory address
     pub factory: Addr,
     /// contract address which can only set active generators and their alloc points
     pub generator_controller: Addr,
-    /// the ASTRO token address
+    /// The ASTRO token address
     pub astro_token: Addr,
     /// Total amount of ASTRO rewards per block
     pub tokens_per_block: Uint128,
-    /// the total allocation points. Must be the sum of all allocation points in all pools.
+    /// Total allocation points. Must be the sum of all allocation points in all active generators
     pub total_alloc_point: Uint64,
-    /// the block number when ASTRO mining starts.
+    /// The block number when the ASTRO distribution starts
     pub start_block: Uint64,
-    /// the list of allowed reward proxy contracts
+    /// The list of allowed proxy reward contracts
     pub allowed_reward_proxies: Vec<Addr>,
     /// The vesting contract from which rewards are distributed
     pub vesting_contract: Addr,
@@ -46,7 +46,7 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ExecuteOnReply {
-    /// Add a new pool with allocation point
+    /// Add a new pools with allocation point
     SetupPools {
         /// The list of pools with allocation points
         pools: Vec<(Addr, Uint64)>,
@@ -65,49 +65,56 @@ pub enum ExecuteOnReply {
         /// the rewards recipient
         account: Addr,
     },
-    /// Deposit LP tokens to Generator for ASTRO allocation.
+    /// Stake LP tokens in the Generator to receive token emissions
     Deposit {
-        /// the LP token contract
+        /// The LP token to stake
         lp_token: Addr,
-        /// the deposit recipient
+        /// The account that receives ownership of the staked tokens
         account: Addr,
-        /// the deposit amount
+        /// The amount of tokens to deposit
         amount: Uint128,
     },
-    /// Withdraw LP tokens from Generator
+    /// Withdraw LP tokens from the Generator
     Withdraw {
-        /// the LP token contract
+        /// The LP tokens to withdraw
         lp_token: Addr,
-        /// the withdraw recipient
+        /// The account that receives the withdrawn LP tokens
         account: Addr,
-        /// the withdraw amount
+        /// The amount of tokens to withdraw
         amount: Uint128,
     },
-    /// Sets a new count of tokens per block.
+    /// Sets a new amount of ASTRO to distribute per block between all active generators
     SetTokensPerBlock {
-        /// A new count of tokens per block
+        /// The new amount of ASTRO to distribute per block
         amount: Uint128,
     },
 }
 
 /// ## Description
-/// Stores config at the given key
+/// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
 /// ## Description
-/// This is a map that contains information about all liquidity pools.
+/// This is a map that contains information about all generators.
 ///
-/// The first key part is liquidity pool token, the second key part is an object of type [`PoolInfo`].
+/// The first key is the address of a LP token, the second key is an object of type [`PoolInfo`].
 pub const POOL_INFO: Map<&Addr, PoolInfo> = Map::new("pool_info");
 pub const TMP_USER_ACTION: Item<Option<ExecuteOnReply>> = Item::new("tmp_user_action");
 
 /// ## Description
-/// This is a map that contains information about all users.
+/// This is a map that contains information about all stakers.
 ///
-/// The first key part is token, the second key part is depositor.
+/// The first key is an LP token address, the second key is a depositor address.
 pub const USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
 
+//settings for pagination
+/// The maximum limit for reading users from a [`USER_INFO`]
+pub const MAX_LIMIT: u32 = 30;
+
+/// The default limit for reading users from a [`USER_INFO`]
+pub const DEFAULT_LIMIT: u32 = 10;
+
 /// ## Description
-/// Contains proposal for change ownership.
+/// Contains a proposal to change contract ownership.
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
 pub fn update_user_balance(

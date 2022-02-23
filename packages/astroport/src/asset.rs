@@ -91,7 +91,7 @@ impl Asset {
     /// ## Params
     /// * **self** is the type of the caller object.
     ///
-    /// * **querier** is the object of type [`QuerierWrapper`]
+    /// * **querier** is an object of type [`QuerierWrapper`]
     ///
     /// * **recipient** is the address where the funds will be sent.
     pub fn into_msg(self, querier: &QuerierWrapper, recipient: Addr) -> StdResult<CosmosMsg> {
@@ -282,7 +282,7 @@ impl PairInfo {
     /// ## Params
     /// * **self** is the type of the caller object
     ///
-    /// * **querier** is the object of type [`QuerierWrapper`]
+    /// * **querier** is an object of type [`QuerierWrapper`]
     ///
     /// * **contract_addr** is pair's pool address.
     pub fn query_pools(
@@ -348,6 +348,12 @@ pub fn format_lp_token_name(
     Ok(format!("{}-{}-LP", short_symbols[0], short_symbols[1]).to_uppercase())
 }
 
+/// ## Description
+/// Returns an [`Asset`] object representing a native token and an amount of tokens.
+/// ## Params
+/// * **denom** is a [`String`] that represents the native asset denomination.
+///
+/// * **amount** is a [`Uint128`] representing an amount of native assets.
 pub fn native_asset(denom: String, amount: Uint128) -> Asset {
     Asset {
         info: AssetInfo::NativeToken { denom },
@@ -355,6 +361,12 @@ pub fn native_asset(denom: String, amount: Uint128) -> Asset {
     }
 }
 
+/// ## Description
+/// Returns an [`Asset`] object representing a non-native token and an amount of tokens.
+/// ## Params
+/// * **contract_addr** is a [`Addr`]. It is the address of the token contract.
+///
+/// * **amount** is a [`Uint128`] representing an amount of tokens.
 pub fn token_asset(contract_addr: Addr, amount: Uint128) -> Asset {
     Asset {
         info: AssetInfo::Token { contract_addr },
@@ -362,10 +374,18 @@ pub fn token_asset(contract_addr: Addr, amount: Uint128) -> Asset {
     }
 }
 
+/// ## Description
+/// Returns an [`AssetInfo`] object representing the denomination for a Terra native asset.
+/// ## Params
+/// * **denom** is a [`String`] object representing the denomination of the Terra native asset.
 pub fn native_asset_info(denom: String) -> AssetInfo {
     AssetInfo::NativeToken { denom }
 }
 
+/// ## Description
+/// Returns an [`AssetInfo`] object representing the address of a token contract.
+/// ## Params
+/// * **contract_addr** is a [`Addr`] object representing the address of a token contract.
 pub fn token_asset_info(contract_addr: Addr) -> AssetInfo {
     AssetInfo::Token { contract_addr }
 }

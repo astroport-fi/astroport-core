@@ -1,19 +1,11 @@
 # Astroport Router
 
-The Router Contract contains the logic to facilitate assets multi-hop swap operations via native & Astroport tokens.
-
-Examples:
-- KRT => UST => mABNB
-- mABNB => UST => KRT
-
-**On-chain swap & Astroport is supported.**
-
-README has updated with new messages (Astroport v1 messages follow).
+The Router contract contains logic to facilitate multi-hop swaps for Terra native & Astroport tokens.
 
 ---
 
 ### Operations Assertion
-The contract will check whether the resulting token is swapped into one token, check the swap amount is exceed minimum receive.
+For every swap, the contract checks if the resulting token is the one that was asked for and whether the receiving amount exceeds the minimum to receive.
 
 ## InstantiateMsg
 
@@ -41,7 +33,7 @@ CW20 receive msg.
 
 ### `execute_swap_operation`
 
-Swaps offer token to ask token. Msg is for internal use.
+Swaps one token to another. This message is for internal use.
 
 ### Example
 
@@ -72,7 +64,7 @@ Swap UST => mABNB
 
 ### `execute_swap_operations`
 
-Performs multi-hop swap operations via native & Astroport tokens (swaps all offer tokens to ask token). Operations execute one-by-one and last one will return ask token.
+Performs multi-hop swap operations for native & Astroport tokens. Swaps execute one-by-one and the last swap will return the ask token. This function is public (can be called by anyone).
 
 ### Example
 
@@ -112,7 +104,7 @@ Swap KRT => UST => mABNB
 
 ### `assert_minimum_receive`
 
-Checks the swap amount is exceed minimum_receive. Msg is for internal use.
+Checks that an amount of ask tokens exceeds `minimum_receive`. This message is for internal use.
 
 ```json
 {
@@ -135,7 +127,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `config`
 
-Returns factory contract address.
+Returns the general configuration for the router contract.
 
 ```json
 {
@@ -145,7 +137,7 @@ Returns factory contract address.
 
 ### `simulate_swap_operations`
 
-Simulates multi-hop swap operations (execute_swap_operations), examples:
+Simulates multi-hop swap operations. Examples:
 
 - KRT => UST => mABNB
 

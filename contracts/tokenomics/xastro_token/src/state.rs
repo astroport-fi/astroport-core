@@ -2,7 +2,7 @@ use cosmwasm_std::{Addr, Env, Order, StdResult, Storage, Uint128};
 use cw_storage_plus::{Bound, Map, SnapshotMap, Strategy, U64Key};
 
 /// ## Description
-/// Contains balances at every block.
+/// Contains snapshotted coins balances at every block.
 pub const BALANCES: SnapshotMap<&Addr, Uint128> = SnapshotMap::new(
     "balance",
     "balance__checkpoints",
@@ -11,17 +11,17 @@ pub const BALANCES: SnapshotMap<&Addr, Uint128> = SnapshotMap::new(
 );
 
 /// ## Description
-/// Contains saved total supply history.
+/// Contains the history of the xASTRO total supply.
 pub const TOTAL_SUPPLY_HISTORY: Map<U64Key, Uint128> = Map::new("total_supply_history");
 
 /// ## Description
-/// Captures total supply at current block.
+/// Snapshots the total token supply at current block.
 /// ## Params
-/// * **storage** is the object of type [`Storage`].
+/// * **storage** is an object of type [`Storage`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **total_supply** is the object of type [`Uint128`].
+/// * **total_supply** is an object of type [`Uint128`]. This is the current token total supply.
 pub fn capture_total_supply_history(
     storage: &mut dyn Storage,
     env: &Env,
@@ -31,9 +31,9 @@ pub fn capture_total_supply_history(
 }
 
 /// ## Description
-/// Returns an [`cosmwasm_std::StdError`] on failure, otherwise returns total supply at given block.
+/// Returns a [`cosmwasm_std::StdError`] on failure, otherwise returns the total token supply at the given block.
 /// ## Params
-/// * **storage** is the object of type [`Storage`].
+/// * **storage** is an object of type [`Storage`].
 pub fn get_total_supply_at(storage: &dyn Storage, block: u64) -> StdResult<Uint128> {
     // Look for the last value recorded before the current block (if none then value is zero)
     let end = Bound::inclusive(U64Key::new(block));

@@ -6,43 +6,43 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// ## Description
-/// This structure describes the main control config of maker.
+/// This structure stores the main paramters for the Maker contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// contract address that used for controls settings
+    /// Address that's allowed to set contract parameters
     pub owner: Addr,
-    /// the factory contract address
+    /// The factory contract address
     pub factory_contract: Addr,
-    /// the staking contract address
+    /// The xASTRO staking contract address
     pub staking_contract: Addr,
-    /// the governance contract address
+    /// The vxASTRO fee distributor contract address
     pub governance_contract: Option<Addr>,
-    /// the governance percent
+    /// The percentage of fees that go to the vxASTRO fee distributor
     pub governance_percent: Uint64,
-    /// the ASTRO token address
+    /// The ASTRO token address
     pub astro_token_contract: Addr,
-    /// the max spread
+    /// The max spread allowed when swapping fee tokens to ASTRO
     pub max_spread: Decimal,
-    /// the flag which defines whether rewards collecting is enabled or not
+    /// The flag which determines whether accrued ASTRO from fee swaps is being distributed or not
     pub rewards_enabled: bool,
-    /// the number of blocks when rewards should be distributed evenly
+    /// The number of blocks over which ASTRO that accrued pre-upgrade will be distributed
     pub pre_upgrade_blocks: u64,
-    /// the last block when pre-upgrade ASTRO fee was distributed
+    /// The last block until which pre-upgrade ASTRO will be distributed
     pub last_distribution_block: u64,
-    /// the remainder of pre-upgrade ASTRO fee
+    /// The remainder of pre-upgrade ASTRO to distribute
     pub remainder_reward: Uint128,
-    /// the amount of collected ASTRO fee before enabling rewards distribution
+    /// The amount of collected ASTRO before enabling rewards distribution
     pub pre_upgrade_astro_amount: Uint128,
 }
 
 /// ## Description
-/// Stores config at the given key
+/// Stores the contract configuration at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// ## Description
-/// Contains proposal for change ownership.
+/// Stores the latest proposal to change contract ownership
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
 /// ## Description
-/// Stores bridges to swap fees while collecting
+/// Stores bridge tokens used to swap fee tokens to ASTRO
 pub const BRIDGES: Map<String, AssetInfo> = Map::new("bridges");

@@ -10,41 +10,41 @@ use astroport::common::OwnershipProposal;
 use astroport::factory::PairConfig;
 
 /// ## Description
-/// This structure describes the main control config of factory.
+/// This structure hods the main contract parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// The Contract address that used for controls settings for factory, pools and tokenomics contracts
+    /// Address allowed to change contract paramters
     pub owner: Addr,
     /// CW20 token contract code identifier
     pub token_code_id: u64,
-    /// contract address that used for auto_stake from pools
+    /// Generator contract address
     pub generator_address: Option<Addr>,
-    /// contract address to send fees to
+    /// Contract address to send governance fees to (the Maker contract)
     pub fee_address: Option<Addr>,
-    /// cw1 whitelist contract code id used to store 3rd party rewards in pools
+    /// CW1 whitelist contract code id used to store 3rd party generator staking rewards
     pub whitelist_code_id: u64,
 }
 
 /// ## Description
-/// This is an intermediate structure for storing the key of a pair and used in reply of submessage.
+/// This is an intermediate structure for storing a pair's key. It is used in a submessage response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TmpPairInfo {
     pub pair_key: Vec<u8>,
 }
 
-/// Saves a key of pair
+/// Saves a pair's key
 pub const TMP_PAIR_INFO: Item<TmpPairInfo> = Item::new("tmp_pair_info");
 
 /// Saves factory settings
 pub const CONFIG: Item<Config> = Item::new("config");
 
-/// Saves created pairs
+/// Saves created pairs (from olders to latest)
 pub const PAIRS: Map<&[u8], Addr> = Map::new("pair_info");
 
 /// ## Description
-/// Calculates key of pair from the specified parameters in the `asset_infos` variable.
+/// Calculates a pair key from the specified parameters in the `asset_infos` variable.
 /// ## Params
-/// `asset_infos` it is array with two items the type of [`AssetInfo`].
+/// `asset_infos` is an array with two items of type [`AssetInfo`].
 pub fn pair_key(asset_infos: &[AssetInfo; 2]) -> Vec<u8> {
     let mut asset_infos = asset_infos.to_vec();
     asset_infos.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
@@ -52,23 +52,22 @@ pub fn pair_key(asset_infos: &[AssetInfo; 2]) -> Vec<u8> {
     [asset_infos[0].as_bytes(), asset_infos[1].as_bytes()].concat()
 }
 
-/// Saves the settings of the created pairs
+/// Saves pair type configurations
 pub const PAIR_CONFIGS: Map<String, PairConfig> = Map::new("pair_configs");
 
-//settings for pagination
-/// The maximum limit for reading pairs from a [`PAIRS`]
+/// ## Pagination settings
+/// The maximum limit for reading pairs from [`PAIRS`]
 const MAX_LIMIT: u32 = 30;
-
-/// The default limit for reading pairs from a [`PAIRS`]
+/// The default limit for reading pairs from [`PAIRS`]
 const DEFAULT_LIMIT: u32 = 10;
 
 /// ## Description
-/// Reads pairs from the [`PAIRS`] according to the specified parameters in `start_after` and `limit` variables.
-/// Otherwise, it returns the default number of pairs.
+/// Reads pairs from the [`PAIRS`] vector according to the `start_after` and `limit` variables.
+/// Otherwise, it returns the default number of pairs, starting from the oldest one.
 /// ## Params
-/// `start_after` is a [`Option`] type. Sets the item to start reading from.
+/// `start_after` is the pair from which the function starts to fetch results. It is an [`Option`].
 ///
-/// `limit` is a [`Option`] type. Sets the number of items to be read.
+/// `limit` is the number of items to retrive. It is an [`Option`].
 pub fn read_pairs(
     deps: Deps,
     start_after: Option<[AssetInfo; 2]>,
@@ -87,11 +86,11 @@ pub fn read_pairs(
         .collect()
 }
 
-// this will set the first key after the provided key, by appending a 1 byte
 /// ## Description
-/// Calculates the key of the pair from which to start reading.
+/// Calculates the key of a pair from which to start reading data.
 /// ## Params
 /// `start_after` is an [`Option`] type that accepts two [`AssetInfo`] elements.
+/// It is the token pair which we use to determine the start index for a range when returning data for multiple pairs
 fn calc_range_start(start_after: Option<[AssetInfo; 2]>) -> Option<Vec<u8>> {
     start_after.map(|asset_infos| {
         let mut asset_infos = asset_infos.to_vec();
