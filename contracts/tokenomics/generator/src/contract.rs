@@ -8,17 +8,14 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, Minter
 use crate::error::ContractError;
 use crate::migration;
 use crate::state::{
-    get_pools, update_user_balance, Config, ExecuteOnReply, PoolInfo, UserInfo, CONFIG,
-    DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
     update_user_balance, Config, ExecuteOnReply, UserInfo, CONFIG, OWNERSHIP_PROPOSAL, POOL_INFO,
-    TMP_USER_ACTION, USER_INFO,
+    TMP_USER_ACTION, USER_INFO, DEFAULT_LIMIT, MAX_LIMIT,
 };
 use astroport::asset::{addr_validate_to_lower, PairInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::generator::StakerResponse;
-use astroport::querier::{query_supply, query_token_balance};
+use astroport::querier::{query_token_balance};
 use astroport::generator::PoolInfo;
-use astroport::querier::query_token_balance;
 use astroport::DecimalCheckedOps;
 use astroport::{
     factory::{ConfigResponse as FactoryConfigResponse, QueryMsg as FactoryQueryMsg},
@@ -1657,7 +1654,6 @@ pub fn calculate_rewards(
     alloc_point: &Uint64,
     cfg: &Config,
 ) -> StdResult<Uint128> {
-pub fn calculate_rewards(env: &Env, pool: &PoolInfo, cfg: &Config) -> StdResult<Uint128> {
     let n_blocks = Uint128::from(env.block.height).checked_sub(pool.last_reward_block.into())?;
 
     let r;

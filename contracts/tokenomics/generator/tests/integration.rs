@@ -1465,24 +1465,28 @@ fn query_all_stakers() {
     let user4 = Addr::unchecked(USER4);
     let user5 = Addr::unchecked(USER5);
     let token_code_id = store_token_code(&mut app);
+    let factory_code_id = store_factory_code(&mut app);
+    let pair_code_id = store_pair_code_id(&mut app);
 
-    let lp_cny_eur_instance = instantiate_token(&mut app, token_code_id, "cny-eur", None);
+    let factory_instance = instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+
+    let (pair_cny_eur, lp_cny_eur) = create_pair(&mut app, &factory_instance, "CNY", "EUR");
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(&mut app, &astro_token_instance, None);
+    let generator_instance = instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
-    register_lp_tokens_in_generator(&mut app, &generator_instance, None, &[&lp_cny_eur_instance]);
+    register_lp_tokens_in_generator(&mut app, &generator_instance, None, vec![(lp_cny_eur.to_string(), Uint64::new(100u64))]);
 
-    mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 10);
-    mint_tokens(&mut app, &lp_cny_eur_instance, &user2, 10);
-    mint_tokens(&mut app, &lp_cny_eur_instance, &user3, 10);
-    mint_tokens(&mut app, &lp_cny_eur_instance, &user4, 10);
-    mint_tokens(&mut app, &lp_cny_eur_instance, &user5, 10);
+    mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 10);
+    mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user2, 10);
+    mint_tokens(&mut app, pair_cny_eur.clone(),  &lp_cny_eur, &user3, 10);
+    mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user4, 10);
+    mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user5, 10);
 
     let msg_cny_eur = QueryMsg::PoolStakers {
-        lp_token: lp_cny_eur_instance.to_string(),
+        lp_token: lp_cny_eur.to_string(),
         start_after: None,
         limit: None,
     };
@@ -1500,11 +1504,11 @@ fn query_all_stakers() {
             &mut app,
             &generator_instance,
             user,
-            &[(&lp_cny_eur_instance, 10)],
+            &[(&lp_cny_eur, 10)],
         );
     }
 
-    check_token_balance(&mut app, &lp_cny_eur_instance, &generator_instance, 50);
+    check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 50);
 
     let reps: Vec<StakerResponse> = app
         .wrap()
@@ -1538,14 +1542,14 @@ fn query_all_stakers() {
     );
 
     let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_cny_eur_instance.to_string(),
+        lp_token: lp_cny_eur.to_string(),
         amount: Uint128::new(10),
     };
 
     app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
 
-    check_token_balance(&mut app, &lp_cny_eur_instance, &generator_instance, 40);
+    check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 40);
 
     // check count of stakers after withdraw
     let reps: Vec<StakerResponse> = app
@@ -1591,19 +1595,24 @@ fn query_pagination_stakers() {
     let user9 = Addr::unchecked(USER9);
 
     let token_code_id = store_token_code(&mut app);
-    let lp_cny_eur_instance = instantiate_token(&mut app, token_code_id, "cny-eur", None);
+    let factory_code_id = store_factory_code(&mut app);
+    let pair_code_id = store_pair_code_id(&mut app);
+
+    let factory_instance = instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+
+    let (pair_cny_eur, lp_cny_eur) = create_pair(&mut app, &factory_instance, "CNY", "EUR");
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(&mut app, &astro_token_instance, None);
+    let generator_instance = instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
-    register_lp_tokens_in_generator(&mut app, &generator_instance, None, &[&lp_cny_eur_instance]);
+    register_lp_tokens_in_generator(&mut app, &generator_instance, None, vec![(lp_cny_eur.to_string(), Uint64::from(100u32))]);
 
     for user in [
         user1, user2, user3, user4, user5, user6, user7, user8, user9,
     ] {
-        mint_tokens(&mut app, &lp_cny_eur_instance, &user, 10);
+        mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user, 10);
     }
 
     for user in [
@@ -1613,15 +1622,15 @@ fn query_pagination_stakers() {
             &mut app,
             &generator_instance,
             user,
-            &[(&lp_cny_eur_instance, 10)],
+            &[(&lp_cny_eur, 10)],
         );
     }
 
-    check_token_balance(&mut app, &lp_cny_eur_instance, &generator_instance, 90);
+    check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 90);
 
     // get the first two stakers
     let msg_cny_eur = QueryMsg::PoolStakers {
-        lp_token: lp_cny_eur_instance.to_string(),
+        lp_token: lp_cny_eur.to_string(),
         start_after: None,
         limit: Some(2),
     };
@@ -1650,7 +1659,7 @@ fn query_pagination_stakers() {
 
     // get next seven stakers
     let msg_cny_eur = QueryMsg::PoolStakers {
-        lp_token: lp_cny_eur_instance.to_string(),
+        lp_token: lp_cny_eur.to_string(),
         start_after: Some("user2".to_string()),
         limit: Some(7),
     };
