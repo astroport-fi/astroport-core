@@ -1,6 +1,5 @@
 use crate::error::ContractError;
 use crate::state::{Config, BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
-use astroport_governance::escrow_fee_distributor;
 use std::cmp::min;
 
 use crate::migration;
@@ -612,7 +611,7 @@ fn distribute(
                 contract_addr: cfg.astro_token_contract.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: governance_contract.to_string(),
-                    msg: to_binary(&escrow_fee_distributor::Cw20HookMsg::Burn {})?,
+                    msg: Binary::default(),
                     amount,
                 })?,
                 funds: vec![],
