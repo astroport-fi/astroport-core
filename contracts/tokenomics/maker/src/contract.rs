@@ -296,6 +296,8 @@ enum SwapTarget {
 /// * **cfg** is an object of type [`Config`]. This is the Maker contract configuration.
 ///
 /// * **assets** is a vector that contains objects of type [`AssetWithLimit`]. These are the assets to swap to ASTRO.
+///
+/// * **with_validation** is a parameter of type [`u64`]. Determines whether the swap operation is validated or not.
 fn swap_assets(
     deps: Deps,
     env: Env,
@@ -306,12 +308,12 @@ fn swap_assets(
     let mut response = Response::default();
     let mut bridge_assets = HashMap::new();
 
-    // for default bridges we always need these two pools, hence the check
+    // For default bridges we always need these two pools, hence the check
     let astro = token_asset_info(cfg.astro_token_contract.clone());
     let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
-    // check uusd - astro pool and luna - uusd pool
+    // Check uusd - astro pool and luna - uusd pool
     get_pool(deps, cfg, uusd.clone(), astro)?;
     get_pool(deps, cfg, uluna, uusd)?;
 

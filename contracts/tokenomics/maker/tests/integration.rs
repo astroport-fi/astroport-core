@@ -842,7 +842,7 @@ fn collect_default_bridges() {
         ],
     ];
 
-    // set asset to swap
+    // Set asset to swap
     let assets = vec![
         AssetWithLimit {
             info: token_asset(bridge_uusd_token_instance.clone(), Uint128::zero()).info,
