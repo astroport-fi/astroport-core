@@ -454,7 +454,7 @@ fn swap_no_validate(
 }
 
 /// ## Description
-/// Swaps collected FEES using bridge assets. Returns a [`ContractError`] on failure.
+/// Swaps collected fees using bridge assets. Returns a [`ContractError`] on failure.
 ///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
