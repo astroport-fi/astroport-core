@@ -173,7 +173,7 @@ fn receive_cw20(
             if info.sender != config.astro_token_addr {
                 return Err(ContractError::Unauthorized {});
             }
-            // In a CW20 `send`, the total balance of the recipient is is already increased.
+            // In a CW20 `send`, the total balance of the recipient is already increased.
             // To properly calculate the total amount of ASTRO deposited in staking, we should subtract the user deposit from the pool
             total_deposit -= amount;
             let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
