@@ -19,11 +19,12 @@ use astroport::maker::{
 };
 use astroport::pair::QueryMsg as PairQueryMsg;
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Attribute, Binary, Decimal, Deps, DepsMut, Env,
+    attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Order, QueryRequest, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
-    WasmQuery,
+    WasmMsg, WasmQuery,
 };
 use cw2::{get_contract_version, set_contract_version};
+use cw20::Cw20ExecuteMsg;
 use std::collections::{HashMap, HashSet};
 
 /// Contract name that is used for migration.
@@ -580,21 +581,24 @@ fn distribute(
             return Ok((result, attributes));
         }
         let mut remainder_reward = cfg.remainder_reward;
-        let astro_distribution_portion =
-            cfg.pre_upgrade_astro_amount / Uint128::from(cfg.pre_upgrade_blocks);
+        let astro_distribution_portion = cfg
+            .pre_upgrade_astro_amount
+            .checked_div(Uint128::from(cfg.pre_upgrade_blocks))
+            .map_err(|e| StdError::DivideByZero { source: e })?;
+
         current_preupgrade_distribution = min(
-            Uint128::from(blocks_passed) * astro_distribution_portion,
+            Uint128::from(blocks_passed).checked_mul(astro_distribution_portion)?,
             remainder_reward,
         );
 
         // Subtract undistributed rewards
-        amount -= remainder_reward;
+        amount = amount.checked_sub(remainder_reward)?;
         pure_astro_reward = amount;
 
         // Add the amount of pre Maker upgrade accrued ASTRO from fee token swaps
-        amount += current_preupgrade_distribution;
+        amount = amount.checked_add(current_preupgrade_distribution)?;
 
-        remainder_reward -= current_preupgrade_distribution;
+        remainder_reward = remainder_reward.checked_sub(current_preupgrade_distribution)?;
 
         // Reduce the amount of pre-upgrade ASTRO that has to be distributed
         cfg.remainder_reward = remainder_reward;
@@ -606,18 +610,26 @@ fn distribute(
         let amount =
             amount.multiply_ratio(Uint128::from(cfg.governance_percent), Uint128::new(100));
         if amount.u128() > 0 {
-            let to_governance_asset = token_asset(cfg.astro_token_contract.clone(), amount);
-            result.push(SubMsg::new(
-                to_governance_asset.into_msg(&deps.querier, governance_contract)?,
-            ))
+            let send_msg = CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: cfg.astro_token_contract.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: governance_contract.to_string(),
+                    msg: Binary::default(),
+                    amount,
+                })?,
+                funds: vec![],
+            });
+            result.push(SubMsg::new(send_msg))
         }
         amount
     } else {
         Uint128::zero()
     };
 
-    let to_staking_asset =
-        token_asset(cfg.astro_token_contract.clone(), amount - governance_amount);
+    let to_staking_asset = token_asset(
+        cfg.astro_token_contract.clone(),
+        amount.checked_sub(governance_amount)?,
+    );
 
     attributes.push(("action".to_string(), "distribute_astro".to_string()));
     attributes.push((
@@ -752,7 +764,10 @@ fn update_bridges(
     // Remove old bridges
     if let Some(remove_bridges) = remove {
         for asset in remove_bridges {
-            BRIDGES.remove(deps.storage, asset.to_string());
+            BRIDGES.remove(
+                deps.storage,
+                addr_validate_to_lower(deps.api, asset.to_string().as_str())?.to_string(),
+            );
         }
     }
 
@@ -861,15 +876,10 @@ fn query_get_balances(deps: Deps, env: Env, assets: Vec<AssetInfo>) -> StdResult
 ///
 /// * **env** is an object of type [`Env`].
 fn query_bridges(deps: Deps, _env: Env) -> StdResult<Vec<(String, String)>> {
-    let bridges = BRIDGES
+    BRIDGES
         .range(deps.storage, None, None, Order::Ascending)
-        .map(|item| {
-            let (asset, bridge) = item.unwrap();
-            (String::from_utf8(asset).unwrap(), bridge.to_string())
-        })
-        .collect::<Vec<(String, String)>>();
-
-    Ok(bridges)
+        .map(|bridge| bridge.map(|bridge| Ok((String::from_utf8(bridge.0)?, bridge.1.to_string()))))
+        .collect::<StdResult<StdResult<Vec<_>>>>()?
 }
 
 /// ## Description

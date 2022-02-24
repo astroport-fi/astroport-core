@@ -271,12 +271,14 @@ pub fn get_total_deposit(deps: Deps, env: Env, config: Config) -> StdResult<Uint
 /// ## Queries
 /// * **QueryMsg::Config {}** Returns the staking contract configuration using a [`ConfigResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let config = CONFIG.load(deps.storage)?;
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&ConfigResponse {
             deposit_token_addr: config.astro_token_addr,
             share_token_addr: config.xastro_token_addr,
         })?),
+        QueryMsg::TotalShares {} => to_binary(&get_total_shares(deps, config)?),
+        QueryMsg::TotalDeposit {} => to_binary(&get_total_deposit(deps, env, config)?),
     }
 }
