@@ -337,6 +337,17 @@ fn cw20receive_enter_and_leave() {
             balance: Uint128::from(0u128)
         }
     );
+
+    let res: Uint128 = router
+        .wrap()
+        .query_wasm_smart(staking_instance.clone(), &QueryMsg::TotalDeposit {})
+        .unwrap();
+    assert_eq!(res.u128(), 90);
+    let res: Uint128 = router
+        .wrap()
+        .query_wasm_smart(staking_instance, &QueryMsg::TotalShares {})
+        .unwrap();
+    assert_eq!(res.u128(), 90);
 }
 
 #[test]
