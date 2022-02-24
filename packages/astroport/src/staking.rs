@@ -31,8 +31,8 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     /// Config returns the contract configuration specified in a custom [`ConfigResponse`] structure
     Config {},
-    GetTotalShares {},
-    GetTotalDeposit {},
+    TotalShares {},
+    TotalDeposit {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

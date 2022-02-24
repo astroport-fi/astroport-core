@@ -278,7 +278,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             deposit_token_addr: config.astro_token_addr,
             share_token_addr: config.xastro_token_addr,
         })?),
-        QueryMsg::GetTotalShares {} => to_binary(&get_total_shares(deps, config)?),
-        QueryMsg::GetTotalDeposit {} => to_binary(&get_total_deposit(deps, env, config)?),
+        QueryMsg::TotalShares {} => to_binary(&get_total_shares(deps, config)?),
+        QueryMsg::TotalDeposit {} => to_binary(&get_total_deposit(deps, env, config)?),
     }
 }
