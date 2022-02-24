@@ -581,21 +581,24 @@ fn distribute(
             return Ok((result, attributes));
         }
         let mut remainder_reward = cfg.remainder_reward;
-        let astro_distribution_portion =
-            cfg.pre_upgrade_astro_amount / Uint128::from(cfg.pre_upgrade_blocks);
+        let astro_distribution_portion = cfg
+            .pre_upgrade_astro_amount
+            .checked_div(Uint128::from(cfg.pre_upgrade_blocks))
+            .map_err(|e| StdError::DivideByZero { source: e })?;
+
         current_preupgrade_distribution = min(
-            Uint128::from(blocks_passed) * astro_distribution_portion,
+            Uint128::from(blocks_passed).checked_mul(astro_distribution_portion)?,
             remainder_reward,
         );
 
         // Subtract undistributed rewards
-        amount -= remainder_reward;
+        amount = amount.checked_sub(remainder_reward)?;
         pure_astro_reward = amount;
 
         // Add the amount of pre Maker upgrade accrued ASTRO from fee token swaps
-        amount += current_preupgrade_distribution;
+        amount = amount.checked_add(current_preupgrade_distribution)?;
 
-        remainder_reward -= current_preupgrade_distribution;
+        remainder_reward = remainder_reward.checked_sub(current_preupgrade_distribution)?;
 
         // Reduce the amount of pre-upgrade ASTRO that has to be distributed
         cfg.remainder_reward = remainder_reward;
@@ -623,8 +626,10 @@ fn distribute(
         Uint128::zero()
     };
 
-    let to_staking_asset =
-        token_asset(cfg.astro_token_contract.clone(), amount - governance_amount);
+    let to_staking_asset = token_asset(
+        cfg.astro_token_contract.clone(),
+        amount.checked_sub(governance_amount)?,
+    );
 
     attributes.push(("action".to_string(), "distribute_astro".to_string()));
     attributes.push((
@@ -759,7 +764,10 @@ fn update_bridges(
     // Remove old bridges
     if let Some(remove_bridges) = remove {
         for asset in remove_bridges {
-            BRIDGES.remove(deps.storage, asset.to_string());
+            BRIDGES.remove(
+                deps.storage,
+                addr_validate_to_lower(deps.api, asset.to_string().as_str())?.to_string(),
+            );
         }
     }
 
@@ -868,15 +876,10 @@ fn query_get_balances(deps: Deps, env: Env, assets: Vec<AssetInfo>) -> StdResult
 ///
 /// * **env** is an object of type [`Env`].
 fn query_bridges(deps: Deps, _env: Env) -> StdResult<Vec<(String, String)>> {
-    let bridges = BRIDGES
+    BRIDGES
         .range(deps.storage, None, None, Order::Ascending)
-        .map(|item| {
-            let (asset, bridge) = item.unwrap();
-            (String::from_utf8(asset).unwrap(), bridge.to_string())
-        })
-        .collect::<Vec<(String, String)>>();
-
-    Ok(bridges)
+        .map(|bridge| bridge.map(|bridge| Ok((String::from_utf8(bridge.0)?, bridge.1.to_string()))))
+        .collect::<StdResult<StdResult<Vec<_>>>>()?
 }
 
 /// ## Description
