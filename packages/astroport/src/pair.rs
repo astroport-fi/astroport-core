@@ -95,7 +95,7 @@ pub enum QueryMsg {
 }
 
 /// ## Description
-/// This structure describes a custom struct used to return a query result
+/// This struct is used to return a query result
 /// with the total amount of LP tokens and the two assets in a specific pool
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolResponse {
@@ -104,7 +104,7 @@ pub struct PoolResponse {
 }
 
 /// ## Description
-/// This structure describes a custom struct used to return a query result
+/// This struct is used to return a query result
 /// with the general contract configuration
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
@@ -131,7 +131,7 @@ pub struct ReverseSimulationResponse {
 }
 
 /// ## Description
-/// This structure describes a custom struct used to return a query reponse
+/// This struct is used to return a query reponse
 /// containing cumulative prices for the two assets in the pool
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CumulativePricesResponse {

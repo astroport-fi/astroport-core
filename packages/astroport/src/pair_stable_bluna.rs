@@ -81,22 +81,34 @@ pub enum QueryMsg {
     PendingReward { user: String },
 }
 
+/// ## Description
+/// This struct is used to store bLUNA stableswap specific parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct StablePoolParams {
+    /// The current pool amplification
     pub amp: u64,
+    /// The bLUNA rewarder contract
     pub bluna_rewarder: String,
+    /// The Astroport Generator contract
     pub generator: String,
 }
 
+/// ## Description
+/// This struct is used to store the stableswap pool configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct StablePoolConfig {
+    /// The current pool amplification
     pub amp: Decimal,
+    /// The bLUNA rewarder contract
     pub bluna_rewarder: Addr,
+    /// The Astroport Generator contract
     pub generator: Addr,
 }
 
+/// ## Description
+/// This enum stores the options available to update bLUNA stableswap pool parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum StablePoolUpdateParams {
@@ -105,8 +117,12 @@ pub enum StablePoolUpdateParams {
     BlunaRewarder { address: String },
 }
 
+/// ## Description
+/// This struct contains the parameters used to migrate the bLUNA-LUNA stableswap pool implementation.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
+    /// The bLUNA rewarder contract
     pub bluna_rewarder: String,
+    /// The Astroport Generator contract
     pub generator: String,
 }
