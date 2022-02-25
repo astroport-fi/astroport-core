@@ -22,7 +22,8 @@ pub const PERIOD: u64 = 86400;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns a [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if the contract was not created.
+/// Returns a [`Response`] with the specified attributes if the operation was successful,
+/// or a [`ContractError`] if the contract was not created.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -109,7 +110,7 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let prices = query_cumulative_prices(&deps.querier, config.pair.contract_addr)?;
     let time_elapsed = env.block.time.seconds() - price_last.block_timestamp_last;
 
-    // ensure that at least one full period has passed since the last update
+    // Ensure that at least one full period has passed since the last update
     if time_elapsed < PERIOD {
         return Err(ContractError::WrongPeriod {});
     }
@@ -163,7 +164,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// ## Description
-/// Multiplies a token amount by its TWAP value and returns the result as a [`Uint256`] if the operation was successful
+/// Multiplies a token amount by its latest TWAP value and returns the result as a [`Uint256`] if the operation was successful
 /// or returns [`StdError`] on failure.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -184,7 +185,7 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, Std
     };
 
     Ok(if price_average.is_zero() {
-        // get the token's precision
+        // Get the token's precision
         let p = query_token_precision(&deps.querier, token.clone())?;
         let one = Uint128::new(10_u128.pow(p.into()));
 

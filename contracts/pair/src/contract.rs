@@ -34,7 +34,8 @@ const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns the [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if the contract was not created
+/// Returns the [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if
+/// the contract was not created.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -154,7 +155,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///             slippage_tolerance,
 ///             auto_stake,
 ///             receiver,
-///         }** Provides liquidity  in the pair with the specified input parameters.
+///         }** Provides liquidity in the pair with the specified input parameters.
 ///
 /// * **ExecuteMsg::Swap {
 ///             offer_asset,
@@ -220,7 +221,7 @@ pub fn execute(
 /// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
 /// If the template is not found in the received message, then an [`ContractError`] is returned,
-/// otherwise it returns the [`Response`] with the specified attributes if the operation was successful
+/// otherwise it returns the [`Response`] with the specified attributes if the operation was successful.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -242,7 +243,7 @@ pub fn receive_cw20(
             max_spread,
             to,
         }) => {
-            // only asset contract can execute this message
+            // Only asset contract can execute this message
             let mut authorized: bool = false;
             let config: Config = CONFIG.load(deps.storage)?;
 
@@ -351,7 +352,7 @@ pub fn provide_liquidity(
 
     let mut messages: Vec<CosmosMsg> = vec![];
     for (i, pool) in pools.iter_mut().enumerate() {
-        // If the assets is a token contract, then we need to execute a TransferFrom msg to receive assets
+        // If the asset is a token contract, then we need to execute a TransferFrom msg to receive assets
         if let AssetInfo::Token { contract_addr, .. } = &pool.info {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
@@ -585,7 +586,8 @@ pub fn get_share_in_assets(
 }
 
 /// ## Description
-/// Performs an swap operation with the specified parameters. CONTRACT - a user must do token approval.
+/// Performs an swap operation with the specified parameters. The trader must approve the
+/// pool contract to transfer offer assets from their wallet.
 /// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified attributes if the operation was successful.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -603,6 +605,7 @@ pub fn get_share_in_assets(
 /// * **max_spread** is an object of type [`Option<Decimal>`]. Sets the maximum spread of the swap operation.
 ///
 /// * **to** is an object of type [`Option<Addr>`]. Sets the recipient of the swap operation.
+/// NOTE - the address that wants to swap should approve the pair contract to pull the offer token.
 #[allow(clippy::too_many_arguments)]
 pub fn swap(
     deps: DepsMut,
@@ -732,9 +735,9 @@ pub fn swap(
 ///
 /// * **config** is an object of type [`Config`].
 ///
-/// * **x** is the balance of asset\[\0] in the pool.
+/// * **x** is an object of type [`Uint128`]. This is the balance of asset\[\0] in the pool.
 ///
-/// * **y** is the balance of asset\[\1] in the pool.
+/// * **y** is an object of type [`Uint128`]. This is the balance of asset\[\1] in the pool.
 pub fn accumulate_prices(
     env: Env,
     config: &Config,
@@ -1211,7 +1214,7 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Respons
 }
 
 /// ## Description
-/// Returns the total amount of assets in the poo las well as the total amount of LP tokens currently minted.
+/// Returns the total amount of assets in the pool as well as the total amount of LP tokens currently minted.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///

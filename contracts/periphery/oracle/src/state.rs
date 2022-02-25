@@ -36,7 +36,7 @@ pub struct Config {
     pub owner: Addr,
     /// The factory contract address
     pub factory: Addr,
-    /// The assets in the pool. Each one is described using a [`AssetInfo`]
+    /// The assets in the pool. Each asset is described using a [`AssetInfo`]
     pub asset_infos: [AssetInfo; 2],
     /// Information about the pair (LP token address, pair type etc)
     pub pair: PairInfo,

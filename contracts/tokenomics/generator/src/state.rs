@@ -129,11 +129,11 @@ pub const TMP_USER_ACTION: Item<Option<ExecuteOnReply>> = Item::new("tmp_user_ac
 /// The first key is an LP token address, the second key is a depositor address.
 pub const USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
 
-//settings for pagination
-/// The maximum limit for reading users from a [`USER_INFO`]
+/// ## Pagination settings
+/// The maximum amount of users that can be read at once from [`USER_INFO`]
 pub const MAX_LIMIT: u32 = 30;
 
-/// The default limit for reading users from a [`USER_INFO`]
+/// The default amount of users to read from [`USER_INFO`]
 pub const DEFAULT_LIMIT: u32 = 10;
 
 /// ## Description

@@ -156,10 +156,10 @@ fn provide_liquidity() {
     // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // Store liquidity token
+    // Store the liquidity token
     store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
-    // Successfully provide liquidity for the exist pool
+    // Successfully provide liquidity for the existing pool
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [
             Asset {
@@ -229,7 +229,7 @@ fn provide_liquidity() {
         }
     );
 
-    // Provide more liquidity 1:2, which is not propotional to 1:1
+    // Provide more liquidity using a 1:2 ratio
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
@@ -363,7 +363,7 @@ fn provide_liquidity() {
         _ => panic!("Must return generic error"),
     }
 
-    // Initialize token balance to 1:1
+    // Initialize token balances with a ratio of 1:1
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
@@ -389,7 +389,7 @@ fn provide_liquidity() {
         ),
     ]);
 
-    // Initialize token balance to 1:1
+    // Initialize token balances with a ratio of 1:1
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
@@ -398,7 +398,7 @@ fn provide_liquidity() {
         }],
     )]);
 
-    // Initialize token balance to 1:1
+    // Initialize token balances with a ratio of 1:1
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
@@ -407,7 +407,7 @@ fn provide_liquidity() {
         }],
     )]);
 
-    // Successfully provides
+    // Successfully provide liquidity
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [
             Asset {
@@ -438,7 +438,7 @@ fn provide_liquidity() {
     );
     let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    // Initialize token balance to 1:1
+    // Initialize token balances with a ratio of 1:1
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
@@ -447,7 +447,7 @@ fn provide_liquidity() {
         }],
     )]);
 
-    // Successfully provides
+    // Successfully provide liquidity
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [
             Asset {
@@ -520,7 +520,7 @@ fn withdraw_liquidity() {
     // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // Store liquidity token
+    // Store the liquidity token
     store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     // Withdraw liquidity
@@ -646,7 +646,7 @@ fn try_native_to_token() {
     // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // Store liquidity token
+    // Store the liquidity token
     store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     // Normal swap
@@ -691,7 +691,7 @@ fn try_native_to_token() {
         .unwrap();
     let expected_tax_amount = Uint128::zero(); // no tax for token
 
-    // Check simulation res
+    // Check simulation result
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
@@ -800,7 +800,7 @@ fn try_token_to_native() {
     // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // Store liquidity token
+    // Store the liquidity token
     store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     // Unauthorized access; can not execute swap directy for token swap
@@ -861,7 +861,7 @@ fn try_token_to_native() {
             )
             .unwrap(),
     );
-    // Check simulation res
+    // Check simulation result
     // Return asset token balance as normal
     deps.querier.with_token_balances(&[
         (
@@ -925,7 +925,7 @@ fn try_token_to_native() {
         msg_transfer,
     );
 
-    // Failed due to non asset token contract try to execute sell
+    // Failed due to non asset token contract being used in a swap
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: String::from("addr0000"),
         amount: offer_amount,
@@ -1050,7 +1050,7 @@ fn test_query_pool() {
     // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // Store liquidity token
+    // Store the liquidity token
     store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     let res: PoolResponse = query_pool(deps.as_ref()).unwrap();
@@ -1115,7 +1115,7 @@ fn test_query_share() {
     // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // Store liquidity token
+    // Store the liquidity token
     store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     let res = query_share(deps.as_ref(), Uint128::new(250)).unwrap();

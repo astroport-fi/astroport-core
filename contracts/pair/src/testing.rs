@@ -70,7 +70,7 @@ fn proper_initialization() {
     };
 
     let sender = "addr0000";
-    // we can just call .unwrap() to assert this was a success
+    // We can just call .unwrap() to assert this was a success
     let env = mock_env();
     let info = mock_info(sender, &[]);
     let res = instantiate(deps.as_mut(), env, info, msg).unwrap();
@@ -231,7 +231,7 @@ fn provide_liquidity() {
     );
 
     // Provide more liquidity 1:2, which is not propotional to 1:1,
-    // Then it must accept 1:1 and treat the leftover amount as a donation
+    // It must accept 1:1 and treat the leftover amount as a donation
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
@@ -424,7 +424,7 @@ fn provide_liquidity() {
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
     assert_eq!(res, ContractError::MaxSlippageAssertion {});
 
-    // initialize token balance to 1:1
+    // Initialize token balance to 1:1
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
@@ -505,7 +505,7 @@ fn provide_liquidity() {
     );
     let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    // initialize token balance to 1:1
+    // Initialize token balance to 1:1
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {

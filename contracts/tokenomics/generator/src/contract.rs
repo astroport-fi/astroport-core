@@ -108,7 +108,7 @@ pub fn instantiate(
 ///
 /// * **ExecuteMsg::Withdraw { lp_token, amount }** Withdraw LP tokens from the Generator.
 ///
-/// * **ExecuteMsg::EmergencyWithdraw { lp_token }** Withdraw Lp tokens without caring about rewardsing.
+/// * **ExecuteMsg::EmergencyWithdraw { lp_token }** Withdraw LP tokens without caring about reward claiming.
 /// TO BE USED IN EMERGENCY SITUATIONS ONLY.
 ///
 /// * **ExecuteMsg::SetAllowedRewardProxies { proxies }** Sets the list of allowed reward proxy contracts
@@ -124,7 +124,8 @@ pub fn instantiate(
 ///
 /// * **ExecuteMsg::SetTokensPerBlock { amount }** Sets a new amount of ASTRO that's distributed per block among all active generators.
 ///
-/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change contract ownership. Only the current owner can call this.
+/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change contract ownership.
+/// Only the current owner can call this.
 ///
 /// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership. Only the current owner can call this.
 ///
@@ -279,8 +280,8 @@ pub fn execute(
 }
 
 /// ## Description
-/// Sets a new Generator vesting contract address. Returns a [`ContractError`] on failure or the[`CONFIG`]
-/// data will be updated with the new vesting contract address if successful.
+/// Sets a new Generator vesting contract address. Returns a [`ContractError`] on failure or the [`CONFIG`]
+/// data will be updated with the new vesting contract address.
 ///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -297,7 +298,7 @@ pub fn execute_update_config(
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
-    // permission check
+    // Permission check
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
@@ -484,7 +485,7 @@ fn update_rewards_and_execute(
 
 /// ## Description
 /// Fetches accrued proxy rewards. Snapshots the old amount of rewards that are still unclaimed. Returns a [`ContractError`]
-/// on failure, otherwise returns a vector that contains the objects of type [`SubMsg`].
+/// on failure, otherwise returns a vector that contains objects of type [`SubMsg`].
 ///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -587,7 +588,7 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
 
 /// # Description
 /// Sets a new amount of ASTRO distributed per block among all active generators. Before that, we
-/// will need to update all pools so as to correctly account for accrued rewards. Returns a [`ContractError`] on failure,
+/// will need to update all pools in order to correctly account for accrued rewards. Returns a [`ContractError`] on failure,
 /// otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -1060,7 +1061,7 @@ pub fn build_claim_pools_asset_reward_messages(
 }
 
 /// # Description
-/// Withdraw without caring about rewards. TO BE USED IN EMERGENCY SITUATIONS ONLY.
+/// Withdraw LP tokens without caring about rewards. TO BE USED IN EMERGENCY SITUATIONS ONLY.
 /// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the
 /// specified attributes if the operation was successful.
 /// # Params
@@ -1110,7 +1111,7 @@ pub fn emergency_withdraw(
         };
     }
 
-    // Change user's balance
+    // Change the user's balance
     USER_INFO.remove(deps.storage, (&lp_token, &info.sender));
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
 
@@ -1263,7 +1264,7 @@ fn move_to_proxy(
 }
 
 /// ## Description
-/// Add or remove proxy contracts to and from the proxy contract whitelist. Returns a [`ContractError`] on failure
+/// Add or remove proxy contracts to and from the proxy contract whitelist. Returns a [`ContractError`] on failure.
 fn update_allowed_proxies(
     deps: DepsMut,
     add: Option<Vec<String>>,
@@ -1657,7 +1658,20 @@ pub fn query_simulate_future_reward(
 }
 
 /// ## Description
-/// Returns an [`ContractError`] on failure, otherwise returns a list of stakers for certain generator
+/// Returns a [`ContractError`] on failure, otherwise returns a list of stakers that currently
+/// have funds in a specific generator.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **lp_token** is an object of type [`String`]. This is the
+/// LP token whose generator we query for stakers.
+///
+/// * **start_after** is an object of type [`Option<String>`]. This is an optional field
+/// that specifies whether the function should return a list of stakers starting from a
+/// specific address onward.
+///
+/// * **limit** is an object of type [`Option<u32>`]. This is the max amount of staker
+/// addresses to return.
 pub fn query_list_of_stakers(
     deps: Deps,
     lp_token: String,

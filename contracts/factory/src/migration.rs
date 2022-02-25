@@ -5,10 +5,10 @@ use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// This structure describes a migration message.
+/// This structure describes a contract migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrationMsgV100 {
-    /// CW1 whitelist contract code id used to store 3rd party staking rewards
+    /// CW1 whitelist contract code ID used to store 3rd party staking rewards
     pub whitelist_code_id: u64,
 }
 

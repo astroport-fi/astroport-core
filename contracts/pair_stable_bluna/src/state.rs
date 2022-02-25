@@ -12,7 +12,7 @@ pub struct Config {
     pub pair_info: PairInfo,
     /// The factory contract address
     pub factory_addr: Addr,
-    /// The last time block
+    /// The last timestamp when the pair contract update the asset cumulative prices
     pub block_time_last: u64,
     /// The last cumulative price 0 asset in pool
     pub price0_cumulative_last: Uint128,
@@ -28,7 +28,7 @@ pub struct Config {
     pub next_amp_time: u64,
     /// Contract to claim bLUNA rewards from
     pub bluna_rewarder: Addr,
-    /// The generator address used for determining the users' bLUNA reward shares (while they are staked)
+    /// The generator address used for determining users' bLUNA reward shares (while they are staked)
     pub generator: Addr,
 }
 

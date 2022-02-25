@@ -842,7 +842,7 @@ fn collect_default_bridges() {
         ],
     ];
 
-    // set asset to swap
+    // Set asset to swap
     let assets = vec![
         AssetWithLimit {
             info: token_asset(bridge_uusd_token_instance.clone(), Uint128::zero()).info,
@@ -1797,7 +1797,7 @@ fn distribute_initially_accrued_fees() {
         "Generic error: Number of blocks should be > 0"
     );
 
-    // Check that collec does not distribute ASTRO until rewards are enabled
+    // Check that collect does not distribute ASTRO until rewards are enabled
     router
         .execute_contract(
             Addr::unchecked("anyone"),

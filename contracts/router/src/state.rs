@@ -9,7 +9,7 @@ use cosmwasm_std::Addr;
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// ## Description
-/// This structure describes the main controls configs for the router
+/// This structure holds the main parameters for the router
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     /// The factory contract address

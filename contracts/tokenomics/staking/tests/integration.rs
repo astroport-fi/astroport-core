@@ -95,7 +95,7 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Add
         }))
         .unwrap();
 
-    // in multitest, contract names are named in the order in which contracts are created.
+    // In multitest, contract names are named in the order in which contracts are created.
     assert_eq!("contract #0", astro_token_instance);
     assert_eq!("contract #1", staking_instance);
     assert_eq!("contract #2", res.share_token_addr);

@@ -10,10 +10,10 @@ use astroport::common::OwnershipProposal;
 use astroport::factory::PairConfig;
 
 /// ## Description
-/// This structure hods the main contract parameters.
+/// This structure holds the main contract parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// Address allowed to change contract paramters
+    /// Address allowed to change contract parameters
     pub owner: Addr,
     /// CW20 token contract code identifier
     pub token_code_id: u64,
@@ -67,7 +67,7 @@ const DEFAULT_LIMIT: u32 = 10;
 /// ## Params
 /// `start_after` is the pair from which the function starts to fetch results. It is an [`Option`].
 ///
-/// `limit` is the number of items to retrive. It is an [`Option`].
+/// `limit` is the number of items to retreive. It is an [`Option`].
 pub fn read_pairs(
     deps: Deps,
     start_after: Option<[AssetInfo; 2]>,

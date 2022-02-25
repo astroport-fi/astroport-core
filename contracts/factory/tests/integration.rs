@@ -120,7 +120,7 @@ fn update_config() {
     let factory_instance =
         instantiate_contract(&mut app, &Addr::unchecked(owner.clone()), token_code_id);
 
-    // update config
+    // Update config
     let fee_address = Some(String::from("fee"));
     let generator_address = Some(String::from("generator"));
 
@@ -303,7 +303,7 @@ fn create_pair() {
         )
         .unwrap();
 
-    // in multitest, contract names are counted in the order in which contracts are created
+    // In multitest, contract names are counted in the order in which contracts are created
     assert_eq!("contract #0", factory_instance.to_string());
     assert_eq!("contract #3", res.contract_addr.to_string());
     assert_eq!("contract #4", res.liquidity_token.to_string());
