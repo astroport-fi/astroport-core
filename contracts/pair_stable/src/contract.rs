@@ -1003,6 +1003,8 @@ pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<[Asset; 2]> {
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
+/// * **env** is an object of type [`Env`].
+///
 /// * **offer_asset** is an object of type [`Asset`]. This is the asset to swap as well as an amount of the said asset.
 pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<SimulationResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
@@ -1052,6 +1054,8 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
 /// Returns information about a reverse swap simulation in a [`ReverseSimulationResponse`] object.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
 ///
 /// * **ask_asset** is an object of type [`Asset`]. This is the asset to swap to as well as the desired
 /// amount of ask assets to receive from the swap.
