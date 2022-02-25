@@ -2,7 +2,7 @@
 name = "astroport-factory"
 version = "1.2.0"
 authors = ["Astroport"]
-edition = "2018"
+edition = "2021"
 description = "Astroport factory contract - pair contract generator and directory"
 license = "MIT"
 

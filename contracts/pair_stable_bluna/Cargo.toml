@@ -2,7 +2,7 @@
 name = "astroport-pair-stable-bluna"
 version = "1.0.1"
 authors = ["Astroport"]
-edition = "2018"
+edition = "2021"
 description = "The Astroport stableswap pair contract implementation specifically designed for a pair that contains bLUNA"
 license = "MIT"
 

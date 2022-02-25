@@ -312,7 +312,12 @@ pub fn execute_mint(
     }
 
     let mut config = TOKEN_INFO.load(deps.storage)?;
-    if config.mint.is_none() || config.mint.as_ref().unwrap().minter != info.sender {
+
+    if let Some(ref mint_data) = config.mint {
+        if mint_data.minter.as_ref() != info.sender {
+            return Err(ContractError::Unauthorized {});
+        }
+    } else {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -692,7 +697,7 @@ pub fn query_all_accounts(
     let accounts: Result<Vec<_>, _> = BALANCES
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
-        .map(StdResult::unwrap)
+        .filter_map(StdResult::ok)
         .map(|(a, _)| String::from_utf8(a))
         .collect();
 
