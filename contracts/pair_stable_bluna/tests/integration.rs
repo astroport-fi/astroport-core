@@ -211,7 +211,7 @@ fn update_pair_config() {
 
     assert_eq!(params.amp, Decimal::from_ratio(100u32, 1u32));
 
-    // Start changing amp with incorrect next amp
+    // Start changing AMP with incorrect next AMP
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: MAX_AMP + 1,
@@ -232,7 +232,7 @@ fn update_pair_config() {
         )
     );
 
-    //Start changing amp with big difference between the old and new amp value
+    // Start changing AMP with big difference between the old and new amp value
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: 100 * MAX_AMP_CHANGE + 1,

@@ -176,8 +176,8 @@ pub fn receive_cw20(
 
 /// ## Description
 /// Performs swap operations with the specified parameters.
-/// Returns an [`ContractError`] on failure, otherwise returns [`Response`] with the specified messages of type [`TerraMsgWrapper`]
-/// to execute if the operation is successful.
+/// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the executable messages of type [`TerraMsgWrapper`]
+/// if the operation is successful.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -361,7 +361,8 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Respons
 ///
 /// * **offer_amount** is an object of type [`Uint128`]. This is the amount of offer assets being swapped.
 ///
-/// * **operations** is a vector that contains objects of type [`SwapOperation`]. These are all the swap operations for which we perform a simulation.
+/// * **operations** is a vector that contains objects of type [`SwapOperation`].
+/// These are all the swap operations for which we perform a simulation.
 fn simulate_swap_operations(
     deps: Deps,
     offer_amount: Uint128,
@@ -512,7 +513,7 @@ fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), 
 fn test_invalid_operations() {
     use cosmwasm_std::testing::mock_dependencies;
     let deps = mock_dependencies(&[]);
-    // empty error
+    // Empty error
     assert_eq!(true, assert_operations(deps.as_ref().api, &vec![]).is_err());
 
     // uluna output
@@ -585,7 +586,7 @@ fn test_invalid_operations() {
         .is_ok()
     );
 
-    // multiple output token type errors
+    // Multiple output token type errors
     assert_eq!(
         true,
         assert_operations(

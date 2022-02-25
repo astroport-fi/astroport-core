@@ -29,7 +29,7 @@ fn pair_type_to_string() {
 
 #[test]
 fn proper_initialization() {
-    // validate total and maker fee bps
+    // Validate total and maker fee bps
     let mut deps = mock_dependencies(&[]);
     let owner = "owner0000".to_string();
 
@@ -153,10 +153,10 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info(owner, &[]);
 
-    // we can just call .unwrap() to assert this was a success
+    // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // update config
+    // Update config
     let env = mock_env();
     let info = mock_info(owner, &[]);
     let msg = ExecuteMsg::UpdateConfig {
@@ -169,7 +169,7 @@ fn update_config() {
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    // it worked, let's query the state
+    // It worked, let's query the state
     let query_res = query(deps.as_ref(), env, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_binary(&query_res).unwrap();
     assert_eq!(200u64, config_res.token_code_id);
@@ -214,12 +214,12 @@ fn update_owner() {
     let env = mock_env();
     let info = mock_info(owner, &[]);
 
-    // we can just call .unwrap() to assert this was a success
+    // We can just call .unwrap() to assert this was a success
     instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     let new_owner = String::from("new_owner");
 
-    // new owner
+    // New owner
     let env = mock_env();
     let msg = ExecuteMsg::ProposeNewOwner {
         owner: new_owner.clone(),
@@ -228,11 +228,11 @@ fn update_owner() {
 
     let info = mock_info(new_owner.as_str(), &[]);
 
-    // unauthorized check
+    // Unauthorized check
     let err = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap_err();
     assert_eq!(err.to_string(), "Generic error: Unauthorized");
 
-    // claim before proposal
+    // Claim before proposal
     let info = mock_info(new_owner.as_str(), &[]);
     execute(
         deps.as_mut(),
@@ -425,7 +425,7 @@ fn create_pair() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
 
-    // Check creating pair using non-whitelisted pair ID
+    // Check pair creation using a non-whitelisted pair ID
     let res = execute(
         deps.as_mut(),
         env.clone(),
@@ -536,7 +536,7 @@ fn register() {
 
     let mut deployed_pairs = vec![(&pair0_addr, &pair0_info)];
 
-    // Register astroport pair querier
+    // Register an Astroport pair querier
     deps.querier.with_astroport_pairs(&deployed_pairs);
 
     let data = MsgInstantiateContractResponse {

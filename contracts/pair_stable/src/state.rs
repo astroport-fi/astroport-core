@@ -12,11 +12,11 @@ pub struct Config {
     pub pair_info: PairInfo,
     /// The factory contract address
     pub factory_addr: Addr,
-    /// The last time block
+    /// The last timestamp when the pair contract update the asset cumulative prices
     pub block_time_last: u64,
-    /// The last cumulative price 0 asset in pool
+    /// The last cumulative price for asset 0
     pub price0_cumulative_last: Uint128,
-    /// The last cumulative price 1 asset in pool
+    /// The last cumulative price for asset 1
     pub price1_cumulative_last: Uint128,
     // This is the current amplification used in the pool
     pub init_amp: u64,

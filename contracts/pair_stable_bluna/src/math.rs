@@ -12,7 +12,7 @@ pub const MIN_AMP_CHANGING_TIME: u64 = 86400;
 pub const AMP_PRECISION: u64 = 100;
 
 /// ## Description
-/// Calculates the ask amount (the amount of tokens swapped to).
+/// Calculates the ask amount (the amount of tokens swapped to) for a swap.
 /// ## Params
 /// * **offer_pool** is an object of type [`u128`]. This is the amount of offer tokens currently in a stableswap pool.
 ///
@@ -133,7 +133,7 @@ fn calculate_step(initial_d: &U256, leverage: u64, sum_x: u128, d_product: &U256
 }
 
 /// ## Description
-/// Compute the swap amount `y` in proportion to `x`
+/// Compute the swap amount `y` in proportion to `x`.
 ///
 /// * **Solve for y**
 ///
@@ -174,7 +174,7 @@ fn compute_new_balance(leverage: u64, new_source_amount: u128, d_val: u128) -> O
 }
 
 /// ## Description
-/// Returns self to the power of b
+/// Returns self to the power of b.
 fn checked_u8_power(a: &U256, b: u8) -> Option<U256> {
     let mut result = *a;
     for _ in 1..b {
@@ -184,7 +184,7 @@ fn checked_u8_power(a: &U256, b: u8) -> Option<U256> {
 }
 
 /// ## Description
-/// Returns self multiplied by b
+/// Returns self multiplied by b.
 fn checked_u8_mul(a: &U256, b: u8) -> Option<U256> {
     let mut result = *a;
     for _ in 1..b {

@@ -172,7 +172,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 /// * **msg** is an object of type [`ExecuteMsg`].
 ///
 /// ## Queries
-/// * **ExecuteMsg::UpdateConfig { params: Binary }** Updates the contract onfiguration with the specified
+/// * **ExecuteMsg::UpdateConfig { params: Binary }** Updates the contract configuration with the specified
 /// input parameters.
 ///
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
@@ -320,7 +320,6 @@ pub fn receive_cw20(
 
 /// ## Description
 /// Provides liquidity with the specified input parameters.
-/// CONTRACT - should approve this contract to use/pull the tokens from your account/wallet.
 /// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the
 /// specified attributes if the operation was successful.
 /// ## Params
@@ -334,10 +333,12 @@ pub fn receive_cw20(
 ///
 /// * **slippage_tolerance** is object of type [`Option<Decimal>`]. This is the slippage tolerance for providing liquidity.
 ///
-/// * **auto_stake** is object of type [`Option<bool>`]. Determines whether the resulting LP tokens are automatically staked in the Generator contract to receive token incentives.
+/// * **auto_stake** is object of type [`Option<bool>`]. Determines whether the resulting LP tokens are automatically staked in
+/// the Generator contract to receive token incentives.
 ///
 /// * **receiver** is object of type [`Option<String>`]. This is the address that receives LP tokens.
 /// If this address isn't specified, the function will default to the caller.
+/// NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
 pub fn provide_liquidity(
     deps: DepsMut,
     env: Env,
@@ -665,7 +666,6 @@ pub fn get_share_in_assets(
 
 /// ## Description
 /// Performs a swap with the specified parameters.
-/// CONTRACT - the user must allow the pool to pull tokens from their account in order to swap them.
 /// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the
 /// specified attributes if the operation was successful.
 /// ## Params
@@ -684,6 +684,7 @@ pub fn get_share_in_assets(
 /// * **max_spread** is an object of type [`Option<Decimal>`]. This is the maximum spread allowed for the swap.
 ///
 /// * **to** is an object of type [`Option<Addr>`]. This is the address that receives ask tokens.
+/// NOTE - the address that wants to swap should approve the pair contract to pull the offer token.
 #[allow(clippy::too_many_arguments)]
 pub fn swap(
     deps: DepsMut,
@@ -824,13 +825,13 @@ pub fn swap(
 ///
 /// * **config** is an object of type [`Config`].
 ///
-/// * **x** is the balance of asset\[\0] in the pool.
+/// * **x** is an object of type [`Uint128`]. This is the balance of asset\[\0] in the pool.
 ///
-/// * **x_precision** is the precision for the x token.
+/// * **x_precision** is an object of type [`u8`]. This is the precision for the x token.
 ///
-/// * **y** is the balance of asset\[\1] in the pool.
+/// * **y** is an object of type [`Uint128`]. This is the balance of asset\[\1] in the pool.
 ///
-/// * **y_precision** is the precision for the y token.
+/// * **y_precision** is an object of type [`u8`]. This is the precision for the y token.
 pub fn accumulate_prices(
     env: Env,
     config: &Config,
@@ -932,7 +933,7 @@ pub fn calculate_maker_fee(
 ///
 /// * **QueryMsg::Simulation { offer_asset }** Returns the result of a swap simulation using a [`SimulationResponse`] object.
 ///
-/// * **QueryMsg::ReverseSimulation { ask_asset }** Returns the result of a reverse swap simulation  using
+/// * **QueryMsg::ReverseSimulation { ask_asset }** Returns the result of a reverse swap simulation using
 /// a [`ReverseSimulationResponse`] object.
 ///
 /// * **QueryMsg::CumulativePrices {}** Returns information about cumulative prices for the assets in the
@@ -1002,6 +1003,8 @@ pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<[Asset; 2]> {
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
+/// * **env** is an object of type [`Env`].
+///
 /// * **offer_asset** is an object of type [`Asset`]. This is the asset to swap as well as an amount of the said asset.
 pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<SimulationResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
@@ -1051,6 +1054,8 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
 /// Returns information about a reverse swap simulation in a [`ReverseSimulationResponse`] object.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
 ///
 /// * **ask_asset** is an object of type [`Asset`]. This is the asset to swap to as well as the desired
 /// amount of ask assets to receive from the swap.
@@ -1260,7 +1265,7 @@ fn compute_offer_amount(
         .unwrap(),
     );
 
-    // We assume the assets should stay in a 1:1 ratio, so the true exchange rate is 1. So any exchange rate <1 could be considered the spread
+    // We assume the assets should stay in a 1:1 ratio, so the true exchange rate is 1. Any exchange rate < 1 could be considered the spread
     let spread_amount = offer_amount.saturating_sub(before_commission_deduction);
 
     let commission_amount = before_commission_deduction * commission_rate;
@@ -1359,12 +1364,12 @@ fn assert_slippage_tolerance(
     _deposits: &[Uint128; 2],
     _pools: &[Asset; 2],
 ) -> Result<(), ContractError> {
-    //There is no slippage in the stable pool
+    // There is no slippage in the stable pool
     Ok(())
 }
 
 /// ## Description
-/// Used for the contract migration. Returns a default object of type [`Response`].
+/// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
 /// * **_deps** is an object of type [`DepsMut`].
 ///
@@ -1501,7 +1506,7 @@ fn stop_changing_amp(mut config: Config, deps: DepsMut, env: Env) -> StdResult<(
 }
 
 /// ## Description
-/// Compute the current amplification coefficient (AMP)
+/// Compute the current pool amplification coefficient (AMP).
 /// ## Params
 /// * **config** is an object of type [`Config`].
 ///

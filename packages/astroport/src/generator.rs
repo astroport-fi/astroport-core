@@ -159,7 +159,7 @@ pub enum QueryMsg {
     PoolInfo { lp_token: String },
     /// SimulateFutureReward returns the amount of ASTRO that will be distributed until a future block and for a specific generator
     SimulateFutureReward { lp_token: String, future_block: u64 },
-    /// Returns a list of stakers for certain generator
+    /// Returns a list of stakers for a specific generator
     PoolStakers {
         lp_token: String,
         start_after: Option<String>,
@@ -262,7 +262,12 @@ pub enum Cw20HookMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+/// ## Description
+/// This structure holdes the parameters used to return information about a staked in
+/// a specific generator.
 pub struct StakerResponse {
+    // The staker's address
     pub account: String,
+    // The amount that the staker currently has in the generator
     pub amount: Uint128,
 }

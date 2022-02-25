@@ -28,10 +28,10 @@ fn proper_initialization() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
 
-    // we can just call .unwrap() to assert this was a success
+    // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    // it worked, let's query the state
+    // It worked, let's query the state
     let config: ConfigResponse =
         from_binary(&query(deps.as_ref(), env, QueryMsg::Config {}).unwrap()).unwrap();
     assert_eq!("astroportfactory", config.astroport_factory.as_str());
@@ -47,7 +47,7 @@ fn execute_swap_operations() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
 
-    // we can just call .unwrap() to assert this was a success
+    // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     let msg = ExecuteMsg::ExecuteSwapOperations {
@@ -363,7 +363,7 @@ fn execute_swap_operation() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
 
-    // we can just call .unwrap() to assert this was a success
+    // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     deps.querier
@@ -411,7 +411,7 @@ fn execute_swap_operation() {
             reply_on: ReplyOn::Never,
         }],
     );
-    // optional to address
+    // Optional to address
     // swap_send
     let msg = ExecuteMsg::ExecuteSwapOperation {
         operation: SwapOperation::NativeSwap {
@@ -508,10 +508,10 @@ fn query_buy_with_routes() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
 
-    // we can just call .unwrap() to assert this was a success
+    // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    // set tax rate as 5%
+    // Set tax rate as 5%
     deps.querier.with_tax(
         Decimal::percent(5),
         &[
@@ -596,7 +596,7 @@ fn assert_minimum_receive_native_token() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    // success
+    // Success
     let msg = ExecuteMsg::AssertMinimumReceive {
         asset_info: AssetInfo::NativeToken {
             denom: "uusd".to_string(),
@@ -607,7 +607,7 @@ fn assert_minimum_receive_native_token() {
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
-    // assertion failed; native token
+    // Assertion failed; native token
     let msg = ExecuteMsg::AssertMinimumReceive {
         asset_info: AssetInfo::NativeToken {
             denom: "uusd".to_string(),
@@ -637,7 +637,7 @@ fn assert_minimum_receive_token() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    // success
+    // Success
     let msg = ExecuteMsg::AssertMinimumReceive {
         asset_info: AssetInfo::Token {
             contract_addr: Addr::unchecked("token0000"),
@@ -648,7 +648,7 @@ fn assert_minimum_receive_token() {
     };
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
-    // assertion failed; native token
+    // Assertion failed; native token
     let msg = ExecuteMsg::AssertMinimumReceive {
         asset_info: AssetInfo::Token {
             contract_addr: Addr::unchecked("token0000"),
@@ -677,7 +677,7 @@ fn assert_maximum_receive_swap_operations() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
 
-    // we can just call .unwrap() to assert this was a success
+    // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     let msg = ExecuteMsg::ExecuteSwapOperations {
