@@ -147,18 +147,26 @@ pub struct CumulativePricesResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
 
+/// ## Description
+/// This structure holds stableswap pool parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct StablePoolParams {
+    /// The current stableswap pool amplification
     pub amp: u64,
 }
 
+/// ## Description
+/// This structure stores a stableswap pool's configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct StablePoolConfig {
+    /// The stableswap pool amplification
     pub amp: Decimal,
 }
 
+/// ## Description
+/// This enum stores the options available to start and stop changing a stableswap pool's amplification.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum StablePoolUpdateParams {
