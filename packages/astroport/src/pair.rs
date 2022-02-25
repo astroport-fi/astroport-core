@@ -95,49 +95,60 @@ pub enum QueryMsg {
 }
 
 /// ## Description
-/// This struct is used to return a query result
-/// with the total amount of LP tokens and the two assets in a specific pool
+/// This struct is used to return a query result with the total amount of LP tokens and the two assets in a specific pool.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolResponse {
+    /// The assets in the pool together with asset amounts
     pub assets: [Asset; 2],
+    /// The total amount of LP tokens currently issued
     pub total_share: Uint128,
 }
 
 /// ## Description
-/// This struct is used to return a query result
-/// with the general contract configuration
+/// This struct is used to return a query result with the general contract configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
+    /// Last timestamp when the cumulative prices in the pool were updated
     pub block_time_last: u64,
+    /// The pool's parameters
     pub params: Option<Binary>,
 }
 
 /// ## Description
-/// SimulationResponse holds the parameters that are returned from a swap simulation response
+/// This structure holds the parameters that are returned from a swap simulation response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SimulationResponse {
+    /// The amount of ask assets returned by the swap
     pub return_amount: Uint128,
+    /// The spread used in the swap operation
     pub spread_amount: Uint128,
+    /// The amount of fees charged by the transaction
     pub commission_amount: Uint128,
 }
 
 /// ## Description
-/// ReverseSimulationResponse holds the parameters that are returned from a reverse swap simulation response
+/// This structure holds the parameters that are returned from a reverse swap simulation response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ReverseSimulationResponse {
+    /// The amount of offer assets returned by the reverse swap
     pub offer_amount: Uint128,
+    /// The spread used in the swap operation
     pub spread_amount: Uint128,
+    /// The amount of fees charged by the transaction
     pub commission_amount: Uint128,
 }
 
 /// ## Description
-/// This struct is used to return a query reponse
-/// containing cumulative prices for the two assets in the pool
+/// This structure is used to return a cumulative prices query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CumulativePricesResponse {
+    /// The two assets in the pool to query
     pub assets: [Asset; 2],
+    /// The total amount of LP tokens currently issued
     pub total_share: Uint128,
+    /// The last value for the token0 cumulative price
     pub price0_cumulative_last: Uint128,
+    /// The last value for the token1 cumulative price
     pub price1_cumulative_last: Uint128,
 }
 
