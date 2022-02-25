@@ -2,7 +2,7 @@
 name = "astroport-pair"
 version = "1.0.0"
 authors = ["Astroport"]
-edition = "2018"
+edition = "2021"
 description = "The Astroport constant product pool contract implementation"
 license = "MIT"
 
