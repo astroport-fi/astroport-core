@@ -680,7 +680,7 @@ pub fn query_balance_at(deps: Deps, address: String, block: u64) -> StdResult<Ba
 }
 
 /// ## Description
-/// Returns a [`StdError`] on failure, otherwise returns the balances of multiple accounts.
+/// Returns a [`StdError`] on failure, otherwise returns the current balances of multiple accounts.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
