@@ -1519,7 +1519,7 @@ fn query_all_stakers() {
         limit: None,
     };
 
-    // check if no deposit no stakers
+    // Check there are no stakers when there's no deposit
     let reps: Vec<StakerResponse> = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
@@ -1574,7 +1574,7 @@ fn query_all_stakers() {
 
     check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 40);
 
-    // check count of stakers after withdraw
+    // Check the amount of stakers after withdrawal
     let reps: Vec<StakerResponse> = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
@@ -1655,7 +1655,7 @@ fn query_pagination_stakers() {
 
     check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 90);
 
-    // get the first two stakers
+    // Get the first two stakers
     let msg_cny_eur = QueryMsg::PoolStakers {
         lp_token: lp_cny_eur.to_string(),
         start_after: None,
@@ -1684,7 +1684,7 @@ fn query_pagination_stakers() {
         reps
     );
 
-    // get next seven stakers
+    // Get the next seven stakers
     let msg_cny_eur = QueryMsg::PoolStakers {
         lp_token: lp_cny_eur.to_string(),
         start_after: Some("user2".to_string()),

@@ -20,6 +20,7 @@ use cw20_base::state::{MinterData, TokenInfo, TOKEN_INFO};
 use cw20_base::ContractError;
 use cw_storage_plus::Bound;
 
+use crate::utils::deserialize_pair;
 use astroport::xastro_token::{InstantiateMsg, QueryMsg};
 
 /// Contract name that is used for migration.
@@ -312,7 +313,12 @@ pub fn execute_mint(
     }
 
     let mut config = TOKEN_INFO.load(deps.storage)?;
-    if config.mint.is_none() || config.mint.as_ref().unwrap().minter != info.sender {
+
+    if let Some(ref mint_data) = config.mint {
+        if mint_data.minter.as_ref() != info.sender {
+            return Err(ContractError::Unauthorized {});
+        }
+    } else {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -692,8 +698,7 @@ pub fn query_all_accounts(
     let accounts: Result<Vec<_>, _> = BALANCES
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
-        .map(StdResult::unwrap)
-        .map(|(a, _)| String::from_utf8(a))
+        .map(deserialize_pair)
         .collect();
 
     Ok(AllAccountsResponse {

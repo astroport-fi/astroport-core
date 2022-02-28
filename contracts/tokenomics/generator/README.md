@@ -1,6 +1,6 @@
 # Astroport Generator
 
-The generator contract sends token rewards (ASTRO) to various LP tokens and distributes them pro-rata to stakers. The Generator supports proxy staking via 3rd party contracts that offer a second reward besides ASTRO token emissions. Allowed reward proxies are managed via a whitelist.
+The Generator contract allocates token rewards (ASTRO) for various LP tokens and distributes them pro-rata to LP stakers. The Generator supports proxy staking via 3rd party contracts that offer a second reward besides ASTRO token emissions. Allowed reward proxies are managed via a whitelist.
 
 ---
 
@@ -37,7 +37,7 @@ Update the vesting contract address. Only the contract owner can execute this.
 
 ### `add`
 
-Create a new generator (emissions schedule) for a specific LP token and optionallly add a 3rd party reward_proxy address used for dual rewards.
+Create a new generator (emissions schedule) for a specific LP token and optionally add a 3rd party reward_proxy address used for dual rewards.
 
 ```json
 {
@@ -102,6 +102,7 @@ CW20 receive msg.
 
 Stakes LP tokens in a specific generator (inside the Generator contract).
 In order to stake in the Generator contract, you should execute this message inside the contract of the LP token you want to stake.
+
 ```json
 {
   "send": {
@@ -113,6 +114,7 @@ In order to stake in the Generator contract, you should execute this message ins
 ```
 
 Inside `send.msg`, you may encode this JSON string into base64 encoding:
+
 ```json
 {
   "Deposit": {}
@@ -121,8 +123,8 @@ Inside `send.msg`, you may encode this JSON string into base64 encoding:
 
 ### `depositFor`
 
-Stakes a LP token in the Generator on behalf of another address.
-In order to stake in the Generator contract, you should execute this message inside the contract of the LP token you want to stake.
+Stakes LP tokens in the Generator on behalf of another address.
+In order to stake in the Generator contract, you should execute this message inside the LP token you want to stake.
 
 ```json
 {
@@ -135,6 +137,7 @@ In order to stake in the Generator contract, you should execute this message ins
 ```
 
 In `send.msg`, you may encode this JSON string into base64 encoding:
+
 ```json
 {
   "DepositFor": "terra..."
@@ -271,7 +274,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `pool_length`
 
-Returns the total amount of generators that have been created unntil now.
+Returns the total amount of generators that have been created until now.
 
 ```json
 {
@@ -366,7 +369,7 @@ Returns the amount of ASTRO that will be distributed up to a future block and fo
 
 ### `list_of_stakers`
 
-Returns a list of stakers for certain generator
+Returns a list of stakers that currently have funds in a specific generator.
 
 ```json
 {

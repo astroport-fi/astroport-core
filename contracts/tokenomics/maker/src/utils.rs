@@ -7,9 +7,9 @@ use astroport::querier::query_pair_info;
 use cosmwasm_std::{to_binary, Coin, Deps, Env, StdResult, SubMsg, Uint128, WasmMsg};
 
 pub const BRIDGES_INITIAL_DEPTH: u64 = 0;
-/// The depth of bridges to swap
+/// Maximum amount of bridges to use in a multi-hop swap
 pub const BRIDGES_MAX_DEPTH: u64 = 2;
-/// Execute depth limit
+/// Swap execution depth limit
 pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 3;
 
 /// UST token denom
@@ -113,10 +113,10 @@ pub fn validate_bridge(
     astro_token: AssetInfo,
     depth: u64,
 ) -> Result<PairInfo, ContractError> {
-    // Check if bridge pool exists
+    // Check if the bridge pool exists
     let bridge_pool = get_pool(deps, cfg, from_token.clone(), bridge_token.clone())?;
 
-    // Check bridge token - ASTRO pool exists
+    // Check if the bridge token - ASTRO pool exists
     let astro_pool = get_pool(deps, cfg, bridge_token.clone(), astro_token.clone());
     if astro_pool.is_err() {
         if depth >= BRIDGES_MAX_DEPTH {
@@ -142,15 +142,15 @@ pub fn validate_bridge(
 }
 
 /// # Description
-/// checks if pool exists and maps error
+/// Checks if a pool exists on Astroport.
 /// # Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **cfg** is the object of type [`Config`].
+/// * **cfg** is an object of type [`Config`]. This is the Maker contract configuration.
 ///
-/// * **from** is the object of type [`AssetInfo`].
+/// * **from** is an object of type [`AssetInfo`]. This is the asset to swap from.
 ///
-/// * **to** is the object of type [`AssetInfo`].
+/// * **to** is an object of type [`AssetInfo`]. This is the asset to swap to.
 pub fn get_pool(
     deps: Deps,
     cfg: &Config,

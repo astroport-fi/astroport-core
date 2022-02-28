@@ -296,6 +296,8 @@ enum SwapTarget {
 /// * **cfg** is an object of type [`Config`]. This is the Maker contract configuration.
 ///
 /// * **assets** is a vector that contains objects of type [`AssetWithLimit`]. These are the assets to swap to ASTRO.
+///
+/// * **with_validation** is a parameter of type [`u64`]. Determines whether the swap operation is validated or not.
 fn swap_assets(
     deps: Deps,
     env: Env,
@@ -306,12 +308,12 @@ fn swap_assets(
     let mut response = Response::default();
     let mut bridge_assets = HashMap::new();
 
-    // for default bridges we always need these two pools, hence the check
+    // For default bridges we always need these two pools, hence the check
     let astro = token_asset_info(cfg.astro_token_contract.clone());
     let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
-    // check uusd - astro pool and luna - uusd pool
+    // Check uusd - astro pool and luna - uusd pool
     get_pool(deps, cfg, uusd.clone(), astro)?;
     get_pool(deps, cfg, uluna, uusd)?;
 
@@ -349,9 +351,9 @@ fn swap_assets(
 }
 
 /// # Description
-/// Checks if all required pools and bridges exists and performs a swap operation to ASTRO. Returns a [`ContractError`] on failure,
-/// otherwise returns a vector that contains objects of type [`SubMsg`] if the operation
-/// was successful.
+/// Checks if all required pools and bridges exists and performs a swap operation to ASTRO.
+/// Returns a [`ContractError`] on failure, otherwise returns a vector that contains objects
+/// of type [`SubMsg`] if the operation was successful.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -394,7 +396,7 @@ fn swap(
         }
     }
 
-    // 23 Check if bridge tokens exist
+    // 4. Check if bridge tokens exist
     let bridge_token = BRIDGES.load(deps.storage, from_token.to_string());
     if let Ok(asset) = bridge_token {
         let bridge_pool = validate_bridge(
@@ -414,17 +416,17 @@ fn swap(
 }
 
 /// # Description
-/// Performs the swap operation to astro token without additional checks. Returns an [`ContractError`] on failure,
-/// otherwise returns the vector that contains the objects of type [`SubMsg`] if the operation
+/// Performs a swap operation to ASTRO without additional checks. Returns a [`ContractError`] on failure,
+/// otherwise returns a vector that contains objects of type [`SubMsg`] if the operation
 /// was successful.
 /// # Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **cfg** is the object of type [`Config`].
+/// * **cfg** is an object of type [`Config`]. This is the Maker contract configuration.
 ///
-/// * **from_token** is the object of type [`AssetInfo`].
+/// * **from_token** is an object of type [`AssetInfo`]. This is the token to swap to ASTRO.
 ///
-/// * **amount_in** is the object of type [`Uint128`].
+/// * **amount_in** is an object of type [`Uint128`]. This is the amount of tokens to swap.
 fn swap_no_validate(
     deps: Deps,
     cfg: &Config,
@@ -455,7 +457,7 @@ fn swap_no_validate(
 }
 
 /// ## Description
-/// Swaps collected FEES using bridge assets. Returns a [`ContractError`] on failure.
+/// Swaps collected fees using bridge assets. Returns a [`ContractError`] on failure.
 ///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -485,7 +487,7 @@ fn swap_bridge_assets(
         return Ok(Response::default());
     }
 
-    // Check so contract doesn't call itself endlessly
+    // Check that the contract doesn't call itself endlessly
     if depth >= BRIDGES_EXECUTION_MAX_DEPTH {
         return Err(ContractError::MaxBridgeDepth(depth));
     }

@@ -35,7 +35,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const INSTANTIATE_PAIR_REPLY_ID: u64 = 1;
 
 /// ## Description
-/// Creates a new contract with the specified parameters from the `msg` variable.
+/// Creates a new contract with the specified parameters packed in the `msg` variable.
 /// Returns a [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if the contract was not created
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -44,7 +44,7 @@ const INSTANTIATE_PAIR_REPLY_ID: u64 = 1;
 ///
 /// * **_info** is an object of type [`MessageInfo`].
 ///
-/// * **msg**  is a message of type [`InstantiateMsg`] which contains the parameters used for creating a contract.
+/// * **msg**  is a message of type [`InstantiateMsg`] which contains the parameters used for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -230,18 +230,18 @@ pub fn execute_update_config(
 ) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
-    // permission check
+    // Permission check
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
     if let Some(fee_address) = param.fee_address {
-        // validate address format
+        // Validate address format
         config.fee_address = Some(addr_validate_to_lower(deps.api, fee_address.as_str())?);
     }
 
     if let Some(generator_address) = param.generator_address {
-        // validate the address format
+        // Validate the address format
         config.generator_address = Some(addr_validate_to_lower(
             deps.api,
             generator_address.as_str(),
@@ -280,12 +280,12 @@ pub fn execute_update_pair_config(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // permission check
+    // Permission check
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
-    // validate total and maker fee bps
+    // Validate total and maker fee bps
     if !pair_config.valid_fee_bps() {
         return Err(ContractError::PairConfigInvalidFeeBps {});
     }
@@ -377,7 +377,7 @@ pub fn execute_create_pair(
 }
 
 /// # Description
-/// The entry point to the contract for processing replies from submessages
+/// The entry point to the contract for processing replies from submessages.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -419,7 +419,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 /// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the asets for which we deregister the pair.
 ///
 /// ## Executor
-/// Only the owner can execute this
+/// Only the owner can execute this.
 pub fn deregister(
     deps: DepsMut,
     info: MessageInfo,
@@ -499,7 +499,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 /// ## Description
-/// Returns a pair's data using the assets in `asset_infos` as input (those being the assets that are traded in the pair)
+/// Returns a pair's data using the assets in `asset_infos` as input (those being the assets that are traded in the pair).
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
@@ -549,7 +549,7 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
 }
 
 /// ## Description
-/// Used for the contract migration. Returns a default object of type [`Response`].
+/// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
 /// * **_deps** is an object of type [`Deps`].
 ///

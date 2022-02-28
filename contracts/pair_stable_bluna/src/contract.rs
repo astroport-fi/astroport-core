@@ -212,7 +212,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///             slippage_tolerance,
 ///             auto_stake,
 ///             receiver,
-///         }** Provides liquidity  in the pair with the specified input parameters.
+///         }** Provides liquidity in the pair with the specified input parameters.
 ///
 /// * **ExecuteMsg::Swap {
 ///             offer_asset,
@@ -225,14 +225,14 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///             receiver,
 ///             user_share,
 ///             total_share,
-///         }** Claims bLUNA rewards and sends them to the receiver
+///         }** Claims bLUNA rewards and sends them to the receiver.
 ///
 /// * **ExecuteMsg::HandleReward {
 ///             previous_reward_balance,
 ///             user_share,
 ///             total_share,
 ///             user,
-///         }** Handles and distributes bLUNA rewards
+///         }** Handles and distributes bLUNA rewards.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -335,7 +335,7 @@ pub fn receive_cw20(
             max_spread,
             to,
         }) => {
-            // only asset contract can execute this message
+            // Only an asset contract can execute this message
             let mut authorized: bool = false;
             let config: Config = CONFIG.load(deps.storage)?;
 
@@ -384,7 +384,6 @@ pub fn receive_cw20(
 
 /// ## Description
 /// Provides liquidity with the specified input parameters.
-/// CONTRACT - should approve this contract to use/pull the tokens from your account/wallet.
 /// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the
 /// specified attributes if the operation was successful.
 /// ## Params
@@ -402,6 +401,7 @@ pub fn receive_cw20(
 ///
 /// * **receiver** is an object of type [`Option<String>`]. This is the address that receives LP tokens.
 /// If this address isn't specified, the function will default to the caller.
+/// NOTE - the address that wants to swap should approve the pair contract to pull the offer token.
 pub fn provide_liquidity(
     deps: DepsMut,
     env: Env,
@@ -1716,7 +1716,7 @@ fn get_bluna_reward_holder_instantiating_message(
 
 /// ## Description
 /// Returns a vector of messages that are meant to claim bLUNA rewards for a specific user.
-/// Returns a [`ContractError`] on failure, otherwise returns the vector that contains the objects.
+/// Returns a [`ContractError`] on failure, otherwise returns the vector that contains objects
 /// of type [`CosmosMsg`].
 /// ## Params
 /// * **deps** is an object of type [`Deps`].

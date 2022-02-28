@@ -2,7 +2,7 @@
 name = "astroport-pair-stable"
 version = "1.0.0"
 authors = ["Astroport"]
-edition = "2018"
+edition = "2021"
 description = "The Astroport stableswap pair contract implementation"
 license = "MIT"
 

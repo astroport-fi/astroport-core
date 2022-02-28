@@ -1,12 +1,12 @@
 # Astroport Factory
 
-The factory contract can create new Astroport pair contracts (and associated LP token contracts) and it is used as a directory for all pairs. The default pair types are xyk and stableswap but governance may decide to add custom pools that can have any implementation.
+The factory contract can create new Astroport pair contracts (and associated LP token contracts) and it is used as a directory for all pairs. The default pair types are constant product and stableswap but governance may decide to add custom pools that can have any implementation.
 
 ---
 
 ## InstantiateMsg
 
-The instantiate message takes in the token code ID for the token type supported on Astroport. It also takes in the fee_address that collects fees for governance, the contract owner, the Generator contract address and the initial pair types available to instantiate.
+The instantiation message takes in the token code ID for the token type supported on Astroport. It also takes in the `fee_address` that collects fees for governance, the contract `owner`, the Generator contract address and the initial pair types available to create.
 
 ```json
 {
@@ -45,9 +45,15 @@ Updates contract variables, namely the code ID of the token implementation used 
 
 ### `update_pair_config`
 
-Update the code ID used to instantiate new pairs of a specific type. Change the fee structure for the pair. Disable the pair type so no other pairs can be instantiated. All fields are optional.
+This function can be used to:
 
-The fee structure is set up as follows:
+- Update the code ID used to instantiate new pairs of a specific type
+- Change the fee structure for a pair
+- Disable the pair type so no other pairs can be instantiated
+
+Note that all fields are optional.
+
+The fee structure for a pair is set up as follows:
 
 - `total_fee_bps` is the total amount of fees (in bps) that are charged on each swap
 - `maker_fee_bps` is the percentage of fees out of `total_fee_bps` that is sent to governance. 100% is 10,000
@@ -124,7 +130,7 @@ Deregisters an already registered pair. This allows someone else to create a new
 
 ### `propose_new_owner`
 
-Creates an offer to change the contract ownership. The validity period of the offer is set in the `expires_in` variable. After `expires_in` seconds pass, the offer expires and cannot be accepted anymore.
+Creates an offer to change the contract ownership. The validity period of the offer is set in the `expires_in` variable. After `expires_in` seconds pass, the proposal expires and cannot be accepted anymore.
 
 ```json
 {
@@ -171,7 +177,7 @@ Returns general factory parameters (owner, token code ID, pair type configuratio
 
 ### `pair`
 
-Returns information for a specific pair.
+Returns information about a specific pair.
 
 ```json
 {
@@ -194,7 +200,7 @@ Returns information for a specific pair.
 
 ### `pairs`
 
-Returns information for multiple pairs (the result is paginated). The function starts returning pair information starting after the pair  `start_after`. The function returns maximum `limit` pairs.
+Returns information about multiple pairs (the result is paginated). The function starts returning pair information starting after the pair  `start_after`. The function returns maximum `limit` pairs.
 
 ```json
 {
