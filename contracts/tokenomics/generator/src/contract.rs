@@ -145,20 +145,10 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::MoveToProxy { lp_token, proxy } => {
-            let cfg = CONFIG.load(deps.storage)?;
-            if info.sender != cfg.owner {
-                return Err(ContractError::Unauthorized {});
-            }
-
-            move_to_proxy(deps, env, lp_token, proxy)
+            move_to_proxy(deps, env, info, lp_token, proxy)
         }
         ExecuteMsg::UpdateAllowedProxies { add, remove } => {
-            let cfg = CONFIG.load(deps.storage)?;
-            if info.sender != cfg.owner {
-                return Err(ContractError::Unauthorized {});
-            }
-
-            update_allowed_proxies(deps, add, remove)
+            update_allowed_proxies(deps, info, add, remove)
         }
         ExecuteMsg::UpdateConfig { vesting_contract } => {
             execute_update_config(deps, info, vesting_contract)
@@ -1160,6 +1150,7 @@ fn send_orphan_proxy_rewards(
 fn move_to_proxy(
     mut deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     lp_token: String,
     proxy: String,
 ) -> Result<Response, ContractError> {
@@ -1223,6 +1214,7 @@ fn move_to_proxy(
 /// Add or remove proxy contracts to and from the proxy contract whitelist. Returns a [`ContractError`] on failure.
 fn update_allowed_proxies(
     deps: DepsMut,
+    info: MessageInfo,
     add: Option<Vec<String>>,
     remove: Option<Vec<String>>,
 ) -> Result<Response, ContractError> {
