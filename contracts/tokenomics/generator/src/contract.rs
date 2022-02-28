@@ -4,6 +4,7 @@ use cosmwasm_std::{
     WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
+use std::collections::HashSet;
 
 use crate::error::ContractError;
 use crate::migration;
@@ -144,7 +145,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::MoveToProxy { lp_token, proxy } => {
             let cfg = CONFIG.load(deps.storage)?;
-            if info.sender != cfg.owner && info.sender != cfg.generator_controller {
+            if info.sender != cfg.owner {
                 return Err(ContractError::Unauthorized {});
             }
 
@@ -168,6 +169,13 @@ pub fn execute(
             }
 
             let mut setup_pools: Vec<(Addr, Uint64)> = vec![];
+
+            let polls_set: HashSet<String> = pools.clone().into_iter().map(|pc| pc.0).collect();
+
+            if polls_set.len() != pools.len() {
+                return Err(ContractError::PoolDuplicate {});
+            }
+
             for (addr, alloc_point) in pools {
                 setup_pools.push((addr_validate_to_lower(deps.api, &addr)?, alloc_point));
             }
@@ -335,7 +343,11 @@ pub fn setup_pools(
     let mut cfg = CONFIG.load(deps.storage)?;
 
     for (lp_token, _) in pools.iter() {
-        if POOL_INFO.load(deps.storage, lp_token).is_err() {
+        if let Ok(pool) = POOL_INFO.may_load(deps.storage, lp_token) {
+            if pool.is_none() {
+                create_pool(deps.branch(), &env, lp_token)?;
+            }
+        } else {
             create_pool(deps.branch(), &env, lp_token)?;
         }
     }
@@ -571,9 +583,9 @@ pub fn claim_rewards(
 
     let user = USER_INFO.load(deps.storage, (&lp_token, &account))?;
 
-    let send_rewards_msg = send_pending_rewards(&cfg, &pool, &user, &account)?;
-
     accumulate_rewards_per_share(deps.branch(), &env, &lp_token, &mut pool, &cfg, None)?;
+
+    let send_rewards_msg = send_pending_rewards(&cfg, &pool, &user, &account)?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
 
@@ -684,7 +696,11 @@ fn receive_cw20(
     let amount = cw20_msg.amount;
     let lp_token = info.sender;
 
-    if POOL_INFO.load(deps.storage, &lp_token).is_err() {
+    if let Ok(pool) = POOL_INFO.may_load(deps.storage, &lp_token) {
+        if pool.is_none() {
+            create_pool(deps.branch(), &env, &lp_token)?;
+        }
+    } else {
         create_pool(deps.branch(), &env, &lp_token)?;
     }
 
@@ -1155,7 +1171,11 @@ fn move_to_proxy(
         return Err(ContractError::RewardProxyNotAllowed {});
     }
 
-    if POOL_INFO.load(deps.storage, &lp_addr).is_err() {
+    if let Ok(pool) = POOL_INFO.may_load(deps.storage, &lp_addr) {
+        if pool.is_none() {
+            create_pool(deps.branch(), &env, &lp_addr)?;
+        }
+    } else {
         create_pool(deps.branch(), &env, &lp_addr)?;
     }
 
@@ -1701,6 +1721,17 @@ pub fn create_pool(deps: DepsMut, env: &Env, lp_token: &Addr) -> Result<PoolInfo
         {
             return Err(ContractError::GeneratorIsDisabled {});
         }
+    }
+
+    let factory_pair: PairInfo = deps.querier.query_wasm_smart(
+        cfg.factory.clone(),
+        &FactoryQueryMsg::Pair {
+            asset_infos: pair_info.asset_infos,
+        },
+    )?;
+
+    if &factory_pair.liquidity_token != lp_token {
+        return Err(ContractError::PoolDuplicate {});
     }
 
     POOL_INFO.save(

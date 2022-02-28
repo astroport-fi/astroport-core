@@ -41,6 +41,11 @@ const USER7: &str = "user7";
 const USER8: &str = "user8";
 const USER9: &str = "user9";
 
+struct PoolWithProxy {
+    pool: (String, Uint64),
+    proxy: Option<Addr>,
+}
+
 #[test]
 fn proper_deposit_and_withdraw() {
     let mut app = mock_app();
@@ -65,10 +70,15 @@ fn proper_deposit_and_withdraw() {
     register_lp_tokens_in_generator(
         &mut app,
         &generator_instance,
-        None,
         vec![
-            (lp_cny_eur.to_string(), Uint64::from(50u32)),
-            (lp_eur_usd.to_string(), Uint64::from(50u32)),
+            PoolWithProxy {
+                pool: (lp_cny_eur.to_string(), Uint64::from(50u32)),
+                proxy: None,
+            },
+            PoolWithProxy {
+                pool: (lp_eur_usd.to_string(), Uint64::from(50u32)),
+                proxy: None,
+            },
         ],
     );
 
@@ -404,8 +414,10 @@ fn disabling_pool() {
     register_lp_tokens_in_generator(
         &mut app,
         &generator_instance,
-        None,
-        vec![(lp_eur_usdt.to_string(), Uint64::from(10u32))],
+        vec![PoolWithProxy {
+            pool: (lp_eur_usdt.to_string(), Uint64::from(10u32)),
+            proxy: None,
+        }],
     );
 
     let msg = Cw20ExecuteMsg::Send {
@@ -444,10 +456,15 @@ fn generator_without_reward_proxies() {
     register_lp_tokens_in_generator(
         &mut app,
         &generator_instance,
-        None,
         vec![
-            (lp_cny_eur.to_string(), Uint64::from(50u32)),
-            (lp_eur_usd.to_string(), Uint64::from(50u32)),
+            PoolWithProxy {
+                pool: (lp_cny_eur.to_string(), Uint64::from(50u32)),
+                proxy: None,
+            },
+            PoolWithProxy {
+                pool: (lp_eur_usd.to_string(), Uint64::from(50u32)),
+                proxy: None,
+            },
         ],
     );
 
@@ -1326,8 +1343,10 @@ fn move_to_proxy() {
     register_lp_tokens_in_generator(
         &mut app,
         &generator_instance,
-        None,
-        vec![(lp_cny_eur.to_string(), Uint64::from(50u32))],
+        vec![PoolWithProxy {
+            pool: (lp_cny_eur.to_string(), Uint64::from(50u32)),
+            proxy: None,
+        }],
     );
 
     let msg_cny_eur = QueryMsg::PoolInfo {
@@ -1482,8 +1501,10 @@ fn query_all_stakers() {
     register_lp_tokens_in_generator(
         &mut app,
         &generator_instance,
-        None,
-        vec![(lp_cny_eur.to_string(), Uint64::new(100u64))],
+        vec![PoolWithProxy {
+            pool: (lp_cny_eur.to_string(), Uint64::new(100u64)),
+            proxy: None,
+        }],
     );
 
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 10);
@@ -1614,8 +1635,10 @@ fn query_pagination_stakers() {
     register_lp_tokens_in_generator(
         &mut app,
         &generator_instance,
-        None,
-        vec![(lp_cny_eur.to_string(), Uint64::from(100u32))],
+        vec![PoolWithProxy {
+            pool: (lp_cny_eur.to_string(), Uint64::from(100u32)),
+            proxy: None,
+        }],
     );
 
     for user in [
@@ -2014,26 +2037,25 @@ fn instantiate_proxy(
 fn register_lp_tokens_in_generator(
     app: &mut TerraApp,
     generator_instance: &Addr,
-    reward_proxy: Option<&Addr>,
-    pools: Vec<(String, Uint64)>,
+    pools_with_proxy: Vec<PoolWithProxy>,
 ) {
+    let pools: Vec<(String, Uint64)> = pools_with_proxy.iter().map(|p| p.pool.clone()).collect();
+
     app.execute_contract(
         Addr::unchecked(OWNER),
         generator_instance.clone(),
-        &GeneratorExecuteMsg::SetupPools {
-            pools: pools.clone(),
-        },
+        &GeneratorExecuteMsg::SetupPools { pools },
         &[],
     )
     .unwrap();
 
-    if let Some(proxy) = reward_proxy {
-        for (lp_token, _) in &pools {
+    for pool_with_proxy in &pools_with_proxy {
+        if let Some(proxy) = &pool_with_proxy.proxy {
             app.execute_contract(
                 Addr::unchecked(OWNER),
                 generator_instance.clone(),
                 &GeneratorExecuteMsg::MoveToProxy {
-                    lp_token: lp_token.clone(),
+                    lp_token: pool_with_proxy.pool.0.clone(),
                     proxy: proxy.to_string(),
                 },
                 &[],

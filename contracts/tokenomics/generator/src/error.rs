@@ -33,10 +33,13 @@ pub enum ContractError {
     PoolAlreadyHasRewardProxyContract {},
 
     #[error("Generator is disabled!")]
-    GeneratorIsDisabled,
+    GeneratorIsDisabled {},
 
-    #[error("Pair not found!")]
-    PairNotFound,
+    #[error("Duplicate of pool")]
+    PoolDuplicate {},
+
+    #[error("Pair is not registered in factory!")]
+    PairNotRegistered {},
 }
 
 impl From<OverflowError> for ContractError {
