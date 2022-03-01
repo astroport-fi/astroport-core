@@ -185,7 +185,7 @@ pub fn execute(
             let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
             let cfg = CONFIG.load(deps.storage)?;
-            if info.sender != cfg.owner && info.sender != cfg.generator_controller {
+            if info.sender != cfg.owner {
                 return Err(ContractError::Unauthorized {});
             }
 
@@ -333,12 +333,10 @@ pub fn setup_pools(
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
+    mass_update_pools(deps.branch(), env.clone())?;
+
     for (lp_token, _) in pools.iter() {
-        if let Ok(pool) = POOL_INFO.may_load(deps.storage, lp_token) {
-            if pool.is_none() {
-                create_pool(deps.branch(), &env, lp_token)?;
-            }
-        } else {
+        if POOL_INFO.may_load(deps.storage, lp_token)?.is_none() {
             create_pool(deps.branch(), &env, lp_token)?;
         }
     }
@@ -365,11 +363,14 @@ pub fn setup_pools(
 /// ##Executor
 /// Can only be called by the owner or generator controller.
 pub fn update_pool(
-    deps: DepsMut,
+    mut deps: DepsMut,
+    env: Env,
     lp_token: Addr,
     has_asset_rewards: bool,
 ) -> Result<Response, ContractError> {
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_token)?;
+
+    mass_update_pools(deps.branch(), env)?;
 
     pool_info.has_asset_rewards = has_asset_rewards;
 
@@ -512,7 +513,7 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                 ExecuteOnReply::UpdatePool {
                     lp_token,
                     has_asset_rewards,
-                } => update_pool(deps, lp_token, has_asset_rewards),
+                } => update_pool(deps, env, lp_token, has_asset_rewards),
                 ExecuteOnReply::ClaimRewards { lp_token, account } => {
                     claim_rewards(deps, env, lp_token, account)
                 }
@@ -526,7 +527,9 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                     account,
                     amount,
                 } => withdraw(deps, env, lp_token, account, amount),
-                ExecuteOnReply::SetTokensPerBlock { amount } => set_tokens_per_block(deps, amount),
+                ExecuteOnReply::SetTokensPerBlock { amount } => {
+                    set_tokens_per_block(deps, env, amount)
+                }
             }
         }
         None => Ok(Response::default()),
@@ -541,13 +544,45 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **amount** is the object of type [`Uint128`]. Sets a new count of tokens per block.
-fn set_tokens_per_block(deps: DepsMut, amount: Uint128) -> Result<Response, ContractError> {
+fn set_tokens_per_block(
+    mut deps: DepsMut,
+    env: Env,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    mass_update_pools(deps.branch(), env)?;
+
     CONFIG.update::<_, ContractError>(deps.storage, |mut v| {
         v.tokens_per_block = amount;
         Ok(v)
     })?;
 
     Ok(Response::new().add_attribute("action", "set_tokens_per_block"))
+}
+
+/// # Description
+/// Updates reward variables for all pools. Returns an [`ContractError`] on failure, otherwise
+/// returns the [`Response`] with the specified attributes if the operation was successful.
+/// # Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **env** is the object of type [`Env`].
+pub fn mass_update_pools(mut deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let response = Response::default();
+
+    let cfg = CONFIG.load(deps.storage)?;
+
+    if cfg.active_pools.is_empty() {
+        return Ok(response);
+    }
+
+    for (lp_token, _) in &cfg.active_pools {
+        let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
+
+        accumulate_rewards_per_share(deps.branch(), &env, lp_token, &mut pool, &cfg, None)?;
+        POOL_INFO.save(deps.storage, lp_token, &pool)?;
+    }
+
+    Ok(response.add_attribute("action", "mass_update_pools"))
 }
 
 /// # Description
@@ -687,11 +722,7 @@ fn receive_cw20(
     let amount = cw20_msg.amount;
     let lp_token = info.sender;
 
-    if let Ok(pool) = POOL_INFO.may_load(deps.storage, &lp_token) {
-        if pool.is_none() {
-            create_pool(deps.branch(), &env, &lp_token)?;
-        }
-    } else {
+    if POOL_INFO.may_load(deps.storage, &lp_token)?.is_none() {
         create_pool(deps.branch(), &env, &lp_token)?;
     }
 
@@ -1168,11 +1199,7 @@ fn move_to_proxy(
         return Err(ContractError::RewardProxyNotAllowed {});
     }
 
-    if let Ok(pool) = POOL_INFO.may_load(deps.storage, &lp_addr) {
-        if pool.is_none() {
-            create_pool(deps.branch(), &env, &lp_addr)?;
-        }
-    } else {
+    if POOL_INFO.may_load(deps.storage, &lp_addr)?.is_none() {
         create_pool(deps.branch(), &env, &lp_addr)?;
     }
 
