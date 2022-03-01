@@ -63,10 +63,10 @@ pub fn instantiate(
         allowed_reward_proxies.push(addr_validate_to_lower(deps.api, &proxy)?);
     }
 
-    let config = Config {
+    let mut config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         factory: addr_validate_to_lower(deps.api, &msg.factory)?,
-        generator_controller: addr_validate_to_lower(deps.api, &msg.generator_controller)?,
+        generator_controller: None,
         astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
         tokens_per_block: msg.tokens_per_block,
         total_alloc_point: Uint64::from(0u64),
@@ -75,6 +75,11 @@ pub fn instantiate(
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
         active_pools: vec![],
     };
+
+    if let Some(generator_controller) = msg.generator_controller {
+        config.generator_controller =
+            Some(addr_validate_to_lower(deps.api, &generator_controller)?);
+    }
 
     CONFIG.save(deps.storage, &config)?;
     TMP_USER_ACTION.save(deps.storage, &None)?;
@@ -155,7 +160,7 @@ pub fn execute(
         }
         ExecuteMsg::SetupPools { pools } => {
             let cfg = CONFIG.load(deps.storage)?;
-            if info.sender != cfg.owner && info.sender != cfg.generator_controller {
+            if info.sender != cfg.owner && Some(info.sender) != cfg.generator_controller {
                 return Err(ContractError::Unauthorized {});
             }
 
@@ -322,7 +327,9 @@ pub fn execute_update_config(
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **lp_token** is an object of type [`Addr`]. This is the LP token for which to create a generator.
+/// * **env** is an object of type [`Env`].
+///
+/// * **pools** is a vector of set that contains LP token address and allocation point.
 ///
 /// ##Executor
 /// Can only be called by the owner or generator controller
@@ -356,12 +363,14 @@ pub fn setup_pools(
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
+/// * **env** is an object of type [`Env`].
+///
 /// * **lp_token** is an object of type [`Addr`]. This is the LP token whose generator allocation points we update.
 ///
 /// * **has_asset_rewards** is the field of type [`bool`]. This flag indicates whether the generator receives dual rewards.
 ///
 /// ##Executor
-/// Can only be called by the owner or generator controller.
+/// Can only be called by the owner.
 pub fn update_pool(
     mut deps: DepsMut,
     env: Env,
@@ -586,7 +595,7 @@ pub fn mass_update_pools(mut deps: DepsMut, env: Env) -> Result<Response, Contra
 }
 
 /// # Description
-/// Updates the amount of accrued rewards for a specific generator. Returns a [`ContractError`] on
+/// Updates rewards and returns it to user. Returns a [`ContractError`] on
 /// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -1547,7 +1556,7 @@ fn query_orphan_proxy_rewards(deps: Deps, lp_token: String) -> Result<Uint128, C
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **lp_token** is an object of type [`Addr`]. This is the LP token whose generator we query.
+/// * **lp_token** is an object of type [`String`]. This is the LP token whose generator we query.
 fn query_pool_info(
     deps: Deps,
     env: Env,
@@ -1732,6 +1741,14 @@ pub fn calculate_rewards(
     Ok(r)
 }
 
+/// ## Description
+/// Gets allocation point of the pool.
+/// ## Params
+/// * **env** is an object of type [`Env`].
+///
+/// * **pools** is a vector of set that contains LP token address and allocation point.
+///
+/// * **lp_token** is an object of type [`Addr`].
 pub fn get_alloc_point(pools: &[(Addr, Uint64)], lp_token: &Addr) -> Uint64 {
     pools
         .iter()
@@ -1744,6 +1761,14 @@ pub fn get_alloc_point(pools: &[(Addr, Uint64)], lp_token: &Addr) -> Uint64 {
         .unwrap_or_else(Uint64::zero)
 }
 
+/// ## Description
+/// Creates pool if it is allowed in the factory.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **lp_token** is an object of type [`Addr`]. This is the
 pub fn create_pool(deps: DepsMut, env: &Env, lp_token: &Addr) -> Result<PoolInfo, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
     let factory_cfg: FactoryConfigResponse = deps

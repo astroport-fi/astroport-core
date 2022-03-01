@@ -12,7 +12,7 @@ pub struct InstantiateMsg {
     /// Address of factory contract
     pub factory: String,
     /// Address that can set active generators and their alloc points
-    pub generator_controller: String,
+    pub generator_controller: Option<String>,
     /// ASTRO token contract address
     pub astro_token: String,
     /// Amount of ASTRO distributed per block among all pairs
@@ -248,7 +248,7 @@ pub struct ConfigResponse {
     /// the Factory address
     pub factory: Addr,
     /// contract address which can only set active generators and their alloc points
-    pub generator_controller: Addr,
+    pub generator_controller: Option<Addr>,
     /// ASTRO token contract address
     pub astro_token: Addr,
     /// Total amount of ASTRO distributed per block

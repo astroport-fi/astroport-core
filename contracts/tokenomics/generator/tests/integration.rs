@@ -218,7 +218,7 @@ fn update_config() {
         .unwrap();
 
     assert_eq!(res.owner, OWNER);
-    assert_eq!(res.generator_controller, OWNER);
+    assert_eq!(res.generator_controller, Some(Addr::unchecked(OWNER)));
     assert_eq!(res.astro_token.to_string(), "contract #0");
     assert_eq!(res.factory.to_string(), "contract #1");
     assert_eq!(res.vesting_contract.to_string(), "contract #2");
@@ -1898,7 +1898,7 @@ fn instantiate_generator(
         astro_token: astro_token_instance.to_string(),
         tokens_per_block: Uint128::new(10_000000),
         vesting_contract: vesting_instance.to_string(),
-        generator_controller: owner.to_string(),
+        generator_controller: Some(owner.to_string()),
     };
 
     let generator_instance = app

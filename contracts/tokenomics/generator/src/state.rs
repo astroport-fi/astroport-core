@@ -27,7 +27,7 @@ pub struct Config {
     /// the Factory address
     pub factory: Addr,
     /// contract address which can only set active generators and their alloc points
-    pub generator_controller: Addr,
+    pub generator_controller: Option<Addr>,
     /// The ASTRO token address
     pub astro_token: Addr,
     /// Total amount of ASTRO rewards per block
