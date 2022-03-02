@@ -14,6 +14,7 @@ use crate::state::{
 };
 use astroport::asset::{addr_validate_to_lower, PairInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::factory::PairConfig;
 use astroport::generator::PoolInfo;
 use astroport::generator::StakerResponse;
 use astroport::querier::query_token_balance;
@@ -1783,23 +1784,30 @@ pub fn create_pool(deps: DepsMut, env: &Env, lp_token: &Addr) -> Result<PoolInfo
         .querier
         .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
 
-    for pair_config in &factory_cfg.pair_configs {
-        if pair_config.pair_type == pair_info.pair_type {
-            if pair_config.is_disabled || pair_config.is_generator_disabled {
-                return Err(ContractError::GeneratorIsDisabled {});
-            }
-
-            let factory_pair: PairInfo = deps.querier.query_wasm_smart(
-                cfg.factory.clone(),
-                &FactoryQueryMsg::Pair {
-                    asset_infos: pair_info.clone().asset_infos,
-                },
-            )?;
-
-            if &factory_pair.liquidity_token != lp_token {
-                return Err(ContractError::PairNotRegistered {});
-            }
+    let mut pair_config: Option<PairConfig> = None;
+    for factory_pair_config in factory_cfg.pair_configs {
+        if factory_pair_config.pair_type == pair_info.pair_type {
+            pair_config = Some(factory_pair_config);
         }
+    }
+
+    if let Some(pair_config) = pair_config {
+        if pair_config.is_disabled || pair_config.is_generator_disabled {
+            return Err(ContractError::GeneratorIsDisabled {});
+        }
+    } else {
+        return Err(ContractError::PairNotRegistered {});
+    }
+
+    let factory_pair: PairInfo = deps.querier.query_wasm_smart(
+        cfg.factory.clone(),
+        &FactoryQueryMsg::Pair {
+            asset_infos: pair_info.asset_infos,
+        },
+    )?;
+
+    if &factory_pair.liquidity_token != lp_token {
+        return Err(ContractError::PairNotRegistered {});
     }
 
     POOL_INFO.save(
