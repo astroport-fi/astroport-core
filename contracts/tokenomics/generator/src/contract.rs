@@ -1784,22 +1784,22 @@ pub fn create_pool(deps: DepsMut, env: &Env, lp_token: &Addr) -> Result<PoolInfo
         .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
 
     for pair_config in &factory_cfg.pair_configs {
-        if pair_config.pair_type == pair_info.pair_type
-            && (pair_config.is_disabled || pair_config.is_generator_disabled)
-        {
-            return Err(ContractError::GeneratorIsDisabled {});
+        if pair_config.pair_type == pair_info.pair_type {
+            if pair_config.is_disabled || pair_config.is_generator_disabled {
+                return Err(ContractError::GeneratorIsDisabled {});
+            }
+
+            let factory_pair: PairInfo = deps.querier.query_wasm_smart(
+                cfg.factory.clone(),
+                &FactoryQueryMsg::Pair {
+                    asset_infos: pair_info.clone().asset_infos,
+                },
+            )?;
+
+            if &factory_pair.liquidity_token != lp_token {
+                return Err(ContractError::PairNotRegistered {});
+            }
         }
-    }
-
-    let factory_pair: PairInfo = deps.querier.query_wasm_smart(
-        cfg.factory.clone(),
-        &FactoryQueryMsg::Pair {
-            asset_infos: pair_info.asset_infos,
-        },
-    )?;
-
-    if &factory_pair.liquidity_token != lp_token {
-        return Err(ContractError::PoolDuplicate {});
     }
 
     POOL_INFO.save(
