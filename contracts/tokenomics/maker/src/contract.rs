@@ -443,23 +443,32 @@ fn swap_no_validate(
     let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
-    let swap_to_astro = try_build_swap_msg(deps, cfg, from_token.clone(), astro, amount_in);
-    if let Ok(msg) = swap_to_astro {
-        return Ok(SwapTarget::Astro(msg));
-    }
-
+    // LUNA should be swapped to ust
     if from_token.eq(&uluna) {
         let msg = try_build_swap_msg(deps, cfg, from_token, uusd.clone(), amount_in)?;
         return Ok(SwapTarget::Bridge { asset: uusd, msg });
     }
 
-    let bridge_token = BRIDGES.load(deps.storage, from_token.to_string())?;
-    let msg = try_build_swap_msg(deps, cfg, from_token, bridge_token.clone(), amount_in)?;
+    // UST should be swapped to ASTRO
+    if from_token.eq(&uusd) {
+        let swap_to_astro = try_build_swap_msg(deps, cfg, from_token, astro, amount_in)?;
+        return Ok(SwapTarget::Astro(swap_to_astro));
+    }
 
-    Ok(SwapTarget::Bridge {
-        asset: bridge_token,
-        msg,
-    })
+    // Check if next level bridge exists
+    let bridge_token = BRIDGES.load(deps.storage, from_token.to_string());
+    if let Ok(asset) = bridge_token {
+        let msg = try_build_swap_msg(deps, cfg, from_token, asset.clone(), amount_in)?;
+        return Ok(SwapTarget::Bridge { asset, msg });
+    }
+
+    // Check direct swap to astro
+    let swap_to_astro = try_build_swap_msg(deps, cfg, from_token.clone(), astro, amount_in);
+    if let Ok(msg) = swap_to_astro {
+        return Ok(SwapTarget::Astro(msg));
+    }
+
+    Err(ContractError::CannotSwap(from_token))
 }
 
 /// ## Description
