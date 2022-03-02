@@ -373,14 +373,11 @@ pub fn setup_pools(
 /// ##Executor
 /// Can only be called by the owner.
 pub fn update_pool(
-    mut deps: DepsMut,
-    env: Env,
+    deps: DepsMut,
     lp_token: Addr,
     has_asset_rewards: bool,
 ) -> Result<Response, ContractError> {
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_token)?;
-
-    mass_update_pools(deps.branch(), env)?;
 
     pool_info.has_asset_rewards = has_asset_rewards;
 
@@ -523,7 +520,7 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                 ExecuteOnReply::UpdatePool {
                     lp_token,
                     has_asset_rewards,
-                } => update_pool(deps, env, lp_token, has_asset_rewards),
+                } => update_pool(deps, lp_token, has_asset_rewards),
                 ExecuteOnReply::ClaimRewards { lp_token, account } => {
                     claim_rewards(deps, env, lp_token, account)
                 }
