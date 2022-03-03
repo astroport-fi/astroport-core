@@ -1,4 +1,6 @@
-use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
+use crate::state::{Config, CONFIG};
+use astroport::asset::addr_validate_to_lower;
+use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -73,7 +75,7 @@ pub struct ConfigV110 {
 
 /// ## Description
 /// Stores the contract config(V1.1.0) at the given key
-pub const CONFIGV110: Item<ConfigV110> = Item::new("config");
+pub const CONFIGV100: Item<ConfigV110> = Item::new("config");
 
 /// This structure describes a contract migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -82,4 +84,32 @@ pub struct MigrationMsgV110 {
     pub factory: String,
     /// Contract address which can only set active generators and their alloc points
     pub generator_controller: Option<String>,
+}
+
+pub fn migrate_configs_to_v120(
+    deps: &mut DepsMut,
+    pools: Vec<(Addr, Uint64)>,
+    msg: MigrationMsgV110,
+) -> Result<(), StdError> {
+    let cfg_100 = CONFIGV100.load(deps.storage)?;
+
+    let mut cfg = Config {
+        owner: cfg_100.owner,
+        factory: addr_validate_to_lower(deps.api, &msg.factory)?,
+        generator_controller: None,
+        astro_token: cfg_100.astro_token,
+        tokens_per_block: cfg_100.tokens_per_block,
+        total_alloc_point: cfg_100.total_alloc_point,
+        start_block: cfg_100.start_block,
+        allowed_reward_proxies: cfg_100.allowed_reward_proxies,
+        vesting_contract: cfg_100.vesting_contract,
+        active_pools: pools,
+    };
+
+    if let Some(generator_controller) = msg.generator_controller {
+        cfg.generator_controller = Some(addr_validate_to_lower(deps.api, &generator_controller)?);
+    }
+    CONFIG.save(deps.storage, &cfg)?;
+
+    Ok(())
 }

@@ -8,7 +8,6 @@ use std::collections::HashSet;
 
 use crate::error::ContractError;
 use crate::migration;
-use crate::migration::CONFIGV110;
 use crate::state::{
     update_user_balance, Config, ExecuteOnReply, UserInfo, CONFIG, DEFAULT_LIMIT, MAX_LIMIT,
     OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
@@ -1823,7 +1822,7 @@ pub fn create_pool(deps: DepsMut, env: &Env, lp_token: &Addr) -> Result<PoolInfo
 ///
 /// * **msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
@@ -1833,7 +1832,6 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
 
                 let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 
-                let cfg_v100 = CONFIGV110.load(deps.storage)?;
                 let keys = POOL_INFO
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
                     .map(|v| String::from_utf8(v).map_err(StdError::from))
@@ -1861,32 +1859,13 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
 
-                let mut cfg = Config {
-                    owner: cfg_v100.owner,
-                    factory: addr_validate_to_lower(deps.api, &msg.factory)?,
-                    generator_controller: None,
-                    astro_token: cfg_v100.astro_token,
-                    tokens_per_block: cfg_v100.tokens_per_block,
-                    total_alloc_point: cfg_v100.total_alloc_point,
-                    start_block: cfg_v100.start_block,
-                    allowed_reward_proxies: cfg_v100.allowed_reward_proxies,
-                    vesting_contract: cfg_v100.vesting_contract,
-                    active_pools,
-                };
-
-                if let Some(generator_controller) = msg.generator_controller {
-                    cfg.generator_controller =
-                        Some(addr_validate_to_lower(deps.api, &generator_controller)?);
-                }
-
-                CONFIG.save(deps.storage, &cfg)?;
+                migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?
             }
             "1.1.0" => {
                 let msg: migration::MigrationMsgV110 = from_binary(&msg.params)?;
 
                 let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 
-                let cfg_v110 = CONFIGV110.load(deps.storage)?;
                 let keys = POOL_INFO
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
                     .map(|v| String::from_utf8(v).map_err(StdError::from))
@@ -1914,24 +1893,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
 
-                let mut cfg = Config {
-                    owner: cfg_v110.owner,
-                    factory: addr_validate_to_lower(deps.api, &msg.factory)?,
-                    generator_controller: None,
-                    astro_token: cfg_v110.astro_token,
-                    tokens_per_block: cfg_v110.tokens_per_block,
-                    total_alloc_point: cfg_v110.total_alloc_point,
-                    start_block: cfg_v110.start_block,
-                    allowed_reward_proxies: cfg_v110.allowed_reward_proxies,
-                    vesting_contract: cfg_v110.vesting_contract,
-                    active_pools,
-                };
-
-                if let Some(generator_controller) = msg.generator_controller {
-                    cfg.generator_controller =
-                        Some(addr_validate_to_lower(deps.api, &generator_controller)?);
-                }
-                CONFIG.save(deps.storage, &cfg)?;
+                migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?
             }
             _ => return Err(ContractError::MigrationError {}),
         },
