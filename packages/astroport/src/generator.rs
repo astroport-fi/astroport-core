@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
+use cosmwasm_std::{Addr, Binary, Decimal, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -31,21 +31,21 @@ pub enum ExecuteMsg {
     /// ## Description
     /// Update the address of the ASTRO vesting contract
     /// ## Executor
-    /// Only the owner can execute it
+    /// Only the owner can execute it.
     UpdateConfig {
         /// The new vesting contract address
         vesting_contract: Option<String>,
     },
     /// ## Description
-    /// Add a new generator for a LP token
+    /// Setting up a new list of pools with allocation points.
     /// ## Executor
-    /// Only the owner or generator controller can execute this
+    /// Only the owner or generator controller can execute this.
     SetupPools {
-        /// The list of pools with allocation point
+        /// The list of pools with allocation point.
         pools: Vec<(String, Uint64)>,
     },
     /// ## Description
-    /// Update the given pool's ASTRO allocation slice
+    /// Update the given pool's has_asset_rewards parameter.
     /// ## Executor
     /// Only the owner or generator controller can execute this.
     UpdatePool {
@@ -55,7 +55,7 @@ pub enum ExecuteMsg {
         has_asset_rewards: bool,
     },
     /// ## Description
-    /// Updates reward variables for a specific pool
+    /// Update rewards and return it to user.
     ClaimRewards {
         /// the LP token contract address
         lp_token: String,
@@ -268,7 +268,9 @@ pub struct ConfigResponse {
 /// ## Description
 /// This structure describes a migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub params: Binary,
+}
 
 /// ## Description
 /// This structure describes custom hooks for the CW20.

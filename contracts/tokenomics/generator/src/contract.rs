@@ -8,6 +8,7 @@ use std::collections::HashSet;
 
 use crate::error::ContractError;
 use crate::migration;
+use crate::migration::CONFIGV110;
 use crate::state::{
     update_user_balance, Config, ExecuteOnReply, UserInfo, CONFIG, DEFAULT_LIMIT, MAX_LIMIT,
     OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
@@ -95,26 +96,19 @@ pub fn instantiate(
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **_info** is an object of type [`MessageInfo`].
+/// * **info** is an object of type [`MessageInfo`].
 ///
 /// * **msg** is an object of type [`ExecuteMsg`].
 ///
 /// ## Queries
 /// * **ExecuteMsg::UpdateConfig { vesting_contract }** Changes the address of the Generator vesting contract.
 ///
-/// * **ExecuteMsg::Add {
-///             lp_token,
-///             alloc_point,
-///             reward_proxy,
-///         }** Create a new generator and add it in the [`POOL_INFO`] mapping if it does not exist yet. This also updates the
-/// total allocation point variable in the [`Config`] object.
-/// * **ExecuteMsg::SetupPools { pools }** Add a new liquidity pool
-/// to the [`POOL_INFO`] if it does not exist and updates total allocation point in [`Config`].
+/// * **ExecuteMsg::SetupPools { pools }** Setting up a new list of pools with allocation points.
 ///
 /// * **UpdatePool {
 ///             lp_token,
 ///             has_asset_rewards,
-///         }** Updates the given pool's ASTRO.
+///         }** Update the given pool's has_asset_rewards parameter.
 ///
 /// * **ExecuteMsg::ClaimRewards { lp_token }** Updates reward and returns it to user.
 ///
@@ -363,8 +357,6 @@ pub fn setup_pools(
 ///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
 ///
 /// * **lp_token** is an object of type [`Addr`]. This is the LP token whose generator allocation points we update.
 ///
@@ -1742,8 +1734,6 @@ pub fn calculate_rewards(
 /// ## Description
 /// Gets allocation point of the pool.
 /// ## Params
-/// * **env** is an object of type [`Env`].
-///
 /// * **pools** is a vector of set that contains LP token address and allocation point.
 ///
 /// * **lp_token** is an object of type [`Addr`].
@@ -1827,18 +1817,23 @@ pub fn create_pool(deps: DepsMut, env: &Env, lp_token: &Addr) -> Result<PoolInfo
 /// ## Description
 /// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
-/// * **_deps** is an object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **_env** is an object of type [`Env`].
 ///
-/// * **_msg** is an object of type [`MigrateMsg`].
+/// * **msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-generator" => match contract_version.version.as_ref() {
             "1.0.0" => {
+                let msg: migration::MigrationMsgV110 = from_binary(&msg.params)?;
+
+                let mut active_pools: Vec<(Addr, Uint64)> = vec![];
+
+                let cfg_v100 = CONFIGV110.load(deps.storage)?;
                 let keys = POOL_INFO
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
                     .map(|v| String::from_utf8(v).map_err(StdError::from))
@@ -1847,6 +1842,11 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
                 for key in keys {
                     let pool_info_v100 = migration::POOL_INFOV100
                         .load(deps.storage, &Addr::unchecked(key.clone()))?;
+
+                    if !pool_info_v100.alloc_point.is_zero() {
+                        active_pools.push((Addr::unchecked(&key), pool_info_v100.alloc_point));
+                    }
+
                     let pool_info = PoolInfo {
                         has_asset_rewards: false,
                         accumulated_proxy_rewards_per_share: pool_info_v100
@@ -1860,6 +1860,78 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
+
+                let mut cfg = Config {
+                    owner: cfg_v100.owner,
+                    factory: addr_validate_to_lower(deps.api, &msg.factory)?,
+                    generator_controller: None,
+                    astro_token: cfg_v100.astro_token,
+                    tokens_per_block: cfg_v100.tokens_per_block,
+                    total_alloc_point: cfg_v100.total_alloc_point,
+                    start_block: cfg_v100.start_block,
+                    allowed_reward_proxies: cfg_v100.allowed_reward_proxies,
+                    vesting_contract: cfg_v100.vesting_contract,
+                    active_pools,
+                };
+
+                if let Some(generator_controller) = msg.generator_controller {
+                    cfg.generator_controller =
+                        Some(addr_validate_to_lower(deps.api, &generator_controller)?);
+                }
+
+                CONFIG.save(deps.storage, &cfg)?;
+            }
+            "1.1.0" => {
+                let msg: migration::MigrationMsgV110 = from_binary(&msg.params)?;
+
+                let mut active_pools: Vec<(Addr, Uint64)> = vec![];
+
+                let cfg_v110 = CONFIGV110.load(deps.storage)?;
+                let keys = POOL_INFO
+                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
+                    .map(|v| String::from_utf8(v).map_err(StdError::from))
+                    .collect::<Result<Vec<String>, StdError>>()?;
+
+                for key in keys {
+                    let pool_info_v110 = migration::POOL_INFOV110
+                        .load(deps.storage, &Addr::unchecked(key.clone()))?;
+
+                    if !pool_info_v110.alloc_point.is_zero() {
+                        active_pools.push((Addr::unchecked(&key), pool_info_v110.alloc_point));
+                    }
+
+                    let pool_info = PoolInfo {
+                        has_asset_rewards: pool_info_v110.has_asset_rewards,
+                        accumulated_proxy_rewards_per_share: pool_info_v110
+                            .accumulated_proxy_rewards_per_share,
+                        accumulated_rewards_per_share: pool_info_v110.accumulated_rewards_per_share,
+                        last_reward_block: pool_info_v110.last_reward_block,
+                        orphan_proxy_rewards: pool_info_v110.orphan_proxy_rewards,
+                        proxy_reward_balance_before_update: pool_info_v110
+                            .proxy_reward_balance_before_update,
+                        reward_proxy: pool_info_v110.reward_proxy,
+                    };
+                    POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
+                }
+
+                let mut cfg = Config {
+                    owner: cfg_v110.owner,
+                    factory: addr_validate_to_lower(deps.api, &msg.factory)?,
+                    generator_controller: None,
+                    astro_token: cfg_v110.astro_token,
+                    tokens_per_block: cfg_v110.tokens_per_block,
+                    total_alloc_point: cfg_v110.total_alloc_point,
+                    start_block: cfg_v110.start_block,
+                    allowed_reward_proxies: cfg_v110.allowed_reward_proxies,
+                    vesting_contract: cfg_v110.vesting_contract,
+                    active_pools,
+                };
+
+                if let Some(generator_controller) = msg.generator_controller {
+                    cfg.generator_controller =
+                        Some(addr_validate_to_lower(deps.api, &generator_controller)?);
+                }
+                CONFIG.save(deps.storage, &cfg)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },

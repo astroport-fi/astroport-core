@@ -24,9 +24,9 @@ pub struct UserInfo {
 pub struct Config {
     /// Address allowed to change contract parameters
     pub owner: Addr,
-    /// the Factory address
+    /// The Factory address
     pub factory: Addr,
-    /// contract address which can only set active generators and their alloc points
+    /// Contract address which can only set active generators and their alloc points
     pub generator_controller: Option<Addr>,
     /// The ASTRO token address
     pub astro_token: Addr,
@@ -51,18 +51,18 @@ pub enum ExecuteOnReply {
         /// The list of pools with allocation points
         pools: Vec<(Addr, Uint64)>,
     },
-    /// update the given pool's ASTRO allocation point
+    /// Update the given pool's has_asset_rewards parameter.
     UpdatePool {
-        /// the LP token contract
+        /// The LP token contract
         lp_token: Addr,
         /// The flag determines whether the pool has its asset related rewards or not
         has_asset_rewards: bool,
     },
-    /// Updates reward and returns it to user
+    /// Updates reward and returns it to user.
     ClaimRewards {
-        /// the LP token contract
+        /// The LP token contract
         lp_token: Addr,
-        /// the rewards recipient
+        /// The rewards recipient
         account: Addr,
     },
     /// Stake LP tokens in the Generator to receive token emissions
@@ -117,6 +117,14 @@ pub const DEFAULT_LIMIT: u32 = 10;
 /// Contains a proposal to change contract ownership.
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
+/// ## Description
+/// Update user balance.
+/// ## Params
+/// * **user** is an object of type [`UserInfo`].
+///
+/// * **pool** is an object of type [`PoolInfo`].
+///
+/// * **amount** is an object of type [`Uint128`].
 pub fn update_user_balance(
     mut user: UserInfo,
     pool: &PoolInfo,

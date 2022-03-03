@@ -1,5 +1,5 @@
 use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
-use cw_storage_plus::Map;
+use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -23,4 +23,63 @@ pub struct PoolInfoV100 {
     pub orphan_proxy_rewards: Uint128,
 }
 
+/// ## Description
+/// Stores the contract config(V1.0.0) at the given key
 pub const POOL_INFOV100: Map<&Addr, PoolInfoV100> = Map::new("pool_info");
+
+/// ## Description
+/// This structure stores the parameters for a generator (in the upgraded version v1.1.0 of the Generator contract).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct PoolInfoV110 {
+    /// Allocation point is used to control reward distribution among the pools
+    pub alloc_point: Uint64,
+    /// Accumulated amount of reward per share unit. Used for reward calculations
+    pub last_reward_block: Uint64,
+    pub accumulated_rewards_per_share: Decimal,
+    /// the reward proxy contract
+    pub reward_proxy: Option<Addr>,
+    pub accumulated_proxy_rewards_per_share: Decimal,
+    /// for calculation of new proxy rewards
+    pub proxy_reward_balance_before_update: Uint128,
+    /// the orphan proxy rewards which are left by emergency withdrawals
+    pub orphan_proxy_rewards: Uint128,
+    /// The pool has assets giving additional rewards
+    pub has_asset_rewards: bool,
+}
+
+/// ## Description
+/// Stores the contract config(V1.1.0) at the given key
+pub const POOL_INFOV110: Map<&Addr, PoolInfoV110> = Map::new("pool_info");
+
+/// ## Description
+/// This structure describes the main control config of generator.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ConfigV110 {
+    /// Contract address that used for controls settings
+    pub owner: Addr,
+    /// The ASTRO token address
+    pub astro_token: Addr,
+    /// Total amount of ASTRO rewards per block
+    pub tokens_per_block: Uint128,
+    /// The total allocation points. Must be the sum of all allocation points in all pools.
+    pub total_alloc_point: Uint64,
+    /// The block number when ASTRO mining starts.
+    pub start_block: Uint64,
+    /// The list of allowed reward proxy contracts
+    pub allowed_reward_proxies: Vec<Addr>,
+    /// The vesting contract from which rewards are distributed
+    pub vesting_contract: Addr,
+}
+
+/// ## Description
+/// Stores the contract config(V1.1.0) at the given key
+pub const CONFIGV110: Item<ConfigV110> = Item::new("config");
+
+/// This structure describes a contract migration message.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrationMsgV110 {
+    /// The Factory address
+    pub factory: String,
+    /// Contract address which can only set active generators and their alloc points
+    pub generator_controller: Option<String>,
+}
