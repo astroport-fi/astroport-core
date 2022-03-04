@@ -15,7 +15,6 @@ use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg, TokenInfoRespon
 // It's defined at https://github.com/terra-money/core/blob/d8e277626e74f9d6417dcd598574686882f0274c/types/assets/assets.go#L15
 const NATIVE_TOKEN_PRECISION: u8 = 6;
 
-/// ## Description
 /// Returns a native token's balance for a specific account.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -35,7 +34,6 @@ pub fn query_balance(
     Ok(balance.amount.amount)
 }
 
-/// ## Description
 /// Returns the total balances for all coins at a specified account address.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -49,7 +47,6 @@ pub fn query_all_balances(querier: &QuerierWrapper, account_addr: Addr) -> StdRe
     Ok(all_balances.amount)
 }
 
-/// ## Description
 /// Returns a token balance for an account.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -77,7 +74,6 @@ pub fn query_token_balance(
     Ok(res.balance)
 }
 
-/// ## Description
 /// Returns a token's symbol.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -92,7 +88,6 @@ pub fn query_token_symbol(querier: &QuerierWrapper, contract_addr: Addr) -> StdR
     Ok(res.symbol)
 }
 
-/// ## Description
 /// Returns the total supply of a specific token.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -107,7 +102,6 @@ pub fn query_supply(querier: &QuerierWrapper, contract_addr: Addr) -> StdResult<
     Ok(res.total_supply)
 }
 
-/// ## Description
 /// Returns the number of decimals that a token has.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -125,7 +119,6 @@ pub fn query_token_precision(querier: &QuerierWrapper, asset_info: AssetInfo) ->
     })
 }
 
-/// ## Description
 /// Returns the configuration for the factory contract.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -141,7 +134,6 @@ pub fn query_factory_config(
     }))
 }
 
-/// ## Description
 /// This structure holds parameters that describe the fee structure for a pool.
 pub struct FeeInfo {
     /// The fee address
@@ -152,7 +144,6 @@ pub struct FeeInfo {
     pub maker_fee_rate: Decimal,
 }
 
-/// ## Description
 /// Returns the fee information for a specific pair type.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -177,7 +168,6 @@ pub fn query_fee_info(
     })
 }
 
-/// ## Description
 /// Accepts two tokens as input and returns a pair's information.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -198,7 +188,6 @@ pub fn query_pair_info(
     }))
 }
 
-/// ## Description
 /// Returns a vector that contains items of type [`PairInfo`] which symbolize pairs instantiated in the Astroport factory
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -220,7 +209,6 @@ pub fn query_pairs_info(
     }))
 }
 
-/// ## Description
 /// Returns information about a swap simulation using a [`SimulationResponse`] object.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -241,7 +229,6 @@ pub fn simulate(
     }))
 }
 
-/// ## Description
 /// Returns information about a reverse swap simulation using a [`ReverseSimulationResponse`] object.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].

@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{StdError, StdResult, Uint128};
 use cw20::{Cw20Coin, MinterResponse};
 
-/// ## Description
 /// This structure describes the parameters used for creating a xASTRO token contract.
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InstantiateMsg {
@@ -20,7 +19,6 @@ pub struct InstantiateMsg {
     pub mint: Option<MinterResponse>,
 }
 
-/// ## Description
 /// This enum describes the query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -55,7 +53,6 @@ pub enum QueryMsg {
     DownloadLogo {},
 }
 
-/// ## Description
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -85,7 +82,6 @@ impl InstantiateMsg {
     }
 }
 
-/// ## Description
 /// Checks the validity of a token's name.
 /// ## Params
 /// * **name** is an object of type [`str`]. It is the token name to check.
@@ -97,7 +93,6 @@ fn is_valid_name(name: &str) -> bool {
     true
 }
 
-/// ## Description
 /// Checks the validity of a token's symbol.
 /// ## Params
 /// * **symbol** is an object of type [`str`]. It is the token symbol to check.
