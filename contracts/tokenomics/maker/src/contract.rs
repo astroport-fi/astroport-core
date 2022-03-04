@@ -313,7 +313,7 @@ fn swap_assets(
     let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
-    // Check uusd - astro pool and luna - uusd pool
+    // Check the uusd - ASTRO pool and the uluna - uusd pool
     get_pool(deps, cfg, uusd.clone(), astro)?;
     get_pool(deps, cfg, uluna, uusd)?;
 
@@ -372,7 +372,7 @@ fn swap(
     let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
-    // 1. If from_token is UST, only swap to astro is possible
+    // 1. If from_token is UST, only swap to ASTRO is possible
     if from_token.eq(&uusd) {
         let swap_to_astro = try_build_swap_msg(deps, cfg, from_token, astro, amount_in)?;
         return Ok(SwapTarget::Astro(swap_to_astro));
@@ -443,7 +443,7 @@ fn swap_no_validate(
     let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
-    // LUNA should be swapped to ust
+    // LUNA should be swapped to UST
     if from_token.eq(&uluna) {
         let msg = try_build_swap_msg(deps, cfg, from_token, uusd.clone(), amount_in)?;
         return Ok(SwapTarget::Bridge { asset: uusd, msg });
@@ -462,7 +462,7 @@ fn swap_no_validate(
         return Ok(SwapTarget::Bridge { asset, msg });
     }
 
-    // Check direct swap to astro
+    // Check for a direct swap to ASTRO
     let swap_to_astro = try_build_swap_msg(deps, cfg, from_token.clone(), astro, amount_in);
     if let Ok(msg) = swap_to_astro {
         return Ok(SwapTarget::Astro(msg));
