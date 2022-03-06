@@ -1,5 +1,5 @@
 use crate::state::{Config, CONFIG};
-use astroport::asset::addr_validate_to_lower;
+use astroport::asset::{addr_validate_to_lower, AssetInfo};
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
@@ -71,6 +71,8 @@ pub struct ConfigV110 {
     pub allowed_reward_proxies: Vec<Addr>,
     /// The vesting contract from which rewards are distributed
     pub vesting_contract: Addr,
+    /// The blacklist of tokens
+    pub blacklist_tokens: Vec<AssetInfo>,
 }
 
 /// ## Description
@@ -104,6 +106,8 @@ pub fn migrate_configs_to_v120(
         allowed_reward_proxies: cfg_100.allowed_reward_proxies,
         vesting_contract: cfg_100.vesting_contract,
         active_pools: pools,
+        assembly_contract: None,
+        blacklist_tokens: cfg_100.blacklist_tokens,
     };
 
     if let Some(generator_controller) = msg.generator_controller {

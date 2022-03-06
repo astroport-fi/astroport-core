@@ -12,7 +12,7 @@ use crate::state::{
     update_user_balance, Config, ExecuteOnReply, UserInfo, CONFIG, DEFAULT_LIMIT, MAX_LIMIT,
     OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
-use astroport::asset::{addr_validate_to_lower, PairInfo};
+use astroport::asset::{addr_validate_to_lower, AssetInfo, PairInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::PairConfig;
 use astroport::generator::PoolInfo;
@@ -75,6 +75,8 @@ pub fn instantiate(
         allowed_reward_proxies,
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
         active_pools: vec![],
+        assembly_contract: None,
+        blacklist_tokens: vec![],
     };
 
     if let Some(generator_controller) = msg.generator_controller {
@@ -143,6 +145,9 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::UpdateTokensBlacklist { add, remove } => {
+            update_tokens_blacklist(deps, info, add, remove)
+        }
         ExecuteMsg::MoveToProxy { lp_token, proxy } => {
             move_to_proxy(deps, env, info, lp_token, proxy)
         }
@@ -279,6 +284,58 @@ pub fn execute(
             .map_err(|e| e.into())
         }
     }
+}
+
+/// Add or remove tokens to and from the tokens blacklist. Returns a [`ContractError`] on failure.
+fn update_tokens_blacklist(
+    deps: DepsMut,
+    info: MessageInfo,
+    add: Option<Vec<AssetInfo>>,
+    remove: Option<Vec<AssetInfo>>,
+) -> Result<Response, ContractError> {
+    if add.is_none() && remove.is_none() {
+        return Err(ContractError::Std(StdError::generic_err(
+            "Need to provide add or remove parameters",
+        )));
+    }
+
+    let mut cfg = CONFIG.load(deps.storage)?;
+
+    // Permission check
+    if let Some(assembly_contract) = cfg.assembly_contract {
+        if info.sender != assembly_contract {
+            return Err(ContractError::Unauthorized {});
+        }
+    } else {
+        return Err(ContractError::AssemblyIsNotSpecified {});
+    }
+
+    // Remove tokens from blacklist
+    if let Some(remove_tokens) = remove {
+        for remove_token in remove_tokens {
+            let index = cfg
+                .blacklist_tokens
+                .iter()
+                .position(|x| *x.to_string() == remove_token.to_string().to_lowercase())
+                .ok_or_else(|| {
+                    StdError::generic_err("Can't remove token. It is not found in blacklist.")
+                })?;
+            cfg.blacklist_tokens.remove(index);
+        }
+    }
+
+    // Add tokens to blacklist
+    if let Some(add_tokens) = add {
+        for add_token in add_tokens {
+            let proxy_addr = addr_validate_to_lower(deps.api, &add_token.is_native_token())?;
+            if !cfg.allowed_reward_proxies.contains(&proxy_addr) {
+                cfg.allowed_reward_proxies.push(proxy_addr);
+            }
+        }
+    }
+
+    CONFIG.save(deps.storage, &cfg)?;
+    Ok(Response::default().add_attribute("action", "update_allowed_proxies"))
 }
 
 /// ## Description
@@ -1487,6 +1544,7 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
         vesting_contract: config.vesting_contract,
         generator_controller: config.generator_controller,
         active_pools: config.active_pools,
+        blacklist_tokens: config.blacklist_tokens,
     })
 }
 

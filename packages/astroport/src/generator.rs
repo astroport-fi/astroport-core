@@ -1,3 +1,4 @@
+use crate::asset::AssetInfo;
 use cosmwasm_std::{Addr, Binary, Decimal, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -124,7 +125,7 @@ pub enum ExecuteMsg {
     UpdateAllowedProxies {
         /// Allowed proxy contract
         add: Option<Vec<String>>,
-        // Proxy contracts to remove
+        /// Proxy contracts to remove
         remove: Option<Vec<String>>,
     },
     /// ## Description
@@ -133,6 +134,13 @@ pub enum ExecuteMsg {
     /// ## Executor
     /// Only the current owner or generator controller can execute this
     MoveToProxy { lp_token: String, proxy: String },
+    /// Add or remove token to blacklist
+    UpdateTokensBlacklist {
+        /// Tokens to add
+        add: Option<Vec<AssetInfo>>,
+        /// Tokens to remove
+        remove: Option<Vec<AssetInfo>>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -263,6 +271,8 @@ pub struct ConfigResponse {
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points
     pub active_pools: Vec<(Addr, Uint64)>,
+    /// The blacklist of tokens
+    pub blacklist_tokens: Vec<AssetInfo>,
 }
 
 /// ## Description

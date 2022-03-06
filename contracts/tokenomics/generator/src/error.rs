@@ -40,6 +40,9 @@ pub enum ContractError {
 
     #[error("Pair is not registered in factory!")]
     PairNotRegistered {},
+
+    #[error("The assembly contract is not specified!")]
+    AssemblyIsNotSpecified {},
 }
 
 impl From<OverflowError> for ContractError {
