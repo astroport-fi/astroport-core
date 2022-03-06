@@ -473,7 +473,6 @@ fn swap_no_validate(
 
 /// ## Description
 /// Swaps collected fees using bridge assets. Returns a [`ContractError`] on failure.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -533,7 +532,6 @@ fn swap_bridge_assets(
 
 /// ## Description
 /// Distributes ASTRO rewards to x/vxASTRO holders. Returns a [`ContractError`] on failure.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -669,7 +667,6 @@ fn distribute(
 /// ## Description
 /// Updates general contarct parameters. Returns a [`ContractError`] on failure or the [`Config`]
 /// data will be updated if the transaction is successful.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -752,7 +749,6 @@ fn update_config(
 
 /// ## Description
 /// Adds or removes bridge tokens used to swap fee tokens to ASTRO. Returns a [`ContractError`] on failure.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -841,7 +837,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 /// ## Description
 /// Returns information about the Maker configuration using a [`ConfigResponse`] object.
-///
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
@@ -861,7 +856,6 @@ fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
 
 /// ## Description
 /// Returns Maker's fee token balances for specific tokens using a [`ConfigResponse`] object.
-///
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
@@ -887,7 +881,6 @@ fn query_get_balances(deps: Deps, env: Env, assets: Vec<AssetInfo>) -> StdResult
 
 /// ## Description
 /// Returns bridge tokens used for swapping fee tokens to ASTRO.
-///
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
@@ -901,7 +894,6 @@ fn query_bridges(deps: Deps, _env: Env) -> StdResult<Vec<(String, String)>> {
 
 /// ## Description
 /// Returns asset information for the specified pair.
-///
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
