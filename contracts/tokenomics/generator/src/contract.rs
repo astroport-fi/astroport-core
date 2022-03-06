@@ -524,7 +524,7 @@ fn get_proxy_rewards(
     })
 }
 
-/// # Description
+/// ## Description
 /// The entry point to the contract for processing replies from submessages.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -537,7 +537,7 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractE
     process_after_update(deps, env)
 }
 
-/// # Description
+/// ## Description
 /// Loads an action from [`TMP_USER_ACTION`] and executes it. Returns a [`ContractError`]
 /// on failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
@@ -588,7 +588,7 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
     }
 }
 
-/// # Description
+/// ## Description
 /// Sets a new amount of ASTRO distributed per block among all active generators. Before that, we
 /// will need to update all pools in order to correctly account for accrued rewards. Returns a [`ContractError`] on failure,
 /// otherwise returns a [`Response`] with the specified attributes if the operation was successful.
@@ -613,7 +613,7 @@ fn set_tokens_per_block(
     Ok(Response::new().add_attribute("action", "set_tokens_per_block"))
 }
 
-/// # Description
+/// ## Description
 /// Updates the amount of accrued rewards for all generators. Returns a [`ContractError`] on failure, otherwise
 /// returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
@@ -638,7 +638,7 @@ pub fn mass_update_pools(mut deps: DepsMut, env: Env) -> Result<Response, Contra
     Ok(response.add_attribute("action", "mass_update_pools"))
 }
 
-/// # Description
+/// ## Description
 /// Updates the amount of accrued rewards for a specific generator. Returns a [`ContractError`] on
 /// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
@@ -660,7 +660,7 @@ pub fn update_pool(mut deps: DepsMut, env: Env, lp_token: Addr) -> Result<Respon
     Ok(response.add_attribute("action", "update_pool"))
 }
 
-/// # Description
+/// ## Description
 /// Accrues the amount of rewards distributed for each staked LP token in a specific generator.
 /// Update reward variables of the given pool to be up-to-date.
 /// # Params
@@ -788,7 +788,7 @@ fn receive_cw20(
     }
 }
 
-/// # Description
+/// ## Description
 /// Distributes pending proxy rewards for a specific staker.
 /// Returns a [`ContractError`] on failure, otherwise returns a vector that
 /// contains objects of type [`SubMsg`].
@@ -849,7 +849,7 @@ pub fn send_pending_rewards(
     Ok(messages)
 }
 
-/// # Description
+/// ## Description
 /// Deposit LP tokens in a generator to receive token emissions. Returns a [`ContractError`] on
 /// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
@@ -928,7 +928,7 @@ pub fn deposit(
         .add_attribute("amount", amount))
 }
 
-/// # Description
+/// ## Description
 /// Withdraw LP tokens from a generator. Returns a [`ContractError`] on
 /// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
@@ -1017,7 +1017,7 @@ pub fn withdraw(
         .add_attribute("amount", amount))
 }
 
-/// # Description
+/// ## Description
 /// Builds claim reward messages for a specific generator (if the messages are supported)
 pub fn build_claim_pools_asset_reward_messages(
     deps: Deps,
@@ -1062,7 +1062,7 @@ pub fn build_claim_pools_asset_reward_messages(
     })
 }
 
-/// # Description
+/// ## Description
 /// Withdraw LP tokens without caring about rewards. TO BE USED IN EMERGENCY SITUATIONS ONLY.
 /// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the
 /// specified attributes if the operation was successful.
@@ -1123,7 +1123,7 @@ pub fn emergency_withdraw(
         .add_attribute("amount", user.amount))
 }
 
-/// # Description
+/// ## Description
 /// Sets the allowed reward proxies taht can interact with the Generator contract. Returns a [`ContractError`] on
 /// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
@@ -1157,7 +1157,7 @@ fn set_allowed_reward_proxies(
     Ok(Response::new().add_attribute("action", "set_allowed_reward_proxies"))
 }
 
-/// # Description
+/// ## Description
 /// Sends orphaned proxy rewards (which are left behind by emergency withdrawals) to another address.
 /// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified
 /// attributes if the operation was successful.

@@ -222,7 +222,7 @@ pub fn execute(
     }
 }
 
-/// # Description
+/// ## Description
 /// Swaps fee tokens to ASTRO and distribute the resulting ASTRO to xASTRO and vxASTRO stakers.
 /// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] object if the
 /// operation was successful.
@@ -285,7 +285,7 @@ enum SwapTarget {
     Bridge { asset: AssetInfo, msg: SubMsg },
 }
 
-/// # Description
+/// ## Description
 /// Swap all non ASTRO tokens to ASTRO. Returns a [`ContractError`] on failure, otherwise returns
 /// a [`Response`] object if the operation was successful.
 /// # Params
@@ -350,7 +350,7 @@ fn swap_assets(
     Ok((response, bridge_assets.into_values().collect()))
 }
 
-/// # Description
+/// ## Description
 /// Checks if all required pools and bridges exists and performs a swap operation to ASTRO.
 /// Returns a [`ContractError`] on failure, otherwise returns a vector that contains objects
 /// of type [`SubMsg`] if the operation was successful.
@@ -421,7 +421,7 @@ fn swap(
     Err(ContractError::CannotSwap(from_token))
 }
 
-/// # Description
+/// ## Description
 /// Performs a swap operation to ASTRO without additional checks. Returns a [`ContractError`] on failure,
 /// otherwise returns a vector that contains objects of type [`SubMsg`] if the operation
 /// was successful.
@@ -561,7 +561,7 @@ fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
 
 type DistributeMsgParts = (Vec<SubMsg>, Vec<(String, String)>);
 
-/// # Description
+/// ## Description
 /// Private function that performs the ASTRO token distribution to x/vxASTRO. Returns a [`ContractError`] on failure,
 /// otherwise returns a vector that contains the objects of type [`SubMsg`] if the operation was successful.
 /// # Params
@@ -813,7 +813,7 @@ fn update_bridges(
     Ok(Response::default().add_attribute("action", "update_bridges"))
 }
 
-/// # Description
+/// ## Description
 /// Exposes all the queries available in the contract.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].

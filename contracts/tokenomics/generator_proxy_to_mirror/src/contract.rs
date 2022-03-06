@@ -205,7 +205,7 @@ fn send_rewards(
     Ok(response)
 }
 
-/// # Description
+/// ## Description
 /// Withdraws/unstakes LP tokens and claims pending rewards. Returns a [`ContractError`] on
 /// failure, otherwise returns a [`Response`] object with the specified
 /// submessages if the operation was successful.
@@ -271,7 +271,7 @@ fn withdraw(
     Ok(response)
 }
 
-/// # Description
+/// ## Description
 /// Handle callbacks described in [`CallbackMsg`]. Returns a [`ContractError`] on failure, otherwise returns a [`Response`]
 /// object with the specified submessages if the operation was successful.
 /// # Params
@@ -303,7 +303,7 @@ pub fn handle_callback(
     }
 }
 
-/// # Description
+/// ## Description
 /// Transfers LP tokens after withdrawal (from the 3rd party staking contract) to a recipient. Returns a [`ContractError`] on failure,
 /// otherwise returns a [`Response`] object with the specified submessages if the operation was successful.
 /// # Params
@@ -343,7 +343,7 @@ pub fn transfer_lp_tokens_after_withdraw(
     }))
 }
 
-/// # Description
+/// ## Description
 /// Exposes all the queries available in the contract.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].

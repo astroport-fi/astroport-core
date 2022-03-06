@@ -112,7 +112,7 @@ pub fn execute(
     }
 }
 
-/// # Description
+/// ## Description
 /// The entry point to the contract for processing replies from submessages. For now it only sets the xASTRO contract address.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -259,7 +259,7 @@ pub fn get_total_deposit(deps: Deps, env: Env, config: Config) -> StdResult<Uint
     Ok(result.balance)
 }
 
-/// # Description
+/// ## Description
 /// Exposes all the queries available in the contract.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
