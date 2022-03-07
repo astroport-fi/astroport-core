@@ -662,7 +662,7 @@ pub fn update_pool(mut deps: DepsMut, env: Env, lp_token: Addr) -> Result<Respon
 
 /// ## Description
 /// Accrues the amount of rewards distributed for each staked LP token in a specific generator.
-/// Update reward variables of the given pool to be up-to-date.
+/// Also update reward variables for the given generator.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
