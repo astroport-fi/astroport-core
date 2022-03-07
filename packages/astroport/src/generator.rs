@@ -59,7 +59,7 @@ pub enum ExecuteMsg {
     /// ## Description
     /// Updates reward variables for a specific pool
     UpdatePool {
-        /// the LP token contract address
+        /// The LP token contract address
         lp_token: String,
     },
     /// Withdraw LP tokens from the Generator
@@ -88,7 +88,6 @@ pub enum ExecuteMsg {
     },
     /// Receives a message of type [`Cw20ReceiveMsg`]
     Receive(Cw20ReceiveMsg),
-    /// ## Description
     /// Set a new amount of ASTRO to distribute per block
     /// ## Executor
     /// Only the owner can execute this.
