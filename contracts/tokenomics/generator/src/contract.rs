@@ -1419,7 +1419,7 @@ pub fn query_deposit(deps: Deps, lp_token: String, user: String) -> Result<Uint1
 }
 
 /// ## Description
-/// Calculates pending token rewards for a specific user. Returns a [`ContractError`] on failure, otherwise returns
+/// Calculates and returns the pending token rewards for a specific user. Returns a [`ContractError`] on failure, otherwise returns
 /// information in a [`PendingTokenResponse`] object.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
@@ -1721,7 +1721,7 @@ pub fn query_list_of_stakers(
 }
 
 /// ## Description
-/// Calculates the amount of accrued rewards since the last reward checkpoint for a specific generator.
+/// Calculates and returns the amount of accrued rewards since the last reward checkpoint for a specific generator.
 /// ## Params
 /// * **env** is an object of type [`Env`].
 ///
