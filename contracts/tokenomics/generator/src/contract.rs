@@ -1124,7 +1124,7 @@ pub fn emergency_withdraw(
 }
 
 /// ## Description
-/// Sets the allowed reward proxies taht can interact with the Generator contract. Returns a [`ContractError`] on
+/// Sets the allowed reward proxies that can interact with the Generator contract. Returns a [`ContractError`] on
 /// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
