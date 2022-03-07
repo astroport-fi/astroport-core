@@ -349,11 +349,9 @@ pub fn setup_pools(
         .querier
         .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
 
-    let mut lp_tokens: Vec<Addr> = vec![];
-    for (addr, _) in pools.clone() {
-        lp_tokens.push(addr);
-    }
-    for lp_token in &lp_tokens {
+    mass_update_pools(deps.branch(), &env, &cfg)?;
+
+    for (lp_token, _) in &pools {
         if POOL_INFO.may_load(deps.storage, lp_token)?.is_none() {
             create_pool(deps.branch(), &env, lp_token, &cfg, &factory_cfg)?;
         }
@@ -361,8 +359,6 @@ pub fn setup_pools(
 
     cfg.total_alloc_point = pools.iter().map(|(_, alloc_point)| alloc_point).sum();
     cfg.active_pools = pools;
-
-    mass_update_pools(deps.branch(), env, &lp_tokens)?;
 
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -562,12 +558,7 @@ fn set_tokens_per_block(
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
-    let mut lp_tokens: Vec<Addr> = vec![];
-    for active_pool in cfg.active_pools.clone() {
-        lp_tokens.push(active_pool.0);
-    }
-
-    mass_update_pools(deps.branch(), env, &lp_tokens)?;
+    mass_update_pools(deps.branch(), &env, &cfg)?;
 
     cfg.tokens_per_block = amount;
     CONFIG.save(deps.storage, &cfg)?;
@@ -581,17 +572,17 @@ fn set_tokens_per_block(
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **env** is the object of type [`Env`].
-pub fn mass_update_pools(mut deps: DepsMut, env: Env, pools: &[Addr]) -> Result<(), ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
-
-    if pools.is_empty() {
+///
+/// * **cfg** is the object of type [`Config`].
+pub fn mass_update_pools(mut deps: DepsMut, env: &Env, cfg: &Config) -> Result<(), ContractError> {
+    if cfg.active_pools.is_empty() {
         return Ok(());
     }
 
-    for lp_token in pools {
+    for (lp_token, _) in &cfg.active_pools {
         let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
 
-        accumulate_rewards_per_share(deps.branch(), &env, lp_token, &mut pool, &cfg, None)?;
+        accumulate_rewards_per_share(deps.branch(), env, lp_token, &mut pool, cfg, None)?;
         POOL_INFO.save(deps.storage, lp_token, &pool)?;
     }
 
@@ -627,7 +618,7 @@ pub fn claim_rewards(
         send_rewards_msg.append(&mut send_pending_rewards(&cfg, &pool, &user, &account)?);
     }
 
-    mass_update_pools(deps, env, &lp_tokens)?;
+    mass_update_pools(deps, &env, &cfg)?;
 
     Ok(response
         .add_attribute("action", "claim_rewards")
