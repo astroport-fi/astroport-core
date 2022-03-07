@@ -6,7 +6,6 @@ use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure stores the outstanding amount of token rewards that a user accrued.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct UserInfo {
@@ -18,7 +17,6 @@ pub struct UserInfo {
     pub reward_debt_proxy: Uint128,
 }
 
-/// ## Description
 /// This structure stores the core parameters for the Generator contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -60,8 +58,8 @@ pub enum ExecuteOnReply {
     },
     /// Updates reward and returns it to user.
     ClaimRewards {
-        /// The LP token contract
-        lp_token: Addr,
+        /// The list of LP tokens contract
+        lp_tokens: Vec<Addr>,
         /// The rewards recipient
         account: Addr,
     },
@@ -90,17 +88,14 @@ pub enum ExecuteOnReply {
     },
 }
 
-/// ## Description
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
-/// ## Description
 /// This is a map that contains information about all generators.
 ///
 /// The first key is the address of a LP token, the second key is an object of type [`PoolInfo`].
 pub const POOL_INFO: Map<&Addr, PoolInfo> = Map::new("pool_info");
 pub const TMP_USER_ACTION: Item<Option<ExecuteOnReply>> = Item::new("tmp_user_action");
 
-/// ## Description
 /// This is a map that contains information about all stakers.
 ///
 /// The first key is an LP token address, the second key is a depositor address.
@@ -113,11 +108,9 @@ pub const MAX_LIMIT: u32 = 30;
 /// The default amount of users to read from [`USER_INFO`]
 pub const DEFAULT_LIMIT: u32 = 10;
 
-/// ## Description
 /// Contains a proposal to change contract ownership.
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
-/// ## Description
 /// Update user balance.
 /// ## Params
 /// * **user** is an object of type [`UserInfo`].

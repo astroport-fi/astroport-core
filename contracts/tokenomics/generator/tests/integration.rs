@@ -227,6 +227,7 @@ fn update_config() {
 
     let msg = ExecuteMsg::UpdateConfig {
         vesting_contract: Some(new_vesting.to_string()),
+        generator_controller: None,
     };
 
     // Assert cannot update with improper owner

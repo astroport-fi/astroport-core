@@ -5,7 +5,6 @@ use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure stores the parameters for a generator (in the upgraded version of the Generator contract).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolInfoV100 {
@@ -25,11 +24,9 @@ pub struct PoolInfoV100 {
     pub orphan_proxy_rewards: Uint128,
 }
 
-/// ## Description
 /// Stores the contract config(V1.0.0) at the given key
 pub const POOL_INFOV100: Map<&Addr, PoolInfoV100> = Map::new("pool_info");
 
-/// ## Description
 /// This structure stores the parameters for a generator (in the upgraded version v1.1.0 of the Generator contract).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolInfoV110 {
@@ -49,11 +46,9 @@ pub struct PoolInfoV110 {
     pub has_asset_rewards: bool,
 }
 
-/// ## Description
 /// Stores the contract config(V1.1.0) at the given key
 pub const POOL_INFOV110: Map<&Addr, PoolInfoV110> = Map::new("pool_info");
 
-/// ## Description
 /// This structure describes the main control config of generator.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigV110 {
@@ -73,7 +68,6 @@ pub struct ConfigV110 {
     pub vesting_contract: Addr,
 }
 
-/// ## Description
 /// Stores the contract config(V1.1.0) at the given key
 pub const CONFIGV100: Item<ConfigV110> = Item::new("config");
 
@@ -86,6 +80,7 @@ pub struct MigrationMsgV110 {
     pub generator_controller: Option<String>,
 }
 
+/// Migrate config to V1.2.0
 pub fn migrate_configs_to_v120(
     deps: &mut DepsMut,
     pools: Vec<(Addr, Uint64)>,
