@@ -252,13 +252,26 @@ Change the current dual rewards proxy for a specific LP token. Only the contract
 }
 ```
 
-### `UpdateAllowedProxies`
+### `update_allowed_proxies`
 
 Add or remove dual rewards proxy contracts that can interact with the Generator. Only the contract owner can execute this.
 
 ```json
 {
-  "UpdateAllowedProxies": {
+  "update_allowed_proxies": {
+    "add": ["terra...", "terra..."],
+    "remove": ["terra...", "terra...", "terra..."]
+  }
+}
+```
+
+### `update_tokens_blacklist`
+
+Add or remove tokens to and from the tokens blacklist. Only the assembly contract can execute this.
+
+```json
+{
+  "update_tokens_blacklist": {
     "add": ["terra...", "terra..."],
     "remove": ["terra...", "terra...", "terra..."]
   }

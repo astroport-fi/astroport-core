@@ -179,6 +179,7 @@ pub fn execute(
                 let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
                 let assets = assets_pool(deps.as_ref(), pool_addr.clone())?;
 
+                // check if assets blacklisted
                 let mut is_blacklisted = false;
                 for asset in assets {
                     if cfg.blacklist_tokens.contains(&asset) {
@@ -329,7 +330,7 @@ fn update_tokens_blacklist(
         return Err(ContractError::AssemblyIsNotSpecified {});
     }
 
-    // Remove assets from blacklist
+    // Remove tokens from blacklist
     if let Some(asset_infos) = remove {
         for asset_info in asset_infos {
             let index = cfg
@@ -337,7 +338,7 @@ fn update_tokens_blacklist(
                 .iter()
                 .position(|x| *x == asset_info)
                 .ok_or_else(|| {
-                    StdError::generic_err("Can't remove asset. It is not found in the blacklist.")
+                    StdError::generic_err("Can't remove token. It is not found in the blacklist.")
                 })?;
             cfg.blacklist_tokens.remove(index);
         }
@@ -361,7 +362,7 @@ fn update_tokens_blacklist(
             if !cfg.blacklist_tokens.contains(&asset_info) {
                 cfg.blacklist_tokens.push(asset_info.clone());
 
-                // find active pools with blacklisted asset
+                // find active pools with blacklisted tokens
                 let mut pools: Vec<(Addr, Uint64)> = vec![];
                 for pool in cfg.active_pools.clone() {
                     let assets = assets_pool(deps.as_ref(), pool.0.clone())?;
@@ -370,7 +371,7 @@ fn update_tokens_blacklist(
                     }
                 }
 
-                // sets allocation point to zero for each pool with blacklisted asset
+                // sets allocation point to zero for each pool with blacklisted token
                 for pool in pools {
                     let index = cfg
                         .active_pools
@@ -387,6 +388,7 @@ fn update_tokens_blacklist(
     Ok(Response::new().add_attribute("action", "update_tokens_blacklist"))
 }
 
+/// Returns tokens by specified pool address.
 fn assets_pool(deps: Deps, pool: Addr) -> StdResult<[AssetInfo; 2]> {
     let minter_info: MinterResponse = deps
         .querier

@@ -1750,11 +1750,9 @@ fn update_tokens_blacklist() {
     let generator_instance =
         instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
-    let (pair_cny_eur, lp_cny_eur) = create_native_pair(&mut app, &factory_instance, "cny", "eur");
-    let (pair_cny_uusd, lp_cny_uusd) =
-        create_native_pair(&mut app, &factory_instance, "cny", "uusd");
-    let (pair_eur_uusd, lp_eur_uusd) =
-        create_native_pair(&mut app, &factory_instance, "eur", "uusd");
+    let (_, lp_cny_eur) = create_native_pair(&mut app, &factory_instance, "cny", "eur");
+    let (_, lp_cny_uusd) = create_native_pair(&mut app, &factory_instance, "cny", "uusd");
+    let (_, lp_eur_uusd) = create_native_pair(&mut app, &factory_instance, "eur", "uusd");
 
     register_lp_tokens_in_generator(
         &mut app,
@@ -1938,7 +1936,7 @@ fn update_tokens_blacklist() {
         lp_token: lp_eur_uusd.to_string(),
     };
 
-    // Check if alloc point is equal to 0
+    // Check if alloc point is equal to 40
     let reps: PoolInfoResponse = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
