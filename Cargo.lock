@@ -105,10 +105,12 @@ dependencies = [
 
 [[package]]
 name = "astroport-generator"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "astroport 1.2.0",
+ "astroport-factory",
  "astroport-generator-proxy-to-mirror",
+ "astroport-pair",
  "astroport-token",
  "astroport-vesting",
  "cosmwasm-schema",

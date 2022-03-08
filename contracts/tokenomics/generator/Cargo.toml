@@ -1,6 +1,6 @@
 [package]
 name = "astroport-generator"
-version = "1.1.0"
+version = "1.2.0"
 authors = ["Astroport"]
 edition = "2021"
 
@@ -37,3 +37,5 @@ mirror-staking = {git = "https://github.com/Mirror-Protocol/mirror-contracts.git
 mirror-protocol = {version = "2.1.1"}
 astroport-vesting = {path = "../vesting"}
 astroport-generator-proxy-to-mirror = {path = "../generator_proxy_to_mirror"}
+astroport-factory = {path = "../../factory"}
+astroport-pair = {path = "../../pair"}

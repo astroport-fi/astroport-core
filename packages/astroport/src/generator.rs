@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
+use cosmwasm_std::{Addr, Binary, Decimal, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -9,6 +9,10 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {
     /// Address that can change contract settings
     pub owner: String,
+    /// Address of factory contract
+    pub factory: String,
+    /// Address that can set active generators and their alloc points
+    pub generator_controller: Option<String>,
     /// ASTRO token contract address
     pub astro_token: String,
     /// Amount of ASTRO distributed per block among all pairs
@@ -27,45 +31,36 @@ pub enum ExecuteMsg {
     /// ## Description
     /// Update the address of the ASTRO vesting contract
     /// ## Executor
-    /// Only the owner can execute it
+    /// Only the owner can execute it.
     UpdateConfig {
         /// The new vesting contract address
         vesting_contract: Option<String>,
+        /// The new generator controller contract address
+        generator_controller: Option<String>,
     },
     /// ## Description
-    /// Add a new generator for a LP token
+    /// Setting up a new list of pools with allocation points.
     /// ## Executor
-    /// Only the owner can execute this
-    Add {
-        /// The LP token contract address
-        lp_token: String,
-        /// The slice of ASTRO emissions this generator gets
-        alloc_point: Uint64,
-        /// This flag determines whether the pool gets 3rd party token rewards
-        has_asset_rewards: bool,
-        /// The address of the 3rd party reward proxy contract
-        reward_proxy: Option<String>,
+    /// Only the owner or generator controller can execute this.
+    SetupPools {
+        /// The list of pools with allocation point.
+        pools: Vec<(String, Uint64)>,
     },
     /// ## Description
-    /// Update the given pool's ASTRO allocation slice
+    /// Update the given pool's has_asset_rewards parameter.
     /// ## Executor
-    /// Only the owner can execute this.
-    Set {
+    /// Only the owner or generator controller can execute this.
+    UpdatePool {
         /// The address of the LP token contract address whose allocation we change
         lp_token: String,
-        /// The new allocation
-        alloc_point: Uint64,
         /// This flag determines whether the pool gets 3rd party token rewards
         has_asset_rewards: bool,
     },
     /// ## Description
-    /// Updates reward variables for multiple pools
-    MassUpdatePools {},
-    /// ## Description
-    /// Updates reward variables for a specific pool
-    UpdatePool {
+    /// Update rewards and return it to user.
+    ClaimRewards {
         /// the LP token contract address
-        lp_token: String,
+        lp_tokens: Vec<String>,
     },
     /// ## Description
     /// Withdraw LP tokens from the Generator
@@ -136,6 +131,9 @@ pub enum ExecuteMsg {
     },
     /// ## Description
     /// Sets a new proxy contract for a specific generator
+    /// Sets a proxy for the pool
+    /// ## Executor
+    /// Only the current owner or generator controller can execute this
     MoveToProxy { lp_token: String, proxy: String },
 }
 
@@ -186,6 +184,24 @@ pub struct PendingTokenResponse {
 }
 
 /// ## Description
+/// This structure describes the main information of pool
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct PoolInfo {
+    /// Accumulated amount of reward per share unit. Used for reward calculations
+    pub last_reward_block: Uint64,
+    pub accumulated_rewards_per_share: Decimal,
+    /// the reward proxy contract
+    pub reward_proxy: Option<Addr>,
+    pub accumulated_proxy_rewards_per_share: Decimal,
+    /// for calculation of new proxy rewards
+    pub proxy_reward_balance_before_update: Uint128,
+    /// the orphan proxy rewards which are left by emergency withdrawals
+    pub orphan_proxy_rewards: Uint128,
+    /// The pool has assets giving additional rewards
+    pub has_asset_rewards: bool,
+}
+
+/// ## Description
 /// This structure holds the response returned when querying for the token addresses used to reward a specific generator
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -231,6 +247,10 @@ pub struct PoolInfoResponse {
 pub struct ConfigResponse {
     /// Address that's allowed to change contract parameters
     pub owner: Addr,
+    /// the Factory address
+    pub factory: Addr,
+    /// contract address which can only set active generators and their alloc points
+    pub generator_controller: Option<Addr>,
     /// ASTRO token contract address
     pub astro_token: Addr,
     /// Total amount of ASTRO distributed per block
@@ -243,12 +263,16 @@ pub struct ConfigResponse {
     pub allowed_reward_proxies: Vec<Addr>,
     /// The ASTRO vesting contract address
     pub vesting_contract: Addr,
+    /// The list of active pools with allocation points
+    pub active_pools: Vec<(Addr, Uint64)>,
 }
 
 /// ## Description
 /// This structure describes a migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub params: Binary,
+}
 
 /// ## Description
 /// This structure describes custom hooks for the CW20.

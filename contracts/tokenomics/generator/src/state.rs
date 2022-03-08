@@ -1,11 +1,11 @@
 use astroport::common::OwnershipProposal;
+use astroport::generator::PoolInfo;
 use astroport::DecimalCheckedOps;
-use cosmwasm_std::{Addr, Decimal, StdResult, Storage, Uint128, Uint64};
+use cosmwasm_std::{Addr, StdResult, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure stores the outstanding amount of token rewards that a user accrued.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct UserInfo {
@@ -17,34 +17,15 @@ pub struct UserInfo {
     pub reward_debt_proxy: Uint128,
 }
 
-/// ## Description
-/// This structure stores information about a specific generator.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PoolInfo {
-    /// This is the share of ASTRO rewards that this generator receives every block
-    pub alloc_point: Uint64,
-    /// Accumulated amount of rewards per LP unit. Used for reward calculations
-    pub last_reward_block: Uint64,
-    /// This is the accrued amount of rewards up to the latest checkpoint
-    pub accumulated_rewards_per_share: Decimal,
-    /// The 3rd party proxy reward contract
-    pub reward_proxy: Option<Addr>,
-    /// This is the accrued amount of 3rd party rewards up to the latest checkpoint
-    pub accumulated_proxy_rewards_per_share: Decimal,
-    /// This is the balance of 3rd party proxy rewards that the proxy had before a reward snapshot
-    pub proxy_reward_balance_before_update: Uint128,
-    /// The orphaned proxy rewards which are left behind by emergency withdrawals
-    pub orphan_proxy_rewards: Uint128,
-    /// Whether a generator receives 3rd party rewards or not
-    pub has_asset_rewards: bool,
-}
-
-/// ## Description
 /// This structure stores the core parameters for the Generator contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     /// Address allowed to change contract parameters
     pub owner: Addr,
+    /// The Factory address
+    pub factory: Addr,
+    /// Contract address which can only set active generators and their alloc points
+    pub generator_controller: Option<Addr>,
     /// The ASTRO token address
     pub astro_token: Addr,
     /// Total amount of ASTRO rewards per block
@@ -57,36 +38,30 @@ pub struct Config {
     pub allowed_reward_proxies: Vec<Addr>,
     /// The vesting contract from which rewards are distributed
     pub vesting_contract: Addr,
+    /// The list of active pools with allocation points
+    pub active_pools: Vec<(Addr, Uint64)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ExecuteOnReply {
-    /// Updates the amount of already distributed rewards for multiple active generators
-    MassUpdatePools {},
-    /// Create a new generator
-    Add {
-        /// The LP token contract that can be staked in the generator
-        lp_token: Addr,
-        /// The slice of ASTRO emissions received by this generator every block
-        alloc_point: Uint64,
-        /// This flag indicates whether the generator has 3rd party rewards or not
-        has_asset_rewards: bool,
-        /// The dual rewards proxy contract for this generator
-        reward_proxy: Option<String>,
+    /// Add a new pools with allocation point
+    SetupPools {
+        /// The list of pools with allocation points
+        pools: Vec<(Addr, Uint64)>,
     },
-    /// Update a pool's ASTRO allocation points
-    Set {
-        /// The LP token contract for which we change emissions
-        lp_token: Addr,
-        /// The new slice of ASTRO emissions received by `lp_token` stakers every block
-        alloc_point: Uint64,
-        /// This flag indicates whether the generator has 3rd party rewards or not
-        has_asset_rewards: bool,
-    },
-    /// Updates the amount of already distributed rewards for a specific generator
+    /// Update the given pool's has_asset_rewards parameter.
     UpdatePool {
-        /// The LP token whose generator we update
+        /// The LP token contract
         lp_token: Addr,
+        /// The flag determines whether the pool has its asset related rewards or not
+        has_asset_rewards: bool,
+    },
+    /// Updates reward and returns it to user.
+    ClaimRewards {
+        /// The list of LP tokens contract
+        lp_tokens: Vec<Addr>,
+        /// The rewards recipient
+        account: Addr,
     },
     /// Stake LP tokens in the Generator to receive token emissions
     Deposit {
@@ -113,17 +88,14 @@ pub enum ExecuteOnReply {
     },
 }
 
-/// ## Description
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
-/// ## Description
 /// This is a map that contains information about all generators.
 ///
 /// The first key is the address of a LP token, the second key is an object of type [`PoolInfo`].
 pub const POOL_INFO: Map<&Addr, PoolInfo> = Map::new("pool_info");
 pub const TMP_USER_ACTION: Item<Option<ExecuteOnReply>> = Item::new("tmp_user_action");
 
-/// ## Description
 /// This is a map that contains information about all stakers.
 ///
 /// The first key is an LP token address, the second key is a depositor address.
@@ -136,30 +108,16 @@ pub const MAX_LIMIT: u32 = 30;
 /// The default amount of users to read from [`USER_INFO`]
 pub const DEFAULT_LIMIT: u32 = 10;
 
-/// ## Description
 /// Contains a proposal to change contract ownership.
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
-/// ## Description
-/// This function returns the list of instantiated generators.
-pub fn get_pools(store: &dyn Storage) -> Vec<(Addr, PoolInfo)> {
-    POOL_INFO
-        .range(store, None, None, cosmwasm_std::Order::Ascending)
-        .filter_map(|v| {
-            v.ok()
-                .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
-        })
-        .collect()
-}
-
-/// ## Description
-/// This function updates a user's amount of staked LP tokens as well as the accumulated token rewards.
+/// Update user balance.
+/// ## Params
+/// * **user** is an object of type [`UserInfo`].
 ///
-/// * **user** is an object of type [`UserInfo`]. This is the user for which we update LP and reward related amounts.
+/// * **pool** is an object of type [`PoolInfo`].
 ///
-/// * **pool** is an object of type [`PoolInfo`]. This is the generator in which the user is staked.
-///
-/// * **amount** is a variable of type [`Uint128`]. This is the new amount of LP tokens the user currently has staked.
+/// * **amount** is an object of type [`Uint128`].
 pub fn update_user_balance(
     mut user: UserInfo,
     pool: &PoolInfo,

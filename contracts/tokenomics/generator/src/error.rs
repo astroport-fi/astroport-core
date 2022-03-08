@@ -1,7 +1,6 @@
 use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
-/// ## Description
 /// This enum describes generator contract errors!
 #[derive(Error, Debug)]
 pub enum ContractError {
@@ -31,6 +30,15 @@ pub enum ContractError {
 
     #[error("The pool already has a reward proxy contract!")]
     PoolAlreadyHasRewardProxyContract {},
+
+    #[error("Generator is disabled!")]
+    GeneratorIsDisabled {},
+
+    #[error("Duplicate of pool")]
+    PoolDuplicate {},
+
+    #[error("Pair is not registered in factory!")]
+    PairNotRegistered {},
 }
 
 impl From<OverflowError> for ContractError {
