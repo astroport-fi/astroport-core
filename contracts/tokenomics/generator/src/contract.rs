@@ -13,8 +13,8 @@ use crate::state::{
     OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
 use astroport::asset::{
-    addr_validate_to_lower, assets_pool, native_asset_info, token_asset_info, AssetInfo, PairInfo,
-    ULUNA_DENOM, UUSD_DENOM,
+    addr_validate_to_lower, native_asset_info, pair_info_by_pool, token_asset_info, AssetInfo,
+    PairInfo, ULUNA_DENOM, UUSD_DENOM,
 };
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
@@ -175,11 +175,11 @@ pub fn execute(
 
             for (addr, alloc_point) in pools {
                 let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
-                let assets = assets_pool(deps.as_ref(), pool_addr.clone())?;
+                let pair_info = pair_info_by_pool(deps.as_ref(), pool_addr.clone())?;
 
                 // check if assets in the blocked list
                 let mut is_blocked = false;
-                for asset in assets {
+                for asset in pair_info.asset_infos {
                     if cfg.blocked_list_tokens.contains(&asset) {
                         is_blocked = true;
                         break;
@@ -364,8 +364,8 @@ fn update_tokens_blockedlist(
                 // find active pools with blocked tokens
                 let mut pools: Vec<(Addr, Uint64)> = vec![];
                 for pool in cfg.active_pools.clone() {
-                    let assets = assets_pool(deps.as_ref(), pool.0.clone())?;
-                    if assets.contains(&asset_info) {
+                    let pair_info = pair_info_by_pool(deps.as_ref(), pool.0.clone())?;
+                    if pair_info.asset_infos.contains(&asset_info) {
                         pools.push(pool);
                     }
                 }

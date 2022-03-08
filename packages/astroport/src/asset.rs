@@ -396,8 +396,8 @@ pub fn token_asset_info(contract_addr: Addr) -> AssetInfo {
     AssetInfo::Token { contract_addr }
 }
 
-/// Returns tokens by specified pool address.
-pub fn assets_pool(deps: Deps, pool: Addr) -> StdResult<[AssetInfo; 2]> {
+/// Returns [`PairInfo`] by specified pool address.
+pub fn pair_info_by_pool(deps: Deps, pool: Addr) -> StdResult<PairInfo> {
     let minter_info: MinterResponse = deps
         .querier
         .query_wasm_smart(pool, &Cw20QueryMsg::Minter {})?;
@@ -406,5 +406,5 @@ pub fn assets_pool(deps: Deps, pool: Addr) -> StdResult<[AssetInfo; 2]> {
         .querier
         .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
 
-    Ok(pair_info.asset_infos)
+    Ok(pair_info)
 }
