@@ -136,8 +136,8 @@ pub enum ExecuteMsg {
     /// ## Executor
     /// Only the current owner or generator controller can execute this
     MoveToProxy { lp_token: String, proxy: String },
-    /// Add or remove token to blacklist
-    UpdateTokensBlacklist {
+    /// Add or remove token to blocked list
+    UpdateTokensBlockedlist {
         /// Tokens to add
         add: Option<Vec<AssetInfo>>,
         /// Tokens to remove
@@ -273,8 +273,8 @@ pub struct ConfigResponse {
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points
     pub active_pools: Vec<(Addr, Uint64)>,
-    /// The blacklist of tokens
-    pub blacklist_tokens: Vec<AssetInfo>,
+    /// The blocked list of tokens
+    pub blocked_list_tokens: Vec<AssetInfo>,
 }
 
 /// ## Description

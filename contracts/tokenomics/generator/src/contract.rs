@@ -78,7 +78,7 @@ pub fn instantiate(
         allowed_reward_proxies,
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
         active_pools: vec![],
-        blacklist_tokens: vec![],
+        blocked_list_tokens: vec![],
     };
 
     if let Some(generator_controller) = msg.generator_controller {
@@ -146,8 +146,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::UpdateTokensBlacklist { add, remove } => {
-            update_tokens_blacklist(deps, info, add, remove)
+        ExecuteMsg::UpdateTokensBlockedlist { add, remove } => {
+            update_tokens_blockedlist(deps, info, add, remove)
         }
         ExecuteMsg::MoveToProxy { lp_token, proxy } => {
             move_to_proxy(deps, env, info, lp_token, proxy)
@@ -177,16 +177,16 @@ pub fn execute(
                 let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
                 let assets = assets_pool(deps.as_ref(), pool_addr.clone())?;
 
-                // check if assets blacklisted
-                let mut is_blacklisted = false;
+                // check if assets in the blocked list
+                let mut is_blocked = false;
                 for asset in assets {
-                    if cfg.blacklist_tokens.contains(&asset) {
-                        is_blacklisted = true;
+                    if cfg.blocked_list_tokens.contains(&asset) {
+                        is_blocked = true;
                         break;
                     }
                 }
 
-                if is_blacklisted {
+                if is_blocked {
                     setup_pools.push((pool_addr, Uint64::zero()));
                 } else {
                     setup_pools.push((pool_addr, alloc_point));
@@ -307,8 +307,8 @@ pub fn execute(
     }
 }
 
-/// Add or remove tokens to and from the tokens blacklist. Returns a [`ContractError`] on failure.
-fn update_tokens_blacklist(
+/// Add or remove tokens to and from the blocked list. Returns a [`ContractError`] on failure.
+fn update_tokens_blockedlist(
     deps: DepsMut,
     info: MessageInfo,
     add: Option<Vec<AssetInfo>>,
@@ -327,23 +327,25 @@ fn update_tokens_blacklist(
         return Err(ContractError::Unauthorized {});
     }
 
-    // Remove tokens from blacklist
+    // Remove tokens from blocked list
     if let Some(asset_infos) = remove {
         for asset_info in asset_infos {
             let index = cfg
-                .blacklist_tokens
+                .blocked_list_tokens
                 .iter()
                 .position(|x| *x == asset_info)
                 .ok_or_else(|| {
-                    StdError::generic_err("Can't remove token. It is not found in the blacklist.")
+                    StdError::generic_err(
+                        "Can't remove token. It is not found in the blocked list.",
+                    )
                 })?;
-            cfg.blacklist_tokens.remove(index);
+            cfg.blocked_list_tokens.remove(index);
         }
     }
 
-    // Add tokens to blacklist
+    // Add tokens to the blocked list
     if let Some(asset_infos) = add {
-        // ASTRO or Terra native assets (UST, LUNA etc) cannot be blacklisted
+        // ASTRO or Terra native assets (UST, LUNA etc) cannot be blocked
         let astro = token_asset_info(cfg.astro_token.clone());
         let uusd = native_asset_info(UUSD_DENOM.to_string());
         let uluna = native_asset_info(ULUNA_DENOM.to_string());
@@ -352,14 +354,14 @@ fn update_tokens_blacklist(
             || asset_infos.contains(&uusd)
             || asset_infos.contains(&uluna)
         {
-            return Err(ContractError::AssetCannotBlacklisted {});
+            return Err(ContractError::AssetCannotBeBlocked {});
         }
 
         for asset_info in asset_infos {
-            if !cfg.blacklist_tokens.contains(&asset_info) {
-                cfg.blacklist_tokens.push(asset_info.clone());
+            if !cfg.blocked_list_tokens.contains(&asset_info) {
+                cfg.blocked_list_tokens.push(asset_info.clone());
 
-                // find active pools with blacklisted tokens
+                // find active pools with blocked tokens
                 let mut pools: Vec<(Addr, Uint64)> = vec![];
                 for pool in cfg.active_pools.clone() {
                     let assets = assets_pool(deps.as_ref(), pool.0.clone())?;
@@ -368,7 +370,7 @@ fn update_tokens_blacklist(
                     }
                 }
 
-                // sets allocation point to zero for each pool with blacklisted token
+                // sets allocation point to zero for each pool with blocked token
                 for pool in pools {
                     let index = cfg
                         .active_pools
@@ -382,7 +384,7 @@ fn update_tokens_blacklist(
     }
 
     CONFIG.save(deps.storage, &cfg)?;
-    Ok(Response::new().add_attribute("action", "update_tokens_blacklist"))
+    Ok(Response::new().add_attribute("action", "update_tokens_blockedlist"))
 }
 
 /// Returns tokens by specified pool address.
@@ -1602,7 +1604,7 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
         vesting_contract: config.vesting_contract,
         generator_controller: config.generator_controller,
         active_pools: config.active_pools,
-        blacklist_tokens: config.blacklist_tokens,
+        blocked_list_tokens: config.blocked_list_tokens,
     })
 }
 

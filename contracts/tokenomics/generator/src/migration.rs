@@ -67,8 +67,6 @@ pub struct ConfigV100 {
     pub allowed_reward_proxies: Vec<Addr>,
     /// The vesting contract from which rewards are distributed
     pub vesting_contract: Addr,
-    /// The blacklist of tokens
-    pub blacklist_tokens: Vec<AssetInfo>,
 }
 
 /// Stores the contract config(V1.1.0) at the given key
@@ -81,6 +79,8 @@ pub struct MigrationMsgV120 {
     pub factory: String,
     /// Contract address which can only set active generators and their alloc points
     pub generator_controller: Option<String>,
+    /// The blocked list of tokens
+    pub blocked_list_tokens: Option<Vec<AssetInfo>>,
 }
 
 /// Migrate config to V1.2.0
@@ -102,12 +102,17 @@ pub fn migrate_configs_to_v120(
         allowed_reward_proxies: cfg_100.allowed_reward_proxies,
         vesting_contract: cfg_100.vesting_contract,
         active_pools: pools,
-        blacklist_tokens: cfg_100.blacklist_tokens,
+        blocked_list_tokens: vec![],
     };
 
     if let Some(generator_controller) = msg.generator_controller {
         cfg.generator_controller = Some(addr_validate_to_lower(deps.api, &generator_controller)?);
     }
+
+    if let Some(blocked_list_tokens) = msg.blocked_list_tokens {
+        cfg.blocked_list_tokens = blocked_list_tokens;
+    }
+
     CONFIG.save(deps.storage, &cfg)?;
 
     Ok(())

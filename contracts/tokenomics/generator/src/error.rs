@@ -40,8 +40,8 @@ pub enum ContractError {
     #[error("Pair is not registered in factory!")]
     PairNotRegistered {},
 
-    #[error("ASTRO or Terra native assets (UST, LUNA etc) cannot be blacklisted!")]
-    AssetCannotBlacklisted {},
+    #[error("ASTRO or Terra native assets (UST, LUNA etc) cannot be blocked!")]
+    AssetCannotBeBlocked {},
 }
 
 impl From<OverflowError> for ContractError {

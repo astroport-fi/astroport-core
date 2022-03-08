@@ -1734,7 +1734,7 @@ fn query_pagination_stakers() {
 }
 
 #[test]
-fn update_tokens_blacklist() {
+fn update_tokens_blockedlist() {
     let mut app = mock_app();
 
     let owner = Addr::unchecked(OWNER);
@@ -1775,7 +1775,7 @@ fn update_tokens_blacklist() {
         ],
     );
 
-    let msg = ExecuteMsg::UpdateTokensBlacklist {
+    let msg = ExecuteMsg::UpdateTokensBlockedlist {
         add: None,
         remove: None,
     };
@@ -1788,7 +1788,7 @@ fn update_tokens_blacklist() {
         err.to_string()
     );
 
-    let msg = ExecuteMsg::UpdateTokensBlacklist {
+    let msg = ExecuteMsg::UpdateTokensBlockedlist {
         add: Some(vec![native_asset_info("uusd".to_string())]),
         remove: None,
     };
@@ -1802,11 +1802,11 @@ fn update_tokens_blacklist() {
         .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(
-        "ASTRO or Terra native assets (UST, LUNA etc) cannot be blacklisted!",
+        "ASTRO or Terra native assets (UST, LUNA etc) cannot be blocked!",
         err.to_string()
     );
 
-    let msg = ExecuteMsg::UpdateTokensBlacklist {
+    let msg = ExecuteMsg::UpdateTokensBlockedlist {
         add: Some(vec![
             native_asset_info("eur".to_string()),
             native_asset_info("asset2".to_string()),
@@ -1861,7 +1861,7 @@ fn update_tokens_blacklist() {
         .unwrap();
     assert_eq!(Uint64::zero(), reps.alloc_point);
 
-    let msg = ExecuteMsg::UpdateTokensBlacklist {
+    let msg = ExecuteMsg::UpdateTokensBlockedlist {
         add: None,
         remove: Some(vec![native_asset_info("eur".to_string())]),
     };
