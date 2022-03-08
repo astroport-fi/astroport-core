@@ -13,8 +13,8 @@ use crate::state::{
     OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
 use astroport::asset::{
-    addr_validate_to_lower, native_asset_info, token_asset_info, AssetInfo, PairInfo, ULUNA_DENOM,
-    UUSD_DENOM,
+    addr_validate_to_lower, assets_pool, native_asset_info, token_asset_info, AssetInfo, PairInfo,
+    ULUNA_DENOM, UUSD_DENOM,
 };
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
@@ -385,19 +385,6 @@ fn update_tokens_blockedlist(
 
     CONFIG.save(deps.storage, &cfg)?;
     Ok(Response::new().add_attribute("action", "update_tokens_blockedlist"))
-}
-
-/// Returns tokens by specified pool address.
-fn assets_pool(deps: Deps, pool: Addr) -> StdResult<[AssetInfo; 2]> {
-    let minter_info: MinterResponse = deps
-        .querier
-        .query_wasm_smart(pool, &Cw20QueryMsg::Minter {})?;
-
-    let pair_info: PairInfo = deps
-        .querier
-        .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
-
-    Ok(pair_info.asset_infos)
 }
 
 /// Sets a new Generator vesting contract address. Returns a [`ContractError`] on failure or the [`CONFIG`]
