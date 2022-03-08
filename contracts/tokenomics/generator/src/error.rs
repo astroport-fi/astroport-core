@@ -40,9 +40,6 @@ pub enum ContractError {
     #[error("Pair is not registered in factory!")]
     PairNotRegistered {},
 
-    #[error("The assembly contract is not specified!")]
-    AssemblyIsNotSpecified {},
-
     #[error("ASTRO or Terra native assets (UST, LUNA etc) cannot be blacklisted!")]
     AssetCannotBlacklisted {},
 }

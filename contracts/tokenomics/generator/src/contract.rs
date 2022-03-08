@@ -78,7 +78,6 @@ pub fn instantiate(
         allowed_reward_proxies,
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
         active_pools: vec![],
-        assembly_contract: None,
         blacklist_tokens: vec![],
     };
 
@@ -159,14 +158,7 @@ pub fn execute(
         ExecuteMsg::UpdateConfig {
             vesting_contract,
             generator_controller,
-            assembly_contract,
-        } => execute_update_config(
-            deps,
-            info,
-            vesting_contract,
-            generator_controller,
-            assembly_contract,
-        ),
+        } => execute_update_config(deps, info, vesting_contract, generator_controller),
         ExecuteMsg::SetupPools { pools } => {
             let cfg = CONFIG.load(deps.storage)?;
             if info.sender != cfg.owner && Some(info.sender) != cfg.generator_controller {
@@ -331,12 +323,8 @@ fn update_tokens_blacklist(
     let mut cfg = CONFIG.load(deps.storage)?;
 
     // Permission check
-    if let Some(assembly_contract) = cfg.assembly_contract.clone() {
-        if info.sender != assembly_contract {
-            return Err(ContractError::Unauthorized {});
-        }
-    } else {
-        return Err(ContractError::AssemblyIsNotSpecified {});
+    if info.sender != cfg.owner {
+        return Err(ContractError::Unauthorized {});
     }
 
     // Remove tokens from blacklist
@@ -430,7 +418,6 @@ pub fn execute_update_config(
     info: MessageInfo,
     vesting_contract: Option<String>,
     generator_controller: Option<String>,
-    assembly_contract: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -443,12 +430,6 @@ pub fn execute_update_config(
         config.vesting_contract = addr_validate_to_lower(deps.api, vesting_contract.as_str())?;
     }
 
-    if let Some(assembly_contract) = assembly_contract {
-        config.assembly_contract = Some(addr_validate_to_lower(
-            deps.api,
-            assembly_contract.as_str(),
-        )?);
-    }
     if let Some(generator_controller) = generator_controller {
         config.generator_controller = Some(addr_validate_to_lower(
             deps.api,

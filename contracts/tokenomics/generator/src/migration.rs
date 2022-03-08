@@ -102,7 +102,6 @@ pub fn migrate_configs_to_v120(
         allowed_reward_proxies: cfg_100.allowed_reward_proxies,
         vesting_contract: cfg_100.vesting_contract,
         active_pools: pools,
-        assembly_contract: None,
         blacklist_tokens: cfg_100.blacklist_tokens,
     };
 

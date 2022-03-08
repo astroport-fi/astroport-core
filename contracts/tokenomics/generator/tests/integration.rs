@@ -229,7 +229,6 @@ fn update_config() {
     let msg = ExecuteMsg::UpdateConfig {
         vesting_contract: Some(new_vesting.to_string()),
         generator_controller: None,
-        assembly_contract: None,
     };
 
     // Assert cannot update with improper owner
@@ -1739,6 +1738,7 @@ fn update_tokens_blacklist() {
     let mut app = mock_app();
 
     let owner = Addr::unchecked(OWNER);
+    let user1 = Addr::unchecked(USER1);
     let token_code_id = store_token_code(&mut app);
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
@@ -1794,35 +1794,12 @@ fn update_tokens_blacklist() {
     };
 
     let err = app
-        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap_err();
-    assert_eq!("The assembly contract is not specified!", err.to_string());
-
-    let msg = ExecuteMsg::UpdateConfig {
-        vesting_contract: None,
-        generator_controller: None,
-        assembly_contract: Some("assembly".to_string()),
-    };
-    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = ExecuteMsg::UpdateTokensBlacklist {
-        add: Some(vec![native_asset_info("uusd".to_string())]),
-        remove: None,
-    };
-
-    let err = app
-        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!("Unauthorized", err.to_string());
 
     let err = app
-        .execute_contract(
-            Addr::unchecked("assembly"),
-            generator_instance.clone(),
-            &msg,
-            &[],
-        )
+        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(
         "ASTRO or Terra native assets (UST, LUNA etc) cannot be blacklisted!",
@@ -1837,13 +1814,8 @@ fn update_tokens_blacklist() {
         remove: None,
     };
 
-    app.execute_contract(
-        Addr::unchecked("assembly"),
-        generator_instance.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
 
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {
@@ -1894,13 +1866,8 @@ fn update_tokens_blacklist() {
         remove: Some(vec![native_asset_info("eur".to_string())]),
     };
 
-    app.execute_contract(
-        Addr::unchecked("assembly"),
-        generator_instance.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
 
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {

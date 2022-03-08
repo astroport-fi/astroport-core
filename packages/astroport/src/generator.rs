@@ -38,8 +38,6 @@ pub enum ExecuteMsg {
         vesting_contract: Option<String>,
         /// The new generator controller contract address
         generator_controller: Option<String>,
-        /// The new assembly contract address
-        assembly_contract: Option<String>,
     },
     /// ## Description
     /// Setting up a new list of pools with allocation points.

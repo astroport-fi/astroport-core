@@ -31,8 +31,7 @@ Update the vesting contract address. Only the contract owner can execute this.
 {
   "update_config": {
     "vesting_contract": "terra...",
-    "generator_controller": "terra...",
-    "assembly_contract": "terra..."
+    "generator_controller": "terra..."
   }
 }
 ```

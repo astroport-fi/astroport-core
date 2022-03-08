@@ -41,8 +41,6 @@ pub struct Config {
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points
     pub active_pools: Vec<(Addr, Uint64)>,
-    /// The assembly contract from which the list of tokens will be sent to be removed or added to the blacklist.
-    pub assembly_contract: Option<Addr>,
     /// The blacklist of tokens
     pub blacklist_tokens: Vec<AssetInfo>,
 }
