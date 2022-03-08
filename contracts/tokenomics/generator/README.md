@@ -268,7 +268,7 @@ Add or remove dual rewards proxy contracts that can interact with the Generator.
 
 ### `update_tokens_blacklist`
 
-Add or remove tokens to and from the tokens blacklist. Only the assembly contract can execute this.
+Add or remove tokens to and from the tokens blacklist. Only the owner contract can execute this.
 
 ```json
 {
