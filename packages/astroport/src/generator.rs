@@ -36,6 +36,9 @@ pub enum ExecuteMsg {
     UpdateConfig {
         /// The new vesting contract address
         vesting_contract: Option<String>,
+        /// The new generator controller contract address
+        generator_controller: Option<String>,
+        /// The new assembly contract address
         assembly_contract: Option<String>,
     },
     /// ## Description
@@ -60,7 +63,7 @@ pub enum ExecuteMsg {
     /// Update rewards and return it to user.
     ClaimRewards {
         /// the LP token contract address
-        lp_token: String,
+        lp_tokens: Vec<String>,
     },
     /// ## Description
     /// Withdraw LP tokens from the Generator

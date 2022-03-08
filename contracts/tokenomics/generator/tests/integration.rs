@@ -1,4 +1,5 @@
 use astroport::asset::{native_asset_info, AssetInfo, PairInfo};
+
 use astroport::generator::{ExecuteMsg, QueryMsg, StakerResponse};
 use astroport::{
     factory::{
@@ -227,6 +228,7 @@ fn update_config() {
 
     let msg = ExecuteMsg::UpdateConfig {
         vesting_contract: Some(new_vesting.to_string()),
+        generator_controller: None,
         assembly_contract: None,
     };
 
@@ -1798,6 +1800,7 @@ fn update_tokens_blacklist() {
 
     let msg = ExecuteMsg::UpdateConfig {
         vesting_contract: None,
+        generator_controller: None,
         assembly_contract: Some("assembly".to_string()),
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])

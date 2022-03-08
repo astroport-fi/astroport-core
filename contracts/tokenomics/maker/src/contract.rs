@@ -372,31 +372,13 @@ fn swap(
     let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
-    // 1. Check for a direct pair with ASTRO
-    let swap_to_astro = try_build_swap_msg(deps, cfg, from_token.clone(), astro.clone(), amount_in);
-    if let Ok(msg) = swap_to_astro {
-        return Ok(SwapTarget::Astro(msg));
+    // 1. If from_token is UST, only swap to astro is possible
+    if from_token.eq(&uusd) {
+        let swap_to_astro = try_build_swap_msg(deps, cfg, from_token, astro, amount_in)?;
+        return Ok(SwapTarget::Astro(swap_to_astro));
     }
 
-    // 2. Check for a pair with UST
-    if from_token.ne(&uusd) {
-        let swap_to_uusd =
-            try_build_swap_msg(deps, cfg, from_token.clone(), uusd.clone(), amount_in);
-        if let Ok(msg) = swap_to_uusd {
-            return Ok(SwapTarget::Bridge { asset: uusd, msg });
-        }
-    }
-
-    // 3. Check for a pair with LUNA
-    if from_token.ne(&uusd) && from_token.ne(&uluna) {
-        let swap_to_uluna =
-            try_build_swap_msg(deps, cfg, from_token.clone(), uluna.clone(), amount_in);
-        if let Ok(msg) = swap_to_uluna {
-            return Ok(SwapTarget::Bridge { asset: uluna, msg });
-        }
-    }
-
-    // 4. Check if bridge tokens exist
+    // 2. Check if bridge tokens exist
     let bridge_token = BRIDGES.load(deps.storage, from_token.to_string());
     if let Ok(asset) = bridge_token {
         let bridge_pool = validate_bridge(
@@ -410,6 +392,30 @@ fn swap(
 
         let msg = build_swap_msg(deps, cfg, bridge_pool, from_token, amount_in)?;
         return Ok(SwapTarget::Bridge { asset, msg });
+    }
+
+    // 3. Check for a pair with UST
+    if from_token.ne(&uusd) {
+        let swap_to_uusd =
+            try_build_swap_msg(deps, cfg, from_token.clone(), uusd.clone(), amount_in);
+        if let Ok(msg) = swap_to_uusd {
+            return Ok(SwapTarget::Bridge { asset: uusd, msg });
+        }
+    }
+
+    // 4. Check for a pair with LUNA
+    if from_token.ne(&uusd) && from_token.ne(&uluna) {
+        let swap_to_uluna =
+            try_build_swap_msg(deps, cfg, from_token.clone(), uluna.clone(), amount_in);
+        if let Ok(msg) = swap_to_uluna {
+            return Ok(SwapTarget::Bridge { asset: uluna, msg });
+        }
+    }
+
+    // 5. Check for a direct pair with ASTRO
+    let swap_to_astro = try_build_swap_msg(deps, cfg, from_token.clone(), astro, amount_in);
+    if let Ok(msg) = swap_to_astro {
+        return Ok(SwapTarget::Astro(msg));
     }
 
     Err(ContractError::CannotSwap(from_token))
@@ -437,23 +443,32 @@ fn swap_no_validate(
     let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
-    let swap_to_astro = try_build_swap_msg(deps, cfg, from_token.clone(), astro, amount_in);
-    if let Ok(msg) = swap_to_astro {
-        return Ok(SwapTarget::Astro(msg));
-    }
-
+    // LUNA should be swapped to ust
     if from_token.eq(&uluna) {
         let msg = try_build_swap_msg(deps, cfg, from_token, uusd.clone(), amount_in)?;
         return Ok(SwapTarget::Bridge { asset: uusd, msg });
     }
 
-    let bridge_token = BRIDGES.load(deps.storage, from_token.to_string())?;
-    let msg = try_build_swap_msg(deps, cfg, from_token, bridge_token.clone(), amount_in)?;
+    // UST should be swapped to ASTRO
+    if from_token.eq(&uusd) {
+        let swap_to_astro = try_build_swap_msg(deps, cfg, from_token, astro, amount_in)?;
+        return Ok(SwapTarget::Astro(swap_to_astro));
+    }
 
-    Ok(SwapTarget::Bridge {
-        asset: bridge_token,
-        msg,
-    })
+    // Check if next level bridge exists
+    let bridge_token = BRIDGES.load(deps.storage, from_token.to_string());
+    if let Ok(asset) = bridge_token {
+        let msg = try_build_swap_msg(deps, cfg, from_token, asset.clone(), amount_in)?;
+        return Ok(SwapTarget::Bridge { asset, msg });
+    }
+
+    // Check direct swap to astro
+    let swap_to_astro = try_build_swap_msg(deps, cfg, from_token.clone(), astro, amount_in);
+    if let Ok(msg) = swap_to_astro {
+        return Ok(SwapTarget::Astro(msg));
+    }
+
+    Err(ContractError::CannotSwap(from_token))
 }
 
 /// ## Description

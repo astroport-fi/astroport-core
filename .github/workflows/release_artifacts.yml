@@ -1,0 +1,19 @@
+name: Release Artifacts
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  release-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build Artifacts
+        run: |
+          $GITHUB_WORKSPACE/scripts/build_release.sh
+          tar -zcvf cosmwasm-artifacts.tar.gz artifacts
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: cosmwasm-artifacts.tar.gz
