@@ -32,7 +32,6 @@ use astroport::{
     generator_proxy::{
         Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
     },
-    pair::QueryMsg as PairQueryMsg,
     vesting::ExecuteMsg as VestingExecuteMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
@@ -179,14 +178,23 @@ pub fn execute(
 
                 // check if assets in the blocked list
                 let mut is_blocked = false;
-                for asset in pair_info.asset_infos {
+                for asset in pair_info.asset_infos.clone() {
                     if cfg.blocked_list_tokens.contains(&asset) {
                         is_blocked = true;
                         break;
                     }
                 }
 
-                if is_blocked {
+                // If a pair gets deregistered from the factory, no one can set its generator
+                // alloc_points to anything above 0.
+                let resp: StdResult<PairInfo> = deps.querier.query_wasm_smart(
+                    cfg.factory.clone(),
+                    &FactoryQueryMsg::Pair {
+                        asset_infos: pair_info.asset_infos,
+                    },
+                );
+
+                if is_blocked || resp.is_err() {
                     setup_pools.push((pool_addr, Uint64::zero()));
                 } else {
                     setup_pools.push((pool_addr, alloc_point));
@@ -1860,13 +1868,7 @@ pub fn create_pool(
     cfg: &Config,
     factory_cfg: &FactoryConfigResponse,
 ) -> Result<PoolInfo, ContractError> {
-    let minter_info: MinterResponse = deps
-        .querier
-        .query_wasm_smart(lp_token.clone(), &Cw20QueryMsg::Minter {})?;
-
-    let pair_info: PairInfo = deps
-        .querier
-        .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
+    let pair_info = pair_info_by_pool(deps.as_ref(), lp_token.clone())?;
 
     let mut pair_config: Option<PairConfig> = None;
     for factory_pair_config in &factory_cfg.pair_configs {
