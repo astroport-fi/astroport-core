@@ -1200,11 +1200,11 @@ fn move_to_proxy(
         return Err(ContractError::RewardProxyNotAllowed {});
     }
 
-    let factory_cfg: FactoryConfigResponse = deps
-        .querier
-        .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
-
     if POOL_INFO.may_load(deps.storage, &lp_addr)?.is_none() {
+        let factory_cfg: FactoryConfigResponse = deps
+            .querier
+            .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
+
         create_pool(deps.branch(), &env, &lp_addr, &cfg, &factory_cfg)?;
     }
 
