@@ -43,6 +43,9 @@ pub enum ContractError {
 
     #[error("The assembly contract is not specified!")]
     AssemblyIsNotSpecified {},
+
+    #[error("ASTRO or Terra native assets (UST, LUNA etc) cannot be blacklisted!")]
+    AssetCannotBlacklisted {},
 }
 
 impl From<OverflowError> for ContractError {

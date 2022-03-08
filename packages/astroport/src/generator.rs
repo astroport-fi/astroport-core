@@ -36,6 +36,7 @@ pub enum ExecuteMsg {
     UpdateConfig {
         /// The new vesting contract address
         vesting_contract: Option<String>,
+        assembly_contract: Option<String>,
     },
     /// ## Description
     /// Setting up a new list of pools with allocation points.

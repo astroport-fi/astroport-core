@@ -12,7 +12,10 @@ use crate::state::{
     update_user_balance, Config, ExecuteOnReply, UserInfo, CONFIG, DEFAULT_LIMIT, MAX_LIMIT,
     OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
-use astroport::asset::{addr_validate_to_lower, AssetInfo, PairInfo};
+use astroport::asset::{
+    addr_validate_to_lower, native_asset_info, token_asset_info, AssetInfo, PairInfo, ULUNA_DENOM,
+    UUSD_DENOM,
+};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::PairConfig;
 use astroport::generator::PoolInfo;
@@ -154,9 +157,10 @@ pub fn execute(
         ExecuteMsg::UpdateAllowedProxies { add, remove } => {
             update_allowed_proxies(deps, info, add, remove)
         }
-        ExecuteMsg::UpdateConfig { vesting_contract } => {
-            execute_update_config(deps, info, vesting_contract)
-        }
+        ExecuteMsg::UpdateConfig {
+            vesting_contract,
+            assembly_contract,
+        } => execute_update_config(deps, info, vesting_contract, assembly_contract),
         ExecuteMsg::SetupPools { pools } => {
             let cfg = CONFIG.load(deps.storage)?;
             if info.sender != cfg.owner && Some(info.sender) != cfg.generator_controller {
@@ -172,7 +176,22 @@ pub fn execute(
             }
 
             for (addr, alloc_point) in pools {
-                setup_pools.push((addr_validate_to_lower(deps.api, &addr)?, alloc_point));
+                let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
+                let assets = assets_pool(deps.as_ref(), pool_addr.clone())?;
+
+                let mut is_blacklisted = false;
+                for asset in assets {
+                    if cfg.blacklist_tokens.contains(&asset) {
+                        is_blacklisted = true;
+                        break;
+                    }
+                }
+
+                if is_blacklisted {
+                    setup_pools.push((pool_addr, Uint64::zero()));
+                } else {
+                    setup_pools.push((pool_addr, alloc_point));
+                }
             }
 
             update_rewards_and_execute(
@@ -302,7 +321,7 @@ fn update_tokens_blacklist(
     let mut cfg = CONFIG.load(deps.storage)?;
 
     // Permission check
-    if let Some(assembly_contract) = cfg.assembly_contract {
+    if let Some(assembly_contract) = cfg.assembly_contract.clone() {
         if info.sender != assembly_contract {
             return Err(ContractError::Unauthorized {});
         }
@@ -310,32 +329,74 @@ fn update_tokens_blacklist(
         return Err(ContractError::AssemblyIsNotSpecified {});
     }
 
-    // Remove tokens from blacklist
-    if let Some(remove_tokens) = remove {
-        for remove_token in remove_tokens {
+    // Remove assets from blacklist
+    if let Some(asset_infos) = remove {
+        for asset_info in asset_infos {
             let index = cfg
                 .blacklist_tokens
                 .iter()
-                .position(|x| *x.to_string() == remove_token.to_string().to_lowercase())
+                .position(|x| *x == asset_info)
                 .ok_or_else(|| {
-                    StdError::generic_err("Can't remove token. It is not found in blacklist.")
+                    StdError::generic_err("Can't remove asset. It is not found in the blacklist.")
                 })?;
             cfg.blacklist_tokens.remove(index);
         }
     }
 
     // Add tokens to blacklist
-    if let Some(add_tokens) = add {
-        for add_token in add_tokens {
-            let proxy_addr = addr_validate_to_lower(deps.api, &add_token.is_native_token())?;
-            if !cfg.allowed_reward_proxies.contains(&proxy_addr) {
-                cfg.allowed_reward_proxies.push(proxy_addr);
+    if let Some(asset_infos) = add {
+        // ASTRO or Terra native assets (UST, LUNA etc) cannot be blacklisted
+        let astro = token_asset_info(cfg.astro_token.clone());
+        let uusd = native_asset_info(UUSD_DENOM.to_string());
+        let uluna = native_asset_info(ULUNA_DENOM.to_string());
+
+        if asset_infos.contains(&astro)
+            || asset_infos.contains(&uusd)
+            || asset_infos.contains(&uluna)
+        {
+            return Err(ContractError::AssetCannotBlacklisted {});
+        }
+
+        for asset_info in asset_infos {
+            if !cfg.blacklist_tokens.contains(&asset_info) {
+                cfg.blacklist_tokens.push(asset_info.clone());
+
+                // find active pools with blacklisted asset
+                let mut pools: Vec<(Addr, Uint64)> = vec![];
+                for pool in cfg.active_pools.clone() {
+                    let assets = assets_pool(deps.as_ref(), pool.0.clone())?;
+                    if assets.contains(&asset_info) {
+                        pools.push(pool);
+                    }
+                }
+
+                // sets allocation point to zero for each pool with blacklisted asset
+                for pool in pools {
+                    let index = cfg
+                        .active_pools
+                        .iter()
+                        .position(|x| *x == pool)
+                        .ok_or_else(|| StdError::generic_err("Can't find active pool."))?;
+                    cfg.active_pools[index].1 = Uint64::zero();
+                }
             }
         }
     }
 
     CONFIG.save(deps.storage, &cfg)?;
-    Ok(Response::default().add_attribute("action", "update_allowed_proxies"))
+    Ok(Response::new().add_attribute("action", "update_tokens_blacklist"))
+}
+
+fn assets_pool(deps: Deps, pool: Addr) -> StdResult<[AssetInfo; 2]> {
+    let minter_info: MinterResponse = deps
+        .querier
+        .query_wasm_smart(pool, &Cw20QueryMsg::Minter {})?;
+
+    let pair_info: PairInfo = deps
+        .querier
+        .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
+
+    Ok(pair_info.asset_infos)
 }
 
 /// ## Description
@@ -354,6 +415,7 @@ pub fn execute_update_config(
     deps: DepsMut,
     info: MessageInfo,
     vesting_contract: Option<String>,
+    assembly_contract: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -364,6 +426,13 @@ pub fn execute_update_config(
 
     if let Some(vesting_contract) = vesting_contract {
         config.vesting_contract = addr_validate_to_lower(deps.api, vesting_contract.as_str())?;
+    }
+
+    if let Some(assembly_contract) = assembly_contract {
+        config.assembly_contract = Some(addr_validate_to_lower(
+            deps.api,
+            assembly_contract.as_str(),
+        )?);
     }
 
     CONFIG.save(deps.storage, &config)?;
