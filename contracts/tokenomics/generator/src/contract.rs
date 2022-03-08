@@ -600,7 +600,7 @@ pub fn mass_update_pools(mut deps: DepsMut, env: &Env, cfg: &Config) -> Result<(
 ///
 /// * **account** is the object of type [`Addr`].
 pub fn claim_rewards(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     lp_tokens: Vec<Addr>,
     account: Addr,
@@ -608,6 +608,8 @@ pub fn claim_rewards(
     let response = Response::default();
 
     let cfg = CONFIG.load(deps.storage)?;
+
+    mass_update_pools(deps.branch(), &env, &cfg)?;
 
     let mut send_rewards_msg: Vec<WasmMsg> = vec![];
     for lp_token in &lp_tokens {
@@ -617,8 +619,6 @@ pub fn claim_rewards(
 
         send_rewards_msg.append(&mut send_pending_rewards(&cfg, &pool, &user, &account)?);
     }
-
-    mass_update_pools(deps, &env, &cfg)?;
 
     Ok(response
         .add_attribute("action", "claim_rewards")
@@ -726,11 +726,12 @@ fn receive_cw20(
     let lp_token = info.sender;
 
     let cfg = CONFIG.load(deps.storage)?;
-    let factory_cfg: FactoryConfigResponse = deps
-        .querier
-        .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
 
     if POOL_INFO.may_load(deps.storage, &lp_token)?.is_none() {
+        let factory_cfg: FactoryConfigResponse = deps
+            .querier
+            .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
+
         create_pool(deps.branch(), &env, &lp_token, &cfg, &factory_cfg)?;
     }
 
@@ -1189,9 +1190,6 @@ fn move_to_proxy(
     let proxy_addr = addr_validate_to_lower(deps.api, &proxy)?;
 
     let cfg = CONFIG.load(deps.storage)?;
-    let factory_cfg: FactoryConfigResponse = deps
-        .querier
-        .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
 
     // Permission check
     if info.sender != cfg.owner {
@@ -1201,6 +1199,10 @@ fn move_to_proxy(
     if !cfg.allowed_reward_proxies.contains(&proxy_addr) {
         return Err(ContractError::RewardProxyNotAllowed {});
     }
+
+    let factory_cfg: FactoryConfigResponse = deps
+        .querier
+        .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
 
     if POOL_INFO.may_load(deps.storage, &lp_addr)?.is_none() {
         create_pool(deps.branch(), &env, &lp_addr, &cfg, &factory_cfg)?;
@@ -1763,9 +1765,9 @@ pub fn create_pool(
         .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
 
     let mut pair_config: Option<PairConfig> = None;
-    for factory_pair_config in factory_cfg.pair_configs.clone() {
+    for factory_pair_config in &factory_cfg.pair_configs {
         if factory_pair_config.pair_type == pair_info.pair_type {
-            pair_config = Some(factory_pair_config);
+            pair_config = Some(factory_pair_config.clone());
         }
     }
 
@@ -1808,7 +1810,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
     match contract_version.contract.as_ref() {
         "astroport-generator" => match contract_version.version.as_ref() {
             "1.0.0" => {
-                let msg: migration::MigrationMsgV110 = from_binary(&msg.params)?;
+                let msg: migration::MigrationMsgV120 = from_binary(&msg.params)?;
 
                 let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 
@@ -1842,7 +1844,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
                 migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?
             }
             "1.1.0" => {
-                let msg: migration::MigrationMsgV110 = from_binary(&msg.params)?;
+                let msg: migration::MigrationMsgV120 = from_binary(&msg.params)?;
 
                 let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 

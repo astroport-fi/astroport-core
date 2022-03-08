@@ -51,7 +51,7 @@ pub const POOL_INFOV110: Map<&Addr, PoolInfoV110> = Map::new("pool_info");
 
 /// This structure describes the main control config of generator.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct ConfigV110 {
+pub struct ConfigV100 {
     /// Contract address that used for controls settings
     pub owner: Addr,
     /// The ASTRO token address
@@ -69,11 +69,11 @@ pub struct ConfigV110 {
 }
 
 /// Stores the contract config(V1.1.0) at the given key
-pub const CONFIGV100: Item<ConfigV110> = Item::new("config");
+pub const CONFIGV100: Item<ConfigV100> = Item::new("config");
 
 /// This structure describes a contract migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrationMsgV110 {
+pub struct MigrationMsgV120 {
     /// The Factory address
     pub factory: String,
     /// Contract address which can only set active generators and their alloc points
@@ -84,7 +84,7 @@ pub struct MigrationMsgV110 {
 pub fn migrate_configs_to_v120(
     deps: &mut DepsMut,
     pools: Vec<(Addr, Uint64)>,
-    msg: MigrationMsgV110,
+    msg: MigrationMsgV120,
 ) -> Result<(), StdError> {
     let cfg_100 = CONFIGV100.load(deps.storage)?;
 
