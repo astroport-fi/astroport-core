@@ -229,6 +229,7 @@ fn update_config() {
     let msg = ExecuteMsg::UpdateConfig {
         vesting_contract: Some(new_vesting.to_string()),
         generator_controller: None,
+        guardian: None,
     };
 
     // Assert cannot update with improper owner
@@ -2076,6 +2077,7 @@ fn instantiate_generator(
     let init_msg = GeneratorInstantiateMsg {
         owner: owner.to_string(),
         factory: factory_instance.to_string(),
+        guardian: None,
         allowed_reward_proxies: allowed_proxies.unwrap_or_default(),
         start_block: Uint64::from(app.block_info().height),
         astro_token: astro_token_instance.to_string(),

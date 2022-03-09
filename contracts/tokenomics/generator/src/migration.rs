@@ -81,6 +81,8 @@ pub struct MigrationMsgV120 {
     pub factory: String,
     /// Contract address which can only set active generators and their alloc points
     pub generator_controller: Option<String>,
+    /// The guardian address
+    pub guardian: Option<String>,
 }
 
 /// Migrate config to V1.2.0
@@ -103,11 +105,16 @@ pub fn migrate_configs_to_v120(
         vesting_contract: cfg_100.vesting_contract,
         active_pools: pools,
         blacklist_tokens: cfg_100.blacklist_tokens,
+        guardian: None,
     };
 
     if let Some(generator_controller) = msg.generator_controller {
         cfg.generator_controller = Some(addr_validate_to_lower(deps.api, &generator_controller)?);
     }
+    if let Some(guardian) = msg.guardian {
+        cfg.guardian = Some(addr_validate_to_lower(deps.api, &guardian)?);
+    }
+
     CONFIG.save(deps.storage, &cfg)?;
 
     Ok(())
