@@ -12,11 +12,6 @@ pub const BRIDGES_MAX_DEPTH: u64 = 2;
 /// Swap execution depth limit
 pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 3;
 
-/// UST token denom
-pub const UUSD_DENOM: &str = "uusd";
-/// LUNA token denom
-pub const ULUNA_DENOM: &str = "uluna";
-
 pub fn try_build_swap_msg(
     deps: Deps,
     cfg: &Config,

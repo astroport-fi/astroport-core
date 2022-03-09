@@ -1,5 +1,6 @@
 use crate::state::{Config, CONFIG};
-use astroport::asset::addr_validate_to_lower;
+use astroport::asset::{addr_validate_to_lower, AssetInfo};
+
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
@@ -78,6 +79,10 @@ pub struct MigrationMsgV120 {
     pub factory: String,
     /// Contract address which can only set active generators and their alloc points
     pub generator_controller: Option<String>,
+    /// The blocked list of tokens
+    pub blocked_list_tokens: Option<Vec<AssetInfo>>,
+    /// The guardian address
+    pub guardian: Option<String>,
 }
 
 /// Migrate config to V1.2.0
@@ -99,11 +104,22 @@ pub fn migrate_configs_to_v120(
         allowed_reward_proxies: cfg_100.allowed_reward_proxies,
         vesting_contract: cfg_100.vesting_contract,
         active_pools: pools,
+        blocked_list_tokens: vec![],
+        guardian: None,
     };
 
     if let Some(generator_controller) = msg.generator_controller {
         cfg.generator_controller = Some(addr_validate_to_lower(deps.api, &generator_controller)?);
     }
+
+    if let Some(blocked_list_tokens) = msg.blocked_list_tokens {
+        cfg.blocked_list_tokens = blocked_list_tokens;
+    }
+
+    if let Some(guardian) = msg.guardian {
+        cfg.guardian = Some(addr_validate_to_lower(deps.api, &guardian)?);
+    }
+
     CONFIG.save(deps.storage, &cfg)?;
 
     Ok(())

@@ -3,13 +3,19 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::factory::PairType;
+use crate::pair::QueryMsg as PairQueryMsg;
 use crate::querier::{query_balance, query_token_balance, query_token_symbol};
 use cosmwasm_std::{
-    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper, StdError,
-    StdResult, Uint128, WasmMsg,
+    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, Deps, MessageInfo, QuerierWrapper,
+    StdError, StdResult, Uint128, WasmMsg,
 };
-use cw20::Cw20ExecuteMsg;
+use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_cosmwasm::TerraQuerier;
+
+/// UST token denom
+pub const UUSD_DENOM: &str = "uusd";
+/// LUNA token denom
+pub const ULUNA_DENOM: &str = "uluna";
 
 /// ## Description
 /// This enum describes a Terra asset (native or CW20).
@@ -388,4 +394,17 @@ pub fn native_asset_info(denom: String) -> AssetInfo {
 /// * **contract_addr** is a [`Addr`] object representing the address of a token contract.
 pub fn token_asset_info(contract_addr: Addr) -> AssetInfo {
     AssetInfo::Token { contract_addr }
+}
+
+/// Returns [`PairInfo`] by specified pool address.
+pub fn pair_info_by_pool(deps: Deps, pool: Addr) -> StdResult<PairInfo> {
+    let minter_info: MinterResponse = deps
+        .querier
+        .query_wasm_smart(pool, &Cw20QueryMsg::Minter {})?;
+
+    let pair_info: PairInfo = deps
+        .querier
+        .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
+
+    Ok(pair_info)
 }

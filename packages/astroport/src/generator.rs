@@ -1,3 +1,4 @@
+use crate::asset::AssetInfo;
 use cosmwasm_std::{Addr, Binary, Decimal, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -13,6 +14,8 @@ pub struct InstantiateMsg {
     pub factory: String,
     /// Address that can set active generators and their alloc points
     pub generator_controller: Option<String>,
+    /// Address of guardian
+    pub guardian: Option<String>,
     /// ASTRO token contract address
     pub astro_token: String,
     /// Amount of ASTRO distributed per block among all pairs
@@ -37,6 +40,8 @@ pub enum ExecuteMsg {
         vesting_contract: Option<String>,
         /// The new generator controller contract address
         generator_controller: Option<String>,
+        /// The new generator guardian
+        guardian: Option<String>,
     },
     /// ## Description
     /// Setting up a new list of pools with allocation points.
@@ -126,7 +131,7 @@ pub enum ExecuteMsg {
     UpdateAllowedProxies {
         /// Allowed proxy contract
         add: Option<Vec<String>>,
-        // Proxy contracts to remove
+        /// Proxy contracts to remove
         remove: Option<Vec<String>>,
     },
     /// ## Description
@@ -135,6 +140,13 @@ pub enum ExecuteMsg {
     /// ## Executor
     /// Only the current owner or generator controller can execute this
     MoveToProxy { lp_token: String, proxy: String },
+    /// Add or remove token to blocked list
+    UpdateTokensBlockedlist {
+        /// Tokens to add
+        add: Option<Vec<AssetInfo>>,
+        /// Tokens to remove
+        remove: Option<Vec<AssetInfo>>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -265,6 +277,10 @@ pub struct ConfigResponse {
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points
     pub active_pools: Vec<(Addr, Uint64)>,
+    /// The blocked list of tokens
+    pub blocked_list_tokens: Vec<AssetInfo>,
+    /// The guardian address
+    pub guardian: Option<Addr>,
 }
 
 /// ## Description

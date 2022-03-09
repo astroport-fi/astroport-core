@@ -5,11 +5,11 @@ use std::cmp::min;
 use crate::migration;
 use crate::utils::{
     build_distribute_msg, build_swap_msg, get_pool, try_build_swap_msg, validate_bridge,
-    BRIDGES_EXECUTION_MAX_DEPTH, BRIDGES_INITIAL_DEPTH, ULUNA_DENOM, UUSD_DENOM,
+    BRIDGES_EXECUTION_MAX_DEPTH, BRIDGES_INITIAL_DEPTH,
 };
 use astroport::asset::{
     addr_validate_to_lower, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo,
-    PairInfo,
+    PairInfo, ULUNA_DENOM, UUSD_DENOM,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;

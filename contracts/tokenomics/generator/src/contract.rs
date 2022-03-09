@@ -12,7 +12,11 @@ use crate::state::{
     update_user_balance, Config, ExecuteOnReply, UserInfo, CONFIG, DEFAULT_LIMIT, MAX_LIMIT,
     OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
-use astroport::asset::{addr_validate_to_lower, PairInfo};
+use astroport::asset::{
+    addr_validate_to_lower, native_asset_info, pair_info_by_pool, token_asset_info, AssetInfo,
+    PairInfo, ULUNA_DENOM, UUSD_DENOM,
+};
+
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::PairConfig;
 use astroport::generator::PoolInfo;
@@ -28,7 +32,6 @@ use astroport::{
     generator_proxy::{
         Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
     },
-    pair::QueryMsg as PairQueryMsg,
     vesting::ExecuteMsg as VestingExecuteMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
@@ -67,6 +70,7 @@ pub fn instantiate(
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         factory: addr_validate_to_lower(deps.api, &msg.factory)?,
         generator_controller: None,
+        guardian: None,
         astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
         tokens_per_block: msg.tokens_per_block,
         total_alloc_point: Uint64::from(0u64),
@@ -74,11 +78,15 @@ pub fn instantiate(
         allowed_reward_proxies,
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
         active_pools: vec![],
+        blocked_list_tokens: vec![],
     };
 
     if let Some(generator_controller) = msg.generator_controller {
         config.generator_controller =
             Some(addr_validate_to_lower(deps.api, &generator_controller)?);
+    }
+    if let Some(guardian) = msg.guardian {
+        config.guardian = Some(addr_validate_to_lower(deps.api, &guardian)?);
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -98,7 +106,11 @@ pub fn instantiate(
 /// * **msg** is an object of type [`ExecuteMsg`].
 ///
 /// ## Queries
-/// * **ExecuteMsg::UpdateConfig { vesting_contract }** Changes the address of the Generator vesting contract.
+/// * **ExecuteMsg::UpdateConfig {
+///             vesting_contract,
+///             generator_controller,
+///             guardian,
+///         }** Changes the address of the Generator vesting contract, Generator controller contract or Generator guardian.
 ///
 /// * **ExecuteMsg::SetupPools { pools }** Setting up a new list of pools with allocation points.
 ///
@@ -141,6 +153,9 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::UpdateTokensBlockedlist { add, remove } => {
+            update_tokens_blockedlist(deps, info, add, remove)
+        }
         ExecuteMsg::MoveToProxy { lp_token, proxy } => {
             move_to_proxy(deps, env, info, lp_token, proxy)
         }
@@ -150,7 +165,8 @@ pub fn execute(
         ExecuteMsg::UpdateConfig {
             vesting_contract,
             generator_controller,
-        } => execute_update_config(deps, info, vesting_contract, generator_controller),
+            guardian,
+        } => execute_update_config(deps, info, vesting_contract, generator_controller, guardian),
         ExecuteMsg::SetupPools { pools } => {
             let cfg = CONFIG.load(deps.storage)?;
             if info.sender != cfg.owner && Some(info.sender) != cfg.generator_controller {
@@ -166,7 +182,32 @@ pub fn execute(
             }
 
             for (addr, alloc_point) in pools {
-                setup_pools.push((addr_validate_to_lower(deps.api, &addr)?, alloc_point));
+                let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
+                let pair_info = pair_info_by_pool(deps.as_ref(), pool_addr.clone())?;
+
+                // check if assets in the blocked list
+                let mut is_blocked = false;
+                for asset in pair_info.asset_infos.clone() {
+                    if cfg.blocked_list_tokens.contains(&asset) {
+                        is_blocked = true;
+                        break;
+                    }
+                }
+
+                // If a pair gets deregistered from the factory, no one can set its generator
+                // alloc_points to anything above 0.
+                let resp: StdResult<PairInfo> = deps.querier.query_wasm_smart(
+                    cfg.factory.clone(),
+                    &FactoryQueryMsg::Pair {
+                        asset_infos: pair_info.asset_infos,
+                    },
+                );
+
+                if is_blocked || resp.is_err() {
+                    setup_pools.push((pool_addr, Uint64::zero()));
+                } else {
+                    setup_pools.push((pool_addr, alloc_point));
+                }
             }
 
             update_rewards_and_execute(
@@ -283,6 +324,86 @@ pub fn execute(
     }
 }
 
+/// Add or remove tokens to and from the blocked list. Returns a [`ContractError`] on failure.
+fn update_tokens_blockedlist(
+    deps: DepsMut,
+    info: MessageInfo,
+    add: Option<Vec<AssetInfo>>,
+    remove: Option<Vec<AssetInfo>>,
+) -> Result<Response, ContractError> {
+    if add.is_none() && remove.is_none() {
+        return Err(ContractError::Std(StdError::generic_err(
+            "Need to provide add or remove parameters",
+        )));
+    }
+
+    let mut cfg = CONFIG.load(deps.storage)?;
+
+    // Permission check
+    if info.sender != cfg.owner && Some(info.sender) != cfg.guardian {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // Remove tokens from blocked list
+    if let Some(asset_infos) = remove {
+        for asset_info in asset_infos {
+            let index = cfg
+                .blocked_list_tokens
+                .iter()
+                .position(|x| *x == asset_info)
+                .ok_or_else(|| {
+                    StdError::generic_err(
+                        "Can't remove token. It is not found in the blocked list.",
+                    )
+                })?;
+            cfg.blocked_list_tokens.remove(index);
+        }
+    }
+
+    // Add tokens to the blocked list
+    if let Some(asset_infos) = add {
+        // ASTRO or Terra native assets (UST, LUNA etc) cannot be blocked
+        let astro = token_asset_info(cfg.astro_token.clone());
+        let uusd = native_asset_info(UUSD_DENOM.to_string());
+        let uluna = native_asset_info(ULUNA_DENOM.to_string());
+
+        if asset_infos.contains(&astro)
+            || asset_infos.contains(&uusd)
+            || asset_infos.contains(&uluna)
+        {
+            return Err(ContractError::AssetCannotBeBlocked {});
+        }
+
+        for asset_info in asset_infos {
+            if !cfg.blocked_list_tokens.contains(&asset_info) {
+                cfg.blocked_list_tokens.push(asset_info.clone());
+
+                // find active pools with blocked tokens
+                let mut pools: Vec<(Addr, Uint64)> = vec![];
+                for pool in cfg.active_pools.clone() {
+                    let pair_info = pair_info_by_pool(deps.as_ref(), pool.0.clone())?;
+                    if pair_info.asset_infos.contains(&asset_info) {
+                        pools.push(pool);
+                    }
+                }
+
+                // sets allocation point to zero for each pool with blocked token
+                for pool in pools {
+                    let index = cfg
+                        .active_pools
+                        .iter()
+                        .position(|x| *x == pool)
+                        .ok_or_else(|| StdError::generic_err("Can't find active pool."))?;
+                    cfg.active_pools[index].1 = Uint64::zero();
+                }
+            }
+        }
+    }
+
+    CONFIG.save(deps.storage, &cfg)?;
+    Ok(Response::new().add_attribute("action", "update_tokens_blockedlist"))
+}
+
 /// Sets a new Generator vesting contract address. Returns a [`ContractError`] on failure or the [`CONFIG`]
 /// data will be updated with the new vesting contract address.
 ///
@@ -296,6 +417,9 @@ pub fn execute(
 /// * **generator_controller** is an [`Option`] field object of type [`String`].
 /// This is the new generator controller contract address.
 ///
+/// /// * **guardian** is an [`Option`] field object of type [`String`].
+/// This is the new generator guardian address.
+///
 /// ##Executor
 /// Only the owner can execute this.
 pub fn execute_update_config(
@@ -303,6 +427,7 @@ pub fn execute_update_config(
     info: MessageInfo,
     vesting_contract: Option<String>,
     generator_controller: Option<String>,
+    guardian: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -320,6 +445,10 @@ pub fn execute_update_config(
             deps.api,
             generator_controller.as_str(),
         )?);
+    }
+
+    if let Some(guardian) = guardian {
+        config.guardian = Some(addr_validate_to_lower(deps.api, guardian.as_str())?);
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -581,7 +710,6 @@ pub fn mass_update_pools(mut deps: DepsMut, env: &Env, cfg: &Config) -> Result<(
 
     for (lp_token, _) in &cfg.active_pools {
         let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
-
         accumulate_rewards_per_share(deps.branch(), env, lp_token, &mut pool, cfg, None)?;
         POOL_INFO.save(deps.storage, lp_token, &pool)?;
     }
@@ -1482,12 +1610,14 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
         astro_token: config.astro_token,
         owner: config.owner,
         factory: config.factory,
+        guardian: config.guardian,
         start_block: config.start_block,
         tokens_per_block: config.tokens_per_block,
         total_alloc_point: config.total_alloc_point,
         vesting_contract: config.vesting_contract,
         generator_controller: config.generator_controller,
         active_pools: config.active_pools,
+        blocked_list_tokens: config.blocked_list_tokens,
     })
 }
 
@@ -1756,13 +1886,7 @@ pub fn create_pool(
     cfg: &Config,
     factory_cfg: &FactoryConfigResponse,
 ) -> Result<PoolInfo, ContractError> {
-    let minter_info: MinterResponse = deps
-        .querier
-        .query_wasm_smart(lp_token.clone(), &Cw20QueryMsg::Minter {})?;
-
-    let pair_info: PairInfo = deps
-        .querier
-        .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
+    let pair_info = pair_info_by_pool(deps.as_ref(), lp_token.clone())?;
 
     let mut pair_config: Option<PairConfig> = None;
     for factory_pair_config in &factory_cfg.pair_configs {
