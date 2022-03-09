@@ -155,7 +155,7 @@ pub fn execute(
             deactivate_pool(deps, lp_token_addr)
         }
         ExecuteMsg::UpdateTokensBlockedlist { add, remove } => {
-            update_tokens_blockedlist(deps, info, add, remove)
+            update_tokens_blockedlist(deps, env, info, add, remove)
         }
         ExecuteMsg::MoveToProxy { lp_token, proxy } => {
             move_to_proxy(deps, env, info, lp_token, proxy)
@@ -330,7 +330,8 @@ pub fn execute(
 
 /// Add or remove tokens to and from the blocked list. Returns a [`ContractError`] on failure.
 fn update_tokens_blockedlist(
-    deps: DepsMut,
+    mut deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     add: Option<Vec<AssetInfo>>,
     remove: Option<Vec<AssetInfo>>,
@@ -366,6 +367,7 @@ fn update_tokens_blockedlist(
 
     // Add tokens to the blocked list
     if let Some(asset_infos) = add {
+        mass_update_pools(deps.branch(), &env, &cfg)?;
         let astro = token_asset_info(cfg.astro_token.clone());
 
         for asset_info in asset_infos {
