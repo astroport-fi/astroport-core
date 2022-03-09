@@ -417,6 +417,9 @@ fn update_tokens_blockedlist(
 /// * **generator_controller** is an [`Option`] field object of type [`String`].
 /// This is the new generator controller contract address.
 ///
+/// /// * **guardian** is an [`Option`] field object of type [`String`].
+/// This is the new generator guardian address.
+///
 /// ##Executor
 /// Only the owner can execute this.
 pub fn execute_update_config(
