@@ -227,6 +227,12 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///             total_share,
 ///         }** Claims bLUNA rewards and sends them to the receiver.
 ///
+/// * **ExecuteMsg::ClaimRewardByGenerator {
+///             receiver,
+///             user_share,
+///             total_share,
+///         }** Claims bLUNA rewards for a LP position that was staked by a user in the Astroprot Generator contract.
+///
 /// * **ExecuteMsg::HandleReward {
 ///             previous_reward_balance,
 ///             user_share,
