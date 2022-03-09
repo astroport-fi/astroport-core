@@ -586,10 +586,6 @@ pub fn mass_update_pools(
     cfg: &Config,
     lp_tokens: &[Addr],
 ) -> Result<(), ContractError> {
-    if cfg.active_pools.is_empty() {
-        return Ok(());
-    }
-
     for lp_token in lp_tokens {
         let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
 
