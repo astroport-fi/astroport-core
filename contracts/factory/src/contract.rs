@@ -22,7 +22,7 @@ use astroport::factory::{
 
 use crate::migration::migrate_pair_configs_to_v120;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::generator::ExecuteMsg::SetupPool;
+use astroport::generator::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cw2::{get_contract_version, set_contract_version};
 use protobuf::Message;
@@ -445,7 +445,7 @@ pub fn deregister(
         // sets the allocation point to zero for the lp_token
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: generator.to_string(),
-            msg: to_binary(&SetupPool {
+            msg: to_binary(&DeactivatePool {
                 lp_token: pair_info.liquidity_token.to_string(),
             })?,
             funds: vec![],

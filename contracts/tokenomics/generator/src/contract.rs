@@ -143,9 +143,9 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
     match msg {
-        ExecuteMsg::SetupPool { lp_token } => {
+        ExecuteMsg::DeactivatePool { lp_token } => {
+            let cfg = CONFIG.load(deps.storage)?;
             if info.sender != cfg.factory {
                 return Err(ContractError::Unauthorized {});
             }
@@ -155,7 +155,7 @@ pub fn execute(
                 deps,
                 env,
                 None,
-                ExecuteOnReply::SetupPool {
+                ExecuteOnReply::DeactivatePool {
                     lp_token: lp_token_addr,
                 },
             )
@@ -174,6 +174,7 @@ pub fn execute(
             generator_controller,
         } => execute_update_config(deps, info, vesting_contract, generator_controller),
         ExecuteMsg::SetupPools { pools } => {
+            let cfg = CONFIG.load(deps.storage)?;
             if info.sender != cfg.owner && Some(info.sender) != cfg.generator_controller {
                 return Err(ContractError::Unauthorized {});
             }
@@ -191,11 +192,12 @@ pub fn execute(
                 let pair_info = pair_info_by_pool(deps.as_ref(), pool_addr.clone())?;
 
                 // check if assets in the blocked list
-                let mut is_blocked = false;
                 for asset in pair_info.asset_infos.clone() {
                     if cfg.blocked_list_tokens.contains(&asset) {
-                        is_blocked = true;
-                        break;
+                        return Err(ContractError::Std(StdError::generic_err(format!(
+                            "Token {} is blocked!",
+                            asset
+                        ))));
                     }
                 }
 
@@ -210,16 +212,12 @@ pub fn execute(
                     )
                     .map_err(|_| {
                         ContractError::Std(StdError::generic_err(format!(
-                            "Pair not found for assets: {}-{}",
+                            "The pair aren't registered: {}-{}",
                             pair_info.asset_infos[0], pair_info.asset_infos[1]
                         )))
                     })?;
 
-                if is_blocked {
-                    setup_pools.push((pool_addr, Uint64::zero()));
-                } else {
-                    setup_pools.push((pool_addr, alloc_point));
-                }
+                setup_pools.push((pool_addr, alloc_point));
             }
 
             update_rewards_and_execute(
@@ -635,7 +633,7 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
         Some(action) => {
             TMP_USER_ACTION.save(deps.storage, &None)?;
             match action {
-                ExecuteOnReply::SetupPool { lp_token } => execute_setup_pool(deps, env, lp_token),
+                ExecuteOnReply::DeactivatePool { lp_token } => deactivate_pool(deps, env, lp_token),
                 ExecuteOnReply::SetupPools { pools } => setup_pools(deps, env, pools),
                 ExecuteOnReply::UpdatePool {
                     lp_token,
@@ -663,7 +661,8 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
     }
 }
 
-pub fn execute_setup_pool(
+/// Sets the allocation point to zero for specified LP token. Recalculate total allocation point.
+pub fn deactivate_pool(
     mut deps: DepsMut,
     env: Env,
     lp_token: Addr,

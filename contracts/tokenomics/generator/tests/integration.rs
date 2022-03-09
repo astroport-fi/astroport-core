@@ -2000,13 +2000,26 @@ fn update_tokens_blockedlist() {
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
 
-    // Change pool alloc points
+    // check if cannot change the allocation point for blocked token
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![
             (lp_cny_eur.to_string(), Uint64::from(60u32)),
             (lp_cny_ukr.to_string(), Uint64::from(40u32)),
             (lp_eur_msi.to_string(), Uint64::from(140u32)),
         ],
+    };
+    let err = app
+        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(
+        format!("Generic error: Token {} is blocked!", cny_token.to_string()),
+        err.to_string()
+    );
+
+    // Change pool alloc points
+    let msg = GeneratorExecuteMsg::SetupPools {
+        pools: vec![(lp_eur_msi.to_string(), Uint64::from(140u32))],
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
@@ -2256,7 +2269,7 @@ fn setup_pools() {
         .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(
-        "Generic error: Pair not found for assets: cny-eur",
+        "Generic error: The pair aren't registered: cny-eur",
         err.to_string()
     );
 

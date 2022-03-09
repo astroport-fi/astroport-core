@@ -144,7 +144,7 @@ pub enum ExecuteMsg {
         remove: Option<Vec<AssetInfo>>,
     },
     /// Sets the allocation point to zero for the specified pool
-    SetupPool { lp_token: String },
+    DeactivatePool { lp_token: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

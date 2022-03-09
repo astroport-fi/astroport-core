@@ -279,13 +279,13 @@ Add or remove tokens to and from the tokens blocked list. Only the owner contrac
 }
 ```
 
-### `setup_pool`
+### `deactivate_pool`
 
 Sets the allocation point to zero for specified pool. Only the factory contract can execute this.
 
 ```json
 {
-  "setup_pool": {
+  "deactivate_pool": {
     "lp_token": "terra..."
   }
 }
