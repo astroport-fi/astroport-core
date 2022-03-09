@@ -13,8 +13,8 @@ use crate::state::{
     OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
 use astroport::asset::{
-    addr_validate_to_lower, native_asset_info, token_asset_info, AssetInfo, PairInfo, ULUNA_DENOM,
-    UUSD_DENOM,
+    addr_validate_to_lower, native_asset_info, pair_info_by_pool, token_asset_info, AssetInfo,
+    PairInfo, ULUNA_DENOM, UUSD_DENOM,
 };
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
@@ -32,7 +32,6 @@ use astroport::{
     generator_proxy::{
         Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
     },
-    pair::QueryMsg as PairQueryMsg,
     vesting::ExecuteMsg as VestingExecuteMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
@@ -79,7 +78,7 @@ pub fn instantiate(
         allowed_reward_proxies,
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
         active_pools: vec![],
-        blacklist_tokens: vec![],
+        blocked_list_tokens: vec![],
     };
 
     if let Some(generator_controller) = msg.generator_controller {
@@ -154,8 +153,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::UpdateTokensBlacklist { add, remove } => {
-            update_tokens_blacklist(deps, info, add, remove)
+        ExecuteMsg::UpdateTokensBlockedlist { add, remove } => {
+            update_tokens_blockedlist(deps, info, add, remove)
         }
         ExecuteMsg::MoveToProxy { lp_token, proxy } => {
             move_to_proxy(deps, env, info, lp_token, proxy)
@@ -184,18 +183,27 @@ pub fn execute(
 
             for (addr, alloc_point) in pools {
                 let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
-                let assets = assets_pool(deps.as_ref(), pool_addr.clone())?;
+                let pair_info = pair_info_by_pool(deps.as_ref(), pool_addr.clone())?;
 
-                // check if assets blacklisted
-                let mut is_blacklisted = false;
-                for asset in assets {
-                    if cfg.blacklist_tokens.contains(&asset) {
-                        is_blacklisted = true;
+                // check if assets in the blocked list
+                let mut is_blocked = false;
+                for asset in pair_info.asset_infos.clone() {
+                    if cfg.blocked_list_tokens.contains(&asset) {
+                        is_blocked = true;
                         break;
                     }
                 }
 
-                if is_blacklisted {
+                // If a pair gets deregistered from the factory, no one can set its generator
+                // alloc_points to anything above 0.
+                let resp: StdResult<PairInfo> = deps.querier.query_wasm_smart(
+                    cfg.factory.clone(),
+                    &FactoryQueryMsg::Pair {
+                        asset_infos: pair_info.asset_infos,
+                    },
+                );
+
+                if is_blocked || resp.is_err() {
                     setup_pools.push((pool_addr, Uint64::zero()));
                 } else {
                     setup_pools.push((pool_addr, alloc_point));
@@ -316,8 +324,8 @@ pub fn execute(
     }
 }
 
-/// Add or remove tokens to and from the tokens blacklist. Returns a [`ContractError`] on failure.
-fn update_tokens_blacklist(
+/// Add or remove tokens to and from the blocked list. Returns a [`ContractError`] on failure.
+fn update_tokens_blockedlist(
     deps: DepsMut,
     info: MessageInfo,
     add: Option<Vec<AssetInfo>>,
@@ -336,23 +344,25 @@ fn update_tokens_blacklist(
         return Err(ContractError::Unauthorized {});
     }
 
-    // Remove tokens from blacklist
+    // Remove tokens from blocked list
     if let Some(asset_infos) = remove {
         for asset_info in asset_infos {
             let index = cfg
-                .blacklist_tokens
+                .blocked_list_tokens
                 .iter()
                 .position(|x| *x == asset_info)
                 .ok_or_else(|| {
-                    StdError::generic_err("Can't remove token. It is not found in the blacklist.")
+                    StdError::generic_err(
+                        "Can't remove token. It is not found in the blocked list.",
+                    )
                 })?;
-            cfg.blacklist_tokens.remove(index);
+            cfg.blocked_list_tokens.remove(index);
         }
     }
 
-    // Add tokens to blacklist
+    // Add tokens to the blocked list
     if let Some(asset_infos) = add {
-        // ASTRO or Terra native assets (UST, LUNA etc) cannot be blacklisted
+        // ASTRO or Terra native assets (UST, LUNA etc) cannot be blocked
         let astro = token_asset_info(cfg.astro_token.clone());
         let uusd = native_asset_info(UUSD_DENOM.to_string());
         let uluna = native_asset_info(ULUNA_DENOM.to_string());
@@ -361,23 +371,23 @@ fn update_tokens_blacklist(
             || asset_infos.contains(&uusd)
             || asset_infos.contains(&uluna)
         {
-            return Err(ContractError::AssetCannotBlacklisted {});
+            return Err(ContractError::AssetCannotBeBlocked {});
         }
 
         for asset_info in asset_infos {
-            if !cfg.blacklist_tokens.contains(&asset_info) {
-                cfg.blacklist_tokens.push(asset_info.clone());
+            if !cfg.blocked_list_tokens.contains(&asset_info) {
+                cfg.blocked_list_tokens.push(asset_info.clone());
 
-                // find active pools with blacklisted tokens
+                // find active pools with blocked tokens
                 let mut pools: Vec<(Addr, Uint64)> = vec![];
                 for pool in cfg.active_pools.clone() {
-                    let assets = assets_pool(deps.as_ref(), pool.0.clone())?;
-                    if assets.contains(&asset_info) {
+                    let pair_info = pair_info_by_pool(deps.as_ref(), pool.0.clone())?;
+                    if pair_info.asset_infos.contains(&asset_info) {
                         pools.push(pool);
                     }
                 }
 
-                // sets allocation point to zero for each pool with blacklisted token
+                // sets allocation point to zero for each pool with blocked token
                 for pool in pools {
                     let index = cfg
                         .active_pools
@@ -391,20 +401,7 @@ fn update_tokens_blacklist(
     }
 
     CONFIG.save(deps.storage, &cfg)?;
-    Ok(Response::new().add_attribute("action", "update_tokens_blacklist"))
-}
-
-/// Returns tokens by specified pool address.
-fn assets_pool(deps: Deps, pool: Addr) -> StdResult<[AssetInfo; 2]> {
-    let minter_info: MinterResponse = deps
-        .querier
-        .query_wasm_smart(pool, &Cw20QueryMsg::Minter {})?;
-
-    let pair_info: PairInfo = deps
-        .querier
-        .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
-
-    Ok(pair_info.asset_infos)
+    Ok(Response::new().add_attribute("action", "update_tokens_blockedlist"))
 }
 
 /// Sets a new Generator vesting contract address. Returns a [`ContractError`] on failure or the [`CONFIG`]
@@ -1617,7 +1614,7 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
         vesting_contract: config.vesting_contract,
         generator_controller: config.generator_controller,
         active_pools: config.active_pools,
-        blacklist_tokens: config.blacklist_tokens,
+        blocked_list_tokens: config.blocked_list_tokens,
     })
 }
 
@@ -1886,13 +1883,7 @@ pub fn create_pool(
     cfg: &Config,
     factory_cfg: &FactoryConfigResponse,
 ) -> Result<PoolInfo, ContractError> {
-    let minter_info: MinterResponse = deps
-        .querier
-        .query_wasm_smart(lp_token.clone(), &Cw20QueryMsg::Minter {})?;
-
-    let pair_info: PairInfo = deps
-        .querier
-        .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
+    let pair_info = pair_info_by_pool(deps.as_ref(), lp_token.clone())?;
 
     let mut pair_config: Option<PairConfig> = None;
     for factory_pair_config in &factory_cfg.pair_configs {

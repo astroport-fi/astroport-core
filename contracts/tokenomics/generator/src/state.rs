@@ -41,8 +41,8 @@ pub struct Config {
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points
     pub active_pools: Vec<(Addr, Uint64)>,
-    /// The blacklist of tokens
-    pub blacklist_tokens: Vec<AssetInfo>,
+    /// The blocked list of tokens
+    pub blocked_list_tokens: Vec<AssetInfo>,
     /// The guardian address which can add or remove tokens from blacklist
     pub guardian: Option<Addr>,
 }
