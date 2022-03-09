@@ -279,6 +279,18 @@ Add or remove tokens to and from the tokens blocked list. Only the owner contrac
 }
 ```
 
+### `setup_pool`
+
+Sets the allocation point to zero for specified pool. Only the owner contract can execute this.
+
+```json
+{
+  "setup_pool": {
+    "lp_token": "terra..."
+  }
+}
+```
+
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.
@@ -389,5 +401,25 @@ Returns a list of stakers that currently have funds in a specific generator.
     "start_after": "terra...",
     "limit": 5
   }
+}
+```
+
+### `blocked_list_tokens`
+
+Returns the blocked list of tokens
+
+```json
+{
+  "blocked_list_tokens": {}
+}
+```
+
+### `active_pool_length`
+
+Returns the total amount of active generators.
+
+```json
+{
+  "active_pool_length": {}
 }
 ```

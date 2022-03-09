@@ -143,11 +143,15 @@ pub enum ExecuteMsg {
         /// Tokens to remove
         remove: Option<Vec<AssetInfo>>,
     },
+    /// Sets the allocation point to zero for the specified pool
+    SetupPool { lp_token: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    /// Returns the length of the array that contains all the active pool generators
+    ActivePoolLength {},
     /// PoolLength returns the length of the array that contains all the instantiated pool generators
     PoolLength {},
     /// Deposit returns the LP token amount deposited in a specific generator
@@ -171,6 +175,8 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
+    /// Returns the blocked list of tokens
+    BlockedListTokens {},
 }
 
 /// ## Description

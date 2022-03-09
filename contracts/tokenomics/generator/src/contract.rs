@@ -13,8 +13,7 @@ use crate::state::{
     OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
 use astroport::asset::{
-    addr_validate_to_lower, native_asset_info, pair_info_by_pool, token_asset_info, AssetInfo,
-    PairInfo, ULUNA_DENOM, UUSD_DENOM,
+    addr_validate_to_lower, pair_info_by_pool, token_asset_info, AssetInfo, PairInfo,
 };
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
@@ -144,7 +143,23 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
     match msg {
+        ExecuteMsg::SetupPool { lp_token } => {
+            if info.sender != cfg.owner && Some(info.sender) != cfg.generator_controller {
+                return Err(ContractError::Unauthorized {});
+            }
+            let lp_token_addr = addr_validate_to_lower(deps.api, &lp_token)?;
+
+            update_rewards_and_execute(
+                deps,
+                env,
+                None,
+                ExecuteOnReply::SetupPool {
+                    lp_token: lp_token_addr,
+                },
+            )
+        }
         ExecuteMsg::UpdateTokensBlockedlist { add, remove } => {
             update_tokens_blockedlist(deps, info, add, remove)
         }
@@ -159,7 +174,6 @@ pub fn execute(
             generator_controller,
         } => execute_update_config(deps, info, vesting_contract, generator_controller),
         ExecuteMsg::SetupPools { pools } => {
-            let cfg = CONFIG.load(deps.storage)?;
             if info.sender != cfg.owner && Some(info.sender) != cfg.generator_controller {
                 return Err(ContractError::Unauthorized {});
             }
@@ -185,16 +199,23 @@ pub fn execute(
                     }
                 }
 
-                // If a pair gets deregistered from the factory, no one can set its generator
-                // alloc_points to anything above 0.
-                let resp: StdResult<PairInfo> = deps.querier.query_wasm_smart(
-                    cfg.factory.clone(),
-                    &FactoryQueryMsg::Pair {
-                        asset_infos: pair_info.asset_infos,
-                    },
-                );
+                // If a pair gets deregistered from the factory, we should raise error.
+                let _: PairInfo = deps
+                    .querier
+                    .query_wasm_smart(
+                        cfg.factory.clone(),
+                        &FactoryQueryMsg::Pair {
+                            asset_infos: pair_info.asset_infos.clone(),
+                        },
+                    )
+                    .map_err(|_| {
+                        ContractError::Std(StdError::generic_err(format!(
+                            "Pair not found for assets: {}-{}",
+                            pair_info.asset_infos[0], pair_info.asset_infos[1]
+                        )))
+                    })?;
 
-                if is_blocked || resp.is_err() {
+                if is_blocked {
                     setup_pools.push((pool_addr, Uint64::zero()));
                 } else {
                     setup_pools.push((pool_addr, alloc_point));
@@ -353,39 +374,24 @@ fn update_tokens_blockedlist(
 
     // Add tokens to the blocked list
     if let Some(asset_infos) = add {
-        // ASTRO or Terra native assets (UST, LUNA etc) cannot be blocked
         let astro = token_asset_info(cfg.astro_token.clone());
-        let uusd = native_asset_info(UUSD_DENOM.to_string());
-        let uluna = native_asset_info(ULUNA_DENOM.to_string());
-
-        if asset_infos.contains(&astro)
-            || asset_infos.contains(&uusd)
-            || asset_infos.contains(&uluna)
-        {
-            return Err(ContractError::AssetCannotBeBlocked {});
-        }
 
         for asset_info in asset_infos {
+            // ASTRO or Terra native assets (UST, LUNA etc) cannot be blocked
+            if asset_info.is_native_token() || asset_info.eq(&astro) {
+                return Err(ContractError::AssetCannotBeBlocked {});
+            }
+
             if !cfg.blocked_list_tokens.contains(&asset_info) {
                 cfg.blocked_list_tokens.push(asset_info.clone());
 
                 // find active pools with blocked tokens
-                let mut pools: Vec<(Addr, Uint64)> = vec![];
-                for pool in cfg.active_pools.clone() {
+                for pool in &mut cfg.active_pools {
                     let pair_info = pair_info_by_pool(deps.as_ref(), pool.0.clone())?;
                     if pair_info.asset_infos.contains(&asset_info) {
-                        pools.push(pool);
+                        // sets allocation point to zero for each pool with blocked token
+                        pool.1 = Uint64::zero();
                     }
-                }
-
-                // sets allocation point to zero for each pool with blocked token
-                for pool in pools {
-                    let index = cfg
-                        .active_pools
-                        .iter()
-                        .position(|x| *x == pool)
-                        .ok_or_else(|| StdError::generic_err("Can't find active pool."))?;
-                    cfg.active_pools[index].1 = Uint64::zero();
                 }
             }
         }
@@ -629,6 +635,7 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
         Some(action) => {
             TMP_USER_ACTION.save(deps.storage, &None)?;
             match action {
+                ExecuteOnReply::SetupPool { lp_token } => execute_setup_pool(deps, env, lp_token),
                 ExecuteOnReply::SetupPools { pools } => setup_pools(deps, env, pools),
                 ExecuteOnReply::UpdatePool {
                     lp_token,
@@ -654,6 +661,33 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
         }
         None => Ok(Response::default()),
     }
+}
+
+pub fn execute_setup_pool(
+    mut deps: DepsMut,
+    env: Env,
+    lp_token: Addr,
+) -> Result<Response, ContractError> {
+    let mut cfg = CONFIG.load(deps.storage)?;
+
+    // gets old allocation point for the pool and subtraction from the total allocation point
+    let old_alloc_point = get_alloc_point(&cfg.active_pools, &lp_token);
+    cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(old_alloc_point)?;
+
+    // sets the allocation point to zero for the pool
+    for pool in &mut cfg.active_pools {
+        if pool.0 == lp_token {
+            pool.1 = Uint64::zero();
+            break;
+        }
+    }
+
+    // run mass update pools for recalculate share for each pool
+    mass_update_pools(deps.branch(), &env, &cfg)?;
+
+    CONFIG.save(deps.storage, &cfg)?;
+
+    Ok(Response::new().add_attribute("action", "setup_pool"))
 }
 
 /// Sets a new amount of ASTRO distributed per block among all active generators. Before that, we
@@ -1433,6 +1467,7 @@ fn update_allowed_proxies(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
+        QueryMsg::ActivePoolLength {} => Ok(to_binary(&active_pool_length(deps)?)?),
         QueryMsg::PoolLength {} => Ok(to_binary(&pool_length(deps)?)?),
         QueryMsg::Deposit { lp_token, user } => {
             Ok(to_binary(&query_deposit(deps, lp_token, user)?)?)
@@ -1465,7 +1500,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             start_after,
             limit,
         )?)?),
+        QueryMsg::BlockedListTokens {} => Ok(to_binary(&query_blocked_list_tokens(deps)?)?),
     }
+}
+
+/// Returns a [`ContractError`] on failure, otherwise returns the blocked list of tokens.
+fn query_blocked_list_tokens(deps: Deps) -> Result<Vec<AssetInfo>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    Ok(config.blocked_list_tokens)
 }
 
 /// Returns a [`ContractError`] on failure, otherwise returns the amount of instantiated generators
@@ -1477,6 +1519,15 @@ pub fn pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
         .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
         .count();
     Ok(PoolLengthResponse { length })
+}
+
+/// Returns a [`ContractError`] on failure, otherwise returns the amount of active generators
+/// using a [`PoolLengthResponse`] object.
+pub fn active_pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    Ok(PoolLengthResponse {
+        length: config.active_pools.len(),
+    })
 }
 
 /// Returns a [`ContractError`] on failure, otherwise returns the amount of LP tokens a user staked in a specific generator.
