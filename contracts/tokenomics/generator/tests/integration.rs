@@ -3,8 +3,8 @@ use astroport::asset::{native_asset_info, token_asset_info, AssetInfo, PairInfo}
 use astroport::generator::{ExecuteMsg, PoolLengthResponse, QueryMsg, StakerResponse};
 use astroport::{
     factory::{
-        ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig,
-        PairType, QueryMsg as FactoryQueryMsg,
+        ConfigResponse as FactoryConfigResponse, ExecuteMsg as FactoryExecuteMsg,
+        InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType, QueryMsg as FactoryQueryMsg,
     },
     generator::{
         ConfigResponse, Cw20HookMsg as GeneratorHookMsg, ExecuteMsg as GeneratorExecuteMsg,
@@ -18,6 +18,7 @@ use astroport::{
         VestingSchedule, VestingSchedulePoint,
     },
 };
+
 use cosmwasm_std::{
     testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR},
     to_binary, Addr, StdResult, Uint128, Uint64,
@@ -2127,6 +2128,24 @@ fn setup_pools() {
     let generator_instance =
         instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
+    // add generator to factory
+    let msg = FactoryExecuteMsg::UpdateConfig {
+        token_code_id: None,
+        fee_address: None,
+        generator_address: Some(generator_instance.to_string()),
+        whitelist_code_id: None,
+    };
+
+    app.execute_contract(Addr::unchecked(OWNER), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let res: FactoryConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&factory_instance.clone(), &FactoryQueryMsg::Config {})
+        .unwrap();
+
+    assert_eq!(res.generator_address, Some(generator_instance.clone()));
+
     let (_, lp_cny_eur) = create_pair(
         &mut app,
         &factory_instance,
@@ -2185,6 +2204,7 @@ fn setup_pools() {
         ],
     );
 
+    // deregister pair and set the allocation point to zero for pool
     app.execute_contract(
         Addr::unchecked(OWNER),
         factory_instance.clone(),
@@ -2201,6 +2221,18 @@ fn setup_pools() {
         &[],
     )
     .unwrap();
+
+    // Check if the allocation point for lp_cny_eur is equal to zero
+    let res: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            generator_instance.to_owned(),
+            &GeneratorQueryMsg::PoolInfo {
+                lp_token: lp_cny_eur.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint64::zero(), res.alloc_point);
 
     // Check pool length
     let res: PoolLengthResponse = app
