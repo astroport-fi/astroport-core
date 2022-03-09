@@ -69,6 +69,7 @@ pub fn instantiate(
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         factory: addr_validate_to_lower(deps.api, &msg.factory)?,
         generator_controller: None,
+        guardian: None,
         astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
         tokens_per_block: msg.tokens_per_block,
         total_alloc_point: Uint64::from(0u64),
@@ -82,6 +83,9 @@ pub fn instantiate(
     if let Some(generator_controller) = msg.generator_controller {
         config.generator_controller =
             Some(addr_validate_to_lower(deps.api, &generator_controller)?);
+    }
+    if let Some(guardian) = msg.guardian {
+        config.guardian = Some(addr_validate_to_lower(deps.api, &guardian)?);
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -101,7 +105,11 @@ pub fn instantiate(
 /// * **msg** is an object of type [`ExecuteMsg`].
 ///
 /// ## Queries
-/// * **ExecuteMsg::UpdateConfig { vesting_contract }** Changes the address of the Generator vesting contract.
+/// * **ExecuteMsg::UpdateConfig {
+///             vesting_contract,
+///             generator_controller,
+///             guardian,
+///         }** Changes the address of the Generator vesting contract, Generator controller contract or Generator guardian.
 ///
 /// * **ExecuteMsg::SetupPools { pools }** Setting up a new list of pools with allocation points.
 ///
@@ -150,8 +158,9 @@ pub fn execute(
                 return Err(ContractError::Unauthorized {});
             }
             let lp_token_addr = addr_validate_to_lower(deps.api, &lp_token)?;
-
-            mass_update_pools(deps.branch(), &env, &cfg)?;
+            let active_pools: Vec<Addr> =
+                cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+            mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
             deactivate_pool(deps, lp_token_addr)
         }
         ExecuteMsg::UpdateTokensBlockedlist { add, remove } => {
@@ -166,7 +175,8 @@ pub fn execute(
         ExecuteMsg::UpdateConfig {
             vesting_contract,
             generator_controller,
-        } => execute_update_config(deps, info, vesting_contract, generator_controller),
+            guardian,
+        } => execute_update_config(deps, info, vesting_contract, generator_controller, guardian),
         ExecuteMsg::SetupPools { pools } => execute_setup_pools(deps, env, info, pools),
         ExecuteMsg::UpdatePool {
             lp_token,
@@ -275,7 +285,7 @@ fn update_tokens_blockedlist(
     let mut cfg = CONFIG.load(deps.storage)?;
 
     // Permission check
-    if info.sender != cfg.owner {
+    if info.sender != cfg.owner && Some(info.sender) != cfg.guardian {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -297,7 +307,8 @@ fn update_tokens_blockedlist(
 
     // Add tokens to the blocked list
     if let Some(asset_infos) = add {
-        mass_update_pools(deps.branch(), &env, &cfg)?;
+        let active_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+        mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
         let astro = token_asset_info(cfg.astro_token.clone());
 
         for asset_info in asset_infos {
@@ -338,6 +349,9 @@ fn update_tokens_blockedlist(
 /// * **generator_controller** is an [`Option`] field object of type [`String`].
 /// This is the new generator controller contract address.
 ///
+/// /// * **guardian** is an [`Option`] field object of type [`String`].
+/// This is the new generator guardian address.
+///
 /// ##Executor
 /// Only the owner can execute this.
 pub fn execute_update_config(
@@ -345,6 +359,7 @@ pub fn execute_update_config(
     info: MessageInfo,
     vesting_contract: Option<String>,
     generator_controller: Option<String>,
+    guardian: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -362,6 +377,10 @@ pub fn execute_update_config(
             deps.api,
             generator_controller.as_str(),
         )?);
+    }
+
+    if let Some(guardian) = guardian {
+        config.guardian = Some(addr_validate_to_lower(deps.api, guardian.as_str())?);
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -436,7 +455,9 @@ pub fn execute_setup_pools(
         .querier
         .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
 
-    mass_update_pools(deps.branch(), &env, &cfg)?;
+    let prev_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+
+    mass_update_pools(deps.branch(), &env, &cfg, &prev_pools)?;
 
     for (lp_token, _) in &setup_pools {
         if POOL_INFO.may_load(deps.storage, lp_token)?.is_none() {
@@ -669,7 +690,9 @@ fn set_tokens_per_block(
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
-    mass_update_pools(deps.branch(), &env, &cfg)?;
+    let pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+
+    mass_update_pools(deps.branch(), &env, &cfg, &pools)?;
 
     cfg.tokens_per_block = amount;
     CONFIG.save(deps.storage, &cfg)?;
@@ -685,12 +708,15 @@ fn set_tokens_per_block(
 /// * **env** is the object of type [`Env`].
 ///
 /// * **cfg** is the object of type [`Config`].
-pub fn mass_update_pools(mut deps: DepsMut, env: &Env, cfg: &Config) -> Result<(), ContractError> {
-    if cfg.active_pools.is_empty() {
-        return Ok(());
-    }
-
-    for (lp_token, _) in &cfg.active_pools {
+///
+/// * **lp_tokens** is the list of type [`Addr`].
+pub fn mass_update_pools(
+    mut deps: DepsMut,
+    env: &Env,
+    cfg: &Config,
+    lp_tokens: &[Addr],
+) -> Result<(), ContractError> {
+    for lp_token in lp_tokens {
         let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
         accumulate_rewards_per_share(deps.branch(), env, lp_token, &mut pool, cfg, None)?;
         POOL_INFO.save(deps.storage, lp_token, &pool)?;
@@ -719,7 +745,7 @@ pub fn claim_rewards(
 
     let cfg = CONFIG.load(deps.storage)?;
 
-    mass_update_pools(deps.branch(), &env, &cfg)?;
+    mass_update_pools(deps.branch(), &env, &cfg, &lp_tokens)?;
 
     let mut send_rewards_msg: Vec<WasmMsg> = vec![];
     for lp_token in &lp_tokens {
@@ -1609,6 +1635,7 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
         astro_token: config.astro_token,
         owner: config.owner,
         factory: config.factory,
+        guardian: config.guardian,
         start_block: config.start_block,
         tokens_per_block: config.tokens_per_block,
         total_alloc_point: config.total_alloc_point,

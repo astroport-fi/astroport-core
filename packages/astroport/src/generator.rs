@@ -14,6 +14,8 @@ pub struct InstantiateMsg {
     pub factory: String,
     /// Address that can set active generators and their alloc points
     pub generator_controller: Option<String>,
+    /// Address of guardian
+    pub guardian: Option<String>,
     /// ASTRO token contract address
     pub astro_token: String,
     /// Amount of ASTRO distributed per block among all pairs
@@ -38,6 +40,8 @@ pub enum ExecuteMsg {
         vesting_contract: Option<String>,
         /// The new generator controller contract address
         generator_controller: Option<String>,
+        /// The new generator guardian
+        guardian: Option<String>,
     },
     /// ## Description
     /// Setting up a new list of pools with allocation points.
@@ -281,6 +285,8 @@ pub struct ConfigResponse {
     pub active_pools: Vec<(Addr, Uint64)>,
     /// The blocked list of tokens
     pub blocked_list_tokens: Vec<AssetInfo>,
+    /// The guardian address
+    pub guardian: Option<Addr>,
 }
 
 /// ## Description

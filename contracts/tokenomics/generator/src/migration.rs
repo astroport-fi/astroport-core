@@ -81,6 +81,8 @@ pub struct MigrationMsgV120 {
     pub generator_controller: Option<String>,
     /// The blocked list of tokens
     pub blocked_list_tokens: Option<Vec<AssetInfo>>,
+    /// The guardian address
+    pub guardian: Option<String>,
 }
 
 /// Migrate config to V1.2.0
@@ -103,6 +105,7 @@ pub fn migrate_configs_to_v120(
         vesting_contract: cfg_100.vesting_contract,
         active_pools: pools,
         blocked_list_tokens: vec![],
+        guardian: None,
     };
 
     if let Some(generator_controller) = msg.generator_controller {
@@ -111,6 +114,10 @@ pub fn migrate_configs_to_v120(
 
     if let Some(blocked_list_tokens) = msg.blocked_list_tokens {
         cfg.blocked_list_tokens = blocked_list_tokens;
+    }
+
+    if let Some(guardian) = msg.guardian {
+        cfg.guardian = Some(addr_validate_to_lower(deps.api, &guardian)?);
     }
 
     CONFIG.save(deps.storage, &cfg)?;

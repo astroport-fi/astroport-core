@@ -1,6 +1,6 @@
 use astroport::asset::{native_asset_info, token_asset_info, AssetInfo, PairInfo};
-
 use astroport::generator::{ExecuteMsg, PoolLengthResponse, QueryMsg, StakerResponse};
+
 use astroport::{
     factory::{
         ConfigResponse as FactoryConfigResponse, ExecuteMsg as FactoryExecuteMsg,
@@ -259,6 +259,7 @@ fn update_config() {
     let msg = ExecuteMsg::UpdateConfig {
         vesting_contract: Some(new_vesting.to_string()),
         generator_controller: None,
+        guardian: None,
     };
 
     // Assert cannot update with improper owner
@@ -1880,7 +1881,7 @@ fn query_pagination_stakers() {
 }
 
 #[test]
-fn update_tokens_blockedlist() {
+fn update_tokens_blocked_list() {
     let mut app = mock_app();
 
     let owner = Addr::unchecked(OWNER);
@@ -2000,7 +2001,7 @@ fn update_tokens_blockedlist() {
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
 
-    // check if cannot change the allocation point for blocked token
+    // check if we cannot change the allocation point for blocked token
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![
             (lp_cny_eur.to_string(), Uint64::from(60u32)),
@@ -2021,6 +2022,7 @@ fn update_tokens_blockedlist() {
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![(lp_eur_msi.to_string(), Uint64::from(140u32))],
     };
+
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
 
@@ -2265,6 +2267,7 @@ fn setup_pools() {
             (lp_cny_uusd.to_string(), Uint64::from(140u32)),
         ],
     };
+
     let err = app
         .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap_err();
@@ -2523,6 +2526,7 @@ fn instantiate_generator(
     let init_msg = GeneratorInstantiateMsg {
         owner: owner.to_string(),
         factory: factory_instance.to_string(),
+        guardian: None,
         allowed_reward_proxies: allowed_proxies.unwrap_or_default(),
         start_block: Uint64::from(app.block_info().height),
         astro_token: astro_token_instance.to_string(),

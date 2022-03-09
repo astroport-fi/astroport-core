@@ -25,13 +25,15 @@ Initializes the contract with required addresses and contracts used for reward d
 
 ### `update_config`
 
-Update the vesting contract address. Only the contract owner can execute this.
+Update the vesting contract address, generator controller contract address or generator guardian address.
+Only the contract owner can execute this.
 
 ```json
 {
   "update_config": {
     "vesting_contract": "terra...",
-    "generator_controller": "terra..."
+    "generator_controller": "terra...",
+    "guardian": "terra..."
   }
 }
 ```
@@ -268,7 +270,8 @@ Add or remove dual rewards proxy contracts that can interact with the Generator.
 
 ### `update_tokens_blockedlist`
 
-Add or remove tokens to and from the tokens blocked list. Only the owner contract can execute this.
+Add or remove tokens to and from the tokens blocked list.
+Only the owner contract or generator guardian can execute this.
 
 ```json
 {

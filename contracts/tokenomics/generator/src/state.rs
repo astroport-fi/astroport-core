@@ -43,6 +43,8 @@ pub struct Config {
     pub active_pools: Vec<(Addr, Uint64)>,
     /// The blocked list of tokens
     pub blocked_list_tokens: Vec<AssetInfo>,
+    /// The guardian address which can add or remove tokens from blacklist
+    pub guardian: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
