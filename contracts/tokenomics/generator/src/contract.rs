@@ -340,7 +340,7 @@ fn update_tokens_blockedlist(
     let mut cfg = CONFIG.load(deps.storage)?;
 
     // Permission check
-    if info.sender != cfg.owner {
+    if info.sender != cfg.owner && Some(info.sender) != cfg.guardian {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -1383,7 +1383,7 @@ fn update_allowed_proxies(
     let mut cfg = CONFIG.load(deps.storage)?;
 
     // Permission check
-    if info.sender != cfg.owner && Some(info.sender) != cfg.guardian {
+    if info.sender != cfg.owner {
         return Err(ContractError::Unauthorized {});
     }
 
