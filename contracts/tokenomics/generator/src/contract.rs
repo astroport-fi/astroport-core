@@ -146,7 +146,7 @@ pub fn execute(
     let cfg = CONFIG.load(deps.storage)?;
     match msg {
         ExecuteMsg::SetupPool { lp_token } => {
-            if info.sender != cfg.owner && Some(info.sender) != cfg.generator_controller {
+            if info.sender != cfg.factory {
                 return Err(ContractError::Unauthorized {});
             }
             let lp_token_addr = addr_validate_to_lower(deps.api, &lp_token)?;
