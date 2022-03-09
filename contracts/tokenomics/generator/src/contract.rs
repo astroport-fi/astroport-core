@@ -478,7 +478,9 @@ pub fn setup_pools(
         .querier
         .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
 
-    mass_update_pools(deps.branch(), &env, &cfg)?;
+    let prev_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+
+    mass_update_pools(deps.branch(), &env, &cfg, &prev_pools)?;
 
     for (lp_token, _) in &pools {
         if POOL_INFO.may_load(deps.storage, lp_token)?.is_none() {
@@ -687,7 +689,9 @@ fn set_tokens_per_block(
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
-    mass_update_pools(deps.branch(), &env, &cfg)?;
+    let pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+
+    mass_update_pools(deps.branch(), &env, &cfg, &pools)?;
 
     cfg.tokens_per_block = amount;
     CONFIG.save(deps.storage, &cfg)?;
@@ -703,12 +707,15 @@ fn set_tokens_per_block(
 /// * **env** is the object of type [`Env`].
 ///
 /// * **cfg** is the object of type [`Config`].
-pub fn mass_update_pools(mut deps: DepsMut, env: &Env, cfg: &Config) -> Result<(), ContractError> {
-    if cfg.active_pools.is_empty() {
-        return Ok(());
-    }
-
-    for (lp_token, _) in &cfg.active_pools {
+///
+/// * **lp_tokens** is the list of type [`Addr`].
+pub fn mass_update_pools(
+    mut deps: DepsMut,
+    env: &Env,
+    cfg: &Config,
+    lp_tokens: &[Addr],
+) -> Result<(), ContractError> {
+    for lp_token in lp_tokens {
         let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
         accumulate_rewards_per_share(deps.branch(), env, lp_token, &mut pool, cfg, None)?;
         POOL_INFO.save(deps.storage, lp_token, &pool)?;
@@ -737,7 +744,7 @@ pub fn claim_rewards(
 
     let cfg = CONFIG.load(deps.storage)?;
 
-    mass_update_pools(deps.branch(), &env, &cfg)?;
+    mass_update_pools(deps.branch(), &env, &cfg, &lp_tokens)?;
 
     let mut send_rewards_msg: Vec<WasmMsg> = vec![];
     for lp_token in &lp_tokens {
