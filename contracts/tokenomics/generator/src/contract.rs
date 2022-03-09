@@ -171,24 +171,7 @@ pub fn execute(
         ExecuteMsg::UpdatePool {
             lp_token,
             has_asset_rewards,
-        } => {
-            let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
-
-            let cfg = CONFIG.load(deps.storage)?;
-            if info.sender != cfg.owner {
-                return Err(ContractError::Unauthorized {});
-            }
-
-            update_rewards_and_execute(
-                deps,
-                env,
-                None,
-                ExecuteOnReply::UpdatePool {
-                    lp_token,
-                    has_asset_rewards,
-                },
-            )
-        }
+        } => execute_update_pool(deps, info, lp_token, has_asset_rewards),
         ExecuteMsg::ClaimRewards { lp_tokens } => {
             let mut lp_tokens_addr: Vec<Addr> = vec![];
             for lp_token in &lp_tokens {
@@ -481,16 +464,24 @@ pub fn execute_setup_pools(
 ///
 /// ##Executor
 /// Can only be called by the owner.
-pub fn update_pool(
+pub fn execute_update_pool(
     deps: DepsMut,
-    lp_token: Addr,
+    info: MessageInfo,
+    lp_token: String,
     has_asset_rewards: bool,
 ) -> Result<Response, ContractError> {
-    let mut pool_info = POOL_INFO.load(deps.storage, &lp_token)?;
+    let lp_token_addr = addr_validate_to_lower(deps.api, &lp_token)?;
+
+    let cfg = CONFIG.load(deps.storage)?;
+    if info.sender != cfg.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut pool_info = POOL_INFO.load(deps.storage, &lp_token_addr)?;
 
     pool_info.has_asset_rewards = has_asset_rewards;
 
-    POOL_INFO.save(deps.storage, &lp_token, &pool_info)?;
+    POOL_INFO.save(deps.storage, &lp_token_addr, &pool_info)?;
 
     Ok(Response::new()
         .add_attribute("action", "update_pool")
@@ -621,10 +612,6 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
         Some(action) => {
             TMP_USER_ACTION.save(deps.storage, &None)?;
             match action {
-                ExecuteOnReply::UpdatePool {
-                    lp_token,
-                    has_asset_rewards,
-                } => update_pool(deps, lp_token, has_asset_rewards),
                 ExecuteOnReply::ClaimRewards { lp_tokens, account } => {
                     claim_rewards(deps, env, lp_tokens, account)
                 }

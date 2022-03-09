@@ -47,13 +47,6 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ExecuteOnReply {
-    /// Update the given pool's has_asset_rewards parameter.
-    UpdatePool {
-        /// The LP token contract
-        lp_token: Addr,
-        /// The flag determines whether the pool has its asset related rewards or not
-        has_asset_rewards: bool,
-    },
     /// Updates reward and returns it to user.
     ClaimRewards {
         /// The list of LP tokens contract
