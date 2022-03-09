@@ -47,11 +47,6 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ExecuteOnReply {
-    /// Add a new pools with allocation point
-    SetupPools {
-        /// The list of pools with allocation points
-        pools: Vec<(Addr, Uint64)>,
-    },
     /// Update the given pool's has_asset_rewards parameter.
     UpdatePool {
         /// The LP token contract

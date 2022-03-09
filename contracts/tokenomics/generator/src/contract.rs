@@ -167,60 +167,7 @@ pub fn execute(
             vesting_contract,
             generator_controller,
         } => execute_update_config(deps, info, vesting_contract, generator_controller),
-        ExecuteMsg::SetupPools { pools } => {
-            let cfg = CONFIG.load(deps.storage)?;
-            if info.sender != cfg.owner && Some(info.sender) != cfg.generator_controller {
-                return Err(ContractError::Unauthorized {});
-            }
-
-            let mut setup_pools: Vec<(Addr, Uint64)> = vec![];
-
-            let polls_set: HashSet<String> = pools.clone().into_iter().map(|pc| pc.0).collect();
-
-            if polls_set.len() != pools.len() {
-                return Err(ContractError::PoolDuplicate {});
-            }
-
-            for (addr, alloc_point) in pools {
-                let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
-                let pair_info = pair_info_by_pool(deps.as_ref(), pool_addr.clone())?;
-
-                // check if assets in the blocked list
-                for asset in pair_info.asset_infos.clone() {
-                    if cfg.blocked_list_tokens.contains(&asset) {
-                        return Err(ContractError::Std(StdError::generic_err(format!(
-                            "Token {} is blocked!",
-                            asset
-                        ))));
-                    }
-                }
-
-                // If a pair gets deregistered from the factory, we should raise error.
-                let _: PairInfo = deps
-                    .querier
-                    .query_wasm_smart(
-                        cfg.factory.clone(),
-                        &FactoryQueryMsg::Pair {
-                            asset_infos: pair_info.asset_infos.clone(),
-                        },
-                    )
-                    .map_err(|_| {
-                        ContractError::Std(StdError::generic_err(format!(
-                            "The pair aren't registered: {}-{}",
-                            pair_info.asset_infos[0], pair_info.asset_infos[1]
-                        )))
-                    })?;
-
-                setup_pools.push((pool_addr, alloc_point));
-            }
-
-            update_rewards_and_execute(
-                deps,
-                env,
-                None,
-                ExecuteOnReply::SetupPools { pools: setup_pools },
-            )
-        }
+        ExecuteMsg::SetupPools { pools } => execute_setup_pools(deps, env, info, pools),
         ExecuteMsg::UpdatePool {
             lp_token,
             has_asset_rewards,
@@ -451,26 +398,71 @@ pub fn execute_update_config(
 ///
 /// ##Executor
 /// Can only be called by the owner or generator controller
-pub fn setup_pools(
+pub fn execute_setup_pools(
     mut deps: DepsMut,
     env: Env,
-    pools: Vec<(Addr, Uint64)>,
+    info: MessageInfo,
+    pools: Vec<(String, Uint64)>,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
+    if info.sender != cfg.owner && Some(info.sender) != cfg.generator_controller {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let pools_set: HashSet<String> = pools.clone().into_iter().map(|pc| pc.0).collect();
+    if pools_set.len() != pools.len() {
+        return Err(ContractError::PoolDuplicate {});
+    }
+
+    let mut setup_pools: Vec<(Addr, Uint64)> = vec![];
+
+    for (addr, alloc_point) in pools {
+        let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
+        let pair_info = pair_info_by_pool(deps.as_ref(), pool_addr.clone())?;
+
+        // check if assets in the blocked list
+        for asset in pair_info.asset_infos.clone() {
+            if cfg.blocked_list_tokens.contains(&asset) {
+                return Err(ContractError::Std(StdError::generic_err(format!(
+                    "Token {} is blocked!",
+                    asset
+                ))));
+            }
+        }
+
+        // If a pair gets deregistered from the factory, we should raise error.
+        let _: PairInfo = deps
+            .querier
+            .query_wasm_smart(
+                cfg.factory.clone(),
+                &FactoryQueryMsg::Pair {
+                    asset_infos: pair_info.asset_infos.clone(),
+                },
+            )
+            .map_err(|_| {
+                ContractError::Std(StdError::generic_err(format!(
+                    "The pair aren't registered: {}-{}",
+                    pair_info.asset_infos[0], pair_info.asset_infos[1]
+                )))
+            })?;
+
+        setup_pools.push((pool_addr, alloc_point));
+    }
+
     let factory_cfg: FactoryConfigResponse = deps
         .querier
         .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
 
     mass_update_pools(deps.branch(), &env, &cfg)?;
 
-    for (lp_token, _) in &pools {
+    for (lp_token, _) in &setup_pools {
         if POOL_INFO.may_load(deps.storage, lp_token)?.is_none() {
             create_pool(deps.branch(), &env, lp_token, &cfg, &factory_cfg)?;
         }
     }
 
-    cfg.total_alloc_point = pools.iter().map(|(_, alloc_point)| alloc_point).sum();
-    cfg.active_pools = pools;
+    cfg.total_alloc_point = setup_pools.iter().map(|(_, alloc_point)| alloc_point).sum();
+    cfg.active_pools = setup_pools;
 
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -629,7 +621,6 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
         Some(action) => {
             TMP_USER_ACTION.save(deps.storage, &None)?;
             match action {
-                ExecuteOnReply::SetupPools { pools } => setup_pools(deps, env, pools),
                 ExecuteOnReply::UpdatePool {
                     lp_token,
                     has_asset_rewards,
