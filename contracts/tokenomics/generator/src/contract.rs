@@ -138,7 +138,7 @@ pub fn instantiate(
 /// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership. Only the newly proposed owner can call this.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -151,14 +151,8 @@ pub fn execute(
             }
             let lp_token_addr = addr_validate_to_lower(deps.api, &lp_token)?;
 
-            update_rewards_and_execute(
-                deps,
-                env,
-                None,
-                ExecuteOnReply::DeactivatePool {
-                    lp_token: lp_token_addr,
-                },
-            )
+            mass_update_pools(deps.branch(), &env, &cfg)?;
+            deactivate_pool(deps, lp_token_addr)
         }
         ExecuteMsg::UpdateTokensBlockedlist { add, remove } => {
             update_tokens_blockedlist(deps, info, add, remove)
@@ -633,7 +627,6 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
         Some(action) => {
             TMP_USER_ACTION.save(deps.storage, &None)?;
             match action {
-                ExecuteOnReply::DeactivatePool { lp_token } => deactivate_pool(deps, env, lp_token),
                 ExecuteOnReply::SetupPools { pools } => setup_pools(deps, env, pools),
                 ExecuteOnReply::UpdatePool {
                     lp_token,
@@ -662,11 +655,7 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
 }
 
 /// Sets the allocation point to zero for specified LP token. Recalculate total allocation point.
-pub fn deactivate_pool(
-    mut deps: DepsMut,
-    env: Env,
-    lp_token: Addr,
-) -> Result<Response, ContractError> {
+pub fn deactivate_pool(deps: DepsMut, lp_token: Addr) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
     // gets old allocation point for the pool and subtraction from the total allocation point
@@ -680,9 +669,6 @@ pub fn deactivate_pool(
             break;
         }
     }
-
-    // run mass update pools for recalculate share for each pool
-    mass_update_pools(deps.branch(), &env, &cfg)?;
 
     CONFIG.save(deps.storage, &cfg)?;
 

@@ -47,8 +47,6 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ExecuteOnReply {
-    /// Set allocation point to zero for specified pool
-    DeactivatePool { lp_token: Addr },
     /// Add a new pools with allocation point
     SetupPools {
         /// The list of pools with allocation points
