@@ -123,7 +123,7 @@ pub fn instantiate(
 ///
 /// * **ExecuteMsg::UpdateBridges { add, remove }** Adds or removes bridge assets used to swap fee tokens to ASTRO.
 ///
-/// * **ExecuteMsg::SwapBridgeAssets { assets }** Private method used to swap fee tokens (through bridges) to ASTRO.
+/// * **ExecuteMsg::SwapBridgeAssets { assets }** Swap fee tokens (through bridges) to ASTRO.
 ///
 /// * **ExecuteMsg::DistributeAstro {}** Private method used by the contract to distribute ASTRO rewards.
 ///
