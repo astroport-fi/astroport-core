@@ -13,8 +13,7 @@ use crate::state::{
     OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
 use astroport::asset::{
-    addr_validate_to_lower, native_asset_info, pair_info_by_pool, token_asset_info, AssetInfo,
-    PairInfo, ULUNA_DENOM, UUSD_DENOM,
+    addr_validate_to_lower, pair_info_by_pool, token_asset_info, AssetInfo, PairInfo,
 };
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
@@ -149,14 +148,25 @@ pub fn instantiate(
 /// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership. Only the newly proposed owner can call this.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::DeactivatePool { lp_token } => {
+            let cfg = CONFIG.load(deps.storage)?;
+            if info.sender != cfg.factory {
+                return Err(ContractError::Unauthorized {});
+            }
+            let lp_token_addr = addr_validate_to_lower(deps.api, &lp_token)?;
+            let active_pools: Vec<Addr> =
+                cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+            mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
+            deactivate_pool(deps, lp_token_addr)
+        }
         ExecuteMsg::UpdateTokensBlockedlist { add, remove } => {
-            update_tokens_blockedlist(deps, info, add, remove)
+            update_tokens_blockedlist(deps, env, info, add, remove)
         }
         ExecuteMsg::MoveToProxy { lp_token, proxy } => {
             move_to_proxy(deps, env, info, lp_token, proxy)
@@ -169,77 +179,11 @@ pub fn execute(
             generator_controller,
             guardian,
         } => execute_update_config(deps, info, vesting_contract, generator_controller, guardian),
-        ExecuteMsg::SetupPools { pools } => {
-            let cfg = CONFIG.load(deps.storage)?;
-            if info.sender != cfg.owner && Some(info.sender) != cfg.generator_controller {
-                return Err(ContractError::Unauthorized {});
-            }
-
-            let mut setup_pools: Vec<(Addr, Uint64)> = vec![];
-
-            let polls_set: HashSet<String> = pools.clone().into_iter().map(|pc| pc.0).collect();
-
-            if polls_set.len() != pools.len() {
-                return Err(ContractError::PoolDuplicate {});
-            }
-
-            for (addr, alloc_point) in pools {
-                let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
-                let pair_info = pair_info_by_pool(deps.as_ref(), pool_addr.clone())?;
-
-                // check if assets in the blocked list
-                let mut is_blocked = false;
-                for asset in pair_info.asset_infos.clone() {
-                    if cfg.blocked_list_tokens.contains(&asset) {
-                        is_blocked = true;
-                        break;
-                    }
-                }
-
-                // If a pair gets deregistered from the factory, no one can set its generator
-                // alloc_points to anything above 0.
-                let resp: StdResult<PairInfo> = deps.querier.query_wasm_smart(
-                    cfg.factory.clone(),
-                    &FactoryQueryMsg::Pair {
-                        asset_infos: pair_info.asset_infos,
-                    },
-                );
-
-                if is_blocked || resp.is_err() {
-                    setup_pools.push((pool_addr, Uint64::zero()));
-                } else {
-                    setup_pools.push((pool_addr, alloc_point));
-                }
-            }
-
-            update_rewards_and_execute(
-                deps,
-                env,
-                None,
-                ExecuteOnReply::SetupPools { pools: setup_pools },
-            )
-        }
+        ExecuteMsg::SetupPools { pools } => execute_setup_pools(deps, env, info, pools),
         ExecuteMsg::UpdatePool {
             lp_token,
             has_asset_rewards,
-        } => {
-            let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
-
-            let cfg = CONFIG.load(deps.storage)?;
-            if info.sender != cfg.owner {
-                return Err(ContractError::Unauthorized {});
-            }
-
-            update_rewards_and_execute(
-                deps,
-                env,
-                None,
-                ExecuteOnReply::UpdatePool {
-                    lp_token,
-                    has_asset_rewards,
-                },
-            )
-        }
+        } => execute_update_pool(deps, info, lp_token, has_asset_rewards),
         ExecuteMsg::ClaimRewards { lp_tokens } => {
             let mut lp_tokens_addr: Vec<Addr> = vec![];
             for lp_token in &lp_tokens {
@@ -329,7 +273,8 @@ pub fn execute(
 /// ## Description
 /// Add or remove tokens to and from the blocked list. Returns a [`ContractError`] on failure.
 fn update_tokens_blockedlist(
-    deps: DepsMut,
+    mut deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     add: Option<Vec<AssetInfo>>,
     remove: Option<Vec<AssetInfo>>,
@@ -347,7 +292,7 @@ fn update_tokens_blockedlist(
         return Err(ContractError::Unauthorized {});
     }
 
-    // Remove tokens from the blacklist
+    // Remove tokens from blacklist
     if let Some(asset_infos) = remove {
         for asset_info in asset_infos {
             let index = cfg
@@ -363,41 +308,30 @@ fn update_tokens_blockedlist(
         }
     }
 
-    // Add tokens to the blasklist
+    // Add tokens to the blacklist
     if let Some(asset_infos) = add {
-        // ASTRO or Terra native assets (UST, LUNA etc) cannot be blocked
+        let active_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+        mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
         let astro = token_asset_info(cfg.astro_token.clone());
-        let uusd = native_asset_info(UUSD_DENOM.to_string());
-        let uluna = native_asset_info(ULUNA_DENOM.to_string());
-
-        if asset_infos.contains(&astro)
-            || asset_infos.contains(&uusd)
-            || asset_infos.contains(&uluna)
-        {
-            return Err(ContractError::AssetCannotBeBlocked {});
-        }
 
         for asset_info in asset_infos {
+            // ASTRO or Terra native assets (UST, LUNA etc) cannot be blacklisted
+            if asset_info.is_native_token() || asset_info.eq(&astro) {
+                return Err(ContractError::AssetCannotBeBlocked {});
+            }
+
             if !cfg.blocked_list_tokens.contains(&asset_info) {
                 cfg.blocked_list_tokens.push(asset_info.clone());
 
-                // find active pools with blocked tokens
-                let mut pools: Vec<(Addr, Uint64)> = vec![];
-                for pool in cfg.active_pools.clone() {
+                // Find active pools with blacklisted tokens
+                for pool in &mut cfg.active_pools {
                     let pair_info = pair_info_by_pool(deps.as_ref(), pool.0.clone())?;
                     if pair_info.asset_infos.contains(&asset_info) {
-                        pools.push(pool);
+                        // Recalculate total allocation points before resetting the pool allocation points
+                        cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
+                        // Sets allocation points to zero for each pool with blacklisted tokens
+                        pool.1 = Uint64::zero();
                     }
-                }
-
-                // Sets allocation points to zero for each pool with a blacklisted token
-                for pool in pools {
-                    let index = cfg
-                        .active_pools
-                        .iter()
-                        .position(|x| *x == pool)
-                        .ok_or_else(|| StdError::generic_err("Can't find active pool."))?;
-                    cfg.active_pools[index].1 = Uint64::zero();
                 }
             }
         }
@@ -473,12 +407,57 @@ pub fn execute_update_config(
 ///
 /// ##Executor
 /// Can only be called by the owner or generator controller
-pub fn setup_pools(
+pub fn execute_setup_pools(
     mut deps: DepsMut,
     env: Env,
-    pools: Vec<(Addr, Uint64)>,
+    info: MessageInfo,
+    pools: Vec<(String, Uint64)>,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
+    if info.sender != cfg.owner && Some(info.sender) != cfg.generator_controller {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let pools_set: HashSet<String> = pools.clone().into_iter().map(|pc| pc.0).collect();
+    if pools_set.len() != pools.len() {
+        return Err(ContractError::PoolDuplicate {});
+    }
+
+    let mut setup_pools: Vec<(Addr, Uint64)> = vec![];
+
+    for (addr, alloc_point) in pools {
+        let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
+        let pair_info = pair_info_by_pool(deps.as_ref(), pool_addr.clone())?;
+
+        // check if assets in the blocked list
+        for asset in pair_info.asset_infos.clone() {
+            if cfg.blocked_list_tokens.contains(&asset) {
+                return Err(ContractError::Std(StdError::generic_err(format!(
+                    "Token {} is blocked!",
+                    asset
+                ))));
+            }
+        }
+
+        // If a pair gets deregistered from the factory, we should raise error.
+        let _: PairInfo = deps
+            .querier
+            .query_wasm_smart(
+                cfg.factory.clone(),
+                &FactoryQueryMsg::Pair {
+                    asset_infos: pair_info.asset_infos.clone(),
+                },
+            )
+            .map_err(|_| {
+                ContractError::Std(StdError::generic_err(format!(
+                    "The pair aren't registered: {}-{}",
+                    pair_info.asset_infos[0], pair_info.asset_infos[1]
+                )))
+            })?;
+
+        setup_pools.push((pool_addr, alloc_point));
+    }
+
     let factory_cfg: FactoryConfigResponse = deps
         .querier
         .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
@@ -487,14 +466,14 @@ pub fn setup_pools(
 
     mass_update_pools(deps.branch(), &env, &cfg, &prev_pools)?;
 
-    for (lp_token, _) in &pools {
+    for (lp_token, _) in &setup_pools {
         if POOL_INFO.may_load(deps.storage, lp_token)?.is_none() {
             create_pool(deps.branch(), &env, lp_token, &cfg, &factory_cfg)?;
         }
     }
 
-    cfg.total_alloc_point = pools.iter().map(|(_, alloc_point)| alloc_point).sum();
-    cfg.active_pools = pools;
+    cfg.total_alloc_point = setup_pools.iter().map(|(_, alloc_point)| alloc_point).sum();
+    cfg.active_pools = setup_pools;
 
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -514,16 +493,24 @@ pub fn setup_pools(
 ///
 /// ##Executor
 /// Can only be called by the owner.
-pub fn update_pool(
+pub fn execute_update_pool(
     deps: DepsMut,
-    lp_token: Addr,
+    info: MessageInfo,
+    lp_token: String,
     has_asset_rewards: bool,
 ) -> Result<Response, ContractError> {
-    let mut pool_info = POOL_INFO.load(deps.storage, &lp_token)?;
+    let lp_token_addr = addr_validate_to_lower(deps.api, &lp_token)?;
+
+    let cfg = CONFIG.load(deps.storage)?;
+    if info.sender != cfg.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut pool_info = POOL_INFO.load(deps.storage, &lp_token_addr)?;
 
     pool_info.has_asset_rewards = has_asset_rewards;
 
-    POOL_INFO.save(deps.storage, &lp_token, &pool_info)?;
+    POOL_INFO.save(deps.storage, &lp_token_addr, &pool_info)?;
 
     Ok(Response::new()
         .add_attribute("action", "update_pool")
@@ -658,11 +645,6 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
         Some(action) => {
             TMP_USER_ACTION.save(deps.storage, &None)?;
             match action {
-                ExecuteOnReply::SetupPools { pools } => setup_pools(deps, env, pools),
-                ExecuteOnReply::UpdatePool {
-                    lp_token,
-                    has_asset_rewards,
-                } => update_pool(deps, lp_token, has_asset_rewards),
                 ExecuteOnReply::ClaimRewards { lp_tokens, account } => {
                     claim_rewards(deps, env, lp_tokens, account)
                 }
@@ -686,6 +668,27 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
 }
 
 /// ## Description
+/// Sets the allocation points to zero for the generator associated with the specified LP token. Recalculates total allocation points.
+pub fn deactivate_pool(deps: DepsMut, lp_token: Addr) -> Result<Response, ContractError> {
+    let mut cfg = CONFIG.load(deps.storage)?;
+
+    // Gets old allocation points for the pool and subtracts them from total allocation points
+    let old_alloc_point = get_alloc_point(&cfg.active_pools, &lp_token);
+    cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(old_alloc_point)?;
+
+    // Sets the pool allocation points to zero
+    for pool in &mut cfg.active_pools {
+        if pool.0 == lp_token {
+            pool.1 = Uint64::zero();
+            break;
+        }
+    }
+
+    CONFIG.save(deps.storage, &cfg)?;
+
+    Ok(Response::new().add_attribute("action", "setup_pool"))
+}
+
 /// Sets a new amount of ASTRO distributed per block among all active generators. Before that, we
 /// will need to update all pools in order to correctly account for accrued rewards. Returns a [`ContractError`] on failure,
 /// otherwise returns a [`Response`] with the specified attributes if the operation was successful.
@@ -1481,6 +1484,7 @@ fn update_allowed_proxies(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
+        QueryMsg::ActivePoolLength {} => Ok(to_binary(&active_pool_length(deps)?)?),
         QueryMsg::PoolLength {} => Ok(to_binary(&pool_length(deps)?)?),
         QueryMsg::Deposit { lp_token, user } => {
             Ok(to_binary(&query_deposit(deps, lp_token, user)?)?)
@@ -1513,10 +1517,17 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             start_after,
             limit,
         )?)?),
+        QueryMsg::BlockedListTokens {} => Ok(to_binary(&query_blocked_list_tokens(deps)?)?),
     }
 }
 
 /// ## Description
+/// Returns a [`ContractError`] on failure, otherwise returns the blocked list of tokens.
+fn query_blocked_list_tokens(deps: Deps) -> Result<Vec<AssetInfo>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    Ok(config.blocked_list_tokens)
+}
+
 /// Returns a [`ContractError`] on failure, otherwise returns the amount of instantiated generators
 /// using a [`PoolLengthResponse`] object.
 /// ## Params
@@ -1526,6 +1537,16 @@ pub fn pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
         .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
         .count();
     Ok(PoolLengthResponse { length })
+}
+
+/// ## Description
+/// Returns a [`ContractError`] on failure, otherwise returns the amount of active generators
+/// using a [`PoolLengthResponse`] object.
+pub fn active_pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    Ok(PoolLengthResponse {
+        length: config.active_pools.len(),
+    })
 }
 
 /// ## Description
