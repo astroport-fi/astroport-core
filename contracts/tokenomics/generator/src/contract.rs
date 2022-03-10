@@ -324,6 +324,8 @@ fn update_tokens_blockedlist(
                 for pool in &mut cfg.active_pools {
                     let pair_info = pair_info_by_pool(deps.as_ref(), pool.0.clone())?;
                     if pair_info.asset_infos.contains(&asset_info) {
+                        // recalculate total allocation point before resetting the pool allocation point
+                        cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
                         // sets allocation point to zero for each pool with blocked token
                         pool.1 = Uint64::zero();
                     }
