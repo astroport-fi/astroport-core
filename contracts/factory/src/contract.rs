@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint64, WasmMsg,
+    MessageInfo, Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -22,7 +22,7 @@ use astroport::factory::{
 
 use crate::migration::migrate_pair_configs_to_v120;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::generator::ExecuteMsg::SetupPools;
+use astroport::generator::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cw2::{get_contract_version, set_contract_version};
 use protobuf::Message;
@@ -441,10 +441,12 @@ pub fn deregister(
     let mut messages: Vec<CosmosMsg> = vec![];
     if let Some(generator) = config.generator_address {
         let pair_info = query_pair_info(deps.as_ref(), &pair_addr)?;
+
+        // sets the allocation point to zero for the lp_token
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: generator.to_string(),
-            msg: to_binary(&SetupPools {
-                pools: vec![(pair_info.liquidity_token.to_string(), Uint64::zero())],
+            msg: to_binary(&DeactivatePool {
+                lp_token: pair_info.liquidity_token.to_string(),
             })?,
             funds: vec![],
         }));
