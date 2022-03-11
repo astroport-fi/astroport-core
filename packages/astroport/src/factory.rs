@@ -53,6 +53,9 @@ pub struct PairConfig {
     /// Setting this to true means that pairs of this type will not be able
     /// to get an ASTRO generator
     pub is_generator_disabled: bool,
+    /// Whether a pair type is blacklisted or not. If it is blacklisted, a new pairs ca be created but allocation
+    /// point have to equal to zero.
+    pub is_blacklisted: bool,
 }
 
 impl PairConfig {
@@ -156,6 +159,8 @@ pub enum QueryMsg {
         /// The pair type for which we return fee information. Pair type is a [`PairType`] struct
         pair_type: PairType,
     },
+    /// Returns blacklisted pair types
+    BlacklistedPairTypes {},
 }
 
 /// ## Description

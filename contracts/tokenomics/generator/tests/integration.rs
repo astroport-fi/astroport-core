@@ -423,6 +423,7 @@ fn disabling_pool() {
             maker_fee_bps: 10,
             is_disabled: false,
             is_generator_disabled: true,
+            is_blacklisted: false,
         },
     };
 
@@ -452,6 +453,7 @@ fn disabling_pool() {
             maker_fee_bps: 10,
             is_disabled: false,
             is_generator_disabled: false,
+            is_blacklisted: false,
         },
     };
 
@@ -2364,6 +2366,9 @@ fn setup_pools() {
     assert_eq!(Uint64::new(80), reps.alloc_point);
 }
 
+#[test]
+fn deactivate_pools() {}
+
 fn mock_app() -> TerraApp {
     let env = mock_env();
     let api = MockApi::default();
@@ -2453,6 +2458,7 @@ fn instantiate_factory(
             maker_fee_bps: 10,
             is_disabled: false,
             is_generator_disabled: false,
+            is_blacklisted: false,
         }],
         token_code_id,
         fee_address: None,

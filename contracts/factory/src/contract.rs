@@ -485,7 +485,22 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_pairs(deps, start_after, limit)?)
         }
         QueryMsg::FeeInfo { pair_type } => to_binary(&query_fee_info(deps, pair_type)?),
+        QueryMsg::BlacklistedPairTypes {} => to_binary(&query_blacklisted_pair_types(deps)?),
     }
+}
+
+/// Returns blacklisted pair types
+pub fn query_blacklisted_pair_types(deps: Deps) -> StdResult<Vec<PairType>> {
+    Ok(PAIR_CONFIGS
+        .range(deps.storage, None, None, Order::Ascending)
+        .filter_map(|pair_config| {
+            pair_config
+                .ok()
+                .map(|pair_config| pair_config.1)
+                .filter(|pair_config| pair_config.is_blacklisted)
+                .map(|pair_config| pair_config.pair_type)
+        })
+        .collect())
 }
 
 /// ## Description
