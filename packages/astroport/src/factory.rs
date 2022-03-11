@@ -156,7 +156,7 @@ pub enum QueryMsg {
         /// The pair type for which we return fee information. Pair type is a [`PairType`] struct
         pair_type: PairType,
     },
-    /// Returns blacklisted pair types
+    /// Returns a vector that contains blacklisted pair types
     BlacklistedPairTypes {},
 }
 

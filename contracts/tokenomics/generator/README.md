@@ -294,6 +294,18 @@ Sets the allocation point to zero for specified pool. Only the factory contract 
 }
 ```
 
+### `deactivate_pools`
+
+Sets the allocation point to zero for each pool by the pair type.
+
+```json
+{
+  "deactivate_pool": {
+    "pair_types": [{"xyk": {}}, {"stable":  {}}]
+  }
+}
+```
+
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.
