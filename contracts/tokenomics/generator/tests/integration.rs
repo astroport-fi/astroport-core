@@ -2402,6 +2402,7 @@ fn deactivate_pools_by_pair_types() {
     let mut app = mock_app();
 
     let owner = Addr::unchecked(OWNER);
+    let user1 = Addr::unchecked(USER1);
     let token_code_id = store_token_code(&mut app);
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
@@ -2503,6 +2504,21 @@ fn deactivate_pools_by_pair_types() {
         ],
     );
 
+    // try to deactivate pools for not blacklisted pair types
+    let msg = GeneratorExecuteMsg::DeactivatePools {
+        pair_types: vec![PairType::Xyk {}, PairType::Stable {}],
+    };
+    let err = app
+        .execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        format!(
+            "Generic error: Pair type ({}) is not blacklisted!",
+            PairType::Xyk {}
+        ),
+        err.to_string()
+    );
+
     // Add stable pair type to blacklist
     let msg = FactoryExecuteMsg::UpdatePairConfig {
         config: PairConfig {
@@ -2527,6 +2543,23 @@ fn deactivate_pools_by_pair_types() {
         )
         .unwrap();
     assert_eq!(res, vec![PairType::Stable {}]);
+
+    let msg = GeneratorExecuteMsg::DeactivatePools {
+        pair_types: vec![PairType::Stable {}],
+    };
+    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg_cny_eur = QueryMsg::PoolInfo {
+        lp_token: lp_cny_uusd.to_string(),
+    };
+
+    // Check if alloc point is equal to 0
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .unwrap();
+    assert_eq!(Uint64::zero(), reps.alloc_point);
 
     // try to change alloc point for blacklisted pool by pair type
     let msg = GeneratorExecuteMsg::SetupPools {

@@ -313,6 +313,11 @@ fn deactivate_pools(deps: DepsMut, pair_types: Vec<PairType>) -> Result<Response
                     }
                 }
             }
+        } else {
+            return Err(ContractError::Std(StdError::generic_err(format!(
+                "Pair type ({}) is not blacklisted!",
+                pair_type
+            ))));
         }
     }
 
