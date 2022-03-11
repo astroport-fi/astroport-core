@@ -160,7 +160,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::DeactivatePools { pair_types } => deactivate_pools(deps, pair_types),
+        ExecuteMsg::DeactivatePools { pair_types } => deactivate_pools(deps, env, pair_types),
         ExecuteMsg::DeactivatePool { lp_token } => {
             let cfg = CONFIG.load(deps.storage)?;
             if info.sender != cfg.factory {
@@ -279,7 +279,11 @@ pub fn execute(
 
 /// ## Description
 /// Sets the allocation point to zero for each pool by the pair type
-fn deactivate_pools(deps: DepsMut, pair_types: Vec<PairType>) -> Result<Response, ContractError> {
+fn deactivate_pools(
+    mut deps: DepsMut,
+    env: Env,
+    pair_types: Vec<PairType>,
+) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
     // Check for duplicate pair types
@@ -298,6 +302,9 @@ fn deactivate_pools(deps: DepsMut, pair_types: Vec<PairType>) -> Result<Response
         cfg.factory.clone(),
         &FactoryQueryMsg::BlacklistedPairTypes {},
     )?;
+
+    let active_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+    mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
 
     for pair_type in pair_types {
         if blacklisted_pair_types.contains(&pair_type) {
