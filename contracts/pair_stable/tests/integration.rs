@@ -370,7 +370,6 @@ fn test_compatibility_of_tokens_with_different_precision() {
             pair_type: PairType::Stable {},
             is_disabled: false,
             is_generator_disabled: false,
-            is_blacklisted: false,
         }],
         token_code_id,
         generator_address: Some(String::from("generator")),

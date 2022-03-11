@@ -77,7 +77,6 @@ fn proper_initialization() {
         maker_fee_bps: 10,
         is_disabled: false,
         is_generator_disabled: false,
-        is_blacklisted: false,
     }];
 
     let msg = InstantiateMsg {
@@ -186,7 +185,6 @@ fn instantiate_contract(app: &mut TerraApp, owner: &Addr, token_code_id: u64) ->
         maker_fee_bps: 10,
         is_disabled: false,
         is_generator_disabled: false,
-        is_blacklisted: false,
     }];
 
     let msg = InstantiateMsg {

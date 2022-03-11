@@ -42,7 +42,6 @@ fn proper_initialization() {
                 maker_fee_bps: 10,
                 is_disabled: false,
                 is_generator_disabled: false,
-                is_blacklisted: false,
             },
             PairConfig {
                 code_id: 325u64,
@@ -51,7 +50,6 @@ fn proper_initialization() {
                 maker_fee_bps: 10,
                 is_disabled: false,
                 is_generator_disabled: false,
-                is_blacklisted: false,
             },
         ],
         token_code_id: 123u64,
@@ -75,7 +73,6 @@ fn proper_initialization() {
             maker_fee_bps: 10,
             is_disabled: false,
             is_generator_disabled: false,
-            is_blacklisted: false,
         }],
         token_code_id: 123u64,
         fee_address: None,
@@ -101,7 +98,6 @@ fn proper_initialization() {
                 maker_fee_bps: 10,
                 is_disabled: false,
                 is_generator_disabled: false,
-                is_blacklisted: false,
             },
             PairConfig {
                 code_id: 123u64,
@@ -110,7 +106,6 @@ fn proper_initialization() {
                 maker_fee_bps: 10,
                 is_disabled: false,
                 is_generator_disabled: false,
-                is_blacklisted: false,
             },
         ],
         token_code_id: 123u64,
@@ -144,7 +139,6 @@ fn update_config() {
         maker_fee_bps: 166,
         is_disabled: false,
         is_generator_disabled: false,
-        is_blacklisted: false,
     }];
 
     let msg = InstantiateMsg {
@@ -292,7 +286,6 @@ fn update_pair_config() {
         maker_fee_bps: 10,
         is_disabled: false,
         is_generator_disabled: false,
-        is_blacklisted: false,
     }];
 
     let msg = InstantiateMsg {
@@ -323,7 +316,6 @@ fn update_pair_config() {
         maker_fee_bps: 2,
         is_disabled: false,
         is_generator_disabled: false,
-        is_blacklisted: false,
     };
 
     // Unauthorized err
@@ -347,7 +339,6 @@ fn update_pair_config() {
             maker_fee_bps: 10_001,
             is_disabled: false,
             is_generator_disabled: false,
-            is_blacklisted: false,
         },
     };
 
@@ -375,7 +366,6 @@ fn update_pair_config() {
         maker_fee_bps: 20,
         is_disabled: false,
         is_generator_disabled: false,
-        is_blacklisted: false,
     };
 
     let info = mock_info(owner.clone(), &[]);
@@ -405,7 +395,6 @@ fn create_pair() {
         maker_fee_bps: 10,
         is_disabled: false,
         is_generator_disabled: false,
-        is_blacklisted: false,
     };
 
     let msg = InstantiateMsg {
@@ -506,7 +495,6 @@ fn register() {
             maker_fee_bps: 10,
             is_disabled: false,
             is_generator_disabled: false,
-            is_blacklisted: false,
         }],
         token_code_id: 123u64,
         fee_address: None,

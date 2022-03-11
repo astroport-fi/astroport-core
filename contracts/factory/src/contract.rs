@@ -497,7 +497,7 @@ pub fn query_blacklisted_pair_types(deps: Deps) -> StdResult<Vec<PairType>> {
             pair_config
                 .ok()
                 .map(|pair_config| pair_config.1)
-                .filter(|pair_config| pair_config.is_blacklisted)
+                .filter(|pair_config| pair_config.is_generator_disabled.eq(&true))
                 .map(|pair_config| pair_config.pair_type)
         })
         .collect())

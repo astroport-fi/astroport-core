@@ -60,7 +60,6 @@ pub fn migrate_pair_configs_to_v120(storage: &mut dyn Storage) -> Result<(), Std
             maker_fee_bps: pair_configs_v110.maker_fee_bps,
             is_disabled: pair_configs_v110.is_disabled.unwrap_or(false),
             is_generator_disabled: false,
-            is_blacklisted: false,
         };
         PAIR_CONFIGS.save(storage, key, &pair_config)?;
     }

@@ -141,9 +141,17 @@ pub fn instantiate(
 /// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change contract ownership.
 /// Only the current owner can call this.
 ///
-/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership. Only the current owner can call this.
+/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
+/// Only the current owner can call this.
 ///
-/// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership. Only the newly proposed owner can call this.
+/// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership. Only the newly proposed owner
+/// can call this.
+///
+/// * **ExecuteMsg::DeactivatePool { lp_token }** Sets the allocation point to zero for specified
+/// LP token.
+///
+/// * **ExecuteMsg::DeactivatePools { pair_types }** Sets the allocation point to zero for each pool
+/// by the pair type
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     mut deps: DepsMut,
@@ -152,7 +160,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::DeactivatePools { pair_types } => execute_deactivate_pools(deps, pair_types),
+        ExecuteMsg::DeactivatePools { pair_types } => deactivate_pools(deps, pair_types),
         ExecuteMsg::DeactivatePool { lp_token } => {
             let cfg = CONFIG.load(deps.storage)?;
             if info.sender != cfg.factory {
@@ -271,10 +279,7 @@ pub fn execute(
 
 /// ## Description
 /// Sets the allocation point to zero for each pool by the pair type
-fn execute_deactivate_pools(
-    deps: DepsMut,
-    pair_types: Vec<PairType>,
-) -> Result<Response, ContractError> {
+fn deactivate_pools(deps: DepsMut, pair_types: Vec<PairType>) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
     // Check for duplicate pair types
@@ -489,7 +494,7 @@ pub fn execute_setup_pools(
         // check if pair type is blacklisted
         if blacklisted_pair_types.contains(&pair_info.pair_type) {
             return Err(ContractError::Std(StdError::generic_err(format!(
-                "Pair type {} is blacklisted!",
+                "Pair type ({}) is blacklisted!",
                 pair_info.pair_type
             ))));
         }

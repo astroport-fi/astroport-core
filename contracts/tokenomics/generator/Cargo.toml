@@ -39,3 +39,4 @@ astroport-vesting = {path = "../vesting"}
 astroport-generator-proxy-to-mirror = {path = "../generator_proxy_to_mirror"}
 astroport-factory = {path = "../../factory"}
 astroport-pair = {path = "../../pair"}
+astroport-pair-stable = {path = "../../pair_stable"}
