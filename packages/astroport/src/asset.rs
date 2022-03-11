@@ -12,9 +12,9 @@ use cosmwasm_std::{
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_cosmwasm::TerraQuerier;
 
-/// UST token denom
+/// UST token denomination
 pub const UUSD_DENOM: &str = "uusd";
-/// LUNA token denom
+/// LUNA token denomination
 pub const ULUNA_DENOM: &str = "uluna";
 
 /// ## Description
@@ -37,7 +37,6 @@ impl fmt::Display for Asset {
 static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
 impl Asset {
-    /// ## Description
     /// Returns true if the token is native. Otherwise returns false.
     /// ## Params
     /// * **self** is the type of the caller object.
@@ -45,7 +44,6 @@ impl Asset {
         self.info.is_native_token()
     }
 
-    /// ## Description
     /// Calculates and returns a tax for a chain's native token. For other tokens it returns zero.
     /// ## Params
     /// * **self** is the type of the caller object.
@@ -69,7 +67,6 @@ impl Asset {
         }
     }
 
-    /// ## Description
     /// Calculates and returns a deducted tax for transferring the native token from the chain. For other tokens it returns an [`Err`].
     /// ## Params
     /// * **self** is the type of the caller object.
@@ -87,7 +84,6 @@ impl Asset {
         }
     }
 
-    /// ## Description
     /// Returns a message of type [`CosmosMsg`].
     ///
     /// For native tokens of type [`AssetInfo`] uses the default method [`BankMsg::Send`] to send a token amount to a recipient.
@@ -119,7 +115,6 @@ impl Asset {
         }
     }
 
-    /// ## Description
     /// Validates an amount of native tokens being sent. Returns [`Ok`] if successful, otherwise returns [`Err`].
     /// ## Params
     /// * **self** is the type of the caller object.
@@ -149,7 +144,6 @@ impl Asset {
     }
 }
 
-/// ## Description
 /// This enum describes available Token types.
 /// ## Examples
 /// ```
@@ -177,7 +171,6 @@ impl fmt::Display for AssetInfo {
 }
 
 impl AssetInfo {
-    /// ## Description
     /// Returns true if the caller is a native token. Otherwise returns false.
     /// ## Params
     /// * **self** is the caller object type
@@ -188,7 +181,6 @@ impl AssetInfo {
         }
     }
 
-    /// ## Description
     /// Returns the balance of token in a pool.
     /// ## Params
     /// * **self** is the type of the caller object.
@@ -205,7 +197,6 @@ impl AssetInfo {
         }
     }
 
-    /// ## Description
     /// Returns True if the calling token is the same as the token specified in the input parameters.
     /// Otherwise returns False.
     /// ## Params
@@ -231,7 +222,6 @@ impl AssetInfo {
         }
     }
 
-    /// ## Description
     /// If the caller object is a native token of type ['AssetInfo`] then his `denom` field converts to a byte string.
     ///
     /// If the caller object is a token of type ['AssetInfo`] then his `contract_addr` field converts to a byte string.
@@ -244,7 +234,6 @@ impl AssetInfo {
         }
     }
 
-    /// ## Description
     /// Returns [`Ok`] if the token of type [`AssetInfo`] is in lowercase and valid. Otherwise returns [`Err`].
     /// ## Params
     /// * **self** is the type of the caller object.
@@ -268,7 +257,6 @@ impl AssetInfo {
     }
 }
 
-/// ## Description
 /// This structure stores the main parameters for an Astroport pair
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairInfo {
@@ -283,7 +271,6 @@ pub struct PairInfo {
 }
 
 impl PairInfo {
-    /// ## Description
     /// Returns the balance for each asset in the pool.
     /// ## Params
     /// * **self** is the type of the caller object
@@ -309,7 +296,6 @@ impl PairInfo {
     }
 }
 
-/// ## Description
 /// Returns a lowercased, validated address upon success. Otherwise returns [`Err`]
 /// ## Params
 /// * **api** is an object of type [`Api`]
@@ -327,7 +313,6 @@ pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
 
 const TOKEN_SYMBOL_MAX_LENGTH: usize = 4;
 
-/// ## Description
 /// Returns a formatted LP token name
 /// ## Params
 /// * **asset_infos** is an array with two items the type of [`AssetInfo`].
@@ -354,7 +339,6 @@ pub fn format_lp_token_name(
     Ok(format!("{}-{}-LP", short_symbols[0], short_symbols[1]).to_uppercase())
 }
 
-/// ## Description
 /// Returns an [`Asset`] object representing a native token and an amount of tokens.
 /// ## Params
 /// * **denom** is a [`String`] that represents the native asset denomination.
@@ -367,7 +351,6 @@ pub fn native_asset(denom: String, amount: Uint128) -> Asset {
     }
 }
 
-/// ## Description
 /// Returns an [`Asset`] object representing a non-native token and an amount of tokens.
 /// ## Params
 /// * **contract_addr** is a [`Addr`]. It is the address of the token contract.
@@ -380,7 +363,6 @@ pub fn token_asset(contract_addr: Addr, amount: Uint128) -> Asset {
     }
 }
 
-/// ## Description
 /// Returns an [`AssetInfo`] object representing the denomination for a Terra native asset.
 /// ## Params
 /// * **denom** is a [`String`] object representing the denomination of the Terra native asset.
@@ -388,7 +370,6 @@ pub fn native_asset_info(denom: String) -> AssetInfo {
     AssetInfo::NativeToken { denom }
 }
 
-/// ## Description
 /// Returns an [`AssetInfo`] object representing the address of a token contract.
 /// ## Params
 /// * **contract_addr** is a [`Addr`] object representing the address of a token contract.

@@ -4,7 +4,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result};
 
-/// ## Description
 /// This enum describes available pair types.
 /// ## Available pool types
 /// ```
@@ -35,9 +34,8 @@ impl Display for PairType {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-/// ## Description
 /// This structure stores a pair type's configuration.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairConfig {
     /// ID of contract which is allowed to create pairs of this type
     pub code_id: u64,
@@ -56,7 +54,6 @@ pub struct PairConfig {
 }
 
 impl PairConfig {
-    /// ## Description
     /// This method is used to check fee bps.
     /// ## Params
     /// `&self` is the type of the caller object.
@@ -65,7 +62,6 @@ impl PairConfig {
     }
 }
 
-/// ## Description
 /// This structure stores the basic settings for creating a new factory contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -83,7 +79,6 @@ pub struct InstantiateMsg {
     pub whitelist_code_id: u64,
 }
 
-/// ## Description
 /// This structure describes the execute messages of the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -132,7 +127,6 @@ pub enum ExecuteMsg {
     ClaimOwnership {},
 }
 
-/// ## Description
 /// This structure describes the available query messages for the factory contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -158,7 +152,6 @@ pub enum QueryMsg {
     },
 }
 
-/// ## Description
 /// A custom struct for each query response that returns general contract settings/configs.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
@@ -176,14 +169,12 @@ pub struct ConfigResponse {
     pub whitelist_code_id: u64,
 }
 
-/// ## Description
 /// This structure stores the parameters used in a migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
     pub params: Binary,
 }
 
-/// ## Description
 /// A custom struct for each query response that returns an array of objects of type [`PairInfo`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairsResponse {
@@ -191,7 +182,6 @@ pub struct PairsResponse {
     pub pairs: Vec<PairInfo>,
 }
 
-/// ## Description
 /// A custom struct for each query response that returns an object of type [`FeeInfoResponse`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct FeeInfoResponse {
@@ -203,7 +193,6 @@ pub struct FeeInfoResponse {
     pub maker_fee_bps: u16,
 }
 
-/// ## Description
 /// This is an enum used for setting and removing a contract address.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

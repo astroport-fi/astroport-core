@@ -130,7 +130,7 @@ pub fn instantiate(
     Ok(Response::new().add_submessages(sub_msg))
 }
 
-/// # Description
+/// ## Description
 /// The entry point to the contract for processing replies from submessages.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -496,7 +496,7 @@ pub fn provide_liquidity(
     ]))
 }
 
-/// # Description
+/// ## Description
 /// Mint LP tokens for a beneficiary and auto deposit them into the Generator contract (if requested).
 /// # Params
 /// * **deps** is an object of type [`Deps`].

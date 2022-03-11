@@ -6,6 +6,7 @@ use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_pair_info;
 use cosmwasm_std::{to_binary, Coin, Deps, Env, StdResult, SubMsg, Uint128, WasmMsg};
 
+/// The default bridge depth for a fee token
 pub const BRIDGES_INITIAL_DEPTH: u64 = 0;
 /// Maximum amount of bridges to use in a multi-hop swap
 pub const BRIDGES_MAX_DEPTH: u64 = 2;
@@ -136,16 +137,6 @@ pub fn validate_bridge(
     Ok(bridge_pool)
 }
 
-/// # Description
-/// Checks if a pool exists on Astroport.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **cfg** is an object of type [`Config`]. This is the Maker contract configuration.
-///
-/// * **from** is an object of type [`AssetInfo`]. This is the asset to swap from.
-///
-/// * **to** is an object of type [`AssetInfo`]. This is the asset to swap to.
 pub fn get_pool(
     deps: Deps,
     cfg: &Config,

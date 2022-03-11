@@ -4,7 +4,6 @@ use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure describes the parameters used for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -31,7 +30,6 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// ## Description
     /// Update the address of the ASTRO vesting contract
     /// ## Executor
     /// Only the owner can execute it.
@@ -43,16 +41,14 @@ pub enum ExecuteMsg {
         /// The new generator guardian
         guardian: Option<String>,
     },
-    /// ## Description
-    /// Setting up a new list of pools with allocation points.
+    /// Setup generators with their respective allocation points.
     /// ## Executor
     /// Only the owner or generator controller can execute this.
     SetupPools {
         /// The list of pools with allocation point.
         pools: Vec<(String, Uint64)>,
     },
-    /// ## Description
-    /// Update the given pool's has_asset_rewards parameter.
+    /// Update the given pool's ASTRO allocation slice
     /// ## Executor
     /// Only the owner or generator controller can execute this.
     UpdatePool {
@@ -61,13 +57,11 @@ pub enum ExecuteMsg {
         /// This flag determines whether the pool gets 3rd party token rewards
         has_asset_rewards: bool,
     },
-    /// ## Description
     /// Update rewards and return it to user.
     ClaimRewards {
         /// the LP token contract address
         lp_tokens: Vec<String>,
     },
-    /// ## Description
     /// Withdraw LP tokens from the Generator
     Withdraw {
         /// The address of the LP token to withdraw
@@ -75,19 +69,16 @@ pub enum ExecuteMsg {
         /// The amount to withdraw
         amount: Uint128,
     },
-    /// ## Description
     /// Withdraw LP tokens from the Generator without withdrawing outstanding rewards
     EmergencyWithdraw {
         /// The address of the LP token to withdraw
         lp_token: String,
     },
-    /// ## Description
     /// Allowed reward proxy contracts that can interact with the Generator
     SetAllowedRewardProxies {
         /// The full list of allowed proxy contracts
         proxies: Vec<String>,
     },
-    /// ## Description
     /// Sends orphan proxy rewards (which were left behind after emergency withdrawals) to another address
     SendOrphanProxyReward {
         /// The transfer recipient
@@ -95,10 +86,8 @@ pub enum ExecuteMsg {
         /// The address of the LP token contract for which we send orphaned rewards
         lp_token: String,
     },
-    /// ## Description
     /// Receives a message of type [`Cw20ReceiveMsg`]
     Receive(Cw20ReceiveMsg),
-    /// ## Description
     /// Set a new amount of ASTRO to distribute per block
     /// ## Executor
     /// Only the owner can execute this.
@@ -106,7 +95,6 @@ pub enum ExecuteMsg {
         /// The new amount of ASTRO to distro per block
         amount: Uint128,
     },
-    /// ## Description
     /// Creates a request to change contract ownership
     /// ## Executor
     /// Only the current owner can execute this.
@@ -116,17 +104,14 @@ pub enum ExecuteMsg {
         /// The validity period of the proposal to change the contract owner
         expires_in: u64,
     },
-    /// ## Description
     /// Removes a request to change contract ownership
     /// ## Executor
     /// Only the current owner can execute this
     DropOwnershipProposal {},
-    /// ## Description
     /// Claims contract ownership
     /// ## Executor
     /// Only the newly proposed owner can execute this
     ClaimOwnership {},
-    /// ## Description
     /// Add or remove a proxy contract that can interact with the Generator
     UpdateAllowedProxies {
         /// Allowed proxy contract
@@ -134,7 +119,6 @@ pub enum ExecuteMsg {
         /// Proxy contracts to remove
         remove: Option<Vec<String>>,
     },
-    /// ## Description
     /// Sets a new proxy contract for a specific generator
     /// Sets a proxy for the pool
     /// ## Executor
@@ -183,14 +167,12 @@ pub enum QueryMsg {
     BlockedListTokens {},
 }
 
-/// ## Description
 /// This structure holds the response returned when querying the total length of the array that keeps track of instantiated generators
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolLengthResponse {
     pub length: usize,
 }
 
-/// ## Description
 /// This structure holds the response returned when querying the amount of pending rewards that can be withdrawn from a 3rd party
 /// rewards contract
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -201,7 +183,6 @@ pub struct PendingTokenResponse {
     pub pending_on_proxy: Option<Uint128>,
 }
 
-/// ## Description
 /// This structure describes the main information of pool
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolInfo {
@@ -219,7 +200,6 @@ pub struct PoolInfo {
     pub has_asset_rewards: bool,
 }
 
-/// ## Description
 /// This structure holds the response returned when querying for the token addresses used to reward a specific generator
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -229,7 +209,6 @@ pub struct RewardInfoResponse {
     pub proxy_reward_token: Option<Addr>,
 }
 
-/// ## Description
 /// This structure holds the response returned when querying for a pool's information
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolInfoResponse {
@@ -259,7 +238,6 @@ pub struct PoolInfoResponse {
     pub lp_supply: Uint128,
 }
 
-/// ## Description
 /// This structure holds the response returned when querying the contract for general parameters
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
@@ -289,14 +267,12 @@ pub struct ConfigResponse {
     pub guardian: Option<Addr>,
 }
 
-/// ## Description
 /// This structure describes a migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
     pub params: Binary,
 }
 
-/// ## Description
 /// This structure describes custom hooks for the CW20.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -307,10 +283,9 @@ pub enum Cw20HookMsg {
     DepositFor(Addr),
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
-/// ## Description
-/// This structure holdes the parameters used to return information about a staked in
+/// This structure holds the parameters used to return information about a staked in
 /// a specific generator.
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
 pub struct StakerResponse {
     // The staker's address
     pub account: String,

@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Order, Uint128};
 use cw20::Cw20ReceiveMsg;
 
-/// ## Description
 /// This structure describes the parameters used for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -14,7 +13,6 @@ pub struct InstantiateMsg {
     pub token_addr: String,
 }
 
-/// ## Description
 /// This structure describes the execute messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -28,7 +26,6 @@ pub enum ExecuteMsg {
     },
     /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template
     Receive(Cw20ReceiveMsg),
-    /// ## Description
     /// Creates a request to change contract ownership
     /// ## Executor
     /// Only the current owner can execute this
@@ -38,19 +35,16 @@ pub enum ExecuteMsg {
         /// The validity period of the offer to change the owner
         expires_in: u64,
     },
-    /// ## Description
     /// Removes a request to change contract ownership
     /// ## Executor
     /// Only the current owner can execute this
     DropOwnershipProposal {},
-    /// ## Description
     /// Claims contract ownership
     /// ## Executor
     /// Only the newly proposed owner can execute this
     ClaimOwnership {},
 }
 
-/// ## Description
 /// This structure stores vesting information for a specific address that is getting tokens.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
@@ -60,7 +54,6 @@ pub struct VestingAccount {
     pub schedules: Vec<VestingSchedule>,
 }
 
-/// ## Description
 /// This structure stores parameters for a batch of vesting schedules.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingInfo {
@@ -70,7 +63,6 @@ pub struct VestingInfo {
     pub released_amount: Uint128,
 }
 
-/// ## Description
 /// This structure stores parameters for a specific vesting schedule
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingSchedule {
@@ -80,7 +72,6 @@ pub struct VestingSchedule {
     pub end_point: Option<VestingSchedulePoint>,
 }
 
-/// ## Description
 /// This structure stores the parameters used to create a vesting schedule.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingSchedulePoint {
@@ -90,7 +81,6 @@ pub struct VestingSchedulePoint {
     pub amount: Uint128,
 }
 
-/// ## Description
 /// This structure describes the query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -115,7 +105,6 @@ pub enum QueryMsg {
     Timestamp {},
 }
 
-/// ## Description
 /// This structure describes a custom struct used to return the contract configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
@@ -125,7 +114,6 @@ pub struct ConfigResponse {
     pub token_addr: Addr,
 }
 
-/// ## Description
 /// This structure describes a custom struct used to return vesting data about a specific vesting target.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccountResponse {
@@ -135,7 +123,6 @@ pub struct VestingAccountResponse {
     pub info: VestingInfo,
 }
 
-/// ## Description
 /// This structure describes a custom struct used to return vesting data for multiple vesting targets.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccountsResponse {
@@ -143,7 +130,6 @@ pub struct VestingAccountsResponse {
     pub vesting_accounts: Vec<VestingAccountResponse>,
 }
 
-/// ## Description
 /// This enum describes the types of sorting that can be applied to some piece of data
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -167,13 +153,11 @@ impl Into<Order> for OrderBy {
     }
 }
 
-/// ## Description
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
 
-/// ## Description
 /// This structure describes a CW20 hook message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

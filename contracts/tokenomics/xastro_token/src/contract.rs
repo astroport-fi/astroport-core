@@ -91,7 +91,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-/// # Description
+/// ## Description
 /// Mints tokens for specific accounts.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -193,7 +193,7 @@ pub fn execute(
     }
 }
 
-/// # Description
+/// ## Description
 /// Executes a token transfer. Returns a [`ContractError`] on
 /// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
@@ -242,7 +242,7 @@ pub fn execute_transfer(
     Ok(res)
 }
 
-/// # Description
+/// ## Description
 /// Executes a token burn. Returns a [`ContractError`] on
 /// failure, otherwise returns tahe [`Response`] with the specified attributes if the operation was successful.
 /// # Params
@@ -288,7 +288,7 @@ pub fn execute_burn(
     Ok(res)
 }
 
-/// # Description
+/// ## Description
 /// Executes a token mint. Returns a [`ContractError`] on
 /// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
@@ -350,7 +350,7 @@ pub fn execute_mint(
     Ok(res)
 }
 
-/// # Description
+/// ## Description
 /// Executes a token send. Returns a [`ContractError`] on
 /// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
@@ -411,7 +411,7 @@ pub fn execute_send(
     Ok(res)
 }
 
-/// # Description
+/// ## Description
 /// Executes a transfer from. Returns a [`ContractError`] on
 /// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
@@ -465,7 +465,7 @@ pub fn execute_transfer_from(
     Ok(res)
 }
 
-/// # Description
+/// ## Description
 /// Executes a burn from. Returns a [`ContractError`] on
 /// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
@@ -517,7 +517,7 @@ pub fn execute_burn_from(
     Ok(res)
 }
 
-/// # Description
+/// ## Description
 /// Executes a send from. Returns a [`ContractError`] on
 /// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
@@ -680,7 +680,7 @@ pub fn query_balance_at(deps: Deps, address: String, block: u64) -> StdResult<Ba
 }
 
 /// ## Description
-/// Returns a [`StdError`] on failure, otherwise returns the balances of multiple accounts.
+/// Returns a [`StdError`] on failure, otherwise returns the current balances of multiple accounts.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///

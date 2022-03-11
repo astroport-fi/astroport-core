@@ -1,6 +1,5 @@
 use cosmwasm_std::{Pair, StdError, StdResult, Uint128};
 
-/// # Description
 /// Helper function for deserialization
 pub(crate) fn deserialize_pair(pair: StdResult<Pair<Uint128>>) -> StdResult<String> {
     let (addr, _) = pair?;

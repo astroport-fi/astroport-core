@@ -14,7 +14,6 @@ pub const MAX_ALLOWED_SLIPPAGE: &str = "0.5";
 // Decimal precision for TWAP results
 pub const TWAP_PRECISION: u8 = 6;
 
-/// ## Description
 /// This structure describes the parameters used for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -28,12 +27,10 @@ pub struct InstantiateMsg {
     pub init_params: Option<Binary>,
 }
 
-/// ## Description
 /// This structure describes the execute messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// ## Description
     /// Receives a message of type [`Cw20ReceiveMsg`]
     Receive(Cw20ReceiveMsg),
     /// ProvideLiquidity allows someone to provide liquidity in the pool
@@ -58,7 +55,6 @@ pub enum ExecuteMsg {
     UpdateConfig { params: Binary },
 }
 
-/// ## Description
 /// This structure describes a CW20 hook message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -73,7 +69,6 @@ pub enum Cw20HookMsg {
     WithdrawLiquidity {},
 }
 
-/// ## Description
 /// This structure describes the query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -94,7 +89,6 @@ pub enum QueryMsg {
     CumulativePrices {},
 }
 
-/// ## Description
 /// This struct is used to return a query result with the total amount of LP tokens and the two assets in a specific pool.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolResponse {
@@ -104,7 +98,6 @@ pub struct PoolResponse {
     pub total_share: Uint128,
 }
 
-/// ## Description
 /// This struct is used to return a query result with the general contract configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
@@ -114,7 +107,6 @@ pub struct ConfigResponse {
     pub params: Option<Binary>,
 }
 
-/// ## Description
 /// This structure holds the parameters that are returned from a swap simulation response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SimulationResponse {
@@ -126,7 +118,6 @@ pub struct SimulationResponse {
     pub commission_amount: Uint128,
 }
 
-/// ## Description
 /// This structure holds the parameters that are returned from a reverse swap simulation response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ReverseSimulationResponse {
@@ -138,7 +129,6 @@ pub struct ReverseSimulationResponse {
     pub commission_amount: Uint128,
 }
 
-/// ## Description
 /// This structure is used to return a cumulative prices query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CumulativePricesResponse {
@@ -152,13 +142,11 @@ pub struct CumulativePricesResponse {
     pub price1_cumulative_last: Uint128,
 }
 
-/// ## Description
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
 
-/// ## Description
 /// This structure holds stableswap pool parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -167,7 +155,6 @@ pub struct StablePoolParams {
     pub amp: u64,
 }
 
-/// ## Description
 /// This structure stores a stableswap pool's configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -176,7 +163,6 @@ pub struct StablePoolConfig {
     pub amp: Decimal,
 }
 
-/// ## Description
 /// This enum stores the options available to start and stop changing a stableswap pool's amplification.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

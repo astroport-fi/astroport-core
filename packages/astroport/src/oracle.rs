@@ -3,7 +3,6 @@ use cosmwasm_std::Uint128;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure stores general parameters for the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -13,7 +12,6 @@ pub struct InstantiateMsg {
     pub asset_infos: [AssetInfo; 2],
 }
 
-/// ## Description
 /// This structure describes the execute functions available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -22,7 +20,6 @@ pub enum ExecuteMsg {
     Update {},
 }
 
-/// ## Description
 /// This structure describes the query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -36,7 +33,6 @@ pub enum QueryMsg {
     },
 }
 
-/// ## Description
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
