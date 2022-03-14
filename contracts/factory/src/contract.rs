@@ -494,15 +494,18 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// ## Description
 /// Returns a vector that contains blacklisted pair types
 pub fn query_blacklisted_pair_types(deps: Deps) -> StdResult<Vec<PairType>> {
-    Ok(PAIR_CONFIGS
+    let resp = PAIR_CONFIGS
         .range(deps.storage, None, None, Order::Ascending)
-        .filter_map(|pair_config| {
-            pair_config
-                .ok()
-                .map(|pair_config| pair_config.1)
-                .filter(|pair_config| pair_config.is_generator_disabled)
-                .map(|pair_config| pair_config.pair_type)
+        .map(|item| {
+            let (_, val) = item.map_err(|_| StdError::generic_err("deserialize error"))?;
+            Ok(val)
         })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    Ok(resp
+        .into_iter()
+        .filter(|el| el.is_generator_disabled)
+        .map(|el| el.pair_type)
         .collect())
 }
 

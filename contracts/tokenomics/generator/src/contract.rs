@@ -303,28 +303,29 @@ fn deactivate_pools(
         &FactoryQueryMsg::BlacklistedPairTypes {},
     )?;
 
-    let active_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
-    mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
-
-    for pair_type in pair_types {
-        if blacklisted_pair_types.contains(&pair_type) {
-            // find active pools with blacklisted pair type
-            for pool in &mut cfg.active_pools {
-                if !pool.1.is_zero() {
-                    let pair_info = pair_info_by_pool(deps.as_ref(), pool.0.clone())?;
-                    if pair_info.pair_type == pair_type {
-                        // recalculate total allocation point before resetting the allocation point of pool
-                        cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
-                        // sets allocation point to zero for each pool with blacklisted pair type
-                        pool.1 = Uint64::zero();
-                    }
-                }
-            }
-        } else {
+    // checks if each pair type is blacklisted
+    for pair_type in pair_types.clone() {
+        if !blacklisted_pair_types.contains(&pair_type) {
             return Err(ContractError::Std(StdError::generic_err(format!(
                 "Pair type ({}) is not blacklisted!",
                 pair_type
             ))));
+        }
+    }
+
+    let active_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+    mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
+
+    // find active pools with blacklisted pair type
+    for pool in &mut cfg.active_pools {
+        if !pool.1.is_zero() {
+            let pair_info = pair_info_by_pool(deps.as_ref(), pool.0.clone())?;
+            if pair_types.contains(&pair_info.pair_type) {
+                // recalculate total allocation point before resetting the allocation point of pool
+                cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
+                // sets allocation point to zero for each pool with blacklisted pair type
+                pool.1 = Uint64::zero();
+            }
         }
     }
 

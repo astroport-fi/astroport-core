@@ -2668,25 +2668,25 @@ fn deactivate_pools_by_pair_types() {
         .unwrap();
     assert_eq!(Uint64::zero(), reps.alloc_point);
 
-    let msg_cny_eur = QueryMsg::PoolInfo {
+    let msg_cny_uusd = QueryMsg::PoolInfo {
         lp_token: lp_cny_uusd.to_string(),
     };
 
     // Check if alloc point is equal to 80
     let reps: PoolInfoResponse = app
         .wrap()
-        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .query_wasm_smart(&generator_instance, &msg_cny_uusd)
         .unwrap();
     assert_eq!(Uint64::new(80), reps.alloc_point);
 
-    let msg_cny_eur = QueryMsg::PoolInfo {
+    let msg_eur_uusd = QueryMsg::PoolInfo {
         lp_token: lp_eur_uusd.to_string(),
     };
 
     // Check if alloc point is equal to 80
     let reps: PoolInfoResponse = app
         .wrap()
-        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .query_wasm_smart(&generator_instance, &msg_eur_uusd)
         .unwrap();
     assert_eq!(Uint64::new(80), reps.alloc_point);
 }
@@ -3119,18 +3119,13 @@ fn create_pair(
     init_param: Option<Binary>,
     assets: [AssetInfo; 2],
 ) -> (Addr, Addr) {
-    let mut param = None;
-    if init_param.is_some() {
-        param = init_param;
-    }
-
     app.execute_contract(
         Addr::unchecked(OWNER),
         factory.clone(),
         &FactoryExecuteMsg::CreatePair {
             pair_type: pair_type.unwrap_or_else(|| PairType::Xyk {}),
             asset_infos: assets.clone(),
-            init_params: param,
+            init_params: init_param,
         },
         &[],
     )

@@ -234,12 +234,12 @@ Returns the fee information for a specific pair type (`total_fee_bps` and `maker
 }
 ```
 
-### `blacklisted_pair_pypes`
+### `blacklisted_pair_types`
 
 Returns a vector that contains blacklisted pair types.
 
 ```json
 {
-  "blacklisted_pair_pypes": {}
+  "blacklisted_pair_types": {}
 }
 ```
