@@ -494,7 +494,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// ## Description
 /// Returns a vector that contains blacklisted pair types
 pub fn query_blacklisted_pair_types(deps: Deps) -> StdResult<Vec<PairType>> {
-    Ok(PAIR_CONFIGS
+    PAIR_CONFIGS
         .range(deps.storage, None, None, Order::Ascending)
         .filter_map(|result| match result {
             Ok(v) => {
@@ -506,7 +506,7 @@ pub fn query_blacklisted_pair_types(deps: Deps) -> StdResult<Vec<PairType>> {
             }
             Err(e) => Some(Err(e)),
         })
-        .collect::<StdResult<Vec<PairType>>>()?)
+        .collect()
 }
 
 /// ## Description
