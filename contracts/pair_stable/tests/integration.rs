@@ -528,7 +528,7 @@ fn provide_lp_for_single_token() {
         .wrap()
         .query_wasm_smart(&pair_instance, &QueryMsg::Pool {})
         .unwrap();
-    assert_eq!(res.total_share, Uint128::new(1499073492619947));
+    assert_eq!(res.total_share, Uint128::new(1_499_073_492_619_947));
 
     let user = Addr::unchecked("user");
     let msg = Cw20ExecuteMsg::Send {
