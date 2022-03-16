@@ -4,7 +4,6 @@ use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure stores general parameters for the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -24,7 +23,6 @@ pub struct InstantiateMsg {
     pub max_spread: Option<Decimal>,
 }
 
-/// ## Description
 /// This structure describes the functions that can be executed in this contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -71,7 +69,6 @@ pub enum ExecuteMsg {
     EnableRewards { blocks: u64 },
 }
 
-/// ## Description
 /// This structure describes the query functions available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -85,7 +82,6 @@ pub enum QueryMsg {
     Bridges {},
 }
 
-/// ## Description
 /// A custom struct that holds contract parameters and is used to retrieve them.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
@@ -109,20 +105,17 @@ pub struct ConfigResponse {
     pub pre_upgrade_astro_amount: Uint128,
 }
 
-/// ## Description
 /// A custom struct used to return multiple asset balances.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BalancesResponse {
     pub balances: Vec<Asset>,
 }
 
-/// ## Description
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
 
-/// ## Description
 /// This struct holds parameters to help with swapping a specific amount of a fee token to ASTRO.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AssetWithLimit {

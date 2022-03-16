@@ -377,7 +377,7 @@ pub fn execute_create_pair(
         ]))
 }
 
-/// # Description
+/// ## Description
 /// The entry point to the contract for processing replies from submessages.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].

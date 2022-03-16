@@ -6,7 +6,6 @@ use crate::asset::Asset;
 use cosmwasm_std::{Addr, Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
-/// ## Description
 /// This structure describes the execute messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -58,7 +57,6 @@ pub enum ExecuteMsg {
     },
 }
 
-/// ## Description
 /// This structure describes the query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -81,7 +79,6 @@ pub enum QueryMsg {
     PendingReward { user: String },
 }
 
-/// ## Description
 /// This struct is used to store bLUNA stableswap specific parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -94,7 +91,6 @@ pub struct StablePoolParams {
     pub generator: String,
 }
 
-/// ## Description
 /// This struct is used to store the stableswap pool configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -107,7 +103,6 @@ pub struct StablePoolConfig {
     pub generator: Addr,
 }
 
-/// ## Description
 /// This enum stores the options available to update bLUNA stableswap pool parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -117,7 +112,6 @@ pub enum StablePoolUpdateParams {
     BlunaRewarder { address: String },
 }
 
-/// ## Description
 /// This struct contains the parameters used to migrate the bLUNA-LUNA stableswap pool implementation.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {

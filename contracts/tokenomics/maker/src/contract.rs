@@ -123,7 +123,7 @@ pub fn instantiate(
 ///
 /// * **ExecuteMsg::UpdateBridges { add, remove }** Adds or removes bridge assets used to swap fee tokens to ASTRO.
 ///
-/// * **ExecuteMsg::SwapBridgeAssets { assets }** Private method used to swap fee tokens (through bridges) to ASTRO.
+/// * **ExecuteMsg::SwapBridgeAssets { assets }** Swap fee tokens (through bridges) to ASTRO.
 ///
 /// * **ExecuteMsg::DistributeAstro {}** Private method used by the contract to distribute ASTRO rewards.
 ///
@@ -222,7 +222,7 @@ pub fn execute(
     }
 }
 
-/// # Description
+/// ## Description
 /// Swaps fee tokens to ASTRO and distribute the resulting ASTRO to xASTRO and vxASTRO stakers.
 /// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] object if the
 /// operation was successful.
@@ -285,7 +285,7 @@ enum SwapTarget {
     Bridge { asset: AssetInfo, msg: SubMsg },
 }
 
-/// # Description
+/// ## Description
 /// Swap all non ASTRO tokens to ASTRO. Returns a [`ContractError`] on failure, otherwise returns
 /// a [`Response`] object if the operation was successful.
 /// # Params
@@ -313,7 +313,7 @@ fn swap_assets(
     let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
-    // Check uusd - astro pool and luna - uusd pool
+    // Check the uusd - ASTRO pool and the uluna - uusd pool
     get_pool(deps, cfg, uusd.clone(), astro)?;
     get_pool(deps, cfg, uluna, uusd)?;
 
@@ -350,7 +350,7 @@ fn swap_assets(
     Ok((response, bridge_assets.into_values().collect()))
 }
 
-/// # Description
+/// ## Description
 /// Checks if all required pools and bridges exists and performs a swap operation to ASTRO.
 /// Returns a [`ContractError`] on failure, otherwise returns a vector that contains objects
 /// of type [`SubMsg`] if the operation was successful.
@@ -372,7 +372,7 @@ fn swap(
     let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
-    // 1. If from_token is UST, only swap to astro is possible
+    // 1. If from_token is UST, only swap to ASTRO is possible
     if from_token.eq(&uusd) {
         let swap_to_astro = try_build_swap_msg(deps, cfg, from_token, astro, amount_in)?;
         return Ok(SwapTarget::Astro(swap_to_astro));
@@ -421,7 +421,7 @@ fn swap(
     Err(ContractError::CannotSwap(from_token))
 }
 
-/// # Description
+/// ## Description
 /// Performs a swap operation to ASTRO without additional checks. Returns a [`ContractError`] on failure,
 /// otherwise returns a vector that contains objects of type [`SubMsg`] if the operation
 /// was successful.
@@ -443,7 +443,7 @@ fn swap_no_validate(
     let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
-    // LUNA should be swapped to ust
+    // LUNA should be swapped to UST
     if from_token.eq(&uluna) {
         let msg = try_build_swap_msg(deps, cfg, from_token, uusd.clone(), amount_in)?;
         return Ok(SwapTarget::Bridge { asset: uusd, msg });
@@ -462,7 +462,7 @@ fn swap_no_validate(
         return Ok(SwapTarget::Bridge { asset, msg });
     }
 
-    // Check direct swap to astro
+    // Check for a direct swap to ASTRO
     let swap_to_astro = try_build_swap_msg(deps, cfg, from_token.clone(), astro, amount_in);
     if let Ok(msg) = swap_to_astro {
         return Ok(SwapTarget::Astro(msg));
@@ -473,7 +473,6 @@ fn swap_no_validate(
 
 /// ## Description
 /// Swaps collected fees using bridge assets. Returns a [`ContractError`] on failure.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -533,7 +532,6 @@ fn swap_bridge_assets(
 
 /// ## Description
 /// Distributes ASTRO rewards to x/vxASTRO holders. Returns a [`ContractError`] on failure.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -561,7 +559,7 @@ fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
 
 type DistributeMsgParts = (Vec<SubMsg>, Vec<(String, String)>);
 
-/// # Description
+/// ## Description
 /// Private function that performs the ASTRO token distribution to x/vxASTRO. Returns a [`ContractError`] on failure,
 /// otherwise returns a vector that contains the objects of type [`SubMsg`] if the operation was successful.
 /// # Params
@@ -669,7 +667,6 @@ fn distribute(
 /// ## Description
 /// Updates general contarct parameters. Returns a [`ContractError`] on failure or the [`Config`]
 /// data will be updated if the transaction is successful.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -752,7 +749,6 @@ fn update_config(
 
 /// ## Description
 /// Adds or removes bridge tokens used to swap fee tokens to ASTRO. Returns a [`ContractError`] on failure.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -813,7 +809,7 @@ fn update_bridges(
     Ok(Response::default().add_attribute("action", "update_bridges"))
 }
 
-/// # Description
+/// ## Description
 /// Exposes all the queries available in the contract.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -841,7 +837,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 /// ## Description
 /// Returns information about the Maker configuration using a [`ConfigResponse`] object.
-///
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
@@ -861,7 +856,6 @@ fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
 
 /// ## Description
 /// Returns Maker's fee token balances for specific tokens using a [`ConfigResponse`] object.
-///
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
@@ -887,7 +881,6 @@ fn query_get_balances(deps: Deps, env: Env, assets: Vec<AssetInfo>) -> StdResult
 
 /// ## Description
 /// Returns bridge tokens used for swapping fee tokens to ASTRO.
-///
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
@@ -901,7 +894,6 @@ fn query_bridges(deps: Deps, _env: Env) -> StdResult<Vec<(String, String)>> {
 
 /// ## Description
 /// Returns asset information for the specified pair.
-///
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///

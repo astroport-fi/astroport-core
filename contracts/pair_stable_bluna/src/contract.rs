@@ -144,7 +144,7 @@ pub fn instantiate(
     Ok(Response::new().add_submessages(messages))
 }
 
-/// # Description
+/// ## Description
 /// The entry point to the contract for processing replies from submessages.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -226,6 +226,12 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///             user_share,
 ///             total_share,
 ///         }** Claims bLUNA rewards and sends them to the receiver.
+///
+/// * **ExecuteMsg::ClaimRewardByGenerator {
+///             receiver,
+///             user_share,
+///             total_share,
+///         }** Claims bLUNA rewards for a LP position that was staked by a user in the Astroprot Generator contract.
 ///
 /// * **ExecuteMsg::HandleReward {
 ///             previous_reward_balance,
@@ -559,7 +565,7 @@ pub fn provide_liquidity(
     ]))
 }
 
-/// # Description
+/// ## Description
 /// Mint LP tokens for a beneficiary and auto deposit them into the Generator contract (if requested).
 /// # Params
 /// * **deps** is an object of type [`Deps`].

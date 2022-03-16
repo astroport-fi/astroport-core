@@ -4,7 +4,6 @@ use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure describes the parameters used for creating a request for a change of contract ownership.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OwnershipProposal {
@@ -14,7 +13,6 @@ pub struct OwnershipProposal {
     pub ttl: u64,
 }
 
-/// ## Description
 /// Creates a new request to change contract ownership. Returns an [`Err`] on failure or returns the [`Response`]
 /// with the specified attributes if the operation was successful.
 /// ## Executor
@@ -42,14 +40,14 @@ pub fn propose_new_owner(
     owner: Addr,
     proposal: Item<OwnershipProposal>,
 ) -> StdResult<Response> {
-    // permission check
+    // Permission check
     if info.sender != owner {
         return Err(StdError::generic_err("Unauthorized"));
     }
 
     let new_owner = addr_validate_to_lower(deps.api, new_owner.as_str())?;
 
-    // check that the new owner is not the same as the current one
+    // Check that the new owner is not the same as the current one
     if new_owner == owner {
         return Err(StdError::generic_err("New owner cannot be same"));
     }
@@ -68,7 +66,6 @@ pub fn propose_new_owner(
     ]))
 }
 
-/// ## Description
 /// Removes a request to change contract ownership. Returns an [`Err`] on failure or returns the [`Response`]
 /// with the specified attributes if the operation was successful.
 /// ## Executor
@@ -87,7 +84,7 @@ pub fn drop_ownership_proposal(
     owner: Addr,
     proposal: Item<OwnershipProposal>,
 ) -> StdResult<Response> {
-    // permission check
+    // Permission check
     if info.sender != owner {
         return Err(StdError::generic_err("Unauthorized"));
     }
@@ -97,7 +94,6 @@ pub fn drop_ownership_proposal(
     Ok(Response::new().add_attributes(vec![attr("action", "drop_ownership_proposal")]))
 }
 
-/// ## Description
 /// Claims ownership over the contract. Returns an [`Err`] on failure or returns the [`Response`]
 /// with the specified attributes if the operation was successful.
 /// ## Executor
