@@ -545,7 +545,7 @@ fn provide_lp_for_single_token() {
     app.execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
         .unwrap();
 
-    // try to provide for single token and increase the ratio in the pool from 1 to 2
+    // try to provide for single token and increase the ratio in the pool from 1 to 2.5
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [
             Asset {
