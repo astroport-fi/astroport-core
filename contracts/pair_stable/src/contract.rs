@@ -379,9 +379,11 @@ pub fn provide_liquidity(
 
     let mut messages: Vec<CosmosMsg> = vec![];
     for (i, pool) in pools.iter_mut().enumerate() {
+        // we cannot put a zero amount into an empty pool.
         if deposits[i].is_zero() && pool.amount.is_zero() {
             return Err(ContractError::InvalidProvideLPsWithSingleToken {});
         }
+
         // transfer only for non zero amount
         if !deposits[i].is_zero() {
             // If the pool is a token contract, then we need to execute a TransferFrom msg to receive funds
@@ -1213,10 +1215,8 @@ fn compute_swap(
     );
 
     // We assume the assets should stay in a 1:1 ratio, so the true exchange rate is 1. So any exchange rate <1 could be considered the spread
-    let mut spread_amount = offer_amount.saturating_sub(return_amount);
-    if spread_amount.to_string().len() <= greater_precision as usize {
-        spread_amount = Uint128::zero();
-    }
+    let spread_amount = offer_amount.saturating_sub(return_amount);
+
     let commission_amount: Uint128 = return_amount * commission_rate;
 
     // The commission will be absorbed by the pool
@@ -1352,9 +1352,6 @@ pub fn assert_max_spread(
             return Err(ContractError::MaxSpreadAssertion {});
         }
     } else if Decimal::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
-        let val = Decimal::from_ratio(spread_amount, return_amount + spread_amount);
-        let val1 = max_spread;
-        let val2 = val - val1;
         return Err(ContractError::MaxSpreadAssertion {});
     }
 

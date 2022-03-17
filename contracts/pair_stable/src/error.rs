@@ -60,7 +60,7 @@ pub enum ContractError {
     #[error("Generator address is not set in factory. Cannot autostake")]
     AutoStakeError {},
 
-    #[error("It is not possible to provide liquidity with one token for an empty pool.")]
+    #[error("It is not possible to provide liquidity with one token for an empty pool")]
     InvalidProvideLPsWithSingleToken {},
 }
 

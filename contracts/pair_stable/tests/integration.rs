@@ -4,9 +4,8 @@ use astroport::factory::{
     QueryMsg as FactoryQueryMsg,
 };
 use astroport::pair::{
-    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg,
-    PoolResponse, QueryMsg, SimulationResponse, StablePoolConfig, StablePoolParams,
-    StablePoolUpdateParams, TWAP_PRECISION,
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
+    StablePoolConfig, StablePoolParams, StablePoolUpdateParams, TWAP_PRECISION,
 };
 
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
@@ -465,7 +464,7 @@ fn provide_lp_for_single_token() {
         .execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(
-        "It is not possible to provide liquidity with one token for an empty pool.",
+        "It is not possible to provide liquidity with one token for an empty pool",
         err.to_string()
     );
 
@@ -475,13 +474,13 @@ fn provide_lp_for_single_token() {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
                 },
-                amount: x_offer,
+                amount: Uint128::new(1_000_000_000_000_000),
             },
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_y_instance.clone(),
                 },
-                amount: x_offer,
+                amount: Uint128::new(1_000_000_000_000_000),
             },
         ],
         slippage_tolerance: None,
@@ -492,21 +491,14 @@ fn provide_lp_for_single_token() {
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
         .unwrap();
 
-    let res: PoolResponse = app
-        .wrap()
-        .query_wasm_smart(&pair_instance, &QueryMsg::Pool {})
-        .unwrap();
-    // check if total share equal to 1_000_000_000_000_000
-    assert_eq!(res.total_share, x_offer);
-
-    // try to provide for single token
+    // try to provide for single token and increase the ratio in the pool from 1 to 1.5
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
                 },
-                amount: x_offer,
+                amount: Uint128::new(500_000_000_000_000),
             },
             Asset {
                 info: AssetInfo::Token {
@@ -523,20 +515,13 @@ fn provide_lp_for_single_token() {
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
         .unwrap();
 
-    // check if total share was changed
-    let res: PoolResponse = app
-        .wrap()
-        .query_wasm_smart(&pair_instance, &QueryMsg::Pool {})
-        .unwrap();
-    assert_eq!(res.total_share, Uint128::new(1_499_073_492_619_947));
-
-    let user = Addr::unchecked("user");
+    // try swap 120_000_000 from token_y to token_x (from lower token amount to higher)
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Swap {
             belief_price: None,
             max_spread: None,
-            to: None, //Some(user.to_string()),
+            to: None,
         })
         .unwrap(),
         amount: swap_amount,
@@ -545,12 +530,13 @@ fn provide_lp_for_single_token() {
     app.execute_contract(owner.clone(), token_y_instance.clone(), &msg, &[])
         .unwrap();
 
+    // try swap 120_000_000 from token_x to token_y (from higher token amount to lower )
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Swap {
             belief_price: None,
             max_spread: None,
-            to: None, //Some(user.to_string()),
+            to: None,
         })
         .unwrap(),
         amount: swap_amount,
@@ -559,12 +545,61 @@ fn provide_lp_for_single_token() {
     app.execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
         .unwrap();
 
-    // check if total share was not changed
-    let res: PoolResponse = app
-        .wrap()
-        .query_wasm_smart(&pair_instance, &QueryMsg::Pool {})
+    // try to provide for single token and increase the ratio in the pool from 1 to 2
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: [
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_x_instance.clone(),
+                },
+                amount: Uint128::new(1_000_000_000_000_000),
+            },
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_y_instance.clone(),
+                },
+                amount: Uint128::zero(),
+            },
+        ],
+        slippage_tolerance: None,
+        auto_stake: None,
+        receiver: None,
+    };
+
+    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
         .unwrap();
-    assert_eq!(res.total_share, Uint128::new(1499073492619947));
+
+    // try swap 120_000_000 from token_y to token_x (from lower token amount to higher)
+    let msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Swap {
+            belief_price: None,
+            max_spread: None,
+            to: None,
+        })
+        .unwrap(),
+        amount: swap_amount,
+    };
+
+    app.execute_contract(owner.clone(), token_y_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // try swap 120_000_000 from token_x to token_y (from higher token amount to lower )
+    let msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Swap {
+            belief_price: None,
+            max_spread: None,
+            to: None,
+        })
+        .unwrap(),
+        amount: swap_amount,
+    };
+
+    let err = app
+        .execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Operation exceeds max spread limit");
 }
 
 #[test]
