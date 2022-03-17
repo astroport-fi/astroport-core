@@ -31,6 +31,7 @@ use astroport::pair_stable_bluna::{
 };
 use astroport::whitelist::InstantiateMsg as WhitelistInstantiateMsg;
 
+use anchor_basset::reward::{AccruedRewardsResponse, QueryMsg as BAssetRewardQueryMsg};
 use astroport::querier::{
     query_factory_config, query_fee_info, query_supply, query_token_precision,
 };
@@ -1234,7 +1235,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
 /// * **env** is an object of type [`Env`].
 ///
 /// * **user** is an object of type [`String`]. This is the address for which we query the amount of pending bLUNA rewards to claim.
-pub fn query_pending_reward(deps: Deps, _env: Env, user: String) -> StdResult<Asset> {
+pub fn query_pending_reward(deps: Deps, env: Env, user: String) -> StdResult<Asset> {
     use cosmwasm_std::Decimal256;
 
     let user = addr_validate_to_lower(deps.api, &user)?;
@@ -1263,11 +1264,33 @@ pub fn query_pending_reward(deps: Deps, _env: Env, user: String) -> StdResult<As
         Decimal256::zero()
     };
 
+    let accrued_rewards: AccruedRewardsResponse = deps.querier.query_wasm_smart(
+        config.bluna_rewarder,
+        &BAssetRewardQueryMsg::AccruedRewards {
+            address: env.contract.address.to_string(),
+        },
+    )?;
+
+    let pool_info: PoolInfoResponse = deps.querier.query_wasm_smart(
+        &config.generator,
+        &GeneratorQueryMsg::PoolInfo {
+            lp_token: config.pair_info.liquidity_token.to_string(),
+        },
+    )?;
+
+    let mut accrued_rewards_index = Decimal256::zero();
+    if !pool_info.lp_supply.is_zero() {
+        accrued_rewards_index =
+            Decimal256::from_ratio(accrued_rewards.rewards, pool_info.lp_supply);
+    }
+
     Ok(Asset {
         info: AssetInfo::NativeToken {
             denom: "uusd".to_string(),
         },
-        amount: ((global_index - user_index) * Uint256::from(user_share)).try_into()?,
+        amount: Uint128::try_from(
+            (global_index - user_index + accrued_rewards_index) * Uint256::from(user_share),
+        )?,
     })
 }
 
