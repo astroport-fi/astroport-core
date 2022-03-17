@@ -1,4 +1,5 @@
 use crate::asset::AssetInfo;
+use crate::factory::PairType;
 use cosmwasm_std::{Addr, Binary, Decimal, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -133,6 +134,8 @@ pub enum ExecuteMsg {
     },
     /// Sets the allocation point to zero for the specified pool
     DeactivatePool { lp_token: String },
+    /// Sets the allocation point to zero for each pool by the pair type
+    DeactivatePools { pair_types: Vec<PairType> },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

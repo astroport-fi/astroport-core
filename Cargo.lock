@@ -111,6 +111,7 @@ dependencies = [
  "astroport-factory",
  "astroport-generator-proxy-to-mirror",
  "astroport-pair",
+ "astroport-pair-stable",
  "astroport-token",
  "astroport-vesting",
  "cosmwasm-schema",

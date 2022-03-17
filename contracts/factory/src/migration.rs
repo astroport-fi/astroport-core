@@ -39,7 +39,7 @@ pub struct PairConfigV110 {
     /// The amount of fees that go to the Maker contract
     pub maker_fee_bps: u16,
     /// We disable pair configs instead of removing them. If a pair type is disabled,
-    // new pairs cannot be created, but existing ones can still function properly
+    /// new pairs cannot be created, but existing ones can still function properly
     pub is_disabled: Option<bool>,
 }
 

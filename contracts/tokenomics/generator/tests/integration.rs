@@ -19,9 +19,10 @@ use astroport::{
     },
 };
 
+use astroport::pair::StablePoolParams;
 use cosmwasm_std::{
     testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR},
-    to_binary, Addr, StdResult, Uint128, Uint64,
+    to_binary, Addr, Binary, StdResult, Uint128, Uint64,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use mirror_protocol::staking::{
@@ -61,7 +62,7 @@ fn proper_deposit_and_withdraw() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
     let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let cny_eur_token_code_id = store_token_code(&mut app);
 
@@ -72,6 +73,8 @@ fn proper_deposit_and_withdraw() {
     let (pair_cny_eur, lp_cny_eur) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
@@ -85,6 +88,8 @@ fn proper_deposit_and_withdraw() {
     let (pair_eur_usd, lp_eur_usd) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::Token {
                 contract_addr: eur_token.clone(),
@@ -191,7 +196,7 @@ fn set_tokens_per_block() {
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
     let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let generator_instance =
         instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
@@ -237,7 +242,7 @@ fn update_config() {
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
     let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let generator_instance =
         instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
@@ -301,7 +306,7 @@ fn update_owner() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
     let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let generator_instance =
         instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
@@ -392,7 +397,7 @@ fn disabling_pool() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
     let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let eur_usdt_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, eur_usdt_token_code_id, "EUR", None);
@@ -401,6 +406,8 @@ fn disabling_pool() {
     let (pair_eur_usdt, lp_eur_usdt) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::Token {
                 contract_addr: eur_token.clone(),
@@ -493,7 +500,7 @@ fn generator_without_reward_proxies() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
     let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -503,6 +510,8 @@ fn generator_without_reward_proxies() {
     let (pair_cny_eur, lp_cny_eur) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
@@ -516,6 +525,8 @@ fn generator_without_reward_proxies() {
     let (pair_eur_usd, lp_eur_usd) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::Token {
                 contract_addr: eur_token.clone(),
@@ -819,7 +830,7 @@ fn generator_with_mirror_reward_proxy() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
     let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -829,6 +840,8 @@ fn generator_with_mirror_reward_proxy() {
     let (pair_cny_eur, lp_cny_eur) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
@@ -842,6 +855,8 @@ fn generator_with_mirror_reward_proxy() {
     let (pair_eur_usd, lp_eur_usd) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::Token {
                 contract_addr: eur_token.clone(),
@@ -1344,7 +1359,7 @@ fn update_allowed_proxies() {
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
     let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let generator_instance = instantiate_generator(
         &mut app,
@@ -1437,7 +1452,7 @@ fn move_to_proxy() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
     let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -1446,6 +1461,8 @@ fn move_to_proxy() {
     let (pair_cny_eur, lp_cny_eur) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
@@ -1607,7 +1624,7 @@ fn query_all_stakers() {
     let pair_code_id = store_pair_code_id(&mut app);
 
     let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -1616,6 +1633,8 @@ fn query_all_stakers() {
     let (pair_cny_eur, lp_cny_eur) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
@@ -1756,7 +1775,7 @@ fn query_pagination_stakers() {
     let pair_code_id = store_pair_code_id(&mut app);
 
     let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -1765,6 +1784,8 @@ fn query_pagination_stakers() {
     let (pair_cny_eur, lp_cny_eur) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
@@ -1894,7 +1915,7 @@ fn update_tokens_blocked_list() {
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
     let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let generator_instance =
         instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
@@ -1907,6 +1928,8 @@ fn update_tokens_blocked_list() {
     let (_, lp_cny_eur) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
@@ -1920,6 +1943,8 @@ fn update_tokens_blocked_list() {
     let (_, lp_cny_ukr) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
@@ -1933,6 +1958,8 @@ fn update_tokens_blocked_list() {
     let (_, lp_eur_msi) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::Token {
                 contract_addr: eur_token.clone(),
@@ -2138,7 +2165,7 @@ fn setup_pools() {
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
     let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id);
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let generator_instance =
         instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
@@ -2164,6 +2191,8 @@ fn setup_pools() {
     let (_, lp_cny_eur) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::NativeToken {
                 denom: "cny".to_string(),
@@ -2177,6 +2206,8 @@ fn setup_pools() {
     let (_, lp_cny_uusd) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::NativeToken {
                 denom: "cny".to_string(),
@@ -2190,6 +2221,8 @@ fn setup_pools() {
     let (_, lp_eur_uusd) = create_pair(
         &mut app,
         &factory_instance,
+        None,
+        None,
         [
             AssetInfo::NativeToken {
                 denom: "eur".to_string(),
@@ -2364,6 +2397,300 @@ fn setup_pools() {
     assert_eq!(Uint64::new(80), reps.alloc_point);
 }
 
+#[test]
+fn deactivate_pools_by_pair_types() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked(OWNER);
+    let user1 = Addr::unchecked(USER1);
+    let token_code_id = store_token_code(&mut app);
+    let factory_code_id = store_factory_code(&mut app);
+    let pair_code_id = store_pair_code_id(&mut app);
+    let pair_stable_code_id = store_pair_stable_code_id(&mut app);
+
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        Some(pair_stable_code_id),
+    );
+
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
+
+    // add generator to factory
+    let msg = FactoryExecuteMsg::UpdateConfig {
+        token_code_id: None,
+        fee_address: None,
+        generator_address: Some(generator_instance.to_string()),
+        whitelist_code_id: None,
+    };
+
+    app.execute_contract(Addr::unchecked(OWNER), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let res: FactoryConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&factory_instance.clone(), &FactoryQueryMsg::Config {})
+        .unwrap();
+
+    assert_eq!(res.generator_address, Some(generator_instance.clone()));
+
+    let (_, lp_cny_uusd) = create_pair(
+        &mut app,
+        &factory_instance,
+        Some(PairType::Stable {}),
+        Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        [
+            AssetInfo::NativeToken {
+                denom: "cny".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+        ],
+    );
+
+    let (_, lp_cny_eur) = create_pair(
+        &mut app,
+        &factory_instance,
+        None,
+        None,
+        [
+            AssetInfo::NativeToken {
+                denom: "cny".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "eur".to_string(),
+            },
+        ],
+    );
+
+    let (_, lp_eur_uusd) = create_pair(
+        &mut app,
+        &factory_instance,
+        None,
+        None,
+        [
+            AssetInfo::NativeToken {
+                denom: "eur".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+        ],
+    );
+
+    register_lp_tokens_in_generator(
+        &mut app,
+        &generator_instance,
+        vec![
+            PoolWithProxy {
+                pool: (lp_cny_eur.to_string(), Uint64::new(100u64)),
+                proxy: None,
+            },
+            PoolWithProxy {
+                pool: (lp_cny_uusd.to_string(), Uint64::new(100u64)),
+                proxy: None,
+            },
+            PoolWithProxy {
+                pool: (lp_eur_uusd.to_string(), Uint64::new(100u64)),
+                proxy: None,
+            },
+        ],
+    );
+
+    // try to deactivate pools for not blacklisted pair types
+    let msg = GeneratorExecuteMsg::DeactivatePools {
+        pair_types: vec![PairType::Xyk {}, PairType::Stable {}],
+    };
+    let err = app
+        .execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        format!(
+            "Generic error: Pair type ({}) is not blacklisted!",
+            PairType::Xyk {}
+        ),
+        err.to_string()
+    );
+
+    // Add stable pair type to blacklist
+    let msg = FactoryExecuteMsg::UpdatePairConfig {
+        config: PairConfig {
+            code_id: pair_stable_code_id,
+            pair_type: PairType::Stable {},
+            total_fee_bps: 100,
+            maker_fee_bps: 10,
+            is_disabled: false,
+            is_generator_disabled: true,
+        },
+    };
+
+    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // check if we add stable pair type to blacklist
+    let res: Vec<PairType> = app
+        .wrap()
+        .query_wasm_smart(
+            &factory_instance.clone(),
+            &FactoryQueryMsg::BlacklistedPairTypes {},
+        )
+        .unwrap();
+    assert_eq!(res, vec![PairType::Stable {}]);
+
+    let msg = GeneratorExecuteMsg::DeactivatePools {
+        pair_types: vec![PairType::Stable {}],
+    };
+    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg_cny_eur = QueryMsg::PoolInfo {
+        lp_token: lp_cny_uusd.to_string(),
+    };
+
+    // Check if alloc point is equal to 0
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .unwrap();
+    assert_eq!(Uint64::zero(), reps.alloc_point);
+
+    // try to change alloc point for blacklisted pool by pair type
+    let msg = GeneratorExecuteMsg::SetupPools {
+        pools: vec![
+            (lp_cny_eur.to_string(), Uint64::from(60u32)),
+            (lp_eur_uusd.to_string(), Uint64::from(40u32)),
+            (lp_cny_uusd.to_string(), Uint64::from(140u32)),
+        ],
+    };
+
+    let err = app
+        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        "Generic error: Pair type (stable) is blacklisted!",
+        err.to_string()
+    );
+
+    // Change pool alloc points
+    let msg = GeneratorExecuteMsg::SetupPools {
+        pools: vec![
+            (lp_cny_eur.to_string(), Uint64::from(60u32)),
+            (lp_eur_uusd.to_string(), Uint64::from(40u32)),
+        ],
+    };
+
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg_cny_eur = QueryMsg::PoolInfo {
+        lp_token: lp_cny_eur.to_string(),
+    };
+
+    // Check if alloc point is equal to 60
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .unwrap();
+    assert_eq!(Uint64::new(60), reps.alloc_point);
+
+    let msg_cny_eur = QueryMsg::PoolInfo {
+        lp_token: lp_cny_uusd.to_string(),
+    };
+
+    // Check if alloc point is equal to 0
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .unwrap();
+    assert_eq!(Uint64::zero(), reps.alloc_point);
+
+    let msg_cny_eur = QueryMsg::PoolInfo {
+        lp_token: lp_eur_uusd.to_string(),
+    };
+
+    // Check if alloc point is equal to 40
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .unwrap();
+    assert_eq!(Uint64::new(40), reps.alloc_point);
+
+    // remove stable pair type from blacklist
+    let msg = FactoryExecuteMsg::UpdatePairConfig {
+        config: PairConfig {
+            code_id: pair_stable_code_id,
+            pair_type: PairType::Stable {},
+            total_fee_bps: 100,
+            maker_fee_bps: 10,
+            is_disabled: false,
+            is_generator_disabled: false,
+        },
+    };
+
+    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // check if we remove stable pair type from blacklist
+    let res: Vec<PairType> = app
+        .wrap()
+        .query_wasm_smart(
+            &factory_instance.clone(),
+            &FactoryQueryMsg::BlacklistedPairTypes {},
+        )
+        .unwrap();
+    assert_eq!(res, vec![]);
+
+    // Change pool alloc points
+    let msg = GeneratorExecuteMsg::SetupPools {
+        pools: vec![
+            (lp_eur_uusd.to_string(), Uint64::from(80u32)),
+            (lp_cny_uusd.to_string(), Uint64::from(80u32)),
+        ],
+    };
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg_cny_eur = QueryMsg::PoolInfo {
+        lp_token: lp_cny_eur.to_string(),
+    };
+
+    // Check if alloc point is equal to 0
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .unwrap();
+    assert_eq!(Uint64::zero(), reps.alloc_point);
+
+    let msg_cny_uusd = QueryMsg::PoolInfo {
+        lp_token: lp_cny_uusd.to_string(),
+    };
+
+    // Check if alloc point is equal to 80
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_cny_uusd)
+        .unwrap();
+    assert_eq!(Uint64::new(80), reps.alloc_point);
+
+    let msg_eur_uusd = QueryMsg::PoolInfo {
+        lp_token: lp_eur_uusd.to_string(),
+    };
+
+    // Check if alloc point is equal to 80
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_eur_uusd)
+        .unwrap();
+    assert_eq!(Uint64::new(80), reps.alloc_point);
+}
+
 fn mock_app() -> TerraApp {
     let env = mock_env();
     let api = MockApi::default();
@@ -2416,6 +2743,19 @@ fn store_pair_code_id(app: &mut TerraApp) -> u64 {
     app.store_code(pair_contract)
 }
 
+fn store_pair_stable_code_id(app: &mut TerraApp) -> u64 {
+    let pair_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_pair_stable::contract::execute,
+            astroport_pair_stable::contract::instantiate,
+            astroport_pair_stable::contract::query,
+        )
+        .with_reply_empty(astroport_pair_stable::contract::reply),
+    );
+
+    app.store_code(pair_contract)
+}
+
 fn instantiate_token(
     app: &mut TerraApp,
     token_code_id: u64,
@@ -2444,8 +2784,9 @@ fn instantiate_factory(
     factory_code_id: u64,
     token_code_id: u64,
     pair_code_id: u64,
+    pair_stable_code_id: Option<u64>,
 ) -> Addr {
-    let msg = FactoryInstantiateMsg {
+    let mut msg = FactoryInstantiateMsg {
         pair_configs: vec![PairConfig {
             code_id: pair_code_id,
             pair_type: PairType::Xyk {},
@@ -2460,6 +2801,17 @@ fn instantiate_factory(
         owner: String::from(OWNER),
         whitelist_code_id: 0,
     };
+
+    if let Some(pair_stable_code_id) = pair_stable_code_id {
+        msg.pair_configs.push(PairConfig {
+            code_id: pair_stable_code_id,
+            pair_type: PairType::Stable {},
+            total_fee_bps: 100,
+            maker_fee_bps: 10,
+            is_disabled: false,
+            is_generator_disabled: false,
+        });
+    }
 
     app.instantiate_contract(
         factory_code_id,
@@ -2760,14 +3112,20 @@ fn check_pending_rewards(
     );
 }
 
-fn create_pair(app: &mut TerraApp, factory: &Addr, assets: [AssetInfo; 2]) -> (Addr, Addr) {
+fn create_pair(
+    app: &mut TerraApp,
+    factory: &Addr,
+    pair_type: Option<PairType>,
+    init_param: Option<Binary>,
+    assets: [AssetInfo; 2],
+) -> (Addr, Addr) {
     app.execute_contract(
         Addr::unchecked(OWNER),
         factory.clone(),
         &FactoryExecuteMsg::CreatePair {
-            pair_type: PairType::Xyk {},
+            pair_type: pair_type.unwrap_or_else(|| PairType::Xyk {}),
             asset_infos: assets.clone(),
-            init_params: None,
+            init_params: init_param,
         },
         &[],
     )

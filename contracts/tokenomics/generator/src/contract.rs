@@ -17,7 +17,7 @@ use astroport::asset::{
 };
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::factory::PairConfig;
+use astroport::factory::{PairConfig, PairType};
 use astroport::generator::PoolInfo;
 use astroport::generator::StakerResponse;
 use astroport::querier::query_token_balance;
@@ -143,9 +143,17 @@ pub fn instantiate(
 /// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change contract ownership.
 /// Only the current owner can call this.
 ///
-/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership. Only the current owner can call this.
+/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
+/// Only the current owner can call this.
 ///
-/// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership. Only the newly proposed owner can call this.
+/// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership. Only the newly proposed owner
+/// can call this.
+///
+/// * **ExecuteMsg::DeactivatePool { lp_token }** Sets the allocation point to zero for specified
+/// LP token.
+///
+/// * **ExecuteMsg::DeactivatePools { pair_types }** Sets the allocation point to zero for each pool
+/// by the pair type
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     mut deps: DepsMut,
@@ -154,6 +162,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::DeactivatePools { pair_types } => deactivate_pools(deps, env, pair_types),
         ExecuteMsg::DeactivatePool { lp_token } => {
             let cfg = CONFIG.load(deps.storage)?;
             if info.sender != cfg.factory {
@@ -271,6 +280,61 @@ pub fn execute(
 }
 
 /// ## Description
+/// Sets the allocation point to zero for each pool by the pair type
+fn deactivate_pools(
+    mut deps: DepsMut,
+    env: Env,
+    pair_types: Vec<PairType>,
+) -> Result<Response, ContractError> {
+    let mut cfg = CONFIG.load(deps.storage)?;
+
+    // Check for duplicate pair types
+    let mut uniq: HashSet<String> = HashSet::new();
+    if !pair_types
+        .clone()
+        .into_iter()
+        .all(|a| uniq.insert(a.to_string()))
+    {
+        return Err(ContractError::Std(StdError::generic_err(
+            "Duplicate of pair type!",
+        )));
+    }
+
+    let blacklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
+        cfg.factory.clone(),
+        &FactoryQueryMsg::BlacklistedPairTypes {},
+    )?;
+
+    // checks if each pair type is blacklisted
+    for pair_type in pair_types.clone() {
+        if !blacklisted_pair_types.contains(&pair_type) {
+            return Err(ContractError::Std(StdError::generic_err(format!(
+                "Pair type ({}) is not blacklisted!",
+                pair_type
+            ))));
+        }
+    }
+
+    let active_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+    mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
+
+    // find active pools with blacklisted pair type
+    for pool in &mut cfg.active_pools {
+        if !pool.1.is_zero() {
+            let pair_info = pair_info_by_pool(deps.as_ref(), pool.0.clone())?;
+            if pair_types.contains(&pair_info.pair_type) {
+                // recalculate total allocation point before resetting the allocation point of pool
+                cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
+                // sets allocation point to zero for each pool with blacklisted pair type
+                pool.1 = Uint64::zero();
+            }
+        }
+    }
+
+    CONFIG.save(deps.storage, &cfg)?;
+    Ok(Response::new().add_attribute("action", "deactivate_pools"))
+}
+
 /// Add or remove tokens to and from the blocked list. Returns a [`ContractError`] on failure.
 fn update_tokens_blockedlist(
     mut deps: DepsMut,
@@ -425,6 +489,11 @@ pub fn execute_setup_pools(
 
     let mut setup_pools: Vec<(Addr, Uint64)> = vec![];
 
+    let blacklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
+        cfg.factory.clone(),
+        &FactoryQueryMsg::BlacklistedPairTypes {},
+    )?;
+
     for (addr, alloc_point) in pools {
         let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
         let pair_info = pair_info_by_pool(deps.as_ref(), pool_addr.clone())?;
@@ -437,6 +506,14 @@ pub fn execute_setup_pools(
                     asset
                 ))));
             }
+        }
+
+        // check if pair type is blacklisted
+        if blacklisted_pair_types.contains(&pair_info.pair_type) {
+            return Err(ContractError::Std(StdError::generic_err(format!(
+                "Pair type ({}) is blacklisted!",
+                pair_info.pair_type
+            ))));
         }
 
         // If a pair gets deregistered from the factory, we should raise error.

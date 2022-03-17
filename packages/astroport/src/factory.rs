@@ -150,6 +150,8 @@ pub enum QueryMsg {
         /// The pair type for which we return fee information. Pair type is a [`PairType`] struct
         pair_type: PairType,
     },
+    /// Returns a vector that contains blacklisted pair types
+    BlacklistedPairTypes {},
 }
 
 /// A custom struct for each query response that returns general contract settings/configs.

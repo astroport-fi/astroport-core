@@ -476,6 +476,8 @@ pub fn deregister(
 /// This returns information about multiple Astroport pairs
 ///
 /// * **QueryMsg::FeeInfo { pair_type }** Returns the fee structure (total and maker fees) for a specific pair type.
+///
+/// * **QueryMsg::BlacklistedPairTypes {}** Returns a vector that contains blacklisted pair types
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -485,7 +487,26 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_pairs(deps, start_after, limit)?)
         }
         QueryMsg::FeeInfo { pair_type } => to_binary(&query_fee_info(deps, pair_type)?),
+        QueryMsg::BlacklistedPairTypes {} => to_binary(&query_blacklisted_pair_types(deps)?),
     }
+}
+
+/// ## Description
+/// Returns a vector that contains blacklisted pair types
+pub fn query_blacklisted_pair_types(deps: Deps) -> StdResult<Vec<PairType>> {
+    PAIR_CONFIGS
+        .range(deps.storage, None, None, Order::Ascending)
+        .filter_map(|result| match result {
+            Ok(v) => {
+                if v.1.is_disabled || v.1.is_generator_disabled {
+                    Some(Ok(v.1.pair_type))
+                } else {
+                    None
+                }
+            }
+            Err(e) => Some(Err(e)),
+        })
+        .collect()
 }
 
 /// ## Description
