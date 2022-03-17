@@ -213,7 +213,7 @@ Claims bLUNA rewards and sends a pro-rata share to the receiver.
 
 ```json
 {
-  "claim_reward" {
+  "claim_reward": {
     "receiver": "terra..."
   }
 }
