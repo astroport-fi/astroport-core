@@ -47,7 +47,7 @@ pub enum ExecuteMsg {
     /// Only the owner or generator controller can execute this.
     SetupPools {
         /// The list of pools with allocation point.
-        pools: Vec<(String, Uint64)>,
+        pools: Vec<(String, Uint128)>,
     },
     /// Update the given pool's ASTRO allocation slice
     /// ## Executor
@@ -216,7 +216,7 @@ pub struct RewardInfoResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolInfoResponse {
     /// The slice of ASTRO that this pool's generator gets per block
-    pub alloc_point: Uint64,
+    pub alloc_point: Uint128,
     /// Amount of ASTRO tokens being distributed per block to this LP pool
     pub astro_tokens_per_block: Uint128,
     /// The last block when token emissions were snapshotted (distributed)
@@ -255,7 +255,7 @@ pub struct ConfigResponse {
     /// Total amount of ASTRO distributed per block
     pub tokens_per_block: Uint128,
     /// Sum of total allocation points across all active generators
-    pub total_alloc_point: Uint64,
+    pub total_alloc_point: Uint128,
     /// Start block for ASTRO incentives
     pub start_block: Uint64,
     /// List of 3rd party reward proxies allowed to interact with the Generator contract
@@ -263,7 +263,7 @@ pub struct ConfigResponse {
     /// The ASTRO vesting contract address
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points
-    pub active_pools: Vec<(Addr, Uint64)>,
+    pub active_pools: Vec<(Addr, Uint128)>,
     /// The blocked list of tokens
     pub blocked_list_tokens: Vec<AssetInfo>,
     /// The guardian address
