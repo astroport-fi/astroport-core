@@ -145,6 +145,36 @@ __NOTE__: you should increase your token allowance for the pool before providing
   }
 ```
 
+3. Provides the liquidity with a single token. We can do this only for the non-empty pool.
+
+  ```json
+  {
+    "provide_liquidity": {
+      "assets": [
+        {
+          "info": {
+            "token": {
+              "contract_addr": "terra..."
+            }
+          },
+          "amount": "1000000"
+        },
+        {
+          "info": {
+            "token": {
+              "contract_addr": "terra..."
+            }
+          },
+          "amount": "0"
+        }
+      ],
+      "slippage_tolerance": "0",
+      "auto_stake": false,
+      "receiver": "terra..."
+    }
+  }
+```
+
 ### `withdraw_liquidity`
 
 Burn LP tokens and withdraw liquidity from a pool. This call must be sent to a LP token contract associated with the pool from which you want to withdraw liquidity from.
