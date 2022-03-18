@@ -369,27 +369,35 @@ pub fn provide_liquidity(
             .expect("Wrong asset info is given"),
     ];
 
-    if deposits[0].is_zero() || deposits[1].is_zero() {
+    if deposits[0].is_zero() && deposits[1].is_zero() {
         return Err(ContractError::InvalidZeroAmount {});
     }
 
     let mut messages: Vec<CosmosMsg> = vec![];
     for (i, pool) in pools.iter_mut().enumerate() {
-        // If the pool is token contract, then we need to execute TransferFrom msg to receive funds
-        if let AssetInfo::Token { contract_addr, .. } = &pool.info {
-            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: contract_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                    owner: info.sender.to_string(),
-                    recipient: env.contract.address.to_string(),
-                    amount: deposits[i],
-                })?,
-                funds: vec![],
-            }))
-        } else {
-            // If the asset is native token, balance is already increased
-            // To calculated properly we should subtract user deposit from the pool
-            pool.amount = pool.amount.checked_sub(deposits[i])?;
+        // we cannot put a zero amount into an empty pool.
+        if deposits[i].is_zero() && pool.amount.is_zero() {
+            return Err(ContractError::InvalidProvideLPsWithSingleToken {});
+        }
+
+        // transfer only for non zero amount
+        if !deposits[i].is_zero() {
+            // If the pool is a token contract, then we need to execute a TransferFrom msg to receive funds
+            if let AssetInfo::Token { contract_addr, .. } = &pool.info {
+                messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: contract_addr.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                        owner: info.sender.to_string(),
+                        recipient: env.contract.address.to_string(),
+                        amount: deposits[i],
+                    })?,
+                    funds: vec![],
+                }))
+            } else {
+                // If the asset is a native token, the pool balance already increased
+                // To calculate the pool balance properly, we should subtract the user deposit from the recorded pool token amount
+                pool.amount = pool.amount.checked_sub(deposits[i])?;
+            }
         }
     }
 
