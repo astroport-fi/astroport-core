@@ -92,6 +92,10 @@ pub fn migrate_configs_to_v120(
     msg: MigrationMsgV120,
 ) -> Result<(), StdError> {
     let cfg_100 = CONFIGV100.load(deps.storage)?;
+    let pools = pools
+        .into_iter()
+        .map(|(addr, apoints)| (addr, apoints.into()))
+        .collect();
 
     let mut cfg = Config {
         owner: cfg_100.owner,
@@ -99,7 +103,7 @@ pub fn migrate_configs_to_v120(
         generator_controller: None,
         astro_token: cfg_100.astro_token,
         tokens_per_block: cfg_100.tokens_per_block,
-        total_alloc_point: cfg_100.total_alloc_point,
+        total_alloc_point: cfg_100.total_alloc_point.into(),
         start_block: cfg_100.start_block,
         allowed_reward_proxies: cfg_100.allowed_reward_proxies,
         vesting_contract: cfg_100.vesting_contract,

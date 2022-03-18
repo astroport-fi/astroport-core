@@ -45,7 +45,7 @@ const USER8: &str = "user8";
 const USER9: &str = "user9";
 
 struct PoolWithProxy {
-    pool: (String, Uint64),
+    pool: (String, Uint128),
     proxy: Option<Addr>,
 }
 
@@ -108,11 +108,11 @@ fn proper_deposit_and_withdraw() {
         &generator_instance,
         vec![
             PoolWithProxy {
-                pool: (lp_cny_eur.to_string(), Uint64::from(50u32)),
+                pool: (lp_cny_eur.to_string(), Uint128::from(50u32)),
                 proxy: None,
             },
             PoolWithProxy {
-                pool: (lp_eur_usd.to_string(), Uint64::from(50u32)),
+                pool: (lp_eur_usd.to_string(), Uint128::from(50u32)),
                 proxy: None,
             },
         ],
@@ -470,7 +470,7 @@ fn disabling_pool() {
         &mut app,
         &generator_instance,
         vec![PoolWithProxy {
-            pool: (lp_eur_usdt.to_string(), Uint64::from(10u32)),
+            pool: (lp_eur_usdt.to_string(), Uint128::from(10u32)),
             proxy: None,
         }],
     );
@@ -545,11 +545,11 @@ fn generator_without_reward_proxies() {
         &generator_instance,
         vec![
             PoolWithProxy {
-                pool: (lp_cny_eur.to_string(), Uint64::from(50u32)),
+                pool: (lp_cny_eur.to_string(), Uint128::from(50u32)),
                 proxy: None,
             },
             PoolWithProxy {
-                pool: (lp_eur_usd.to_string(), Uint64::from(50u32)),
+                pool: (lp_eur_usd.to_string(), Uint128::from(50u32)),
                 proxy: None,
             },
         ],
@@ -665,8 +665,8 @@ fn generator_without_reward_proxies() {
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![
-            (lp_cny_eur.to_string(), Uint64::from(60u32)),
-            (lp_eur_usd.to_string(), Uint64::from(40u32)),
+            (lp_cny_eur.to_string(), Uint128::from(60u32)),
+            (lp_eur_usd.to_string(), Uint128::from(40u32)),
         ],
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
@@ -887,8 +887,8 @@ fn generator_with_mirror_reward_proxy() {
 
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![
-            (lp_cny_eur.to_string(), Uint64::from(50u64)),
-            (lp_eur_usd.to_string(), Uint64::from(50u64)),
+            (lp_cny_eur.to_string(), Uint128::from(50u64)),
+            (lp_eur_usd.to_string(), Uint128::from(50u64)),
         ],
     };
 
@@ -1104,8 +1104,8 @@ fn generator_with_mirror_reward_proxy() {
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![
-            (lp_cny_eur.to_string(), Uint64::new(60)),
-            (lp_eur_usd.to_string(), Uint64::new(40)),
+            (lp_cny_eur.to_string(), Uint128::new(60)),
+            (lp_eur_usd.to_string(), Uint128::new(40)),
         ],
     };
 
@@ -1480,7 +1480,7 @@ fn move_to_proxy() {
         &mut app,
         &generator_instance,
         vec![PoolWithProxy {
-            pool: (lp_cny_eur.to_string(), Uint64::from(50u32)),
+            pool: (lp_cny_eur.to_string(), Uint128::from(50u32)),
             proxy: None,
         }],
     );
@@ -1655,7 +1655,7 @@ fn query_all_stakers() {
         &mut app,
         &generator_instance,
         vec![PoolWithProxy {
-            pool: (lp_cny_eur.to_string(), Uint64::new(100u64)),
+            pool: (lp_cny_eur.to_string(), Uint128::new(100)),
             proxy: None,
         }],
     );
@@ -1806,7 +1806,7 @@ fn query_pagination_stakers() {
         &mut app,
         &generator_instance,
         vec![PoolWithProxy {
-            pool: (lp_cny_eur.to_string(), Uint64::from(100u32)),
+            pool: (lp_cny_eur.to_string(), Uint128::from(100u32)),
             proxy: None,
         }],
     );
@@ -1975,15 +1975,15 @@ fn update_tokens_blocked_list() {
         &generator_instance,
         vec![
             PoolWithProxy {
-                pool: (lp_cny_eur.to_string(), Uint64::new(100u64)),
+                pool: (lp_cny_eur.to_string(), Uint128::new(100)),
                 proxy: None,
             },
             PoolWithProxy {
-                pool: (lp_cny_ukr.to_string(), Uint64::new(100u64)),
+                pool: (lp_cny_ukr.to_string(), Uint128::new(100)),
                 proxy: None,
             },
             PoolWithProxy {
-                pool: (lp_eur_msi.to_string(), Uint64::new(100u64)),
+                pool: (lp_eur_msi.to_string(), Uint128::new(100)),
                 proxy: None,
             },
         ],
@@ -2031,9 +2031,9 @@ fn update_tokens_blocked_list() {
     // check if we cannot change the allocation point for blocked token
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![
-            (lp_cny_eur.to_string(), Uint64::from(60u32)),
-            (lp_cny_ukr.to_string(), Uint64::from(40u32)),
-            (lp_eur_msi.to_string(), Uint64::from(140u32)),
+            (lp_cny_eur.to_string(), Uint128::from(60u32)),
+            (lp_cny_ukr.to_string(), Uint128::from(40u32)),
+            (lp_eur_msi.to_string(), Uint128::from(140u32)),
         ],
     };
     let err = app
@@ -2047,7 +2047,7 @@ fn update_tokens_blocked_list() {
 
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {
-        pools: vec![(lp_eur_msi.to_string(), Uint64::from(140u32))],
+        pools: vec![(lp_eur_msi.to_string(), Uint128::from(140u32))],
     };
 
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
@@ -2062,7 +2062,7 @@ fn update_tokens_blocked_list() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::zero(), reps.alloc_point);
+    assert_eq!(Uint128::zero(), reps.alloc_point);
 
     let msg_cny_eur = QueryMsg::PoolInfo {
         lp_token: lp_cny_ukr.to_string(),
@@ -2073,7 +2073,7 @@ fn update_tokens_blocked_list() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::zero(), reps.alloc_point);
+    assert_eq!(Uint128::zero(), reps.alloc_point);
 
     let msg_cny_eur = QueryMsg::PoolInfo {
         lp_token: lp_eur_msi.to_string(),
@@ -2084,7 +2084,7 @@ fn update_tokens_blocked_list() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::new(140), reps.alloc_point);
+    assert_eq!(Uint128::new(140), reps.alloc_point);
 
     let msg = ExecuteMsg::UpdateTokensBlockedlist {
         add: None,
@@ -2110,9 +2110,9 @@ fn update_tokens_blocked_list() {
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![
-            (lp_cny_eur.to_string(), Uint64::from(60u32)),
-            (lp_cny_ukr.to_string(), Uint64::from(40u32)),
-            (lp_eur_msi.to_string(), Uint64::from(140u32)),
+            (lp_cny_eur.to_string(), Uint128::from(60u32)),
+            (lp_cny_ukr.to_string(), Uint128::from(40u32)),
+            (lp_eur_msi.to_string(), Uint128::from(140u32)),
         ],
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
@@ -2127,7 +2127,7 @@ fn update_tokens_blocked_list() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::new(60), reps.alloc_point);
+    assert_eq!(Uint128::new(60), reps.alloc_point);
 
     let msg_cny_eur = QueryMsg::PoolInfo {
         lp_token: lp_cny_ukr.to_string(),
@@ -2138,7 +2138,7 @@ fn update_tokens_blocked_list() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::new(40), reps.alloc_point);
+    assert_eq!(Uint128::new(40), reps.alloc_point);
 
     let msg_cny_eur = QueryMsg::PoolInfo {
         lp_token: lp_eur_msi.to_string(),
@@ -2149,7 +2149,7 @@ fn update_tokens_blocked_list() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::new(140), reps.alloc_point);
+    assert_eq!(Uint128::new(140), reps.alloc_point);
 }
 
 #[test]
@@ -2238,15 +2238,15 @@ fn setup_pools() {
         &generator_instance,
         vec![
             PoolWithProxy {
-                pool: (lp_cny_eur.to_string(), Uint64::new(100u64)),
+                pool: (lp_cny_eur.to_string(), Uint128::new(100)),
                 proxy: None,
             },
             PoolWithProxy {
-                pool: (lp_cny_uusd.to_string(), Uint64::new(100u64)),
+                pool: (lp_cny_uusd.to_string(), Uint128::new(100)),
                 proxy: None,
             },
             PoolWithProxy {
-                pool: (lp_eur_uusd.to_string(), Uint64::new(100u64)),
+                pool: (lp_eur_uusd.to_string(), Uint128::new(100)),
                 proxy: None,
             },
         ],
@@ -2280,7 +2280,7 @@ fn setup_pools() {
             },
         )
         .unwrap();
-    assert_eq!(Uint64::zero(), res.alloc_point);
+    assert_eq!(Uint128::zero(), res.alloc_point);
 
     // Check pool length
     let res: PoolLengthResponse = app
@@ -2295,9 +2295,9 @@ fn setup_pools() {
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![
-            (lp_cny_eur.to_string(), Uint64::from(60u32)),
-            (lp_eur_uusd.to_string(), Uint64::from(40u32)),
-            (lp_cny_uusd.to_string(), Uint64::from(140u32)),
+            (lp_cny_eur.to_string(), Uint128::from(60u32)),
+            (lp_eur_uusd.to_string(), Uint128::from(40u32)),
+            (lp_cny_uusd.to_string(), Uint128::from(140u32)),
         ],
     };
 
@@ -2312,8 +2312,8 @@ fn setup_pools() {
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![
-            (lp_eur_uusd.to_string(), Uint64::from(40u32)),
-            (lp_cny_uusd.to_string(), Uint64::from(140u32)),
+            (lp_eur_uusd.to_string(), Uint128::from(40u32)),
+            (lp_cny_uusd.to_string(), Uint128::from(140u32)),
         ],
     };
 
@@ -2329,7 +2329,7 @@ fn setup_pools() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::zero(), reps.alloc_point);
+    assert_eq!(Uint128::zero(), reps.alloc_point);
 
     let msg_cny_eur = QueryMsg::PoolInfo {
         lp_token: lp_cny_uusd.to_string(),
@@ -2340,7 +2340,7 @@ fn setup_pools() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::new(140), reps.alloc_point);
+    assert_eq!(Uint128::new(140), reps.alloc_point);
 
     let msg_cny_eur = QueryMsg::PoolInfo {
         lp_token: lp_eur_uusd.to_string(),
@@ -2351,13 +2351,13 @@ fn setup_pools() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::new(40), reps.alloc_point);
+    assert_eq!(Uint128::new(40), reps.alloc_point);
 
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![
-            (lp_eur_uusd.to_string(), Uint64::from(80u32)),
-            (lp_cny_uusd.to_string(), Uint64::from(80u32)),
+            (lp_eur_uusd.to_string(), Uint128::from(80u32)),
+            (lp_cny_uusd.to_string(), Uint128::from(80u32)),
         ],
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
@@ -2372,7 +2372,7 @@ fn setup_pools() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::zero(), reps.alloc_point);
+    assert_eq!(Uint128::zero(), reps.alloc_point);
 
     let msg_cny_eur = QueryMsg::PoolInfo {
         lp_token: lp_cny_uusd.to_string(),
@@ -2383,7 +2383,7 @@ fn setup_pools() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::new(80), reps.alloc_point);
+    assert_eq!(Uint128::new(80), reps.alloc_point);
 
     let msg_cny_eur = QueryMsg::PoolInfo {
         lp_token: lp_eur_uusd.to_string(),
@@ -2394,7 +2394,7 @@ fn setup_pools() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::new(80), reps.alloc_point);
+    assert_eq!(Uint128::new(80), reps.alloc_point);
 }
 
 #[test]
@@ -2490,15 +2490,15 @@ fn deactivate_pools_by_pair_types() {
         &generator_instance,
         vec![
             PoolWithProxy {
-                pool: (lp_cny_eur.to_string(), Uint64::new(100u64)),
+                pool: (lp_cny_eur.to_string(), Uint128::new(100)),
                 proxy: None,
             },
             PoolWithProxy {
-                pool: (lp_cny_uusd.to_string(), Uint64::new(100u64)),
+                pool: (lp_cny_uusd.to_string(), Uint128::new(100)),
                 proxy: None,
             },
             PoolWithProxy {
-                pool: (lp_eur_uusd.to_string(), Uint64::new(100u64)),
+                pool: (lp_eur_uusd.to_string(), Uint128::new(100)),
                 proxy: None,
             },
         ],
@@ -2559,14 +2559,14 @@ fn deactivate_pools_by_pair_types() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::zero(), reps.alloc_point);
+    assert_eq!(Uint128::zero(), reps.alloc_point);
 
     // try to change alloc point for blacklisted pool by pair type
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![
-            (lp_cny_eur.to_string(), Uint64::from(60u32)),
-            (lp_eur_uusd.to_string(), Uint64::from(40u32)),
-            (lp_cny_uusd.to_string(), Uint64::from(140u32)),
+            (lp_cny_eur.to_string(), Uint128::from(60u32)),
+            (lp_eur_uusd.to_string(), Uint128::from(40u32)),
+            (lp_cny_uusd.to_string(), Uint128::from(140u32)),
         ],
     };
 
@@ -2581,8 +2581,8 @@ fn deactivate_pools_by_pair_types() {
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![
-            (lp_cny_eur.to_string(), Uint64::from(60u32)),
-            (lp_eur_uusd.to_string(), Uint64::from(40u32)),
+            (lp_cny_eur.to_string(), Uint128::from(60u32)),
+            (lp_eur_uusd.to_string(), Uint128::from(40u32)),
         ],
     };
 
@@ -2598,7 +2598,7 @@ fn deactivate_pools_by_pair_types() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::new(60), reps.alloc_point);
+    assert_eq!(Uint128::new(60), reps.alloc_point);
 
     let msg_cny_eur = QueryMsg::PoolInfo {
         lp_token: lp_cny_uusd.to_string(),
@@ -2609,7 +2609,7 @@ fn deactivate_pools_by_pair_types() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::zero(), reps.alloc_point);
+    assert_eq!(Uint128::zero(), reps.alloc_point);
 
     let msg_cny_eur = QueryMsg::PoolInfo {
         lp_token: lp_eur_uusd.to_string(),
@@ -2620,7 +2620,7 @@ fn deactivate_pools_by_pair_types() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::new(40), reps.alloc_point);
+    assert_eq!(Uint128::new(40), reps.alloc_point);
 
     // remove stable pair type from blacklist
     let msg = FactoryExecuteMsg::UpdatePairConfig {
@@ -2650,8 +2650,8 @@ fn deactivate_pools_by_pair_types() {
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {
         pools: vec![
-            (lp_eur_uusd.to_string(), Uint64::from(80u32)),
-            (lp_cny_uusd.to_string(), Uint64::from(80u32)),
+            (lp_eur_uusd.to_string(), Uint128::from(80u32)),
+            (lp_cny_uusd.to_string(), Uint128::from(80u32)),
         ],
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
@@ -2666,7 +2666,7 @@ fn deactivate_pools_by_pair_types() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Uint64::zero(), reps.alloc_point);
+    assert_eq!(Uint128::zero(), reps.alloc_point);
 
     let msg_cny_uusd = QueryMsg::PoolInfo {
         lp_token: lp_cny_uusd.to_string(),
@@ -2677,7 +2677,7 @@ fn deactivate_pools_by_pair_types() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_uusd)
         .unwrap();
-    assert_eq!(Uint64::new(80), reps.alloc_point);
+    assert_eq!(Uint128::new(80), reps.alloc_point);
 
     let msg_eur_uusd = QueryMsg::PoolInfo {
         lp_token: lp_eur_uusd.to_string(),
@@ -2688,7 +2688,7 @@ fn deactivate_pools_by_pair_types() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_eur_uusd)
         .unwrap();
-    assert_eq!(Uint64::new(80), reps.alloc_point);
+    assert_eq!(Uint128::new(80), reps.alloc_point);
 }
 
 fn mock_app() -> TerraApp {
@@ -3025,7 +3025,7 @@ fn register_lp_tokens_in_generator(
     generator_instance: &Addr,
     pools_with_proxy: Vec<PoolWithProxy>,
 ) {
-    let pools: Vec<(String, Uint64)> = pools_with_proxy.iter().map(|p| p.pool.clone()).collect();
+    let pools: Vec<(String, Uint128)> = pools_with_proxy.iter().map(|p| p.pool.clone()).collect();
 
     app.execute_contract(
         Addr::unchecked(OWNER),

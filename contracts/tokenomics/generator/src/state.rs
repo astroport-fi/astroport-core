@@ -32,7 +32,7 @@ pub struct Config {
     /// Total amount of ASTRO rewards per block
     pub tokens_per_block: Uint128,
     /// Total allocation points. Must be the sum of all allocation points in all active generators
-    pub total_alloc_point: Uint64,
+    pub total_alloc_point: Uint128,
     /// The block number when the ASTRO distribution starts
     pub start_block: Uint64,
     /// The list of allowed proxy reward contracts
@@ -40,7 +40,7 @@ pub struct Config {
     /// The vesting contract from which rewards are distributed
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points
-    pub active_pools: Vec<(Addr, Uint64)>,
+    pub active_pools: Vec<(Addr, Uint128)>,
     /// The blocked list of tokens
     pub blocked_list_tokens: Vec<AssetInfo>,
     /// The guardian address which can add or remove tokens from blacklist

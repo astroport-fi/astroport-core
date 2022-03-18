@@ -73,7 +73,7 @@ pub fn instantiate(
         guardian: None,
         astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
         tokens_per_block: msg.tokens_per_block,
-        total_alloc_point: Uint64::from(0u64),
+        total_alloc_point: Uint128::zero(),
         start_block: msg.start_block,
         allowed_reward_proxies,
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
@@ -326,7 +326,7 @@ fn deactivate_pools(
                 // recalculate total allocation point before resetting the allocation point of pool
                 cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
                 // sets allocation point to zero for each pool with blacklisted pair type
-                pool.1 = Uint64::zero();
+                pool.1 = Uint128::zero();
             }
         }
     }
@@ -394,7 +394,7 @@ fn update_tokens_blockedlist(
                         // Recalculate total allocation points before resetting the pool allocation points
                         cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
                         // Sets allocation points to zero for each pool with blacklisted tokens
-                        pool.1 = Uint64::zero();
+                        pool.1 = Uint128::zero();
                     }
                 }
             }
@@ -475,7 +475,7 @@ pub fn execute_setup_pools(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    pools: Vec<(String, Uint64)>,
+    pools: Vec<(String, Uint128)>,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.owner && Some(info.sender) != cfg.generator_controller {
@@ -487,7 +487,7 @@ pub fn execute_setup_pools(
         return Err(ContractError::PoolDuplicate {});
     }
 
-    let mut setup_pools: Vec<(Addr, Uint64)> = vec![];
+    let mut setup_pools: Vec<(Addr, Uint128)> = vec![];
 
     let blacklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
         cfg.factory.clone(),
@@ -756,7 +756,7 @@ pub fn deactivate_pool(deps: DepsMut, lp_token: Addr) -> Result<Response, Contra
     // Sets the pool allocation points to zero
     for pool in &mut cfg.active_pools {
         if pool.0 == lp_token {
-            pool.1 = Uint64::zero();
+            pool.1 = Uint128::zero();
             break;
         }
     }
@@ -1861,8 +1861,8 @@ fn query_pool_info(
     let astro_tokens_per_block: Uint128;
     astro_tokens_per_block = config
         .tokens_per_block
-        .checked_mul(Uint128::from(alloc_point.u64()))?
-        .checked_div(Uint128::from(config.total_alloc_point.u64()))
+        .checked_mul(alloc_point)?
+        .checked_div(config.total_alloc_point)
         .unwrap_or_else(|_| Uint128::zero());
 
     Ok(PoolInfoResponse {
@@ -1906,8 +1906,8 @@ pub fn query_simulate_future_reward(
 
     let simulated_reward = n_blocks
         .checked_mul(cfg.tokens_per_block)?
-        .checked_mul(Uint128::from(alloc_point.u64()))?
-        .checked_div(Uint128::from(cfg.total_alloc_point.u64()))
+        .checked_mul(alloc_point)?
+        .checked_div(cfg.total_alloc_point)
         .unwrap_or_else(|_| Uint128::zero());
 
     Ok(simulated_reward)
@@ -1975,7 +1975,7 @@ pub fn query_list_of_stakers(
 pub fn calculate_rewards(
     env: &Env,
     pool: &PoolInfo,
-    alloc_point: &Uint64,
+    alloc_point: &Uint128,
     cfg: &Config,
 ) -> StdResult<Uint128> {
     let n_blocks = Uint128::from(env.block.height).checked_sub(pool.last_reward_block.into())?;
@@ -1984,8 +1984,8 @@ pub fn calculate_rewards(
     if !cfg.total_alloc_point.is_zero() {
         r = n_blocks
             .checked_mul(cfg.tokens_per_block)?
-            .checked_mul(Uint128::from(alloc_point.u64()))?
-            .checked_div(Uint128::from(cfg.total_alloc_point.u64()))?;
+            .checked_mul(*alloc_point)?
+            .checked_div(cfg.total_alloc_point)?;
     } else {
         r = Uint128::zero();
     }
@@ -1999,7 +1999,7 @@ pub fn calculate_rewards(
 /// * **pools** is a vector of set that contains LP token address and allocation point.
 ///
 /// * **lp_token** is an object of type [`Addr`].
-pub fn get_alloc_point(pools: &[(Addr, Uint64)], lp_token: &Addr) -> Uint64 {
+pub fn get_alloc_point(pools: &[(Addr, Uint128)], lp_token: &Addr) -> Uint128 {
     pools
         .iter()
         .find_map(|(addr, alloc_point)| {
@@ -2008,7 +2008,7 @@ pub fn get_alloc_point(pools: &[(Addr, Uint64)], lp_token: &Addr) -> Uint64 {
             }
             None
         })
-        .unwrap_or_else(Uint64::zero)
+        .unwrap_or_else(Uint128::zero)
 }
 
 /// ## Description
