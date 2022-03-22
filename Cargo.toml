@@ -3,6 +3,7 @@ members = [
     "packages/*",
     "contracts/factory",
     "contracts/pair",
+    "contracts/pair_anchor",
     "contracts/pair_stable",
     "contracts/pair_stable_bluna",
     "contracts/router",
