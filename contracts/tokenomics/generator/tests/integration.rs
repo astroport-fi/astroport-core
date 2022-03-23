@@ -1608,6 +1608,45 @@ fn move_to_proxy() {
         "The pool already has a reward proxy contract!",
         err.to_string()
     );
+
+    let (new_token_instance, new_token_staking_instance) =
+        instantiate_mirror_protocol(&mut app, token_code_id, &pair_cny_eur, &lp_cny_eur);
+
+    let new_proxy = instantiate_proxy(
+        &mut app,
+        proxy_code_id,
+        &generator_instance,
+        &pair_cny_eur,
+        &lp_cny_eur,
+        &new_token_staking_instance,
+        &new_token_instance,
+    );
+
+    let msg = GeneratorExecuteMsg::SetAllowedRewardProxies {
+        proxies: vec![proxy_to_mirror_instance.to_string(), new_proxy.to_string()],
+    };
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Migrate to another reward proxy
+    let msg = ExecuteMsg::MigrateProxy {
+        lp_token: lp_cny_eur.to_string(),
+        new_proxy: new_proxy.to_string(),
+    };
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Check LP tokens have been successfully transferred
+    check_token_balance(&mut app, &lp_cny_eur, &mirror_staking_instance, 0);
+    check_token_balance(&mut app, &lp_cny_eur, &new_token_staking_instance, 10);
+    // Check proxy reward tokens have been successfully transferred
+    check_token_balance(
+        &mut app,
+        &mirror_token_instance,
+        &proxy_to_mirror_instance,
+        0,
+    );
+    check_token_balance(&mut app, &mirror_token_instance, &new_proxy, 50000000);
 }
 
 #[test]

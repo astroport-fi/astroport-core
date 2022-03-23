@@ -124,7 +124,14 @@ pub enum ExecuteMsg {
     /// Sets a proxy for the pool
     /// ## Executor
     /// Only the current owner or generator controller can execute this
-    MoveToProxy { lp_token: String, proxy: String },
+    MoveToProxy {
+        lp_token: String,
+        proxy: String,
+    },
+    MigrateProxy {
+        lp_token: String,
+        new_proxy: String,
+    },
     /// Add or remove token to blocked list
     UpdateTokensBlockedlist {
         /// Tokens to add
@@ -133,9 +140,13 @@ pub enum ExecuteMsg {
         remove: Option<Vec<AssetInfo>>,
     },
     /// Sets the allocation point to zero for the specified pool
-    DeactivatePool { lp_token: String },
+    DeactivatePool {
+        lp_token: String,
+    },
     /// Sets the allocation point to zero for each pool by the pair type
-    DeactivatePools { pair_types: Vec<PairType> },
+    DeactivatePools {
+        pair_types: Vec<PairType>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -195,6 +206,8 @@ pub struct PoolInfo {
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
     pub accumulated_proxy_rewards_per_share: Decimal,
+    /// Accumulated reward indexes before proxy migration. Vector of pairs (reward_token, index).
+    // pub previous_reward_indexes: Vec<(Addr, Decimal)>,
     /// for calculation of new proxy rewards
     pub proxy_reward_balance_before_update: Uint128,
     /// the orphan proxy rewards which are left by emergency withdrawals

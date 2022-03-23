@@ -180,6 +180,10 @@ pub fn execute(
         ExecuteMsg::MoveToProxy { lp_token, proxy } => {
             move_to_proxy(deps, env, info, lp_token, proxy)
         }
+        ExecuteMsg::MigrateProxy {
+            lp_token,
+            new_proxy,
+        } => migrate_proxy(deps, env, info, lp_token, new_proxy),
         ExecuteMsg::UpdateAllowedProxies { add, remove } => {
             update_allowed_proxies(deps, info, add, remove)
         }
@@ -738,6 +742,15 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                 ExecuteOnReply::SetTokensPerBlock { amount } => {
                     set_tokens_per_block(deps, env, amount)
                 }
+                ExecuteOnReply::MigrateProxy {
+                    lp_addr,
+                    new_proxy_addr,
+                } => migrate_proxy_callback(deps, env, lp_addr, new_proxy_addr),
+                ExecuteOnReply::MigrateProxyDepositLP {
+                    lp_addr,
+                    new_proxy_addr,
+                    amount,
+                } => migrate_proxy_deposit_lp(deps, lp_addr, new_proxy_addr, amount),
             }
         }
         None => Ok(Response::default()),
@@ -1412,6 +1425,151 @@ fn send_orphan_proxy_rewards(
         .add_attribute("recipient", recipient)
         .add_attribute("lp_token", lp_token.to_string())
         .add_attribute("amount", amount))
+}
+
+fn migrate_proxy(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    lp_token: String,
+    new_proxy: String,
+) -> Result<Response, ContractError> {
+    let lp_addr = addr_validate_to_lower(deps.api, &lp_token)?;
+    let new_proxy_addr = addr_validate_to_lower(deps.api, &new_proxy)?;
+
+    let cfg = CONFIG.load(deps.storage)?;
+
+    // Permission check
+    if info.sender != cfg.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if !cfg.allowed_reward_proxies.contains(&new_proxy_addr) {
+        return Err(ContractError::RewardProxyNotAllowed {});
+    }
+
+    // Check the pool has reward proxy
+    POOL_INFO
+        .load(deps.storage, &lp_addr)?
+        .reward_proxy
+        .ok_or_else(|| StdError::generic_err("Pool does not have proxy"))?;
+
+    update_rewards_and_execute(
+        deps,
+        env,
+        Some(lp_addr.clone()),
+        ExecuteOnReply::MigrateProxy {
+            lp_addr,
+            new_proxy_addr,
+        },
+    )
+}
+
+fn migrate_proxy_callback(
+    deps: DepsMut,
+    env: Env,
+    lp_addr: Addr,
+    new_proxy_addr: Addr,
+) -> Result<Response, ContractError> {
+    let pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
+    // We've checked this before the callback so it's safe to unwrap here
+    let prev_proxy = pool_info.reward_proxy.unwrap();
+    let prev_proxy_config: astroport::generator_proxy::ConfigResponse = deps
+        .querier
+        .query_wasm_smart(&prev_proxy, &QueryMsg::Config {})?;
+
+    let proxy_lp_balance: BalanceResponse = deps.querier.query_wasm_smart(
+        &lp_addr,
+        &Cw20QueryMsg::Balance {
+            address: prev_proxy_config.reward_contract_addr.to_string(),
+        },
+    )?;
+    let proxy_reward_amount: Uint128 = deps
+        .querier
+        .query_wasm_smart(&prev_proxy, &ProxyQueryMsg::Reward {})?;
+
+    let mut submessages = vec![];
+    // Migrate collected rewards to new proxy contract
+    if !proxy_reward_amount.is_zero() {
+        submessages.push(SubMsg::new(WasmMsg::Execute {
+            contract_addr: prev_proxy.to_string(),
+            msg: to_binary(&ProxyExecuteMsg::SendRewards {
+                account: new_proxy_addr.to_string(),
+                amount: proxy_reward_amount,
+            })?,
+            funds: vec![],
+        }))
+    }
+    // Migrate all LP tokens to new proxy contract
+    if !proxy_lp_balance.balance.is_zero() {
+        // Firstly, transferring all LP tokens to generator address
+        submessages.push(SubMsg::reply_on_success(
+            WasmMsg::Execute {
+                contract_addr: prev_proxy.to_string(),
+                msg: to_binary(&ProxyExecuteMsg::Withdraw {
+                    account: env.contract.address.to_string(),
+                    amount: proxy_lp_balance.balance,
+                })?,
+                funds: vec![],
+            },
+            0,
+        ));
+        // Secondly, depositing them to new proxy through generator balance
+        TMP_USER_ACTION.update(deps.storage, |v| {
+            if v.is_some() {
+                Err(StdError::generic_err("Repetitive reply definition!"))
+            } else {
+                Ok(Some(ExecuteOnReply::MigrateProxyDepositLP {
+                    lp_addr,
+                    new_proxy_addr,
+                    amount: proxy_lp_balance.balance,
+                }))
+            }
+        })?;
+        Ok(Response::new().add_submessages(submessages))
+    } else {
+        // Nothing to migrate but there may leave rewards. So transferring them into new proxy address
+        Ok(Response::new()
+            .add_submessages(submessages)
+            .add_attributes([
+                ("action", "migrate_proxy"),
+                ("lp_token", lp_addr.as_str()),
+                ("from", prev_proxy.as_str()),
+                ("to", new_proxy_addr.as_str()),
+            ]))
+    }
+}
+
+fn migrate_proxy_deposit_lp(
+    deps: DepsMut,
+    lp_addr: Addr,
+    new_proxy: Addr,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
+    // We've checked this before the callback so it's safe to unwrap here
+    let prev_proxy = pool_info.reward_proxy.unwrap();
+
+    // Depositing LP tokens to new proxy
+    let deposit_msg = WasmMsg::Execute {
+        contract_addr: lp_addr.to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Send {
+            contract: new_proxy.to_string(),
+            msg: to_binary(&ProxyCw20HookMsg::Deposit {})?,
+            amount,
+        })?,
+        funds: vec![],
+    };
+
+    pool_info.reward_proxy = Some(new_proxy.clone());
+    POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
+
+    Ok(Response::new().add_message(deposit_msg).add_attributes([
+        ("action", "migrate_proxy"),
+        ("lp_token", lp_addr.as_str()),
+        ("from", prev_proxy.as_str()),
+        ("to", new_proxy.as_str()),
+    ]))
 }
 
 /// ## Description

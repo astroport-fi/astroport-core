@@ -79,6 +79,14 @@ pub enum ExecuteOnReply {
         /// The new amount of ASTRO to distribute per block
         amount: Uint128,
     },
+    /// Migrate LP tokens and collected rewards to new proxy
+    MigrateProxy { lp_addr: Addr, new_proxy_addr: Addr },
+    /// Stake LP tokens into new reward proxy
+    MigrateProxyDepositLP {
+        lp_addr: Addr,
+        new_proxy_addr: Addr,
+        amount: Uint128,
+    },
 }
 
 /// Stores the contract config at the given key
