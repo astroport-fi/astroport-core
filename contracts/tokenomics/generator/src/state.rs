@@ -2,7 +2,7 @@ use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
 use astroport::generator::PoolInfo;
 use astroport::DecimalCheckedOps;
-use cosmwasm_std::{Addr, StdResult, Uint128, Uint64};
+use cosmwasm_std::{Addr, Decimal, StdResult, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -95,6 +95,12 @@ pub const CONFIG: Item<Config> = Item::new("config");
 ///
 /// The first key is the address of a LP token, the second key is an object of type [`PoolInfo`].
 pub const POOL_INFO: Map<&Addr, PoolInfo> = Map::new("pool_info");
+/// LP token -> reward token = reward index
+pub const PROXY_REWARD_INDEXES: Map<(&Addr, &Addr), Decimal> = Map::new("proxy_reward_indexes");
+/// user addr -> LP token -> reward token = amount
+pub const PROXY_REWARD_DEBT: Map<(&Addr, &Addr, &Addr), Uint128> = Map::new("proxy_reward_debt");
+/// LP token -> reward token
+pub const FIRST_PROXY_REWARD_TOKEN: Map<&Addr, &Addr> = Map::new("first_proxy_reward_token");
 pub const TMP_USER_ACTION: Item<Option<ExecuteOnReply>> = Item::new("tmp_user_action");
 
 /// This is a map that contains information about all stakers.

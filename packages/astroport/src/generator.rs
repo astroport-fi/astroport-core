@@ -206,8 +206,6 @@ pub struct PoolInfo {
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
     pub accumulated_proxy_rewards_per_share: Decimal,
-    /// Accumulated reward indexes before proxy migration. Vector of pairs (reward_token, index).
-    // pub previous_reward_indexes: Vec<(Addr, Decimal)>,
     /// for calculation of new proxy rewards
     pub proxy_reward_balance_before_update: Uint128,
     /// the orphan proxy rewards which are left by emergency withdrawals
