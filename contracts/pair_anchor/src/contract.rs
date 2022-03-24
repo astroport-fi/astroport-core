@@ -1,7 +1,6 @@
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 
-use astroport::querier::query_factory_config;
 use cosmwasm_bignumber:: {Decimal256, Uint256};
 
 use cosmwasm_std::{
@@ -37,8 +36,6 @@ use std::vec;
 const CONTRACT_NAME: &str = "astroport-pair-anchor";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-// /// A `reply` call code ID used for sub-messages.
-// const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 
 // contract
 // terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s
@@ -185,7 +182,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::UpdateConfig { params } => Err(ContractError::NonSupported {}),
+        ExecuteMsg::UpdateConfig { .. } => Err(ContractError::NonSupported {}),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ProvideLiquidity { .. } => Err(ContractError::NonSupported {}),
         ExecuteMsg::Swap {

@@ -11,5 +11,5 @@ mod testing;
 #[cfg(test)]
 mod mock_querier;
 
-// #[cfg(integration)]
+// #[cfg(test)]
 pub mod mock_anchor_contract;

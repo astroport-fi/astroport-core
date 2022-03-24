@@ -32,10 +32,10 @@ const CONFIG: Item<Config> = Item::new("config");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: AnchorInstantiateMsg,
+    _msg: AnchorInstantiateMsg,
 ) -> Result<Response, ContractError> {
 
     Ok(Response::new())
@@ -72,7 +72,7 @@ pub fn reply(_deps: DepsMut, _env: Env, _msg: Reply) -> Result<Response, Contrac
 pub fn receive_cw20(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     match from_binary(&cw20_msg.msg) {
