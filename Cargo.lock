@@ -50,7 +50,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-factory"
-version = "1.0.0"
+version = "1.0.0-fix1"
 dependencies = [
  "astroport",
  "astroport-pair",
@@ -172,7 +172,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-stable"
-version = "1.0.0"
+version = "1.0.0-fix1"
 dependencies = [
  "astroport",
  "astroport-factory",
