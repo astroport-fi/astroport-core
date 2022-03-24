@@ -100,7 +100,7 @@ pub const PROXY_REWARD_INDEXES: Map<(&Addr, &Addr), Decimal> = Map::new("proxy_r
 /// user addr -> LP token -> reward token = amount
 pub const PROXY_REWARD_DEBT: Map<(&Addr, &Addr, &Addr), Uint128> = Map::new("proxy_reward_debt");
 /// LP token -> reward token
-pub const FIRST_PROXY_REWARD_TOKEN: Map<&Addr, &Addr> = Map::new("first_proxy_reward_token");
+pub const FIRST_PROXY_REWARD_TOKEN: Map<&Addr, Addr> = Map::new("first_proxy_reward_token");
 pub const TMP_USER_ACTION: Item<Option<ExecuteOnReply>> = Item::new("tmp_user_action");
 
 /// This is a map that contains information about all stakers.

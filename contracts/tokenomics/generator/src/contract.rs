@@ -1524,7 +1524,7 @@ fn migrate_proxy_callback(
             .may_load(deps.storage, &lp_addr)?
             .is_none()
         {
-            FIRST_PROXY_REWARD_TOKEN.save(deps.storage, &lp_addr, &&prev_proxy)
+            FIRST_PROXY_REWARD_TOKEN.save(deps.storage, &lp_addr, &prev_proxy)?
         };
         pool_info.accumulated_proxy_rewards_per_share = Decimal::zero();
     }
