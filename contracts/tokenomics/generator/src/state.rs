@@ -16,6 +16,8 @@ pub struct UserInfo {
     pub reward_debt: Uint128,
     /// Proxy reward amount a user already received or is not eligible for; used for proper reward calculation
     pub reward_debt_proxy: Uint128,
+    /// The amount of boosting emission
+    pub boost_amount: Uint128,
 }
 
 /// This structure stores the core parameters for the Generator contract.

@@ -1,3 +1,6 @@
+use astroport_governance::generator_controller::{
+    ConfigResponse as GeneratorControllerConfigResponse, QueryMsg as GeneratorControllerQueryMsg,
+};
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env,
     MessageInfo, Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
@@ -162,6 +165,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::CheckPoints { user, generators } => check_points(deps, env, user, generators),
         ExecuteMsg::DeactivatePools { pair_types } => deactivate_pools(deps, env, pair_types),
         ExecuteMsg::DeactivatePool { lp_token } => {
             let cfg = CONFIG.load(deps.storage)?;
@@ -277,6 +281,32 @@ pub fn execute(
             .map_err(|e| e.into())
         }
     }
+}
+
+/// ## Description
+/// Update user lp emission in specified generators
+fn check_points(
+    mut deps: DepsMut,
+    env: Env,
+    user: String,
+    generators: Vec<String>,
+) -> Result<Response, ContractError> {
+    let user_addr = addr_validate_to_lower(deps.api, &user)?;
+    let config = CONFIG.load(deps.storage)?;
+
+    let voting_escrow;
+    if let Some(generator_controller) = config.generator_controller {
+        let resp: GeneratorControllerConfigResponse = deps.querier.query_wasm_smart(
+            generator_controller.clone(),
+            &GeneratorControllerQueryMsg::Config {},
+        )?;
+        voting_escrow = resp.escrow_addr;
+    } else {
+        return Err(ContractError::GeneratorControllerNotFound {});
+    }
+
+    //let user_vp = get_voting_power(deps.querier, &voting_escrow, &user_addr)?;
+    Ok(Response::new())
 }
 
 /// ## Description
