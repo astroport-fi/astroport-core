@@ -392,8 +392,8 @@ pub fn swap(
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.anchor_market_addr.to_string(),
                 funds: vec![Coin {
-                    denom: denom,
-                    amount: amount,
+                    denom,
+                    amount,
                 }],
                 msg: to_binary(&AnchorExecuteMsg::DepositStable {})?,
             }));
@@ -413,8 +413,8 @@ pub fn swap(
             ask_asset_info: ask_pool.info.clone(),
             sender: sender.to_string(),
             receiver: receiver.to_string(),
-            belief_price: belief_price,
-            max_spread: max_spread
+            belief_price,
+            max_spread
         })?,
     }));
 
