@@ -59,7 +59,7 @@ pub fn execute(
             };
 
             CONFIG.save(deps.storage, &config)?;
-            return Ok(Response::new())
+            Ok(Response::new())
         }
     }
 }
@@ -95,7 +95,7 @@ pub fn deposit_stable(
     let deposit_amount: Uint256 = info
         .funds
         .iter()
-        .find(|c| c.denom == "uusd".to_string())
+        .find(|c| c.denom == *"uusd")
         .map(|c| Uint256::from(c.amount))
         .unwrap_or_else(Uint256::zero);
 
@@ -169,7 +169,7 @@ pub fn redeem_stable(
 }
 
 fn compute_exchange_rate(deps: Deps, env: Env) -> Decimal256 {
-    return query_state(deps, env, None).unwrap().prev_exchange_rate
+    query_state(deps, env, None).unwrap().prev_exchange_rate
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

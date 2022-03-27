@@ -91,7 +91,7 @@ pub fn instantiate(
 
     let config = Config {
         pair_info: PairInfo {
-            contract_addr: env.contract.address.clone(),
+            contract_addr: env.contract.address,
             liquidity_token: Addr::unchecked(""),
             asset_infos: msg.asset_infos.clone(),
             pair_type: PairType::Xyk {},
@@ -223,7 +223,7 @@ pub fn execute(
         } => assert_receive_and_send(
             deps,
             env,
-            info.clone(),
+            info,
             sender,
             offer_asset,
             ask_asset_info,
@@ -342,8 +342,7 @@ pub fn swap(
         .query_pools(&deps.querier, env.clone().contract.address)?
         .iter()
         .map(|p| {
-            let p = p.clone();
-            p
+            p.clone();
         })
         .collect();
 
@@ -410,7 +409,7 @@ pub fn swap(
                 amount: offer_asset.amount,
                 info: offer_pool.info
             },
-            ask_asset_info: ask_pool.info.clone(),
+            ask_asset_info: ask_pool.info,
             sender: sender.to_string(),
             receiver: receiver.to_string(),
             belief_price,
@@ -469,7 +468,7 @@ pub fn assert_receive_and_send(
     }
 
     let offer_amount = offer_asset.amount;
-    let return_amount = ask_asset_info.query_pool(&deps.querier, env.clone().contract.address)?;
+    let return_amount = ask_asset_info.query_pool(&deps.querier, env.contract.address)?;
     let spread_amount = Uint128::from(0u128);
     let commission_amount = Uint128::from(0u128);
 
@@ -615,8 +614,7 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
     let config: Config = CONFIG.load(deps.storage)?;        
     let pools: [AssetInfo; 2] = config.pair_info.asset_infos;
 
-    if offer_asset.info.equal(&pools[0]) {
-    } else if offer_asset.info.equal(&pools[1]) {
+    if offer_asset.info.equal(&pools[0]) || offer_asset.info.equal(&pools[1]) {
     } else {
         return Err(StdError::generic_err(
             "Given offer asset doesn't belong to pairs",
@@ -661,8 +659,7 @@ pub fn query_reverse_simulation(
     let config: Config = CONFIG.load(deps.storage)?;
     let pools: [AssetInfo; 2] = config.pair_info.asset_infos;
 
-    if ask_asset.info.equal(&pools[0]) {
-    } else if ask_asset.info.equal(&pools[1]) {
+    if ask_asset.info.equal(&pools[0]) || ask_asset.info.equal(&pools[1]) {
     } else {
         return Err(StdError::generic_err(
             "Given ask asset doesn't belong to pairs",
@@ -701,7 +698,7 @@ pub fn query_reverse_simulation(
 /// * **env** is an object of type [`Env`].
 pub fn query_cumulative_prices(deps: Deps, _env: Env) -> StdResult<CumulativePricesResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
-    let (assets, total_share) = pool_info(deps, config.clone())?;
+    let (assets, total_share) = pool_info(deps, config)?;
 
     let price0_cumulative_last = Uint128::from(0u128);
     let price1_cumulative_last = Uint128::from(0u128);
