@@ -342,7 +342,7 @@ pub fn swap(
         .query_pools(&deps.querier, env.clone().contract.address)?
         .iter()
         .map(|p| {
-            p.clone();
+            p.clone()
         })
         .collect();
 
