@@ -341,7 +341,8 @@ pub fn swap(
         .pair_info
         .query_pools(&deps.querier, env.clone().contract.address)?
         .iter()
-        .cloned();
+        .cloned()
+        .collect();
 
     let offer_pool: Asset;
     let ask_pool: Asset;
