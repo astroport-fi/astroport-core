@@ -1,7 +1,7 @@
 use crate::contract::reply;
 use crate::contract::{
-    assert_max_spread, execute, instantiate, query_pair_info,
-    query_pool, query_reverse_simulation, query_share, query_simulation,
+    assert_max_spread, execute, instantiate, query_pair_info, query_pool, query_reverse_simulation,
+    query_share, query_simulation,
 };
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
@@ -9,19 +9,17 @@ use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 
 use astroport::pair_anchor::{
-    Cw20HookMsg, ExecuteMsg, PoolResponse, ReverseSimulationResponse,
-    SimulationResponse, AnchorExecuteMsg, AnchorPoolParams,
+    AnchorExecuteMsg, AnchorPoolParams, Cw20HookMsg, ExecuteMsg, PoolResponse,
+    ReverseSimulationResponse, SimulationResponse,
 };
 
-use astroport::pair::{
-    InstantiateMsg
-};
+use astroport::pair::InstantiateMsg;
 
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, ContractResult, CosmosMsg, Decimal, DepsMut,
-    Env, Reply, ReplyOn, SubMsg, SubMsgExecutionResponse, Timestamp, Uint128,
-    WasmMsg, from_binary,
+    attr, from_binary, to_binary, Addr, BankMsg, BlockInfo, Coin, ContractResult, CosmosMsg,
+    Decimal, DepsMut, Env, Reply, ReplyOn, SubMsg, SubMsgExecutionResponse, Timestamp, Uint128,
+    WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
@@ -70,8 +68,13 @@ fn proper_initialization() {
                 contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
             },
         ],
-        init_params: Some(to_binary(&AnchorPoolParams { anchor_market_addr: MOCK_ANCHOR_ADDR.to_string() }).unwrap()),
-        token_code_id: 0u64
+        init_params: Some(
+            to_binary(&AnchorPoolParams {
+                anchor_market_addr: MOCK_ANCHOR_ADDR.to_string(),
+            })
+            .unwrap(),
+        ),
+        token_code_id: 0u64,
     };
 
     let sender = "addr0000";
@@ -79,10 +82,7 @@ fn proper_initialization() {
     let env = mock_env();
     let info = mock_info(sender, &[]);
     let res = instantiate(deps.as_mut(), env, info, msg).unwrap();
-    assert_eq!(
-        res.messages.len(),
-        0
-    );
+    assert_eq!(res.messages.len(), 0);
 
     // Store liquidity token
     store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
@@ -131,8 +131,13 @@ fn provide_liquidity() {
             },
         ],
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&AnchorPoolParams { anchor_market_addr: MOCK_ANCHOR_ADDR.to_string() }).unwrap()),
-        token_code_id: 0u64
+        init_params: Some(
+            to_binary(&AnchorPoolParams {
+                anchor_market_addr: MOCK_ANCHOR_ADDR.to_string(),
+            })
+            .unwrap(),
+        ),
+        token_code_id: 0u64,
     };
 
     let env = mock_env();
@@ -174,10 +179,7 @@ fn provide_liquidity() {
     );
     let res = execute(deps.as_mut(), env.clone().clone(), info, msg);
 
-    assert_eq!(
-        res,
-        Err(ContractError::NonSupported {})
-    )
+    assert_eq!(res, Err(ContractError::NonSupported {}))
 }
 
 #[test]
@@ -212,8 +214,13 @@ fn withdraw_liquidity() {
             },
         ],
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&AnchorPoolParams { anchor_market_addr: MOCK_ANCHOR_ADDR.to_string() }).unwrap()),
-        token_code_id: 0u64
+        init_params: Some(
+            to_binary(&AnchorPoolParams {
+                anchor_market_addr: MOCK_ANCHOR_ADDR.to_string(),
+            })
+            .unwrap(),
+        ),
+        token_code_id: 0u64,
     };
 
     let env = mock_env();
@@ -234,11 +241,8 @@ fn withdraw_liquidity() {
     let env = mock_env();
     let info = mock_info("liquidity0000", &[]);
     let res = execute(deps.as_mut(), env, info, msg);
-    
-    assert_eq!(
-        res,
-        Err(ContractError::NonSupported {})
-    )
+
+    assert_eq!(res, Err(ContractError::NonSupported {}))
 }
 
 #[test]
@@ -279,8 +283,13 @@ fn try_native_to_token() {
             },
         ],
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&AnchorPoolParams { anchor_market_addr: MOCK_ANCHOR_ADDR.to_string() }).unwrap()),
-        token_code_id: 0u64
+        init_params: Some(
+            to_binary(&AnchorPoolParams {
+                anchor_market_addr: MOCK_ANCHOR_ADDR.to_string(),
+            })
+            .unwrap(),
+        ),
+        token_code_id: 0u64,
     };
 
     let env = mock_env();
@@ -390,67 +399,69 @@ fn try_native_to_token() {
         true
     );
 
-
     let first_msg = res.messages.get(0).unwrap();
 
     match first_msg.msg.clone() {
-        CosmosMsg::Wasm(WasmMsg::Execute { funds, contract_addr, msg }) => {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            funds,
+            contract_addr,
+            msg,
+        }) => {
             assert_eq!(contract_addr, MOCK_ANCHOR_ADDR);
             assert_eq!(funds, info.funds);
             match from_binary(&msg).unwrap() {
-                AnchorExecuteMsg::DepositStable {} => {},
-                _ => panic!("DO NOT ENTER HERE")
-            }            
+                AnchorExecuteMsg::DepositStable {} => {}
+                _ => panic!("DO NOT ENTER HERE"),
+            }
         }
-        _ => panic!("DO NOT ENTER HERE")
+        _ => panic!("DO NOT ENTER HERE"),
     }
 
     let second_msg = res.messages.get(1).unwrap();
     let sub_msg: ExecuteMsg;
-    
+
     match second_msg.msg.clone() {
-        CosmosMsg::Wasm(WasmMsg::Execute { funds, contract_addr, msg }) => {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            funds,
+            contract_addr,
+            msg,
+        }) => {
             assert_eq!(contract_addr, MOCK_CONTRACT_ADDR);
             assert_eq!(funds, vec![]);
             sub_msg = from_binary(&msg).unwrap();
 
-            assert_eq!(sub_msg, ExecuteMsg::AssertAndSend {
-                receiver: info.sender.to_string(),    
-                sender: info.sender.to_string(),                
-                offer_asset: Asset {
-                    info: AssetInfo::NativeToken {
-                        denom: "uusd".to_string(),
+            assert_eq!(
+                sub_msg,
+                ExecuteMsg::AssertAndSend {
+                    receiver: info.sender.to_string(),
+                    sender: info.sender.to_string(),
+                    offer_asset: Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: "uusd".to_string(),
+                        },
+                        amount: offer_amount,
                     },
-                    amount: offer_amount,
-                },
-                ask_asset_info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN)
-                },
-                belief_price: None,
-                max_spread: Some(Decimal::percent(50)),
-            });
-           
+                    ask_asset_info: AssetInfo::Token {
+                        contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN)
+                    },
+                    belief_price: None,
+                    max_spread: Some(Decimal::percent(50)),
+                }
+            );
         }
-        _ => panic!("DO NOT ENTER HERE")
+        _ => panic!("DO NOT ENTER HERE"),
     }
 
-
-    assert_eq!(
-        res.attributes,
-        vec![
-            attr("action", "orchestrate"),
-        ]
-    );
+    assert_eq!(res.attributes, vec![attr("action", "orchestrate"),]);
 
     // apply anchor deposit
-    deps.querier.with_token_balances(&[
-        (
-            &String::from(MOCK_ANCHOR_TOKEN),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &expected_return_amount )],
-        ),
-    ]);
+    deps.querier.with_token_balances(&[(
+        &String::from(MOCK_ANCHOR_TOKEN),
+        &[(&String::from(MOCK_CONTRACT_ADDR), &expected_return_amount)],
+    )]);
 
-    let second_response = execute(deps.as_mut(), env.clone().clone(), info_contract, sub_msg).unwrap();
+    let second_response =
+        execute(deps.as_mut(), env.clone().clone(), info_contract, sub_msg).unwrap();
     let msg_transfer = second_response.messages.get(0).expect("no message");
 
     assert_eq!(
@@ -469,7 +480,7 @@ fn try_native_to_token() {
             attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
         ]
     );
-    
+
     assert_eq!(
         &SubMsg {
             msg: WasmMsg::Execute {
@@ -519,19 +530,24 @@ fn try_token_to_native() {
         ),
     ]);
 
-let msg = InstantiateMsg {
-    asset_infos: [
-        AssetInfo::NativeToken {
-            denom: "uusd".to_string(),
-        },
-        AssetInfo::Token {
-            contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
-        },
-    ],
-    factory_addr: String::from("factory"),
-    init_params: Some(to_binary(&AnchorPoolParams { anchor_market_addr: MOCK_ANCHOR_ADDR.to_string() }).unwrap()),
-    token_code_id: 0u64
-};
+    let msg = InstantiateMsg {
+        asset_infos: [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
+            },
+        ],
+        factory_addr: String::from("factory"),
+        init_params: Some(
+            to_binary(&AnchorPoolParams {
+                anchor_market_addr: MOCK_ANCHOR_ADDR.to_string(),
+            })
+            .unwrap(),
+        ),
+        token_code_id: 0u64,
+    };
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
@@ -575,7 +591,7 @@ let msg = InstantiateMsg {
     let info_contract = mock_info(env.contract.address.clone().as_str(), &[]);
 
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
-    
+
     // Current price is 1.216736524026807943
     // so ret_amount = 1_500_000_000 * 1.216736524026807943
     let expected_ret_amount = Uint128::new(1_825_104_786u128);
@@ -654,60 +670,71 @@ let msg = InstantiateMsg {
         true
     );
 
-    
     let first_msg = res.messages.get(0).unwrap();
 
     match first_msg.msg.clone() {
-        CosmosMsg::Wasm(WasmMsg::Execute { funds, contract_addr, msg }) => {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            funds,
+            contract_addr,
+            msg,
+        }) => {
             assert_eq!(contract_addr, MOCK_ANCHOR_TOKEN);
             assert_eq!(funds, vec![]);
             match from_binary(&msg).unwrap() {
-                Cw20ExecuteMsg::Send { contract, amount, msg} => {
+                Cw20ExecuteMsg::Send {
+                    contract,
+                    amount,
+                    msg,
+                } => {
                     assert_eq!(contract, MOCK_ANCHOR_ADDR);
                     assert_eq!(amount, offer_amount);
                     let redeem_msg: AnchorExecuteMsg = from_binary(&msg).unwrap();
-                    assert_eq!(redeem_msg, AnchorExecuteMsg::RedeemStable {  })
-                },
-                _ => panic!("DO NOT ENTER HERE")
-            }            
+                    assert_eq!(redeem_msg, AnchorExecuteMsg::RedeemStable {})
+                }
+                _ => panic!("DO NOT ENTER HERE"),
+            }
         }
-        _ => panic!("DO NOT ENTER HERE")
+        _ => panic!("DO NOT ENTER HERE"),
     }
 
     let second_msg = res.messages.get(1).unwrap();
     let sub_msg: ExecuteMsg;
-    
+
     match second_msg.msg.clone() {
-        CosmosMsg::Wasm(WasmMsg::Execute { funds, contract_addr, msg }) => {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            funds,
+            contract_addr,
+            msg,
+        }) => {
             assert_eq!(contract_addr, MOCK_CONTRACT_ADDR);
             assert_eq!(funds, vec![]);
             sub_msg = from_binary(&msg).unwrap();
 
-            assert_eq!(sub_msg, ExecuteMsg::AssertAndSend {
-                receiver: sender.to_string(),
-                sender: sender.to_string(),
-                offer_asset: Asset {
-                    info: AssetInfo::Token { contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN) },
-                    amount: offer_amount,
-                },
-                ask_asset_info: AssetInfo::NativeToken { denom: "uusd".to_string() },
-                belief_price: None,
-                max_spread: Some(Decimal::percent(50)),
-            });
-           
+            assert_eq!(
+                sub_msg,
+                ExecuteMsg::AssertAndSend {
+                    receiver: sender.to_string(),
+                    sender: sender.to_string(),
+                    offer_asset: Asset {
+                        info: AssetInfo::Token {
+                            contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN)
+                        },
+                        amount: offer_amount,
+                    },
+                    ask_asset_info: AssetInfo::NativeToken {
+                        denom: "uusd".to_string()
+                    },
+                    belief_price: None,
+                    max_spread: Some(Decimal::percent(50)),
+                }
+            );
         }
-        _ => panic!("DO NOT ENTER HERE")
+        _ => panic!("DO NOT ENTER HERE"),
     }
 
-    
-    assert_eq!(
-        res.attributes,
-        vec![
-            attr("action", "orchestrate"),
-        ]
-    );
-    
-    // apply anchor redeem    
+    assert_eq!(res.attributes, vec![attr("action", "orchestrate"),]);
+
+    // apply anchor redeem
     deps.querier.with_balance(&[(
         &String::from(MOCK_CONTRACT_ADDR),
         &[Coin {
@@ -716,7 +743,8 @@ let msg = InstantiateMsg {
         }],
     )]);
 
-    let second_response = execute(deps.as_mut(), env.clone().clone(), info_contract, sub_msg).unwrap();
+    let second_response =
+        execute(deps.as_mut(), env.clone().clone(), info_contract, sub_msg).unwrap();
     let msg_transfer = second_response.messages.get(0).expect("no message");
 
     assert_eq!(
@@ -861,19 +889,24 @@ fn test_query_pool() {
         ),
     ]);
 
-let msg = InstantiateMsg {
-    asset_infos: [
-        AssetInfo::NativeToken {
-            denom: "uusd".to_string(),
-        },
-        AssetInfo::Token {
-            contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
-        },
-    ],
-    factory_addr: String::from("factory"),
-    init_params: Some(to_binary(&AnchorPoolParams { anchor_market_addr: MOCK_ANCHOR_ADDR.to_string() }).unwrap()),
-    token_code_id: 0u64
-};
+    let msg = InstantiateMsg {
+        asset_infos: [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
+            },
+        ],
+        factory_addr: String::from("factory"),
+        init_params: Some(
+            to_binary(&AnchorPoolParams {
+                anchor_market_addr: MOCK_ANCHOR_ADDR.to_string(),
+            })
+            .unwrap(),
+        ),
+        token_code_id: 0u64,
+    };
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
@@ -926,19 +959,24 @@ fn test_query_share() {
         ),
     ]);
 
-let msg = InstantiateMsg {
-    asset_infos: [
-        AssetInfo::NativeToken {
-            denom: "uusd".to_string(),
-        },
-        AssetInfo::Token {
-            contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
-        },
-    ],
-    factory_addr: String::from("factory"),
-    init_params: Some(to_binary(&AnchorPoolParams { anchor_market_addr: MOCK_ANCHOR_ADDR.to_string() }).unwrap()),
-    token_code_id: 0u64
-};
+    let msg = InstantiateMsg {
+        asset_infos: [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
+            },
+        ],
+        factory_addr: String::from("factory"),
+        init_params: Some(
+            to_binary(&AnchorPoolParams {
+                anchor_market_addr: MOCK_ANCHOR_ADDR.to_string(),
+            })
+            .unwrap(),
+        ),
+        token_code_id: 0u64,
+    };
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);

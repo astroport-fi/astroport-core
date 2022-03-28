@@ -4,26 +4,19 @@ use astroport::factory::{
     QueryMsg as FactoryQueryMsg,
 };
 
-
 use astroport::router::{
     ExecuteMsg as RouterExecuteMsg, InstantiateMsg as RouterInstantiateMsg, SwapOperation,
 };
 
-use astroport::pair_anchor::{
-    AnchorExecuteMsg, AnchorPoolParams, ExecuteMsg,
-};
+use astroport::pair_anchor::{AnchorExecuteMsg, AnchorPoolParams, ExecuteMsg};
 
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_pair_anchor::mock_anchor_contract::AnchorInstantiateMsg;
 
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{
-    to_binary, Addr, Coin, Decimal, Uint128,
-};
+use cosmwasm_std::{to_binary, Addr, Coin, Decimal, Uint128};
 use cw20::{Cw20Coin, Cw20ExecuteMsg, MinterResponse};
-use terra_multi_test::{
-    AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
-};
+use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
 
 const OWNER: &str = "owner";
 

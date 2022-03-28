@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{Asset, AssetInfo};
 
-use cosmwasm_std::{Binary, Decimal, Uint128};
 use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_std::{Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
@@ -15,14 +15,13 @@ pub const MAX_ALLOWED_SLIPPAGE: &str = "0.5";
 // Decimal precision for TWAP results
 pub const TWAP_PRECISION: u8 = 6;
 
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AnchorExecuteMsg {
     /// ## Description
     /// Receives a message of type [`Cw20ReceiveMsg`]
     DepositStable {},
-    
+
     /// Return stable coins to a user
     /// according to exchange rate
     RedeemStable {},
@@ -34,10 +33,8 @@ pub enum AnchorExecuteMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum AnchorQueryMsg {    
-    State {
-        block_height: Option<u64>,
-    },
+pub enum AnchorQueryMsg {
+    State { block_height: Option<u64> },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -79,7 +76,7 @@ pub enum ExecuteMsg {
     },
     /// Update the pair configuration
     UpdateConfig { params: Binary },
-    
+
     // Intermediate message for sending result
     AssertAndSend {
         offer_asset: Asset,
@@ -94,7 +91,7 @@ pub enum ExecuteMsg {
 
         /// Sender who initiated the transaction
         sender: String,
-    }
+    },
 }
 
 /// This structure describes a CW20 hook message.
@@ -130,7 +127,6 @@ pub enum QueryMsg {
     /// Returns information about the cumulative prices in a [`CumulativePricesResponse`] object
     CumulativePrices {},
 }
-
 
 /// This struct is used to store bLUNA stableswap specific parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -197,4 +193,3 @@ pub struct CumulativePricesResponse {
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
-

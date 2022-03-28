@@ -1,30 +1,26 @@
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 
-use cosmwasm_bignumber:: {Decimal256, Uint256};
+use cosmwasm_bignumber::{Decimal256, Uint256};
 
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, Uint128,
-    
-    WasmMsg,
+    entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
+    Env, MessageInfo, Reply, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
 
+use astroport::pair::InstantiateMsg;
 use astroport::pair_anchor::{
-    AnchorExecuteMsg, ConfigResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, AnchorQueryMsg, StateResponse, AnchorPoolParams,
+    AnchorExecuteMsg, AnchorPoolParams, AnchorQueryMsg, ConfigResponse, StateResponse,
+    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
 };
 use astroport::pair_anchor::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse,
-    QueryMsg, ReverseSimulationResponse, SimulationResponse,
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
+    ReverseSimulationResponse, SimulationResponse,
 };
-use astroport::pair::{
-    InstantiateMsg
-};
-
 
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -165,7 +161,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///             max_spread,
 ///             to,
 ///         }** Performs a swap operation with the specified parameters.
-/// 
+///
 /// * **ExecuteMsg::AssertAndSend {
 ///             offer_asset,
 ///             ask_asset_info,
@@ -339,7 +335,7 @@ pub fn swap(
     // If the asset balance is already increased, we should subtract the user deposit from the pool amount
     let pools: Vec<Asset> = config
         .pair_info
-        .query_pools(&deps.querier, env.clone().contract.address)?        
+        .query_pools(&deps.querier, env.clone().contract.address)?
         .to_vec();
 
     let offer_pool: Asset;
@@ -386,10 +382,7 @@ pub fn swap(
 
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.anchor_market_addr.to_string(),
-                funds: vec![Coin {
-                    denom,
-                    amount,
-                }],
+                funds: vec![Coin { denom, amount }],
                 msg: to_binary(&AnchorExecuteMsg::DepositStable {})?,
             }));
         }
@@ -403,25 +396,23 @@ pub fn swap(
         msg: to_binary(&ExecuteMsg::AssertAndSend {
             offer_asset: Asset {
                 amount: offer_asset.amount,
-                info: offer_pool.info
+                info: offer_pool.info,
             },
             ask_asset_info: ask_pool.info,
             sender: sender.to_string(),
             receiver: receiver.to_string(),
             belief_price,
-            max_spread
+            max_spread,
         })?,
     }));
 
-    Ok(
-        Response::new()
-            .add_messages(
-                // 1. send collateral tokens from the contract to a user
-                // 2. send inactive commission fees to the Maker ontract
-                messages,
-            )
-            .add_attribute("action", "orchestrate"),
-    )
+    Ok(Response::new()
+        .add_messages(
+            // 1. send collateral tokens from the contract to a user
+            // 2. send inactive commission fees to the Maker ontract
+            messages,
+        )
+        .add_attribute("action", "orchestrate"))
 }
 
 /// ## Description
@@ -457,7 +448,6 @@ pub fn assert_receive_and_send(
     belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
-    
     if env.contract.address != info.sender {
         // only allowed to be sent by the contract itself
         return Err(ContractError::Unauthorized {});
@@ -468,7 +458,7 @@ pub fn assert_receive_and_send(
     let spread_amount = Uint128::from(0u128);
     let commission_amount = Uint128::from(0u128);
 
-    // println!("Contract->Offer: {:?}", offer_amount);    
+    // println!("Contract->Offer: {:?}", offer_amount);
     // println!("Contract->Return: {:?}", return_amount);
 
     // Check the max spread limit (if it was specified)
@@ -483,7 +473,7 @@ pub fn assert_receive_and_send(
     // Compute the tax for the receiving asset (if it is a native one)
     let return_asset = Asset {
         info: ask_asset_info.clone(),
-        amount: return_amount
+        amount: return_amount,
     };
     // println!("Contract->Return-Asset: {:?}", return_asset);
 
@@ -492,8 +482,7 @@ pub fn assert_receive_and_send(
 
     // println!("Contract->Receiver: {:?}", receiver_adr);
 
-    let messages: Vec<CosmosMsg> =
-        vec![return_asset.into_msg(&deps.querier, receiver_adr)?];
+    let messages: Vec<CosmosMsg> = vec![return_asset.into_msg(&deps.querier, receiver_adr)?];
 
     // No Maker fee
     let maker_fee_amount = Uint128::new(0);
@@ -607,7 +596,7 @@ pub fn query_share(_deps: Deps, _amount: Uint128) -> StdResult<Vec<Asset>> {
 ///
 /// * **offer_asset** is an object of type [`Asset`]. This is the asset to swap as well as an amount of the said asset.
 pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationResponse> {
-    let config: Config = CONFIG.load(deps.storage)?;        
+    let config: Config = CONFIG.load(deps.storage)?;
     let pools: [AssetInfo; 2] = config.pair_info.asset_infos;
 
     if offer_asset.info.equal(&pools[0]) || offer_asset.info.equal(&pools[1]) {
@@ -618,8 +607,8 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
     }
 
     let result: StateResponse = deps.querier.query_wasm_smart(
-        config.anchor_market_addr, 
-        &AnchorQueryMsg::State { block_height: None }
+        config.anchor_market_addr,
+        &AnchorQueryMsg::State { block_height: None },
     )?;
 
     let return_amount;
@@ -661,10 +650,10 @@ pub fn query_reverse_simulation(
             "Given ask asset doesn't belong to pairs",
         ));
     }
-    
+
     let result: StateResponse = deps.querier.query_wasm_smart(
-        config.anchor_market_addr, 
-        &AnchorQueryMsg::State { block_height: None }
+        config.anchor_market_addr,
+        &AnchorQueryMsg::State { block_height: None },
     )?;
 
     let offer_amount;
@@ -832,18 +821,18 @@ pub fn pool_info(_deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)
     // let contract_addr = config.pair_info.contract_addr.clone();
     // let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
     // let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;
-    
+
     let pools: [Asset; 2] = [
         Asset {
             amount: Uint128::from(0u128),
-            info: config.pair_info.asset_infos[0].clone()
+            info: config.pair_info.asset_infos[0].clone(),
         },
         Asset {
             amount: Uint128::from(0u128),
-            info: config.pair_info.asset_infos[1].clone()
+            info: config.pair_info.asset_infos[1].clone(),
         },
     ];
-    
+
     let total_share = Uint128::from(0u128);
 
     Ok((pools, total_share))

@@ -1,5 +1,5 @@
 use astroport::asset::PairInfo;
-use cosmwasm_std::{Addr};
+use cosmwasm_std::Addr;
 use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

@@ -5,14 +5,11 @@ use cosmwasm_schema::{export_schema_with_title, remove_schemas, schema_for};
 
 use astroport::asset::PairInfo;
 use astroport::pair_anchor::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse,
-    QueryMsg, ReverseSimulationResponse, SimulationResponse,
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
+    ReverseSimulationResponse, SimulationResponse,
 };
 
-use astroport::pair::{
-    InstantiateMsg
-};
-
+use astroport::pair::InstantiateMsg;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
