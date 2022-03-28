@@ -33,7 +33,7 @@ async function main() {
     await uploadAndInitFactory(terra, wallet)
     await uploadAndInitRouter(terra, wallet)
     await uploadAndInitMaker(terra, wallet)
-    await uploadAndInitWhitelist(terra, wallet)
+    await uploadAndInitTreasury(terra, wallet)
 
     // Set new owner
     network = readArtifact(terra.config.chainID) // reload variables
@@ -48,7 +48,7 @@ async function main() {
     console.log('FINISH')
 }
 
-async function uploadAndInitWhitelist(terra: LCDClient, wallet: any) {
+async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.treasuryAddress) {
