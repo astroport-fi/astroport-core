@@ -339,10 +339,8 @@ pub fn swap(
     // If the asset balance is already increased, we should subtract the user deposit from the pool amount
     let pools: Vec<Asset> = config
         .pair_info
-        .query_pools(&deps.querier, env.clone().contract.address)?
-        .iter()
-        .cloned()
-        .collect();
+        .query_pools(&deps.querier, env.clone().contract.address)?        
+        .to_vec();
 
     let offer_pool: Asset;
     let ask_pool: Asset;
