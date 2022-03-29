@@ -863,6 +863,10 @@ pub fn claim_rewards(
         let mut user = USER_INFO.compatible_load(deps.storage, (lp_token, &account))?;
 
         send_rewards_msg.append(&mut send_pending_rewards(&cfg, &pool, &mut user, &account)?);
+
+        let amount = user.amount;
+        let user = update_user_balance(user, &pool, amount)?;
+        USER_INFO.save(deps.storage, (lp_token, &account), &user)?;
     }
 
     Ok(response
