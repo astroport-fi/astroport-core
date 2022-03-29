@@ -226,8 +226,8 @@ pub struct PoolInfoV2 {
     pub accumulated_proxy_rewards_per_share: Vec<(Addr, Decimal)>,
     /// for calculation of new proxy rewards
     pub proxy_reward_balance_before_update: Uint128,
-    /// the orphan proxy rewards which are left by emergency withdrawals
-    pub orphan_proxy_rewards: Uint128,
+    /// the orphan proxy rewards which are left by emergency withdrawals. Vector of pairs (reward_proxy, index).
+    pub orphan_proxy_rewards: Vec<(Addr, Uint128)>,
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
 }
@@ -265,7 +265,7 @@ pub struct PoolInfoResponse {
     /// Reward balance for the dual rewards proxy before updating accrued rewards
     pub proxy_reward_balance_before_update: Uint128,
     /// The amount of orphan proxy rewards which are left behind by emergency withdrawals and not yet transferred out
-    pub orphan_proxy_rewards: Uint128,
+    pub orphan_proxy_rewards: Vec<(Addr, Uint128)>,
     /// Total amount of lp tokens staked in the pool's generator
     pub lp_supply: Uint128,
 }

@@ -1311,19 +1311,47 @@ pub fn emergency_withdraw(
 ) -> Result<Response, ContractError> {
     let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
-    let pool = POOL_INFO.compatible_load(deps.storage, &lp_token)?;
+    let mut pool = POOL_INFO.compatible_load(deps.storage, &lp_token)?;
     let user = USER_INFO.compatible_load(deps.storage, (&lp_token, &info.sender))?;
-
-    // TODO: fix this
-    // pool.orphan_proxy_rewards = pool.orphan_proxy_rewards.checked_add(
-    //     pool.accumulated_proxy_rewards_per_share
-    //         .checked_mul(user.amount)?
-    //         .saturating_sub(user.reward_debt_proxy),
-    // )?;
 
     // Instantiate the transfer call for the LP token
     let transfer_msg: WasmMsg;
     if let Some(proxy) = &pool.reward_proxy {
+        pool.orphan_proxy_rewards
+            .iter_mut()
+            .find(|(proxy_item, _)| proxy_item.as_str() == proxy.as_str())
+            .map(|(_, amount)| -> Result<_, StdError> {
+                let accumulated_proxy_rewards_per_share = pool
+                    .accumulated_proxy_rewards_per_share
+                    .iter()
+                    .find(|(proxy_item, _)| proxy_item.as_str() == proxy.as_str())
+                    .map(|(_, share)| share)
+                    .cloned()
+                    .unwrap_or_default();
+                if !accumulated_proxy_rewards_per_share.is_zero() {
+                    let (_, reward_debt_proxy) = user
+                        .reward_debt_proxy
+                        .iter()
+                        .find(|(proxy_item, _)| proxy_item.as_str() == proxy.as_str())
+                        .ok_or_else(|| {
+                            StdError::generic_err(format!(
+                                "Inconsistent proxy ({}) rewards state.",
+                                proxy
+                            ))
+                        })?;
+                    *amount = amount.checked_add(
+                        accumulated_proxy_rewards_per_share
+                            .checked_mul(user.amount)?
+                            .saturating_sub(*reward_debt_proxy),
+                    )?;
+                }
+
+                Ok(())
+            })
+            .ok_or_else(|| {
+                StdError::generic_err(format!("Inconsistent proxy ({}) rewards state.", proxy))
+            })??;
+
         transfer_msg = WasmMsg::Execute {
             contract_addr: proxy.to_string(),
             msg: to_binary(&ProxyExecuteMsg::EmergencyWithdraw {
@@ -1415,32 +1443,36 @@ fn send_orphan_proxy_rewards(
     let recipient = addr_validate_to_lower(deps.api, &recipient)?;
 
     let mut pool = POOL_INFO.compatible_load(deps.storage, &lp_token)?;
-    let proxy = match &pool.reward_proxy {
-        Some(proxy) => proxy.clone(),
-        None => return Err(ContractError::PoolDoesNotHaveAdditionalRewards {}),
-    };
 
-    let amount = pool.orphan_proxy_rewards;
-    if amount.is_zero() {
-        return Err(ContractError::OrphanRewardsTooSmall {});
+    let submessages = pool
+        .orphan_proxy_rewards
+        .iter_mut()
+        .filter(|(_, value)| !value.is_zero())
+        .map(|(proxy, amount)| {
+            let msg = SubMsg::new(WasmMsg::Execute {
+                contract_addr: proxy.to_string(),
+                msg: to_binary(&ProxyExecuteMsg::SendRewards {
+                    account: recipient.to_string(),
+                    amount: *amount,
+                })?,
+                funds: vec![],
+            });
+            *amount = Uint128::zero();
+            Ok(msg)
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    if submessages.is_empty() {
+        return Err(ContractError::ZeroOrphanRewards {});
     }
 
-    pool.orphan_proxy_rewards = Uint128::zero();
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
 
     Ok(Response::new()
-        .add_message(WasmMsg::Execute {
-            contract_addr: proxy.to_string(),
-            funds: vec![],
-            msg: to_binary(&ProxyExecuteMsg::SendRewards {
-                account: recipient.to_string(),
-                amount,
-            })?,
-        })
+        .add_submessages(submessages)
         .add_attribute("action", "send_orphan_rewards")
         .add_attribute("recipient", recipient)
-        .add_attribute("lp_token", lp_token.to_string())
-        .add_attribute("amount", amount))
+        .add_attribute("lp_token", lp_token.to_string()))
 }
 
 fn migrate_proxy(
@@ -1962,11 +1994,14 @@ fn query_reward_info(deps: Deps, lp_token: String) -> Result<RewardInfoResponse,
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **lp_token** is an object of type [`String`]. This is the LP token whose generator we query for orphaned rewards.
-fn query_orphan_proxy_rewards(deps: Deps, lp_token: String) -> Result<Uint128, ContractError> {
+fn query_orphan_proxy_rewards(
+    deps: Deps,
+    lp_token: String,
+) -> Result<Vec<(Addr, Uint128)>, ContractError> {
     let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
     let pool = POOL_INFO.compatible_load(deps.storage, &lp_token)?;
-    if pool.reward_proxy.is_none() {
+    if pool.orphan_proxy_rewards.is_empty() {
         return Err(ContractError::PoolDoesNotHaveAdditionalRewards {});
     }
 
@@ -2225,7 +2260,7 @@ pub fn create_pool(
             reward_proxy: None,
             accumulated_proxy_rewards_per_share: vec![],
             proxy_reward_balance_before_update: Uint128::zero(),
-            orphan_proxy_rewards: Uint128::zero(),
+            orphan_proxy_rewards: vec![],
             has_asset_rewards: false,
         },
     )?;

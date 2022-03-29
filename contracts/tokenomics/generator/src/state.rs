@@ -122,10 +122,12 @@ impl CompatibleLoader<&Addr, PoolInfoV2> for Map<'_, &Addr, PoolInfoV2> {
             Err(_) => {
                 let pool_info = OLD_POOL_INFO.load(store, key)?;
                 let mut accumulated_proxy_rewards_per_share = vec![];
+                let mut orphan_proxy_rewards = vec![];
                 if let Some(proxy) = pool_info.reward_proxy.clone() {
                     if !pool_info.accumulated_proxy_rewards_per_share.is_zero() {
                         accumulated_proxy_rewards_per_share =
-                            vec![(proxy, pool_info.accumulated_proxy_rewards_per_share)]
+                            vec![(proxy.clone(), pool_info.accumulated_proxy_rewards_per_share)];
+                        orphan_proxy_rewards = vec![(proxy, pool_info.orphan_proxy_rewards)]
                     }
                 }
                 let pool_info_v2 = PoolInfoV2 {
@@ -135,7 +137,7 @@ impl CompatibleLoader<&Addr, PoolInfoV2> for Map<'_, &Addr, PoolInfoV2> {
                     accumulated_proxy_rewards_per_share,
                     proxy_reward_balance_before_update: pool_info
                         .proxy_reward_balance_before_update,
-                    orphan_proxy_rewards: pool_info.orphan_proxy_rewards,
+                    orphan_proxy_rewards,
                     has_asset_rewards: pool_info.has_asset_rewards,
                 };
                 Ok(pool_info_v2)
