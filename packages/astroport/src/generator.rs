@@ -206,8 +206,24 @@ pub struct PoolInfo {
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
     pub accumulated_proxy_rewards_per_share: Decimal,
-    /// Accumulated reward indexes before proxy migration. Vector of pairs (reward_token, index).
-    // pub previous_reward_indexes: Vec<(Addr, Decimal)>,
+    /// for calculation of new proxy rewards
+    pub proxy_reward_balance_before_update: Uint128,
+    /// the orphan proxy rewards which are left by emergency withdrawals
+    pub orphan_proxy_rewards: Uint128,
+    /// The pool has assets giving additional rewards
+    pub has_asset_rewards: bool,
+}
+
+/// This structure describes the main information of pool
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct PoolInfoV2 {
+    /// Accumulated amount of reward per share unit. Used for reward calculations
+    pub last_reward_block: Uint64,
+    pub accumulated_rewards_per_share: Decimal,
+    /// the reward proxy contract
+    pub reward_proxy: Option<Addr>,
+    /// Accumulated reward indexes per reward proxy. Vector of pairs (reward_proxy, index).
+    pub accumulated_proxy_rewards_per_share: Vec<(Addr, Decimal)>,
     /// for calculation of new proxy rewards
     pub proxy_reward_balance_before_update: Uint128,
     /// the orphan proxy rewards which are left by emergency withdrawals
@@ -244,8 +260,8 @@ pub struct PoolInfoResponse {
     pub reward_proxy: Option<Addr>,
     /// Pending amount of total proxy rewards which are claimable by stakers right now
     pub pending_proxy_rewards: Option<Uint128>,
-    /// Total amount of 3rd party token rewards already accumulated per LP token staked
-    pub accumulated_proxy_rewards_per_share: Decimal,
+    /// Total amount of 3rd party token rewards already accumulated per LP token staked per proxy
+    pub accumulated_proxy_rewards_per_share: Vec<(Addr, Decimal)>,
     /// Reward balance for the dual rewards proxy before updating accrued rewards
     pub proxy_reward_balance_before_update: Uint128,
     /// The amount of orphan proxy rewards which are left behind by emergency withdrawals and not yet transferred out
