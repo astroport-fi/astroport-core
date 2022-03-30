@@ -93,7 +93,7 @@ async function main() {
                 new TokenAsset("terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl").getInfo(),
                 new NativeAsset("uusd").getInfo(),
             ],
-            pairType: { custom: "anchor" },
+            pairType: { custom: "Anchor-XYK" },
             initParams: toEncodedBinary("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal")
         }
     ]

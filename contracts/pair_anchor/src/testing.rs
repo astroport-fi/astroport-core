@@ -357,8 +357,8 @@ fn try_native_to_token() {
             assert_eq!(
                 sub_msg,
                 ExecuteMsg::AssertAndSend {
-                    receiver: info.sender.to_string(),
-                    sender: info.sender.to_string(),
+                    receiver: info.sender.clone(),
+                    sender: info.sender,
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken {
                             denom: "uusd".to_string(),
@@ -616,8 +616,8 @@ fn try_token_to_native() {
             assert_eq!(
                 sub_msg,
                 ExecuteMsg::AssertAndSend {
-                    receiver: sender.to_string(),
-                    sender: sender.to_string(),
+                    receiver: Addr::unchecked(sender),
+                    sender: Addr::unchecked(sender),
                     offer_asset: Asset {
                         info: AssetInfo::Token {
                             contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN)
@@ -1022,8 +1022,8 @@ fn test_sending_aust_balance_to_maker() {
             assert_eq!(
                 sub_msg,
                 ExecuteMsg::AssertAndSend {
-                    receiver: info.sender.to_string(),
-                    sender: info.sender.to_string(),
+                    receiver: info.sender.clone(),
+                    sender: info.sender,
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken {
                             denom: "uusd".to_string(),
@@ -1305,8 +1305,8 @@ fn test_sending_ust_balance_to_maker() {
             assert_eq!(
                 sub_msg,
                 ExecuteMsg::AssertAndSend {
-                    receiver: sender.to_string(),
-                    sender: sender.to_string(),
+                    receiver: Addr::unchecked(sender),
+                    sender: Addr::unchecked(sender),
                     offer_asset: Asset {
                         info: AssetInfo::Token {
                             contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN)

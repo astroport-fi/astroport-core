@@ -10,8 +10,8 @@ use astroport::router::{
 
 use astroport::pair_anchor::ExecuteMsg;
 
+use crate::mock_anchor_contract::AnchorInstantiateMsg;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use astroport_pair_anchor::mock_anchor_contract::AnchorInstantiateMsg;
 
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{to_binary, Addr, Coin, Decimal, Uint128};
@@ -61,9 +61,9 @@ fn store_pair_code(app: &mut TerraApp) -> u64 {
 
 fn store_pair_anchor_code(app: &mut TerraApp) -> u64 {
     let pair_anchor_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_pair_anchor::contract::execute,
-        astroport_pair_anchor::contract::instantiate,
-        astroport_pair_anchor::contract::query,
+        crate::contract::execute,
+        crate::contract::instantiate,
+        crate::contract::query,
     ));
 
     app.store_code(pair_anchor_contract)
@@ -95,11 +95,11 @@ fn store_factory_code(app: &mut TerraApp) -> u64 {
 fn store_anchor_code(app: &mut TerraApp) -> u64 {
     let factory_contract = Box::new(
         ContractWrapper::new_with_empty(
-            astroport_pair_anchor::mock_anchor_contract::execute,
-            astroport_pair_anchor::mock_anchor_contract::instantiate,
-            astroport_pair_anchor::mock_anchor_contract::query,
+            crate::mock_anchor_contract::execute,
+            crate::mock_anchor_contract::instantiate,
+            crate::mock_anchor_contract::query,
         )
-        .with_reply_empty(astroport_pair_anchor::mock_anchor_contract::reply),
+        .with_reply_empty(crate::mock_anchor_contract::reply),
     );
 
     app.store_code(factory_contract)

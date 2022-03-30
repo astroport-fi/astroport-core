@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{Asset, AssetInfo};
 
-use cosmwasm_std::{Binary, Decimal, Uint128};
+use cosmwasm_std::{Addr, Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
@@ -48,10 +48,10 @@ pub enum ExecuteMsg {
         ask_asset_info: AssetInfo,
 
         /// Receiver who should receive the funds
-        receiver: String,
+        receiver: Addr,
 
         /// Sender who initiated the transaction
-        sender: String,
+        sender: Addr,
     },
 }
 

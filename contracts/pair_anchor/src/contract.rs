@@ -361,8 +361,8 @@ pub fn swap(
                 info: offer_pool.info,
             },
             ask_asset_info: ask_pool.info,
-            sender: sender.to_string(),
-            receiver: receiver.to_string(),
+            sender,
+            receiver,
             belief_price,
             max_spread,
         })?,
@@ -404,10 +404,10 @@ pub fn assert_receive_and_send(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    sender: String,
+    sender: Addr,
     offer_asset: Asset,
     ask_asset_info: AssetInfo,
-    receiver: String,
+    receiver: Addr,
     belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
@@ -433,15 +433,14 @@ pub fn assert_receive_and_send(
     // println!("Contract->Return-Asset: {:?}", return_asset);
 
     let tax_amount = return_asset.compute_tax(&deps.querier)?;
-    let receiver_adr = addr_validate_to_lower(deps.api, receiver.as_str())?;
 
     // println!("Contract->Receiver: {:?}", receiver_adr);
 
     Ok(Response::new()
-        .add_message(return_asset.into_msg(&deps.querier, receiver_adr)?)
+        .add_message(return_asset.into_msg(&deps.querier, receiver.clone())?)
         .add_attribute("action", "swap")
-        .add_attribute("sender", sender)
-        .add_attribute("receiver", receiver.as_str())
+        .add_attribute("sender", sender.to_string())
+        .add_attribute("receiver", receiver.to_string())
         .add_attribute("offer_asset", offer_asset.info.to_string())
         .add_attribute("ask_asset", ask_asset_info.to_string())
         .add_attribute("offer_amount", offer_amount.to_string())
