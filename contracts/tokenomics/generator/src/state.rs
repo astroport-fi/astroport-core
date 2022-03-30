@@ -117,32 +117,28 @@ pub trait CompatibleLoader<K, R> {
 
 impl CompatibleLoader<&Addr, PoolInfoV2> for Map<'_, &Addr, PoolInfoV2> {
     fn compatible_load(&self, store: &dyn Storage, key: &Addr) -> StdResult<PoolInfoV2> {
-        match self.load(store, key) {
-            Ok(pool_info) => Ok(pool_info),
-            Err(_) => {
-                let pool_info = OLD_POOL_INFO.load(store, key)?;
-                let mut accumulated_proxy_rewards_per_share = vec![];
-                let mut orphan_proxy_rewards = vec![];
-                if let Some(proxy) = pool_info.reward_proxy.clone() {
-                    if !pool_info.accumulated_proxy_rewards_per_share.is_zero() {
-                        accumulated_proxy_rewards_per_share =
-                            vec![(proxy.clone(), pool_info.accumulated_proxy_rewards_per_share)];
-                        orphan_proxy_rewards = vec![(proxy, pool_info.orphan_proxy_rewards)]
-                    }
+        self.load(store, key).or_else(|_| {
+            let pool_info = OLD_POOL_INFO.load(store, key)?;
+            let mut accumulated_proxy_rewards_per_share = vec![];
+            let mut orphan_proxy_rewards = vec![];
+            if let Some(proxy) = pool_info.reward_proxy.clone() {
+                if !pool_info.accumulated_proxy_rewards_per_share.is_zero() {
+                    accumulated_proxy_rewards_per_share =
+                        vec![(proxy.clone(), pool_info.accumulated_proxy_rewards_per_share)];
+                    orphan_proxy_rewards = vec![(proxy, pool_info.orphan_proxy_rewards)]
                 }
-                let pool_info_v2 = PoolInfoV2 {
-                    last_reward_block: pool_info.last_reward_block,
-                    accumulated_rewards_per_share: pool_info.accumulated_rewards_per_share,
-                    reward_proxy: pool_info.reward_proxy,
-                    accumulated_proxy_rewards_per_share,
-                    proxy_reward_balance_before_update: pool_info
-                        .proxy_reward_balance_before_update,
-                    orphan_proxy_rewards,
-                    has_asset_rewards: pool_info.has_asset_rewards,
-                };
-                Ok(pool_info_v2)
             }
-        }
+            let pool_info_v2 = PoolInfoV2 {
+                last_reward_block: pool_info.last_reward_block,
+                accumulated_rewards_per_share: pool_info.accumulated_rewards_per_share,
+                reward_proxy: pool_info.reward_proxy,
+                accumulated_proxy_rewards_per_share,
+                proxy_reward_balance_before_update: pool_info.proxy_reward_balance_before_update,
+                orphan_proxy_rewards,
+                has_asset_rewards: pool_info.has_asset_rewards,
+            };
+            Ok(pool_info_v2)
+        })
     }
 }
 
@@ -157,25 +153,23 @@ pub const OLD_USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
 
 impl CompatibleLoader<(&Addr, &Addr), UserInfoV2> for Map<'_, (&Addr, &Addr), UserInfoV2> {
     fn compatible_load(&self, store: &dyn Storage, key: (&Addr, &Addr)) -> StdResult<UserInfoV2> {
-        match self.load(store, key) {
-            Ok(user_info) => Ok(user_info),
-            Err(_) => {
-                let user_info = OLD_USER_INFO.load(store, key)?;
-                let pool_info = POOL_INFO.compatible_load(store, key.0)?;
-                let mut reward_debt_proxy = vec![];
-                if let Some(reward_proxy) = pool_info.reward_proxy {
-                    reward_debt_proxy = vec![(reward_proxy, user_info.reward_debt_proxy)]
-                }
-
-                let user_info = UserInfoV2 {
-                    amount: user_info.amount,
-                    reward_debt: user_info.reward_debt,
-                    reward_debt_proxy,
-                };
-
-                Ok(user_info)
+        self.load(store, key).or_else(|_| {
+            let user_info = OLD_USER_INFO.load(store, key)?;
+            let pool_info = POOL_INFO.compatible_load(store, key.0)?;
+            let mut reward_debt_proxy = vec![];
+            if let Some(reward_proxy) = pool_info.reward_proxy {
+                // TODO: this is incorrect in case we deserialize old user info struct after proxy migration
+                reward_debt_proxy = vec![(reward_proxy, user_info.reward_debt_proxy)]
             }
-        }
+
+            let user_info = UserInfoV2 {
+                amount: user_info.amount,
+                reward_debt: user_info.reward_debt,
+                reward_debt_proxy,
+            };
+
+            Ok(user_info)
+        })
     }
 }
 
