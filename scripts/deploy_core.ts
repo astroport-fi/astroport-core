@@ -33,6 +33,7 @@ async function main() {
     await uploadAndInitFactory(terra, wallet)
     await uploadAndInitRouter(terra, wallet)
     await uploadAndInitMaker(terra, wallet)
+    await uploadAndInitTreasury(terra, wallet)
 
     // Set new owner
     network = readArtifact(terra.config.chainID) // reload variables
@@ -45,6 +46,27 @@ async function main() {
     })
 
     console.log('FINISH')
+}
+
+async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
+    let network = readArtifact(terra.config.chainID)
+
+    if (!network.treasuryAddress) {
+        console.log('Deploy the Treasury...')
+        let resp = await deployContract(
+            terra,
+            wallet,
+            network.multisigAddress,
+            join(ARTIFACTS_PATH, 'astroport_whitelist.wasm'),
+            {
+                admins: [network.assemblyAddress],
+                mutable: true
+            },
+        )
+        network.treasuryAddress = resp.shift()
+        console.log(`Treasure Contract Address: ${network.treasuryAddress}`)
+        writeArtifact(network, terra.config.chainID)
+    }
 }
 
 async function uploadPairContracts(terra: LCDClient, wallet: any) {
