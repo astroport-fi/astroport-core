@@ -14,12 +14,6 @@ pub struct Config {
     pub anchor_market_addr: Addr,
     /// The factory contract address
     pub factory_addr: Addr,
-    // /// The last timestamp when the pair contract update the asset cumulative prices
-    // pub block_time_last: u64,
-    // /// The last cumulative price for asset 0
-    // pub price0_cumulative_last: Uint128,
-    // /// The last cumulative price for asset 1
-    // pub price1_cumulative_last: Uint128,
 }
 
 /// ## Description

@@ -32,7 +32,8 @@ cw-storage-plus = {version = "0.8.0"}
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }
-cosmwasm-bignumber = "2.2.0"
+moneymarket = { version = "0.3.0" }
+cosmwasm-bignumber = { version = "2.2.0" }
 protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]

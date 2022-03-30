@@ -3,8 +3,6 @@ pub mod state;
 
 pub mod error;
 
-mod response;
-
 #[cfg(test)]
 mod testing;
 

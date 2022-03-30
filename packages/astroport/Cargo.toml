@@ -19,7 +19,6 @@ backtraces = ["cosmwasm-std/backtraces"]
 cw20 = { version = "0.8" }
 terra-cosmwasm = { version = "2.2.0" }
 cosmwasm-std = { version = "0.16.2", features = ["iterator"] }
-cosmwasm-bignumber = "2.2.0"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 uint = "0.9.1"

@@ -9,8 +9,8 @@ use std::collections::HashMap;
 use astroport::factory::FeeInfoResponse;
 use astroport::factory::QueryMsg;
 
-use astroport::pair_anchor::{AnchorQueryMsg, StateResponse};
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
+use moneymarket::market::{EpochStateResponse, QueryMsg as AnchorQueryMsg};
 use std::str::FromStr;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
@@ -147,27 +147,11 @@ impl WasmMockQuerier {
                     }
                 } else if contract_addr == "anchor" {
                     match from_binary(&msg).unwrap() {
-                        AnchorQueryMsg::State { .. } => SystemResult::Ok(
-                            to_binary(&StateResponse {
-                                total_liabilities: Decimal256::from_str(
-                                    "2771617807710230.916899829317330205",
-                                )
-                                .unwrap(),
-                                total_reserves: Decimal256::from_str("0.734860156808943602")
+                        AnchorQueryMsg::EpochState { .. } => SystemResult::Ok(
+                            to_binary(&EpochStateResponse {
+                                exchange_rate: Decimal256::from_str("1.216736524026807943")
                                     .unwrap(),
-                                last_interest_updated: 6944488u64,
-                                last_reward_updated: 6944488u64,
-                                global_interest_index: Decimal256::from_str("1.239677817386941132")
-                                    .unwrap(),
-                                global_reward_index: Decimal256::from_str("0.257774735210970248")
-                                    .unwrap(),
-                                anc_emission_rate: Decimal256::from_str(
-                                    "20381363.85157231012364762",
-                                )
-                                .unwrap(),
-                                prev_aterra_supply: Uint256::from_str("9253988242307733").unwrap(),
-                                prev_exchange_rate: Decimal256::from_str("1.216736524026807943")
-                                    .unwrap(),
+                                aterra_supply: Uint256::from_str("9253988242307733").unwrap(),
                             })
                             .into(),
                         ),

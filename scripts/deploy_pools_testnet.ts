@@ -94,7 +94,7 @@ async function main() {
                 new NativeAsset("uusd").getInfo(),
             ],
             pairType: { custom: "anchor" },
-            initParams: toEncodedBinary({anchor_market_addr: "terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal"})
+            initParams: toEncodedBinary("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal")
         }
     ]
 

@@ -121,7 +121,7 @@ async function main() {
         //         new NativeAsset("uusd").getInfo(),
         //     ],
         //     pairType: { anchor: {}},
-        //     initParams: toEncodedBinary({anchor_market_addr: "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s"})
+        //     initParams: toEncodedBinary("terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s")
         // }
     ]
 

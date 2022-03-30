@@ -39,9 +39,7 @@ Initializes a new x*y=k pair.
 For the custom pool type see:
 
 ```json
-AnchorPoolParams {
-    "anchor_market_addr": "terra...",
-}
+"terra...",
 ```
 
 ## ExecuteMsg

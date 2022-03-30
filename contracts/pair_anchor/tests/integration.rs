@@ -8,7 +8,7 @@ use astroport::router::{
     ExecuteMsg as RouterExecuteMsg, InstantiateMsg as RouterInstantiateMsg, SwapOperation,
 };
 
-use astroport::pair_anchor::{AnchorExecuteMsg, AnchorPoolParams, ExecuteMsg};
+use astroport::pair_anchor::ExecuteMsg;
 
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_pair_anchor::mock_anchor_contract::AnchorInstantiateMsg;
@@ -16,6 +16,7 @@ use astroport_pair_anchor::mock_anchor_contract::AnchorInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{to_binary, Addr, Coin, Decimal, Uint128};
 use cw20::{Cw20Coin, Cw20ExecuteMsg, MinterResponse};
+use moneymarket::market::ExecuteMsg as AnchorExecuteMsg;
 use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
 
 const OWNER: &str = "owner";
@@ -59,14 +60,11 @@ fn store_pair_code(app: &mut TerraApp) -> u64 {
 }
 
 fn store_pair_anchor_code(app: &mut TerraApp) -> u64 {
-    let pair_anchor_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_pair_anchor::contract::execute,
-            astroport_pair_anchor::contract::instantiate,
-            astroport_pair_anchor::contract::query,
-        )
-        .with_reply_empty(astroport_pair_anchor::contract::reply),
-    );
+    let pair_anchor_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_pair_anchor::contract::execute,
+        astroport_pair_anchor::contract::instantiate,
+        astroport_pair_anchor::contract::query,
+    ));
 
     app.store_code(pair_anchor_contract)
 }
@@ -177,7 +175,13 @@ fn test_compatibility_of_pair_anchor_with_routeswap() {
         )
         .unwrap();
 
-    let msg = AnchorExecuteMsg::SetToken(token_aust_contract.to_string());
+    let msg = AnchorExecuteMsg::RegisterContracts {
+        overseer_contract: token_aust_contract.to_string(),
+        interest_model: "".to_string(),
+        distribution_model: "".to_string(),
+        collector_contract: "".to_string(),
+        distributor_contract: "".to_string(),
+    };
 
     app.execute_contract(owner.clone(), anchor_contract.clone(), &msg, &[])
         .unwrap();
@@ -196,7 +200,7 @@ fn test_compatibility_of_pair_anchor_with_routeswap() {
             PairConfig {
                 code_id: pair_anchor_code_id,
                 maker_fee_bps: 0,
-                pair_type: PairType::Custom("anchor".to_string()),
+                pair_type: PairType::Custom("Anchor-XYK".to_string()),
                 total_fee_bps: 0,
                 is_disabled: false,
                 is_generator_disabled: true,
@@ -251,7 +255,7 @@ fn test_compatibility_of_pair_anchor_with_routeswap() {
         .unwrap();
 
     let msg = FactoryExecuteMsg::CreatePair {
-        pair_type: PairType::Custom("anchor".to_string()),
+        pair_type: PairType::Custom("Anchor-XYK".to_string()),
         asset_infos: [
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -260,12 +264,7 @@ fn test_compatibility_of_pair_anchor_with_routeswap() {
                 contract_addr: token_aust_contract.clone(),
             },
         ],
-        init_params: Some(
-            to_binary(&AnchorPoolParams {
-                anchor_market_addr: anchor_contract.to_string(),
-            })
-            .unwrap(),
-        ),
+        init_params: Some(to_binary(&anchor_contract.to_string()).unwrap()),
     };
 
     app.execute_contract(owner.clone(), factory_contract.clone(), &msg, &[])

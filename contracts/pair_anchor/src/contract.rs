@@ -1,30 +1,31 @@
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 
+use astroport::querier::query_fee_info;
 use cosmwasm_bignumber::{Decimal256, Uint256};
 
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Reply, Response, StdError, StdResult, Uint128, WasmMsg,
+    Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
-use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
 
 use astroport::pair::InstantiateMsg;
-use astroport::pair_anchor::{
-    AnchorExecuteMsg, AnchorPoolParams, AnchorQueryMsg, ConfigResponse, StateResponse,
-    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
-};
+use astroport::pair_anchor::{ConfigResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
 use astroport::pair_anchor::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse,
 };
 
+use moneymarket::market::{
+    Cw20HookMsg as AnchorCw20HookMsg, EpochStateResponse, ExecuteMsg as AnchorExecuteMsg,
+    QueryMsg as AnchorQueryMsg,
+};
+
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use protobuf::Message;
 use std::str::FromStr;
 use std::vec;
 
@@ -32,29 +33,6 @@ use std::vec;
 const CONTRACT_NAME: &str = "astroport-pair-anchor";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-// contract
-// terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s
-// execute_msg
-// {
-//   "deposit_stable": {}
-// }
-// coins
-// [{"denom":"uusd","amount":"1000000"}]
-
-// contract
-// terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu
-// execute_msg
-// {
-//   "send": {
-//     "amount": "822048",
-//     "contract": "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s",
-//     "msg": "eyJyZWRlZW1fc3RhYmxlIjp7fX0="
-//   }
-// }
-// {"redeem_stable":{}}
-// coins
-// []
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
@@ -81,7 +59,7 @@ pub fn instantiate(
         return Err(ContractError::DoublingAssets {});
     }
 
-    let params: AnchorPoolParams = from_binary(&msg.init_params.unwrap())?;
+    let params: String = from_binary(&msg.init_params.unwrap())?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -90,45 +68,15 @@ pub fn instantiate(
             contract_addr: env.contract.address,
             liquidity_token: Addr::unchecked(""),
             asset_infos: msg.asset_infos.clone(),
-            pair_type: PairType::Xyk {},
+            pair_type: PairType::Custom("Anchor-XYK".to_string()),
         },
         factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr.as_str())?,
-        anchor_market_addr: addr_validate_to_lower(deps.api, params.anchor_market_addr.as_str())?,
+        anchor_market_addr: addr_validate_to_lower(deps.api, params.as_str())?,
     };
 
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new())
-}
-
-/// ## Description
-/// The entry point to the contract for processing replies from submessages.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`Reply`].
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
-
-    if config.pair_info.liquidity_token != Addr::unchecked("") {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let data = msg.result.unwrap().data.unwrap();
-    let res: MsgInstantiateContractResponse =
-        Message::parse_from_bytes(data.as_slice()).map_err(|_| {
-            StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
-        })?;
-
-    config.pair_info.liquidity_token =
-        addr_validate_to_lower(deps.api, res.get_contract_address())?;
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new().add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
 }
 
 /// ## Description
@@ -332,7 +280,6 @@ pub fn swap(
 
     let config: Config = CONFIG.load(deps.storage)?;
 
-    // If the asset balance is already increased, we should subtract the user deposit from the pool amount
     let pools: Vec<Asset> = config
         .pair_info
         .query_pools(&deps.querier, env.clone().contract.address)?
@@ -351,26 +298,41 @@ pub fn swap(
         return Err(ContractError::AssetMismatch {});
     }
 
-    if ask_pool.amount > Uint128::from(0u128) {
-        // send to community? Otherwise it would be sent to the swapper
-    }
-
     let mut messages: Vec<CosmosMsg> = vec![];
 
-    match offer_asset.info {
-        AssetInfo::Token { contract_addr, .. } => {
-            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: contract_addr.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: config.anchor_market_addr.to_string(),
-                    amount: offer_asset.amount,
-                    msg: to_binary(&AnchorExecuteMsg::RedeemStable {})?,
-                })?,
-            }))
-        }
+    if ask_pool.amount > Uint128::from(0u128) {
+        // Get fee info from the factory
+        let fee_info = query_fee_info(
+            &deps.querier,
+            config.factory_addr.clone(),
+            config.pair_info.pair_type.clone(),
+        )?;
 
-        AssetInfo::NativeToken { denom, .. } => {
+        // if someone deposited into the pair contract instance
+        // the balance will be transferred to the maker address
+        if let Some(fee_address) = fee_info.fee_address {
+            // send funds to maker address
+            messages.push(
+                ask_pool
+                    .clone()
+                    .into_msg(&deps.querier, fee_address)
+                    .unwrap(),
+            )
+        }
+    }
+
+    match offer_asset.info {
+        AssetInfo::Token { contract_addr } => messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: contract_addr.to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: config.anchor_market_addr.to_string(),
+                amount: offer_asset.amount,
+                msg: to_binary(&AnchorCw20HookMsg::RedeemStable {})?,
+            })?,
+        })),
+
+        AssetInfo::NativeToken { denom } => {
             let amount = offer_asset.amount;
             let asset = Asset {
                 info: AssetInfo::NativeToken {
@@ -408,8 +370,9 @@ pub fn swap(
 
     Ok(Response::new()
         .add_messages(
-            // 1. send collateral tokens from the contract to a user
-            // 2. send inactive commission fees to the Maker ontract
+            // 1. (Optional) Send existing tokens from contract to maker
+            // 2. Redeem or Deposit Stable into anchor
+            // 3. Check and send result amount to receiver
             messages,
         )
         .add_attribute("action", "orchestrate"))
@@ -455,20 +418,12 @@ pub fn assert_receive_and_send(
 
     let offer_amount = offer_asset.amount;
     let return_amount = ask_asset_info.query_pool(&deps.querier, env.contract.address)?;
-    let spread_amount = Uint128::from(0u128);
-    let commission_amount = Uint128::from(0u128);
 
     // println!("Contract->Offer: {:?}", offer_amount);
     // println!("Contract->Return: {:?}", return_amount);
 
     // Check the max spread limit (if it was specified)
-    assert_max_spread(
-        belief_price,
-        max_spread,
-        offer_amount,
-        return_amount + commission_amount,
-        spread_amount,
-    )?;
+    assert_max_spread(belief_price, max_spread, offer_amount, return_amount)?;
 
     // Compute the tax for the receiving asset (if it is a native one)
     let return_asset = Asset {
@@ -482,17 +437,8 @@ pub fn assert_receive_and_send(
 
     // println!("Contract->Receiver: {:?}", receiver_adr);
 
-    let messages: Vec<CosmosMsg> = vec![return_asset.into_msg(&deps.querier, receiver_adr)?];
-
-    // No Maker fee
-    let maker_fee_amount = Uint128::new(0);
-
     Ok(Response::new()
-        .add_messages(
-            // 1. send collateral tokens from the contract to a user
-            // 2. send inactive commission fees to the Maker ontract
-            messages,
-        )
+        .add_message(return_asset.into_msg(&deps.querier, receiver_adr)?)
         .add_attribute("action", "swap")
         .add_attribute("sender", sender)
         .add_attribute("receiver", receiver.as_str())
@@ -501,9 +447,9 @@ pub fn assert_receive_and_send(
         .add_attribute("offer_amount", offer_amount.to_string())
         .add_attribute("return_amount", return_amount.to_string())
         .add_attribute("tax_amount", tax_amount.to_string())
-        .add_attribute("spread_amount", spread_amount.to_string())
-        .add_attribute("commission_amount", commission_amount.to_string())
-        .add_attribute("maker_fee_amount", maker_fee_amount.to_string()))
+        .add_attribute("spread_amount", "0")
+        .add_attribute("commission_amount", "0")
+        .add_attribute("maker_fee_amount", "0"))
 }
 
 /// ## Description
@@ -564,7 +510,7 @@ pub fn query_pair_info(deps: Deps) -> StdResult<PairInfo> {
 /// * **deps** is an object of type [`Deps`].
 pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
-    let (assets, total_share) = pool_info(deps, config)?;
+    let (assets, total_share) = empty_pool_info(config)?;
 
     let resp = PoolResponse {
         assets,
@@ -582,10 +528,6 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 ///
 /// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens for which we calculate associated amounts of assets.
 pub fn query_share(_deps: Deps, _amount: Uint128) -> StdResult<Vec<Asset>> {
-    // let config: Config = CONFIG.load(deps.storage)?;
-    // let (pools, total_share) = pool_info(deps, config)?;
-    // let refund_assets = get_share_in_assets(&pools, amount, total_share);
-
     Ok(vec![])
 }
 
@@ -599,26 +541,31 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
     let config: Config = CONFIG.load(deps.storage)?;
     let pools: [AssetInfo; 2] = config.pair_info.asset_infos;
 
-    if offer_asset.info.equal(&pools[0]) || offer_asset.info.equal(&pools[1]) {
-    } else {
+    if !offer_asset.info.equal(&pools[0]) && !offer_asset.info.equal(&pools[1]) {
         return Err(StdError::generic_err(
             "Given offer asset doesn't belong to pairs",
         ));
     }
 
-    let result: StateResponse = deps.querier.query_wasm_smart(
+    let result: EpochStateResponse = deps.querier.query_wasm_smart(
         config.anchor_market_addr,
-        &AnchorQueryMsg::State { block_height: None },
+        &AnchorQueryMsg::EpochState {
+            block_height: None,
+            distributed_interest: None,
+        },
     )?;
 
-    let return_amount;
-    let offer_amount: Uint256 = offer_asset.amount.into();
+    let offer_amount_128: cosmwasm_std::Uint128 = offer_asset.amount;
+    let offer_amount: cosmwasm_bignumber::Uint256 = offer_amount_128.into();
+    let exchange_rate: cosmwasm_bignumber::Decimal256 = result.exchange_rate;
 
-    if offer_asset.is_native_token() {
-        return_amount = Uint128::from(offer_amount / result.prev_exchange_rate);
+    let return_amount = if offer_asset.is_native_token() {
+        cosmwasm_std::Uint128::try_from(offer_amount / exchange_rate)
+            .map_err(|_| StdError::generic_err("Failed to convert Uint256 -> Uint128"))?
     } else {
-        return_amount = Uint128::from(offer_amount * result.prev_exchange_rate);
-    }
+        cosmwasm_std::Uint128::try_from(offer_amount * exchange_rate)
+            .map_err(|_| StdError::generic_err("Failed to convert Uint256 -> Uint128"))?
+    };
 
     let spread_amount = Uint128::from(0u128);
     let commission_amount = Uint128::from(0u128);
@@ -644,26 +591,29 @@ pub fn query_reverse_simulation(
     let config: Config = CONFIG.load(deps.storage)?;
     let pools: [AssetInfo; 2] = config.pair_info.asset_infos;
 
-    if ask_asset.info.equal(&pools[0]) || ask_asset.info.equal(&pools[1]) {
-    } else {
+    if !ask_asset.info.equal(&pools[0]) && !ask_asset.info.equal(&pools[1]) {
         return Err(StdError::generic_err(
             "Given ask asset doesn't belong to pairs",
         ));
     }
 
-    let result: StateResponse = deps.querier.query_wasm_smart(
+    let result: EpochStateResponse = deps.querier.query_wasm_smart(
         config.anchor_market_addr,
-        &AnchorQueryMsg::State { block_height: None },
+        &AnchorQueryMsg::EpochState {
+            block_height: None,
+            distributed_interest: None,
+        },
     )?;
 
-    let offer_amount;
     let return_amount: Uint256 = ask_asset.amount.into();
 
-    if ask_asset.is_native_token() {
-        offer_amount = Uint128::from(return_amount / result.prev_exchange_rate);
+    let offer_amount = if ask_asset.is_native_token() {
+        cosmwasm_std::Uint128::try_from(return_amount / result.exchange_rate)
+            .map_err(|_| StdError::generic_err("Failed to convert Uint256 -> Uint128"))?
     } else {
-        offer_amount = Uint128::from(return_amount * result.prev_exchange_rate);
-    }
+        cosmwasm_std::Uint128::try_from(return_amount * result.exchange_rate)
+            .map_err(|_| StdError::generic_err("Failed to convert Uint256 -> Uint128"))?
+    };
 
     let spread_amount = Uint128::from(0u128);
     let commission_amount = Uint128::from(0u128);
@@ -683,7 +633,7 @@ pub fn query_reverse_simulation(
 /// * **env** is an object of type [`Env`].
 pub fn query_cumulative_prices(deps: Deps, _env: Env) -> StdResult<CumulativePricesResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
-    let (assets, total_share) = pool_info(deps, config)?;
+    let (assets, total_share) = empty_pool_info(config)?;
 
     let price0_cumulative_last = Uint128::from(0u128);
     let price1_cumulative_last = Uint128::from(0u128);
@@ -723,14 +673,11 @@ pub fn query_config(_deps: Deps) -> StdResult<ConfigResponse> {
 /// * **offer_amount** is an object of type [`Uint128`]. This is the amount of assets to swap.
 ///
 /// * **return_amount** is an object of type [`Uint128`]. This is the amount of assets to receive from the swap.
-///
-/// * **spread_amount** is an object of type [`Uint128`]. This is the spread used in the swap.
 pub fn assert_max_spread(
     belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
     offer_amount: Uint128,
     return_amount: Uint128,
-    spread_amount: Uint128,
 ) -> Result<(), ContractError> {
     let default_spread = Decimal::from_str(DEFAULT_SLIPPAGE)?;
     let max_allowed_spread = Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?;
@@ -752,51 +699,10 @@ pub fn assert_max_spread(
         {
             return Err(ContractError::MaxSpreadAssertion {});
         }
-    } else if Decimal::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
-        return Err(ContractError::MaxSpreadAssertion {});
     }
 
     Ok(())
 }
-
-/// ## Description
-/// This is an internal function that enforces slippage tolerance for swaps.
-/// Returns a [`ContractError`] on failure, otherwise returns [`Ok`].
-/// ## Params
-/// * **slippage_tolerance** is an object of type [`Option<Decimal>`]. This is the slippage tolerance to enforce.
-///
-/// * **deposits** are an array of [`Uint128`] type items. These are offer and ask amounts for a swap.
-///
-/// * **pools** are an array of [`Asset`] type items. These are total amounts of assets in the pool.
-// fn assert_slippage_tolerance(
-//     slippage_tolerance: Option<Decimal>,
-//     deposits: &[Uint128; 2],
-//     pools: &[Asset; 2],
-// ) -> Result<(), ContractError> {
-//     let default_slippage = Decimal::from_str(DEFAULT_SLIPPAGE)?;
-//     let max_allowed_slippage = Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?;
-
-//     let slippage_tolerance = slippage_tolerance.unwrap_or(default_slippage);
-//     if slippage_tolerance.gt(&max_allowed_slippage) {
-//         return Err(ContractError::AllowedSpreadAssertion {});
-//     }
-
-//     let slippage_tolerance: Decimal256 = slippage_tolerance.into();
-//     let one_minus_slippage_tolerance = Decimal256::one() - slippage_tolerance;
-//     let deposits: [Uint256; 2] = [deposits[0].into(), deposits[1].into()];
-//     let pools: [Uint256; 2] = [pools[0].amount.into(), pools[1].amount.into()];
-
-//     // Ensure each price does not change more than what the slippage tolerance allows
-//     if Decimal256::from_ratio(deposits[0], deposits[1]) * one_minus_slippage_tolerance
-//         > Decimal256::from_ratio(pools[0], pools[1])
-//         || Decimal256::from_ratio(deposits[1], deposits[0]) * one_minus_slippage_tolerance
-//             > Decimal256::from_ratio(pools[1], pools[0])
-//     {
-//         return Err(ContractError::MaxSlippageAssertion {});
-//     }
-
-//     Ok(())
-// }
 
 /// ## Description
 /// Used for the contract migration. Returns a default object of type [`Response`].
@@ -817,11 +723,7 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Respons
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **config** is an object of type [`Config`].
-pub fn pool_info(_deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)> {
-    // let contract_addr = config.pair_info.contract_addr.clone();
-    // let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
-    // let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;
-
+pub fn empty_pool_info(config: Config) -> StdResult<([Asset; 2], Uint128)> {
     let pools: [Asset; 2] = [
         Asset {
             amount: Uint128::from(0u128),
@@ -833,7 +735,5 @@ pub fn pool_info(_deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)
         },
     ];
 
-    let total_share = Uint128::from(0u128);
-
-    Ok((pools, total_share))
+    Ok((pools, Uint128::zero()))
 }

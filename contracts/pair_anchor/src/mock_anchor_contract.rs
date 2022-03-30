@@ -1,14 +1,14 @@
-use astroport::pair_anchor::{AnchorExecuteMsg, AnchorQueryMsg, StateResponse};
-
-use cosmwasm_std::Addr;
+use cosmwasm_bignumber::{Decimal256, Uint256};
 use cw_storage_plus::Item;
+use moneymarket::market::{
+    Cw20HookMsg, EpochStateResponse, ExecuteMsg as AnchorExecuteMsg, QueryMsg as AnchorQueryMsg,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg,
-    Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult, Uint128, WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, BankMsg, Binary, CanonicalAddr, Coin,
+    CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
@@ -47,15 +47,19 @@ pub fn execute(
     match msg {
         AnchorExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         AnchorExecuteMsg::DepositStable {} => deposit_stable(deps.as_ref(), env, info),
-        AnchorExecuteMsg::RedeemStable { .. } => Err(ContractError::NonSupported {}),
-        AnchorExecuteMsg::SetToken(aterra_contract) => {
+        AnchorExecuteMsg::RegisterContracts {
+            overseer_contract, ..
+        } => {
+            // using this execute message to set the correct state for mocking it
             let config = Config {
-                aterra_contract: deps.api.addr_canonicalize(aterra_contract.as_str())?,
+                aterra_contract: deps.api.addr_canonicalize(overseer_contract.as_str())?,
             };
 
             CONFIG.save(deps.storage, &config)?;
             Ok(Response::new())
         }
+
+        _ => panic!("Do not enter here"),
     }
 }
 
@@ -71,7 +75,7 @@ pub fn receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     match from_binary(&cw20_msg.msg) {
-        Ok(AnchorExecuteMsg::RedeemStable {}) => {
+        Ok(Cw20HookMsg::RedeemStable {}) => {
             let cw20_sender_addr = deps.api.addr_validate(&cw20_msg.sender)?;
             redeem_stable(deps, env, cw20_sender_addr, cw20_msg.amount)
         }
@@ -154,26 +158,20 @@ pub fn redeem_stable(
 }
 
 fn compute_exchange_rate(deps: Deps, env: Env) -> Decimal256 {
-    query_state(deps, env, None).unwrap().prev_exchange_rate
+    query_state(deps, env).unwrap().exchange_rate
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: AnchorQueryMsg) -> StdResult<Binary> {
     match msg {
-        AnchorQueryMsg::State { block_height } => to_binary(&query_state(deps, env, block_height)?),
+        AnchorQueryMsg::EpochState { .. } => to_binary(&query_state(deps, env)?),
+        _ => panic!("Do not enter here"),
     }
 }
 
-pub fn query_state(_deps: Deps, _env: Env, _block_height: Option<u64>) -> StdResult<StateResponse> {
-    Ok(StateResponse {
-        total_liabilities: Decimal256::from_str("2771617807710230.916899829317330205").unwrap(),
-        total_reserves: Decimal256::from_str("0.734860156808943602").unwrap(),
-        last_interest_updated: 6944488u64,
-        last_reward_updated: 6944488u64,
-        global_interest_index: Decimal256::from_str("1.239677817386941132").unwrap(),
-        global_reward_index: Decimal256::from_str("0.257774735210970248").unwrap(),
-        anc_emission_rate: Decimal256::from_str("20381363.85157231012364762").unwrap(),
-        prev_aterra_supply: Uint256::from_str("9253988242307733").unwrap(),
-        prev_exchange_rate: Decimal256::from_str("1.216736524026807943").unwrap(),
+pub fn query_state(_deps: Deps, _env: Env) -> StdResult<EpochStateResponse> {
+    Ok(EpochStateResponse {
+        aterra_supply: Uint256::from_str("9253988242307733").unwrap(),
+        exchange_rate: Decimal256::from_str("1.216736524026807943").unwrap(),
     })
 }

@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{Asset, AssetInfo};
 
-use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
@@ -11,44 +10,6 @@ use cw20::Cw20ReceiveMsg;
 pub const DEFAULT_SLIPPAGE: &str = "0.005";
 /// The maximum allowed swap slippage
 pub const MAX_ALLOWED_SLIPPAGE: &str = "0.5";
-
-// Decimal precision for TWAP results
-pub const TWAP_PRECISION: u8 = 6;
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AnchorExecuteMsg {
-    /// ## Description
-    /// Receives a message of type [`Cw20ReceiveMsg`]
-    DepositStable {},
-
-    /// Return stable coins to a user
-    /// according to exchange rate
-    RedeemStable {},
-
-    SetToken(String),
-
-    Receive(Cw20ReceiveMsg),
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AnchorQueryMsg {
-    State { block_height: Option<u64> },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct StateResponse {
-    pub total_liabilities: Decimal256,
-    pub total_reserves: Decimal256,
-    pub last_interest_updated: u64,
-    pub last_reward_updated: u64,
-    pub global_interest_index: Decimal256,
-    pub global_reward_index: Decimal256,
-    pub anc_emission_rate: Decimal256,
-    pub prev_aterra_supply: Uint256,
-    pub prev_exchange_rate: Decimal256,
-}
 
 /// This structure describes the execute messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -126,14 +87,6 @@ pub enum QueryMsg {
     ReverseSimulation { ask_asset: Asset },
     /// Returns information about the cumulative prices in a [`CumulativePricesResponse`] object
     CumulativePrices {},
-}
-
-/// This struct is used to store bLUNA stableswap specific parameters.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct AnchorPoolParams {
-    /// The anchor contract address
-    pub anchor_market_addr: String,
 }
 
 /// This struct is used to return a query result with the total amount of LP tokens and the two assets in a specific pool.
