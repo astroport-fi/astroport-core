@@ -1639,14 +1639,6 @@ fn move_to_proxy() {
     // Check LP tokens have been successfully transferred
     check_token_balance(&mut app, &lp_cny_eur, &mirror_staking_instance, 0);
     check_token_balance(&mut app, &lp_cny_eur, &new_token_staking_instance, 10);
-    // Check proxy reward tokens have been successfully transferred
-    check_token_balance(
-        &mut app,
-        &mirror_token_instance,
-        &proxy_to_mirror_instance,
-        0,
-    );
-    check_token_balance(&mut app, &mirror_token_instance, &new_proxy, 50000000);
 }
 
 #[test]

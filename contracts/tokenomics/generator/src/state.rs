@@ -1,6 +1,6 @@
 use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
-use astroport::generator::{PoolInfo, PoolInfoV2};
+use astroport::generator::{PoolInfo, RestrictedVector};
 use astroport::DecimalCheckedOps;
 use cosmwasm_std::{Addr, StdError, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
@@ -28,7 +28,7 @@ pub struct UserInfoV2 {
     pub reward_debt: Uint128,
     /// Proxy reward amount a user already received per reward proxy; used for proper reward calculation
     /// Vector of pairs (reward_proxy, reward debited).
-    pub reward_debt_proxy: Vec<(Addr, Uint128)>,
+    pub reward_debt_proxy: RestrictedVector<Uint128>,
 }
 
 /// This structure stores the core parameters for the Generator contract.
@@ -107,40 +107,7 @@ pub const CONFIG: Item<Config> = Item::new("config");
 /// This is a map that contains information about all generators.
 ///
 /// The first key is the address of a LP token, the second key is an object of type [`PoolInfo`].
-pub const POOL_INFO: Map<&Addr, PoolInfoV2> = Map::new("pool_info");
-/// Old POOL_INFO storage interface for backward compatibility
-pub const OLD_POOL_INFO: Map<&Addr, PoolInfo> = Map::new("pool_info");
-
-pub trait CompatibleLoader<K, R> {
-    fn compatible_load(&self, store: &dyn Storage, key: K) -> StdResult<R>;
-}
-
-impl CompatibleLoader<&Addr, PoolInfoV2> for Map<'_, &Addr, PoolInfoV2> {
-    fn compatible_load(&self, store: &dyn Storage, key: &Addr) -> StdResult<PoolInfoV2> {
-        self.load(store, key).or_else(|_| {
-            let pool_info = OLD_POOL_INFO.load(store, key)?;
-            let mut accumulated_proxy_rewards_per_share = vec![];
-            let mut orphan_proxy_rewards = vec![];
-            if let Some(proxy) = pool_info.reward_proxy.clone() {
-                if !pool_info.accumulated_proxy_rewards_per_share.is_zero() {
-                    accumulated_proxy_rewards_per_share =
-                        vec![(proxy.clone(), pool_info.accumulated_proxy_rewards_per_share)];
-                    orphan_proxy_rewards = vec![(proxy, pool_info.orphan_proxy_rewards)]
-                }
-            }
-            let pool_info_v2 = PoolInfoV2 {
-                last_reward_block: pool_info.last_reward_block,
-                accumulated_rewards_per_share: pool_info.accumulated_rewards_per_share,
-                reward_proxy: pool_info.reward_proxy,
-                accumulated_proxy_rewards_per_share,
-                proxy_reward_balance_before_update: pool_info.proxy_reward_balance_before_update,
-                orphan_proxy_rewards,
-                has_asset_rewards: pool_info.has_asset_rewards,
-            };
-            Ok(pool_info_v2)
-        })
-    }
-}
+pub const POOL_INFO: Map<&Addr, PoolInfo> = Map::new("pool_info");
 
 pub const TMP_USER_ACTION: Item<Option<ExecuteOnReply>> = Item::new("tmp_user_action");
 
@@ -151,15 +118,23 @@ pub const USER_INFO: Map<(&Addr, &Addr), UserInfoV2> = Map::new("user_info");
 /// Old USER_INFO storage interface for backward compatibility
 pub const OLD_USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
 
+pub trait CompatibleLoader<K, R> {
+    fn compatible_load(&self, store: &dyn Storage, key: K) -> StdResult<R>;
+}
+
 impl CompatibleLoader<(&Addr, &Addr), UserInfoV2> for Map<'_, (&Addr, &Addr), UserInfoV2> {
     fn compatible_load(&self, store: &dyn Storage, key: (&Addr, &Addr)) -> StdResult<UserInfoV2> {
         self.load(store, key).or_else(|_| {
             let user_info = OLD_USER_INFO.load(store, key)?;
-            let pool_info = POOL_INFO.compatible_load(store, key.0)?;
-            let mut reward_debt_proxy = vec![];
-            if let Some(reward_proxy) = pool_info.reward_proxy {
-                // TODO: this is incorrect in case we deserialize old user info struct after proxy migration
-                reward_debt_proxy = vec![(reward_proxy, user_info.reward_debt_proxy)]
+            let pool_info = POOL_INFO.load(store, key.0)?;
+            let mut reward_debt_proxy = RestrictedVector::default();
+            if let Some((first_reward_proxy, _)) = pool_info
+                .accumulated_proxy_rewards_per_share
+                .inner_ref()
+                .first()
+            {
+                reward_debt_proxy =
+                    RestrictedVector::new(first_reward_proxy.clone(), user_info.reward_debt_proxy)
             }
 
             let user_info = UserInfoV2 {
@@ -192,7 +167,7 @@ pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_pro
 /// * **amount** is an object of type [`Uint128`].
 pub fn update_user_balance(
     mut user: UserInfoV2,
-    pool: &PoolInfoV2,
+    pool: &PoolInfo,
     amount: Uint128,
 ) -> StdResult<UserInfoV2> {
     user.amount = amount;
@@ -207,13 +182,19 @@ pub fn update_user_balance(
 }
 
 pub fn accumulate_pool_proxy_rewards(
-    pool: &PoolInfoV2,
+    pool: &PoolInfo,
     user: &mut UserInfoV2,
 ) -> StdResult<Vec<(Addr, Uint128)>> {
-    if !pool.accumulated_proxy_rewards_per_share.is_empty() {
-        let rewards_debt_map: HashMap<_, _> = user.reward_debt_proxy.iter().cloned().collect();
-        user.reward_debt_proxy = vec![];
+    if !pool
+        .accumulated_proxy_rewards_per_share
+        .inner_ref()
+        .is_empty()
+    {
+        let rewards_debt_map: HashMap<_, _> =
+            user.reward_debt_proxy.inner_ref().iter().cloned().collect();
+        user.reward_debt_proxy = Default::default();
         pool.accumulated_proxy_rewards_per_share
+            .inner_ref()
             .iter()
             .filter(|(_, rewards_per_share)| !rewards_per_share.is_zero())
             .map(|(proxy, rewards_per_share)| {
@@ -225,7 +206,7 @@ pub fn accumulate_pool_proxy_rewards(
                     .saturating_sub(reward_debt);
                 // Change the user's reward debt to the new value.
                 user.reward_debt_proxy
-                    .push((proxy.clone(), pending_proxy_rewards));
+                    .push(proxy.clone(), pending_proxy_rewards);
 
                 Ok((proxy.clone(), pending_proxy_rewards))
             })

@@ -1,9 +1,11 @@
 use crate::asset::AssetInfo;
 use crate::factory::PairType;
-use cosmwasm_std::{Addr, Binary, Decimal, Uint128, Uint64};
+use crate::DecimalCheckedOps;
+use cosmwasm_std::{Addr, Binary, Decimal, StdError, StdResult, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 
 /// This structure describes the parameters used for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -197,6 +199,78 @@ pub struct PendingTokenResponse {
     pub pending_on_proxy: Option<Uint128>,
 }
 
+/// Vec wrapper for internal use.
+/// Some business logic relies on an order of this vector, thus it is forbidden to sort it
+/// or remove elements. New values can be added using .push() ONLY.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+pub struct RestrictedVector<T>(Vec<(Addr, T)>);
+
+impl<T> RestrictedVector<T>
+where
+    T: Copy,
+{
+    pub fn new(first_proxy: Addr, first_reward_index: T) -> Self {
+        Self(vec![(first_proxy, first_reward_index)])
+    }
+
+    pub fn get_last_mut(&mut self, proxy: &Addr) -> StdResult<&mut T> {
+        self.0
+            .last_mut()
+            .filter(|(p, _)| p.as_str() == proxy.as_str())
+            .map(|(_, v)| v)
+            .ok_or_else(|| StdError::generic_err(format!("Proxy {} not found", proxy)))
+    }
+
+    pub fn get_last(&self, proxy: &Addr) -> StdResult<T> {
+        self.0
+            .last()
+            .filter(|(p, _)| p.as_str() == proxy.as_str())
+            .map(|(_, v)| v)
+            .cloned()
+            .ok_or_else(|| StdError::generic_err(format!("Proxy {} not found", proxy)))
+    }
+
+    pub fn push(&mut self, proxy: Addr, reward_index: T) {
+        self.0.push((proxy, reward_index));
+    }
+
+    pub fn inner_ref(&self) -> &Vec<(Addr, T)> {
+        &self.0
+    }
+}
+
+impl RestrictedVector<Decimal> {
+    pub fn update(&mut self, key: &Addr, value: Decimal) -> StdResult<()> {
+        let proxy_ref = self
+            .0
+            .last_mut()
+            .ok_or_else(|| StdError::generic_err("Invalid proxy state"))?;
+        if proxy_ref.0.as_str() == key.as_str() {
+            proxy_ref.1 = proxy_ref.1.checked_add(value)?
+        } else {
+            self.push(key.clone(), value)
+        }
+
+        Ok(())
+    }
+}
+
+impl RestrictedVector<Uint128> {
+    pub fn update(&mut self, key: &Addr, value: Uint128) -> StdResult<()> {
+        let proxy_ref = self
+            .0
+            .last_mut()
+            .ok_or_else(|| StdError::generic_err("Invalid proxy state"))?;
+        if proxy_ref.0.as_str() == key.as_str() {
+            proxy_ref.1 = proxy_ref.1.checked_add(value)?
+        } else {
+            self.push(key.clone(), value)
+        }
+
+        Ok(())
+    }
+}
+
 /// This structure describes the main information of pool
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolInfo {
@@ -205,29 +279,12 @@ pub struct PoolInfo {
     pub accumulated_rewards_per_share: Decimal,
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
-    pub accumulated_proxy_rewards_per_share: Decimal,
-    /// for calculation of new proxy rewards
-    pub proxy_reward_balance_before_update: Uint128,
-    /// the orphan proxy rewards which are left by emergency withdrawals
-    pub orphan_proxy_rewards: Uint128,
-    /// The pool has assets giving additional rewards
-    pub has_asset_rewards: bool,
-}
-
-/// This structure describes the main information of pool
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PoolInfoV2 {
-    /// Accumulated amount of reward per share unit. Used for reward calculations
-    pub last_reward_block: Uint64,
-    pub accumulated_rewards_per_share: Decimal,
-    /// the reward proxy contract
-    pub reward_proxy: Option<Addr>,
     /// Accumulated reward indexes per reward proxy. Vector of pairs (reward_proxy, index).
-    pub accumulated_proxy_rewards_per_share: Vec<(Addr, Decimal)>,
+    pub accumulated_proxy_rewards_per_share: RestrictedVector<Decimal>,
     /// for calculation of new proxy rewards
     pub proxy_reward_balance_before_update: Uint128,
     /// the orphan proxy rewards which are left by emergency withdrawals. Vector of pairs (reward_proxy, index).
-    pub orphan_proxy_rewards: Vec<(Addr, Uint128)>,
+    pub orphan_proxy_rewards: RestrictedVector<Uint128>,
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
 }
