@@ -4,6 +4,7 @@ pub mod state;
 
 pub mod error;
 
+mod migration;
 mod response;
 
 #[cfg(test)]
