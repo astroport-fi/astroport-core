@@ -2,7 +2,7 @@ use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
 use astroport::generator::{PoolInfo, RestrictedVector};
 use astroport::DecimalCheckedOps;
-use cosmwasm_std::{Addr, StdError, StdResult, Storage, Uint128, Uint64};
+use cosmwasm_std::{Addr, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -221,9 +221,7 @@ pub fn accumulate_pool_proxy_rewards(
             .iter()
             .filter(|(_, rewards_per_share)| !rewards_per_share.is_zero())
             .map(|(proxy, rewards_per_share)| {
-                let reward_debt = *rewards_debt_map.get(&proxy).ok_or_else(|| {
-                    StdError::generic_err(format!("Inconsistent proxy ({}) rewards state.", proxy))
-                })?;
+                let reward_debt = rewards_debt_map.get(proxy).cloned().unwrap_or_default();
                 let pending_proxy_rewards = rewards_per_share
                     .checked_mul(user.amount)?
                     .saturating_sub(reward_debt);

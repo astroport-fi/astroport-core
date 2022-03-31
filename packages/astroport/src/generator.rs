@@ -269,9 +269,9 @@ impl Increaseable for Uint128 {
     }
 }
 
-impl<T> Into<RestrictedVector<T>> for Vec<(Addr, T)> {
-    fn into(self) -> RestrictedVector<T> {
-        RestrictedVector(self)
+impl<T> From<Vec<(Addr, T)>> for RestrictedVector<T> {
+    fn from(v: Vec<(Addr, T)>) -> Self {
+        Self(v)
     }
 }
 

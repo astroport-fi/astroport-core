@@ -1,7 +1,7 @@
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
-    WasmMsg,
+    MessageInfo, Order, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
+    Uint128, Uint64, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
 use std::collections::HashSet;
@@ -816,14 +816,14 @@ fn set_tokens_per_block(
 ///
 /// * **lp_tokens** is the list of type [`Addr`].
 pub fn mass_update_pools(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: &Env,
     cfg: &Config,
     lp_tokens: &[Addr],
 ) -> Result<(), ContractError> {
     for lp_token in lp_tokens {
         let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
-        accumulate_rewards_per_share(deps.branch(), env, lp_token, &mut pool, cfg, None)?;
+        accumulate_rewards_per_share(&deps.querier, env, lp_token, &mut pool, cfg, None)?;
         POOL_INFO.save(deps.storage, lp_token, &pool)?;
     }
 
@@ -888,7 +888,7 @@ pub fn claim_rewards(
 /// * **deposited** is an [`Option`] field object of type [`Uint128`]. This is the total amount of LP
 /// tokens deposited in the target generator.
 pub fn accumulate_rewards_per_share(
-    deps: DepsMut,
+    querier: &QuerierWrapper,
     env: &Env,
     lp_token: &Addr,
     pool: &mut PoolInfo,
@@ -899,14 +899,11 @@ pub fn accumulate_rewards_per_share(
 
     match &pool.reward_proxy {
         Some(proxy) => {
-            lp_supply = deps
-                .querier
-                .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?;
+            lp_supply = querier.query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?;
 
             if !lp_supply.is_zero() {
-                let reward_amount: Uint128 = deps
-                    .querier
-                    .query_wasm_smart(proxy, &ProxyQueryMsg::Reward {})?;
+                let reward_amount: Uint128 =
+                    querier.query_wasm_smart(proxy, &ProxyQueryMsg::Reward {})?;
 
                 let token_rewards =
                     reward_amount.checked_sub(pool.proxy_reward_balance_before_update)?;
@@ -918,7 +915,7 @@ pub fn accumulate_rewards_per_share(
             }
         }
         None => {
-            let res: BalanceResponse = deps.querier.query_wasm_smart(
+            let res: BalanceResponse = querier.query_wasm_smart(
                 lp_token,
                 &cw20::Cw20QueryMsg::Balance {
                     address: env.contract.address.to_string(),
@@ -1080,7 +1077,7 @@ pub fn send_pending_rewards(
 ///
 /// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to deposit.
 pub fn deposit(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     lp_token: Addr,
     beneficiary: Addr,
@@ -1094,7 +1091,7 @@ pub fn deposit(
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
     accumulate_rewards_per_share(
-        deps.branch(),
+        &deps.querier,
         &env,
         &lp_token,
         &mut pool,
@@ -1159,7 +1156,7 @@ pub fn deposit(
 ///
 /// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to withdraw.
 pub fn withdraw(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     lp_token: Addr,
     account: Addr,
@@ -1175,7 +1172,7 @@ pub fn withdraw(
     let cfg = CONFIG.load(deps.storage)?;
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
-    accumulate_rewards_per_share(deps.branch(), &env, &lp_token, &mut pool, &cfg, None)?;
+    accumulate_rewards_per_share(&deps.querier, &env, &lp_token, &mut pool, &cfg, None)?;
 
     // Send pending rewards to the user
     let send_rewards_msg = send_pending_rewards(&cfg, &pool, &mut user, &account)?;
@@ -1492,6 +1489,8 @@ fn migrate_proxy_callback(
     new_proxy_addr: Addr,
 ) -> Result<Response, ContractError> {
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
+    let cfg = CONFIG.load(deps.storage)?;
+    accumulate_rewards_per_share(&deps.querier, &env, &lp_addr, &mut pool_info, &cfg, None)?;
 
     // We've checked this before the callback so it's safe to unwrap here
     let prev_proxy_addr = pool_info.reward_proxy.clone().unwrap();
@@ -1502,7 +1501,7 @@ fn migrate_proxy_callback(
     let proxy_lp_balance: BalanceResponse = deps.querier.query_wasm_smart(
         &lp_addr,
         &Cw20QueryMsg::Balance {
-            address: prev_proxy_config.reward_contract_addr.to_string(),
+            address: prev_proxy_config.reward_contract_addr,
         },
     )?;
 
@@ -1515,11 +1514,14 @@ fn migrate_proxy_callback(
     pool_info
         .orphan_proxy_rewards
         .update(&new_proxy_addr, Uint128::zero())?;
+    // Set new proxy
+    pool_info.reward_proxy = Some(new_proxy_addr.clone());
 
     POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
 
     // Migrate all LP tokens to new proxy contract
     if !proxy_lp_balance.balance.is_zero() {
+        // Firstly, transfer LP tokens to the generator address
         let transfer_lp_msg = SubMsg::reply_on_success(
             WasmMsg::Execute {
                 contract_addr: prev_proxy_addr.to_string(),

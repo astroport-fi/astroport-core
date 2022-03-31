@@ -1607,38 +1607,264 @@ fn move_to_proxy() {
     assert_eq!(
         "The pool already has a reward proxy contract!",
         err.to_string()
+    )
+}
+
+#[test]
+fn migrate_proxy() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked(OWNER);
+    let user1 = Addr::unchecked(USER1);
+    let token_code_id = store_token_code(&mut app);
+    let factory_code_id = store_factory_code(&mut app);
+    let pair_code_id = store_pair_code_id(&mut app);
+
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+
+    let cny_eur_token_code_id = store_token_code(&mut app);
+    let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
+    let cny_token = instantiate_token(&mut app, cny_eur_token_code_id, "CNY", None);
+
+    let (pair_cny_eur, lp_cny_eur) = create_pair(
+        &mut app,
+        &factory_instance,
+        None,
+        None,
+        [
+            AssetInfo::Token {
+                contract_addr: cny_token.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: eur_token.clone(),
+            },
+        ],
     );
 
-    let (new_token_instance, new_token_staking_instance) =
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
+
+    register_lp_tokens_in_generator(
+        &mut app,
+        &generator_instance,
+        vec![PoolWithProxy {
+            pool: (lp_cny_eur.to_string(), Uint128::from(50u32)),
+            proxy: None,
+        }],
+    );
+
+    let msg_cny_eur = QueryMsg::PoolInfo {
+        lp_token: lp_cny_eur.to_string(),
+    };
+
+    // Check if proxy reward is none
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .unwrap();
+    assert_eq!(None, reps.reward_proxy);
+
+    let (mirror_token_instance, mirror_staking_instance) =
         instantiate_mirror_protocol(&mut app, token_code_id, &pair_cny_eur, &lp_cny_eur);
 
-    let new_proxy = instantiate_proxy(
+    let proxy_code_id = store_proxy_code(&mut app);
+
+    let proxy_to_mirror_instance = instantiate_proxy(
         &mut app,
         proxy_code_id,
         &generator_instance,
         &pair_cny_eur,
         &lp_cny_eur,
-        &new_token_staking_instance,
-        &new_token_instance,
+        &mirror_staking_instance,
+        &mirror_token_instance,
     );
 
     let msg = GeneratorExecuteMsg::SetAllowedRewardProxies {
-        proxies: vec![proxy_to_mirror_instance.to_string(), new_proxy.to_string()],
+        proxies: vec![proxy_to_mirror_instance.to_string()],
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
+
+    // Set the proxy for the pool
+    let msg = ExecuteMsg::MoveToProxy {
+        lp_token: lp_cny_eur.to_string(),
+        proxy: proxy_to_mirror_instance.to_string(),
+    };
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Mint tokens, so user can deposit
+    mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 10);
+
+    deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER1, &[(&lp_cny_eur, 10)]);
+
+    // With the proxy set up, the Generator contract doesn't have the deposited LP tokens
+    check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 0);
+    // The LP tokens are in the 3rd party contract now
+    check_token_balance(&mut app, &lp_cny_eur, &mirror_staking_instance, 10);
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_cny_eur,
+        USER1,
+        (0, Some(0)),
+    );
+
+    app.update_block(|bi| next_block(bi));
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: mirror_staking_instance.to_string(),
+        msg: to_binary(&MirrorStakingHookMsg::DepositReward {
+            rewards: vec![(pair_cny_eur.to_string(), Uint128::new(50_000000))],
+        })
+        .unwrap(),
+        amount: Uint128::new(50_000000),
+    };
+
+    mint_tokens(
+        &mut app,
+        owner.clone(),
+        &mirror_token_instance,
+        &owner,
+        50_000000,
+    );
+    app.execute_contract(owner.clone(), mirror_token_instance.clone(), &msg, &[])
+        .unwrap();
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_cny_eur,
+        USER1,
+        (10_000000, Some(50_000000)),
+    );
+
+    let (foo_token, foo_token_staking_instance) =
+        instantiate_mirror_protocol(&mut app, token_code_id, &pair_cny_eur, &lp_cny_eur);
+
+    let foo_proxy = instantiate_proxy(
+        &mut app,
+        proxy_code_id,
+        &generator_instance,
+        &pair_cny_eur,
+        &lp_cny_eur,
+        &foo_token_staking_instance,
+        &foo_token,
+    );
+
+    let msg = GeneratorExecuteMsg::SetAllowedRewardProxies {
+        proxies: vec![proxy_to_mirror_instance.to_string(), foo_proxy.to_string()],
+    };
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Cannot migrate to the same proxy
+    let msg = ExecuteMsg::MigrateProxy {
+        lp_token: lp_cny_eur.to_string(),
+        new_proxy: proxy_to_mirror_instance.to_string(),
+    };
+    let err = app
+        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Can not migrate to the same proxy"
+    );
 
     // Migrate to another reward proxy
     let msg = ExecuteMsg::MigrateProxy {
         lp_token: lp_cny_eur.to_string(),
-        new_proxy: new_proxy.to_string(),
+        new_proxy: foo_proxy.to_string(),
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
 
-    // Check LP tokens have been successfully transferred
+    // Check LP tokens have been successfully transferred and deposited
     check_token_balance(&mut app, &lp_cny_eur, &mirror_staking_instance, 0);
-    check_token_balance(&mut app, &lp_cny_eur, &new_token_staking_instance, 10);
+    check_token_balance(&mut app, &lp_cny_eur, &foo_token_staking_instance, 10);
+
+    // Since we migrated to the new reward proxy, the proxy rewards should be 0
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_cny_eur,
+        USER1,
+        (10_000000, Some(0)),
+    );
+
+    // Simulate foo proxy reward income
+    let reward_amount = 100_000000;
+    let msg = Cw20ExecuteMsg::Send {
+        contract: foo_token_staking_instance.to_string(),
+        msg: to_binary(&MirrorStakingHookMsg::DepositReward {
+            rewards: vec![(pair_cny_eur.to_string(), Uint128::new(reward_amount))],
+        })
+        .unwrap(),
+        amount: Uint128::new(reward_amount),
+    };
+
+    mint_tokens(&mut app, owner.clone(), &foo_token, &owner, reward_amount);
+    app.execute_contract(owner.clone(), foo_token.clone(), &msg, &[])
+        .unwrap();
+
+    app.update_block(next_block);
+
+    let (bar_token, bar_token_staking_instance) =
+        instantiate_mirror_protocol(&mut app, token_code_id, &pair_cny_eur, &lp_cny_eur);
+
+    let bar_proxy = instantiate_proxy(
+        &mut app,
+        proxy_code_id,
+        &generator_instance,
+        &pair_cny_eur,
+        &lp_cny_eur,
+        &bar_token_staking_instance,
+        &bar_token,
+    );
+
+    let msg = GeneratorExecuteMsg::SetAllowedRewardProxies {
+        proxies: vec![foo_proxy.to_string(), bar_proxy.to_string()],
+    };
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Migrate to the 3rd reward proxy
+    let msg = ExecuteMsg::MigrateProxy {
+        lp_token: lp_cny_eur.to_string(),
+        new_proxy: bar_proxy.to_string(),
+    };
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Simulate bar proxy reward income
+    let reward_amount = 70_000000;
+    let msg = Cw20ExecuteMsg::Send {
+        contract: bar_token_staking_instance.to_string(),
+        msg: to_binary(&MirrorStakingHookMsg::DepositReward {
+            rewards: vec![(pair_cny_eur.to_string(), Uint128::new(reward_amount))],
+        })
+        .unwrap(),
+        amount: Uint128::new(reward_amount),
+    };
+
+    mint_tokens(&mut app, owner.clone(), &bar_token, &owner, reward_amount);
+    app.execute_contract(owner.clone(), bar_token.clone(), &msg, &[])
+        .unwrap();
+
+    // Claim all rewards
+    let msg = ExecuteMsg::ClaimRewards {
+        lp_tokens: vec![lp_cny_eur.to_string()],
+    };
+    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    check_token_balance(&mut app, &mirror_token_instance, &user1, 50_000000);
+    check_token_balance(&mut app, &foo_token, &user1, 100_000000);
+    check_token_balance(&mut app, &bar_token, &user1, 70_000000);
 }
 
 #[test]
