@@ -3,6 +3,7 @@ use crate::math::{
     calc_ask_amount, calc_offer_amount, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE,
     MIN_AMP_CHANGING_TIME, N_COINS,
 };
+use crate::migration::CONFIG_PAIR_STABLE_V100;
 use crate::state::{
     Config, BLUNA_REWARD_GLOBAL_INDEX, BLUNA_REWARD_HOLDER, BLUNA_REWARD_USER_INDEXES, CONFIG,
 };
@@ -1531,11 +1532,22 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, Con
 
     match contract_version.contract.as_ref() {
         "astroport-pair-stable" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                let mut config = CONFIG.load(deps.storage)?;
-                config.bluna_rewarder = addr_validate_to_lower(deps.api, &msg.bluna_rewarder)?;
-                config.generator = addr_validate_to_lower(deps.api, &msg.generator)?;
-                CONFIG.save(deps.storage, &config)?;
+            "1.0.0" | "1.0.0-fix1" => {
+                let config = CONFIG_PAIR_STABLE_V100.load(deps.storage)?;
+                let new_config = crate::state::Config {
+                    bluna_rewarder: addr_validate_to_lower(deps.api, &msg.bluna_rewarder)?,
+                    generator: addr_validate_to_lower(deps.api, &msg.generator)?,
+                    block_time_last: config.block_time_last,
+                    factory_addr: config.factory_addr.clone(),
+                    init_amp: config.init_amp,
+                    init_amp_time: config.init_amp_time,
+                    next_amp: config.next_amp,
+                    next_amp_time: config.next_amp_time,
+                    pair_info: config.pair_info,
+                    price0_cumulative_last: config.price0_cumulative_last,
+                    price1_cumulative_last: config.price1_cumulative_last,
+                };
+                CONFIG.save(deps.storage, &new_config)?;
                 response
                     .messages
                     .push(get_bluna_reward_holder_instantiating_message(

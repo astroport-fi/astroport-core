@@ -598,7 +598,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
 
     match contract_version.contract.as_ref() {
         "astroport-factory" => match contract_version.version.as_ref() {
-            "1.0.0" => {
+            "1.0.0" | "1.0.0-fix1" => {
                 let msg: migration::MigrationMsgV100 = from_binary(&msg.params)?;
 
                 let config_v100 = migration::CONFIGV100.load(deps.storage)?;
