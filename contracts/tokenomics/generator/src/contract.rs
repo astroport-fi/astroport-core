@@ -1305,25 +1305,17 @@ pub fn emergency_withdraw(
     // Instantiate the transfer call for the LP token
     let transfer_msg: WasmMsg;
     if let Some(proxy) = &pool.reward_proxy {
+        let accumulated_proxy_rewards_per_share =
+            pool.accumulated_proxy_rewards_per_share.get_last(proxy)?;
+        let mut user_proxy_rewards = Uint128::zero();
+        if !accumulated_proxy_rewards_per_share.is_zero() {
+            let reward_debt_proxy = user.reward_debt_proxy.get_last(proxy).unwrap_or_default();
+            user_proxy_rewards = accumulated_proxy_rewards_per_share
+                .checked_mul(user.amount)?
+                .saturating_sub(reward_debt_proxy);
+        }
         pool.orphan_proxy_rewards
-            .get_last_mut(proxy)
-            .map(|amount| -> Result<_, StdError> {
-                let accumulated_proxy_rewards_per_share = pool
-                    .accumulated_proxy_rewards_per_share
-                    .get_last(proxy)
-                    .unwrap_or_default();
-                if !accumulated_proxy_rewards_per_share.is_zero() {
-                    let reward_debt_proxy =
-                        user.reward_debt_proxy.get_last(proxy).unwrap_or_default();
-                    *amount = amount.checked_add(
-                        accumulated_proxy_rewards_per_share
-                            .checked_mul(user.amount)?
-                            .saturating_sub(reward_debt_proxy),
-                    )?;
-                }
-
-                Ok(())
-            })??;
+            .update(proxy, user_proxy_rewards)?;
 
         transfer_msg = WasmMsg::Execute {
             contract_addr: proxy.to_string(),
@@ -1516,6 +1508,13 @@ fn migrate_proxy_callback(
 
     // Since we migrate to another proxy the proxy reward balance becomes 0.
     pool_info.proxy_reward_balance_before_update = Uint128::zero();
+    // Save a new index and orphan rewards for the new proxy
+    pool_info
+        .accumulated_proxy_rewards_per_share
+        .update(&new_proxy_addr, Decimal::zero())?;
+    pool_info
+        .orphan_proxy_rewards
+        .update(&new_proxy_addr, Uint128::zero())?;
 
     POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
 
@@ -1968,18 +1967,16 @@ fn query_reward_info(deps: Deps, lp_token: String) -> Result<RewardInfoResponse,
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **lp_token** is an object of type [`String`]. This is the LP token whose generator we query for orphaned rewards.
-fn query_orphan_proxy_rewards(
-    deps: Deps,
-    lp_token: String,
-) -> Result<Vec<(Addr, Uint128)>, ContractError> {
+fn query_orphan_proxy_rewards(deps: Deps, lp_token: String) -> Result<Uint128, ContractError> {
     let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
-    if pool.orphan_proxy_rewards.inner_ref().is_empty() {
-        return Err(ContractError::PoolDoesNotHaveAdditionalRewards {});
+    if let Some(proxy) = pool.reward_proxy {
+        let orphan_rewards = pool.orphan_proxy_rewards.get_last(&proxy)?;
+        Ok(orphan_rewards)
+    } else {
+        Err(ContractError::PoolDoesNotHaveAdditionalRewards {})
     }
-
-    Ok(pool.orphan_proxy_rewards.inner_ref().clone())
 }
 
 /// ## Description

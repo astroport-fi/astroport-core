@@ -201,13 +201,20 @@ pub struct PendingTokenResponse {
 
 /// Vec wrapper for internal use.
 /// Some business logic relies on an order of this vector, thus it is forbidden to sort it
-/// or remove elements. New values can be added using .push() ONLY.
+/// or remove elements. New values can be added using .update() ONLY.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct RestrictedVector<T>(Vec<(Addr, T)>);
 
+pub trait Increaseable
+where
+    Self: Sized,
+{
+    fn increase(self, new: Self) -> StdResult<Self>;
+}
+
 impl<T> RestrictedVector<T>
 where
-    T: Copy,
+    T: Copy + Increaseable,
 {
     pub fn new(first_proxy: Addr, first_reward_index: T) -> Self {
         Self(vec![(first_proxy, first_reward_index)])
@@ -230,8 +237,19 @@ where
             .ok_or_else(|| StdError::generic_err(format!("Proxy {} not found", proxy)))
     }
 
-    pub fn push(&mut self, proxy: Addr, reward_index: T) {
-        self.0.push((proxy, reward_index));
+    pub fn update(&mut self, key: &Addr, value: T) -> StdResult<()> {
+        let proxy_ref = self
+            .0
+            .iter_mut()
+            .find(|(proxy_addr, _)| proxy_addr.as_str() == key.as_str());
+        match proxy_ref {
+            Some((ref proxy, index)) if proxy.as_str() == key.as_str() => {
+                *index = index.increase(value)?
+            }
+            _ => self.0.push((key.clone(), value)),
+        }
+
+        Ok(())
     }
 
     pub fn inner_ref(&self) -> &Vec<(Addr, T)> {
@@ -239,35 +257,21 @@ where
     }
 }
 
-impl RestrictedVector<Decimal> {
-    pub fn update(&mut self, key: &Addr, value: Decimal) -> StdResult<()> {
-        let proxy_ref = self
-            .0
-            .last_mut()
-            .ok_or_else(|| StdError::generic_err("Invalid proxy state"))?;
-        if proxy_ref.0.as_str() == key.as_str() {
-            proxy_ref.1 = proxy_ref.1.checked_add(value)?
-        } else {
-            self.push(key.clone(), value)
-        }
-
-        Ok(())
+impl Increaseable for Decimal {
+    fn increase(self, new: Decimal) -> StdResult<Decimal> {
+        self.checked_add(new).map_err(Into::into)
     }
 }
 
-impl RestrictedVector<Uint128> {
-    pub fn update(&mut self, key: &Addr, value: Uint128) -> StdResult<()> {
-        let proxy_ref = self
-            .0
-            .last_mut()
-            .ok_or_else(|| StdError::generic_err("Invalid proxy state"))?;
-        if proxy_ref.0.as_str() == key.as_str() {
-            proxy_ref.1 = proxy_ref.1.checked_add(value)?
-        } else {
-            self.push(key.clone(), value)
-        }
+impl Increaseable for Uint128 {
+    fn increase(self, new: Uint128) -> StdResult<Uint128> {
+        self.checked_add(new).map_err(Into::into)
+    }
+}
 
-        Ok(())
+impl<T> Into<RestrictedVector<T>> for Vec<(Addr, T)> {
+    fn into(self) -> RestrictedVector<T> {
+        RestrictedVector(self)
     }
 }
 

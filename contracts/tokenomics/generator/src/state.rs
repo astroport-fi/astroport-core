@@ -178,12 +178,36 @@ pub fn update_user_balance(
             .checked_mul(user.amount)?;
     };
 
+    if !pool
+        .accumulated_proxy_rewards_per_share
+        .inner_ref()
+        .is_empty()
+    {
+        let reward_debt_proxy: HashMap<_, _> =
+            user.reward_debt_proxy.inner_ref().iter().cloned().collect();
+        user.reward_debt_proxy = pool
+            .accumulated_proxy_rewards_per_share
+            .inner_ref()
+            .iter()
+            .map(|(proxy, rewards_per_share)| {
+                let reward_debt = reward_debt_proxy.get(proxy).cloned().unwrap_or_default();
+
+                let pending_proxy_rewards = rewards_per_share
+                    .checked_mul(user.amount)?
+                    .saturating_sub(reward_debt);
+
+                Ok((proxy.clone(), pending_proxy_rewards))
+            })
+            .collect::<StdResult<Vec<_>>>()?
+            .into();
+    }
+
     Ok(user)
 }
 
 pub fn accumulate_pool_proxy_rewards(
     pool: &PoolInfo,
-    user: &mut UserInfoV2,
+    user: &UserInfoV2,
 ) -> StdResult<Vec<(Addr, Uint128)>> {
     if !pool
         .accumulated_proxy_rewards_per_share
@@ -192,7 +216,6 @@ pub fn accumulate_pool_proxy_rewards(
     {
         let rewards_debt_map: HashMap<_, _> =
             user.reward_debt_proxy.inner_ref().iter().cloned().collect();
-        user.reward_debt_proxy = Default::default();
         pool.accumulated_proxy_rewards_per_share
             .inner_ref()
             .iter()
@@ -204,9 +227,6 @@ pub fn accumulate_pool_proxy_rewards(
                 let pending_proxy_rewards = rewards_per_share
                     .checked_mul(user.amount)?
                     .saturating_sub(reward_debt);
-                // Change the user's reward debt to the new value.
-                user.reward_debt_proxy
-                    .push(proxy.clone(), pending_proxy_rewards);
 
                 Ok((proxy.clone(), pending_proxy_rewards))
             })
