@@ -749,9 +749,9 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
                 } => migrate_proxy_callback(deps, env, lp_addr, new_proxy_addr),
                 ExecuteOnReply::MigrateProxyDepositLP {
                     lp_addr,
-                    new_proxy_addr,
+                    prev_proxy_addr,
                     amount,
-                } => migrate_proxy_deposit_lp(deps, lp_addr, new_proxy_addr, amount),
+                } => migrate_proxy_deposit_lp(deps, lp_addr, prev_proxy_addr, amount),
             }
         }
         None => Ok(Response::default()),
@@ -1018,7 +1018,7 @@ fn receive_cw20(
 pub fn send_pending_rewards(
     cfg: &Config,
     pool: &PoolInfo,
-    user: &mut UserInfoV2,
+    user: &UserInfoV2,
     to: &Addr,
 ) -> Result<Vec<WasmMsg>, ContractError> {
     if user.amount.is_zero() {
@@ -1081,7 +1081,7 @@ pub fn deposit(
     beneficiary: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let mut user = USER_INFO
+    let user = USER_INFO
         .compatible_load(deps.storage, (&lp_token, &beneficiary))
         .unwrap_or_default();
 
@@ -1098,7 +1098,7 @@ pub fn deposit(
     )?;
 
     // Send pending rewards (if any) to the depositor
-    let send_rewards_msg = send_pending_rewards(&cfg, &pool, &mut user, &beneficiary)?;
+    let send_rewards_msg = send_pending_rewards(&cfg, &pool, &user, &beneficiary)?;
 
     // If a reward proxy is set - send LP tokens to the proxy
     let transfer_msg = if !amount.is_zero() && pool.reward_proxy.is_some() {
@@ -1160,7 +1160,7 @@ pub fn withdraw(
     account: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let mut user = USER_INFO
+    let user = USER_INFO
         .compatible_load(deps.storage, (&lp_token, &account))
         .unwrap_or_default();
     if user.amount < amount {
@@ -1173,7 +1173,7 @@ pub fn withdraw(
     accumulate_rewards_per_share(&deps.querier, &env, &lp_token, &mut pool, &cfg, None)?;
 
     // Send pending rewards to the user
-    let send_rewards_msg = send_pending_rewards(&cfg, &pool, &mut user, &account)?;
+    let send_rewards_msg = send_pending_rewards(&cfg, &pool, &user, &account)?;
 
     // Instantiate the transfer call for the LP token
     let transfer_msg = if !amount.is_zero() {
@@ -1492,16 +1492,10 @@ fn migrate_proxy_callback(
 
     // We've checked this before the callback so it's safe to unwrap here
     let prev_proxy_addr = pool_info.reward_proxy.clone().unwrap();
-    let prev_proxy_config: astroport::generator_proxy::ConfigResponse = deps
-        .querier
-        .query_wasm_smart(&prev_proxy_addr, &QueryMsg::Config {})?;
 
-    let proxy_lp_balance: BalanceResponse = deps.querier.query_wasm_smart(
-        &lp_addr,
-        &Cw20QueryMsg::Balance {
-            address: prev_proxy_config.reward_contract_addr,
-        },
-    )?;
+    let proxy_lp_balance: Uint128 = deps
+        .querier
+        .query_wasm_smart(&prev_proxy_addr, &ProxyQueryMsg::Deposit {})?;
 
     // Since we migrate to another proxy the proxy reward balance becomes 0.
     pool_info.proxy_reward_balance_before_update = Uint128::zero();
@@ -1518,14 +1512,14 @@ fn migrate_proxy_callback(
     POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
 
     // Migrate all LP tokens to new proxy contract
-    if !proxy_lp_balance.balance.is_zero() {
+    if !proxy_lp_balance.is_zero() {
         // Firstly, transfer LP tokens to the generator address
         let transfer_lp_msg = SubMsg::reply_on_success(
             WasmMsg::Execute {
                 contract_addr: prev_proxy_addr.to_string(),
                 msg: to_binary(&ProxyExecuteMsg::Withdraw {
                     account: env.contract.address.to_string(),
-                    amount: proxy_lp_balance.balance,
+                    amount: proxy_lp_balance,
                 })?,
                 funds: vec![],
             },
@@ -1538,8 +1532,8 @@ fn migrate_proxy_callback(
             } else {
                 Ok(Some(ExecuteOnReply::MigrateProxyDepositLP {
                     lp_addr,
-                    new_proxy_addr,
-                    amount: proxy_lp_balance.balance,
+                    prev_proxy_addr,
+                    amount: proxy_lp_balance,
                 }))
             }
         })?;
@@ -1558,12 +1552,12 @@ fn migrate_proxy_callback(
 fn migrate_proxy_deposit_lp(
     deps: DepsMut,
     lp_addr: Addr,
-    new_proxy: Addr,
+    prev_proxy: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
-    // We've checked this before the callback so it's safe to unwrap here
-    let prev_proxy = pool_info.reward_proxy.unwrap();
+    // We've set it before the callback so it's safe to unwrap here
+    let new_proxy = pool_info.reward_proxy.unwrap();
 
     // Depositing LP tokens to new proxy
     let deposit_msg = WasmMsg::Execute {

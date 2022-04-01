@@ -97,7 +97,7 @@ pub enum ExecuteOnReply {
     /// Stake LP tokens into new reward proxy
     MigrateProxyDepositLP {
         lp_addr: Addr,
-        new_proxy_addr: Addr,
+        prev_proxy_addr: Addr,
         amount: Uint128,
     },
 }
@@ -184,7 +184,6 @@ pub fn update_user_balance(
         .iter()
         .map(|(proxy, rewards_per_share)| {
             let rewards_debt = rewards_per_share.checked_mul(user.amount)?;
-
             Ok((proxy.clone(), rewards_debt))
         })
         .collect::<StdResult<Vec<_>>>()?
