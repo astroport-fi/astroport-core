@@ -1617,6 +1617,7 @@ fn migrate_proxy() {
 
     let owner = Addr::unchecked(OWNER);
     let user1 = Addr::unchecked(USER1);
+    let user2 = Addr::unchecked(USER2);
     let token_code_id = store_token_code(&mut app);
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
@@ -1702,23 +1703,32 @@ fn migrate_proxy() {
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
 
-    // Mint tokens, so user can deposit
-    mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 10);
-
-    deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER1, &[(&lp_cny_eur, 10)]);
+    // Mint and deposit LP tokens
+    for user in [USER1, USER2] {
+        mint_tokens(
+            &mut app,
+            pair_cny_eur.clone(),
+            &lp_cny_eur,
+            &Addr::unchecked(user),
+            10,
+        );
+        deposit_lp_tokens_to_generator(&mut app, &generator_instance, user, &[(&lp_cny_eur, 10)]);
+    }
 
     // With the proxy set up, the Generator contract doesn't have the deposited LP tokens
     check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 0);
     // The LP tokens are in the 3rd party contract now
-    check_token_balance(&mut app, &lp_cny_eur, &mirror_staking_instance, 10);
+    check_token_balance(&mut app, &lp_cny_eur, &mirror_staking_instance, 20);
 
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_cny_eur,
-        USER1,
-        (0, Some(0)),
-    );
+    for user in [USER1, USER2] {
+        check_pending_rewards(
+            &mut app,
+            &generator_instance,
+            &lp_cny_eur,
+            user,
+            (0, Some(0)),
+        );
+    }
 
     app.update_block(|bi| next_block(bi));
 
@@ -1741,13 +1751,23 @@ fn migrate_proxy() {
     app.execute_contract(owner.clone(), mirror_token_instance.clone(), &msg, &[])
         .unwrap();
 
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_cny_eur,
-        USER1,
-        (10_000000, Some(50_000000)),
-    );
+    for user in [USER1, USER2] {
+        check_pending_rewards(
+            &mut app,
+            &generator_instance,
+            &lp_cny_eur,
+            user,
+            (5_000000, Some(25_000000)),
+        );
+    }
+
+    let claim_msg = ExecuteMsg::ClaimRewards {
+        lp_tokens: vec![lp_cny_eur.to_string()],
+    };
+    // user2 claims rewards
+    app.execute_contract(user2.clone(), generator_instance.clone(), &claim_msg, &[])
+        .unwrap();
+    check_token_balance(&mut app, &mirror_token_instance, &user2, 25_000000);
 
     let new_generator_code_id = setup_generator_code(&mut app);
 
@@ -1804,7 +1824,7 @@ fn migrate_proxy() {
 
     // Check LP tokens have been successfully transferred and deposited
     check_token_balance(&mut app, &lp_cny_eur, &mirror_staking_instance, 0);
-    check_token_balance(&mut app, &lp_cny_eur, &foo_token_staking_instance, 10);
+    check_token_balance(&mut app, &lp_cny_eur, &foo_token_staking_instance, 20);
 
     // Since we migrated to the new reward proxy, the proxy rewards should be 0
     check_pending_rewards(
@@ -1812,7 +1832,7 @@ fn migrate_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER1,
-        (10_000000, Some(0)),
+        (5_000000, Some(0)),
     );
 
     // Simulate foo proxy reward income
@@ -1874,16 +1894,14 @@ fn migrate_proxy() {
     app.execute_contract(owner.clone(), bar_token.clone(), &msg, &[])
         .unwrap();
 
-    // Claim all rewards
-    let msg = ExecuteMsg::ClaimRewards {
-        lp_tokens: vec![lp_cny_eur.to_string()],
-    };
-    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap();
-
-    check_token_balance(&mut app, &mirror_token_instance, &user1, 50_000000);
-    check_token_balance(&mut app, &foo_token, &user1, 100_000000);
-    check_token_balance(&mut app, &bar_token, &user1, 70_000000);
+    for user in [user1, user2] {
+        // Claim all rewards
+        app.execute_contract(user.clone(), generator_instance.clone(), &claim_msg, &[])
+            .unwrap();
+        check_token_balance(&mut app, &mirror_token_instance, &user, 25_000000);
+        check_token_balance(&mut app, &foo_token, &user, 50_000000);
+        check_token_balance(&mut app, &bar_token, &user, 35_000000);
+    }
 }
 
 #[test]
