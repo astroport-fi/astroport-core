@@ -71,7 +71,7 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-core?rev=8dc43011a09fd2cd48b31befa70636e32959b500#8dc43011a09fd2cd48b31befa70636e32959b500"
+source = "git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8#973aab9419229cb221023066f96b18f2edf75ba8"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -120,9 +120,9 @@ dependencies = [
 [[package]]
 name = "astroport-generator"
 version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-core?rev=8dc43011a09fd2cd48b31befa70636e32959b500#8dc43011a09fd2cd48b31befa70636e32959b500"
+source = "git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8#973aab9419229cb221023066f96b18f2edf75ba8"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core?rev=8dc43011a09fd2cd48b31befa70636e32959b500)",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8)",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2",
@@ -137,7 +137,7 @@ name = "astroport-generator"
 version = "1.3.0"
 dependencies = [
  "astroport 1.2.0",
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core?rev=8dc43011a09fd2cd48b31befa70636e32959b500)",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8)",
  "astroport-factory",
  "astroport-generator 1.2.0",
  "astroport-generator-proxy-to-mirror",

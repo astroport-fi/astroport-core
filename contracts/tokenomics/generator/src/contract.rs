@@ -1043,20 +1043,18 @@ pub fn send_pending_rewards(
         });
     }
 
-    let proxy_rewards = accumulate_pool_proxy_rewards(pool, user)?;
+    let proxy_rewards = accumulate_pool_proxy_rewards(pool, user);
 
-    if !proxy_rewards.is_empty() {
-        for (proxy, pending_proxy_rewards) in proxy_rewards {
-            if !pending_proxy_rewards.is_zero() {
-                messages.push(WasmMsg::Execute {
-                    contract_addr: proxy.to_string(),
-                    funds: vec![],
-                    msg: to_binary(&ProxyExecuteMsg::SendRewards {
-                        account: to.to_string(),
-                        amount: pending_proxy_rewards,
-                    })?,
-                });
-            }
+    for (proxy, pending_proxy_rewards) in proxy_rewards {
+        if !pending_proxy_rewards.is_zero() {
+            messages.push(WasmMsg::Execute {
+                contract_addr: proxy.to_string(),
+                funds: vec![],
+                msg: to_binary(&ProxyExecuteMsg::SendRewards {
+                    account: to.to_string(),
+                    amount: pending_proxy_rewards,
+                })?,
+            });
         }
     }
 

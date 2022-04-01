@@ -1895,7 +1895,9 @@ fn migrate_proxy() {
         .unwrap();
 
     for user in [user1, user2] {
-        // Claim all rewards
+        // Claim all rewards twice to be sure that nothing breaks and users do not receive additional rewards
+        app.execute_contract(user.clone(), generator_instance.clone(), &claim_msg, &[])
+            .unwrap();
         app.execute_contract(user.clone(), generator_instance.clone(), &claim_msg, &[])
             .unwrap();
         check_token_balance(&mut app, &mirror_token_instance, &user, 25_000000);

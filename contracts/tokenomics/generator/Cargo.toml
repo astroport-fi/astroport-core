@@ -44,9 +44,9 @@ astroport-pair-stable = { path = "../../pair_stable" }
 [dev-dependencies.astroport-generator_v120]
 git = "https://github.com/astroport-fi/astroport-core"
 package = "astroport-generator"
-rev = "8dc43011a09fd2cd48b31befa70636e32959b500"
+rev = "973aab9419229cb221023066f96b18f2edf75ba8"
 
 [dev-dependencies.astroport-package-generator_v120]
 git = "https://github.com/astroport-fi/astroport-core"
 package = "astroport"
-rev = "8dc43011a09fd2cd48b31befa70636e32959b500"
+rev = "973aab9419229cb221023066f96b18f2edf75ba8"
