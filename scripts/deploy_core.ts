@@ -5,7 +5,7 @@ import {
     readArtifact,
     deployContract,
     executeContract,
-    uploadContract,
+    uploadContract, instantiateContract,
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient} from '@terra-money/terra.js';
@@ -28,12 +28,12 @@ async function main() {
         return
     }
 
+    await uploadAndInitTreasury(terra, wallet)
     await uploadPairContracts(terra, wallet)
     await uploadAndInitStaking(terra, wallet)
     await uploadAndInitFactory(terra, wallet)
     await uploadAndInitRouter(terra, wallet)
     await uploadAndInitMaker(terra, wallet)
-    await uploadAndInitTreasury(terra, wallet)
 
     // Set new owner
     network = readArtifact(terra.config.chainID) // reload variables
@@ -51,18 +51,22 @@ async function main() {
 async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
+    if (!network.treasuryCodeID) {
+        console.log('Register Treasury Contract...')
+        network.treasuryCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_whitelist.wasm')!)
+    }
+
     if (!network.treasuryAddress) {
-        console.log('Deploy the Treasury...')
-        let resp = await deployContract(
+        console.log('Instantiate the Treasury...')
+        let resp = await instantiateContract(
             terra,
             wallet,
             network.multisigAddress,
-            join(ARTIFACTS_PATH, 'astroport_whitelist.wasm'),
+            network.treasuryCodeID,
             {
                 admins: [network.assemblyAddress],
                 mutable: true
-            },
-        )
+            });
         network.treasuryAddress = resp.shift()
         console.log(`Treasure Contract Address: ${network.treasuryAddress}`)
         writeArtifact(network, terra.config.chainID)
@@ -137,18 +141,23 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                         code_id: network.pairCodeID,
                         pair_type: { xyk: {} },
                         total_fee_bps: 30, // 0.3% xyk
-                        maker_fee_bps: 3333 // 1/3rd of xyk fees go to maker
+                        maker_fee_bps: 3333, // 1/3rd of xyk fees go to maker
+                        is_disabled: false,
+                        is_generator_disabled: false
                     },
                     {
                         code_id: network.pairStableCodeID,
                         pair_type: { stable: {} },
                         total_fee_bps: 5, // 0.05% stableswap
-                        maker_fee_bps: 5000 // 50% of stableswap fees go to the Maker
+                        maker_fee_bps: 5000, // 50% of stableswap fees go to the Maker
+                        is_disabled: false,
+                        is_generator_disabled: false
                     }
                 ],
                 token_code_id: network.tokenCodeID,
                 generator_address: undefined,
                 fee_address: undefined,
+                whitelist_code_id: network.treasuryCodeID
             }
         )
         network.factoryAddress = resp.shift()
