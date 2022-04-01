@@ -2351,7 +2351,40 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
                 migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?
             }
             "1.2.0" => {
-                todo!()
+                let keys = POOL_INFO
+                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
+                    .map(|v| String::from_utf8(v).map_err(StdError::from))
+                    .collect::<Result<Vec<String>, StdError>>()?;
+
+                for key in keys {
+                    let pool_info_v120 = migration::POOL_INFOV120
+                        .load(deps.storage, &Addr::unchecked(key.clone()))?;
+
+                    let mut accumulated_proxy_rewards_per_share = Default::default();
+                    let mut orphan_proxy_rewards = Default::default();
+                    if let Some(proxy) = &pool_info_v120.reward_proxy {
+                        accumulated_proxy_rewards_per_share = RestrictedVector::new(
+                            proxy.clone(),
+                            pool_info_v120.accumulated_proxy_rewards_per_share,
+                        );
+                        orphan_proxy_rewards = RestrictedVector::new(
+                            proxy.clone(),
+                            pool_info_v120.orphan_proxy_rewards,
+                        );
+                    }
+
+                    let pool_info = PoolInfo {
+                        has_asset_rewards: pool_info_v120.has_asset_rewards,
+                        accumulated_proxy_rewards_per_share,
+                        orphan_proxy_rewards,
+                        accumulated_rewards_per_share: pool_info_v120.accumulated_rewards_per_share,
+                        last_reward_block: pool_info_v120.last_reward_block,
+                        proxy_reward_balance_before_update: pool_info_v120
+                            .proxy_reward_balance_before_update,
+                        reward_proxy: pool_info_v120.reward_proxy,
+                    };
+                    POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
+                }
             }
             _ => return Err(ContractError::MigrationError {}),
         },

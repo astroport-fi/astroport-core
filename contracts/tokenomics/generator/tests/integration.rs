@@ -1,5 +1,5 @@
 use astroport::asset::{native_asset_info, token_asset_info, AssetInfo, PairInfo};
-use astroport::generator::{ExecuteMsg, PoolLengthResponse, QueryMsg, StakerResponse};
+use astroport::generator::{ExecuteMsg, MigrateMsg, PoolLengthResponse, QueryMsg, StakerResponse};
 
 use astroport::{
     factory::{
@@ -18,6 +18,7 @@ use astroport::{
         VestingSchedule, VestingSchedulePoint,
     },
 };
+use astroport_package_generator_v120::generator as generator_v120;
 
 use astroport::pair::StablePoolParams;
 use cosmwasm_std::{
@@ -1644,8 +1645,13 @@ fn migrate_proxy() {
         ],
     );
 
-    let generator_instance =
-        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
+    let generator_instance = instantiate_generator_wth_version(
+        &mut app,
+        &factory_instance,
+        &astro_token_instance,
+        None,
+        "1.2.0",
+    );
 
     register_lp_tokens_in_generator(
         &mut app,
@@ -1661,7 +1667,7 @@ fn migrate_proxy() {
     };
 
     // Check if proxy reward is none
-    let reps: PoolInfoResponse = app
+    let reps: generator_v120::PoolInfoResponse = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
@@ -1682,14 +1688,14 @@ fn migrate_proxy() {
         &mirror_token_instance,
     );
 
-    let msg = GeneratorExecuteMsg::SetAllowedRewardProxies {
+    let msg = generator_v120::ExecuteMsg::SetAllowedRewardProxies {
         proxies: vec![proxy_to_mirror_instance.to_string()],
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
 
     // Set the proxy for the pool
-    let msg = ExecuteMsg::MoveToProxy {
+    let msg = generator_v120::ExecuteMsg::MoveToProxy {
         lp_token: lp_cny_eur.to_string(),
         proxy: proxy_to_mirror_instance.to_string(),
     };
@@ -1743,6 +1749,19 @@ fn migrate_proxy() {
         (10_000000, Some(50_000000)),
     );
 
+    let new_generator_code_id = setup_generator_code(&mut app);
+
+    // Migrate generator contract 1.2.0 -> 1.3.0
+    app.migrate_contract(
+        owner.clone(),
+        generator_instance.clone(),
+        &MigrateMsg {
+            params: Default::default(),
+        },
+        new_generator_code_id,
+    )
+    .unwrap();
+
     let (foo_token, foo_token_staking_instance) =
         instantiate_mirror_protocol(&mut app, token_code_id, &pair_cny_eur, &lp_cny_eur);
 
@@ -1756,7 +1775,7 @@ fn migrate_proxy() {
         &foo_token,
     );
 
-    let msg = GeneratorExecuteMsg::SetAllowedRewardProxies {
+    let msg = ExecuteMsg::SetAllowedRewardProxies {
         proxies: vec![proxy_to_mirror_instance.to_string(), foo_proxy.to_string()],
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
@@ -3081,6 +3100,33 @@ fn instantiate_factory(
     .unwrap()
 }
 
+fn setup_generator_code(app: &mut TerraApp) -> u64 {
+    let generator_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_generator::contract::execute,
+            astroport_generator::contract::instantiate,
+            astroport_generator::contract::query,
+        )
+        .with_migrate_empty(astroport_generator::contract::migrate)
+        .with_reply_empty(astroport_generator::contract::reply),
+    );
+
+    app.store_code(generator_contract)
+}
+
+fn setup_generator_v120_code(app: &mut TerraApp) -> u64 {
+    let generator_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_generator_v120::contract::execute,
+            astroport_generator_v120::contract::instantiate,
+            astroport_generator_v120::contract::query,
+        )
+        .with_reply_empty(astroport_generator_v120::contract::reply),
+    );
+
+    app.store_code(generator_contract)
+}
+
 fn instantiate_generator(
     mut app: &mut TerraApp,
     factory_instance: &Addr,
@@ -3152,6 +3198,103 @@ fn instantiate_generator(
             &[],
             "Guage",
             None,
+        )
+        .unwrap();
+
+    // Vesting to generator:
+    let current_block = app.block_info();
+
+    let amount = Uint128::new(63072000_000000);
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: vesting_instance.to_string(),
+        msg: to_binary(&VestingHookMsg::RegisterVestingAccounts {
+            vesting_accounts: vec![VestingAccount {
+                address: generator_instance.to_string(),
+                schedules: vec![VestingSchedule {
+                    start_point: VestingSchedulePoint {
+                        time: current_block.time.seconds(),
+                        amount,
+                    },
+                    end_point: None,
+                }],
+            }],
+        })
+        .unwrap(),
+        amount,
+    };
+
+    app.execute_contract(owner, astro_token_instance.clone(), &msg, &[])
+        .unwrap();
+
+    generator_instance
+}
+
+fn instantiate_generator_wth_version(
+    mut app: &mut TerraApp,
+    factory_instance: &Addr,
+    astro_token_instance: &Addr,
+    allowed_proxies: Option<Vec<String>>,
+    generator_version: &str,
+) -> Addr {
+    // Vesting
+    let vesting_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_vesting::contract::execute,
+        astroport_vesting::contract::instantiate,
+        astroport_vesting::contract::query,
+    ));
+    let owner = Addr::unchecked(OWNER);
+    let vesting_code_id = app.store_code(vesting_contract);
+
+    let init_msg = VestingInstantiateMsg {
+        owner: owner.to_string(),
+        token_addr: astro_token_instance.to_string(),
+    };
+
+    let vesting_instance = app
+        .instantiate_contract(
+            vesting_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "Vesting",
+            None,
+        )
+        .unwrap();
+
+    mint_tokens(
+        &mut app,
+        owner.clone(),
+        &astro_token_instance,
+        &owner,
+        1_000_000_000_000000,
+    );
+
+    let generator_code_id = match generator_version {
+        "1.2.0" => setup_generator_v120_code(&mut app),
+        _ => setup_generator_code(&mut app),
+    };
+
+    let init_msg = GeneratorInstantiateMsg {
+        owner: owner.to_string(),
+        factory: factory_instance.to_string(),
+        guardian: None,
+        allowed_reward_proxies: allowed_proxies.unwrap_or_default(),
+        start_block: Uint64::from(app.block_info().height),
+        astro_token: astro_token_instance.to_string(),
+        tokens_per_block: Uint128::new(10_000000),
+        vesting_contract: vesting_instance.to_string(),
+        generator_controller: Some(owner.to_string()),
+    };
+
+    let generator_instance = app
+        .instantiate_contract(
+            generator_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "Guage",
+            Some(OWNER.to_string()),
         )
         .unwrap();
 
