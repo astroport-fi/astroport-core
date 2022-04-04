@@ -1545,7 +1545,7 @@ fn move_to_proxy() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Some(Addr::unchecked("contract #10")), reps.reward_proxy);
+    assert_eq!(Some(Addr::unchecked("contract #11")), reps.reward_proxy);
 
     // Mint tokens, so user can deposit
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 10);
@@ -3199,6 +3199,7 @@ fn instantiate_generator(
         .with_reply_empty(astroport_generator::contract::reply),
     );
 
+    let whitelist_code_id = store_whitelist_code(&mut app);
     let generator_code_id = app.store_code(generator_contract);
 
     let init_msg = GeneratorInstantiateMsg {
@@ -3211,6 +3212,7 @@ fn instantiate_generator(
         tokens_per_block: Uint128::new(10_000000),
         vesting_contract: vesting_instance.to_string(),
         generator_controller: Some(owner.to_string()),
+        whitelist_code_id,
     };
 
     let generator_instance = app
@@ -3293,6 +3295,7 @@ fn instantiate_generator_wth_version(
         1_000_000_000_000000,
     );
 
+    let whitelist_code_id = store_whitelist_code(&mut app);
     let generator_code_id = match generator_version {
         "1.2.0" => setup_generator_v120_code(&mut app),
         _ => setup_generator_code(&mut app),
@@ -3308,6 +3311,7 @@ fn instantiate_generator_wth_version(
         tokens_per_block: Uint128::new(10_000000),
         vesting_contract: vesting_instance.to_string(),
         generator_controller: Some(owner.to_string()),
+        whitelist_code_id,
     };
 
     let generator_instance = app

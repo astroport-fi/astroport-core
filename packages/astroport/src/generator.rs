@@ -28,6 +28,8 @@ pub struct InstantiateMsg {
     pub allowed_reward_proxies: Vec<String>,
     /// The ASTRO vesting contract that drips ASTRO rewards
     pub vesting_contract: String,
+    /// Whitelist code id
+    pub whitelist_code_id: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

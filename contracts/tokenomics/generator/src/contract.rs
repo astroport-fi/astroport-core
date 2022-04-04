@@ -60,7 +60,7 @@ const INIT_REWARDS_HOLDER_ID: u64 = 1;
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
@@ -97,7 +97,10 @@ pub fn instantiate(
     CONFIG.save(deps.storage, &config)?;
     TMP_USER_ACTION.save(deps.storage, &None)?;
 
-    Ok(Response::default())
+    let init_reward_holder_msg =
+        init_proxy_rewards_holder(&env.contract.address, msg.whitelist_code_id)?;
+
+    Ok(Response::default().add_submessage(init_reward_holder_msg))
 }
 
 /// ## Description
