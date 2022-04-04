@@ -1460,20 +1460,40 @@ fn send_orphan_proxy_rewards(
         return Err(ContractError::ZeroOrphanRewards {});
     }
 
+    let proxy_rewards_holder = PROXY_REWARDS_HOLDER.load(deps.storage)?;
     let submessages = pool
         .orphan_proxy_rewards
         .inner_ref()
         .iter()
         .filter(|(_, value)| !value.is_zero())
         .map(|(proxy, amount)| {
-            let msg = SubMsg::new(WasmMsg::Execute {
-                contract_addr: proxy.to_string(),
-                msg: to_binary(&ProxyExecuteMsg::SendRewards {
-                    account: recipient.to_string(),
-                    amount: *amount,
-                })?,
-                funds: vec![],
-            });
+            let msg = match &pool.reward_proxy {
+                Some(reward_proxy) if reward_proxy.as_str() == proxy.as_str() => {
+                    SubMsg::new(WasmMsg::Execute {
+                        contract_addr: reward_proxy.to_string(),
+                        funds: vec![],
+                        msg: to_binary(&ProxyExecuteMsg::SendRewards {
+                            account: recipient.to_string(),
+                            amount: *amount,
+                        })?,
+                    })
+                }
+                _ => {
+                    let asset_info = PROXY_REWARD_ASSET.load(deps.storage, &proxy)?;
+                    SubMsg::new(WasmMsg::Execute {
+                        contract_addr: proxy_rewards_holder.to_string(),
+                        funds: vec![],
+                        msg: to_binary(&astroport::whitelist::ExecuteMsg::Execute {
+                            msgs: vec![Asset {
+                                info: asset_info,
+                                amount: *amount,
+                            }
+                            .into_msg(&deps.querier, recipient.clone())?],
+                        })?,
+                    })
+                }
+            };
+
             Ok(msg)
         })
         .collect::<StdResult<Vec<_>>>()?;
