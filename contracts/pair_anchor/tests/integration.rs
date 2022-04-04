@@ -10,8 +10,9 @@ use astroport::router::{
 
 use astroport::pair_anchor::ExecuteMsg;
 
-use crate::mock_anchor_contract::AnchorInstantiateMsg;
+mod mock_anchor_contract;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use mock_anchor_contract::AnchorInstantiateMsg;
 
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{to_binary, Addr, Coin, Decimal, Uint128};
@@ -61,9 +62,9 @@ fn store_pair_code(app: &mut TerraApp) -> u64 {
 
 fn store_pair_anchor_code(app: &mut TerraApp) -> u64 {
     let pair_anchor_contract = Box::new(ContractWrapper::new_with_empty(
-        crate::contract::execute,
-        crate::contract::instantiate,
-        crate::contract::query,
+        astroport_pair_anchor::contract::execute,
+        astroport_pair_anchor::contract::instantiate,
+        astroport_pair_anchor::contract::query,
     ));
 
     app.store_code(pair_anchor_contract)
@@ -135,13 +136,11 @@ fn test_compatibility_of_pair_anchor_with_routeswap() {
     let pair_luna_code_id = store_pair_code(&mut app);
     let anchor_code_id = store_anchor_code(&mut app);
 
-    let init_anchor = AnchorInstantiateMsg {};
-
     let anchor_contract = app
         .instantiate_contract(
             anchor_code_id,
             owner.clone(),
-            &init_anchor,
+            &AnchorInstantiateMsg {},
             &[],
             "ANCHOR",
             None,
@@ -378,26 +377,16 @@ fn test_compatibility_of_pair_anchor_with_routeswap() {
         max_spread: Some(Decimal::percent(50)),
     };
 
-    println!("Anchor: {:?}", anchor_contract);
-    println!("Factory {:?}", factory_contract);
-    println!("Router {:?}", router_contract);
-    println!("aUST {:?}", token_aust_contract);
-    println!("UST-aUST {:?}", pair_anchor_instance);
-    println!("LUNA-aUST {:?}", pair_luna_instance);
-
-    let res = app
-        .execute_contract(
-            alice_address.clone(),
-            router_contract.clone(),
-            &route_swap_msg,
-            &[Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128::from(1_000_000_000u128),
-            }],
-        )
-        .unwrap();
-
-    println!("Events {:?}", res.events);
+    app.execute_contract(
+        alice_address.clone(),
+        router_contract.clone(),
+        &route_swap_msg,
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(1_000_000_000u128),
+        }],
+    )
+    .unwrap();
 
     let new_luna = app.wrap().query_balance(alice_address, "uluna").unwrap();
 

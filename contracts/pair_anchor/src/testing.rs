@@ -99,9 +99,9 @@ fn provide_liquidity() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     // We can just call .unwrap() to assert this was a success
-    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // Successfully provide liquidity for the existing pool
+    // We can not provide liquidity for a virtual pool
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [
             Asset {
@@ -168,7 +168,7 @@ fn withdraw_liquidity() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     // We can just call .unwrap() to assert this was a success
-    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // Withdraw liquidity
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -223,7 +223,7 @@ fn try_native_to_token() {
     let info = mock_info("addr0000", &[]);
     let info_contract = mock_info(env.contract.address.clone().as_str(), &[]);
     // we can just call .unwrap() to assert this was a success
-    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // Normal swap
     let execute_msg = ExecuteMsg::Swap {
@@ -297,11 +297,6 @@ fn try_native_to_token() {
         },
     )
     .unwrap();
-
-    // println!("{:?}", offer_amount);
-    // println!("{:?}", expected_return_amount);
-    // println!("{:?}", reverse_simulation_res);
-    // println!("{:?}", res);
 
     assert_eq!(
         (offer_amount.u128() as i128 - reverse_simulation_res.offer_amount.u128() as i128).abs()
@@ -384,8 +379,7 @@ fn try_native_to_token() {
         &[(&String::from(MOCK_CONTRACT_ADDR), &expected_return_amount)],
     )]);
 
-    let second_response =
-        execute(deps.as_mut(), env.clone().clone(), info_contract, sub_msg).unwrap();
+    let second_response = execute(deps.as_mut(), env.clone(), info_contract, sub_msg).unwrap();
     let msg_transfer = second_response.messages.get(0).expect("no message");
 
     assert_eq!(
@@ -464,7 +458,7 @@ fn try_token_to_native() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     // We can just call .unwrap() to assert this was a success
-    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // Unauthorized access; can not execute swap directy for token swap
     let msg = ExecuteMsg::Swap {
@@ -497,7 +491,7 @@ fn try_token_to_native() {
     });
     let env = mock_env_with_block_time(1000);
     let info = mock_info(MOCK_ANCHOR_TOKEN, &[]);
-    let info_contract = mock_info(env.contract.address.clone().as_str(), &[]);
+    let info_contract = mock_info(env.contract.address.as_str(), &[]);
 
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
@@ -553,37 +547,34 @@ fn try_token_to_native() {
         },
     )
     .unwrap();
-    assert_eq!(
+    assert!(
         (offer_amount.u128() as i128 - reverse_simulation_res.offer_amount.u128() as i128).abs()
-            < 5i128,
-        true
+            < 5i128
     );
-    assert_eq!(
+    assert!(
         (expected_commission_amount.u128() as i128
             - reverse_simulation_res.commission_amount.u128() as i128)
             .abs()
-            < 5i128,
-        true
+            < 5i128
     );
-    assert_eq!(
+    assert!(
         (expected_spread_amount.u128() as i128
             - reverse_simulation_res.spread_amount.u128() as i128)
             .abs()
-            < 5i128,
-        true
+            < 5i128
     );
 
     let first_msg = res.messages.get(0).unwrap();
 
-    match first_msg.msg.clone() {
+    match &first_msg.msg {
         CosmosMsg::Wasm(WasmMsg::Execute {
             funds,
             contract_addr,
             msg,
         }) => {
             assert_eq!(contract_addr, MOCK_ANCHOR_TOKEN);
-            assert_eq!(funds, vec![]);
-            match from_binary(&msg).unwrap() {
+            assert!(funds.is_empty());
+            match from_binary(msg).unwrap() {
                 Cw20ExecuteMsg::Send {
                     contract,
                     amount,
@@ -603,14 +594,14 @@ fn try_token_to_native() {
     let second_msg = res.messages.get(1).unwrap();
     let sub_msg: ExecuteMsg;
 
-    match second_msg.msg.clone() {
+    match &second_msg.msg {
         CosmosMsg::Wasm(WasmMsg::Execute {
             funds,
             contract_addr,
             msg,
         }) => {
             assert_eq!(contract_addr, MOCK_CONTRACT_ADDR);
-            assert_eq!(funds, vec![]);
+            assert!(funds.is_empty());
             sub_msg = from_binary(&msg).unwrap();
 
             assert_eq!(
@@ -668,6 +659,7 @@ fn try_token_to_native() {
     );
 
     assert_eq!(
+        msg_transfer,
         &SubMsg {
             msg: CosmosMsg::Bank(BankMsg::Send {
                 to_address: String::from("addr0000"),
@@ -683,7 +675,6 @@ fn try_token_to_native() {
             gas_limit: None,
             reply_on: ReplyOn::Never,
         },
-        msg_transfer,
     );
 
     // Failed due to trying to swap a non token (specifying an address of a non token contract)
@@ -846,9 +837,9 @@ fn test_query_share() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     // We can just call .unwrap() to assert this was a success
-    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    let res = query_share(deps.as_ref(), Uint128::new(250)).unwrap();
+    let res = query_share();
 
     assert_eq!(res.len(), 0);
 }
@@ -897,9 +888,9 @@ fn test_sending_aust_balance_to_maker() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let info_contract = mock_info(env.contract.address.clone().as_str(), &[]);
+    let info_contract = mock_info(env.contract.address.as_str(), &[]);
     // we can just call .unwrap() to assert this was a success
-    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // Normal swap
     let execute_msg = ExecuteMsg::Swap {
@@ -958,11 +949,6 @@ fn test_sending_aust_balance_to_maker() {
     assert_eq!(expected_return_amount, simulation_res.return_amount);
     assert_eq!(expected_commission_amount, simulation_res.commission_amount);
     assert_eq!(expected_spread_amount, simulation_res.spread_amount);
-
-    // println!("{:?}", offer_amount);
-    // println!("{:?}", expected_return_amount);
-    // println!("{:?}", reverse_simulation_res);
-    // println!("{:?}", res);
 
     // checks that the existing assets are moved to the maker contract
     let first_msg = res.messages.get(0).unwrap();
@@ -1134,9 +1120,9 @@ fn test_sending_ust_balance_to_maker() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     // We can just call .unwrap() to assert this was a success
-    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // Unauthorized access; can not execute swap directy for token swap
+    // Unauthorized access; can not execute swap directly for token swap
     let msg = ExecuteMsg::Swap {
         offer_asset: Asset {
             info: AssetInfo::Token {

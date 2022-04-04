@@ -240,7 +240,7 @@ pub fn receive_cw20(
             )
         }
         Ok(Cw20HookMsg::WithdrawLiquidity {}) => Err(ContractError::NonSupported {}),
-        Err(err) => Err(ContractError::Std(err)),
+        Err(err) => Err(err.into()),
     }
 }
 
@@ -419,9 +419,6 @@ pub fn assert_receive_and_send(
     let offer_amount = offer_asset.amount;
     let return_amount = ask_asset_info.query_pool(&deps.querier, env.contract.address)?;
 
-    // println!("Contract->Offer: {:?}", offer_amount);
-    // println!("Contract->Return: {:?}", return_amount);
-
     // Check the max spread limit (if it was specified)
     assert_max_spread(belief_price, max_spread, offer_amount, return_amount)?;
 
@@ -430,11 +427,8 @@ pub fn assert_receive_and_send(
         info: ask_asset_info.clone(),
         amount: return_amount,
     };
-    // println!("Contract->Return-Asset: {:?}", return_asset);
 
     let tax_amount = return_asset.compute_tax(&deps.querier)?;
-
-    // println!("Contract->Receiver: {:?}", receiver_adr);
 
     Ok(Response::new()
         .add_message(return_asset.into_msg(&deps.querier, receiver.clone())?)
@@ -483,7 +477,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Pair {} => to_binary(&query_pair_info(deps)?),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
-        QueryMsg::Share { amount } => to_binary(&query_share(deps, amount)?),
+        QueryMsg::Share { .. } => to_binary(&query_share()),
         QueryMsg::Simulation { offer_asset } => to_binary(&query_simulation(deps, offer_asset)?),
         QueryMsg::ReverseSimulation { ask_asset } => {
             to_binary(&query_reverse_simulation(deps, ask_asset)?)
@@ -520,14 +514,9 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 }
 
 /// ## Description
-/// Returns the amount of assets that could be withdrawn from the pool using a specific amount of LP tokens.
-/// The result is returned in a vector that contains objects of type [`Asset`].
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens for which we calculate associated amounts of assets.
-pub fn query_share(_deps: Deps, _amount: Uint128) -> StdResult<Vec<Asset>> {
-    Ok(vec![])
+/// Placeholder for compatibility with the astroport.
+pub fn query_share() -> Vec<Asset> {
+    vec![]
 }
 
 /// ## Description
@@ -554,25 +543,19 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
         },
     )?;
 
-    let offer_amount_128: cosmwasm_std::Uint128 = offer_asset.amount;
-    let offer_amount: cosmwasm_bignumber::Uint256 = offer_amount_128.into();
-    let exchange_rate: cosmwasm_bignumber::Decimal256 = result.exchange_rate;
-
+    let offer_amount = Uint256::from(offer_asset.amount);
     let return_amount = if offer_asset.is_native_token() {
-        cosmwasm_std::Uint128::try_from(offer_amount / exchange_rate)
-            .map_err(|_| StdError::generic_err("Failed to convert Uint256 -> Uint128"))?
+        offer_amount / result.exchange_rate
     } else {
-        cosmwasm_std::Uint128::try_from(offer_amount * exchange_rate)
-            .map_err(|_| StdError::generic_err("Failed to convert Uint256 -> Uint128"))?
+        offer_amount * result.exchange_rate
     };
-
-    let spread_amount = Uint128::from(0u128);
-    let commission_amount = Uint128::from(0u128);
+    let return_amount = Uint128::try_from(return_amount)
+        .map_err(|_| StdError::generic_err("Failed to convert Uint256 -> Uint128"))?;
 
     Ok(SimulationResponse {
         return_amount,
-        spread_amount,
-        commission_amount,
+        spread_amount: Uint128::zero(),
+        commission_amount: Uint128::zero(),
     })
 }
 
@@ -604,23 +587,19 @@ pub fn query_reverse_simulation(
         },
     )?;
 
-    let return_amount: Uint256 = ask_asset.amount.into();
-
+    let return_amount = Uint256::from(ask_asset.amount);
     let offer_amount = if ask_asset.is_native_token() {
-        cosmwasm_std::Uint128::try_from(return_amount / result.exchange_rate)
-            .map_err(|_| StdError::generic_err("Failed to convert Uint256 -> Uint128"))?
+        return_amount / result.exchange_rate
     } else {
-        cosmwasm_std::Uint128::try_from(return_amount * result.exchange_rate)
-            .map_err(|_| StdError::generic_err("Failed to convert Uint256 -> Uint128"))?
+        return_amount * result.exchange_rate
     };
-
-    let spread_amount = Uint128::from(0u128);
-    let commission_amount = Uint128::from(0u128);
+    let offer_amount = Uint128::try_from(offer_amount)
+        .map_err(|_| StdError::generic_err("Failed to convert Uint256 -> Uint128"))?;
 
     Ok(ReverseSimulationResponse {
         offer_amount,
-        spread_amount,
-        commission_amount,
+        spread_amount: Uint128::zero(),
+        commission_amount: Uint128::zero(),
     })
 }
 
@@ -652,7 +631,6 @@ pub fn query_cumulative_prices(deps: Deps, _env: Env) -> StdResult<CumulativePri
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 pub fn query_config(_deps: Deps) -> StdResult<ConfigResponse> {
-    // let config: Config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
         block_time_last: 0u64,
         params: None,
@@ -689,9 +667,7 @@ pub fn assert_max_spread(
     if let Some(belief_price) = belief_price {
         let expected_return =
             offer_amount * Decimal::from(Decimal256::one() / Decimal256::from(belief_price));
-        let spread_amount = expected_return
-            .checked_sub(return_amount)
-            .unwrap_or_else(|_| Uint128::zero());
+        let spread_amount = expected_return.saturating_sub(return_amount);
 
         if return_amount < expected_return
             && Decimal::from_ratio(spread_amount, expected_return) > max_spread
