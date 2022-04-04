@@ -364,6 +364,7 @@ pub struct ConfigResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
     pub params: Binary,
+    pub whitelist_code_id: u64,
 }
 
 /// This structure describes custom hooks for the CW20.

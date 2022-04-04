@@ -117,6 +117,10 @@ pub const TMP_USER_ACTION: Item<Option<ExecuteOnReply>> = Item::new("tmp_user_ac
 pub const USER_INFO: Map<(&Addr, &Addr), UserInfoV2> = Map::new("user_info");
 /// Old USER_INFO storage interface for backward compatibility
 pub const OLD_USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
+/// Previous proxy rewards holder
+pub const PROXY_REWARDS_HOLDER: Item<Addr> = Item::new("proxy_rewards_holder");
+/// The struct which maps previous proxy addresses to reward assets
+pub const PROXY_REWARD_ASSET: Map<&Addr, AssetInfo> = Map::new("proxy_reward_asset");
 
 pub trait CompatibleLoader<K, R> {
     fn compatible_load(&self, store: &dyn Storage, key: K) -> StdResult<R>;

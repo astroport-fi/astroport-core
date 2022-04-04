@@ -1771,12 +1771,15 @@ fn migrate_proxy() {
 
     let new_generator_code_id = setup_generator_code(&mut app);
 
+    let whitelist_code_id = store_whitelist_code(&mut app);
+
     // Migrate generator contract 1.2.0 -> 1.3.0
     app.migrate_contract(
         owner.clone(),
         generator_instance.clone(),
         &MigrateMsg {
             params: Default::default(),
+            whitelist_code_id,
         },
         new_generator_code_id,
     )
@@ -3562,4 +3565,14 @@ fn create_pair(
         .unwrap();
 
     (res.contract_addr, res.liquidity_token)
+}
+
+fn store_whitelist_code(app: &mut TerraApp) -> u64 {
+    let whitelist_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_whitelist::contract::execute,
+        astroport_whitelist::contract::instantiate,
+        astroport_whitelist::contract::query,
+    ));
+
+    app.store_code(whitelist_contract)
 }

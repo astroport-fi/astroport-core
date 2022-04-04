@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Order, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
+    Env, MessageInfo, Order, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
     Uint128, Uint64, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
@@ -10,13 +10,14 @@ use crate::error::ContractError;
 use crate::migration;
 use crate::state::{
     accumulate_pool_proxy_rewards, update_user_balance, CompatibleLoader, Config, ExecuteOnReply,
-    UserInfoV2, CONFIG, DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION,
-    USER_INFO,
+    UserInfoV2, CONFIG, DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO,
+    PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, TMP_USER_ACTION, USER_INFO,
 };
 use astroport::asset::{
-    addr_validate_to_lower, pair_info_by_pool, token_asset_info, AssetInfo, PairInfo,
+    addr_validate_to_lower, pair_info_by_pool, token_asset_info, Asset, AssetInfo, PairInfo,
 };
 
+use crate::response::MsgInstantiateContractResponse;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{PairConfig, PairType};
 use astroport::generator::StakerResponse;
@@ -36,11 +37,14 @@ use astroport::{
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw_storage_plus::{Bound, PrimaryKey};
+use protobuf::Message;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-generator";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+const INIT_REWARDS_HOLDER_ID: u64 = 1;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`] struct.
@@ -711,8 +715,26 @@ fn get_proxy_rewards(
 ///
 /// * **_msg** is an object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
-    process_after_update(deps, env)
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg.id {
+        INIT_REWARDS_HOLDER_ID => {
+            let data = msg
+                .result
+                .into_result()
+                .map_err(|_| StdError::generic_err("Invalid reply!"))?
+                .data
+                .ok_or_else(|| StdError::generic_err("No data in reply"))?;
+            let res: MsgInstantiateContractResponse = Message::parse_from_bytes(data.as_slice())
+                .map_err(|_| {
+                    StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
+                })?;
+            let rewards_holder = addr_validate_to_lower(deps.api, &res.contract_address)?;
+            PROXY_REWARDS_HOLDER.save(deps.storage, &rewards_holder)?;
+
+            Ok(Response::new().add_attribute("action", "init_rewards_holder"))
+        }
+        _ => process_after_update(deps, env),
+    }
 }
 
 /// ## Description
@@ -859,7 +881,13 @@ pub fn claim_rewards(
 
         let mut user = USER_INFO.compatible_load(deps.storage, (lp_token, &account))?;
 
-        send_rewards_msg.append(&mut send_pending_rewards(&cfg, &pool, &mut user, &account)?);
+        send_rewards_msg.append(&mut send_pending_rewards(
+            deps.as_ref(),
+            &cfg,
+            &pool,
+            &mut user,
+            &account,
+        )?);
 
         let amount = user.amount;
         let user = update_user_balance(user, &pool, amount)?;
@@ -1016,6 +1044,7 @@ fn receive_cw20(
 ///
 /// * **to** is an object of type [`Addr`]. This is the address that will receive the proxy rewards.
 pub fn send_pending_rewards(
+    deps: Deps,
     cfg: &Config,
     pool: &PoolInfo,
     user: &UserInfoV2,
@@ -1045,16 +1074,36 @@ pub fn send_pending_rewards(
 
     let proxy_rewards = accumulate_pool_proxy_rewards(pool, user);
 
+    let proxy_rewards_holder = PROXY_REWARDS_HOLDER.load(deps.storage)?;
     for (proxy, pending_proxy_rewards) in proxy_rewards {
         if !pending_proxy_rewards.is_zero() {
-            messages.push(WasmMsg::Execute {
-                contract_addr: proxy.to_string(),
-                funds: vec![],
-                msg: to_binary(&ProxyExecuteMsg::SendRewards {
-                    account: to.to_string(),
-                    amount: pending_proxy_rewards,
-                })?,
-            });
+            match &pool.reward_proxy {
+                Some(reward_proxy) if reward_proxy.as_str() == proxy.as_str() => {
+                    messages.push(WasmMsg::Execute {
+                        contract_addr: proxy.to_string(),
+                        funds: vec![],
+                        msg: to_binary(&ProxyExecuteMsg::SendRewards {
+                            account: to.to_string(),
+                            amount: pending_proxy_rewards,
+                        })?,
+                    });
+                }
+                _ => {
+                    // Old proxy rewards are paid from reward holder
+                    let asset_info = PROXY_REWARD_ASSET.load(deps.storage, &proxy)?;
+                    messages.push(WasmMsg::Execute {
+                        contract_addr: proxy_rewards_holder.to_string(),
+                        funds: vec![],
+                        msg: to_binary(&astroport::whitelist::ExecuteMsg::Execute {
+                            msgs: vec![Asset {
+                                info: asset_info,
+                                amount: pending_proxy_rewards,
+                            }
+                            .into_msg(&deps.querier, to.clone())?],
+                        })?,
+                    });
+                }
+            }
         }
     }
 
@@ -1098,7 +1147,7 @@ pub fn deposit(
     )?;
 
     // Send pending rewards (if any) to the depositor
-    let send_rewards_msg = send_pending_rewards(&cfg, &pool, &user, &beneficiary)?;
+    let send_rewards_msg = send_pending_rewards(deps.as_ref(), &cfg, &pool, &user, &beneficiary)?;
 
     // If a reward proxy is set - send LP tokens to the proxy
     let transfer_msg = if !amount.is_zero() && pool.reward_proxy.is_some() {
@@ -1173,7 +1222,7 @@ pub fn withdraw(
     accumulate_rewards_per_share(&deps.querier, &env, &lp_token, &mut pool, &cfg, None)?;
 
     // Send pending rewards to the user
-    let send_rewards_msg = send_pending_rewards(&cfg, &pool, &user, &account)?;
+    let send_rewards_msg = send_pending_rewards(deps.as_ref(), &cfg, &pool, &user, &account)?;
 
     // Instantiate the transfer call for the LP token
     let transfer_msg = if !amount.is_zero() {
@@ -1438,6 +1487,35 @@ fn send_orphan_proxy_rewards(
         .add_attribute("lp_token", lp_token.to_string()))
 }
 
+/// ## Description
+/// Return a message object that can help claim bLUNA rewards for an account.
+/// Returns an [`ContractError`] on failure, otherwise returns the object
+/// of type [`SubMsg`].
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+fn init_proxy_rewards_holder(
+    admin: &Addr,
+    whitelist_code_id: u64,
+) -> Result<SubMsg, ContractError> {
+    let msg = SubMsg::reply_on_success(
+        CosmosMsg::Wasm(WasmMsg::Instantiate {
+            admin: None,
+            code_id: whitelist_code_id,
+            funds: vec![],
+            label: "Proxy rewards holder".to_string(),
+            msg: to_binary(&astroport::whitelist::InstantiateMsg {
+                admins: vec![admin.to_string()],
+                mutable: false,
+            })?,
+        }),
+        INIT_REWARDS_HOLDER_ID,
+    );
+
+    Ok(msg)
+}
+
 fn migrate_proxy(
     deps: DepsMut,
     env: Env,
@@ -1511,6 +1589,34 @@ fn migrate_proxy_callback(
 
     POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
 
+    // Save map between old proxy and asset info
+    let prev_proxy_cfg: astroport::generator_proxy::ConfigResponse = deps
+        .querier
+        .query_wasm_smart(&prev_proxy_addr, &ProxyQueryMsg::Config {})?;
+    let asset = AssetInfo::Token {
+        contract_addr: addr_validate_to_lower(deps.api, &prev_proxy_cfg.reward_token_addr)?,
+    };
+    PROXY_REWARD_ASSET.save(deps.storage, &prev_proxy_addr, &asset)?;
+
+    let mut response = Response::new();
+
+    // Transfer all proxy reward balance to the rewards holder
+    let pending_rewards: Option<Uint128> = deps
+        .querier
+        .query_wasm_smart(&prev_proxy_addr, &ProxyQueryMsg::PendingToken {})?;
+    if let Some(pending_rewards) = pending_rewards.filter(|reward| !reward.is_zero()) {
+        let rewards_holder = PROXY_REWARDS_HOLDER.load(deps.storage)?;
+        let trasfer_rewards_msg = SubMsg::new(WasmMsg::Execute {
+            contract_addr: prev_proxy_addr.to_string(),
+            msg: to_binary(&ProxyExecuteMsg::SendRewards {
+                account: rewards_holder.to_string(),
+                amount: pending_rewards,
+            })?,
+            funds: vec![],
+        });
+        response = response.add_submessage(trasfer_rewards_msg);
+    }
+
     // Migrate all LP tokens to new proxy contract
     if !proxy_lp_balance.is_zero() {
         // Firstly, transfer LP tokens to the generator address
@@ -1537,10 +1643,10 @@ fn migrate_proxy_callback(
                 }))
             }
         })?;
-        Ok(Response::new().add_submessage(transfer_lp_msg))
+        Ok(response.add_submessage(transfer_lp_msg))
     } else {
         // Nothing to migrate
-        Ok(Response::new().add_attributes([
+        Ok(response.add_attributes([
             ("action", "migrate_proxy"),
             ("lp_token", lp_addr.as_str()),
             ("from", prev_proxy_addr.as_str()),
@@ -2245,7 +2351,7 @@ pub fn create_pool(
 ///
 /// * **msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
@@ -2385,7 +2491,11 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    let init_reward_holder_msg =
+        init_proxy_rewards_holder(&env.contract.address, msg.whitelist_code_id)?;
+
     Ok(Response::new()
+        .add_submessage(init_reward_holder_msg)
         .add_attribute("previous_contract_name", &contract_version.contract)
         .add_attribute("previous_contract_version", &contract_version.version)
         .add_attribute("new_contract_name", CONTRACT_NAME)
