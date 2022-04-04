@@ -882,13 +882,13 @@ pub fn claim_rewards(
     for lp_token in &lp_tokens {
         let pool = POOL_INFO.load(deps.storage, lp_token)?;
 
-        let mut user = USER_INFO.compatible_load(deps.storage, (lp_token, &account))?;
+        let user = USER_INFO.compatible_load(deps.storage, (lp_token, &account))?;
 
         send_rewards_msg.append(&mut send_pending_rewards(
             deps.as_ref(),
             &cfg,
             &pool,
-            &mut user,
+            &user,
             &account,
         )?);
 
@@ -1479,7 +1479,7 @@ fn send_orphan_proxy_rewards(
                     })
                 }
                 _ => {
-                    let asset_info = PROXY_REWARD_ASSET.load(deps.storage, &proxy)?;
+                    let asset_info = PROXY_REWARD_ASSET.load(deps.storage, proxy)?;
                     SubMsg::new(WasmMsg::Execute {
                         contract_addr: proxy_rewards_holder.to_string(),
                         funds: vec![],
