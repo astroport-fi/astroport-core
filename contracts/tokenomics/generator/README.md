@@ -107,7 +107,7 @@ In order to stake in the Generator contract, you should execute this message ins
 {
   "send": {
     "contract": <GeneratorContractAddress>,
-    "amount": 999,
+    "amount": "999",
     "msg": "base64-encodedStringOfWithdrawMsg"
   }
 }
@@ -117,7 +117,7 @@ Inside `send.msg`, you may encode this JSON string into base64 encoding:
 
 ```json
 {
-  "Deposit": {}
+  "deposit": {}
 }
 ```
 
@@ -130,7 +130,7 @@ In order to stake in the Generator contract, you should execute this message ins
 {
   "send": {
     "contract": <GeneratorContractAddress>,
-    "amount": 999,
+    "amount": "999",
     "msg": "base64-encodedStringOfWithdrawMsg"
   }
 }
@@ -140,7 +140,7 @@ In `send.msg`, you may encode this JSON string into base64 encoding:
 
 ```json
 {
-  "DepositFor": "terra..."
+  "deposit_for": "terra..."
 }
 ```
 

@@ -40,7 +40,7 @@ Execute this message by calling the ASTRO token contract and use a message like 
 {
   "send": {
     "contract": <StakingContractAddress>,
-    "amount": 999,
+    "amount": "999",
     "msg": "base64-encodedStringOfWithdrawMsg"
   }
 }
@@ -49,11 +49,11 @@ Execute this message by calling the ASTRO token contract and use a message like 
 In `send.msg`, you may encode this JSON string into base64 encoding:
 ```json
 {
-  "Enter": {}
+  "enter": {}
 }
 ```
 
-#### `Leave`
+#### `leave`
 
 Burns xASTRO and unstakes underlying ASTRO (initial staked amount + accrued ASTRO since staking).
 
@@ -62,7 +62,7 @@ Execute this message by calling the xASTRO token contract and use a message like
 {
   "send": {
     "contract": <StakingContractAddress>,
-    "amount": 999,
+    "amount": "999",
     "msg": "base64-encodedStringOfWithdrawMsg"
   }
 }
@@ -71,7 +71,7 @@ Execute this message by calling the xASTRO token contract and use a message like
 In `send.msg` you may encode this JSON string into base64 encoding:
 ```json
 {
-  "Leave": {}
+  "leave": {}
 }
 ```
 
