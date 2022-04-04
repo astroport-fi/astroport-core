@@ -1600,17 +1600,17 @@ fn migrate_proxy_callback(
 
     let mut response = Response::new();
 
-    // Transfer all proxy reward balance to the rewards holder
-    let pending_rewards: Option<Uint128> = deps
+    // Transfer whole proxy reward balance to the rewards holder
+    let rewards_amount: Uint128 = deps
         .querier
-        .query_wasm_smart(&prev_proxy_addr, &ProxyQueryMsg::PendingToken {})?;
-    if let Some(pending_rewards) = pending_rewards.filter(|reward| !reward.is_zero()) {
+        .query_wasm_smart(&prev_proxy_addr, &ProxyQueryMsg::Reward {})?;
+    if !rewards_amount.is_zero() {
         let rewards_holder = PROXY_REWARDS_HOLDER.load(deps.storage)?;
         let trasfer_rewards_msg = SubMsg::new(WasmMsg::Execute {
             contract_addr: prev_proxy_addr.to_string(),
             msg: to_binary(&ProxyExecuteMsg::SendRewards {
                 account: rewards_holder.to_string(),
-                amount: pending_rewards,
+                amount: rewards_amount,
             })?,
             funds: vec![],
         });
