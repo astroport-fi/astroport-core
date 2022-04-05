@@ -38,7 +38,7 @@ Execute this message by calling the ASTRO token contract address.
 {
   "send": {
     "contract": <VestingContractAddress>,
-    "amount": 999,
+    "amount": "999",
     "msg": "base64-encodedStringOfWithdrawMsg"
   }
 }
