@@ -85,7 +85,7 @@ export class TransactionError extends CustomError {
 }
 
 export async function createTransaction(wallet: Wallet, msg: Msg) {
-    return await wallet.createTx({ msgs: [msg], gasPrices: [new Coin("uusd", 0.1)]})
+    return await wallet.createTx({ msgs: [msg], gasPrices: [new Coin(String(process.env.GAS_CURRENCY), 0.15)]})
 }
 
 export async function broadcastTransaction(terra: LCDClient, signedTx: StdTx) {
