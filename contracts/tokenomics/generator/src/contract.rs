@@ -19,6 +19,7 @@ use astroport::asset::{
     addr_validate_to_lower, pair_info_by_pool, token_asset_info, AssetInfo, PairInfo,
 };
 
+use crate::math::calc_boost_amount;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{PairConfig, PairType};
 use astroport::generator::PoolInfo;
@@ -286,13 +287,13 @@ pub fn execute(
 /// ## Description
 /// Update user lp emission in specified generators
 fn check_points(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     user: String,
     generators: Vec<String>,
 ) -> Result<Response, ContractError> {
     let user_addr = addr_validate_to_lower(deps.api, &user)?;
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     let voting_escrow;
     if let Some(generator_controller) = config.generator_controller {
@@ -305,7 +306,11 @@ fn check_points(
         return Err(ContractError::GeneratorControllerNotFound {});
     }
 
-    //let user_vp = get_voting_power(deps.querier, &voting_escrow, &user_addr)?;
+    for generator in generators {
+        let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
+        calc_boost_amount(deps, env, &user_addr, &generator_addr, &voting_escrow)?;
+    }
+
     Ok(Response::new())
 }
 
