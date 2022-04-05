@@ -161,9 +161,9 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                     },
                     {
                         code_id: network.pairAnchorCodeID,
-                        pair_type: { custom: "anchor" },
-                        total_fee_bps: 0, // 0.05% stableswap
-                        maker_fee_bps: 0, // 50% of stableswap fees go to the Maker
+                        pair_type: { custom: "Anchor-XYK" },
+                        total_fee_bps: 0,
+                        maker_fee_bps: 0,
                         is_disabled: false,
                         is_generator_disabled: true
                     }
