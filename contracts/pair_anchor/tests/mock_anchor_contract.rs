@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, BankMsg, Binary, CanonicalAddr, Coin,
-    CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult, Uint128, WasmMsg,
+    CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
@@ -62,11 +62,6 @@ pub fn execute(
     }
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(_deps: DepsMut, _env: Env, _msg: Reply) -> Result<Response, ContractError> {
-    Ok(Response::new())
-}
-
 pub fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -87,17 +82,13 @@ pub fn deposit_stable(deps: Deps, env: Env, info: MessageInfo) -> Result<Respons
     let deposit_amount: Uint256 = info
         .funds
         .iter()
-        .find(|c| c.denom == *"uusd")
+        .find(|c| c.denom.as_str() == "uusd")
         .map(|c| Uint256::from(c.amount))
         .unwrap_or_else(Uint256::zero);
 
     // Load anchor token exchange rate with updated state
     let exchange_rate = compute_exchange_rate(deps, env);
     let mint_amount = deposit_amount / exchange_rate;
-
-    println!("Anchor->Exchange Rate {:?}", exchange_rate.to_string());
-    println!("Anchor->Mint amount {:?}", mint_amount);
-    println!("Anchor->Recipient {:?}", info.sender.to_string());
 
     let config: Config = CONFIG.load(deps.storage)?;
 
@@ -127,10 +118,6 @@ pub fn redeem_stable(
     let config: Config = CONFIG.load(deps.storage)?;
     let exchange_rate = compute_exchange_rate(deps.as_ref(), env);
     let redeem_amount = Uint256::from(burn_amount) * exchange_rate;
-
-    println!("{:?}", config);
-    println!("{:?}", exchange_rate);
-    println!("{:?}", redeem_amount);
 
     Ok(Response::new()
         .add_messages(vec![
