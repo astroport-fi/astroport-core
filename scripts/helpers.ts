@@ -23,6 +23,8 @@ import path from 'path'
 import { CustomError } from 'ts-custom-error'
 
 export const ARTIFACTS_PATH = '../artifacts'
+const DEFAULT_GAS_CURRENCY = "uusd"
+const DEFAULT_GAS_AMOUNT = 0.15
 
 export function readArtifact(name: string = 'artifact') {
     try {
@@ -85,8 +87,9 @@ export class TransactionError extends CustomError {
 }
 
 export async function createTransaction(wallet: Wallet, msg: Msg) {
-    let gas_currency = process.env.GAS_CURRENCY! || "uusd"
-    return await wallet.createTx({ msgs: [msg], gasPrices: [new Coin(gas_currency, 0.15)]})
+    let gas_currency = process.env.GAS_CURRENCY! || DEFAULT_GAS_CURRENCY
+    let gas_amount = process.env.GAS_AMOUNT! || DEFAULT_GAS_AMOUNT
+    return await wallet.createTx({ msgs: [msg], gasPrices: [new Coin(gas_currency, gas_amount)]})
 }
 
 export async function broadcastTransaction(terra: LCDClient, signedTx: StdTx) {

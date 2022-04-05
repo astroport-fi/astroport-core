@@ -20,6 +20,7 @@ WALLET="mnemonic"
 LCD_CLIENT_URL=https://bombay-lcd.terra.dev
 CHAIN_ID=bombay-12
 GAS_CURRENCY="uusd"
+GAS_AMOUNT=0.15
 ```
 
 Deploy the contracts:
