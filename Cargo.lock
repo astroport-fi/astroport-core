@@ -225,6 +225,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-pair-anchor"
+version = "1.0.0"
+dependencies = [
+ "astroport 1.2.0",
+ "astroport-factory",
+ "astroport-pair",
+ "astroport-router",
+ "astroport-token",
+ "cosmwasm-bignumber",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-vm",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "moneymarket",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "terra-multi-test",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-pair-stable"
 version = "1.0.0"
 dependencies = [
@@ -1485,6 +1509,21 @@ dependencies = [
  "schemars",
  "serde",
  "terraswap",
+]
+
+[[package]]
+name = "moneymarket"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a80abe43dc97b79401c5c028b8a609e6be81f1d61218578c2372541dcfdbb1f"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
 ]
 
 [[package]]
