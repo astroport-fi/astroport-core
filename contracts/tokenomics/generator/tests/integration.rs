@@ -1,5 +1,6 @@
 use astroport::asset::{native_asset_info, token_asset_info, AssetInfo, PairInfo};
 use astroport::generator::{ExecuteMsg, PoolLengthResponse, QueryMsg, StakerResponse};
+use astroport_tests::base::{BaseAstroportTestInitMessage, BaseAstroportTestPackage};
 
 use astroport::{
     factory::{
@@ -47,6 +48,140 @@ const USER9: &str = "user9";
 struct PoolWithProxy {
     pool: (String, Uint128),
     proxy: Option<Addr>,
+}
+
+#[test]
+fn test_boost_checkpoints() {
+    let mut app = mock_app();
+
+    let user1 = Addr::unchecked(USER1);
+
+    let token_code_id = store_token_code(&mut app);
+    let factory_code_id = store_factory_code(&mut app);
+    let pair_code_id = store_pair_code_id(&mut app);
+
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+
+    let cny_eur_token_code_id = store_token_code(&mut app);
+
+    let cny_token = instantiate_token(&mut app, cny_eur_token_code_id, "CNY", None);
+    let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
+    let usd_token = instantiate_token(&mut app, cny_eur_token_code_id, "USD", None);
+
+    let (pair_cny_eur, lp_cny_eur) = create_pair(
+        &mut app,
+        &factory_instance,
+        None,
+        None,
+        [
+            AssetInfo::Token {
+                contract_addr: cny_token.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: eur_token.clone(),
+            },
+        ],
+    );
+
+    let (pair_eur_usd, lp_eur_usd) = create_pair(
+        &mut app,
+        &factory_instance,
+        None,
+        None,
+        [
+            AssetInfo::Token {
+                contract_addr: eur_token.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: usd_token.clone(),
+            },
+        ],
+    );
+
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
+
+    register_lp_tokens_in_generator(
+        &mut app,
+        &generator_instance,
+        vec![
+            PoolWithProxy {
+                pool: (lp_cny_eur.to_string(), Uint128::from(50u32)),
+                proxy: None,
+            },
+            PoolWithProxy {
+                pool: (lp_eur_usd.to_string(), Uint128::from(50u32)),
+                proxy: None,
+            },
+        ],
+    );
+
+    // Mint tokens, so user can deposit
+    mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 10);
+    mint_tokens(&mut app, pair_eur_usd.clone(), &lp_eur_usd, &user1, 10);
+
+    deposit_lp_tokens_to_generator(
+        &mut app,
+        &generator_instance,
+        USER1,
+        &[(&lp_cny_eur, 10), (&lp_eur_usd, 10)],
+    );
+
+    check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 10);
+    check_token_balance(&mut app, &lp_eur_usd, &generator_instance, 10);
+
+    check_pending_rewards(&mut app, &generator_instance, &lp_cny_eur, USER1, (0, None));
+    check_pending_rewards(&mut app, &generator_instance, &lp_eur_usd, USER1, (0, None));
+
+    app.update_block(|bi| next_block(bi));
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_cny_eur,
+        USER1,
+        (5000000, None),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_eur_usd,
+        USER1,
+        (5000000, None),
+    );
+
+    app.update_block(|bi| next_block(bi));
+
+    let msg = GeneratorExecuteMsg::Withdraw {
+        lp_token: lp_cny_eur.to_string(),
+        amount: Uint128::new(10),
+    };
+
+    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = GeneratorExecuteMsg::Withdraw {
+        lp_token: lp_eur_usd.to_string(),
+        amount: Uint128::new(10),
+    };
+
+    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 0);
+    check_token_balance(&mut app, &lp_eur_usd, &generator_instance, 0);
+
+    check_pending_rewards(&mut app, &generator_instance, &lp_cny_eur, USER1, (0, None));
+
+    check_pending_rewards(&mut app, &generator_instance, &lp_eur_usd, USER1, (0, None));
+
+    app.update_block(|bi| next_block(bi));
+
+    check_pending_rewards(&mut app, &generator_instance, &lp_cny_eur, USER1, (0, None));
 }
 
 #[test]

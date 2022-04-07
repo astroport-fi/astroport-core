@@ -28,7 +28,7 @@ schemars = "0.8.1"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
 astroport = { path = "../../../packages/astroport", default-features = false }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/move-to-general-package" }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.2" }
