@@ -1,6 +1,3 @@
-use astroport_governance::generator_controller::{
-    ConfigResponse as GeneratorControllerConfigResponse, QueryMsg as GeneratorControllerQueryMsg,
-};
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env,
     MessageInfo, Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
@@ -19,7 +16,8 @@ use astroport::asset::{
     addr_validate_to_lower, pair_info_by_pool, token_asset_info, AssetInfo, PairInfo,
 };
 
-use crate::math::calc_boost_amount;
+use crate::querier::query_generator_controller_info;
+use crate::utils::update_boost_amount;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{PairConfig, PairType};
 use astroport::generator::PoolInfo;
@@ -216,6 +214,16 @@ pub fn execute(
         }
         ExecuteMsg::Withdraw { lp_token, amount } => {
             let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+            let cfg = CONFIG.load(deps.storage)?;
+            let generator_controller = query_generator_controller_info(deps.branch(), &cfg)?;
+
+            update_boost_amount(
+                deps.branch(),
+                &env,
+                &info.sender,
+                &lp_token,
+                &generator_controller.escrow_addr,
+            )?;
 
             update_rewards_and_execute(
                 deps,
@@ -287,28 +295,25 @@ pub fn execute(
 /// ## Description
 /// Update user lp emission in specified generators
 fn check_points(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     user: String,
     generators: Vec<String>,
 ) -> Result<Response, ContractError> {
     let user_addr = addr_validate_to_lower(deps.api, &user)?;
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
-    let voting_escrow;
-    if let Some(generator_controller) = config.generator_controller {
-        let resp: GeneratorControllerConfigResponse = deps.querier.query_wasm_smart(
-            generator_controller.clone(),
-            &GeneratorControllerQueryMsg::Config {},
-        )?;
-        voting_escrow = resp.escrow_addr;
-    } else {
-        return Err(ContractError::GeneratorControllerNotFound {});
-    }
+    let generator_controller = query_generator_controller_info(deps.branch(), &config)?;
 
     for generator in generators {
         let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
-        calc_boost_amount(deps, env, &user_addr, &generator_addr, &voting_escrow)?;
+        update_boost_amount(
+            deps.branch(),
+            &env,
+            &user_addr,
+            &generator_addr,
+            &generator_controller.escrow_addr,
+        )?;
     }
 
     Ok(Response::new())
@@ -989,7 +994,7 @@ fn receive_cw20(
 ) -> Result<Response, ContractError> {
     let amount = cw20_msg.amount;
     let lp_token = info.sender;
-
+    let account = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
     let cfg = CONFIG.load(deps.storage)?;
 
     if POOL_INFO.may_load(deps.storage, &lp_token)?.is_none() {
@@ -1000,27 +1005,49 @@ fn receive_cw20(
         create_pool(deps.branch(), &env, &lp_token, &cfg, &factory_cfg)?;
     }
 
+    let generator_controller = query_generator_controller_info(deps.branch(), &cfg)?;
+
     match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::Deposit {} => update_rewards_and_execute(
-            deps,
-            env,
-            Some(lp_token.clone()),
-            ExecuteOnReply::Deposit {
-                lp_token,
-                account: Addr::unchecked(cw20_msg.sender),
-                amount,
-            },
-        ),
-        Cw20HookMsg::DepositFor(beneficiary) => update_rewards_and_execute(
-            deps,
-            env,
-            Some(lp_token.clone()),
-            ExecuteOnReply::Deposit {
-                lp_token,
-                account: beneficiary,
-                amount,
-            },
-        ),
+        Cw20HookMsg::Deposit {} => {
+            update_boost_amount(
+                deps.branch(),
+                &env,
+                &account,
+                &lp_token,
+                &generator_controller.escrow_addr,
+            )?;
+
+            update_rewards_and_execute(
+                deps.branch(),
+                env,
+                Some(lp_token.clone()),
+                ExecuteOnReply::Deposit {
+                    lp_token,
+                    account: Addr::unchecked(cw20_msg.sender),
+                    amount,
+                },
+            )
+        }
+        Cw20HookMsg::DepositFor(beneficiary) => {
+            update_boost_amount(
+                deps.branch(),
+                &env,
+                &account,
+                &lp_token,
+                &generator_controller.escrow_addr,
+            )?;
+
+            update_rewards_and_execute(
+                deps.branch(),
+                env,
+                Some(lp_token.clone()),
+                ExecuteOnReply::Deposit {
+                    lp_token,
+                    account: beneficiary,
+                    amount,
+                },
+            )
+        }
     }
 }
 
