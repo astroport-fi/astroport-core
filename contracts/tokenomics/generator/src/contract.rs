@@ -98,7 +98,7 @@ pub fn instantiate(
     TMP_USER_ACTION.save(deps.storage, &None)?;
 
     let init_reward_holder_msg =
-        init_proxy_rewards_holder(&env.contract.address, msg.whitelist_code_id)?;
+        init_proxy_rewards_holder(&config.owner, &env.contract.address, msg.whitelist_code_id)?;
 
     Ok(Response::default().add_submessage(init_reward_holder_msg))
 }
@@ -1519,12 +1519,13 @@ fn send_orphan_proxy_rewards(
 ///
 /// * **env** is an object of type [`Env`].
 fn init_proxy_rewards_holder(
+    owner: &Addr,
     admin: &Addr,
     whitelist_code_id: u64,
 ) -> Result<SubMsg, ContractError> {
     let msg = SubMsg::reply_on_success(
         CosmosMsg::Wasm(WasmMsg::Instantiate {
-            admin: None,
+            admin: Some(owner.to_string()),
             code_id: whitelist_code_id,
             funds: vec![],
             label: "Proxy rewards holder".to_string(),
@@ -2514,8 +2515,9 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    let config = CONFIG.load(deps.storage)?;
     let init_reward_holder_msg =
-        init_proxy_rewards_holder(&env.contract.address, msg.whitelist_code_id)?;
+        init_proxy_rewards_holder(&config.owner, &env.contract.address, msg.whitelist_code_id)?;
 
     Ok(Response::new()
         .add_submessage(init_reward_holder_msg)
