@@ -269,7 +269,7 @@ pub fn execute(
                 config.owner,
                 OWNERSHIP_PROPOSAL,
             )
-            .map_err(|e| e.into())
+                .map_err(|e| e.into())
         }
         ExecuteMsg::DropOwnershipProposal {} => {
             let config: Config = CONFIG.load(deps.storage)?;
@@ -286,7 +286,7 @@ pub fn execute(
 
                 Ok(())
             })
-            .map_err(|e| e.into())
+                .map_err(|e| e.into())
         }
     }
 }
@@ -1102,7 +1102,7 @@ pub fn send_pending_rewards(
                                 info: asset_info,
                                 amount: pending_proxy_rewards,
                             }
-                            .into_msg(&deps.querier, to.clone())?],
+                                .into_msg(&deps.querier, to.clone())?],
                         })?,
                     });
                 }
@@ -1488,7 +1488,7 @@ fn send_orphan_proxy_rewards(
                                 info: asset_info,
                                 amount: *amount,
                             }
-                            .into_msg(&deps.querier, recipient.clone())?],
+                                .into_msg(&deps.querier, recipient.clone())?],
                         })?,
                     })
                 }
@@ -2517,7 +2517,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
 
     let mut response = Response::new();
     // Initialize the contract if it is not already initialized
-    if PROXY_REWARDS_HOLDER.may_load(deps.storage)?.is_none(){
+    if PROXY_REWARDS_HOLDER.may_load(deps.storage)?.is_none() {
         let config = CONFIG.load(deps.storage)?;
         let init_reward_holder_msg =
             init_proxy_rewards_holder(&config.owner, &env.contract.address, msg.whitelist_code_id)?;
