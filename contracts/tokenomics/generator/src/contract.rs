@@ -2515,12 +2515,16 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let config = CONFIG.load(deps.storage)?;
-    let init_reward_holder_msg =
-        init_proxy_rewards_holder(&config.owner, &env.contract.address, msg.whitelist_code_id)?;
+    let mut response = Response::new();
+    // Initialize the contract if it is not already initialized
+    if PROXY_REWARDS_HOLDER.may_load(deps.storage)?.is_none(){
+        let config = CONFIG.load(deps.storage)?;
+        let init_reward_holder_msg =
+            init_proxy_rewards_holder(&config.owner, &env.contract.address, msg.whitelist_code_id)?;
+        response = response.add_submessage(init_reward_holder_msg);
+    }
 
-    Ok(Response::new()
-        .add_submessage(init_reward_holder_msg)
+    Ok(response
         .add_attribute("previous_contract_name", &contract_version.contract)
         .add_attribute("previous_contract_version", &contract_version.version)
         .add_attribute("new_contract_name", CONTRACT_NAME)
