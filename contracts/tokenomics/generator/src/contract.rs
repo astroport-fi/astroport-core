@@ -269,7 +269,7 @@ pub fn execute(
                 config.owner,
                 OWNERSHIP_PROPOSAL,
             )
-                .map_err(|e| e.into())
+            .map_err(|e| e.into())
         }
         ExecuteMsg::DropOwnershipProposal {} => {
             let config: Config = CONFIG.load(deps.storage)?;
@@ -286,7 +286,7 @@ pub fn execute(
 
                 Ok(())
             })
-                .map_err(|e| e.into())
+            .map_err(|e| e.into())
         }
     }
 }
@@ -1102,7 +1102,7 @@ pub fn send_pending_rewards(
                                 info: asset_info,
                                 amount: pending_proxy_rewards,
                             }
-                                .into_msg(&deps.querier, to.clone())?],
+                            .into_msg(&deps.querier, to.clone())?],
                         })?,
                     });
                 }
@@ -1488,7 +1488,7 @@ fn send_orphan_proxy_rewards(
                                 info: asset_info,
                                 amount: *amount,
                             }
-                                .into_msg(&deps.querier, recipient.clone())?],
+                            .into_msg(&deps.querier, recipient.clone())?],
                         })?,
                     })
                 }

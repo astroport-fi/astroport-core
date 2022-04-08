@@ -208,15 +208,15 @@ pub struct PendingTokenResponse {
 pub struct RestrictedVector<T>(Vec<(Addr, T)>);
 
 pub trait Increaseable
-    where
-        Self: Sized,
+where
+    Self: Sized,
 {
     fn increase(self, new: Self) -> StdResult<Self>;
 }
 
 impl<T> RestrictedVector<T>
-    where
-        T: Copy + Increaseable,
+where
+    T: Copy + Increaseable,
 {
     pub fn new(first_proxy: Addr, first_reward_index: T) -> Self {
         Self(vec![(first_proxy, first_reward_index)])
@@ -237,9 +237,7 @@ impl<T> RestrictedVector<T>
             .iter_mut()
             .find(|(proxy_addr, _)| proxy_addr.as_str() == key.as_str());
         match proxy_ref {
-            Some((_, index)) => {
-                *index = index.increase(value)?
-            }
+            Some((_, index)) => *index = index.increase(value)?,
             _ => self.0.push((key.clone(), value)),
         }
 
