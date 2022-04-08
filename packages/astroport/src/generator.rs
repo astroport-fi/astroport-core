@@ -222,14 +222,6 @@ where
         Self(vec![(first_proxy, first_reward_index)])
     }
 
-    pub fn get_last_mut(&mut self, proxy: &Addr) -> StdResult<&mut T> {
-        self.0
-            .last_mut()
-            .filter(|(p, _)| p.as_str() == proxy.as_str())
-            .map(|(_, v)| v)
-            .ok_or_else(|| StdError::generic_err(format!("Proxy {} not found", proxy)))
-    }
-
     pub fn get_last(&self, proxy: &Addr) -> StdResult<T> {
         self.0
             .last()
@@ -245,7 +237,7 @@ where
             .iter_mut()
             .find(|(proxy_addr, _)| proxy_addr.as_str() == key.as_str());
         match proxy_ref {
-            Some((ref proxy, index)) if proxy.as_str() == key.as_str() => {
+            Some((_, index)) => {
                 *index = index.increase(value)?
             }
             _ => self.0.push((key.clone(), value)),
