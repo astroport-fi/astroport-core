@@ -1,5 +1,6 @@
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
+use std::ops::{Mul, Sub};
 
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
@@ -1058,17 +1059,18 @@ pub fn compute_swap(
     // offer => ask
     // ask_amount = (ask_pool - cp / (offer_pool + offer_amount))
     let cp: Uint256 = offer_pool * ask_pool;
-    let return_amount: Uint256 = (Decimal256::from_uint256(ask_pool)
-        - Decimal256::from_ratio(cp, offer_pool + offer_amount))
+    let return_amount: Uint256 = Decimal256::from_uint256(ask_pool)
+        .sub(Decimal256::from_ratio(cp, offer_pool + offer_amount))
         * Uint256::one();
 
     // Calculate spread & commission
-    let spread_amount: Uint256 =
-        (offer_amount * Decimal256::from_ratio(ask_pool, offer_pool)) - return_amount;
+    let spread_amount: Uint256 = offer_amount
+        .mul(Decimal256::from_ratio(ask_pool, offer_pool))
+        .sub(return_amount);
     let commission_amount: Uint256 = return_amount * commission_rate;
 
     // The commision (minus the part that goes to the Maker contract) will be absorbed by the pool
-    let return_amount: Uint256 = return_amount - commission_amount;
+    let return_amount: Uint256 = return_amount.sub(commission_amount);
     Ok((
         return_amount.into(),
         spread_amount.into(),
