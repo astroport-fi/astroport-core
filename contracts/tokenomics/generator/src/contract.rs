@@ -203,7 +203,7 @@ pub fn execute(
 
             update_rewards_and_execute(
                 deps,
-                &env,
+                env,
                 None,
                 ExecuteOnReply::ClaimRewards {
                     lp_tokens: lp_tokens_addr,
@@ -216,7 +216,7 @@ pub fn execute(
 
             update_rewards_and_execute(
                 deps.branch(),
-                &env,
+                env,
                 Some(lp_token.clone()),
                 ExecuteOnReply::Withdraw {
                     lp_token,
@@ -242,7 +242,7 @@ pub fn execute(
 
             update_rewards_and_execute(
                 deps,
-                &env,
+                env,
                 None,
                 ExecuteOnReply::SetTokensPerBlock { amount },
             )
@@ -745,7 +745,7 @@ fn get_proxy_rewards(
 /// * **_msg** is an object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
-    process_after_update(deps, &env)
+    process_after_update(deps, env)
 }
 
 /// ## Description
@@ -887,7 +887,7 @@ pub fn claim_rewards(
 
         // Update user's emission amount
         let user_info =
-            update_emission_rewards(deps.branch(), env, &cfg, user, &account, lp_token)?;
+            update_emission_rewards(deps.branch(), &env, &cfg, user, &account, lp_token)?;
         USER_INFO.save(deps.storage, (lp_token, &account), &user_info)?;
     }
 
@@ -2223,7 +2223,6 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
 
                 migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?
             }
-            "1.2.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
