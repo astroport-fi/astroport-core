@@ -152,6 +152,8 @@ pub enum QueryMsg {
     PoolLength {},
     /// Deposit returns the LP token amount deposited in a specific generator
     Deposit { lp_token: String, user: String },
+    /// EmissionRewards returns the emission boosting amount in a specific generator
+    EmissionRewards { lp_token: String, user: String },
     /// PendingToken returns the amount of rewards that can be claimed by an account that deposited a specific LP token in a generator
     PendingToken { lp_token: String, user: String },
     /// Config returns the main contract parameters

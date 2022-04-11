@@ -69,9 +69,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport"
+version = "1.2.0"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#7194e3b3e143ee5621102a2ff30a4a942dbfd773"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "1.2.0"
+source = "git+https://github.com/astroport-fi/astroport.git#7194e3b3e143ee5621102a2ff30a4a942dbfd773"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "uint",
+]
+
+[[package]]
 name = "astroport-escrow-fee-distributor"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#501dbebf679737f8cd38d64a2669706764d0109c"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#cb18bd54b541f2e43bf804230e8981f1a31e7b0a"
 dependencies = [
  "astroport 0.3.1",
  "astroport-governance",
@@ -107,12 +135,14 @@ dependencies = [
 name = "astroport-generator"
 version = "1.2.1"
 dependencies = [
+ "anyhow",
  "astroport 1.2.0",
  "astroport-factory",
  "astroport-generator-proxy-to-mirror",
  "astroport-governance",
  "astroport-pair",
  "astroport-pair-stable",
+ "astroport-staking",
  "astroport-token",
  "astroport-vesting",
  "cosmwasm-schema",
@@ -120,12 +150,14 @@ dependencies = [
  "cw-storage-plus 0.8.1",
  "cw2",
  "cw20",
+ "generator-controller",
  "mirror-protocol 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mirror-staking",
  "schemars",
  "serde",
  "terra-multi-test",
  "thiserror",
+ "voting-escrow",
 ]
 
 [[package]]
@@ -147,7 +179,7 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#501dbebf679737f8cd38d64a2669706764d0109c"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#cb18bd54b541f2e43bf804230e8981f1a31e7b0a"
 dependencies = [
  "cosmwasm-std",
  "cw20",
@@ -1138,6 +1170,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8cbd1169bd7b4a0a20d92b9af7a7e0422888bd38a6f5ec29c1fd8c1558a272e"
 
 [[package]]
+name = "generator-controller"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#cb18bd54b541f2e43bf804230e8981f1a31e7b0a"
+dependencies = [
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
+ "astroport-governance",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "itertools",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "thiserror",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1348,9 +1397,9 @@ checksum = "1aab8fc367588b89dcee83ab0fd66b72b50b72fa1904d7095045ace2b0c81c35"
 
 [[package]]
 name = "js-sys"
-version = "0.3.56"
+version = "0.3.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a38fc24e30fd564ce974c02bf1d337caddff65be6cc4735a1f7eab22a7440f04"
+checksum = "671a26f820db17c2a2750743f1dd03bafd15b98c9f30c7c2628c024c05d73397"
 dependencies = [
  "wasm-bindgen",
 ]
@@ -1832,9 +1881,9 @@ checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
 
 [[package]]
 name = "quote"
-version = "1.0.17"
+version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "632d02bff7f874a36f33ea8bb416cd484b90cc66c1194b1a1110d067a7013f58"
+checksum = "a1feb54ed693b93a84e14094943b84b7c4eae204c512b7ccb95ab0c66d278ad1"
 dependencies = [
  "proc-macro2",
 ]
@@ -2360,9 +2409,9 @@ dependencies = [
 
 [[package]]
 name = "tracing"
-version = "0.1.32"
+version = "0.1.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a1bdf54a7c28a2bbf701e1d2233f6c77f473486b94bee4f9678da5a148dca7f"
+checksum = "80b9fa4360528139bc96100c160b7ae879f5567f49f1782b0b02035b0358ebf3"
 dependencies = [
  "cfg-if",
  "log",
@@ -2428,6 +2477,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
+name = "voting-escrow"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#cb18bd54b541f2e43bf804230e8981f1a31e7b0a"
+dependencies = [
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "astroport-governance",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "thiserror",
+]
+
+[[package]]
 name = "wait-timeout"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2450,9 +2517,9 @@ checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.79"
+version = "0.2.80"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25f1af7423d8588a3d840681122e72e6a24ddbcb3f0ec385cac0d12d24256c06"
+checksum = "27370197c907c55e3f1a9fbe26f44e937fe6451368324e009cba39e139dc08ad"
 dependencies = [
  "cfg-if",
  "wasm-bindgen-macro",
@@ -2460,9 +2527,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-backend"
-version = "0.2.79"
+version = "0.2.80"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b21c0df030f5a177f3cba22e9bc4322695ec43e7257d865302900290bcdedca"
+checksum = "53e04185bfa3a779273da532f5025e33398409573f348985af9a1cbf3774d3f4"
 dependencies = [
  "bumpalo",
  "lazy_static",
@@ -2475,9 +2542,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.79"
+version = "0.2.80"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f4203d69e40a52ee523b2529a773d5ffc1dc0071801c87b3d270b471b80ed01"
+checksum = "17cae7ff784d7e83a2fe7611cfe766ecf034111b49deb850a3dc7699c08251f5"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -2485,9 +2552,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.79"
+version = "0.2.80"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfa8a30d46208db204854cadbb5d4baf5fcf8071ba5bf48190c3e59937962ebc"
+checksum = "99ec0dc7a4756fffc231aab1b9f2f578d23cd391390ab27f952ae0c9b3ece20b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2498,9 +2565,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.79"
+version = "0.2.80"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d958d035c4438e28c70e4321a2911302f10135ce78a9c7834c0cab4123d06a2"
+checksum = "d554b7f530dee5964d9a9468d95c1f8b8acae4f282807e7d27d4b03099a46744"
 
 [[package]]
 name = "wasmer"

@@ -16,8 +16,7 @@ use astroport::asset::{
     addr_validate_to_lower, pair_info_by_pool, token_asset_info, AssetInfo, PairInfo,
 };
 
-use crate::querier::query_generator_controller_info;
-use crate::utils::update_boost_amount;
+use crate::utils::update_emission_rewards;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{PairConfig, PairType};
 use astroport::generator::PoolInfo;
@@ -204,7 +203,7 @@ pub fn execute(
 
             update_rewards_and_execute(
                 deps,
-                env,
+                &env,
                 None,
                 ExecuteOnReply::ClaimRewards {
                     lp_tokens: lp_tokens_addr,
@@ -214,20 +213,10 @@ pub fn execute(
         }
         ExecuteMsg::Withdraw { lp_token, amount } => {
             let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
-            let cfg = CONFIG.load(deps.storage)?;
-            let generator_controller = query_generator_controller_info(deps.branch(), &cfg)?;
-
-            update_boost_amount(
-                deps.branch(),
-                &env,
-                &info.sender,
-                &lp_token,
-                &generator_controller.escrow_addr,
-            )?;
 
             update_rewards_and_execute(
-                deps,
-                env,
+                deps.branch(),
+                &env,
                 Some(lp_token.clone()),
                 ExecuteOnReply::Withdraw {
                     lp_token,
@@ -253,7 +242,7 @@ pub fn execute(
 
             update_rewards_and_execute(
                 deps,
-                env,
+                &env,
                 None,
                 ExecuteOnReply::SetTokensPerBlock { amount },
             )
@@ -303,17 +292,22 @@ fn check_points(
     let user_addr = addr_validate_to_lower(deps.api, &user)?;
     let config = CONFIG.load(deps.storage)?;
 
-    let generator_controller = query_generator_controller_info(deps.branch(), &config)?;
-
     for generator in generators {
         let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
-        update_boost_amount(
-            deps.branch(),
-            &env,
-            &user_addr,
-            &generator_addr,
-            &generator_controller.escrow_addr,
-        )?;
+        let user_info = USER_INFO.may_load(deps.storage, (&generator_addr, &user_addr))?;
+
+        // calculates the emission boost  only for user who has LP in generator
+        if let Some(user_info) = user_info {
+            let user_info = update_emission_rewards(
+                deps.branch(),
+                &env,
+                &config,
+                user_info,
+                &user_addr,
+                &generator_addr,
+            )?;
+            USER_INFO.save(deps.storage, (&generator_addr, &user_addr), &user_info)?;
+        }
     }
 
     Ok(Response::new())
@@ -651,7 +645,7 @@ pub fn execute_update_pool(
 /// * **on_reply** is an object of type [`ExecuteOnReply`]. This is the action to be performed on reply.
 fn update_rewards_and_execute(
     mut deps: DepsMut,
-    env: Env,
+    env: &Env,
     update_single_pool: Option<Addr>,
     on_reply: ExecuteOnReply,
 ) -> Result<Response, ContractError> {
@@ -747,7 +741,7 @@ fn get_proxy_rewards(
 /// * **_msg** is an object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
-    process_after_update(deps, env)
+    process_after_update(deps, &env)
 }
 
 /// ## Description
@@ -757,7 +751,7 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractE
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **env** is an object of type [`Env`].
-fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+fn process_after_update(deps: DepsMut, env: &Env) -> Result<Response, ContractError> {
     match TMP_USER_ACTION.load(deps.storage)? {
         Some(action) => {
             TMP_USER_ACTION.save(deps.storage, &None)?;
@@ -815,14 +809,14 @@ pub fn deactivate_pool(deps: DepsMut, lp_token: Addr) -> Result<Response, Contra
 /// * **amount** is the object of type [`Uint128`]. Sets a new count of tokens per block.
 fn set_tokens_per_block(
     mut deps: DepsMut,
-    env: Env,
+    env: &Env,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
     let pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
 
-    mass_update_pools(deps.branch(), &env, &cfg, &pools)?;
+    mass_update_pools(deps.branch(), env, &cfg, &pools)?;
 
     cfg.tokens_per_block = amount;
     CONFIG.save(deps.storage, &cfg)?;
@@ -869,7 +863,7 @@ pub fn mass_update_pools(
 /// * **account** is the object of type [`Addr`].
 pub fn claim_rewards(
     mut deps: DepsMut,
-    env: Env,
+    env: &Env,
     lp_tokens: Vec<Addr>,
     account: Addr,
 ) -> Result<Response, ContractError> {
@@ -877,7 +871,7 @@ pub fn claim_rewards(
 
     let cfg = CONFIG.load(deps.storage)?;
 
-    mass_update_pools(deps.branch(), &env, &cfg, &lp_tokens)?;
+    mass_update_pools(deps.branch(), env, &cfg, &lp_tokens)?;
 
     let mut send_rewards_msg: Vec<WasmMsg> = vec![];
     for lp_token in &lp_tokens {
@@ -886,6 +880,11 @@ pub fn claim_rewards(
         let user = USER_INFO.load(deps.storage, (lp_token, &account))?;
 
         send_rewards_msg.append(&mut send_pending_rewards(&cfg, &pool, &user, &account)?);
+
+        // Update user's emission amount
+        let user_info =
+            update_emission_rewards(deps.branch(), env, &cfg, user, &account, lp_token)?;
+        USER_INFO.save(deps.storage, (lp_token, &account), &user_info)?;
     }
 
     Ok(response
@@ -994,7 +993,6 @@ fn receive_cw20(
 ) -> Result<Response, ContractError> {
     let amount = cw20_msg.amount;
     let lp_token = info.sender;
-    let account = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
     let cfg = CONFIG.load(deps.storage)?;
 
     if POOL_INFO.may_load(deps.storage, &lp_token)?.is_none() {
@@ -1005,49 +1003,27 @@ fn receive_cw20(
         create_pool(deps.branch(), &env, &lp_token, &cfg, &factory_cfg)?;
     }
 
-    let generator_controller = query_generator_controller_info(deps.branch(), &cfg)?;
-
     match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::Deposit {} => {
-            update_boost_amount(
-                deps.branch(),
-                &env,
-                &account,
-                &lp_token,
-                &generator_controller.escrow_addr,
-            )?;
-
-            update_rewards_and_execute(
-                deps.branch(),
-                env,
-                Some(lp_token.clone()),
-                ExecuteOnReply::Deposit {
-                    lp_token,
-                    account: Addr::unchecked(cw20_msg.sender),
-                    amount,
-                },
-            )
-        }
-        Cw20HookMsg::DepositFor(beneficiary) => {
-            update_boost_amount(
-                deps.branch(),
-                &env,
-                &account,
-                &lp_token,
-                &generator_controller.escrow_addr,
-            )?;
-
-            update_rewards_and_execute(
-                deps.branch(),
-                env,
-                Some(lp_token.clone()),
-                ExecuteOnReply::Deposit {
-                    lp_token,
-                    account: beneficiary,
-                    amount,
-                },
-            )
-        }
+        Cw20HookMsg::Deposit {} => update_rewards_and_execute(
+            deps.branch(),
+            &env,
+            Some(lp_token.clone()),
+            ExecuteOnReply::Deposit {
+                lp_token,
+                account: Addr::unchecked(cw20_msg.sender),
+                amount,
+            },
+        ),
+        Cw20HookMsg::DepositFor(beneficiary) => update_rewards_and_execute(
+            deps.branch(),
+            &env,
+            Some(lp_token.clone()),
+            ExecuteOnReply::Deposit {
+                lp_token,
+                account: beneficiary,
+                amount,
+            },
+        ),
     }
 }
 
@@ -1077,7 +1053,7 @@ pub fn send_pending_rewards(
 
     let pending_rewards = pool
         .accumulated_rewards_per_share
-        .checked_mul(user.amount)?
+        .checked_mul(user.amount + user.emission_amount)?
         .checked_sub(user.reward_debt)?;
 
     if !pending_rewards.is_zero() {
@@ -1127,7 +1103,7 @@ pub fn send_pending_rewards(
 /// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to deposit.
 pub fn deposit(
     mut deps: DepsMut,
-    env: Env,
+    env: &Env,
     lp_token: Addr,
     beneficiary: Addr,
     amount: Uint128,
@@ -1139,14 +1115,7 @@ pub fn deposit(
     let cfg = CONFIG.load(deps.storage)?;
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
-    accumulate_rewards_per_share(
-        deps.branch(),
-        &env,
-        &lp_token,
-        &mut pool,
-        &cfg,
-        Some(amount),
-    )?;
+    accumulate_rewards_per_share(deps.branch(), env, &lp_token, &mut pool, &cfg, Some(amount))?;
 
     // Send pending rewards (if any) to the depositor
     let send_rewards_msg = send_pending_rewards(&cfg, &pool, &user, &beneficiary)?;
@@ -1168,7 +1137,7 @@ pub fn deposit(
 
     let reward_msg = build_claim_pools_asset_reward_messages(
         deps.as_ref(),
-        &env,
+        env,
         &lp_token,
         &pool,
         &beneficiary,
@@ -1178,10 +1147,14 @@ pub fn deposit(
 
     // Update user's LP token balance
     let updated_amount = user.amount.checked_add(amount)?;
-    let user = update_user_balance(user, &pool, updated_amount)?;
+    let user_info = update_user_balance(user, &pool, updated_amount)?;
+
+    // Update user's emission boost balance
+    let user_info =
+        update_emission_rewards(deps.branch(), env, &cfg, user_info, &beneficiary, &lp_token)?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
-    USER_INFO.save(deps.storage, (&lp_token, &beneficiary), &user)?;
+    USER_INFO.save(deps.storage, (&lp_token, &beneficiary), &user_info)?;
 
     Ok(Response::new()
         .add_messages(send_rewards_msg)
@@ -1206,25 +1179,25 @@ pub fn deposit(
 /// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to withdraw.
 pub fn withdraw(
     mut deps: DepsMut,
-    env: Env,
+    env: &Env,
     lp_token: Addr,
     account: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let user = USER_INFO
+    let user_info = USER_INFO
         .load(deps.storage, (&lp_token, &account))
         .unwrap_or_default();
-    if user.amount < amount {
+    if user_info.amount < amount {
         return Err(ContractError::BalanceTooSmall {});
     }
 
     let cfg = CONFIG.load(deps.storage)?;
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
-    accumulate_rewards_per_share(deps.branch(), &env, &lp_token, &mut pool, &cfg, None)?;
+    accumulate_rewards_per_share(deps.branch(), env, &lp_token, &mut pool, &cfg, None)?;
 
     // Send pending rewards to the user
-    let send_rewards_msg = send_pending_rewards(&cfg, &pool, &user, &account)?;
+    let send_rewards_msg = send_pending_rewards(&cfg, &pool, &user_info, &account)?;
 
     // Instantiate the transfer call for the LP token
     let transfer_msg = if !amount.is_zero() {
@@ -1252,22 +1225,26 @@ pub fn withdraw(
 
     let reward_msg = build_claim_pools_asset_reward_messages(
         deps.as_ref(),
-        &env,
+        env,
         &lp_token,
         &pool,
         &account,
-        user.amount,
+        user_info.amount,
         Uint128::zero(),
     )?;
 
     // Update user's balance
-    let updated_amount = user.amount.checked_sub(amount)?;
-    let user = update_user_balance(user, &pool, updated_amount)?;
+    let updated_amount = user_info.amount.checked_sub(amount)?;
+    let user_info = update_user_balance(user_info, &pool, updated_amount)?;
+
+    // Update user's emission boost
+    let user_info =
+        update_emission_rewards(deps.branch(), env, &cfg, user_info, &account, &lp_token)?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
 
-    if !user.amount.is_zero() {
-        USER_INFO.save(deps.storage, (&lp_token, &account), &user)?;
+    if !user_info.amount.is_zero() {
+        USER_INFO.save(deps.storage, (&lp_token, &account), &user_info)?;
     } else {
         USER_INFO.remove(deps.storage, (&lp_token, &account));
     }
@@ -1625,6 +1602,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
     match msg {
         QueryMsg::ActivePoolLength {} => Ok(to_binary(&active_pool_length(deps)?)?),
         QueryMsg::PoolLength {} => Ok(to_binary(&pool_length(deps)?)?),
+        QueryMsg::EmissionRewards { lp_token, user } => {
+            Ok(to_binary(&query_emission_rewards(deps, lp_token, user)?)?)
+        }
         QueryMsg::Deposit { lp_token, user } => {
             Ok(to_binary(&query_deposit(deps, lp_token, user)?)?)
         }
@@ -1704,6 +1684,28 @@ pub fn query_deposit(deps: Deps, lp_token: String, user: String) -> Result<Uint1
         .load(deps.storage, (&lp_token, &user))
         .unwrap_or_default();
     Ok(user_info.amount)
+}
+
+/// ## Description
+/// Returns a [`ContractError`] on failure, otherwise returns the amount of emission boosting in a specific generator.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **lp_token** is an object of type [`String`]. This is the LP token for which we query the user's emission rewards for.
+///
+/// * **user** is an object of type [`String`]. This is the user whose emission we query.
+pub fn query_emission_rewards(
+    deps: Deps,
+    lp_token: String,
+    user: String,
+) -> Result<Uint128, ContractError> {
+    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+    let user = addr_validate_to_lower(deps.api, &user)?;
+
+    let user_info = USER_INFO
+        .load(deps.storage, (&lp_token, &user))
+        .unwrap_or_default();
+    Ok(user_info.emission_amount)
 }
 
 /// ## Description
@@ -2204,6 +2206,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
 
                 migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?
             }
+            "1.2.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
