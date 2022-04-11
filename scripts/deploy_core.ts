@@ -5,7 +5,7 @@ import {
     readArtifact,
     deployContract,
     executeContract,
-    uploadContract,
+    uploadContract, instantiateContract,
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient} from '@terra-money/terra.js';
@@ -28,6 +28,7 @@ async function main() {
         return
     }
 
+    await uploadAndInitTreasury(terra, wallet)
     await uploadPairContracts(terra, wallet)
     await uploadAndInitStaking(terra, wallet)
     await uploadAndInitFactory(terra, wallet)
@@ -47,6 +48,31 @@ async function main() {
     console.log('FINISH')
 }
 
+async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
+    let network = readArtifact(terra.config.chainID)
+
+    if (!network.treasuryCodeID) {
+        console.log('Register Treasury Contract...')
+        network.treasuryCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_whitelist.wasm')!)
+    }
+
+    if (!network.treasuryAddress) {
+        console.log('Instantiate the Treasury...')
+        let resp = await instantiateContract(
+            terra,
+            wallet,
+            network.multisigAddress,
+            network.treasuryCodeID,
+            {
+                admins: [network.assemblyAddress],
+                mutable: true
+            });
+        network.treasuryAddress = resp.shift()
+        console.log(`Treasure Contract Address: ${network.treasuryAddress}`)
+        writeArtifact(network, terra.config.chainID)
+    }
+}
+
 async function uploadPairContracts(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
@@ -59,6 +85,12 @@ async function uploadPairContracts(terra: LCDClient, wallet: any) {
     if (!network.pairStableCodeID) {
         console.log('Register Stable Pair Contract...')
         network.pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable.wasm')!)
+        writeArtifact(network, terra.config.chainID)
+    }
+
+    if (!network.pairAnchorCodeID) {
+        console.log('Register Anchor Pair Contract...')
+        network.pairAnchorCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_anchor.wasm')!)
         writeArtifact(network, terra.config.chainID)
     }
 }
@@ -101,7 +133,7 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
 
     if (!network.factoryAddress) {
         console.log('Deploy the Factory...')
-        console.log(`CodeId Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID}`)
+        console.log(`CodeId Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID} CodeId Anchor Pair Contract: ${network.pairAnchorCodeID}`)
 
         let resp = await deployContract(
             terra,
@@ -115,18 +147,31 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                         code_id: network.pairCodeID,
                         pair_type: { xyk: {} },
                         total_fee_bps: 30, // 0.3% xyk
-                        maker_fee_bps: 3333 // 1/3rd of xyk fees go to maker
+                        maker_fee_bps: 3333, // 1/3rd of xyk fees go to maker
+                        is_disabled: false,
+                        is_generator_disabled: false
                     },
                     {
                         code_id: network.pairStableCodeID,
                         pair_type: { stable: {} },
                         total_fee_bps: 5, // 0.05% stableswap
-                        maker_fee_bps: 5000 // 50% of stableswap fees go to the Maker
+                        maker_fee_bps: 5000, // 50% of stableswap fees go to the Maker
+                        is_disabled: false,
+                        is_generator_disabled: false
+                    },
+                    {
+                        code_id: network.pairAnchorCodeID,
+                        pair_type: { custom: "Anchor-XYK" },
+                        total_fee_bps: 0,
+                        maker_fee_bps: 0,
+                        is_disabled: false,
+                        is_generator_disabled: true
                     }
                 ],
                 token_code_id: network.tokenCodeID,
                 generator_address: undefined,
                 fee_address: undefined,
+                whitelist_code_id: network.treasuryCodeID
             }
         )
         network.factoryAddress = resp.shift()

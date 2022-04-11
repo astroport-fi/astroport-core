@@ -113,7 +113,16 @@ async function main() {
                 new NativeAsset("uusd").getInfo(),
             ],
             pairType: { xyk: {} },
-        }
+        },
+        // {
+        //     identifier: "AustUst",
+        //     assetInfos: [
+        //         new TokenAsset("terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu").getInfo(),
+        //         new NativeAsset("uusd").getInfo(),
+        //     ],
+        //     pairType: { anchor: {}},
+        //     initParams: toEncodedBinary("terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s")
+        // }
     ]
 
     for (let i = 0; i < pools.length; i++) {

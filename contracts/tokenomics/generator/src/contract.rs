@@ -881,13 +881,19 @@ pub fn claim_rewards(
     for lp_token in &lp_tokens {
         let pool = POOL_INFO.load(deps.storage, lp_token)?;
 
-        let user = USER_INFO.load(deps.storage, (lp_token, &account))?;
+        let user_info = USER_INFO.load(deps.storage, (lp_token, &account))?;
 
-        send_rewards_msg.append(&mut send_pending_rewards(&cfg, &pool, &user, &account)?);
+        send_rewards_msg.append(&mut send_pending_rewards(
+            &cfg, &pool, &user_info, &account,
+        )?);
+
+        // Update user's amount
+        let amount = user_info.amount;
+        let user_info = update_user_balance(user_info, &pool, amount)?;
 
         // Update user's emission amount
         let user_info =
-            update_emission_rewards(deps.branch(), &env, &cfg, user, &account, lp_token)?;
+            update_emission_rewards(deps.branch(), &env, &cfg, user_info, &account, lp_token)?;
         USER_INFO.save(deps.storage, (lp_token, &account), &user_info)?;
     }
 
