@@ -9,8 +9,8 @@ use std::collections::HashSet;
 use crate::error::ContractError;
 use crate::migration;
 use crate::state::{
-    update_user_balance, Config, ExecuteOnReply, UserInfo, CONFIG, DEFAULT_LIMIT, MAX_LIMIT,
-    OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
+    update_user_balance, Config, ExecuteOnReply, UserInfo, CONFIG, DEFAULT_LIMIT, GENERATORS_LIMIT,
+    MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO, TMP_USER_ACTION, USER_INFO,
 };
 use astroport::asset::{
     addr_validate_to_lower, pair_info_by_pool, token_asset_info, AssetInfo, PairInfo,
@@ -292,6 +292,10 @@ fn check_points(
     let user_addr = addr_validate_to_lower(deps.api, &user)?;
     let config = CONFIG.load(deps.storage)?;
 
+    if generators.len() > GENERATORS_LIMIT as usize {
+        return Err(ContractError::GeneratorsLimitExceeded {});
+    }
+
     for generator in generators {
         let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
         let user_info = USER_INFO.may_load(deps.storage, (&generator_addr, &user_addr))?;
@@ -310,7 +314,7 @@ fn check_points(
         }
     }
 
-    Ok(Response::new())
+    Ok(Response::new().add_attribute("action", "check_points"))
 }
 
 /// ## Description

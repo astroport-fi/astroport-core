@@ -106,6 +106,9 @@ pub const DEFAULT_LIMIT: u32 = 10;
 /// Contains a proposal to change contract ownership.
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
+/// The default limit of generators to update user emission
+pub const GENERATORS_LIMIT: u32 = 24;
+
 /// Update user balance.
 /// ## Params
 /// * **user** is an object of type [`UserInfo`].

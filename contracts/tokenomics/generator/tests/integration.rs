@@ -187,6 +187,19 @@ fn test_boost_checkpoints() {
     app.next_block(WEEK);
     app.update_block(|mut bi| bi.time = bi.time.plus_seconds(WEEK));
 
+    let err = app
+        .execute_contract(
+            Addr::unchecked(USER1),
+            helper_controller.generator.clone(),
+            &ExecuteMsg::CheckPoints {
+                user: user1.to_string(),
+                generators: vec![lp_eur_usd.to_string(); 26],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!("Maximum generator limit exceeded!", err.to_string());
+
     app.execute_contract(
         Addr::unchecked(USER1),
         helper_controller.generator.clone(),

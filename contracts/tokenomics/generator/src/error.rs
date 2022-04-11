@@ -45,6 +45,9 @@ pub enum ContractError {
 
     #[error("Generator controller is not found!")]
     GeneratorControllerNotFound {},
+
+    #[error("Maximum generator limit exceeded!")]
+    GeneratorsLimitExceeded {},
 }
 
 impl From<OverflowError> for ContractError {
