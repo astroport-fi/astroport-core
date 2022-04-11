@@ -136,7 +136,7 @@ pub enum ExecuteMsg {
     DeactivatePool { lp_token: String },
     /// Sets the allocation point to zero for each pool by the pair type
     DeactivatePools { pair_types: Vec<PairType> },
-    /// Update boost amount for all user
+    /// Updates emissions for specified user and generators
     CheckPoints {
         user: String,
         generators: Vec<String>,

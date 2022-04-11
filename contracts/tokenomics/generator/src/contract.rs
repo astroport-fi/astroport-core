@@ -649,7 +649,7 @@ pub fn execute_update_pool(
 /// * **on_reply** is an object of type [`ExecuteOnReply`]. This is the action to be performed on reply.
 fn update_rewards_and_execute(
     mut deps: DepsMut,
-    env: &Env,
+    env: Env,
     update_single_pool: Option<Addr>,
     on_reply: ExecuteOnReply,
 ) -> Result<Response, ContractError> {
@@ -755,7 +755,7 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractE
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **env** is an object of type [`Env`].
-fn process_after_update(deps: DepsMut, env: &Env) -> Result<Response, ContractError> {
+fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     match TMP_USER_ACTION.load(deps.storage)? {
         Some(action) => {
             TMP_USER_ACTION.save(deps.storage, &None)?;
@@ -813,14 +813,14 @@ pub fn deactivate_pool(deps: DepsMut, lp_token: Addr) -> Result<Response, Contra
 /// * **amount** is the object of type [`Uint128`]. Sets a new count of tokens per block.
 fn set_tokens_per_block(
     mut deps: DepsMut,
-    env: &Env,
+    env: Env,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
     let pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
 
-    mass_update_pools(deps.branch(), env, &cfg, &pools)?;
+    mass_update_pools(deps.branch(), &env, &cfg, &pools)?;
 
     cfg.tokens_per_block = amount;
     CONFIG.save(deps.storage, &cfg)?;
@@ -867,7 +867,7 @@ pub fn mass_update_pools(
 /// * **account** is the object of type [`Addr`].
 pub fn claim_rewards(
     mut deps: DepsMut,
-    env: &Env,
+    env: Env,
     lp_tokens: Vec<Addr>,
     account: Addr,
 ) -> Result<Response, ContractError> {
@@ -875,7 +875,7 @@ pub fn claim_rewards(
 
     let cfg = CONFIG.load(deps.storage)?;
 
-    mass_update_pools(deps.branch(), env, &cfg, &lp_tokens)?;
+    mass_update_pools(deps.branch(), &env, &cfg, &lp_tokens)?;
 
     let mut send_rewards_msg: Vec<WasmMsg> = vec![];
     for lp_token in &lp_tokens {
@@ -1010,7 +1010,7 @@ fn receive_cw20(
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::Deposit {} => update_rewards_and_execute(
             deps.branch(),
-            &env,
+            env,
             Some(lp_token.clone()),
             ExecuteOnReply::Deposit {
                 lp_token,
@@ -1020,7 +1020,7 @@ fn receive_cw20(
         ),
         Cw20HookMsg::DepositFor(beneficiary) => update_rewards_and_execute(
             deps.branch(),
-            &env,
+            env,
             Some(lp_token.clone()),
             ExecuteOnReply::Deposit {
                 lp_token,
@@ -1107,7 +1107,7 @@ pub fn send_pending_rewards(
 /// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to deposit.
 pub fn deposit(
     mut deps: DepsMut,
-    env: &Env,
+    env: Env,
     lp_token: Addr,
     beneficiary: Addr,
     amount: Uint128,
@@ -1119,7 +1119,14 @@ pub fn deposit(
     let cfg = CONFIG.load(deps.storage)?;
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
-    accumulate_rewards_per_share(deps.branch(), env, &lp_token, &mut pool, &cfg, Some(amount))?;
+    accumulate_rewards_per_share(
+        deps.branch(),
+        &env,
+        &lp_token,
+        &mut pool,
+        &cfg,
+        Some(amount),
+    )?;
 
     // Send pending rewards (if any) to the depositor
     let send_rewards_msg = send_pending_rewards(&cfg, &pool, &user, &beneficiary)?;
@@ -1141,7 +1148,7 @@ pub fn deposit(
 
     let reward_msg = build_claim_pools_asset_reward_messages(
         deps.as_ref(),
-        env,
+        &env,
         &lp_token,
         &pool,
         &beneficiary,
@@ -1154,8 +1161,14 @@ pub fn deposit(
     let user_info = update_user_balance(user, &pool, updated_amount)?;
 
     // Update user's emission boost balance
-    let user_info =
-        update_emission_rewards(deps.branch(), env, &cfg, user_info, &beneficiary, &lp_token)?;
+    let user_info = update_emission_rewards(
+        deps.branch(),
+        &env,
+        &cfg,
+        user_info,
+        &beneficiary,
+        &lp_token,
+    )?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
     USER_INFO.save(deps.storage, (&lp_token, &beneficiary), &user_info)?;
@@ -1183,7 +1196,7 @@ pub fn deposit(
 /// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to withdraw.
 pub fn withdraw(
     mut deps: DepsMut,
-    env: &Env,
+    env: Env,
     lp_token: Addr,
     account: Addr,
     amount: Uint128,
@@ -1198,7 +1211,7 @@ pub fn withdraw(
     let cfg = CONFIG.load(deps.storage)?;
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
-    accumulate_rewards_per_share(deps.branch(), env, &lp_token, &mut pool, &cfg, None)?;
+    accumulate_rewards_per_share(deps.branch(), &env, &lp_token, &mut pool, &cfg, None)?;
 
     // Send pending rewards to the user
     let send_rewards_msg = send_pending_rewards(&cfg, &pool, &user_info, &account)?;
@@ -1229,7 +1242,7 @@ pub fn withdraw(
 
     let reward_msg = build_claim_pools_asset_reward_messages(
         deps.as_ref(),
-        env,
+        &env,
         &lp_token,
         &pool,
         &account,
@@ -1243,7 +1256,7 @@ pub fn withdraw(
 
     // Update user's emission boost
     let user_info =
-        update_emission_rewards(deps.branch(), env, &cfg, user_info, &account, &lp_token)?;
+        update_emission_rewards(deps.branch(), &env, &cfg, user_info, &account, &lp_token)?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
 
