@@ -1829,7 +1829,6 @@ fn migrate_proxy() {
     check_token_balance(&mut app, &lp_cny_eur, &mirror_staking_instance, 0);
     check_token_balance(&mut app, &lp_cny_eur, &foo_token_staking_instance, 20);
 
-    // Since we migrated to the new reward proxy, the proxy rewards should be 0
     check_pending_rewards(
         &mut app,
         &generator_instance,
@@ -1897,16 +1896,51 @@ fn migrate_proxy() {
     app.execute_contract(owner.clone(), bar_token.clone(), &msg, &[])
         .unwrap();
 
-    for user in [user1, user2] {
-        // Claim all rewards twice to be sure that nothing breaks and users do not receive additional rewards
-        app.execute_contract(user.clone(), generator_instance.clone(), &claim_msg, &[])
-            .unwrap();
-        app.execute_contract(user.clone(), generator_instance.clone(), &claim_msg, &[])
-            .unwrap();
-        check_token_balance(&mut app, &mirror_token_instance, &user, 25_000000);
-        check_token_balance(&mut app, &foo_token, &user, 50_000000);
-        check_token_balance(&mut app, &bar_token, &user, 35_000000);
-    }
+    // Claim all rewards twice to be sure that nothing breaks and users do not receive additional rewards
+    app.execute_contract(user1.clone(), generator_instance.clone(), &claim_msg, &[])
+        .unwrap();
+    app.execute_contract(user1.clone(), generator_instance.clone(), &claim_msg, &[])
+        .unwrap();
+    check_token_balance(&mut app, &mirror_token_instance, &user1, 25_000000);
+    check_token_balance(&mut app, &foo_token, &user1, 50_000000);
+    check_token_balance(&mut app, &bar_token, &user1, 35_000000);
+
+    // Check emergency withdraw
+    let msg = GeneratorExecuteMsg::EmergencyWithdraw {
+        lp_token: lp_cny_eur.to_string(),
+    };
+    app.execute_contract(user2, generator_instance.clone(), &msg, &[])
+        .unwrap();
+    let msg = GeneratorQueryMsg::OrphanProxyRewards {
+        lp_token: lp_cny_eur.to_string(),
+    };
+    let orphan_rewards: Vec<(AssetInfo, Uint128)> = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg)
+        .unwrap();
+    assert_eq!(
+        orphan_rewards,
+        vec![
+            (
+                AssetInfo::Token {
+                    contract_addr: mirror_token_instance
+                },
+                Uint128::new(0) // user2 has already claimed mirror token rewards
+            ),
+            (
+                AssetInfo::Token {
+                    contract_addr: foo_token
+                },
+                Uint128::new(50_000000)
+            ),
+            (
+                AssetInfo::Token {
+                    contract_addr: bar_token
+                },
+                Uint128::new(35_000000)
+            )
+        ]
+    );
 }
 
 #[test]
