@@ -198,7 +198,7 @@ pub struct PendingTokenResponse {
     /// The amount of pending ASTRO
     pub pending: Uint128,
     /// The amount of pending 3rd party reward tokens
-    pub pending_on_proxy: Option<Uint128>,
+    pub pending_on_proxy: Option<Vec<(AssetInfo, Uint128)>>,
 }
 
 /// Vec wrapper for internal use.

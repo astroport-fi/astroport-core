@@ -987,7 +987,7 @@ fn generator_with_mirror_reward_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER1,
-        (0, Some(0)),
+        (0, Some(vec![0])),
     );
     check_pending_rewards(&mut app, &generator_instance, &lp_eur_usd, USER1, (0, None));
 
@@ -1041,7 +1041,7 @@ fn generator_with_mirror_reward_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER1,
-        (5_000000, Some(50_000000)),
+        (5_000000, Some(vec![50_000000])),
     );
     check_pending_rewards(
         &mut app,
@@ -1082,7 +1082,7 @@ fn generator_with_mirror_reward_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER1,
-        (5_000000, Some(50_000000)),
+        (5_000000, Some(vec![50_000000])),
     );
     check_pending_rewards(
         &mut app,
@@ -1098,7 +1098,7 @@ fn generator_with_mirror_reward_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER2,
-        (0, Some(0)),
+        (0, Some(vec![0])),
     );
     check_pending_rewards(&mut app, &generator_instance, &lp_eur_usd, USER2, (0, None));
 
@@ -1140,7 +1140,7 @@ fn generator_with_mirror_reward_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER1,
-        (8_000000, Some(80_000000)),
+        (8_000000, Some(vec![80_000000])),
     );
     check_pending_rewards(
         &mut app,
@@ -1155,7 +1155,7 @@ fn generator_with_mirror_reward_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER2,
-        (3_000000, Some(30_000000)),
+        (3_000000, Some(vec![30_000000])),
     );
     check_pending_rewards(
         &mut app,
@@ -1178,7 +1178,7 @@ fn generator_with_mirror_reward_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER1,
-        (0_000000, Some(0_000000)),
+        (0_000000, Some(vec![0])),
     );
     check_pending_rewards(
         &mut app,
@@ -1193,7 +1193,7 @@ fn generator_with_mirror_reward_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER2,
-        (6_000000, Some(60_000000)),
+        (6_000000, Some(vec![60_000000])),
     );
     check_pending_rewards(
         &mut app,
@@ -1230,11 +1230,11 @@ fn generator_with_mirror_reward_proxy() {
     let msg = GeneratorQueryMsg::OrphanProxyRewards {
         lp_token: lp_cny_eur.to_string(),
     };
-    let orphan_rewards: Uint128 = app
+    let orphan_rewards: Vec<(AssetInfo, Uint128)> = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
-    assert_eq!(orphan_rewards, Uint128::new(50_000000));
+    assert_eq!(orphan_rewards[0].1, Uint128::new(50_000000));
 
     // Owner sends orphaned proxy rewards
     let msg = GeneratorExecuteMsg::SendOrphanProxyReward {
@@ -1562,7 +1562,7 @@ fn move_to_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER1,
-        (0, Some(0)),
+        (0, Some(vec![0])),
     );
 
     app.update_block(|bi| next_block(bi));
@@ -1591,7 +1591,7 @@ fn move_to_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER1,
-        (10_000000, Some(50_000000)),
+        (10_000000, Some(vec![50_000000])),
     );
 
     check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 0);
@@ -1721,7 +1721,7 @@ fn migrate_proxy() {
     check_token_balance(&mut app, &lp_cny_eur, &mirror_staking_instance, 20);
 
     for user in [USER1, USER2] {
-        check_pending_rewards(
+        check_pending_rewards_v120(
             &mut app,
             &generator_instance,
             &lp_cny_eur,
@@ -1752,7 +1752,7 @@ fn migrate_proxy() {
         .unwrap();
 
     for user in [USER1, USER2] {
-        check_pending_rewards(
+        check_pending_rewards_v120(
             &mut app,
             &generator_instance,
             &lp_cny_eur,
@@ -1835,7 +1835,7 @@ fn migrate_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER1,
-        (5_000000, Some(0)),
+        (5_000000, Some(vec![25_000000, 0])),
     );
 
     // Simulate foo proxy reward income
@@ -3519,7 +3519,7 @@ fn check_pending_rewards(
     generator_instance: &Addr,
     token: &Addr,
     depositor: &str,
-    expected: (u128, Option<u128>),
+    (expected, expected_on_proxy): (u128, Option<Vec<u128>>),
 ) {
     let msg = GeneratorQueryMsg::PendingToken {
         lp_token: token.to_string(),
@@ -3527,6 +3527,33 @@ fn check_pending_rewards(
     };
 
     let res: PendingTokenResponse = app
+        .wrap()
+        .query_wasm_smart(generator_instance.to_owned(), &msg)
+        .unwrap();
+
+    assert_eq!(res.pending.u128(), expected);
+    let pending_on_proxy = res.pending_on_proxy.map(|rewards| {
+        rewards
+            .into_iter()
+            .map(|(_, value)| value.u128())
+            .collect::<Vec<_>>()
+    });
+    assert_eq!(pending_on_proxy, expected_on_proxy)
+}
+
+fn check_pending_rewards_v120(
+    app: &mut TerraApp,
+    generator_instance: &Addr,
+    token: &Addr,
+    depositor: &str,
+    expected: (u128, Option<u128>),
+) {
+    let msg = GeneratorQueryMsg::PendingToken {
+        lp_token: token.to_string(),
+        user: String::from(depositor),
+    };
+
+    let res: generator_v120::PendingTokenResponse = app
         .wrap()
         .query_wasm_smart(generator_instance.to_owned(), &msg)
         .unwrap();

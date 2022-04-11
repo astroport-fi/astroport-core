@@ -1,23 +1,18 @@
+use std::collections::HashSet;
+
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
     Env, MessageInfo, Order, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
     Uint128, Uint64, WasmMsg,
 };
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
-use std::collections::HashSet;
+use cw_storage_plus::{Bound, PrimaryKey};
+use protobuf::Message;
 
-use crate::error::ContractError;
-use crate::migration;
-use crate::state::{
-    accumulate_pool_proxy_rewards, update_user_balance, CompatibleLoader, Config, ExecuteOnReply,
-    UserInfoV2, CONFIG, DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO,
-    PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, TMP_USER_ACTION, USER_INFO,
-};
 use astroport::asset::{
     addr_validate_to_lower, pair_info_by_pool, token_asset_info, Asset, AssetInfo, PairInfo,
 };
-
-use crate::response::MsgInstantiateContractResponse;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{PairConfig, PairType};
 use astroport::generator::StakerResponse;
@@ -35,9 +30,15 @@ use astroport::{
     },
     vesting::ExecuteMsg as VestingExecuteMsg,
 };
-use cw2::{get_contract_version, set_contract_version};
-use cw_storage_plus::{Bound, PrimaryKey};
-use protobuf::Message;
+
+use crate::error::ContractError;
+use crate::migration;
+use crate::response::MsgInstantiateContractResponse;
+use crate::state::{
+    accumulate_pool_proxy_rewards, update_proxy_asset, update_user_balance, CompatibleLoader,
+    Config, ExecuteOnReply, UserInfoV2, CONFIG, DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL,
+    POOL_INFO, PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, TMP_USER_ACTION, USER_INFO,
+};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-generator";
@@ -1075,7 +1076,7 @@ pub fn send_pending_rewards(
         });
     }
 
-    let proxy_rewards = accumulate_pool_proxy_rewards(pool, user);
+    let proxy_rewards = accumulate_pool_proxy_rewards(pool, user)?;
 
     let proxy_rewards_holder = PROXY_REWARDS_HOLDER.load(deps.storage)?;
     for (proxy, pending_proxy_rewards) in proxy_rewards {
@@ -1583,7 +1584,7 @@ fn migrate_proxy(
 }
 
 fn migrate_proxy_callback(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     lp_addr: Addr,
     new_proxy_addr: Addr,
@@ -1613,14 +1614,8 @@ fn migrate_proxy_callback(
 
     POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
 
-    // Save map between old proxy and asset info
-    let prev_proxy_cfg: astroport::generator_proxy::ConfigResponse = deps
-        .querier
-        .query_wasm_smart(&prev_proxy_addr, &ProxyQueryMsg::Config {})?;
-    let asset = AssetInfo::Token {
-        contract_addr: addr_validate_to_lower(deps.api, &prev_proxy_cfg.reward_token_addr)?,
-    };
-    PROXY_REWARD_ASSET.save(deps.storage, &prev_proxy_addr, &asset)?;
+    update_proxy_asset(deps.branch(), &prev_proxy_addr)?;
+    update_proxy_asset(deps.branch(), &new_proxy_addr)?;
 
     let mut response = Response::new();
 
@@ -1744,6 +1739,8 @@ fn move_to_proxy(
     if pool_info.reward_proxy.is_some() {
         return Err(ContractError::PoolAlreadyHasRewardProxyContract {});
     }
+
+    update_proxy_asset(deps.branch(), &proxy_addr)?;
     pool_info.reward_proxy = Some(proxy_addr.clone());
     pool_info.accumulated_proxy_rewards_per_share =
         RestrictedVector::new(proxy_addr, Decimal::zero());
@@ -1979,29 +1976,26 @@ pub fn pending_token(
                 .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?;
 
             if !lp_supply.is_zero() {
-                let res: Option<Uint128> = deps
-                    .querier
-                    .query_wasm_smart(proxy, &ProxyQueryMsg::PendingToken {})?;
+                let proxy_rewards = accumulate_pool_proxy_rewards(&pool, &user_info)?
+                    .into_iter()
+                    .map(|(proxy_addr, mut reward)| {
+                        // Add reward pending on proxy
+                        if proxy_addr.eq(proxy) {
+                            let res: Option<Uint128> = deps
+                                .querier
+                                .query_wasm_smart(proxy, &ProxyQueryMsg::PendingToken {})?;
+                            if let Some(token_rewards) = res {
+                                let share =
+                                    user_info.amount.multiply_ratio(token_rewards, lp_supply);
+                                reward = reward.checked_add(share)?;
+                            }
+                        }
+                        let asset = PROXY_REWARD_ASSET.load(deps.storage, &proxy_addr)?;
+                        Ok((asset, reward))
+                    })
+                    .collect::<StdResult<Vec<_>>>()?;
 
-                // TODO: probably need to fix the fronted to handle this properly because
-                // there could be more than one reward token
-                let mut acc_per_share_on_proxy =
-                    pool.accumulated_proxy_rewards_per_share.get_last(proxy)?;
-                if let Some(token_rewards) = res {
-                    let share = Decimal::from_ratio(token_rewards, lp_supply);
-                    acc_per_share_on_proxy = acc_per_share_on_proxy.checked_add(share)?;
-                }
-
-                let reward_debt_proxy = user_info
-                    .reward_debt_proxy
-                    .get_last(proxy)
-                    .unwrap_or_default();
-
-                pending_on_proxy = Some(
-                    acc_per_share_on_proxy
-                        .checked_mul(user_info.amount)?
-                        .checked_sub(reward_debt_proxy)?,
-                );
+                pending_on_proxy = Some(proxy_rewards);
             }
         }
         None => {
@@ -2086,17 +2080,29 @@ fn query_reward_info(deps: Deps, lp_token: String) -> Result<RewardInfoResponse,
     })
 }
 
-/// Returns a [`ContractError`] on failure, otherwise returns the amount of orphaned proxy rewards for a specific generator.
+/// Returns a [`ContractError`] on failure, otherwise returns a vector of pairs (asset, amount),
+/// where 'asset' is an object of type [`AssetInfo`] and 'amount' is amount of orphaned proxy rewards for a specific generator.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **lp_token** is an object of type [`String`]. This is the LP token whose generator we query for orphaned rewards.
-fn query_orphan_proxy_rewards(deps: Deps, lp_token: String) -> Result<Uint128, ContractError> {
+fn query_orphan_proxy_rewards(
+    deps: Deps,
+    lp_token: String,
+) -> Result<Vec<(AssetInfo, Uint128)>, ContractError> {
     let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
-    if let Some(proxy) = pool.reward_proxy {
-        let orphan_rewards = pool.orphan_proxy_rewards.get_last(&proxy)?;
+    if pool.reward_proxy.is_some() {
+        let orphan_rewards = pool
+            .orphan_proxy_rewards
+            .inner_ref()
+            .iter()
+            .map(|(proxy, amount)| {
+                let asset = PROXY_REWARD_ASSET.load(deps.storage, proxy)?;
+                Ok((asset, *amount))
+            })
+            .collect::<StdResult<Vec<_>>>()?;
         Ok(orphan_rewards)
     } else {
         Err(ContractError::PoolDoesNotHaveAdditionalRewards {})
@@ -2161,8 +2167,7 @@ fn query_pool_info(
     }
 
     // Calculate ASTRO tokens being distributed per block to this LP token pool
-    let astro_tokens_per_block: Uint128;
-    astro_tokens_per_block = config
+    let astro_tokens_per_block = config
         .tokens_per_block
         .checked_mul(alloc_point)?
         .checked_div(config.total_alloc_point)
@@ -2286,15 +2291,14 @@ pub fn calculate_rewards(
 ) -> StdResult<Uint128> {
     let n_blocks = Uint128::from(env.block.height).checked_sub(pool.last_reward_block.into())?;
 
-    let r;
-    if !cfg.total_alloc_point.is_zero() {
-        r = n_blocks
+    let r = if !cfg.total_alloc_point.is_zero() {
+        n_blocks
             .checked_mul(cfg.tokens_per_block)?
             .checked_mul(*alloc_point)?
-            .checked_div(cfg.total_alloc_point)?;
+            .checked_div(cfg.total_alloc_point)?
     } else {
-        r = Uint128::zero();
-    }
+        Uint128::zero()
+    };
 
     Ok(r)
 }

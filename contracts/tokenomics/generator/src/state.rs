@@ -1,8 +1,8 @@
-use astroport::asset::AssetInfo;
+use astroport::asset::{addr_validate_to_lower, AssetInfo};
 use astroport::common::OwnershipProposal;
 use astroport::generator::{PoolInfo, RestrictedVector};
 use astroport::DecimalCheckedOps;
-use cosmwasm_std::{Addr, StdResult, Storage, Uint128, Uint64};
+use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -196,7 +196,10 @@ pub fn update_user_balance(
     Ok(user)
 }
 
-pub fn accumulate_pool_proxy_rewards(pool: &PoolInfo, user: &UserInfoV2) -> Vec<(Addr, Uint128)> {
+pub fn accumulate_pool_proxy_rewards(
+    pool: &PoolInfo,
+    user: &UserInfoV2,
+) -> StdResult<Vec<(Addr, Uint128)>> {
     if !pool
         .accumulated_proxy_rewards_per_share
         .inner_ref()
@@ -207,25 +210,32 @@ pub fn accumulate_pool_proxy_rewards(pool: &PoolInfo, user: &UserInfoV2) -> Vec<
         pool.accumulated_proxy_rewards_per_share
             .inner_ref()
             .iter()
-            .filter_map(|(proxy, rewards_per_share)| {
-                if !rewards_per_share.is_zero() {
-                    let reward_debt = rewards_debt_map.get(proxy).cloned().unwrap_or_default();
-                    let pending_proxy_rewards = rewards_per_share
-                        .checked_mul(user.amount)
-                        .ok()?
-                        .saturating_sub(reward_debt);
+            .map(|(proxy, rewards_per_share)| {
+                let reward_debt = rewards_debt_map.get(proxy).cloned().unwrap_or_default();
+                let pending_proxy_rewards = rewards_per_share
+                    .checked_mul(user.amount)?
+                    .saturating_sub(reward_debt);
 
-                    if !pending_proxy_rewards.is_zero() {
-                        Some((proxy.clone(), pending_proxy_rewards))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
+                Ok((proxy.clone(), pending_proxy_rewards))
             })
             .collect()
     } else {
-        vec![]
+        Ok(vec![])
     }
+}
+
+/// ### Description
+/// Saves map between a proxy and an asset info if it is not saved yet.
+pub(crate) fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
+    if !PROXY_REWARD_ASSET.has(deps.storage, proxy_addr) {
+        let proxy_cfg: astroport::generator_proxy::ConfigResponse = deps
+            .querier
+            .query_wasm_smart(proxy_addr, &astroport::generator_proxy::QueryMsg::Config {})?;
+        let asset = AssetInfo::Token {
+            contract_addr: addr_validate_to_lower(deps.api, &proxy_cfg.reward_token_addr)?,
+        };
+        PROXY_REWARD_ASSET.save(deps.storage, proxy_addr, &asset)?
+    }
+
+    Ok(())
 }
