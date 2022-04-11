@@ -196,6 +196,8 @@ pub fn update_user_balance(
     Ok(user)
 }
 
+/// ### Description
+/// Returns the vector of reward amount per proxy taking into account the amount of debited rewards.
 pub fn accumulate_pool_proxy_rewards(
     pool: &PoolInfo,
     user: &UserInfoV2,
@@ -226,7 +228,7 @@ pub fn accumulate_pool_proxy_rewards(
 
 /// ### Description
 /// Saves map between a proxy and an asset info if it is not saved yet.
-pub(crate) fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
+pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
     if !PROXY_REWARD_ASSET.has(deps.storage, proxy_addr) {
         let proxy_cfg: astroport::generator_proxy::ConfigResponse = deps
             .querier

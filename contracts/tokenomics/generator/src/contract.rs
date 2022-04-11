@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
@@ -1353,17 +1353,24 @@ pub fn emergency_withdraw(
     // Instantiate the transfer call for the LP token
     let transfer_msg: WasmMsg;
     if let Some(proxy) = &pool.reward_proxy {
-        let accumulated_proxy_rewards_per_share =
-            pool.accumulated_proxy_rewards_per_share.get_last(proxy)?;
-        let mut user_proxy_rewards = Uint128::zero();
-        if !accumulated_proxy_rewards_per_share.is_zero() {
-            let reward_debt_proxy = user.reward_debt_proxy.get_last(proxy).unwrap_or_default();
-            user_proxy_rewards = accumulated_proxy_rewards_per_share
-                .checked_mul(user.amount)?
-                .saturating_sub(reward_debt_proxy);
-        }
-        pool.orphan_proxy_rewards
-            .update(proxy, user_proxy_rewards)?;
+        let accumulated_proxy_rewards: HashMap<_, _> = accumulate_pool_proxy_rewards(&pool, &user)?
+            .into_iter()
+            .collect();
+        // All users' proxy rewards become orphaned
+        pool.orphan_proxy_rewards = pool
+            .orphan_proxy_rewards
+            .inner_ref()
+            .iter()
+            .map(|(addr, amount)| {
+                let user_amount = accumulated_proxy_rewards
+                    .get(addr)
+                    .cloned()
+                    .unwrap_or_default();
+                let amount = amount.checked_add(user_amount)?;
+                Ok((addr.clone(), amount))
+            })
+            .collect::<StdResult<Vec<_>>>()?
+            .into();
 
         transfer_msg = WasmMsg::Execute {
             contract_addr: proxy.to_string(),
@@ -1741,9 +1748,13 @@ fn move_to_proxy(
     }
 
     update_proxy_asset(deps.branch(), &proxy_addr)?;
-    pool_info.reward_proxy = Some(proxy_addr.clone());
-    pool_info.accumulated_proxy_rewards_per_share =
-        RestrictedVector::new(proxy_addr, Decimal::zero());
+    pool_info
+        .orphan_proxy_rewards
+        .update(&proxy_addr, Uint128::zero())?;
+    pool_info
+        .accumulated_proxy_rewards_per_share
+        .update(&proxy_addr, Decimal::zero())?;
+    pool_info.reward_proxy = Some(proxy_addr);
 
     let res: BalanceResponse = deps.querier.query_wasm_smart(
         lp_addr.clone(),
