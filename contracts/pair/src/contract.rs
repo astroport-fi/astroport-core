@@ -1,6 +1,5 @@
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
-use std::ops::{Mul, Sub};
 
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
