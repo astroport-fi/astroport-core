@@ -1,6 +1,5 @@
 use astroport::DecimalCheckedOps;
 
-use crate::querier::query_generator_controller_info;
 use crate::state::{Config, UserInfo};
 use astroport::querier::query_token_balance;
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
@@ -18,7 +17,7 @@ use std::str::FromStr;
 /// - w_i is a user’s current vxASTRO balance
 /// - W is the total amount of vxASTRO
 pub(crate) fn update_emission_rewards(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: &Env,
     cfg: &Config,
     mut user_info: UserInfo,
@@ -28,11 +27,9 @@ pub(crate) fn update_emission_rewards(
     let mut user_vp = Uint128::zero();
     let mut total_vp = Uint128::zero();
 
-    if let Some(generator_controller) = &cfg.generator_controller {
-        let escrow_addr =
-            query_generator_controller_info(deps.branch(), generator_controller)?.escrow_addr;
-        user_vp = get_voting_power(deps.querier, &escrow_addr, account)?;
-        total_vp = get_total_voting_power(deps.querier, &escrow_addr)?;
+    if let Some(voting_escrow) = &cfg.voting_escrow {
+        user_vp = get_voting_power(deps.querier, voting_escrow, account)?;
+        total_vp = get_total_voting_power(deps.querier, voting_escrow)?;
     }
 
     // calculates emission boost only for user who has the voting power

@@ -14,6 +14,8 @@ pub struct InstantiateMsg {
     pub factory: String,
     /// Address that can set active generators and their alloc points
     pub generator_controller: Option<String>,
+    /// The voting escrow contract address
+    pub voting_escrow: Option<String>,
     /// Address of guardian
     pub guardian: Option<String>,
     /// ASTRO token contract address
@@ -41,6 +43,10 @@ pub enum ExecuteMsg {
         generator_controller: Option<String>,
         /// The new generator guardian
         guardian: Option<String>,
+        /// The new voting escrow contract address
+        voting_escrow: Option<String>,
+        /// The amount of generators
+        generator_limit: Option<u32>,
     },
     /// Setup generators with their respective allocation points.
     /// ## Executor
@@ -136,8 +142,8 @@ pub enum ExecuteMsg {
     DeactivatePool { lp_token: String },
     /// Sets the allocation point to zero for each pool by the pair type
     DeactivatePools { pair_types: Vec<PairType> },
-    /// Updates emissions for specified user and generators
-    CheckPoints {
+    /// Updates the boost emissions for specified user and generators
+    CheckpointUsersBoost {
         user: String,
         generators: Vec<String>,
     },
@@ -152,7 +158,7 @@ pub enum QueryMsg {
     PoolLength {},
     /// Deposit returns the LP token amount deposited in a specific generator
     Deposit { lp_token: String, user: String },
-    /// EmissionRewards returns the emission boosting amount in a specific generator
+    /// Returns the current emission boost amount in a specific generator
     EmissionRewards { lp_token: String, user: String },
     /// PendingToken returns the amount of rewards that can be claimed by an account that deposited a specific LP token in a generator
     PendingToken { lp_token: String, user: String },
@@ -257,6 +263,8 @@ pub struct ConfigResponse {
     pub factory: Addr,
     /// contract address which can only set active generators and their alloc points
     pub generator_controller: Option<Addr>,
+    /// The voting escrow contract address
+    pub voting_escrow: Option<Addr>,
     /// ASTRO token contract address
     pub astro_token: Addr,
     /// Total amount of ASTRO distributed per block

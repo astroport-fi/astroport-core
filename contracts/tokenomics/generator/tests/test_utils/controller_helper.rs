@@ -2,6 +2,7 @@ use crate::test_utils::escrow_helper::EscrowHelper;
 use anyhow::Result as AnyResult;
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
+use astroport::vesting::InstantiateMsg;
 use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
 use astroport_governance::generator_controller::{UserInfoResponse, VotedPoolInfoResponse};
 use cosmwasm_std::{Addr, StdResult};
@@ -13,6 +14,7 @@ pub struct ControllerHelper {
     pub controller: Addr,
     pub factory: Addr,
     pub escrow_helper: EscrowHelper,
+    pub vesting: Addr,
 }
 
 impl ControllerHelper {
@@ -67,17 +69,41 @@ impl ControllerHelper {
             astroport_generator::contract::query,
         ));
 
+        let vesting_contract = Box::new(ContractWrapper::new_with_empty(
+            astroport_vesting::contract::execute,
+            astroport_vesting::contract::instantiate,
+            astroport_vesting::contract::query,
+        ));
+        let vesting_code_id = router.store_code(vesting_contract);
+
+        let init_msg_vesting = InstantiateMsg {
+            owner: owner.to_string(),
+            token_addr: escrow_helper.astro_token.to_string(),
+        };
+
+        let vesting_instance = router
+            .instantiate_contract(
+                vesting_code_id,
+                owner.clone(),
+                &init_msg_vesting,
+                &[],
+                "Vesting",
+                None,
+            )
+            .unwrap();
+
         let generator_code_id = router.store_code(generator_contract);
         let init_msg = astroport::generator::InstantiateMsg {
             owner: owner.to_string(),
             factory: factory.to_string(),
             generator_controller: None,
+            voting_escrow: Some(escrow_helper.escrow_instance.to_string()),
             guardian: None,
             astro_token: escrow_helper.astro_token.to_string(),
             tokens_per_block: Default::default(),
             start_block: Default::default(),
             allowed_reward_proxies: vec![],
-            vesting_contract: "vesting_placeholder".to_string(),
+            vesting_contract: vesting_instance.to_string(),
         };
 
         let generator = router
@@ -126,6 +152,8 @@ impl ControllerHelper {
                     vesting_contract: None,
                     generator_controller: Some(controller.to_string()),
                     guardian: None,
+                    voting_escrow: None,
+                    generator_limit: None,
                 },
                 &[],
             )
@@ -137,6 +165,7 @@ impl ControllerHelper {
             controller,
             factory,
             escrow_helper,
+            vesting: vesting_instance,
         }
     }
 

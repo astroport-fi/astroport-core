@@ -29,6 +29,8 @@ pub struct Config {
     pub factory: Addr,
     /// Contract address which can only set active generators and their alloc points
     pub generator_controller: Option<Addr>,
+    /// The voting escrow contract address
+    pub voting_escrow: Option<Addr>,
     /// The ASTRO token address
     pub astro_token: Addr,
     /// Total amount of ASTRO rewards per block
@@ -47,6 +49,8 @@ pub struct Config {
     pub blocked_list_tokens: Vec<AssetInfo>,
     /// The guardian address which can add or remove tokens from blacklist
     pub guardian: Option<Addr>,
+    /// The amount of generators
+    pub generator_limit: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

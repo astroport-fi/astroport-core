@@ -101,6 +101,7 @@ pub fn migrate_configs_to_v120(
         owner: cfg_100.owner,
         factory: addr_validate_to_lower(deps.api, &msg.factory)?,
         generator_controller: None,
+        voting_escrow: None,
         astro_token: cfg_100.astro_token,
         tokens_per_block: cfg_100.tokens_per_block,
         total_alloc_point: cfg_100.total_alloc_point.into(),
@@ -110,6 +111,7 @@ pub fn migrate_configs_to_v120(
         active_pools: pools,
         blocked_list_tokens: vec![],
         guardian: None,
+        generator_limit: None,
     };
 
     if let Some(generator_controller) = msg.generator_controller {

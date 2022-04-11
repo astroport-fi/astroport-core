@@ -180,18 +180,15 @@ fn test_boost_checkpoints() {
         &mut app,
         &helper_controller.generator,
         &lp_cny_eur,
-        &user1,
+        &user2,
         10,
     );
-
-    app.next_block(WEEK);
-    app.update_block(|mut bi| bi.time = bi.time.plus_seconds(WEEK));
 
     let err = app
         .execute_contract(
             Addr::unchecked(USER1),
             helper_controller.generator.clone(),
-            &ExecuteMsg::CheckPoints {
+            &ExecuteMsg::CheckpointUsersBoost {
                 user: user1.to_string(),
                 generators: vec![lp_eur_usd.to_string(); 26],
             },
@@ -200,18 +197,7 @@ fn test_boost_checkpoints() {
         .unwrap_err();
     assert_eq!("Maximum generator limit exceeded!", err.to_string());
 
-    app.execute_contract(
-        Addr::unchecked(USER1),
-        helper_controller.generator.clone(),
-        &ExecuteMsg::CheckPoints {
-            user: user1.to_string(),
-            generators: vec![lp_eur_usd.to_string()],
-        },
-        &[],
-    )
-    .unwrap();
-
-    // check emission rewards for user1
+    // check user1's emission rewards in first week
     check_emission_balance(
         &mut app,
         &helper_controller.generator,
@@ -224,8 +210,74 @@ fn test_boost_checkpoints() {
         &helper_controller.generator,
         &lp_eur_usd,
         &user1,
-        4,
+        10,
     );
+
+    app.next_block(WEEK);
+    app.update_block(|bi| next_block(bi));
+
+    // Check if user1's ASTRO balance is 0
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user1,
+        0,
+    );
+
+    // mint 100 tokens to vesting contract
+    mint_tokens(
+        &mut app,
+        owner.clone(),
+        &helper_controller.escrow_helper.astro_token,
+        &helper_controller.vesting,
+        1000,
+    );
+
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &helper_controller.vesting,
+        1000,
+    );
+
+    app.execute_contract(
+        Addr::unchecked(USER1),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::Withdraw {
+            lp_token: lp_eur_usd.to_string(),
+            amount: Uint128::new(5),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // check emission rewards for user2
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user1,
+        10,
+    );
+
+    // Check if user1's ASTRO balance is 0
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user1,
+        0,
+    );
+
+    app.execute_contract(
+        Addr::unchecked(USER1),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::CheckpointUsersBoost {
+            user: user1.to_string(),
+            generators: vec![lp_eur_usd.to_string()],
+        },
+        &[],
+    )
+    .unwrap();
 
     // check emission rewards for user2
     check_emission_balance(
@@ -242,55 +294,6 @@ fn test_boost_checkpoints() {
         &user2,
         10,
     );
-
-    app.update_block(|bi| next_block(bi));
-
-    let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_cny_eur.to_string(),
-        amount: Uint128::new(10),
-    };
-
-    app.execute_contract(
-        user1.clone(),
-        helper_controller.generator.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
-
-    let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_eur_usd.to_string(),
-        amount: Uint128::new(10),
-    };
-
-    app.execute_contract(
-        user1.clone(),
-        helper_controller.generator.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
-
-    // check emission rewards after withdrawing
-    check_emission_balance(
-        &mut app,
-        &helper_controller.generator,
-        &lp_cny_eur,
-        &user1,
-        0,
-    );
-    check_emission_balance(
-        &mut app,
-        &helper_controller.generator,
-        &lp_eur_usd,
-        &user1,
-        0,
-    );
-
-    check_token_balance(&mut app, &lp_cny_eur, &helper_controller.generator, 10);
-    check_token_balance(&mut app, &lp_eur_usd, &helper_controller.generator, 10);
-
-    app.update_block(|bi| next_block(bi));
 }
 
 #[test]
@@ -524,6 +527,8 @@ fn update_config() {
         vesting_contract: Some(new_vesting.to_string()),
         generator_controller: None,
         guardian: None,
+        voting_escrow: None,
+        generator_limit: None,
     };
 
     // Assert cannot update with improper owner
@@ -3139,7 +3144,7 @@ fn instantiate_generator(
     factory_instance: &Addr,
     astro_token_instance: &Addr,
     allowed_proxies: Option<Vec<String>>,
-    genrator_controller: Option<String>,
+    generator_controller: Option<String>,
 ) -> Addr {
     // Vesting
     let vesting_contract = Box::new(ContractWrapper::new_with_empty(
@@ -3195,7 +3200,8 @@ fn instantiate_generator(
         astro_token: astro_token_instance.to_string(),
         tokens_per_block: Uint128::new(10_000000),
         vesting_contract: vesting_instance.to_string(),
-        generator_controller: genrator_controller,
+        generator_controller,
+        voting_escrow: None,
     };
 
     let generator_instance = app

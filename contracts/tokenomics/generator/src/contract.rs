@@ -80,14 +80,21 @@ pub fn instantiate(
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
         active_pools: vec![],
         blocked_list_tokens: vec![],
+        generator_limit: None,
+        voting_escrow: None,
     };
 
     if let Some(generator_controller) = msg.generator_controller {
         config.generator_controller =
             Some(addr_validate_to_lower(deps.api, &generator_controller)?);
     }
+
     if let Some(guardian) = msg.guardian {
         config.guardian = Some(addr_validate_to_lower(deps.api, &guardian)?);
+    }
+
+    if let Some(voting_escrow) = msg.voting_escrow {
+        config.voting_escrow = Some(addr_validate_to_lower(deps.api, &voting_escrow)?);
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -163,7 +170,9 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::CheckPoints { user, generators } => check_points(deps, env, user, generators),
+        ExecuteMsg::CheckpointUsersBoost { user, generators } => {
+            checkpoint_users_boost(deps, env, user, generators)
+        }
         ExecuteMsg::DeactivatePools { pair_types } => deactivate_pools(deps, env, pair_types),
         ExecuteMsg::DeactivatePool { lp_token } => {
             let cfg = CONFIG.load(deps.storage)?;
@@ -189,7 +198,17 @@ pub fn execute(
             vesting_contract,
             generator_controller,
             guardian,
-        } => execute_update_config(deps, info, vesting_contract, generator_controller, guardian),
+            voting_escrow,
+            generator_limit,
+        } => execute_update_config(
+            deps,
+            info,
+            vesting_contract,
+            generator_controller,
+            guardian,
+            voting_escrow,
+            generator_limit,
+        ),
         ExecuteMsg::SetupPools { pools } => execute_setup_pools(deps, env, info, pools),
         ExecuteMsg::UpdatePool {
             lp_token,
@@ -283,7 +302,7 @@ pub fn execute(
 
 /// ## Description
 /// Update user lp emission in specified generators
-fn check_points(
+fn checkpoint_users_boost(
     mut deps: DepsMut,
     env: Env,
     user: String,
@@ -292,7 +311,12 @@ fn check_points(
     let user_addr = addr_validate_to_lower(deps.api, &user)?;
     let config = CONFIG.load(deps.storage)?;
 
-    if generators.len() > GENERATORS_LIMIT as usize {
+    let mut generator_limit = GENERATORS_LIMIT;
+    if let Some(limit) = config.generator_limit {
+        generator_limit = limit;
+    }
+
+    if generators.len() > generator_limit as usize {
         return Err(ContractError::GeneratorsLimitExceeded {});
     }
 
@@ -468,6 +492,8 @@ pub fn execute_update_config(
     vesting_contract: Option<String>,
     generator_controller: Option<String>,
     guardian: Option<String>,
+    voting_escrow: Option<String>,
+    generator_limit: Option<u32>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -489,6 +515,14 @@ pub fn execute_update_config(
 
     if let Some(guardian) = guardian {
         config.guardian = Some(addr_validate_to_lower(deps.api, guardian.as_str())?);
+    }
+
+    if let Some(voting_escrow) = voting_escrow {
+        config.voting_escrow = Some(addr_validate_to_lower(deps.api, voting_escrow.as_str())?);
+    }
+
+    if let Some(generator_limit) = generator_limit {
+        config.generator_limit = Some(generator_limit);
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -1808,7 +1842,7 @@ pub fn pending_token(
     }
 
     let pending = acc_per_share
-        .checked_mul(user_info.amount)?
+        .checked_mul(user_info.amount + user_info.emission_amount)?
         .checked_sub(user_info.reward_debt)?;
 
     Ok(PendingTokenResponse {
@@ -1838,6 +1872,7 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
         generator_controller: config.generator_controller,
         active_pools: config.active_pools,
         blocked_list_tokens: config.blocked_list_tokens,
+        voting_escrow: config.voting_escrow,
     })
 }
 
