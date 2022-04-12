@@ -1621,7 +1621,6 @@ fn migrate_proxy_callback(
 
     POOL_INFO.save(deps.storage, &lp_addr, &pool_info)?;
 
-    update_proxy_asset(deps.branch(), &prev_proxy_addr)?;
     update_proxy_asset(deps.branch(), &new_proxy_addr)?;
 
     let mut response = Response::new();
@@ -2001,8 +2000,11 @@ pub fn pending_token(
                                 reward = reward.checked_add(share)?;
                             }
                         }
-                        let asset = PROXY_REWARD_ASSET.load(deps.storage, &proxy_addr)?;
-                        Ok((asset, reward))
+                        let info = PROXY_REWARD_ASSET.load(deps.storage, &proxy_addr)?;
+                        Ok(Asset {
+                            info,
+                            amount: reward,
+                        })
                     })
                     .collect::<StdResult<Vec<_>>>()?;
 
@@ -2424,6 +2426,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                             proxy.clone(),
                             pool_info_v100.orphan_proxy_rewards,
                         );
+                        update_proxy_asset(deps.branch(), &proxy)?;
                     }
 
                     let pool_info = PoolInfo {
@@ -2470,6 +2473,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                             proxy.clone(),
                             pool_info_v110.orphan_proxy_rewards,
                         );
+                        update_proxy_asset(deps.branch(), &proxy)?;
                     }
 
                     let pool_info = PoolInfo {
@@ -2508,6 +2512,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                             proxy.clone(),
                             pool_info_v120.orphan_proxy_rewards,
                         );
+                        update_proxy_asset(deps.branch(), &proxy)?;
                     }
 
                     let pool_info = PoolInfo {

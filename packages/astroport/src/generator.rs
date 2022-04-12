@@ -1,4 +1,4 @@
-use crate::asset::AssetInfo;
+use crate::asset::{Asset, AssetInfo};
 use crate::factory::PairType;
 use crate::DecimalCheckedOps;
 use cosmwasm_std::{Addr, Binary, Decimal, StdError, StdResult, Uint128, Uint64};
@@ -198,7 +198,7 @@ pub struct PendingTokenResponse {
     /// The amount of pending ASTRO
     pub pending: Uint128,
     /// The amount of pending 3rd party reward tokens
-    pub pending_on_proxy: Option<Vec<(AssetInfo, Uint128)>>,
+    pub pending_on_proxy: Option<Vec<Asset>>,
 }
 
 /// Vec wrapper for internal use.

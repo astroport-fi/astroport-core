@@ -1,4 +1,4 @@
-use astroport::asset::{native_asset_info, token_asset_info, AssetInfo, PairInfo};
+use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::generator::{ExecuteMsg, MigrateMsg, PoolLengthResponse, QueryMsg, StakerResponse};
 
 use astroport::{
@@ -3569,7 +3569,7 @@ fn check_pending_rewards(
     let pending_on_proxy = res.pending_on_proxy.map(|rewards| {
         rewards
             .into_iter()
-            .map(|(_, value)| value.u128())
+            .map(|Asset { amount, .. }| amount.u128())
             .collect::<Vec<_>>()
     });
     assert_eq!(pending_on_proxy, expected_on_proxy)
