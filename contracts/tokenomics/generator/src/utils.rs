@@ -16,7 +16,7 @@ use std::str::FromStr;
 /// - S is the total amount of LP tokens staked in a generator
 /// - w_i is a user’s current vxASTRO balance
 /// - W is the total amount of vxASTRO
-pub(crate) fn update_emission_rewards(
+pub(crate) fn update_virtual_amount(
     deps: DepsMut,
     env: &Env,
     cfg: &Config,

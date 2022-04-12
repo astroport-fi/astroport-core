@@ -69,7 +69,6 @@ fn test_boost_checkpoints() {
 
     let cny_token = instantiate_token(&mut app, cny_eur_token_code_id, "CNY", None);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
-    let usd_token = instantiate_token(&mut app, cny_eur_token_code_id, "USD", None);
 
     let (pair_cny_eur, lp_cny_eur) = create_pair(
         &mut app,
@@ -86,39 +85,17 @@ fn test_boost_checkpoints() {
         ],
     );
 
-    let (pair_eur_usd, lp_eur_usd) = create_pair(
-        &mut app,
-        &helper_controller.factory,
-        None,
-        None,
-        [
-            AssetInfo::Token {
-                contract_addr: eur_token.clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: usd_token.clone(),
-            },
-        ],
-    );
-
     register_lp_tokens_in_generator(
         &mut app,
         &helper_controller.generator,
-        vec![
-            PoolWithProxy {
-                pool: (lp_cny_eur.to_string(), Uint128::from(50u32)),
-                proxy: None,
-            },
-            PoolWithProxy {
-                pool: (lp_eur_usd.to_string(), Uint128::from(50u32)),
-                proxy: None,
-            },
-        ],
+        vec![PoolWithProxy {
+            pool: (lp_cny_eur.to_string(), Uint128::from(50u32)),
+            proxy: None,
+        }],
     );
 
     // Mint tokens, so user can deposit
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 10);
-    mint_tokens(&mut app, pair_eur_usd.clone(), &lp_eur_usd, &user1, 10);
 
     // Create short lock user1
     helper_controller
@@ -127,21 +104,22 @@ fn test_boost_checkpoints() {
 
     helper_controller
         .escrow_helper
-        .create_lock(&mut app, USER1, WEEK * 3, 10f32)
+        .create_lock(&mut app, USER1, WEEK * 3, 100f32)
         .unwrap();
     helper_controller
-        .vote(&mut app, USER1, vec![(lp_cny_eur.as_str(), 10)])
+        .vote(&mut app, USER1, vec![(lp_cny_eur.as_str(), 100)])
         .unwrap();
 
     deposit_lp_tokens_to_generator(
         &mut app,
         &helper_controller.generator,
         USER1,
-        &[(&lp_cny_eur, 10), (&lp_eur_usd, 10)],
+        &[(&lp_cny_eur, 10)],
     );
 
     check_token_balance(&mut app, &lp_cny_eur, &helper_controller.generator, 10);
-    check_token_balance(&mut app, &lp_eur_usd, &helper_controller.generator, 10);
+
+    // check if virtual amount equal to 10
     check_emission_balance(
         &mut app,
         &helper_controller.generator,
@@ -152,7 +130,6 @@ fn test_boost_checkpoints() {
 
     // Mint tokens, so user2 can deposit
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user2, 10);
-    mint_tokens(&mut app, pair_eur_usd.clone(), &lp_eur_usd, &user2, 10);
 
     // Create short lock user2
     helper_controller
@@ -161,7 +138,7 @@ fn test_boost_checkpoints() {
 
     helper_controller
         .escrow_helper
-        .create_lock(&mut app, USER2, WEEK * 8, 100f32)
+        .create_lock(&mut app, USER2, WEEK * 3, 100f32)
         .unwrap();
     helper_controller
         .vote(&mut app, USER2, vec![(lp_cny_eur.as_str(), 100)])
@@ -171,11 +148,12 @@ fn test_boost_checkpoints() {
         &mut app,
         &helper_controller.generator,
         USER2,
-        &[(&lp_cny_eur, 10), (&lp_eur_usd, 10)],
+        &[(&lp_cny_eur, 10)],
     );
 
     check_token_balance(&mut app, &lp_cny_eur, &helper_controller.generator, 20);
-    check_token_balance(&mut app, &lp_eur_usd, &helper_controller.generator, 20);
+
+    // check if virtual amount equal to 10
     check_emission_balance(
         &mut app,
         &helper_controller.generator,
@@ -188,92 +166,44 @@ fn test_boost_checkpoints() {
         .execute_contract(
             Addr::unchecked(USER1),
             helper_controller.generator.clone(),
-            &ExecuteMsg::CheckpointUsersBoost {
+            &ExecuteMsg::CheckpointUserBoost {
                 user: user1.to_string(),
-                generators: vec![lp_eur_usd.to_string(); 26],
+                generators: vec![lp_cny_eur.to_string(); 26],
             },
             &[],
         )
         .unwrap_err();
     assert_eq!("Maximum generator limit exceeded!", err.to_string());
 
-    // check user1's emission rewards in first week
-    check_emission_balance(
-        &mut app,
-        &helper_controller.generator,
-        &lp_cny_eur,
-        &user1,
-        10,
-    );
-    check_emission_balance(
-        &mut app,
-        &helper_controller.generator,
-        &lp_eur_usd,
-        &user1,
-        10,
-    );
-
     app.next_block(WEEK);
-    app.update_block(|bi| next_block(bi));
-
-    // Check if user1's ASTRO balance is 0
-    check_token_balance(
-        &mut app,
-        &helper_controller.escrow_helper.astro_token,
-        &user1,
-        0,
-    );
-
-    // mint 100 tokens to vesting contract
-    mint_tokens(
-        &mut app,
-        owner.clone(),
-        &helper_controller.escrow_helper.astro_token,
-        &helper_controller.vesting,
-        1000,
-    );
-
-    check_token_balance(
-        &mut app,
-        &helper_controller.escrow_helper.astro_token,
-        &helper_controller.vesting,
-        1000,
-    );
+    app.update_block(|bi| bi.time = bi.time.plus_seconds(WEEK));
 
     app.execute_contract(
         Addr::unchecked(USER1),
         helper_controller.generator.clone(),
         &ExecuteMsg::Withdraw {
-            lp_token: lp_eur_usd.to_string(),
+            lp_token: lp_cny_eur.to_string(),
             amount: Uint128::new(5),
         },
         &[],
     )
     .unwrap();
 
-    // check emission rewards for user2
+    // check pending reward rewards for user2
     check_emission_balance(
         &mut app,
         &helper_controller.generator,
         &lp_cny_eur,
         &user1,
-        10,
-    );
-
-    // Check if user1's ASTRO balance is 0
-    check_token_balance(
-        &mut app,
-        &helper_controller.escrow_helper.astro_token,
-        &user1,
-        0,
+        5,
     );
 
     app.execute_contract(
         Addr::unchecked(USER1),
         helper_controller.generator.clone(),
-        &ExecuteMsg::CheckpointUsersBoost {
+        &ExecuteMsg::CheckpointUserBoost {
             user: user1.to_string(),
-            generators: vec![lp_eur_usd.to_string()],
+            generators: vec![lp_cny_eur.to_string()],
         },
         &[],
     )
@@ -284,15 +214,59 @@ fn test_boost_checkpoints() {
         &mut app,
         &helper_controller.generator,
         &lp_cny_eur,
-        &user2,
-        10,
+        &user1,
+        5,
     );
+
+    // check emission rewards for user2
     check_emission_balance(
         &mut app,
         &helper_controller.generator,
-        &lp_eur_usd,
+        &lp_cny_eur,
         &user2,
         10,
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        USER1,
+        (0, None),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        USER2,
+        (5_000_000, None),
+    );
+
+    app.next_block(WEEK);
+    app.update_block(|bi| bi.time = bi.time.plus_seconds(WEEK));
+
+    check_pending_rewards(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        USER1,
+        (3_333_333, None),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        USER2,
+        (11_666_666, None),
+    );
+
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user1,
+        5_000_000,
     );
 }
 

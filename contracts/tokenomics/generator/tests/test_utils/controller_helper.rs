@@ -1,11 +1,14 @@
+use crate::mint_tokens;
 use crate::test_utils::escrow_helper::EscrowHelper;
 use anyhow::Result as AnyResult;
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
-use astroport::vesting::InstantiateMsg;
+use astroport::vesting::{Cw20HookMsg as VestingHookMsg, VestingAccount};
+use astroport::vesting::{InstantiateMsg, VestingSchedule, VestingSchedulePoint};
 use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
 use astroport_governance::generator_controller::{UserInfoResponse, VotedPoolInfoResponse};
-use cosmwasm_std::{Addr, StdResult};
+use cosmwasm_std::{to_binary, Addr, StdResult, Uint128, Uint64};
+use cw20::Cw20ExecuteMsg;
 use terra_multi_test::{AppResponse, ContractWrapper, Executor, TerraApp};
 
 pub struct ControllerHelper {
@@ -100,8 +103,8 @@ impl ControllerHelper {
             voting_escrow: Some(escrow_helper.escrow_instance.to_string()),
             guardian: None,
             astro_token: escrow_helper.astro_token.to_string(),
-            tokens_per_block: Default::default(),
-            start_block: Default::default(),
+            tokens_per_block: Uint128::new(10_000000),
+            start_block: Uint64::from(router.block_info().height),
             allowed_reward_proxies: vec![],
             vesting_contract: vesting_instance.to_string(),
         };
@@ -141,6 +144,37 @@ impl ControllerHelper {
                 String::from("Controller"),
                 None,
             )
+            .unwrap();
+
+        mint_tokens(
+            router,
+            owner.clone(),
+            &escrow_helper.astro_token,
+            &owner,
+            1_000_000_000_000000,
+        );
+
+        // Register vesting account
+        let msg = Cw20ExecuteMsg::Send {
+            contract: vesting_instance.to_string(),
+            msg: to_binary(&VestingHookMsg::RegisterVestingAccounts {
+                vesting_accounts: vec![VestingAccount {
+                    address: generator.to_string(),
+                    schedules: vec![VestingSchedule {
+                        start_point: VestingSchedulePoint {
+                            time: router.block_info().time.seconds(),
+                            amount: Uint128::new(100000_000000),
+                        },
+                        end_point: None,
+                    }],
+                }],
+            })
+            .unwrap(),
+            amount: Uint128::new(100000_000000),
+        };
+
+        router
+            .execute_contract(owner.clone(), escrow_helper.astro_token.clone(), &msg, &[])
             .unwrap();
 
         // Setup controller in generator contract

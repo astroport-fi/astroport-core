@@ -16,7 +16,7 @@ use astroport::asset::{
     addr_validate_to_lower, pair_info_by_pool, token_asset_info, AssetInfo, PairInfo,
 };
 
-use crate::utils::update_emission_rewards;
+use crate::utils::update_virtual_amount;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{PairConfig, PairType};
 use astroport::generator::PoolInfo;
@@ -170,7 +170,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::CheckpointUsersBoost { user, generators } => {
+        ExecuteMsg::CheckpointUserBoost { user, generators } => {
             checkpoint_users_boost(deps, env, user, generators)
         }
         ExecuteMsg::DeactivatePools { pair_types } => deactivate_pools(deps, env, pair_types),
@@ -333,7 +333,7 @@ fn checkpoint_users_boost(
             let user_info = USER_INFO.may_load(deps.storage, (&generator_addr, &user_addr))?;
             // calculates the emission boost  only for user who has LP in generator
             if let Some(user_info) = user_info {
-                let user_info = update_emission_rewards(
+                let user_info = update_virtual_amount(
                     deps.branch(),
                     &env,
                     &config,
@@ -935,7 +935,7 @@ pub fn claim_rewards(
 
         // Update user's emission boost balance
         let user_info =
-            update_emission_rewards(deps.branch(), &env, &cfg, user_info, &account, lp_token)?;
+            update_virtual_amount(deps.branch(), &env, &cfg, user_info, &account, lp_token)?;
 
         USER_INFO.save(deps.storage, (lp_token, &account), &user_info)?;
     }
@@ -1104,10 +1104,19 @@ pub fn send_pending_rewards(
 
     let mut messages = vec![];
 
-    let pending_rewards = pool
-        .accumulated_rewards_per_share
-        .checked_mul(user.amount)?
-        .checked_sub(user.reward_debt)?;
+    // calculate user pending rewards by virtual amount if user voting power exists
+    let pending_rewards;
+    if !user.virtual_amount.is_zero() {
+        pending_rewards = pool
+            .accumulated_rewards_per_share
+            .checked_mul(user.virtual_amount)?
+            .checked_sub(user.reward_debt)?;
+    } else {
+        pending_rewards = pool
+            .accumulated_rewards_per_share
+            .checked_mul(user.amount)?
+            .checked_sub(user.reward_debt)?;
+    }
 
     if !pending_rewards.is_zero() {
         messages.push(WasmMsg::Execute {
@@ -1210,7 +1219,7 @@ pub fn deposit(
     let user_info = update_user_balance(user, &pool, updated_amount)?;
 
     // Update user's emission boost balance
-    let user_info = update_emission_rewards(
+    let user_info = update_virtual_amount(
         deps.branch(),
         &env,
         &cfg,
@@ -1305,7 +1314,7 @@ pub fn withdraw(
 
     // Update user's emission boost balance
     let user_info =
-        update_emission_rewards(deps.branch(), &env, &cfg, user_info, &account, &lp_token)?;
+        update_virtual_amount(deps.branch(), &env, &cfg, user_info, &account, &lp_token)?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
 
@@ -1850,12 +1859,20 @@ pub fn pending_token(
         acc_per_share = pool.accumulated_rewards_per_share.checked_add(share)?;
     }
 
-    let pending = acc_per_share
-        .checked_mul(user_info.amount)?
-        .checked_sub(user_info.reward_debt)?;
+    // calculate user pending rewards by virtual amount if user voting power exists
+    let pending_rewards;
+    if !user_info.virtual_amount.is_zero() {
+        pending_rewards = acc_per_share
+            .checked_mul(user_info.virtual_amount)?
+            .checked_sub(user_info.reward_debt)?;
+    } else {
+        pending_rewards = acc_per_share
+            .checked_mul(user_info.amount)?
+            .checked_sub(user_info.reward_debt)?;
+    }
 
     Ok(PendingTokenResponse {
-        pending,
+        pending: pending_rewards,
         pending_on_proxy,
     })
 }

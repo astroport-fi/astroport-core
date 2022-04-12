@@ -143,7 +143,7 @@ pub enum ExecuteMsg {
     /// Sets the allocation point to zero for each pool by the pair type
     DeactivatePools { pair_types: Vec<PairType> },
     /// Updates the boost emissions for specified user and generators
-    CheckpointUsersBoost {
+    CheckpointUserBoost {
         user: String,
         generators: Vec<String>,
     },
