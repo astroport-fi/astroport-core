@@ -1165,20 +1165,6 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
 }
 
 /// ## Description
-/// Returns an amount of coins. For each coin in the specified vector, if the coin is null, we return `Uint128::zero()`,
-/// otherwise we return the specified coin amount.
-/// ## Params
-/// * **coins** is an array of [`Coin`] type items. This is a list of coins for which we return amounts.
-///
-/// * **denom** is an object of type [`String`]. This is the denomination used for the coins.
-pub fn amount_of(coins: &[Coin], denom: String) -> Uint128 {
-    match coins.iter().find(|x| x.denom == denom) {
-        Some(coin) => coin.amount,
-        None => Uint128::zero(),
-    }
-}
-
-/// ## Description
 /// Returns the result of a swap.
 /// ## Params
 /// * **offer_pool** is an object of type [`Uint128`]. This is the total amount of offer assets in the pool.
