@@ -1,35 +1,12 @@
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 use astroport::common::OwnershipProposal;
-use astroport::generator::{PoolInfo, RestrictedVector};
+use astroport::generator::{PoolInfo, RestrictedVector, UserInfo, UserInfoV2};
 use astroport::DecimalCheckedOps;
 use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
-/// This structure stores the outstanding amount of token rewards that a user accrued.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
-pub struct UserInfo {
-    /// The amount of LP tokens staked
-    pub amount: Uint128,
-    /// The amount of ASTRO rewards a user already received or is not eligible for; used for proper reward calculation
-    pub reward_debt: Uint128,
-    /// Proxy reward amount a user already received or is not eligible for; used for proper reward calculation
-    pub reward_debt_proxy: Uint128,
-}
-
-/// This structure stores the outstanding amount of token rewards that a user accrued.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
-pub struct UserInfoV2 {
-    /// The amount of LP tokens staked
-    pub amount: Uint128,
-    /// The amount of ASTRO rewards a user already received or is not eligible for; used for proper reward calculation
-    pub reward_debt: Uint128,
-    /// Proxy reward amount a user already received per reward proxy; used for proper reward calculation
-    /// Vector of pairs (reward_proxy, reward debited).
-    pub reward_debt_proxy: RestrictedVector<Uint128>,
-}
 
 /// This structure stores the core parameters for the Generator contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

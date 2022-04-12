@@ -608,7 +608,7 @@ fn generator_without_reward_proxies() {
         app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
             .unwrap_err()
             .to_string(),
-        "astroport_generator::state::UserInfo not found".to_string()
+        "astroport::generator::UserInfo not found".to_string()
     );
 
     app.update_block(|bi| next_block(bi));
@@ -1011,7 +1011,7 @@ fn generator_with_mirror_reward_proxy() {
         app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
             .unwrap_err()
             .to_string(),
-        "astroport_generator::state::UserInfo not found".to_string()
+        "astroport::generator::UserInfo not found".to_string()
     );
 
     app.update_block(|bi| next_block(bi));

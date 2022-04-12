@@ -15,8 +15,8 @@ use astroport::asset::{
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{PairConfig, PairType};
-use astroport::generator::StakerResponse;
 use astroport::generator::{PoolInfo, RestrictedVector};
+use astroport::generator::{StakerResponse, UserInfoV2};
 use astroport::querier::query_token_balance;
 use astroport::DecimalCheckedOps;
 use astroport::{
@@ -36,8 +36,8 @@ use crate::migration;
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
     accumulate_pool_proxy_rewards, update_proxy_asset, update_user_balance, CompatibleLoader,
-    Config, ExecuteOnReply, UserInfoV2, CONFIG, DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL,
-    POOL_INFO, PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, TMP_USER_ACTION, USER_INFO,
+    Config, ExecuteOnReply, CONFIG, DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO,
+    PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, TMP_USER_ACTION, USER_INFO,
 };
 
 /// Contract name that is used for migration.
