@@ -34,7 +34,7 @@ pub(crate) fn update_emission_rewards(
 
     // calculates emission boost only for user who has the voting power
     if user_vp.is_zero() || total_vp.is_zero() {
-        user_info.emission_amount = Uint128::zero();
+        user_info.emission_amount = Uint128::new(1);
         return Ok(user_info);
     }
 
