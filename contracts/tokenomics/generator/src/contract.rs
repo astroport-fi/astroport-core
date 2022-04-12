@@ -931,20 +931,11 @@ pub fn claim_rewards(
 
         // Update user's amount
         let amount = user_info.amount;
-        let mut user_info = update_user_balance(user_info, &pool, amount)?;
+        let user_info = update_user_balance(user_info, &pool, amount)?;
 
-        let blacklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
-            cfg.factory.clone(),
-            &FactoryQueryMsg::BlacklistedPairTypes {},
-        )?;
-
-        let pair_info = pair_info_by_pool(deps.as_ref(), lp_token.clone())?;
-
-        if !blacklisted_pair_types.contains(&pair_info.pair_type) {
-            // Update user's emission boost balance
-            user_info =
-                update_emission_rewards(deps.branch(), &env, &cfg, user_info, &account, lp_token)?;
-        }
+        // Update user's emission boost balance
+        let user_info =
+            update_emission_rewards(deps.branch(), &env, &cfg, user_info, &account, lp_token)?;
 
         USER_INFO.save(deps.storage, (lp_token, &account), &user_info)?;
     }
@@ -1116,7 +1107,6 @@ pub fn send_pending_rewards(
     let pending_rewards = pool
         .accumulated_rewards_per_share
         .checked_mul(user.amount)?
-        .checked_mul(user.emission_amount)?
         .checked_sub(user.reward_debt)?;
 
     if !pending_rewards.is_zero() {
@@ -1217,26 +1207,17 @@ pub fn deposit(
 
     // Update user's LP token balance
     let updated_amount = user.amount.checked_add(amount)?;
-    let mut user_info = update_user_balance(user, &pool, updated_amount)?;
+    let user_info = update_user_balance(user, &pool, updated_amount)?;
 
-    let blacklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
-        cfg.factory.clone(),
-        &FactoryQueryMsg::BlacklistedPairTypes {},
+    // Update user's emission boost balance
+    let user_info = update_emission_rewards(
+        deps.branch(),
+        &env,
+        &cfg,
+        user_info,
+        &beneficiary,
+        &lp_token,
     )?;
-
-    let pair_info = pair_info_by_pool(deps.as_ref(), lp_token.clone())?;
-
-    if !blacklisted_pair_types.contains(&pair_info.pair_type) {
-        // Update user's emission boost balance
-        user_info = update_emission_rewards(
-            deps.branch(),
-            &env,
-            &cfg,
-            user_info,
-            &beneficiary,
-            &lp_token,
-        )?;
-    }
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
     USER_INFO.save(deps.storage, (&lp_token, &beneficiary), &user_info)?;
@@ -1320,20 +1301,11 @@ pub fn withdraw(
 
     // Update user's balance
     let updated_amount = user_info.amount.checked_sub(amount)?;
-    let mut user_info = update_user_balance(user_info, &pool, updated_amount)?;
+    let user_info = update_user_balance(user_info, &pool, updated_amount)?;
 
-    let blacklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
-        cfg.factory.clone(),
-        &FactoryQueryMsg::BlacklistedPairTypes {},
-    )?;
-
-    let pair_info = pair_info_by_pool(deps.as_ref(), lp_token.clone())?;
-
-    if !blacklisted_pair_types.contains(&pair_info.pair_type) {
-        // Update user's emission boost balance
-        user_info =
-            update_emission_rewards(deps.branch(), &env, &cfg, user_info, &account, &lp_token)?;
-    }
+    // Update user's emission boost balance
+    let user_info =
+        update_emission_rewards(deps.branch(), &env, &cfg, user_info, &account, &lp_token)?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
 
@@ -1799,7 +1771,7 @@ pub fn query_emission_rewards(
     let user_info = USER_INFO
         .load(deps.storage, (&lp_token, &user))
         .unwrap_or_default();
-    Ok(user_info.emission_amount)
+    Ok(user_info.virtual_amount)
 }
 
 /// ## Description
@@ -1880,7 +1852,6 @@ pub fn pending_token(
 
     let pending = acc_per_share
         .checked_mul(user_info.amount)?
-        .checked_mul(user_info.emission_amount)?
         .checked_sub(user_info.reward_debt)?;
 
     Ok(PendingTokenResponse {

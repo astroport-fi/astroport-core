@@ -34,7 +34,7 @@ pub(crate) fn update_emission_rewards(
 
     // calculates emission boost only for user who has the voting power
     if user_vp.is_zero() || total_vp.is_zero() {
-        user_info.emission_amount = Uint128::new(1);
+        user_info.virtual_amount = Uint128::zero();
         return Ok(user_info);
     }
 
@@ -48,9 +48,9 @@ pub(crate) fn update_emission_rewards(
     let total_share_emission = Decimal::from_str("0.6")?.checked_mul(total_balance)?;
     let vx_share_emission = Decimal::from_ratio(user_vp, total_vp);
 
-    let emission_amount =
+    let virtual_amount =
         user_share_emission.checked_add(vx_share_emission.checked_mul(total_share_emission)?)?;
-    user_info.emission_amount = min(emission_amount, user_info.amount);
+    user_info.virtual_amount = min(virtual_amount, user_info.amount);
 
     Ok(user_info)
 }
