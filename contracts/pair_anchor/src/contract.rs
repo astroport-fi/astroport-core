@@ -412,7 +412,7 @@ pub fn assert_receive_and_send(
     max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     if env.contract.address != info.sender {
-        // only allowed to be sent by the contract itself
+        // Only allowed to be sent by the contract itself
         return Err(ContractError::Unauthorized {});
     }
 

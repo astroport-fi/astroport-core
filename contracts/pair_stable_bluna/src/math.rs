@@ -67,7 +67,6 @@ pub fn calc_offer_amount(
 
 /// ## Description
 /// Computes the stableswap invariant (D).
-///
 /// * **Equation**
 ///
 /// A * sum(x_i) * n**n + D = A * D * n**n + D**(n+1) / (n**n * prod(x_i))
@@ -113,7 +112,6 @@ pub fn compute_d(leverage: u64, amount_a: u128, amount_b: u128) -> Option<u128> 
 
 /// ## Description
 /// Helper function used to calculate the D invariant as a last step in the `compute_d` public function.
-///
 /// * **Equation**:
 ///
 /// d = (leverage * sum_x + d_product * n_coins) * initial_d / ((leverage - 1) * initial_d + (n_coins + 1) * d_product)
@@ -134,7 +132,6 @@ fn calculate_step(initial_d: &U256, leverage: u64, sum_x: u128, d_product: &U256
 
 /// ## Description
 /// Compute the swap amount `y` in proportion to `x`.
-///
 /// * **Solve for y**
 ///
 /// y**2 + y * (sum' - (A*n**n - 1) * D / (A * n**n)) = D ** (n + 1) / (n ** (2 * n) * prod' * A)
