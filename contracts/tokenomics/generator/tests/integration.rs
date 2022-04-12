@@ -89,7 +89,7 @@ fn test_boost_checkpoints() {
         &mut app,
         &helper_controller.generator,
         vec![PoolWithProxy {
-            pool: (lp_cny_eur.to_string(), Uint128::from(50u32)),
+            pool: (lp_cny_eur.to_string(), Uint128::from(100u32)),
             proxy: None,
         }],
     );
@@ -105,9 +105,6 @@ fn test_boost_checkpoints() {
     helper_controller
         .escrow_helper
         .create_lock(&mut app, USER1, WEEK * 3, 100f32)
-        .unwrap();
-    helper_controller
-        .vote(&mut app, USER1, vec![(lp_cny_eur.as_str(), 100)])
         .unwrap();
 
     deposit_lp_tokens_to_generator(
@@ -139,9 +136,6 @@ fn test_boost_checkpoints() {
     helper_controller
         .escrow_helper
         .create_lock(&mut app, USER2, WEEK * 3, 100f32)
-        .unwrap();
-    helper_controller
-        .vote(&mut app, USER2, vec![(lp_cny_eur.as_str(), 100)])
         .unwrap();
 
     deposit_lp_tokens_to_generator(
@@ -175,19 +169,35 @@ fn test_boost_checkpoints() {
         .unwrap_err();
     assert_eq!("Maximum generator limit exceeded!", err.to_string());
 
+    // check user1's ASTRO balance
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user1,
+        0,
+    );
+
+    // check user2's ASTRO balance
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user2,
+        0,
+    );
+
     app.next_block(WEEK);
     app.update_block(|bi| bi.time = bi.time.plus_seconds(WEEK));
 
-    app.execute_contract(
-        Addr::unchecked(USER1),
-        helper_controller.generator.clone(),
-        &ExecuteMsg::Withdraw {
-            lp_token: lp_cny_eur.to_string(),
-            amount: Uint128::new(5),
-        },
-        &[],
-    )
-    .unwrap();
+    // app.execute_contract(
+    //     Addr::unchecked(USER1),
+    //     helper_controller.generator.clone(),
+    //     &ExecuteMsg::Withdraw {
+    //         lp_token: lp_cny_eur.to_string(),
+    //         amount: Uint128::new(5),
+    //     },
+    //     &[],
+    // )
+    // .unwrap();
 
     // check pending reward rewards for user2
     check_emission_balance(
@@ -195,7 +205,7 @@ fn test_boost_checkpoints() {
         &helper_controller.generator,
         &lp_cny_eur,
         &user1,
-        5,
+        10,
     );
 
     app.execute_contract(
@@ -215,7 +225,7 @@ fn test_boost_checkpoints() {
         &helper_controller.generator,
         &lp_cny_eur,
         &user1,
-        5,
+        10,
     );
 
     // check emission rewards for user2
@@ -232,7 +242,14 @@ fn test_boost_checkpoints() {
         &helper_controller.generator,
         &lp_cny_eur,
         USER1,
-        (0, None),
+        (5_000_000, None),
+    );
+
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user1,
+        0,
     );
 
     check_pending_rewards(
@@ -251,7 +268,7 @@ fn test_boost_checkpoints() {
         &helper_controller.generator,
         &lp_cny_eur,
         USER1,
-        (3_333_333, None),
+        (10_000_000, None),
     );
 
     check_pending_rewards(
@@ -259,14 +276,14 @@ fn test_boost_checkpoints() {
         &helper_controller.generator,
         &lp_cny_eur,
         USER2,
-        (11_666_666, None),
+        (10_000_000, None),
     );
 
     check_token_balance(
         &mut app,
         &helper_controller.escrow_helper.astro_token,
         &user1,
-        5_000_000,
+        0,
     );
 }
 

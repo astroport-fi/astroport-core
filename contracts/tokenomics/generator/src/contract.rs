@@ -320,29 +320,21 @@ fn checkpoint_users_boost(
         return Err(ContractError::GeneratorsLimitExceeded {});
     }
 
-    let blacklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
-        config.factory.clone(),
-        &FactoryQueryMsg::BlacklistedPairTypes {},
-    )?;
-
     for generator in generators {
         let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
-        let pair_info = pair_info_by_pool(deps.as_ref(), generator_addr.clone())?;
+        let user_info = USER_INFO.may_load(deps.storage, (&generator_addr, &user_addr))?;
 
-        if !blacklisted_pair_types.contains(&pair_info.pair_type) {
-            let user_info = USER_INFO.may_load(deps.storage, (&generator_addr, &user_addr))?;
-            // calculates the emission boost  only for user who has LP in generator
-            if let Some(user_info) = user_info {
-                let user_info = update_virtual_amount(
-                    deps.branch(),
-                    &env,
-                    &config,
-                    user_info,
-                    &user_addr,
-                    &generator_addr,
-                )?;
-                USER_INFO.save(deps.storage, (&generator_addr, &user_addr), &user_info)?;
-            }
+        // calculates the emission boost  only for user who has LP in generator
+        if let Some(user_info) = user_info {
+            let user_info = update_virtual_amount(
+                deps.branch(),
+                &env,
+                &config,
+                user_info,
+                &user_addr,
+                &generator_addr,
+            )?;
+            USER_INFO.save(deps.storage, (&generator_addr, &user_addr), &user_info)?;
         }
     }
 
