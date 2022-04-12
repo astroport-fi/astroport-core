@@ -2426,7 +2426,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                             proxy.clone(),
                             pool_info_v100.orphan_proxy_rewards,
                         );
-                        update_proxy_asset(deps.branch(), &proxy)?;
+                        update_proxy_asset(deps.branch(), proxy)?;
                     }
 
                     let pool_info = PoolInfo {
@@ -2473,7 +2473,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                             proxy.clone(),
                             pool_info_v110.orphan_proxy_rewards,
                         );
-                        update_proxy_asset(deps.branch(), &proxy)?;
+                        update_proxy_asset(deps.branch(), proxy)?;
                     }
 
                     let pool_info = PoolInfo {
@@ -2512,7 +2512,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                             proxy.clone(),
                             pool_info_v120.orphan_proxy_rewards,
                         );
-                        update_proxy_asset(deps.branch(), &proxy)?;
+                        update_proxy_asset(deps.branch(), proxy)?;
                     }
 
                     let pool_info = PoolInfo {
