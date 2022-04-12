@@ -188,47 +188,25 @@ fn test_boost_checkpoints() {
     app.next_block(WEEK);
     app.update_block(|bi| bi.time = bi.time.plus_seconds(WEEK));
 
-    // app.execute_contract(
-    //     Addr::unchecked(USER1),
-    //     helper_controller.generator.clone(),
-    //     &ExecuteMsg::Withdraw {
-    //         lp_token: lp_cny_eur.to_string(),
-    //         amount: Uint128::new(5),
-    //     },
-    //     &[],
-    // )
-    // .unwrap();
-
-    // check pending reward rewards for user2
-    check_emission_balance(
-        &mut app,
-        &helper_controller.generator,
-        &lp_cny_eur,
-        &user1,
-        10,
-    );
-
     app.execute_contract(
         Addr::unchecked(USER1),
         helper_controller.generator.clone(),
-        &ExecuteMsg::CheckpointUserBoost {
-            user: user1.to_string(),
-            generators: vec![lp_cny_eur.to_string()],
+        &ExecuteMsg::Withdraw {
+            lp_token: lp_cny_eur.to_string(),
+            amount: Uint128::new(5),
         },
         &[],
     )
     .unwrap();
 
-    // check emission rewards for user2
     check_emission_balance(
         &mut app,
         &helper_controller.generator,
         &lp_cny_eur,
         &user1,
-        10,
+        5,
     );
 
-    // check emission rewards for user2
     check_emission_balance(
         &mut app,
         &helper_controller.generator,
@@ -237,19 +215,41 @@ fn test_boost_checkpoints() {
         10,
     );
 
+    // recalculate virtual amount for user2
+    app.execute_contract(
+        Addr::unchecked(USER1),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::CheckpointUserBoost {
+            user: user2.to_string(),
+            generators: vec![lp_cny_eur.to_string()],
+        },
+        &[],
+    )
+    .unwrap();
+
+    // check virtual amount for user2
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user2,
+        8,
+    );
+
+    // check user1's ASTRO balance after withdraw
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user1,
+        5_000_000,
+    );
+
     check_pending_rewards(
         &mut app,
         &helper_controller.generator,
         &lp_cny_eur,
         USER1,
-        (5_000_000, None),
-    );
-
-    check_token_balance(
-        &mut app,
-        &helper_controller.escrow_helper.astro_token,
-        &user1,
-        0,
+        (0, None),
     );
 
     check_pending_rewards(
@@ -257,33 +257,69 @@ fn test_boost_checkpoints() {
         &helper_controller.generator,
         &lp_cny_eur,
         USER2,
-        (5_000_000, None),
+        (4_000_000, None),
     );
 
     app.next_block(WEEK);
     app.update_block(|bi| bi.time = bi.time.plus_seconds(WEEK));
 
-    check_pending_rewards(
-        &mut app,
-        &helper_controller.generator,
-        &lp_cny_eur,
-        USER1,
-        (10_000_000, None),
-    );
+    app.execute_contract(
+        Addr::unchecked(USER2),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::Withdraw {
+            lp_token: lp_cny_eur.to_string(),
+            amount: Uint128::new(5),
+        },
+        &[],
+    )
+    .unwrap();
 
     check_pending_rewards(
         &mut app,
         &helper_controller.generator,
         &lp_cny_eur,
         USER2,
-        (10_000_000, None),
+        (0, None),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        USER1,
+        (3_333_333, None),
     );
 
     check_token_balance(
         &mut app,
         &helper_controller.escrow_helper.astro_token,
         &user1,
+        5_000_000,
+    );
+
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user2,
+        9_333_333,
+    );
+
+    // check virtual amount for user2 after withdraw
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user2,
         0,
+    );
+
+    // check virtual amount for user1
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user1,
+        5,
     );
 }
 
@@ -3402,7 +3438,7 @@ fn check_emission_balance(
     user: &Addr,
     expected: u128,
 ) {
-    let msg = GeneratorQueryMsg::EmissionRewards {
+    let msg = GeneratorQueryMsg::EmissionsBoostRewards {
         lp_token: lp_token.to_string(),
         user: user.to_string(),
     };

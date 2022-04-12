@@ -119,6 +119,8 @@ pub fn instantiate(
 ///             vesting_contract,
 ///             generator_controller,
 ///             guardian,
+///             voting_escrow,
+///             generator_limit,
 ///         }** Changes the address of the Generator vesting contract, Generator controller contract or Generator guardian.
 ///
 /// * **ExecuteMsg::SetupPools { pools }** Setting up a new list of pools with allocation points.
@@ -162,6 +164,9 @@ pub fn instantiate(
 ///
 /// * **ExecuteMsg::DeactivatePools { pair_types }** Sets the allocation point to zero for each pool
 /// by the pair type
+///
+/// * **ExecuteMsg::CheckpointUserBoost { user, generators }** Updates the boost emissions for
+/// specified user and generators
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     mut deps: DepsMut,
@@ -171,7 +176,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::CheckpointUserBoost { user, generators } => {
-            checkpoint_users_boost(deps, env, user, generators)
+            checkpoint_user_boost(deps, env, user, generators)
         }
         ExecuteMsg::DeactivatePools { pair_types } => deactivate_pools(deps, env, pair_types),
         ExecuteMsg::DeactivatePool { lp_token } => {
@@ -301,8 +306,20 @@ pub fn execute(
 }
 
 /// ## Description
-/// Update user lp emission in specified generators
-fn checkpoint_users_boost(
+/// Returns a [`ContractError`] on failure, otherwise updates user emission boost in specified generators and
+/// returns a [`Response`] with the specified attributes.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **user** is an object of type [`Addr`]. This is the address of the account for which the
+/// emission boost amount will be recalculated.
+///
+/// * **generators** is an object of type [`Addr`]. This are the addresses of the generators for
+/// which the amount will be recalculated.
+fn checkpoint_user_boost(
     mut deps: DepsMut,
     env: Env,
     user: String,
@@ -338,7 +355,7 @@ fn checkpoint_users_boost(
         }
     }
 
-    Ok(Response::new().add_attribute("action", "check_points"))
+    Ok(Response::new().add_attribute("action", "checkpoint_user_boost"))
 }
 
 /// ## Description
@@ -1669,9 +1686,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
     match msg {
         QueryMsg::ActivePoolLength {} => Ok(to_binary(&active_pool_length(deps)?)?),
         QueryMsg::PoolLength {} => Ok(to_binary(&pool_length(deps)?)?),
-        QueryMsg::EmissionRewards { lp_token, user } => {
-            Ok(to_binary(&query_emission_rewards(deps, lp_token, user)?)?)
-        }
+        QueryMsg::EmissionsBoostRewards { lp_token, user } => Ok(to_binary(
+            &query_emissions_boost_rewards(deps, lp_token, user)?,
+        )?),
         QueryMsg::Deposit { lp_token, user } => {
             Ok(to_binary(&query_deposit(deps, lp_token, user)?)?)
         }
@@ -1761,7 +1778,7 @@ pub fn query_deposit(deps: Deps, lp_token: String, user: String) -> Result<Uint1
 /// * **lp_token** is an object of type [`String`]. This is the LP token for which we query the user's emission rewards for.
 ///
 /// * **user** is an object of type [`String`]. This is the user whose emission we query.
-pub fn query_emission_rewards(
+pub fn query_emissions_boost_rewards(
     deps: Deps,
     lp_token: String,
     user: String,
