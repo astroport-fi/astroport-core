@@ -1,9 +1,10 @@
 use astroport::DecimalCheckedOps;
 
-use crate::state::{Config, UserInfo};
+use crate::state::Config;
+use astroport::generator::UserInfoV2;
 use astroport::querier::query_token_balance;
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
-use cosmwasm_std::{Addr, Decimal, DepsMut, Env, StdResult, Uint128};
+use cosmwasm_std::{Addr, Decimal, Deps, Env, StdResult, Uint128};
 use std::cmp::min;
 use std::str::FromStr;
 
@@ -17,13 +18,13 @@ use std::str::FromStr;
 /// - w_i is a user’s current vxASTRO balance
 /// - W is the total amount of vxASTRO
 pub(crate) fn update_virtual_amount(
-    deps: DepsMut,
+    deps: Deps,
     env: &Env,
     cfg: &Config,
-    mut user_info: UserInfo,
+    mut user_info: UserInfoV2,
     account: &Addr,
     generator: &Addr,
-) -> StdResult<UserInfo> {
+) -> StdResult<UserInfoV2> {
     let mut user_vp = Uint128::zero();
     let mut total_vp = Uint128::zero();
 

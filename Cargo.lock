@@ -85,6 +85,20 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "1.2.0"
+source = "git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8#973aab9419229cb221023066f96b18f2edf75ba8"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "1.2.0"
 source = "git+https://github.com/astroport-fi/astroport.git#7194e3b3e143ee5621102a2ff30a4a942dbfd773"
 dependencies = [
  "cosmwasm-std",
@@ -133,11 +147,28 @@ dependencies = [
 
 [[package]]
 name = "astroport-generator"
+version = "1.2.0"
+source = "git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8#973aab9419229cb221023066f96b18f2edf75ba8"
+dependencies = [
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8)",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-generator"
 version = "1.4.0"
 dependencies = [
  "anyhow",
  "astroport 1.2.0",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8)",
  "astroport-factory",
+ "astroport-generator 1.2.0",
  "astroport-generator-proxy-to-mirror",
  "astroport-governance",
  "astroport-pair",
@@ -145,6 +176,7 @@ dependencies = [
  "astroport-staking",
  "astroport-token",
  "astroport-vesting",
+ "astroport-whitelist",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -153,6 +185,7 @@ dependencies = [
  "generator-controller",
  "mirror-protocol 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mirror-staking",
+ "protobuf",
  "schemars",
  "serde",
  "terra-multi-test",

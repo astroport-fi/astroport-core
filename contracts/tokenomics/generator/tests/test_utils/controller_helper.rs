@@ -1,5 +1,5 @@
-use crate::mint_tokens;
 use crate::test_utils::escrow_helper::EscrowHelper;
+use crate::{mint_tokens, store_whitelist_code};
 use anyhow::Result as AnyResult;
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
@@ -66,11 +66,14 @@ impl ControllerHelper {
             .instantiate_contract(factory_code_id, owner.clone(), &msg, &[], "Factory", None)
             .unwrap();
 
-        let generator_contract = Box::new(ContractWrapper::new_with_empty(
-            astroport_generator::contract::execute,
-            astroport_generator::contract::instantiate,
-            astroport_generator::contract::query,
-        ));
+        let generator_contract = Box::new(
+            ContractWrapper::new_with_empty(
+                astroport_generator::contract::execute,
+                astroport_generator::contract::instantiate,
+                astroport_generator::contract::query,
+            )
+            .with_reply_empty(astroport_generator::contract::reply),
+        );
 
         let vesting_contract = Box::new(ContractWrapper::new_with_empty(
             astroport_vesting::contract::execute,
@@ -95,7 +98,9 @@ impl ControllerHelper {
             )
             .unwrap();
 
+        let whitelist_code_id = store_whitelist_code(router);
         let generator_code_id = router.store_code(generator_contract);
+
         let init_msg = astroport::generator::InstantiateMsg {
             owner: owner.to_string(),
             factory: factory.to_string(),
@@ -107,6 +112,7 @@ impl ControllerHelper {
             start_block: Uint64::from(router.block_info().height),
             allowed_reward_proxies: vec![],
             vesting_contract: vesting_instance.to_string(),
+            whitelist_code_id,
         };
 
         let generator = router
