@@ -1,13 +1,13 @@
 [package]
 name = "astroport-generator"
-version = "1.2.0"
+version = "1.3.0"
 authors = ["Astroport"]
 edition = "2021"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -28,15 +28,27 @@ schemars = "0.8.1"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
 astroport = { path = "../../../packages/astroport", default-features = false }
+protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.2" }
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
-astroport-token = {path = "../../token"}
-mirror-staking = {git = "https://github.com/Mirror-Protocol/mirror-contracts.git", tag = "v2.1.1", package = "mirror-staking"}
-mirror-protocol = {version = "2.1.1"}
-astroport-vesting = {path = "../vesting"}
-astroport-generator-proxy-to-mirror = {path = "../generator_proxy_to_mirror"}
-astroport-factory = {path = "../../factory"}
-astroport-pair = {path = "../../pair"}
-astroport-pair-stable = {path = "../../pair_stable"}
+terra-multi-test = { git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra" }
+astroport-token = { path = "../../token" }
+mirror-staking = { git = "https://github.com/Mirror-Protocol/mirror-contracts.git", tag = "v2.1.1", package = "mirror-staking" }
+mirror-protocol = { version = "2.1.1" }
+astroport-vesting = { path = "../vesting" }
+astroport-generator-proxy-to-mirror = { path = "../generator_proxy_to_mirror" }
+astroport-factory = { path = "../../factory" }
+astroport-pair = { path = "../../pair" }
+astroport-pair-stable = { path = "../../pair_stable" }
+astroport-whitelist = { path = "../../whitelist" }
+
+[dev-dependencies.astroport-generator_v120]
+git = "https://github.com/astroport-fi/astroport-core"
+package = "astroport-generator"
+rev = "973aab9419229cb221023066f96b18f2edf75ba8"
+
+[dev-dependencies.astroport-package-generator_v120]
+git = "https://github.com/astroport-fi/astroport-core"
+package = "astroport"
+rev = "973aab9419229cb221023066f96b18f2edf75ba8"

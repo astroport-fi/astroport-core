@@ -23,7 +23,7 @@ pub enum ContractError {
     PoolDoesNotHaveAdditionalRewards {},
 
     #[error("Insufficient amount of orphan rewards!")]
-    OrphanRewardsTooSmall {},
+    ZeroOrphanRewards {},
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
