@@ -19,8 +19,8 @@ Create `.env`:
 WALLET="mnemonic"
 LCD_CLIENT_URL=https://bombay-lcd.terra.dev
 CHAIN_ID=bombay-12
-
-TOKEN_INITIAL_AMOUNT="1000000000000000"
+GAS_CURRENCY="uusd"
+GAS_PRICE=0.15
 ```
 
 Deploy the contracts:

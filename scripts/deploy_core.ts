@@ -87,6 +87,12 @@ async function uploadPairContracts(terra: LCDClient, wallet: any) {
         network.pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable.wasm')!)
         writeArtifact(network, terra.config.chainID)
     }
+
+    if (!network.pairAnchorCodeID) {
+        console.log('Register Anchor Pair Contract...')
+        network.pairAnchorCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_anchor.wasm')!)
+        writeArtifact(network, terra.config.chainID)
+    }
 }
 
 async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
@@ -127,7 +133,7 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
 
     if (!network.factoryAddress) {
         console.log('Deploy the Factory...')
-        console.log(`CodeId Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID}`)
+        console.log(`CodeId Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID} CodeId Anchor Pair Contract: ${network.pairAnchorCodeID}`)
 
         let resp = await deployContract(
             terra,
@@ -152,6 +158,14 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                         maker_fee_bps: 5000, // 50% of stableswap fees go to the Maker
                         is_disabled: false,
                         is_generator_disabled: false
+                    },
+                    {
+                        code_id: network.pairAnchorCodeID,
+                        pair_type: { custom: "Anchor-XYK" },
+                        total_fee_bps: 0,
+                        maker_fee_bps: 0,
+                        is_disabled: false,
+                        is_generator_disabled: true
                     }
                 ],
                 token_code_id: network.tokenCodeID,
