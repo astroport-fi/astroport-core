@@ -2442,7 +2442,8 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
 
-                migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?
+                migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?;
+                migration::migrate_configs_to_v130(deps.storage)?;
             }
             "1.1.0" => {
                 let msg: migration::MigrationMsgV120 = from_binary(&msg.params)?;
@@ -2489,7 +2490,8 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
 
-                migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?
+                migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?;
+                migration::migrate_configs_to_v130(deps.storage)?;
             }
             "1.2.0" => {
                 let keys = POOL_INFO
@@ -2527,7 +2529,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
-                migration::migrate_configs_to_v130(deps.storage)?
+                migration::migrate_configs_to_v130(deps.storage)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },
