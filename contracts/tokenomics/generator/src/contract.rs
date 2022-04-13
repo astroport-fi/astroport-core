@@ -84,7 +84,7 @@ pub fn instantiate(
         allowed_reward_proxies,
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
         active_pools: vec![],
-        blocked_list_tokens: vec![],
+        blocked_tokens_list: vec![],
     };
 
     if let Some(generator_controller) = msg.generator_controller {
@@ -183,8 +183,8 @@ pub fn execute(
             mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
             deactivate_pool(deps, lp_token_addr)
         }
-        ExecuteMsg::UpdateTokensBlockedlist { add, remove } => {
-            update_tokens_blockedlist(deps, env, info, add, remove)
+        ExecuteMsg::UpdateBlockedTokenslist { add, remove } => {
+            update_blocked_tokens_list(deps, env, info, add, remove)
         }
         ExecuteMsg::MoveToProxy { lp_token, proxy } => {
             move_to_proxy(deps, env, info, lp_token, proxy)
@@ -309,7 +309,7 @@ fn deactivate_pools(
         .all(|a| uniq.insert(a.to_string()))
     {
         return Err(ContractError::Std(StdError::generic_err(
-            "Duplicate of pair type!",
+            "Pair type duplicate!",
         )));
     }
 
@@ -349,7 +349,7 @@ fn deactivate_pools(
 }
 
 /// Add or remove tokens to and from the blocked list. Returns a [`ContractError`] on failure.
-fn update_tokens_blockedlist(
+fn update_blocked_tokens_list(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -373,7 +373,7 @@ fn update_tokens_blockedlist(
     if let Some(asset_infos) = remove {
         for asset_info in asset_infos {
             let index = cfg
-                .blocked_list_tokens
+                .blocked_tokens_list
                 .iter()
                 .position(|x| *x == asset_info)
                 .ok_or_else(|| {
@@ -381,7 +381,7 @@ fn update_tokens_blockedlist(
                         "Can't remove token. It is not found in the blocked list.",
                     )
                 })?;
-            cfg.blocked_list_tokens.remove(index);
+            cfg.blocked_tokens_list.remove(index);
         }
     }
 
@@ -397,8 +397,8 @@ fn update_tokens_blockedlist(
                 return Err(ContractError::AssetCannotBeBlocked {});
             }
 
-            if !cfg.blocked_list_tokens.contains(&asset_info) {
-                cfg.blocked_list_tokens.push(asset_info.clone());
+            if !cfg.blocked_tokens_list.contains(&asset_info) {
+                cfg.blocked_tokens_list.push(asset_info.clone());
 
                 // Find active pools with blacklisted tokens
                 for pool in &mut cfg.active_pools {
@@ -513,7 +513,7 @@ pub fn execute_setup_pools(
 
         // check if assets in the blocked list
         for asset in pair_info.asset_infos.clone() {
-            if cfg.blocked_list_tokens.contains(&asset) {
+            if cfg.blocked_tokens_list.contains(&asset) {
                 return Err(ContractError::Std(StdError::generic_err(format!(
                     "Token {} is blocked!",
                     asset
@@ -1897,15 +1897,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             start_after,
             limit,
         )?)?),
-        QueryMsg::BlockedListTokens {} => Ok(to_binary(&query_blocked_list_tokens(deps)?)?),
+        QueryMsg::BlockedTokensList {} => Ok(to_binary(&query_blocked_tokens_list(deps)?)?),
     }
 }
 
 /// ## Description
 /// Returns a [`ContractError`] on failure, otherwise returns the blocked list of tokens.
-fn query_blocked_list_tokens(deps: Deps) -> Result<Vec<AssetInfo>, ContractError> {
+fn query_blocked_tokens_list(deps: Deps) -> Result<Vec<AssetInfo>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    Ok(config.blocked_list_tokens)
+    Ok(config.blocked_tokens_list)
 }
 
 /// Returns a [`ContractError`] on failure, otherwise returns the amount of instantiated generators
@@ -2059,7 +2059,7 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
         vesting_contract: config.vesting_contract,
         generator_controller: config.generator_controller,
         active_pools: config.active_pools,
-        blocked_list_tokens: config.blocked_list_tokens,
+        blocked_tokens_list: config.blocked_tokens_list,
     })
 }
 
@@ -2527,6 +2527,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
+                migration::migrate_configs_to_v130(deps.storage)?
             }
             _ => return Err(ContractError::MigrationError {}),
         },

@@ -419,13 +419,13 @@ Returns a list of stakers that currently have funds in a specific generator.
 }
 ```
 
-### `blocked_list_tokens`
+### `blocked_tokens_list`
 
-Returns the blocked list of tokens
+Returns the list of blocked tokens
 
 ```json
 {
-  "blocked_list_tokens": {}
+  "blocked_tokens_list": {}
 }
 ```
 

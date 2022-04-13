@@ -136,8 +136,8 @@ pub enum ExecuteMsg {
         lp_token: String,
         new_proxy: String,
     },
-    /// Add or remove token to blocked list
-    UpdateTokensBlockedlist {
+    /// Add or remove token to the block list
+    UpdateBlockedTokenslist {
         /// Tokens to add
         add: Option<Vec<AssetInfo>>,
         /// Tokens to remove
@@ -182,7 +182,7 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
     /// Returns the blocked list of tokens
-    BlockedListTokens {},
+    BlockedTokensList {},
 }
 
 /// This structure holds the response returned when querying the total length of the array that keeps track of instantiated generators
@@ -371,8 +371,8 @@ pub struct ConfigResponse {
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points
     pub active_pools: Vec<(Addr, Uint128)>,
-    /// The blocked list of tokens
-    pub blocked_list_tokens: Vec<AssetInfo>,
+    /// The list of blocked tokens
+    pub blocked_tokens_list: Vec<AssetInfo>,
     /// The guardian address
     pub guardian: Option<Addr>,
 }

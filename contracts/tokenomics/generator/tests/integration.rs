@@ -2322,7 +2322,7 @@ fn update_tokens_blocked_list() {
         ],
     );
 
-    let msg = ExecuteMsg::UpdateTokensBlockedlist {
+    let msg = ExecuteMsg::UpdateBlockedTokenslist {
         add: None,
         remove: None,
     };
@@ -2335,7 +2335,7 @@ fn update_tokens_blocked_list() {
         err.to_string()
     );
 
-    let msg = ExecuteMsg::UpdateTokensBlockedlist {
+    let msg = ExecuteMsg::UpdateBlockedTokenslist {
         add: Some(vec![native_asset_info("uusd".to_string())]),
         remove: None,
     };
@@ -2353,7 +2353,7 @@ fn update_tokens_blocked_list() {
         err.to_string()
     );
 
-    let msg = ExecuteMsg::UpdateTokensBlockedlist {
+    let msg = ExecuteMsg::UpdateBlockedTokenslist {
         add: Some(vec![token_asset_info(cny_token.clone())]),
         remove: None,
     };
@@ -2419,7 +2419,7 @@ fn update_tokens_blocked_list() {
         .unwrap();
     assert_eq!(Uint128::new(140), reps.alloc_point);
 
-    let msg = ExecuteMsg::UpdateTokensBlockedlist {
+    let msg = ExecuteMsg::UpdateBlockedTokenslist {
         add: None,
         remove: Some(vec![native_asset_info("eur".to_string())]),
     };
@@ -2432,7 +2432,7 @@ fn update_tokens_blocked_list() {
         err.to_string()
     );
 
-    let msg = ExecuteMsg::UpdateTokensBlockedlist {
+    let msg = ExecuteMsg::UpdateBlockedTokenslist {
         add: None,
         remove: Some(vec![token_asset_info(cny_token)]),
     };
