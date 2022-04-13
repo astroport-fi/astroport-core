@@ -89,7 +89,7 @@ pub fn instantiate(
         allowed_reward_proxies,
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
         active_pools: vec![],
-        blocked_list_tokens: vec![],
+        blocked_tokens_list: vec![],
         generator_limit: None,
         voting_escrow: None,
     };
@@ -204,8 +204,8 @@ pub fn execute(
             mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
             deactivate_pool(deps, lp_token_addr)
         }
-        ExecuteMsg::UpdateTokensBlockedlist { add, remove } => {
-            update_tokens_blockedlist(deps, env, info, add, remove)
+        ExecuteMsg::UpdateBlockedTokenslist { add, remove } => {
+            update_blocked_tokens_list(deps, env, info, add, remove)
         }
         ExecuteMsg::MoveToProxy { lp_token, proxy } => {
             move_to_proxy(deps, env, info, lp_token, proxy)
@@ -394,28 +394,28 @@ fn checkpoint_user_boost(
     let mut send_rewards_msg: Vec<WasmMsg> = vec![];
     for generator in generators {
         let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
-        let user_info = USER_INFO.may_load(deps.storage, (&generator_addr, &info.sender))?;
+        let user = USER_INFO.may_load(deps.storage, (&generator_addr, &info.sender))?;
 
         // calculates the emission boost  only for user who has LP in generator
-        if let Some(user_info) = user_info {
+        if let Some(user) = user {
             let pool = POOL_INFO.load(deps.storage, &generator_addr)?;
             send_rewards_msg.append(&mut send_pending_rewards(
                 deps.as_ref(),
                 &config,
                 &pool,
-                &user_info,
+                &user,
                 &info.sender,
             )?);
 
-            let user_info = update_virtual_amount(
+            let user = update_virtual_amount(
                 deps.as_ref(),
                 &env,
                 &config,
-                user_info,
+                user,
                 &info.sender,
                 &generator_addr,
             )?;
-            USER_INFO.save(deps.storage, (&generator_addr, &info.sender), &user_info)?;
+            USER_INFO.save(deps.storage, (&generator_addr, &info.sender), &user)?;
         }
     }
 
@@ -441,7 +441,7 @@ fn deactivate_pools(
         .all(|a| uniq.insert(a.to_string()))
     {
         return Err(ContractError::Std(StdError::generic_err(
-            "Duplicate of pair type!",
+            "Pair type duplicate!",
         )));
     }
 
@@ -481,7 +481,7 @@ fn deactivate_pools(
 }
 
 /// Add or remove tokens to and from the blocked list. Returns a [`ContractError`] on failure.
-fn update_tokens_blockedlist(
+fn update_blocked_tokens_list(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -505,7 +505,7 @@ fn update_tokens_blockedlist(
     if let Some(asset_infos) = remove {
         for asset_info in asset_infos {
             let index = cfg
-                .blocked_list_tokens
+                .blocked_tokens_list
                 .iter()
                 .position(|x| *x == asset_info)
                 .ok_or_else(|| {
@@ -513,7 +513,7 @@ fn update_tokens_blockedlist(
                         "Can't remove token. It is not found in the blocked list.",
                     )
                 })?;
-            cfg.blocked_list_tokens.remove(index);
+            cfg.blocked_tokens_list.remove(index);
         }
     }
 
@@ -529,8 +529,8 @@ fn update_tokens_blockedlist(
                 return Err(ContractError::AssetCannotBeBlocked {});
             }
 
-            if !cfg.blocked_list_tokens.contains(&asset_info) {
-                cfg.blocked_list_tokens.push(asset_info.clone());
+            if !cfg.blocked_tokens_list.contains(&asset_info) {
+                cfg.blocked_tokens_list.push(asset_info.clone());
 
                 // Find active pools with blacklisted tokens
                 for pool in &mut cfg.active_pools {
@@ -655,7 +655,7 @@ pub fn execute_setup_pools(
 
         // check if assets in the blocked list
         for asset in pair_info.asset_infos.clone() {
-            if cfg.blocked_list_tokens.contains(&asset) {
+            if cfg.blocked_tokens_list.contains(&asset) {
                 return Err(ContractError::Std(StdError::generic_err(format!(
                     "Token {} is blocked!",
                     asset
@@ -1207,18 +1207,15 @@ pub fn send_pending_rewards(
     let mut messages = vec![];
 
     // calculate user pending rewards by virtual amount if user voting power exists
-    let pending_rewards;
-    if !user.virtual_amount.is_zero() {
-        pending_rewards = pool
-            .accumulated_rewards_per_share
+    let pending_rewards = if !user.virtual_amount.is_zero() {
+        pool.accumulated_rewards_per_share
             .checked_mul(user.virtual_amount)?
-            .checked_sub(user.reward_debt)?;
+            .checked_sub(user.reward_debt)?
     } else {
-        pending_rewards = pool
-            .accumulated_rewards_per_share
+        pool.accumulated_rewards_per_share
             .checked_mul(user.amount)?
-            .checked_sub(user.reward_debt)?;
-    }
+            .checked_sub(user.reward_debt)?
+    };
 
     if !pending_rewards.is_zero() {
         messages.push(WasmMsg::Execute {
@@ -1335,20 +1332,13 @@ pub fn deposit(
 
     // Update user's LP token balance
     let updated_amount = user.amount.checked_add(amount)?;
-    let user_info = update_user_balance(user, &pool, updated_amount)?;
+    let user = update_user_balance(user, &pool, updated_amount)?;
 
     // Update user's emission boost balance
-    let user_info = update_virtual_amount(
-        deps.as_ref(),
-        &env,
-        &cfg,
-        user_info,
-        &beneficiary,
-        &lp_token,
-    )?;
+    let user = update_virtual_amount(deps.as_ref(), &env, &cfg, user, &beneficiary, &lp_token)?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
-    USER_INFO.save(deps.storage, (&lp_token, &beneficiary), &user_info)?;
+    USER_INFO.save(deps.storage, (&lp_token, &beneficiary), &user)?;
 
     Ok(Response::new()
         .add_messages(send_rewards_msg)
@@ -1378,10 +1368,10 @@ pub fn withdraw(
     account: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let user_info = USER_INFO
+    let user = USER_INFO
         .compatible_load(deps.storage, (&lp_token, &account))
         .unwrap_or_default();
-    if user_info.amount < amount {
+    if user.amount < amount {
         return Err(ContractError::BalanceTooSmall {});
     }
 
@@ -1391,7 +1381,7 @@ pub fn withdraw(
     accumulate_rewards_per_share(&deps.querier, &env, &lp_token, &mut pool, &cfg, None)?;
 
     // Send pending rewards to the user
-    let send_rewards_msg = send_pending_rewards(deps.as_ref(), &cfg, &pool, &user_info, &account)?;
+    let send_rewards_msg = send_pending_rewards(deps.as_ref(), &cfg, &pool, &user, &account)?;
 
     // Instantiate the transfer call for the LP token
     let transfer_msg = if !amount.is_zero() {
@@ -1423,22 +1413,21 @@ pub fn withdraw(
         &lp_token,
         &pool,
         &account,
-        user_info.amount,
+        user.amount,
         Uint128::zero(),
     )?;
 
     // Update user's balance
-    let updated_amount = user_info.amount.checked_sub(amount)?;
-    let user_info = update_user_balance(user_info, &pool, updated_amount)?;
+    let updated_amount = user.amount.checked_sub(amount)?;
+    let user = update_user_balance(user, &pool, updated_amount)?;
 
     // Update user's emission boost balance
-    let user_info =
-        update_virtual_amount(deps.as_ref(), &env, &cfg, user_info, &account, &lp_token)?;
+    let user = update_virtual_amount(deps.as_ref(), &env, &cfg, user, &account, &lp_token)?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
 
-    if !user_info.amount.is_zero() {
-        USER_INFO.save(deps.storage, (&lp_token, &account), &user_info)?;
+    if !user.amount.is_zero() {
+        USER_INFO.save(deps.storage, (&lp_token, &account), &user)?;
     } else {
         USER_INFO.remove(deps.storage, (&lp_token, &account));
     }
@@ -2069,15 +2058,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             start_after,
             limit,
         )?)?),
-        QueryMsg::BlockedListTokens {} => Ok(to_binary(&query_blocked_list_tokens(deps)?)?),
+        QueryMsg::BlockedTokensList {} => Ok(to_binary(&query_blocked_tokens_list(deps)?)?),
     }
 }
 
 /// ## Description
 /// Returns a [`ContractError`] on failure, otherwise returns the blocked list of tokens.
-fn query_blocked_list_tokens(deps: Deps) -> Result<Vec<AssetInfo>, ContractError> {
+fn query_blocked_tokens_list(deps: Deps) -> Result<Vec<AssetInfo>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    Ok(config.blocked_list_tokens)
+    Ok(config.blocked_tokens_list)
 }
 
 /// Returns a [`ContractError`] on failure, otherwise returns the amount of instantiated generators
@@ -2224,16 +2213,15 @@ pub fn pending_token(
     }
 
     // calculate user pending rewards by virtual amount if user voting power exists
-    let pending_rewards;
-    if !user_info.virtual_amount.is_zero() {
-        pending_rewards = acc_per_share
+    let pending_rewards = if !user_info.virtual_amount.is_zero() {
+        acc_per_share
             .checked_mul(user_info.virtual_amount)?
-            .checked_sub(user_info.reward_debt)?;
+            .checked_sub(user_info.reward_debt)?
     } else {
-        pending_rewards = acc_per_share
+        acc_per_share
             .checked_mul(user_info.amount)?
-            .checked_sub(user_info.reward_debt)?;
-    }
+            .checked_sub(user_info.reward_debt)?
+    };
 
     Ok(PendingTokenResponse {
         pending: pending_rewards,
@@ -2261,7 +2249,7 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
         vesting_contract: config.vesting_contract,
         generator_controller: config.generator_controller,
         active_pools: config.active_pools,
-        blocked_list_tokens: config.blocked_list_tokens,
+        blocked_tokens_list: config.blocked_tokens_list,
         voting_escrow: config.voting_escrow,
     })
 }
@@ -2645,7 +2633,8 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
 
-                migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?
+                migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?;
+                migration::migrate_configs_to_v130(deps.storage)?;
             }
             "1.1.0" => {
                 let msg: migration::MigrationMsgV120 = from_binary(&msg.params)?;
@@ -2692,7 +2681,8 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
 
-                migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?
+                migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?;
+                migration::migrate_configs_to_v130(deps.storage)?;
             }
             "1.2.0" => {
                 let keys = POOL_INFO
@@ -2730,6 +2720,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
+                migration::migrate_configs_to_v130(deps.storage)?;
             }
             "1.3.0" => {
                 let msg: migration::MigrationMsgV140 = from_binary(&msg.params)?;
