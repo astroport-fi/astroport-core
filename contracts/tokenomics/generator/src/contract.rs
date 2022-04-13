@@ -2695,7 +2695,6 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             }
             "1.3.0" => {
                 let msg: migration::MigrationMsgV140 = from_binary(&msg.params)?;
-                let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 
                 let keys = POOL_INFO
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
@@ -2705,10 +2704,6 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                 for key in keys {
                     let pool_info_v130 = migration::POOL_INFOV130
                         .load(deps.storage, &Addr::unchecked(key.clone()))?;
-
-                    if !pool_info_v130.alloc_point.is_zero() {
-                        active_pools.push((Addr::unchecked(&key), pool_info_v130.alloc_point));
-                    }
 
                     let mut accumulated_proxy_rewards_per_share = Default::default();
                     let mut orphan_proxy_rewards = Default::default();
@@ -2737,7 +2732,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
-                migration::migrate_configs_to_v140(&mut deps, active_pools, msg)?
+                migration::migrate_configs_to_v140(&mut deps, msg)?
             }
             _ => return Err(ContractError::MigrationError {}),
         },

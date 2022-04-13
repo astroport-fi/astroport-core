@@ -174,22 +174,30 @@ pub fn migrate_configs_to_v120(
 /// This structure describes the main control config of generator.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigV130 {
-    /// Contract address that used for controls settings
+    /// Address allowed to change contract parameters
     pub owner: Addr,
+    /// The Factory address
+    pub factory: Addr,
+    /// Contract address which can only set active generators and their alloc points
+    pub generator_controller: Option<Addr>,
     /// The ASTRO token address
     pub astro_token: Addr,
     /// Total amount of ASTRO rewards per block
     pub tokens_per_block: Uint128,
-    /// The total allocation points. Must be the sum of all allocation points in all pools.
-    pub total_alloc_point: Uint64,
-    /// The block number when ASTRO mining starts.
+    /// Total allocation points. Must be the sum of all allocation points in all active generators
+    pub total_alloc_point: Uint128,
+    /// The block number when the ASTRO distribution starts
     pub start_block: Uint64,
-    /// The list of allowed reward proxy contracts
+    /// The list of allowed proxy reward contracts
     pub allowed_reward_proxies: Vec<Addr>,
     /// The vesting contract from which rewards are distributed
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points
     pub active_pools: Vec<(Addr, Uint128)>,
+    /// The blocked list of tokens
+    pub blocked_list_tokens: Vec<AssetInfo>,
+    /// The guardian address which can add or remove tokens from blacklist
+    pub guardian: Option<Addr>,
 }
 
 /// Stores the contract config(V1.3.0) at the given key
@@ -198,14 +206,6 @@ pub const CONFIGV130: Item<ConfigV130> = Item::new("config");
 /// This structure describes a contract migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrationMsgV140 {
-    /// The Factory address
-    pub factory: String,
-    /// Contract address which can only set active generators and their alloc points
-    pub generator_controller: Option<String>,
-    /// The blocked list of tokens
-    pub blocked_list_tokens: Option<Vec<AssetInfo>>,
-    /// The guardian address
-    pub guardian: Option<String>,
     /// The voting escrow contract
     pub voting_escrow: Option<String>,
     /// The limit of generators
@@ -213,46 +213,25 @@ pub struct MigrationMsgV140 {
 }
 
 /// Migrate config to V1.4.0
-pub fn migrate_configs_to_v140(
-    deps: &mut DepsMut,
-    pools: Vec<(Addr, Uint64)>,
-    msg: MigrationMsgV140,
-) -> Result<(), StdError> {
+pub fn migrate_configs_to_v140(deps: &mut DepsMut, msg: MigrationMsgV140) -> Result<(), StdError> {
     let cfg_130 = CONFIGV130.load(deps.storage)?;
-
-    let pools = pools
-        .into_iter()
-        .map(|(addr, apoints)| (addr, apoints.into()))
-        .collect();
 
     let mut cfg = Config {
         owner: cfg_130.owner,
-        factory: addr_validate_to_lower(deps.api, &msg.factory)?,
-        generator_controller: None,
+        factory: cfg_130.factory,
+        generator_controller: cfg_130.generator_controller,
         voting_escrow: None,
         astro_token: cfg_130.astro_token,
         tokens_per_block: cfg_130.tokens_per_block,
-        total_alloc_point: cfg_130.total_alloc_point.into(),
+        total_alloc_point: cfg_130.total_alloc_point,
         start_block: cfg_130.start_block,
         allowed_reward_proxies: cfg_130.allowed_reward_proxies,
         vesting_contract: cfg_130.vesting_contract,
-        active_pools: pools,
-        blocked_list_tokens: vec![],
-        guardian: None,
+        active_pools: cfg_130.active_pools,
+        blocked_list_tokens: cfg_130.blocked_list_tokens,
+        guardian: cfg_130.guardian,
         generator_limit: None,
     };
-
-    if let Some(generator_controller) = msg.generator_controller {
-        cfg.generator_controller = Some(addr_validate_to_lower(deps.api, &generator_controller)?);
-    }
-
-    if let Some(blocked_list_tokens) = msg.blocked_list_tokens {
-        cfg.blocked_list_tokens = blocked_list_tokens;
-    }
-
-    if let Some(guardian) = msg.guardian {
-        cfg.guardian = Some(addr_validate_to_lower(deps.api, &guardian)?);
-    }
 
     if let Some(voting_escrow) = msg.voting_escrow {
         cfg.voting_escrow = Some(addr_validate_to_lower(deps.api, &voting_escrow)?);
