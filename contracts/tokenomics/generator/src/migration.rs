@@ -71,6 +71,8 @@ pub const POOL_INFOV120: Map<&Addr, PoolInfoV120> = Map::new("pool_info");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolInfoV130 {
+    /// Allocation point is used to control reward distribution among the pools
+    pub alloc_point: Uint64,
     /// Accumulated amount of reward per share unit. Used for reward calculations
     pub last_reward_block: Uint64,
     pub accumulated_rewards_per_share: Decimal,
@@ -211,8 +213,17 @@ pub struct MigrationMsgV140 {
 }
 
 /// Migrate config to V1.4.0
-pub fn migrate_configs_to_v140(deps: &mut DepsMut, msg: MigrationMsgV140) -> Result<(), StdError> {
+pub fn migrate_configs_to_v140(
+    deps: &mut DepsMut,
+    pools: Vec<(Addr, Uint64)>,
+    msg: MigrationMsgV140,
+) -> Result<(), StdError> {
     let cfg_130 = CONFIGV130.load(deps.storage)?;
+
+    let pools = pools
+        .into_iter()
+        .map(|(addr, apoints)| (addr, apoints.into()))
+        .collect();
 
     let mut cfg = Config {
         owner: cfg_130.owner,
@@ -225,7 +236,7 @@ pub fn migrate_configs_to_v140(deps: &mut DepsMut, msg: MigrationMsgV140) -> Res
         start_block: cfg_130.start_block,
         allowed_reward_proxies: cfg_130.allowed_reward_proxies,
         vesting_contract: cfg_130.vesting_contract,
-        active_pools: cfg_130.active_pools,
+        active_pools: pools,
         blocked_list_tokens: vec![],
         guardian: None,
         generator_limit: None,
