@@ -162,7 +162,6 @@ fn test_boost_checkpoints() {
             Addr::unchecked(USER1),
             helper_controller.generator.clone(),
             &ExecuteMsg::CheckpointUserBoost {
-                user: user1.to_string(),
                 generators: vec![lp_cny_eur.to_string(); 26],
             },
             &[],
@@ -218,10 +217,9 @@ fn test_boost_checkpoints() {
 
     // recalculate virtual amount for user2
     app.execute_contract(
-        Addr::unchecked(USER1),
+        Addr::unchecked(USER2),
         helper_controller.generator.clone(),
         &ExecuteMsg::CheckpointUserBoost {
-            user: user2.to_string(),
             generators: vec![lp_cny_eur.to_string()],
         },
         &[],

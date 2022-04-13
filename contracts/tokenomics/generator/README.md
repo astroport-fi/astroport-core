@@ -310,11 +310,23 @@ Sets the allocation point to zero for each pool by the pair type.
 
 ### `checkpoint_user_boost`
 
-Updates emissions boost for specified user and generators
+Updates emissions boost for specified generators
 
 ```json
 {
   "checkpoint_user_boost": {
+    "generators": ["terra...", "terra..."]
+  }
+}
+```
+
+### `kick_user_boost`
+
+Kick a staker for specified generators if they abuse their boost
+
+```json
+{
+  "kick_user_boost": {
     "user": "terra...",
     "generators": ["terra...", "terra..."]
   }

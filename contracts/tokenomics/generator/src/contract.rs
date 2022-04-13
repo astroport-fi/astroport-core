@@ -1,3 +1,4 @@
+use astroport_governance::voting_escrow::get_voting_power;
 use std::collections::{HashMap, HashSet};
 
 use cosmwasm_std::{
@@ -187,8 +188,9 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::CheckpointUserBoost { user, generators } => {
-            checkpoint_user_boost(deps, env, user, generators)
+        ExecuteMsg::KickUserBoost { user, generators } => kick_user_boost(deps, user, generators),
+        ExecuteMsg::CheckpointUserBoost { generators } => {
+            checkpoint_user_boost(deps, env, info, generators)
         }
         ExecuteMsg::DeactivatePools { pair_types } => deactivate_pools(deps, env, pair_types),
         ExecuteMsg::DeactivatePool { lp_token } => {
@@ -330,18 +332,54 @@ pub fn execute(
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **user** is an object of type [`Addr`]. This is the address of the account for which the
-/// emission boost amount will be recalculated.
+/// * **user** is an object of type [`Addr`]. This is the user address for
+/// which the amount will be recalculated.
 ///
-/// * **generators** is an object of type [`Addr`]. This are the addresses of the generators for
+/// * **generators** is an object of type [`Addr`]. These are the addresses of the generators for
+/// which the amount will be recalculated.
+fn kick_user_boost(
+    deps: DepsMut,
+    user: String,
+    generators: Vec<String>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let user_addr = addr_validate_to_lower(deps.api, &user)?;
+
+    for generator in generators {
+        let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
+        let user_info = USER_INFO.may_load(deps.storage, (&generator_addr, &user_addr))?;
+
+        // recalculates the emission boost only for user who has LP in generator
+        if let Some(mut user_info) = user_info {
+            if let Some(voting_escrow) = &config.voting_escrow {
+                let user_vp = get_voting_power(deps.querier, voting_escrow, &user_addr)?;
+                if user_vp.is_zero() {
+                    user_info.virtual_amount = Uint128::zero();
+                    USER_INFO.save(deps.storage, (&generator_addr, &user_addr), &user_info)?;
+                }
+            }
+        }
+    }
+
+    Ok(Response::new().add_attribute("action", "kick_user_boost"))
+}
+
+/// ## Description
+/// Returns a [`ContractError`] on failure, otherwise updates user emission boost in specified generators and
+/// returns a [`Response`] with the specified attributes.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+/// * **generators** is an object of type [`Addr`]. These are the addresses of the generators for
 /// which the amount will be recalculated.
 fn checkpoint_user_boost(
     deps: DepsMut,
     env: Env,
-    user: String,
+    info: MessageInfo,
     generators: Vec<String>,
 ) -> Result<Response, ContractError> {
-    let user_addr = addr_validate_to_lower(deps.api, &user)?;
     let config = CONFIG.load(deps.storage)?;
 
     let mut generator_limit = GENERATORS_LIMIT;
@@ -356,7 +394,7 @@ fn checkpoint_user_boost(
     let mut send_rewards_msg: Vec<WasmMsg> = vec![];
     for generator in generators {
         let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
-        let user_info = USER_INFO.may_load(deps.storage, (&generator_addr, &user_addr))?;
+        let user_info = USER_INFO.may_load(deps.storage, (&generator_addr, &info.sender))?;
 
         // calculates the emission boost  only for user who has LP in generator
         if let Some(user_info) = user_info {
@@ -366,7 +404,7 @@ fn checkpoint_user_boost(
                 &config,
                 &pool,
                 &user_info,
-                &user_addr,
+                &info.sender,
             )?);
 
             let user_info = update_virtual_amount(
@@ -374,10 +412,10 @@ fn checkpoint_user_boost(
                 &env,
                 &config,
                 user_info,
-                &user_addr,
+                &info.sender,
                 &generator_addr,
             )?;
-            USER_INFO.save(deps.storage, (&generator_addr, &user_addr), &user_info)?;
+            USER_INFO.save(deps.storage, (&generator_addr, &info.sender), &user_info)?;
         }
     }
 

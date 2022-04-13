@@ -159,6 +159,10 @@ pub enum ExecuteMsg {
     },
     /// Updates the boost emissions for specified user and generators
     CheckpointUserBoost {
+        generators: Vec<String>,
+    },
+    /// Kick a staker for specified generators if they abuse their boost
+    KickUserBoost {
         user: String,
         generators: Vec<String>,
     },
