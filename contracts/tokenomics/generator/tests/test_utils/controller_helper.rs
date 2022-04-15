@@ -193,7 +193,7 @@ impl ControllerHelper {
                     generator_controller: Some(controller.to_string()),
                     guardian: None,
                     voting_escrow: None,
-                    generator_limit: None,
+                    checkpoint_generator_limit: None,
                 },
                 &[],
             )

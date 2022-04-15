@@ -170,6 +170,17 @@ fn test_boost_checkpoints() {
         .unwrap_err();
     assert_eq!("Maximum generator limit exceeded!", err.to_string());
 
+    app.execute_contract(
+        Addr::unchecked(USER1),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::CheckpointUserBoost {
+            generators: vec![lp_cny_eur.to_string()],
+            user: Some(USER1.to_string()),
+        },
+        &[],
+    )
+    .unwrap();
+
     // check user1's ASTRO balance
     check_token_balance(
         &mut app,
@@ -187,7 +198,6 @@ fn test_boost_checkpoints() {
     );
 
     app.next_block(WEEK);
-    app.update_block(|bi| bi.time = bi.time.plus_seconds(WEEK));
 
     app.execute_contract(
         Addr::unchecked(USER1),
@@ -258,11 +268,10 @@ fn test_boost_checkpoints() {
         &helper_controller.generator,
         &lp_cny_eur,
         USER2,
-        (4_000_000, None),
+        (0, None),
     );
 
     app.next_block(WEEK);
-    app.update_block(|bi| bi.time = bi.time.plus_seconds(WEEK));
 
     app.execute_contract(
         Addr::unchecked(USER2),
@@ -288,7 +297,7 @@ fn test_boost_checkpoints() {
         &helper_controller.generator,
         &lp_cny_eur,
         USER1,
-        (3_333_333, None),
+        (3_846_153, None),
     );
 
     check_token_balance(
@@ -303,7 +312,7 @@ fn test_boost_checkpoints() {
         &mut app,
         &helper_controller.escrow_helper.astro_token,
         &user2,
-        14_333_333,
+        11_153_846,
     );
 
     // check virtual amount for user2 after withdraw
@@ -312,7 +321,7 @@ fn test_boost_checkpoints() {
         &helper_controller.generator,
         &lp_cny_eur,
         &user2,
-        0,
+        5,
     );
 
     // check virtual amount for user1
@@ -557,7 +566,7 @@ fn update_config() {
         generator_controller: None,
         guardian: None,
         voting_escrow: None,
-        generator_limit: None,
+        checkpoint_generator_limit: None,
     };
 
     // Assert cannot update with improper owner
@@ -1041,7 +1050,7 @@ fn generator_without_reward_proxies() {
         &generator_instance,
         &lp_cny_eur,
         USER2,
-        (6_000000, None),
+        (3_000000, None),
     );
     check_pending_rewards(
         &mut app,
@@ -1180,7 +1189,7 @@ fn generator_with_mirror_reward_proxy() {
         &factory_instance,
         &astro_token_instance,
         None,
-        None, //Some(OWNER.to_string()),
+        None,
     );
 
     let (mirror_token_instance, mirror_staking_instance) =
@@ -3901,7 +3910,7 @@ fn check_emission_balance(
     user: &Addr,
     expected: u128,
 ) {
-    let msg = GeneratorQueryMsg::EmissionsBoostRewards {
+    let msg = GeneratorQueryMsg::UserVirtualAmount {
         lp_token: lp_token.to_string(),
         user: user.to_string(),
     };

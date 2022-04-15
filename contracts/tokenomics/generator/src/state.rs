@@ -4,9 +4,10 @@ use astroport::generator::{PoolInfo, RestrictedVector, UserInfo, UserInfoV2};
 use astroport::DecimalCheckedOps;
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
 
-use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128, Uint64};
+use cosmwasm_std::{Addr, DepsMut, Env, StdResult, Storage, Uint128, Uint64};
 
 use cosmwasm_std::{Decimal, Deps};
+use cw20::BalanceResponse;
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -43,7 +44,7 @@ pub struct Config {
     /// The guardian address which can add or remove tokens from blacklist
     pub guardian: Option<Addr>,
     /// The amount of generators
-    pub generator_limit: Option<u32>,
+    pub checkpoint_generator_limit: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -160,7 +161,7 @@ pub const DEFAULT_LIMIT: u32 = 10;
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
 /// The default limit of generators to update user emission
-pub const GENERATORS_LIMIT: u32 = 24;
+pub const CHECKPOINT_GENERATORS_LIMIT: u32 = 24;
 
 /// Update user balance.
 /// ## Params
@@ -237,22 +238,25 @@ pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
     Ok(())
 }
 
-/// Calculates emission boost amount for specified user and generator
+/// ### Description
+/// Updates virtual amount for specified user and generator
 ///
 /// **b_u = min(0.4 * b_u + 0.6 * S * (w_i / W), b_u)**
 ///
 /// - b_u is the amount of LP tokens a user staked in a generator
 ///
-/// - S is the virtual total amount of LP tokens staked in a generator: virtual_amount = totalLP * 0.4;
+/// - S is the total amount of LP tokens staked in a generator
 /// - w_i is a user’s current vxASTRO balance
 /// - W is the total amount of vxASTRO
-pub(crate) fn calculate_virtual_amount(
+pub(crate) fn update_virtual_amount(
     deps: Deps,
+    env: &Env,
     cfg: &Config,
-    pool: &PoolInfo,
-    user_info: &UserInfoV2,
+    pool: &mut PoolInfo,
+    user_info: &mut UserInfoV2,
     account: &Addr,
-) -> StdResult<Uint128> {
+    generator: &Addr,
+) -> StdResult<()> {
     let mut user_vp = Uint128::zero();
     let mut total_vp = Uint128::zero();
 
@@ -262,7 +266,14 @@ pub(crate) fn calculate_virtual_amount(
     }
 
     let user_virtual_share = user_info.amount.multiply_ratio(4u128, 10u128);
-    let total_virtual_share = pool.total_virtual_supply.multiply_ratio(6u128, 10u128);
+
+    let res: BalanceResponse = deps.querier.query_wasm_smart(
+        generator,
+        &cw20::Cw20QueryMsg::Balance {
+            address: env.contract.address.to_string(),
+        },
+    )?;
+    let total_virtual_share = res.balance.multiply_ratio(6u128, 10u128);
 
     let vx_share_emission = if !total_vp.is_zero() {
         Decimal::from_ratio(user_vp, total_vp)
@@ -270,20 +281,17 @@ pub(crate) fn calculate_virtual_amount(
         Decimal::zero()
     };
 
-    Ok(user_virtual_share.checked_add(vx_share_emission.checked_mul(total_virtual_share)?)?)
-}
+    let current_virtual_amount = min(
+        user_virtual_share + vx_share_emission * total_virtual_share,
+        user_info.amount,
+    );
 
-pub(crate) fn update_virtual_amount(
-    pool: &mut PoolInfo,
-    user_info: &mut UserInfoV2,
-    virtual_amount: Uint128,
-) -> StdResult<()> {
     pool.total_virtual_supply = pool
         .total_virtual_supply
         .checked_sub(user_info.virtual_amount)?
-        .checked_add(virtual_amount)?;
+        .checked_add(current_virtual_amount)?;
 
-    user_info.virtual_amount = min(virtual_amount, user_info.amount);
+    user_info.virtual_amount = current_virtual_amount;
 
     Ok(())
 }

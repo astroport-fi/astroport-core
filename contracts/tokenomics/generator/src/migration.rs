@@ -1,6 +1,7 @@
 use crate::state::{Config, CONFIG};
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 
+use astroport::generator::RestrictedVector;
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
@@ -35,7 +36,7 @@ pub struct PoolInfoV110 {
     pub alloc_point: Uint64,
     /// Accumulated amount of reward per share unit. Used for reward calculations
     pub last_reward_block: Uint64,
-    pub reward_global_index: Decimal,
+    pub accumulated_rewards_per_share: Decimal,
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
     pub accumulated_proxy_rewards_per_share: Decimal,
@@ -45,7 +46,6 @@ pub struct PoolInfoV110 {
     pub orphan_proxy_rewards: Uint128,
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
-    pub total_virtual_supply: Uint128,
 }
 
 /// Stores the contract config(V1.1.0) at the given key
@@ -55,7 +55,7 @@ pub const POOL_INFOV110: Map<&Addr, PoolInfoV110> = Map::new("pool_info");
 pub struct PoolInfoV120 {
     /// Accumulated amount of reward per share unit. Used for reward calculations
     pub last_reward_block: Uint64,
-    pub reward_global_index: Decimal,
+    pub accumulated_rewards_per_share: Decimal,
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
     pub accumulated_proxy_rewards_per_share: Decimal,
@@ -65,7 +65,6 @@ pub struct PoolInfoV120 {
     pub orphan_proxy_rewards: Uint128,
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
-    pub total_virtual_supply: Uint128,
 }
 
 /// Stores the contract config(V1.2.0) at the given key
@@ -75,17 +74,16 @@ pub const POOL_INFOV120: Map<&Addr, PoolInfoV120> = Map::new("pool_info");
 pub struct PoolInfoV130 {
     /// Accumulated amount of reward per share unit. Used for reward calculations
     pub last_reward_block: Uint64,
-    pub reward_global_index: Decimal,
+    pub accumulated_rewards_per_share: Decimal,
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
-    pub accumulated_proxy_rewards_per_share: Decimal,
+    pub accumulated_proxy_rewards_per_share: RestrictedVector<Decimal>,
     /// for calculation of new proxy rewards
     pub proxy_reward_balance_before_update: Uint128,
     /// the orphan proxy rewards which are left by emergency withdrawals
-    pub orphan_proxy_rewards: Uint128,
+    pub orphan_proxy_rewards: RestrictedVector<Uint128>,
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
-    pub total_virtual_supply: Uint128,
 }
 
 /// Stores the contract config(V1.3.0) at the given key
@@ -219,7 +217,7 @@ pub fn migrate_configs_to_v130(storage: &mut dyn Storage) -> StdResult<()> {
         active_pools: cfg_120.active_pools,
         blocked_tokens_list: cfg_120.blocked_list_tokens, // renamed this field
         guardian: cfg_120.guardian,
-        generator_limit: None,
+        checkpoint_generator_limit: None,
     };
 
     CONFIG.save(storage, &cfg)
@@ -283,8 +281,8 @@ pub fn migrate_configs_to_v140(deps: &mut DepsMut, msg: MigrationMsgV140) -> Res
         vesting_contract: cfg_130.vesting_contract,
         active_pools: cfg_130.active_pools,
         guardian: cfg_130.guardian,
-        generator_limit: None,
         blocked_tokens_list: cfg_130.blocked_tokens_list,
+        checkpoint_generator_limit: None,
     };
 
     if let Some(voting_escrow) = msg.voting_escrow {
@@ -292,7 +290,7 @@ pub fn migrate_configs_to_v140(deps: &mut DepsMut, msg: MigrationMsgV140) -> Res
     }
 
     if let Some(generator_limit) = msg.generator_limit {
-        cfg.generator_limit = Some(generator_limit);
+        cfg.checkpoint_generator_limit = Some(generator_limit);
     }
 
     CONFIG.save(deps.storage, &cfg)?;

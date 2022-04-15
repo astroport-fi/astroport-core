@@ -50,7 +50,7 @@ pub enum ExecuteMsg {
         /// The new voting escrow contract address
         voting_escrow: Option<String>,
         /// The amount of generators
-        generator_limit: Option<u32>,
+        checkpoint_generator_limit: Option<u32>,
     },
     /// Setup generators with their respective allocation points.
     /// ## Executor
@@ -173,8 +173,10 @@ pub enum QueryMsg {
     PoolLength {},
     /// Deposit returns the LP token amount deposited in a specific generator
     Deposit { lp_token: String, user: String },
-    /// Returns the current emission boost amount in a specific generator
-    EmissionsBoostRewards { lp_token: String, user: String },
+    /// Returns the current virtual amount amount in a specific generator
+    UserVirtualAmount { lp_token: String, user: String },
+    /// Returns the total virtual supply of generator
+    TotalVirtualSupply { generator: String },
     /// PendingToken returns the amount of rewards that can be claimed by an account that deposited a specific LP token in a generator
     PendingToken { lp_token: String, user: String },
     /// Config returns the main contract parameters
@@ -196,8 +198,6 @@ pub enum QueryMsg {
     },
     /// Returns the blocked list of tokens
     BlockedTokensList {},
-    /// Returns the total virtual supply by generator
-    TotalVirtualSupply { generator: String },
 }
 
 /// This structure holds the response returned when querying the total length of the array that keeps track of instantiated generators
@@ -396,6 +396,8 @@ pub struct ConfigResponse {
     pub blocked_tokens_list: Vec<AssetInfo>,
     /// The guardian address
     pub guardian: Option<Addr>,
+    /// The amount of generators
+    pub checkpoint_generator_limit: Option<u32>,
 }
 
 /// This structure describes a migration message.
