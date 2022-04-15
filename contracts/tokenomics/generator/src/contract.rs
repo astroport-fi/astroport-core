@@ -1,4 +1,3 @@
-use astroport_governance::voting_escrow::get_voting_power;
 use std::collections::{HashMap, HashSet};
 
 use cosmwasm_std::{
@@ -17,8 +16,6 @@ use crate::migration;
 use astroport::asset::{
     addr_validate_to_lower, pair_info_by_pool, token_asset_info, Asset, AssetInfo, PairInfo,
 };
-
-use crate::utils::update_virtual_amount;
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{PairConfig, PairType};
@@ -40,9 +37,10 @@ use astroport::{
 
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
-    accumulate_pool_proxy_rewards, update_proxy_asset, update_user_balance, CompatibleLoader,
-    Config, ExecuteOnReply, CONFIG, DEFAULT_LIMIT, GENERATORS_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL,
-    POOL_INFO, PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, TMP_USER_ACTION, USER_INFO,
+    accumulate_pool_proxy_rewards, calculate_virtual_amount, update_proxy_asset,
+    update_user_balance, update_virtual_amount, CompatibleLoader, Config, ExecuteOnReply, CONFIG,
+    DEFAULT_LIMIT, GENERATORS_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO,
+    PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, TMP_USER_ACTION, USER_INFO,
 };
 
 /// Contract name that is used for migration.
@@ -188,9 +186,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::KickUserBoost { user, generators } => kick_user_boost(deps, user, generators),
-        ExecuteMsg::CheckpointUserBoost { generators } => {
-            checkpoint_user_boost(deps, env, info, generators)
+        ExecuteMsg::CheckpointUserBoost { generators, user } => {
+            checkpoint_user_boost(deps, env, info, generators, user)
         }
         ExecuteMsg::DeactivatePools { pair_types } => deactivate_pools(deps, env, pair_types),
         ExecuteMsg::DeactivatePool { lp_token } => {
@@ -331,47 +328,6 @@ pub fn execute(
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **env** is an object of type [`Env`].
-///
-/// * **user** is an object of type [`Addr`]. This is the user address for
-/// which the amount will be recalculated.
-///
-/// * **generators** is an object of type [`Addr`]. These are the addresses of the generators for
-/// which the amount will be recalculated.
-fn kick_user_boost(
-    deps: DepsMut,
-    user: String,
-    generators: Vec<String>,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    let user_addr = addr_validate_to_lower(deps.api, &user)?;
-
-    for generator in generators {
-        let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
-        let user_info = USER_INFO.may_load(deps.storage, (&generator_addr, &user_addr))?;
-
-        // recalculates the emission boost only for user who has LP in generator
-        if let Some(mut user_info) = user_info {
-            if let Some(voting_escrow) = &config.voting_escrow {
-                let user_vp = get_voting_power(deps.querier, voting_escrow, &user_addr)?;
-                if user_vp.is_zero() {
-                    user_info.virtual_amount = Uint128::zero();
-                    USER_INFO.save(deps.storage, (&generator_addr, &user_addr), &user_info)?;
-                }
-            }
-        }
-    }
-
-    Ok(Response::new().add_attribute("action", "kick_user_boost"))
-}
-
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise updates user emission boost in specified generators and
-/// returns a [`Response`] with the specified attributes.
-///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
 /// * **generators** is an object of type [`Addr`]. These are the addresses of the generators for
 /// which the amount will be recalculated.
 fn checkpoint_user_boost(
@@ -379,8 +335,14 @@ fn checkpoint_user_boost(
     env: Env,
     info: MessageInfo,
     generators: Vec<String>,
+    user: Option<String>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let recipient_addr = if let Some(user) = user {
+        addr_validate_to_lower(deps.api, &user)?
+    } else {
+        info.sender
+    };
 
     let mut generator_limit = GENERATORS_LIMIT;
     if let Some(limit) = config.generator_limit {
@@ -394,28 +356,33 @@ fn checkpoint_user_boost(
     let mut send_rewards_msg: Vec<WasmMsg> = vec![];
     for generator in generators {
         let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
-        let user = USER_INFO.may_load(deps.storage, (&generator_addr, &info.sender))?;
+        let user_info = USER_INFO.may_load(deps.storage, (&generator_addr, &recipient_addr))?;
 
         // calculates the emission boost  only for user who has LP in generator
-        if let Some(user) = user {
-            let pool = POOL_INFO.load(deps.storage, &generator_addr)?;
+        if let Some(mut user_info) = user_info {
+            let mut pool = POOL_INFO.load(deps.storage, &generator_addr)?;
+            accumulate_rewards_per_share(&deps.querier, &env, &generator_addr, &mut pool, &config)?;
+
             send_rewards_msg.append(&mut send_pending_rewards(
                 deps.as_ref(),
                 &config,
                 &pool,
-                &user,
-                &info.sender,
+                &user_info,
+                &recipient_addr,
             )?);
 
-            let user = update_virtual_amount(
+            let virtual_amount = calculate_virtual_amount(
                 deps.as_ref(),
-                &env,
                 &config,
-                user,
-                &info.sender,
-                &generator_addr,
+                &pool,
+                &user_info,
+                &recipient_addr,
             )?;
-            USER_INFO.save(deps.storage, (&generator_addr, &info.sender), &user)?;
+
+            update_virtual_amount(&mut pool, &mut user_info, virtual_amount)?;
+
+            USER_INFO.save(deps.storage, (&generator_addr, &recipient_addr), &user_info)?;
+            POOL_INFO.save(deps.storage, &generator_addr, &pool)?;
         }
     }
 
@@ -991,7 +958,7 @@ pub fn mass_update_pools(
 ) -> Result<(), ContractError> {
     for lp_token in lp_tokens {
         let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
-        accumulate_rewards_per_share(&deps.querier, env, lp_token, &mut pool, cfg, None)?;
+        accumulate_rewards_per_share(&deps.querier, env, lp_token, &mut pool, cfg)?;
         POOL_INFO.save(deps.storage, lp_token, &pool)?;
     }
 
@@ -1023,26 +990,27 @@ pub fn claim_rewards(
 
     let mut send_rewards_msg: Vec<WasmMsg> = vec![];
     for lp_token in &lp_tokens {
-        let pool = POOL_INFO.load(deps.storage, lp_token)?;
-        let user_info = USER_INFO.compatible_load(deps.storage, (lp_token, &account))?;
+        let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
+        let user = USER_INFO.compatible_load(deps.storage, (lp_token, &account))?;
 
         send_rewards_msg.append(&mut send_pending_rewards(
             deps.as_ref(),
             &cfg,
             &pool,
-            &user_info,
+            &user,
             &account,
         )?);
 
         // Update user's amount
-        let amount = user_info.amount;
-        let user_info = update_user_balance(user_info, &pool, amount)?;
+        let amount = user.amount;
+        let mut user = update_user_balance(user, &pool, amount)?;
 
-        // Update user's emission boost balance
-        let user_info =
-            update_virtual_amount(deps.as_ref(), &env, &cfg, user_info, &account, lp_token)?;
+        // Update user's virtual amount
+        let virtual_amount = calculate_virtual_amount(deps.as_ref(), &cfg, &pool, &user, &account)?;
+        update_virtual_amount(&mut pool, &mut user, virtual_amount)?;
 
-        USER_INFO.save(deps.storage, (lp_token, &account), &user_info)?;
+        USER_INFO.save(deps.storage, (lp_token, &account), &user)?;
+        POOL_INFO.save(deps.storage, lp_token, &pool)?;
     }
 
     Ok(response
@@ -1072,7 +1040,6 @@ pub fn accumulate_rewards_per_share(
     lp_token: &Addr,
     pool: &mut PoolInfo,
     cfg: &Config,
-    deposited: Option<Uint128>,
 ) -> StdResult<()> {
     let lp_supply: Uint128;
 
@@ -1094,19 +1061,8 @@ pub fn accumulate_rewards_per_share(
             }
         }
         None => {
-            let res: BalanceResponse = querier.query_wasm_smart(
-                lp_token,
-                &cw20::Cw20QueryMsg::Balance {
-                    address: env.contract.address.to_string(),
-                },
-            )?;
-
-            if let Some(amount) = deposited {
-                // On deposit, the contract's LP token balance is already increased, so we need to subtract the
-                lp_supply = res.balance.checked_sub(amount)?;
-            } else {
-                lp_supply = res.balance;
-            }
+            // we should calculate rewards by previous virtual amount
+            lp_supply = pool.total_virtual_supply;
         }
     };
 
@@ -1117,8 +1073,7 @@ pub fn accumulate_rewards_per_share(
             let token_rewards = calculate_rewards(env, pool, &alloc_point, cfg)?;
 
             let share = Decimal::from_ratio(token_rewards, lp_supply);
-            pool.accumulated_rewards_per_share =
-                pool.accumulated_rewards_per_share.checked_add(share)?;
+            pool.reward_global_index = pool.reward_global_index.checked_add(share)?;
         }
 
         pool.last_reward_block = Uint64::from(env.block.height);
@@ -1206,16 +1161,8 @@ pub fn send_pending_rewards(
 
     let mut messages = vec![];
 
-    // calculate user pending rewards by virtual amount if user voting power exists
-    let pending_rewards = if !user.virtual_amount.is_zero() {
-        pool.accumulated_rewards_per_share
-            .checked_mul(user.virtual_amount)?
-            .checked_sub(user.reward_debt)?
-    } else {
-        pool.accumulated_rewards_per_share
-            .checked_mul(user.amount)?
-            .checked_sub(user.reward_debt)?
-    };
+    let pending_rewards =
+        (pool.reward_global_index - user.reward_user_index).checked_mul(user.virtual_amount)?;
 
     if !pending_rewards.is_zero() {
         messages.push(WasmMsg::Execute {
@@ -1293,14 +1240,7 @@ pub fn deposit(
     let cfg = CONFIG.load(deps.storage)?;
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
-    accumulate_rewards_per_share(
-        &deps.querier,
-        &env,
-        &lp_token,
-        &mut pool,
-        &cfg,
-        Some(amount),
-    )?;
+    accumulate_rewards_per_share(&deps.querier, &env, &lp_token, &mut pool, &cfg)?;
 
     // Send pending rewards (if any) to the depositor
     let send_rewards_msg = send_pending_rewards(deps.as_ref(), &cfg, &pool, &user, &beneficiary)?;
@@ -1332,10 +1272,11 @@ pub fn deposit(
 
     // Update user's LP token balance
     let updated_amount = user.amount.checked_add(amount)?;
-    let user = update_user_balance(user, &pool, updated_amount)?;
+    let mut user = update_user_balance(user, &pool, updated_amount)?;
 
-    // Update user's emission boost balance
-    let user = update_virtual_amount(deps.as_ref(), &env, &cfg, user, &beneficiary, &lp_token)?;
+    let virtual_amount = calculate_virtual_amount(deps.as_ref(), &cfg, &pool, &user, &beneficiary)?;
+
+    update_virtual_amount(&mut pool, &mut user, virtual_amount)?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
     USER_INFO.save(deps.storage, (&lp_token, &beneficiary), &user)?;
@@ -1378,7 +1319,7 @@ pub fn withdraw(
     let cfg = CONFIG.load(deps.storage)?;
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
-    accumulate_rewards_per_share(&deps.querier, &env, &lp_token, &mut pool, &cfg, None)?;
+    accumulate_rewards_per_share(&deps.querier, &env, &lp_token, &mut pool, &cfg)?;
 
     // Send pending rewards to the user
     let send_rewards_msg = send_pending_rewards(deps.as_ref(), &cfg, &pool, &user, &account)?;
@@ -1419,10 +1360,10 @@ pub fn withdraw(
 
     // Update user's balance
     let updated_amount = user.amount.checked_sub(amount)?;
-    let user = update_user_balance(user, &pool, updated_amount)?;
+    let mut user = update_user_balance(user, &pool, updated_amount)?;
 
-    // Update user's emission boost balance
-    let user = update_virtual_amount(deps.as_ref(), &env, &cfg, user, &account, &lp_token)?;
+    let virtual_amount = calculate_virtual_amount(deps.as_ref(), &cfg, &pool, &user, &account)?;
+    update_virtual_amount(&mut pool, &mut user, virtual_amount)?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
 
@@ -1756,7 +1697,7 @@ fn migrate_proxy_callback(
 ) -> Result<Response, ContractError> {
     let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
     let cfg = CONFIG.load(deps.storage)?;
-    accumulate_rewards_per_share(&deps.querier, &env, &lp_addr, &mut pool_info, &cfg, None)?;
+    accumulate_rewards_per_share(&deps.querier, &env, &lp_addr, &mut pool_info, &cfg)?;
 
     // We've checked this before the callback so it's safe to unwrap here
     let prev_proxy_addr = pool_info.reward_proxy.clone().unwrap();
@@ -2022,11 +1963,14 @@ fn update_allowed_proxies(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
+        QueryMsg::TotalVirtualSupply { generator } => {
+            Ok(to_binary(&total_virtual_supply(deps, generator)?)?)
+        }
         QueryMsg::ActivePoolLength {} => Ok(to_binary(&active_pool_length(deps)?)?),
         QueryMsg::PoolLength {} => Ok(to_binary(&pool_length(deps)?)?),
-        QueryMsg::EmissionsBoostRewards { lp_token, user } => Ok(to_binary(
-            &query_emissions_boost_rewards(deps, lp_token, user)?,
-        )?),
+        QueryMsg::EmissionsBoostRewards { lp_token, user } => {
+            Ok(to_binary(&query_virtual_amount(deps, lp_token, user)?)?)
+        }
         QueryMsg::Deposit { lp_token, user } => {
             Ok(to_binary(&query_deposit(deps, lp_token, user)?)?)
         }
@@ -2081,6 +2025,15 @@ pub fn pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
 }
 
 /// ## Description
+/// Return total virtual supply by pool
+pub fn total_virtual_supply(deps: Deps, generator: String) -> Result<Uint128, ContractError> {
+    let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
+    let pool = POOL_INFO.load(deps.storage, &generator_addr)?;
+
+    Ok(pool.total_virtual_supply)
+}
+
+/// ## Description
 /// Returns a [`ContractError`] on failure, otherwise returns the amount of active generators
 /// using a [`PoolLengthResponse`] object.
 pub fn active_pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
@@ -2116,7 +2069,7 @@ pub fn query_deposit(deps: Deps, lp_token: String, user: String) -> Result<Uint1
 /// * **lp_token** is an object of type [`String`]. This is the LP token for which we query the user's emission rewards for.
 ///
 /// * **user** is an object of type [`String`]. This is the user whose emission we query.
-pub fn query_emissions_boost_rewards(
+pub fn query_virtual_amount(
     deps: Deps,
     lp_token: String,
     user: String,
@@ -2195,32 +2148,23 @@ pub fn pending_token(
             }
         }
         None => {
-            lp_supply = query_token_balance(
-                &deps.querier,
-                lp_token.clone(),
-                env.contract.address.clone(),
-            )?;
+            lp_supply = pool.total_virtual_supply;
         }
     }
 
-    let mut acc_per_share = pool.accumulated_rewards_per_share;
+    let mut acc_per_share = pool.reward_global_index;
     if env.block.height > pool.last_reward_block.u64() && !lp_supply.is_zero() {
         let alloc_point = get_alloc_point(&cfg.active_pools, &lp_token);
 
         let token_rewards = calculate_rewards(&env, &pool, &alloc_point, &cfg)?;
         let share = Decimal::from_ratio(token_rewards, lp_supply);
-        acc_per_share = pool.accumulated_rewards_per_share.checked_add(share)?;
+        acc_per_share = pool.reward_global_index.checked_add(share)?;
     }
 
-    // calculate user pending rewards by virtual amount if user voting power exists
-    let pending_rewards = if !user_info.virtual_amount.is_zero() {
-        acc_per_share
-            .checked_mul(user_info.virtual_amount)?
-            .checked_sub(user_info.reward_debt)?
+    let pending_rewards = if pool.reward_proxy.is_some() {
+        (acc_per_share - user_info.reward_user_index).checked_mul(user_info.amount)?
     } else {
-        acc_per_share
-            .checked_mul(user_info.amount)?
-            .checked_sub(user_info.reward_debt)?
+        (acc_per_share - user_info.reward_user_index).checked_mul(user_info.virtual_amount)?
     };
 
     Ok(PendingTokenResponse {
@@ -2382,7 +2326,6 @@ fn query_pool_info(
         astro_tokens_per_block,
         last_reward_block: pool.last_reward_block.u64(),
         current_block: env.block.height,
-        accumulated_rewards_per_share: pool.accumulated_rewards_per_share,
         pending_astro_rewards,
         reward_proxy: pool.reward_proxy,
         pending_proxy_rewards: pending_on_proxy,
@@ -2393,6 +2336,7 @@ fn query_pool_info(
         proxy_reward_balance_before_update: pool.proxy_reward_balance_before_update,
         orphan_proxy_rewards: pool.orphan_proxy_rewards.inner_ref().clone(),
         lp_supply,
+        global_reward_index: pool.reward_global_index,
     })
 }
 
@@ -2562,12 +2506,13 @@ pub fn create_pool(
         lp_token,
         &PoolInfo {
             last_reward_block: cfg.start_block.max(Uint64::from(env.block.height)),
-            accumulated_rewards_per_share: Decimal::zero(),
             reward_proxy: None,
             accumulated_proxy_rewards_per_share: Default::default(),
             proxy_reward_balance_before_update: Uint128::zero(),
             orphan_proxy_rewards: Default::default(),
             has_asset_rewards: false,
+            reward_global_index: Decimal::zero(),
+            total_virtual_supply: Default::default(),
         },
     )?;
 
@@ -2624,11 +2569,12 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                         has_asset_rewards: false,
                         accumulated_proxy_rewards_per_share,
                         orphan_proxy_rewards,
-                        accumulated_rewards_per_share: pool_info_v100.accumulated_rewards_per_share,
                         last_reward_block: pool_info_v100.last_reward_block,
                         proxy_reward_balance_before_update: pool_info_v100
                             .proxy_reward_balance_before_update,
                         reward_proxy: pool_info_v100.reward_proxy,
+                        reward_global_index: pool_info_v100.accumulated_rewards_per_share,
+                        total_virtual_supply: Default::default(),
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
@@ -2672,11 +2618,12 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                         has_asset_rewards: pool_info_v110.has_asset_rewards,
                         accumulated_proxy_rewards_per_share,
                         orphan_proxy_rewards,
-                        accumulated_rewards_per_share: pool_info_v110.accumulated_rewards_per_share,
                         last_reward_block: pool_info_v110.last_reward_block,
                         proxy_reward_balance_before_update: pool_info_v110
                             .proxy_reward_balance_before_update,
                         reward_proxy: pool_info_v110.reward_proxy,
+                        reward_global_index: pool_info_v110.reward_global_index,
+                        total_virtual_supply: pool_info_v110.total_virtual_supply,
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
@@ -2712,11 +2659,12 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                         has_asset_rewards: pool_info_v120.has_asset_rewards,
                         accumulated_proxy_rewards_per_share,
                         orphan_proxy_rewards,
-                        accumulated_rewards_per_share: pool_info_v120.accumulated_rewards_per_share,
                         last_reward_block: pool_info_v120.last_reward_block,
                         proxy_reward_balance_before_update: pool_info_v120
                             .proxy_reward_balance_before_update,
                         reward_proxy: pool_info_v120.reward_proxy,
+                        reward_global_index: pool_info_v120.reward_global_index,
+                        total_virtual_supply: pool_info_v120.total_virtual_supply,
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
@@ -2749,15 +2697,23 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                         update_proxy_asset(deps.branch(), proxy)?;
                     }
 
+                    let res: BalanceResponse = deps.querier.query_wasm_smart(
+                        key.clone(),
+                        &cw20::Cw20QueryMsg::Balance {
+                            address: env.contract.address.to_string(),
+                        },
+                    )?;
+
                     let pool_info = PoolInfo {
                         has_asset_rewards: pool_info_v130.has_asset_rewards,
                         accumulated_proxy_rewards_per_share,
                         orphan_proxy_rewards,
-                        accumulated_rewards_per_share: pool_info_v130.accumulated_rewards_per_share,
                         last_reward_block: pool_info_v130.last_reward_block,
                         proxy_reward_balance_before_update: pool_info_v130
                             .proxy_reward_balance_before_update,
                         reward_proxy: pool_info_v130.reward_proxy,
+                        reward_global_index: pool_info_v130.reward_global_index,
+                        total_virtual_supply: res.balance.multiply_ratio(4u128, 10u128),
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }

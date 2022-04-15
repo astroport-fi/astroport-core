@@ -35,7 +35,7 @@ pub struct PoolInfoV110 {
     pub alloc_point: Uint64,
     /// Accumulated amount of reward per share unit. Used for reward calculations
     pub last_reward_block: Uint64,
-    pub accumulated_rewards_per_share: Decimal,
+    pub reward_global_index: Decimal,
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
     pub accumulated_proxy_rewards_per_share: Decimal,
@@ -45,6 +45,7 @@ pub struct PoolInfoV110 {
     pub orphan_proxy_rewards: Uint128,
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
+    pub total_virtual_supply: Uint128,
 }
 
 /// Stores the contract config(V1.1.0) at the given key
@@ -54,7 +55,7 @@ pub const POOL_INFOV110: Map<&Addr, PoolInfoV110> = Map::new("pool_info");
 pub struct PoolInfoV120 {
     /// Accumulated amount of reward per share unit. Used for reward calculations
     pub last_reward_block: Uint64,
-    pub accumulated_rewards_per_share: Decimal,
+    pub reward_global_index: Decimal,
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
     pub accumulated_proxy_rewards_per_share: Decimal,
@@ -64,6 +65,7 @@ pub struct PoolInfoV120 {
     pub orphan_proxy_rewards: Uint128,
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
+    pub total_virtual_supply: Uint128,
 }
 
 /// Stores the contract config(V1.2.0) at the given key
@@ -73,7 +75,7 @@ pub const POOL_INFOV120: Map<&Addr, PoolInfoV120> = Map::new("pool_info");
 pub struct PoolInfoV130 {
     /// Accumulated amount of reward per share unit. Used for reward calculations
     pub last_reward_block: Uint64,
-    pub accumulated_rewards_per_share: Decimal,
+    pub reward_global_index: Decimal,
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
     pub accumulated_proxy_rewards_per_share: Decimal,
@@ -83,6 +85,7 @@ pub struct PoolInfoV130 {
     pub orphan_proxy_rewards: Uint128,
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
+    pub total_virtual_supply: Uint128,
 }
 
 /// Stores the contract config(V1.3.0) at the given key

@@ -2,10 +2,15 @@ use astroport::asset::{addr_validate_to_lower, AssetInfo};
 use astroport::common::OwnershipProposal;
 use astroport::generator::{PoolInfo, RestrictedVector, UserInfo, UserInfoV2};
 use astroport::DecimalCheckedOps;
+use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
+
 use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128, Uint64};
+
+use cosmwasm_std::{Decimal, Deps};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::cmp::min;
 use std::collections::HashMap;
 
 /// This structure stores the core parameters for the Generator contract.
@@ -110,7 +115,7 @@ pub trait CompatibleLoader<K, R> {
 impl CompatibleLoader<(&Addr, &Addr), UserInfoV2> for Map<'_, (&Addr, &Addr), UserInfoV2> {
     fn compatible_load(&self, store: &dyn Storage, key: (&Addr, &Addr)) -> StdResult<UserInfoV2> {
         self.load(store, key).or_else(|_| {
-            let user_info = OLD_USER_INFO.load(store, key)?;
+            let old_user_info = OLD_USER_INFO.load(store, key)?;
             let pool_info = POOL_INFO.load(store, key.0)?;
             let mut reward_debt_proxy = RestrictedVector::default();
             if let Some((first_reward_proxy, _)) = pool_info
@@ -118,15 +123,25 @@ impl CompatibleLoader<(&Addr, &Addr), UserInfoV2> for Map<'_, (&Addr, &Addr), Us
                 .inner_ref()
                 .first()
             {
-                reward_debt_proxy =
-                    RestrictedVector::new(first_reward_proxy.clone(), user_info.reward_debt_proxy)
+                reward_debt_proxy = RestrictedVector::new(
+                    first_reward_proxy.clone(),
+                    old_user_info.reward_debt_proxy,
+                )
             }
 
+            let current_reward = pool_info
+                .reward_global_index
+                .checked_mul(old_user_info.amount)?
+                .checked_sub(old_user_info.reward_debt)?;
+
+            let user_index = pool_info.reward_global_index
+                - Decimal::from_ratio(current_reward, old_user_info.amount);
+
             let user_info = UserInfoV2 {
-                amount: user_info.amount,
-                reward_debt: user_info.reward_debt,
+                amount: old_user_info.amount,
+                reward_user_index: user_index,
                 reward_debt_proxy,
-                virtual_amount: Default::default(),
+                virtual_amount: old_user_info.amount,
             };
 
             Ok(user_info)
@@ -160,12 +175,7 @@ pub fn update_user_balance(
     amount: Uint128,
 ) -> StdResult<UserInfoV2> {
     user.amount = amount;
-
-    if !pool.accumulated_rewards_per_share.is_zero() {
-        user.reward_debt = pool
-            .accumulated_rewards_per_share
-            .checked_mul(user.amount)?;
-    };
+    user.reward_user_index = pool.reward_global_index;
 
     user.reward_debt_proxy = pool
         .accumulated_proxy_rewards_per_share
@@ -223,6 +233,57 @@ pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
         };
         PROXY_REWARD_ASSET.save(deps.storage, proxy_addr, &asset)?
     }
+
+    Ok(())
+}
+
+/// Calculates emission boost amount for specified user and generator
+///
+/// **b_u = min(0.4 * b_u + 0.6 * S * (w_i / W), b_u)**
+///
+/// - b_u is the amount of LP tokens a user staked in a generator
+///
+/// - S is the virtual total amount of LP tokens staked in a generator: virtual_amount = totalLP * 0.4;
+/// - w_i is a user’s current vxASTRO balance
+/// - W is the total amount of vxASTRO
+pub(crate) fn calculate_virtual_amount(
+    deps: Deps,
+    cfg: &Config,
+    pool: &PoolInfo,
+    user_info: &UserInfoV2,
+    account: &Addr,
+) -> StdResult<Uint128> {
+    let mut user_vp = Uint128::zero();
+    let mut total_vp = Uint128::zero();
+
+    if let Some(voting_escrow) = &cfg.voting_escrow {
+        user_vp = get_voting_power(deps.querier, voting_escrow, account)?;
+        total_vp = get_total_voting_power(deps.querier, voting_escrow)?;
+    }
+
+    let user_virtual_share = user_info.amount.multiply_ratio(4u128, 10u128);
+    let total_virtual_share = pool.total_virtual_supply.multiply_ratio(6u128, 10u128);
+
+    let vx_share_emission = if !total_vp.is_zero() {
+        Decimal::from_ratio(user_vp, total_vp)
+    } else {
+        Decimal::zero()
+    };
+
+    Ok(user_virtual_share.checked_add(vx_share_emission.checked_mul(total_virtual_share)?)?)
+}
+
+pub(crate) fn update_virtual_amount(
+    pool: &mut PoolInfo,
+    user_info: &mut UserInfoV2,
+    virtual_amount: Uint128,
+) -> StdResult<()> {
+    pool.total_virtual_supply = pool
+        .total_virtual_supply
+        .checked_sub(user_info.virtual_amount)?
+        .checked_add(virtual_amount)?;
+
+    user_info.virtual_amount = min(virtual_amount, user_info.amount);
 
     Ok(())
 }

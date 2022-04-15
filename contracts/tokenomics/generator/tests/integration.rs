@@ -163,6 +163,7 @@ fn test_boost_checkpoints() {
             helper_controller.generator.clone(),
             &ExecuteMsg::CheckpointUserBoost {
                 generators: vec![lp_cny_eur.to_string(); 26],
+                user: Some(USER1.to_string()),
             },
             &[],
         )
@@ -221,6 +222,7 @@ fn test_boost_checkpoints() {
         helper_controller.generator.clone(),
         &ExecuteMsg::CheckpointUserBoost {
             generators: vec![lp_cny_eur.to_string()],
+            user: Some(USER2.to_string()),
         },
         &[],
     )

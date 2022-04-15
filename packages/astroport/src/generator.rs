@@ -160,11 +160,7 @@ pub enum ExecuteMsg {
     /// Updates the boost emissions for specified user and generators
     CheckpointUserBoost {
         generators: Vec<String>,
-    },
-    /// Kick a staker for specified generators if they abuse their boost
-    KickUserBoost {
-        user: String,
-        generators: Vec<String>,
+        user: Option<String>,
     },
 }
 
@@ -200,6 +196,8 @@ pub enum QueryMsg {
     },
     /// Returns the blocked list of tokens
     BlockedTokensList {},
+    /// Returns the total virtual supply by generator
+    TotalVirtualSupply { generator: String },
 }
 
 /// This structure holds the response returned when querying the total length of the array that keeps track of instantiated generators
@@ -289,7 +287,7 @@ impl<T> From<Vec<(Addr, T)>> for RestrictedVector<T> {
 pub struct PoolInfo {
     /// Accumulated amount of reward per share unit. Used for reward calculations
     pub last_reward_block: Uint64,
-    pub accumulated_rewards_per_share: Decimal,
+    pub reward_global_index: Decimal,
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
     /// Accumulated reward indexes per reward proxy. Vector of pairs (reward_proxy, index).
@@ -300,6 +298,8 @@ pub struct PoolInfo {
     pub orphan_proxy_rewards: RestrictedVector<Uint128>,
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
+    /// Total virtual amount
+    pub total_virtual_supply: Uint128,
 }
 
 /// This structure stores the outstanding amount of token rewards that a user accrued.
@@ -321,7 +321,7 @@ pub struct UserInfoV2 {
     /// The amount of LP tokens staked
     pub amount: Uint128,
     /// The amount of ASTRO rewards a user already received or is not eligible for; used for proper reward calculation
-    pub reward_debt: Uint128,
+    pub reward_user_index: Decimal,
     /// Proxy reward amount a user already received per reward proxy; used for proper reward calculation
     /// Vector of pairs (reward_proxy, reward debited).
     pub reward_debt_proxy: RestrictedVector<Uint128>,
@@ -350,7 +350,7 @@ pub struct PoolInfoResponse {
     /// Current block number. Useful for computing APRs off-chain
     pub current_block: u64,
     /// Total amount of ASTRO rewards already accumulated per LP token staked
-    pub accumulated_rewards_per_share: Decimal,
+    pub global_reward_index: Decimal,
     /// Pending amount of total ASTRO rewards which are claimable by stakers right now
     pub pending_astro_rewards: Uint128,
     /// The address of the 3rd party reward proxy contract
