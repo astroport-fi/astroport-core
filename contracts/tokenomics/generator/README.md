@@ -315,20 +315,8 @@ Updates emissions boost for specified generators
 ```json
 {
   "checkpoint_user_boost": {
-    "generators": ["terra...", "terra..."]
-  }
-}
-```
-
-### `kick_user_boost`
-
-Kick a staker for specified generators if they abuse their boost
-
-```json
-{
-  "kick_user_boost": {
-    "user": "terra...",
-    "generators": ["terra...", "terra..."]
+    "generators": ["terra...", "terra..."],
+    "user": "terra..."
   }
 }
 ```
@@ -466,15 +454,27 @@ Returns the total amount of active generators.
 }
 ```
 
-### `emissions_boost_rewards`
+### `user_virtual_amount`
 
-Returns the total amount of emissions boosted.
+Returns the current virtual amount in a specific generator
 
 ```json
 {
-  "emissions_boost_rewards": {
+  "user_virtual_amount": {
     "lp_token": "terra...",
     "user": "terra..."
+  }
+}
+```
+
+### `total_virtual_amount`
+
+Returns the total virtual supply of generator
+
+```json
+{
+  "total_virtual_amount": {
+    "lp_token": "terra..."
   }
 }
 ```

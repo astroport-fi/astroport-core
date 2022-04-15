@@ -173,7 +173,7 @@ pub enum QueryMsg {
     PoolLength {},
     /// Deposit returns the LP token amount deposited in a specific generator
     Deposit { lp_token: String, user: String },
-    /// Returns the current virtual amount amount in a specific generator
+    /// Returns the current virtual amount in a specific generator
     UserVirtualAmount { lp_token: String, user: String },
     /// Returns the total virtual supply of generator
     TotalVirtualSupply { generator: String },

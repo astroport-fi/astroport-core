@@ -1088,7 +1088,7 @@ fn generator_without_reward_proxies() {
     check_token_balance(&mut app, &lp_cny_eur, &user2, 10);
 
     check_token_balance(&mut app, &astro_token_instance, &user1, 0);
-    check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000);
+    check_token_balance(&mut app, &astro_token_instance, &user2, 3_000000);
     // 7 + 2 distributed ASTRO (for other pools). 5 orphaned by emergency withdrawals, 6 transfered to User2
 
     // User1 withdraws and gets rewards
@@ -1129,7 +1129,7 @@ fn generator_without_reward_proxies() {
     check_token_balance(&mut app, &lp_eur_usd, &user2, 10);
 
     check_token_balance(&mut app, &astro_token_instance, &user1, 7_000000);
-    check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000 + 2_000000);
+    check_token_balance(&mut app, &astro_token_instance, &user2, 5_000000);
 }
 
 #[test]
@@ -1514,7 +1514,7 @@ fn generator_with_mirror_reward_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER2,
-        (6_000000, Some(vec![60_000000])),
+        (3_000000, Some(vec![60_000000])),
     );
     check_pending_rewards(
         &mut app,
@@ -1602,7 +1602,7 @@ fn generator_with_mirror_reward_proxy() {
 
     check_token_balance(&mut app, &astro_token_instance, &user1, 0);
     check_token_balance(&mut app, &mirror_token_instance, &user1, 0);
-    check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000);
+    check_token_balance(&mut app, &astro_token_instance, &user2, 3_000000);
     check_token_balance(&mut app, &mirror_token_instance, &user2, 60_000000);
     // 7 + 2 ASTRO were distributed (for other pools). 5 tokens were orphaned by the emergency withdrawal, 6 were transfered to User2
     check_token_balance(
@@ -1653,7 +1653,7 @@ fn generator_with_mirror_reward_proxy() {
 
     check_token_balance(&mut app, &astro_token_instance, &user1, 7_000000);
     check_token_balance(&mut app, &mirror_token_instance, &user1, 0_000000);
-    check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000 + 2_000000);
+    check_token_balance(&mut app, &astro_token_instance, &user2, 5_000000);
     check_token_balance(&mut app, &mirror_token_instance, &user2, 60_000000);
     check_token_balance(
         &mut app,
