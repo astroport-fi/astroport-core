@@ -2161,11 +2161,9 @@ pub fn pending_token(
         acc_per_share = pool.reward_global_index.checked_add(share)?;
     }
 
-    let pending_rewards = if pool.reward_proxy.is_some() {
-        (acc_per_share - user_info.reward_user_index).checked_mul(user_info.amount)?
-    } else {
-        (acc_per_share - user_info.reward_user_index).checked_mul(user_info.virtual_amount)?
-    };
+    // we should calculate rewards by virtual amount
+    let pending_rewards =
+        (acc_per_share - user_info.reward_user_index).checked_mul(user_info.virtual_amount)?;
 
     Ok(PendingTokenResponse {
         pending: pending_rewards,
