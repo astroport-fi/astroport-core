@@ -43,9 +43,6 @@ pub enum ContractError {
     #[error("ASTRO or Terra native assets (UST, LUNA etc) cannot be blocked!")]
     AssetCannotBeBlocked {},
 
-    #[error("Generator controller is not found!")]
-    GeneratorControllerNotFound {},
-
     #[error("Maximum generator limit exceeded!")]
     GeneratorsLimitExceeded {},
 }

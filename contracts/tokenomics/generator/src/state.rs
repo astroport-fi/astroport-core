@@ -1,7 +1,10 @@
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 use astroport::common::OwnershipProposal;
-use astroport::generator::{PoolInfo, RestrictedVector, UserInfo, UserInfoV2};
 use astroport::DecimalCheckedOps;
+use astroport::{
+    generator::{PoolInfo, RestrictedVector, UserInfo, UserInfoV2},
+    generator_proxy::QueryMsg as ProxyQueryMsg,
+};
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
 
 use cosmwasm_std::{Addr, DepsMut, Env, StdResult, Storage, Uint128, Uint64};
@@ -267,13 +270,19 @@ pub(crate) fn update_virtual_amount(
 
     let user_virtual_share = user_info.amount.multiply_ratio(4u128, 10u128);
 
-    let res: BalanceResponse = deps.querier.query_wasm_smart(
-        generator,
-        &cw20::Cw20QueryMsg::Balance {
-            address: env.contract.address.to_string(),
-        },
-    )?;
-    let total_virtual_share = res.balance.multiply_ratio(6u128, 10u128);
+    let lp_balance = if let Some(proxy) = &pool.reward_proxy {
+        deps.querier
+            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
+    } else {
+        let res: BalanceResponse = deps.querier.query_wasm_smart(
+            generator,
+            &cw20::Cw20QueryMsg::Balance {
+                address: env.contract.address.to_string(),
+            },
+        )?;
+        res.balance
+    };
+    let total_virtual_share = lp_balance.multiply_ratio(6u128, 10u128);
 
     let vx_share_emission = if !total_vp.is_zero() {
         Decimal::from_ratio(user_vp, total_vp)

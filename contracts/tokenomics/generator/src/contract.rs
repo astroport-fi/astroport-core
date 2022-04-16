@@ -1124,7 +1124,7 @@ fn receive_cw20(
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::Deposit {} => update_rewards_and_execute(
-            deps.branch(),
+            deps,
             env,
             Some(lp_token.clone()),
             ExecuteOnReply::Deposit {
@@ -1134,7 +1134,7 @@ fn receive_cw20(
             },
         ),
         Cw20HookMsg::DepositFor(beneficiary) => update_rewards_and_execute(
-            deps.branch(),
+            deps,
             env,
             Some(lp_token.clone()),
             ExecuteOnReply::Deposit {
@@ -2583,12 +2583,18 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                         update_proxy_asset(deps.branch(), proxy)?;
                     }
 
-                    let res: BalanceResponse = deps.querier.query_wasm_smart(
-                        key.clone(),
-                        &cw20::Cw20QueryMsg::Balance {
-                            address: env.contract.address.to_string(),
-                        },
-                    )?;
+                    let lp_balance = if let Some(proxy) = &pool_info_v100.reward_proxy {
+                        deps.querier
+                            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
+                    } else {
+                        let res: BalanceResponse = deps.querier.query_wasm_smart(
+                            key.clone(),
+                            &cw20::Cw20QueryMsg::Balance {
+                                address: env.contract.address.to_string(),
+                            },
+                        )?;
+                        res.balance
+                    };
 
                     let pool_info = PoolInfo {
                         has_asset_rewards: false,
@@ -2599,7 +2605,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                             .proxy_reward_balance_before_update,
                         reward_proxy: pool_info_v100.reward_proxy,
                         reward_global_index: pool_info_v100.accumulated_rewards_per_share,
-                        total_virtual_supply: res.balance,
+                        total_virtual_supply: lp_balance,
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
@@ -2639,12 +2645,18 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                         update_proxy_asset(deps.branch(), proxy)?;
                     }
 
-                    let res: BalanceResponse = deps.querier.query_wasm_smart(
-                        key.clone(),
-                        &cw20::Cw20QueryMsg::Balance {
-                            address: env.contract.address.to_string(),
-                        },
-                    )?;
+                    let lp_balance = if let Some(proxy) = &pool_info_v110.reward_proxy {
+                        deps.querier
+                            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
+                    } else {
+                        let res: BalanceResponse = deps.querier.query_wasm_smart(
+                            key.clone(),
+                            &cw20::Cw20QueryMsg::Balance {
+                                address: env.contract.address.to_string(),
+                            },
+                        )?;
+                        res.balance
+                    };
 
                     let pool_info = PoolInfo {
                         has_asset_rewards: pool_info_v110.has_asset_rewards,
@@ -2655,7 +2667,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                             .proxy_reward_balance_before_update,
                         reward_proxy: pool_info_v110.reward_proxy,
                         reward_global_index: pool_info_v110.accumulated_rewards_per_share,
-                        total_virtual_supply: res.balance,
+                        total_virtual_supply: lp_balance,
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
@@ -2687,12 +2699,18 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                         update_proxy_asset(deps.branch(), proxy)?;
                     }
 
-                    let res: BalanceResponse = deps.querier.query_wasm_smart(
-                        key.clone(),
-                        &cw20::Cw20QueryMsg::Balance {
-                            address: env.contract.address.to_string(),
-                        },
-                    )?;
+                    let lp_balance = if let Some(proxy) = &pool_info_v120.reward_proxy {
+                        deps.querier
+                            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
+                    } else {
+                        let res: BalanceResponse = deps.querier.query_wasm_smart(
+                            key.clone(),
+                            &cw20::Cw20QueryMsg::Balance {
+                                address: env.contract.address.to_string(),
+                            },
+                        )?;
+                        res.balance
+                    };
 
                     let pool_info = PoolInfo {
                         has_asset_rewards: pool_info_v120.has_asset_rewards,
@@ -2703,7 +2721,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                             .proxy_reward_balance_before_update,
                         reward_proxy: pool_info_v120.reward_proxy,
                         reward_global_index: pool_info_v120.accumulated_rewards_per_share,
-                        total_virtual_supply: res.balance,
+                        total_virtual_supply: lp_balance,
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
@@ -2721,12 +2739,18 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     let pool_info_v130 = migration::POOL_INFOV130
                         .load(deps.storage, &Addr::unchecked(key.clone()))?;
 
-                    let res: BalanceResponse = deps.querier.query_wasm_smart(
-                        key.clone(),
-                        &cw20::Cw20QueryMsg::Balance {
-                            address: env.contract.address.to_string(),
-                        },
-                    )?;
+                    let lp_balance = if let Some(proxy) = &pool_info_v130.reward_proxy {
+                        deps.querier
+                            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
+                    } else {
+                        let res: BalanceResponse = deps.querier.query_wasm_smart(
+                            key.clone(),
+                            &cw20::Cw20QueryMsg::Balance {
+                                address: env.contract.address.to_string(),
+                            },
+                        )?;
+                        res.balance
+                    };
 
                     let pool_info = PoolInfo {
                         has_asset_rewards: pool_info_v130.has_asset_rewards,
@@ -2738,7 +2762,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                             .proxy_reward_balance_before_update,
                         reward_proxy: pool_info_v130.reward_proxy,
                         reward_global_index: pool_info_v130.accumulated_rewards_per_share,
-                        total_virtual_supply: res.balance,
+                        total_virtual_supply: lp_balance,
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
