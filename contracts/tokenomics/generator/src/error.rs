@@ -42,6 +42,9 @@ pub enum ContractError {
 
     #[error("ASTRO or Terra native assets (UST, LUNA etc) cannot be blocked!")]
     AssetCannotBeBlocked {},
+
+    #[error("Maximum generator limit exceeded!")]
+    GeneratorsLimitExceeded {},
 }
 
 impl From<OverflowError> for ContractError {
