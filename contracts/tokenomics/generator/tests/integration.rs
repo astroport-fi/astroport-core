@@ -2105,8 +2105,8 @@ fn migrate_proxy() {
         owner.clone(),
         generator_instance.clone(),
         &MigrateMsg {
-            params: Default::default(),
-            whitelist_code_id,
+            whitelist_code_id: Some(whitelist_code_id),
+            ..Default::default()
         },
         new_generator_code_id,
     )

@@ -2552,8 +2552,6 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
     match contract_version.contract.as_ref() {
         "astroport-generator" => match contract_version.version.as_ref() {
             "1.0.0" => {
-                let msg: migration::MigrationMsgV120 = from_binary(&msg.params)?;
-
                 let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 
                 let keys = POOL_INFO
@@ -2610,12 +2608,11 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
 
-                migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?;
+                migration::migrate_configs_to_v120(&mut deps, active_pools, &msg)?;
                 migration::migrate_configs_to_v130(deps.storage)?;
+                migration::migrate_configs_to_v200(&mut deps, &msg)?
             }
             "1.1.0" => {
-                let msg: migration::MigrationMsgV120 = from_binary(&msg.params)?;
-
                 let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 
                 let keys = POOL_INFO
@@ -2672,8 +2669,9 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
 
-                migration::migrate_configs_to_v120(&mut deps, active_pools, msg)?;
+                migration::migrate_configs_to_v120(&mut deps, active_pools, &msg)?;
                 migration::migrate_configs_to_v130(deps.storage)?;
+                migration::migrate_configs_to_v200(&mut deps, &msg)?
             }
             "1.2.0" => {
                 let keys = POOL_INFO
@@ -2726,10 +2724,9 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
                 migration::migrate_configs_to_v130(deps.storage)?;
+                migration::migrate_configs_to_v200(&mut deps, &msg)?
             }
             "1.3.0" => {
-                let msg: migration::MigrationMsgV140 = from_binary(&msg.params)?;
-
                 let keys = POOL_INFO
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
                     .map(|v| String::from_utf8(v).map_err(StdError::from))
@@ -2766,7 +2763,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     };
                     POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                 }
-                migration::migrate_configs_to_v140(&mut deps, msg)?
+                migration::migrate_configs_to_v200(&mut deps, &msg)?
             }
             _ => return Err(ContractError::MigrationError {}),
         },
@@ -2779,8 +2776,11 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
     // Initialize the contract if it is not already initialized
     if PROXY_REWARDS_HOLDER.may_load(deps.storage)?.is_none() {
         let config = CONFIG.load(deps.storage)?;
-        let init_reward_holder_msg =
-            init_proxy_rewards_holder(&config.owner, &env.contract.address, msg.whitelist_code_id)?;
+        let init_reward_holder_msg = init_proxy_rewards_holder(
+            &config.owner,
+            &env.contract.address,
+            msg.whitelist_code_id.unwrap(),
+        )?;
         response = response.add_submessage(init_reward_holder_msg);
     }
 

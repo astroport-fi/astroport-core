@@ -1,7 +1,7 @@
 use crate::state::{Config, CONFIG};
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 
-use astroport::generator::RestrictedVector;
+use astroport::generator::{MigrateMsg, RestrictedVector};
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
@@ -143,24 +143,11 @@ pub const CONFIGV100: Item<ConfigV100> = Item::new("config");
 /// Stores the contract config(V1.2.0) at the given key
 pub const CONFIGV120: Item<ConfigV120> = Item::new("config");
 
-/// This structure describes a contract migration message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrationMsgV120 {
-    /// The Factory address
-    pub factory: String,
-    /// Contract address which can only set active generators and their alloc points
-    pub generator_controller: Option<String>,
-    /// The blocked list of tokens
-    pub blocked_list_tokens: Option<Vec<AssetInfo>>,
-    /// The guardian address
-    pub guardian: Option<String>,
-}
-
 /// Migrate config to V1.2.0
 pub fn migrate_configs_to_v120(
     deps: &mut DepsMut,
     pools: Vec<(Addr, Uint64)>,
-    msg: MigrationMsgV120,
+    msg: &MigrateMsg,
 ) -> Result<(), StdError> {
     let cfg_100 = CONFIGV100.load(deps.storage)?;
     let pools = pools
@@ -170,7 +157,7 @@ pub fn migrate_configs_to_v120(
 
     let mut cfg = ConfigV120 {
         owner: cfg_100.owner,
-        factory: addr_validate_to_lower(deps.api, &msg.factory)?,
+        factory: addr_validate_to_lower(deps.api, &msg.factory.clone().unwrap())?,
         generator_controller: None,
         astro_token: cfg_100.astro_token,
         tokens_per_block: cfg_100.tokens_per_block,
@@ -183,16 +170,16 @@ pub fn migrate_configs_to_v120(
         guardian: None,
     };
 
-    if let Some(generator_controller) = msg.generator_controller {
-        cfg.generator_controller = Some(addr_validate_to_lower(deps.api, &generator_controller)?);
+    if let Some(generator_controller) = &msg.generator_controller {
+        cfg.generator_controller = Some(addr_validate_to_lower(deps.api, generator_controller)?);
     }
 
-    if let Some(blocked_list_tokens) = msg.blocked_list_tokens {
-        cfg.blocked_list_tokens = blocked_list_tokens;
+    if let Some(blocked_list_tokens) = &msg.blocked_list_tokens {
+        cfg.blocked_list_tokens = blocked_list_tokens.to_owned();
     }
 
-    if let Some(guardian) = msg.guardian {
-        cfg.guardian = Some(addr_validate_to_lower(deps.api, &guardian)?);
+    if let Some(guardian) = &msg.guardian {
+        cfg.guardian = Some(addr_validate_to_lower(deps.api, guardian)?);
     }
 
     CONFIGV120.save(deps.storage, &cfg)?;
@@ -203,11 +190,10 @@ pub fn migrate_configs_to_v120(
 /// Migrate config to V1.3.0
 pub fn migrate_configs_to_v130(storage: &mut dyn Storage) -> StdResult<()> {
     let cfg_120 = CONFIGV120.load(storage)?;
-    let cfg = Config {
+    let cfg = ConfigV130 {
         owner: cfg_120.owner,
         factory: cfg_120.factory,
         generator_controller: cfg_120.generator_controller,
-        voting_escrow: None,
         astro_token: cfg_120.astro_token,
         tokens_per_block: cfg_120.tokens_per_block,
         total_alloc_point: cfg_120.total_alloc_point,
@@ -217,10 +203,9 @@ pub fn migrate_configs_to_v130(storage: &mut dyn Storage) -> StdResult<()> {
         active_pools: cfg_120.active_pools,
         blocked_tokens_list: cfg_120.blocked_list_tokens, // renamed this field
         guardian: cfg_120.guardian,
-        checkpoint_generator_limit: None,
     };
 
-    CONFIG.save(storage, &cfg)
+    CONFIGV130.save(storage, &cfg)
 }
 
 /// This structure describes the main control config of generator.
@@ -255,17 +240,8 @@ pub struct ConfigV130 {
 /// Stores the contract config(V1.3.0) at the given key
 pub const CONFIGV130: Item<ConfigV130> = Item::new("config");
 
-/// This structure describes a contract migration message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrationMsgV140 {
-    /// The voting escrow contract
-    pub voting_escrow: Option<String>,
-    /// The limit of generators
-    pub generator_limit: Option<u32>,
-}
-
-/// Migrate config to V1.4.0
-pub fn migrate_configs_to_v140(deps: &mut DepsMut, msg: MigrationMsgV140) -> Result<(), StdError> {
+/// Migrate config to V2.0.0
+pub fn migrate_configs_to_v200(deps: &mut DepsMut, msg: &MigrateMsg) -> Result<(), StdError> {
     let cfg_130 = CONFIGV130.load(deps.storage)?;
 
     let mut cfg = Config {
@@ -285,8 +261,8 @@ pub fn migrate_configs_to_v140(deps: &mut DepsMut, msg: MigrationMsgV140) -> Res
         checkpoint_generator_limit: None,
     };
 
-    if let Some(voting_escrow) = msg.voting_escrow {
-        cfg.voting_escrow = Some(addr_validate_to_lower(deps.api, &voting_escrow)?);
+    if let Some(voting_escrow) = &msg.voting_escrow {
+        cfg.voting_escrow = Some(addr_validate_to_lower(deps.api, voting_escrow)?);
     }
 
     if let Some(generator_limit) = msg.generator_limit {
