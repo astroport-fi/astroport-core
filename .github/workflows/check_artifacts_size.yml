@@ -10,7 +10,10 @@ jobs:
       - name: Build Artifacts
         run: |
           $GITHUB_WORKSPACE/scripts/build_release.sh
-          maximumsize=550
+
+      - name: Check Artifacts Size
+        run: |
+          maximumsize=200
           for filename in artifacts/*.wasm; do
             actualsize=$(du -k "$filename" | cut -f 1)
             if [ $actualsize -gt maximumsize ]; then
@@ -18,10 +21,7 @@ jobs:
               echo Current $filename size: $actualsize;
               echo Mamimum artifact size: $maximumsize;
               exit 1
-            else
-              echo size is under $minimumsize Kbytes
             fi
           done
-
 
 
