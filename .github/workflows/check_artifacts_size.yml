@@ -1,0 +1,30 @@
+name: Check Artifacts Size
+on:
+  push:
+
+jobs:
+  check-artifacts-size:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build Artifacts
+        run: |
+          $GITHUB_WORKSPACE/scripts/build_release.sh
+      - uses: actions/checkout@v2
+      - name: Check artifacts size
+        run: |
+          maximumsize=550
+          for filename in artifacts/*.wasm; do
+            actualsize=$(du -k "$filename" | cut -f 1)
+            if [ $actualsize -gt maximumsize ]; then
+              echo Artifact file size exceeded: $filename;
+              echo Current $filename size: $actualsize;
+              echo Mamimum artifact size: $maximumsize;
+              exit 1
+            else
+              echo size is under $minimumsize Kbytes
+            fi
+          done
+
+
+
