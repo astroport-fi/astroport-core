@@ -10,9 +10,6 @@ jobs:
       - name: Build Artifacts
         run: |
           $GITHUB_WORKSPACE/scripts/build_release.sh
-      - uses: actions/checkout@v2
-      - name: Check artifacts size
-        run: |
           maximumsize=550
           for filename in artifacts/*.wasm; do
             actualsize=$(du -k "$filename" | cut -f 1)
