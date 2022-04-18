@@ -28,13 +28,13 @@ pub fn calc_ask_amount(
     amp: u64,
 ) -> Option<u128> {
     let leverage = amp.checked_mul(u64::from(N_COINS)).unwrap();
-    let new_offer_pool = offer_pool + offer_amount;
+    let new_offer_pool = offer_pool.checked_add(offer_amount)?;
 
     let d = compute_d(leverage, offer_pool, ask_pool).unwrap();
 
     let new_ask_pool = compute_new_balance(leverage, new_offer_pool, d)?;
 
-    let amount_swapped = ask_pool - new_ask_pool;
+    let amount_swapped = ask_pool.checked_sub(new_ask_pool)?;
     Some(amount_swapped)
 }
 
@@ -55,13 +55,13 @@ pub fn calc_offer_amount(
     amp: u64,
 ) -> Option<u128> {
     let leverage = amp.checked_mul(u64::from(N_COINS)).unwrap();
-    let new_ask_pool = ask_pool - ask_amount;
+    let new_ask_pool = ask_pool.checked_sub(ask_amount)?;
 
     let d = compute_d(leverage, offer_pool, ask_pool).unwrap();
 
     let new_offer_pool = compute_new_balance(leverage, new_ask_pool, d)?;
 
-    let amount_swapped = new_offer_pool - offer_pool;
+    let amount_swapped = new_offer_pool.checked_sub(offer_pool)?;
     Some(amount_swapped)
 }
 
