@@ -6,16 +6,12 @@ use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_pair_info;
 use cosmwasm_std::{to_binary, Coin, Deps, Env, StdResult, SubMsg, Uint128, WasmMsg};
 
+/// The default bridge depth for a fee token
 pub const BRIDGES_INITIAL_DEPTH: u64 = 0;
 /// Maximum amount of bridges to use in a multi-hop swap
 pub const BRIDGES_MAX_DEPTH: u64 = 2;
 /// Swap execution depth limit
 pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 3;
-
-/// UST token denom
-pub const UUSD_DENOM: &str = "uusd";
-/// LUNA token denom
-pub const ULUNA_DENOM: &str = "uluna";
 
 pub fn try_build_swap_msg(
     deps: Deps,
@@ -82,25 +78,24 @@ pub fn build_distribute_msg(
     bridge_assets: Vec<AssetInfo>,
     depth: u64,
 ) -> StdResult<SubMsg> {
-    let msg: SubMsg;
-    if !bridge_assets.is_empty() {
+    let msg = if !bridge_assets.is_empty() {
         // Swap bridge assets
-        msg = SubMsg::new(WasmMsg::Execute {
+        SubMsg::new(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
             msg: to_binary(&ExecuteMsg::SwapBridgeAssets {
                 assets: bridge_assets,
                 depth,
             })?,
             funds: vec![],
-        });
+        })
     } else {
         // Update balances and distribute rewards
-        msg = SubMsg::new(WasmMsg::Execute {
+        SubMsg::new(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
             msg: to_binary(&ExecuteMsg::DistributeAstro {})?,
             funds: vec![],
-        });
-    }
+        })
+    };
 
     Ok(msg)
 }
@@ -141,16 +136,6 @@ pub fn validate_bridge(
     Ok(bridge_pool)
 }
 
-/// # Description
-/// Checks if a pool exists on Astroport.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **cfg** is an object of type [`Config`]. This is the Maker contract configuration.
-///
-/// * **from** is an object of type [`AssetInfo`]. This is the asset to swap from.
-///
-/// * **to** is an object of type [`AssetInfo`]. This is the asset to swap to.
 pub fn get_pool(
     deps: Deps,
     cfg: &Config,

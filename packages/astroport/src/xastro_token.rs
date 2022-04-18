@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{StdError, StdResult, Uint128};
 use cw20::{Cw20Coin, MinterResponse};
 
-/// ## Description
 /// This structure describes the parameters used for creating a xASTRO token contract.
-/// TokenContract InstantiateMsg
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InstantiateMsg {
     /// Token name
@@ -21,7 +19,6 @@ pub struct InstantiateMsg {
     pub mint: Option<MinterResponse>,
 }
 
-/// ## Description
 /// This enum describes the query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -34,17 +31,17 @@ pub enum QueryMsg {
     TotalSupplyAt { block: u64 },
     /// TokenInfo returns the contract's metadata - name, decimals, supply, etc.
     TokenInfo {},
-    /// Returns who can mint and the hard cap on maximum tokens after minting.
+    /// Returns who can mint xASTRO and the hard cap on maximum tokens after minting.
     Minter {},
     /// Allowance returns an amount of tokens the spender can spend from the owner account, 0 if unset.
     Allowance { owner: String, spender: String },
-    /// AllAllowances returns all allowances this owner has approved. Supports pagination.
+    /// AllAllowances returns all the allowances this token holder has approved. Supports pagination.
     AllAllowances {
         owner: String,
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// AllAccounts returns all accounts that have balances. Supports pagination.
+    /// AllAccounts returns all the accounts that have xASTRO balances. Supports pagination.
     AllAccounts {
         start_after: Option<String>,
         limit: Option<u32>,
@@ -56,7 +53,6 @@ pub enum QueryMsg {
     DownloadLogo {},
 }
 
-/// ## Description
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -86,10 +82,9 @@ impl InstantiateMsg {
     }
 }
 
-/// ## Description
-/// Checks the validity of a token's name
+/// Checks the validity of a token's name.
 /// ## Params
-/// * **name** is an object of type [`str`]. It is the token name to check
+/// * **name** is an object of type [`str`]. It is the token name to check.
 fn is_valid_name(name: &str) -> bool {
     let bytes = name.as_bytes();
     if bytes.len() < 3 || bytes.len() > 50 {
@@ -98,10 +93,9 @@ fn is_valid_name(name: &str) -> bool {
     true
 }
 
-/// ## Description
-/// Checks the validity of a token's symbol
+/// Checks the validity of a token's symbol.
 /// ## Params
-/// * **symbol** is an object of type [`str`]. It is the token symbol to check
+/// * **symbol** is an object of type [`str`]. It is the token symbol to check.
 fn is_valid_symbol(symbol: &str) -> bool {
     let bytes = symbol.as_bytes();
     if bytes.len() < 3 || bytes.len() > 12 {

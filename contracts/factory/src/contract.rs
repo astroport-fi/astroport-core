@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
-    Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -22,6 +22,7 @@ use astroport::factory::{
 
 use crate::migration::migrate_pair_configs_to_v120;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::generator::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cw2::{get_contract_version, set_contract_version};
 use protobuf::Message;
@@ -376,7 +377,7 @@ pub fn execute_create_pair(
         ]))
 }
 
-/// # Description
+/// ## Description
 /// The entry point to the contract for processing replies from submessages.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -437,7 +438,21 @@ pub fn deregister(
     let pair_addr: Addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     PAIRS.remove(deps.storage, &pair_key(&asset_infos));
 
-    Ok(Response::new().add_attributes(vec![
+    let mut messages: Vec<CosmosMsg> = vec![];
+    if let Some(generator) = config.generator_address {
+        let pair_info = query_pair_info(deps.as_ref(), &pair_addr)?;
+
+        // sets the allocation point to zero for the lp_token
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: generator.to_string(),
+            msg: to_binary(&DeactivatePool {
+                lp_token: pair_info.liquidity_token.to_string(),
+            })?,
+            funds: vec![],
+        }));
+    }
+
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "deregister"),
         attr("pair_contract_addr", pair_addr),
     ]))
@@ -461,6 +476,8 @@ pub fn deregister(
 /// This returns information about multiple Astroport pairs
 ///
 /// * **QueryMsg::FeeInfo { pair_type }** Returns the fee structure (total and maker fees) for a specific pair type.
+///
+/// * **QueryMsg::BlacklistedPairTypes {}** Returns a vector that contains blacklisted pair types
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -470,7 +487,26 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_pairs(deps, start_after, limit)?)
         }
         QueryMsg::FeeInfo { pair_type } => to_binary(&query_fee_info(deps, pair_type)?),
+        QueryMsg::BlacklistedPairTypes {} => to_binary(&query_blacklisted_pair_types(deps)?),
     }
+}
+
+/// ## Description
+/// Returns a vector that contains blacklisted pair types
+pub fn query_blacklisted_pair_types(deps: Deps) -> StdResult<Vec<PairType>> {
+    PAIR_CONFIGS
+        .range(deps.storage, None, None, Order::Ascending)
+        .filter_map(|result| match result {
+            Ok(v) => {
+                if v.1.is_disabled || v.1.is_generator_disabled {
+                    Some(Ok(v.1.pair_type))
+                } else {
+                    None
+                }
+            }
+            Err(e) => Some(Err(e)),
+        })
+        .collect()
 }
 
 /// ## Description
@@ -562,7 +598,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
 
     match contract_version.contract.as_ref() {
         "astroport-factory" => match contract_version.version.as_ref() {
-            "1.0.0" => {
+            "1.0.0" | "1.0.0-fix1" => {
                 let msg: migration::MigrationMsgV100 = from_binary(&msg.params)?;
 
                 let config_v100 = migration::CONFIGV100.load(deps.storage)?;

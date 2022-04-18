@@ -62,6 +62,9 @@ pub enum ContractError {
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
+
+    #[error("It is not possible to provide liquidity with one token for an empty pool")]
+    InvalidProvideLPsWithSingleToken {},
 }
 
 impl From<OverflowError> for ContractError {

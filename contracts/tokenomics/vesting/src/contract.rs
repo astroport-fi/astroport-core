@@ -398,6 +398,8 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(resp)
 }
 
+/// ## Description
+/// Return the current block timestamp (in seconds)
 pub fn query_timestamp(env: Env) -> StdResult<u64> {
     Ok(env.block.time.seconds())
 }

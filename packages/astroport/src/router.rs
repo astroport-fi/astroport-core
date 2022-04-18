@@ -8,7 +8,6 @@ use crate::asset::AssetInfo;
 
 pub const MAX_SWAP_OPERATIONS: usize = 50;
 
-/// ## Description
 /// This structure holds the parameters used for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -16,7 +15,6 @@ pub struct InstantiateMsg {
     pub astroport_factory: String,
 }
 
-/// ## Description
 /// This enum describes a swap operation.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -48,7 +46,6 @@ impl SwapOperation {
     }
 }
 
-/// ## Description
 /// This structure describes the execute messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -95,7 +92,6 @@ pub enum Cw20HookMsg {
     },
 }
 
-/// ## Description
 /// This structure describes the query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -111,7 +107,6 @@ pub enum QueryMsg {
     },
 }
 
-/// ## Description
 /// This structure describes a custom struct to return a query response containing the base contract configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
@@ -119,7 +114,6 @@ pub struct ConfigResponse {
     pub astroport_factory: String,
 }
 
-/// ## Description
 /// This structure describes a custom struct to return a query response containing the end amount of a swap simulation
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SimulateSwapOperationsResponse {
@@ -127,7 +121,6 @@ pub struct SimulateSwapOperationsResponse {
     pub amount: Uint128,
 }
 
-/// ## Description
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

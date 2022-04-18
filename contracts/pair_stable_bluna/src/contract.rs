@@ -3,15 +3,16 @@ use crate::math::{
     calc_ask_amount, calc_offer_amount, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE,
     MIN_AMP_CHANGING_TIME, N_COINS,
 };
+use crate::migration::CONFIG_PAIR_STABLE_V100;
 use crate::state::{
     Config, BLUNA_REWARD_GLOBAL_INDEX, BLUNA_REWARD_HOLDER, BLUNA_REWARD_USER_INDEXES, CONFIG,
 };
 
 use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
-    Uint256, WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
+    Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint256,
+    WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -31,6 +32,7 @@ use astroport::pair_stable_bluna::{
 };
 use astroport::whitelist::InstantiateMsg as WhitelistInstantiateMsg;
 
+use anchor_basset::reward::{AccruedRewardsResponse, QueryMsg as BAssetRewardQueryMsg};
 use astroport::querier::{
     query_factory_config, query_fee_info, query_supply, query_token_precision,
 };
@@ -144,7 +146,7 @@ pub fn instantiate(
     Ok(Response::new().add_submessages(messages))
 }
 
-/// # Description
+/// ## Description
 /// The entry point to the contract for processing replies from submessages.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -226,6 +228,12 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///             user_share,
 ///             total_share,
 ///         }** Claims bLUNA rewards and sends them to the receiver.
+///
+/// * **ExecuteMsg::ClaimRewardByGenerator {
+///             receiver,
+///             user_share,
+///             total_share,
+///         }** Claims bLUNA rewards for a LP position that was staked by a user in the Astroprot Generator contract.
 ///
 /// * **ExecuteMsg::HandleReward {
 ///             previous_reward_balance,
@@ -436,27 +444,34 @@ pub fn provide_liquidity(
             .expect("Wrong asset info is given"),
     ];
 
-    if deposits[0].is_zero() || deposits[1].is_zero() {
+    if deposits[0].is_zero() && deposits[1].is_zero() {
         return Err(ContractError::InvalidZeroAmount {});
     }
 
     let mut messages: Vec<CosmosMsg> = vec![];
     for (i, pool) in pools.iter_mut().enumerate() {
-        // If the pool is a token contract, then we need to execute a TransferFrom msg to receive funds
-        if let AssetInfo::Token { contract_addr, .. } = &pool.info {
-            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: contract_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                    owner: info.sender.to_string(),
-                    recipient: env.contract.address.to_string(),
-                    amount: deposits[i],
-                })?,
-                funds: vec![],
-            }))
-        } else {
-            // If the asset is a native token, the pool balance already increased
-            // To calculate the pool balance properly, we should subtract the user deposit from the recorded pool token amount
-            pool.amount = pool.amount.checked_sub(deposits[i])?;
+        // we cannot put a zero amount into an empty pool.
+        if deposits[i].is_zero() && pool.amount.is_zero() {
+            return Err(ContractError::InvalidProvideLPsWithSingleToken {});
+        }
+
+        if !deposits[i].is_zero() {
+            // If the pool is a token contract, then we need to execute a TransferFrom msg to receive funds
+            if let AssetInfo::Token { contract_addr, .. } = &pool.info {
+                messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: contract_addr.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                        owner: info.sender.to_string(),
+                        recipient: env.contract.address.to_string(),
+                        amount: deposits[i],
+                    })?,
+                    funds: vec![],
+                }))
+            } else {
+                // If the asset is a native token, the pool balance already increased
+                // To calculate the pool balance properly, we should subtract the user deposit from the recorded pool token amount
+                pool.amount = pool.amount.checked_sub(deposits[i])?;
+            }
         }
     }
 
@@ -559,7 +574,7 @@ pub fn provide_liquidity(
     ]))
 }
 
-/// # Description
+/// ## Description
 /// Mint LP tokens for a beneficiary and auto deposit them into the Generator contract (if requested).
 /// # Params
 /// * **deps** is an object of type [`Deps`].
@@ -1228,7 +1243,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
 /// * **env** is an object of type [`Env`].
 ///
 /// * **user** is an object of type [`String`]. This is the address for which we query the amount of pending bLUNA rewards to claim.
-pub fn query_pending_reward(deps: Deps, _env: Env, user: String) -> StdResult<Asset> {
+pub fn query_pending_reward(deps: Deps, env: Env, user: String) -> StdResult<Asset> {
     use cosmwasm_std::Decimal256;
 
     let user = addr_validate_to_lower(deps.api, &user)?;
@@ -1257,26 +1272,34 @@ pub fn query_pending_reward(deps: Deps, _env: Env, user: String) -> StdResult<As
         Decimal256::zero()
     };
 
+    let accrued_rewards: AccruedRewardsResponse = deps.querier.query_wasm_smart(
+        config.bluna_rewarder,
+        &BAssetRewardQueryMsg::AccruedRewards {
+            address: env.contract.address.to_string(),
+        },
+    )?;
+
+    let pool_info: PoolInfoResponse = deps.querier.query_wasm_smart(
+        &config.generator,
+        &GeneratorQueryMsg::PoolInfo {
+            lp_token: config.pair_info.liquidity_token.to_string(),
+        },
+    )?;
+
+    let mut accrued_rewards_index = Decimal256::zero();
+    if !pool_info.lp_supply.is_zero() {
+        accrued_rewards_index =
+            Decimal256::from_ratio(accrued_rewards.rewards, pool_info.lp_supply);
+    }
+
     Ok(Asset {
         info: AssetInfo::NativeToken {
             denom: "uusd".to_string(),
         },
-        amount: ((global_index - user_index) * Uint256::from(user_share)).try_into()?,
+        amount: Uint128::try_from(
+            (global_index - user_index + accrued_rewards_index) * Uint256::from(user_share),
+        )?,
     })
-}
-
-/// ## Description
-/// Returns an amount of coins. For each coin in the specified vector, if the coin is null, we return `Uint128::zero()`,
-/// otherwise we return the specified coin amount.
-/// ## Params
-/// * **coins** is an array of [`Coin`] type items. This is a list of coins for which we return amounts.
-///
-/// * **denom** is an object of type [`String`]. This is the denomination used for the coins.
-pub fn amount_of(coins: &[Coin], denom: String) -> Uint128 {
-    match coins.iter().find(|x| x.denom == denom) {
-        Some(coin) => coin.amount,
-        None => Uint128::zero(),
-    }
 }
 
 /// ## Description
@@ -1495,11 +1518,22 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, Con
 
     match contract_version.contract.as_ref() {
         "astroport-pair-stable" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                let mut config = CONFIG.load(deps.storage)?;
-                config.bluna_rewarder = addr_validate_to_lower(deps.api, &msg.bluna_rewarder)?;
-                config.generator = addr_validate_to_lower(deps.api, &msg.generator)?;
-                CONFIG.save(deps.storage, &config)?;
+            "1.0.0" | "1.0.0-fix1" => {
+                let config = CONFIG_PAIR_STABLE_V100.load(deps.storage)?;
+                let new_config = crate::state::Config {
+                    bluna_rewarder: addr_validate_to_lower(deps.api, &msg.bluna_rewarder)?,
+                    generator: addr_validate_to_lower(deps.api, &msg.generator)?,
+                    block_time_last: config.block_time_last,
+                    factory_addr: config.factory_addr.clone(),
+                    init_amp: config.init_amp,
+                    init_amp_time: config.init_amp_time,
+                    next_amp: config.next_amp,
+                    next_amp_time: config.next_amp_time,
+                    pair_info: config.pair_info,
+                    price0_cumulative_last: config.price0_cumulative_last,
+                    price1_cumulative_last: config.price1_cumulative_last,
+                };
+                CONFIG.save(deps.storage, &new_config)?;
                 response
                     .messages
                     .push(get_bluna_reward_holder_instantiating_message(

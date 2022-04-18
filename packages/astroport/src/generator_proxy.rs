@@ -3,7 +3,6 @@ use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure describes the basic parameters for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -25,7 +24,6 @@ pub enum Cw20HookMsg {
     Deposit {},
 }
 
-/// ## Description
 /// This structure describes the execute messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -54,7 +52,6 @@ pub enum ExecuteMsg {
     Callback(CallbackMsg),
 }
 
-/// ## Description
 /// This structure describes the callback messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -68,7 +65,6 @@ pub enum CallbackMsg {
     },
 }
 
-/// ## Description
 /// This structure describes query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -87,7 +83,6 @@ pub enum QueryMsg {
 
 pub type ConfigResponse = InstantiateMsg;
 
-/// ## Description
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

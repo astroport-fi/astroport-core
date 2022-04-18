@@ -25,60 +25,62 @@ Initializes the contract with required addresses and contracts used for reward d
 
 ### `update_config`
 
-Update the vesting contract address. Only the contract owner can execute this.
+Update the vesting contract address, generator controller contract address or generator guardian address.
+Only the contract owner can execute this.
 
 ```json
 {
   "update_config": {
-    "vesting_contract": "terra..."
+    "vesting_contract": "terra...",
+    "generator_controller": "terra...",
+    "guardian": "terra...",
+    "voting_escrow": "terra...",
+    "generator_limit": 20
   }
 }
 ```
 
-### `add`
+### `setup_pools`
 
-Create a new generator (emissions schedule) for a specific LP token and optionally add a 3rd party reward_proxy address used for dual rewards.
+Set up a new list of pools with allocation points.
 
 ```json
 {
-  "add": {
-    "lp_token": "terra...",
-    "alloc_point": "40",
-    "reward_proxy": "terra..."
+  "setup_pools": {
+    "pools" : [
+      [
+        "terra...",
+        "60"
+      ],
+      [
+        "terra...",
+        "40"
+      ]
+    ]
   }
-}
-```
-
-### `set`
-
-Update the share of ASTRO emissions that a LP token gets. Only the contract owner can execute this.
-
-```json
-{
-  "set": {
-    "lp_token": "terra...",
-    "alloc_point": "60"
-  }
-}
-```
-
-### `mass_update_pools`
-
-Updates the share of ASTRO emissions for multiple LP tokens. Only the contract owner can execute this.
-
-```json
-{
-  "mass_update_pools": {}
 }
 ```
 
 ### `update_pool`
 
-Updates a generator for a specific LP token by snapshotting the amount of rewards that have been accrued and not yet claimed.
+Update has_asset_rewards parameter for the given pool.
 
 ```json
 {
   "update_pool": {
+    "lp_token": "terra...",
+    "has_asset_rewards": true
+  }
+}
+```
+
+### `claim_rewards`
+
+Update rewards and return it to user.
+
+```json
+{
+  "claim_rewards": {
       "lp_token": "terra..."
   }
 }
@@ -107,7 +109,7 @@ In order to stake in the Generator contract, you should execute this message ins
 {
   "send": {
     "contract": <GeneratorContractAddress>,
-    "amount": 999,
+    "amount": "999",
     "msg": "base64-encodedStringOfWithdrawMsg"
   }
 }
@@ -117,7 +119,7 @@ Inside `send.msg`, you may encode this JSON string into base64 encoding:
 
 ```json
 {
-  "Deposit": {}
+  "deposit": {}
 }
 ```
 
@@ -130,7 +132,7 @@ In order to stake in the Generator contract, you should execute this message ins
 {
   "send": {
     "contract": <GeneratorContractAddress>,
-    "amount": 999,
+    "amount": "999",
     "msg": "base64-encodedStringOfWithdrawMsg"
   }
 }
@@ -140,7 +142,7 @@ In `send.msg`, you may encode this JSON string into base64 encoding:
 
 ```json
 {
-  "DepositFor": "terra..."
+  "deposit_for": "terra..."
 }
 ```
 
@@ -255,15 +257,66 @@ Change the current dual rewards proxy for a specific LP token. Only the contract
 }
 ```
 
-### `UpdateAllowedProxies`
+### `update_allowed_proxies`
 
 Add or remove dual rewards proxy contracts that can interact with the Generator. Only the contract owner can execute this.
 
 ```json
 {
-  "UpdateAllowedProxies": {
+  "update_allowed_proxies": {
     "add": ["terra...", "terra..."],
     "remove": ["terra...", "terra...", "terra..."]
+  }
+}
+```
+
+### `update_tokens_blockedlist`
+
+Add or remove tokens to and from the tokens blocked list.
+Only the owner contract or generator guardian can execute this.
+
+```json
+{
+  "update_tokens_blockedlist": {
+    "add": ["terra...", "terra..."],
+    "remove": ["terra...", "terra...", "terra..."]
+  }
+}
+```
+
+### `deactivate_pool`
+
+Sets the allocation point to zero for specified pool. Only the factory contract can execute this.
+
+```json
+{
+  "deactivate_pool": {
+    "lp_token": "terra..."
+  }
+}
+```
+
+### `deactivate_pools`
+
+Sets the allocation point to zero for each pool by the pair type.
+
+```json
+{
+  "deactivate_pool": {
+    "pair_types": [{"xyk": {}}, {"stable":  {}}]
+  }
+}
+```
+
+### `checkpoint_user_boost`
+
+Updates emissions boost for specified generators
+
+```json
+{
+  "checkpoint_user_boost": {
+    "generators": ["terra...", "terra..."],
+    "user": "terra..."
   }
 }
 ```
@@ -377,6 +430,51 @@ Returns a list of stakers that currently have funds in a specific generator.
     "lp_token": "terra...",
     "start_after": "terra...",
     "limit": 5
+  }
+}
+```
+
+### `blocked_tokens_list`
+
+Returns the list of blocked tokens
+
+```json
+{
+  "blocked_tokens_list": {}
+}
+```
+
+### `active_pool_length`
+
+Returns the total amount of active generators.
+
+```json
+{
+  "active_pool_length": {}
+}
+```
+
+### `user_virtual_amount`
+
+Returns the current virtual amount in a specific generator
+
+```json
+{
+  "user_virtual_amount": {
+    "lp_token": "terra...",
+    "user": "terra..."
+  }
+}
+```
+
+### `total_virtual_amount`
+
+Returns the total virtual supply of generator
+
+```json
+{
+  "total_virtual_amount": {
+    "lp_token": "terra..."
   }
 }
 ```
