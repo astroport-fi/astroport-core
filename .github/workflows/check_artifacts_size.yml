@@ -13,15 +13,14 @@ jobs:
 
       - name: Check Artifacts Size
         run: |
-          maximum_size=200
+          maximum_size=580
+
           for artifact in artifacts/*.wasm; do
             artifact_size=$(du -k "$artifact" | cut -f 1)
-
             if [ $artifact_size -gt $maximum_size ]; then
-              echo Artifact file size exceeded: $artifact
-              echo Artifact size: $artifact_size
-              echo Max size: $maximum_size
-              echo
+              echo "Artifact file size exceeded: $artifact"
+              echo "Artifact size: $artifact_size"
+              echo "Max size: $maximum_size"
               exit 1
             fi
           done
