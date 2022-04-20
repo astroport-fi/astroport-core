@@ -14,7 +14,7 @@ members = [
 ]
 
 [profile.release]
-opt-level = 3
+opt-level = "z"
 debug = false
 rpath = false
 lto = true

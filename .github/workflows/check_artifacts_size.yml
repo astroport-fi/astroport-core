@@ -6,23 +6,19 @@ jobs:
   check-artifacts-size:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Build Artifacts
-        run: |
-          $GITHUB_WORKSPACE/scripts/build_release.sh
+      - name: Checkout sources
+        uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/git/checkouts
+            ~/.cargo/git/db
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Check Artifacts Size
         run: |
-          maximum_size=580
-
-          for artifact in artifacts/*.wasm; do
-            artifact_size=$(du -k "$artifact" | cut -f 1)
-            if [ $artifact_size -gt $maximum_size ]; then
-              echo "Artifact file size exceeded: $artifact"
-              echo "Artifact size: $artifact_size"
-              echo "Max size: $maximum_size"
-              exit 1
-            fi
-          done
-
-
+          $GITHUB_WORKSPACE/scripts/check_artifacts_size.sh
