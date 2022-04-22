@@ -1,6 +1,7 @@
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 use astroport::common::OwnershipProposal;
-use astroport::generator::{PoolInfo, RestrictedVector, UserInfo, UserInfoV2};
+use astroport::generator::{PoolInfo, UserInfo, UserInfoV2};
+use astroport::restricted_vector::RestrictedVector;
 use astroport::DecimalCheckedOps;
 use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};

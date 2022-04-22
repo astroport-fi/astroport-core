@@ -15,9 +15,10 @@ use astroport::asset::{
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{PairConfig, PairType};
-use astroport::generator::{PoolInfo, RestrictedVector};
+use astroport::generator::PoolInfo;
 use astroport::generator::{StakerResponse, UserInfoV2};
 use astroport::querier::query_token_balance;
+use astroport::restricted_vector::RestrictedVector;
 use astroport::DecimalCheckedOps;
 use astroport::{
     factory::{ConfigResponse as FactoryConfigResponse, QueryMsg as FactoryQueryMsg},
@@ -942,7 +943,7 @@ pub fn accumulate_rewards_per_share(
 
                 let share = Decimal::from_ratio(token_rewards, lp_supply);
                 pool.accumulated_proxy_rewards_per_share
-                    .update(proxy, share)?;
+                    .update(proxy.clone(), share)?;
                 pool.proxy_reward_balance_before_update = reward_amount;
             }
         }
@@ -1612,10 +1613,10 @@ fn migrate_proxy_callback(
     // Save a new index and orphan rewards for the new proxy
     pool_info
         .accumulated_proxy_rewards_per_share
-        .update(&new_proxy_addr, Decimal::zero())?;
+        .update(new_proxy_addr.clone(), Decimal::zero())?;
     pool_info
         .orphan_proxy_rewards
-        .update(&new_proxy_addr, Uint128::zero())?;
+        .update(new_proxy_addr.clone(), Uint128::zero())?;
     // Set new proxy
     pool_info.reward_proxy = Some(new_proxy_addr.clone());
 
@@ -1749,10 +1750,10 @@ fn move_to_proxy(
     update_proxy_asset(deps.branch(), &proxy_addr)?;
     pool_info
         .orphan_proxy_rewards
-        .update(&proxy_addr, Uint128::zero())?;
+        .update(proxy_addr.clone(), Uint128::zero())?;
     pool_info
         .accumulated_proxy_rewards_per_share
-        .update(&proxy_addr, Decimal::zero())?;
+        .update(proxy_addr.clone(), Decimal::zero())?;
     pool_info.reward_proxy = Some(proxy_addr);
 
     let res: BalanceResponse = deps.querier.query_wasm_smart(
