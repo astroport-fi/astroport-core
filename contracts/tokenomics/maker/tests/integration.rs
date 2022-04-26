@@ -7,9 +7,10 @@ use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_governance::utils::EPOCH_START;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    attr, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
+    attr, to_binary, Addr, Coin, Decimal, QueryRequest, Timestamp, Uint128, Uint64, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use std::str::FromStr;
@@ -18,7 +19,8 @@ use terra_multi_test::{
 };
 
 fn mock_app() -> TerraApp {
-    let env = mock_env();
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(EPOCH_START);
     let api = MockApi::default();
     let bank = BankKeeper::new();
     let storage = MockStorage::new();

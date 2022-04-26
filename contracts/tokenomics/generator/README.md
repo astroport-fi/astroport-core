@@ -33,7 +33,9 @@ Only the contract owner can execute this.
   "update_config": {
     "vesting_contract": "terra...",
     "generator_controller": "terra...",
-    "guardian": "terra..."
+    "guardian": "terra...",
+    "voting_escrow": "terra...",
+    "generator_limit": 20
   }
 }
 ```
@@ -306,6 +308,19 @@ Sets the allocation point to zero for each pool by the pair type.
 }
 ```
 
+### `checkpoint_user_boost`
+
+Updates emissions boost for specified generators
+
+```json
+{
+  "checkpoint_user_boost": {
+    "generators": ["terra...", "terra..."],
+    "user": "terra..."
+  }
+}
+```
+
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.
@@ -436,5 +451,30 @@ Returns the total amount of active generators.
 ```json
 {
   "active_pool_length": {}
+}
+```
+
+### `user_virtual_amount`
+
+Returns the current virtual amount in a specific generator
+
+```json
+{
+  "user_virtual_amount": {
+    "lp_token": "terra...",
+    "user": "terra..."
+  }
+}
+```
+
+### `total_virtual_amount`
+
+Returns the total virtual supply of generator
+
+```json
+{
+  "total_virtual_amount": {
+    "lp_token": "terra..."
+  }
 }
 ```

@@ -170,16 +170,21 @@ async function main() {
                         proxies: new_allowed_proxies
                     }
                 })
+                console.log(`Move the pool ${network[pool_lp_token_key]} to proxy ${network[pool_generator_proxy_key]}`)
+                await executeContract(terra, wallet, network.generatorAddress, {
+                    move_to_proxy: {
+                        lp_token: network[pool_lp_token_key],
+                        proxy: String(network[pool_generator_proxy_key])
+                    }
+                })
 
             }
 
             // Add pool to generator
             console.log(`Adding ${pool.identifier} to generator...`)
             await executeContract(terra, wallet, network.generatorAddress, {
-                add: {
-                    alloc_point: String(pool.initGenerator.generatorAllocPoint),
-                    reward_proxy: network[pool_generator_proxy_key],
-                    lp_token: network[pool_lp_token_key]
+                setup_pools: {
+                    pools: [[network[pool_lp_token_key], String(pool.initGenerator.generatorAllocPoint)]]
                 }
             })
         }

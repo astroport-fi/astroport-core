@@ -3,9 +3,8 @@ use crate::state::{Config, CONFIG};
 
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
-    WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
+    Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -1018,20 +1017,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         block_time_last: config.block_time_last,
         params: None,
     })
-}
-
-/// ## Description
-/// Returns an amount of coins. For each coin in the specified vector, if the coin is null, we return `Uint128::zero()`,
-/// otherwise we return the specified coin amount.
-/// ## Params
-/// * **coins** is an array of [`Coin`] type items. This is a list of coins for which we return amounts.
-///
-/// * **denom** is an object of type [`String`]. This is the denomination used for the coins.
-pub fn amount_of(coins: &[Coin], denom: String) -> Uint128 {
-    match coins.iter().find(|x| x.denom == denom) {
-        Some(coin) => coin.amount,
-        None => Uint128::zero(),
-    }
 }
 
 /// ## Description

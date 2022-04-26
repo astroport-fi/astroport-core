@@ -28,8 +28,8 @@ async function main() {
         return
     }
 
-    // await uploadAndInitVesting(terra, wallet)
-    // await uploadAndInitGenerator(terra, wallet)
+    await uploadAndInitVesting(terra, wallet)
+    await uploadAndInitGenerator(terra, wallet)
 
     // setup pools
     // await registerGenerator(terra, wallet, "terra17n5sunn88hpy965mzvt3079fqx3rttnplg779g", "28303")
@@ -42,7 +42,7 @@ async function main() {
     // await registerGenerator(terra, wallet, "terra1q8aycvr54jarwhqvlr54jr2zqttctnefw7x37q", "24528")
     // await registerGenerator(terra, wallet, "terra1jzutwpneltsys6t96vkdr2zrc6cg0ke4e6y3s0", "47169")
 
-    // await setupVesting(terra, wallet, network)
+    await setupVesting(terra, wallet, network)
 
     // Set new owner for generator
     // network = readArtifact(terra.config.chainID) // reload variables
@@ -66,10 +66,8 @@ async function registerGenerator(terra: LCDClient, wallet: any, lp_token: string
     }
 
     await executeContract(terra, wallet, network.generatorAddress, {
-        add: {
-            lp_token: lp_token,
-            alloc_point: alloc_point,
-            reward_proxy: undefined
+        setup_pools: {
+            pools: [[lp_token, alloc_point]]
         }
     })
 }
@@ -113,6 +111,8 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
                 start_block: '5918639',
                 tokens_per_block: String(8403094),
                 vesting_contract: network.vestingAddress,
+                factory: network.factoryAddress,
+                whitelist_code_id: network.treasuryCodeID
             }
         )
 

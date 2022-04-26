@@ -1,7 +1,8 @@
 use crate::asset::{Asset, AssetInfo};
 use crate::factory::PairType;
 use crate::restricted_vector::RestrictedVector;
-use cosmwasm_std::{Addr, Binary, Decimal, Uint128, Uint64};
+use cosmwasm_std::{Addr, StdError, StdResult, Binary, Decimal, Uint128, Uint64};
+use crate::DecimalCheckedOps;
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,8 @@ pub struct InstantiateMsg {
     pub factory: String,
     /// Address that can set active generators and their alloc points
     pub generator_controller: Option<String>,
+    /// The voting escrow contract address
+    pub voting_escrow: Option<String>,
     /// Address of guardian
     pub guardian: Option<String>,
     /// ASTRO token contract address
@@ -45,6 +48,10 @@ pub enum ExecuteMsg {
         generator_controller: Option<String>,
         /// The new generator guardian
         guardian: Option<String>,
+        /// The new voting escrow contract address
+        voting_escrow: Option<String>,
+        /// The amount of generators
+        checkpoint_generator_limit: Option<u32>,
     },
     /// Setup generators with their respective allocation points.
     /// ## Executor
@@ -151,6 +158,11 @@ pub enum ExecuteMsg {
     DeactivatePools {
         pair_types: Vec<PairType>,
     },
+    /// Updates the boost emissions for specified user and generators
+    CheckpointUserBoost {
+        generators: Vec<String>,
+        user: Option<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -162,6 +174,10 @@ pub enum QueryMsg {
     PoolLength {},
     /// Deposit returns the LP token amount deposited in a specific generator
     Deposit { lp_token: String, user: String },
+    /// Returns the current virtual amount in a specific generator
+    UserVirtualAmount { lp_token: String, user: String },
+    /// Returns the total virtual supply of generator
+    TotalVirtualSupply { generator: String },
     /// PendingToken returns the amount of rewards that can be claimed by an account that deposited a specific LP token in a generator
     PendingToken { lp_token: String, user: String },
     /// Config returns the main contract parameters
@@ -206,7 +222,7 @@ pub struct PendingTokenResponse {
 pub struct PoolInfo {
     /// Accumulated amount of reward per share unit. Used for reward calculations
     pub last_reward_block: Uint64,
-    pub accumulated_rewards_per_share: Decimal,
+    pub reward_global_index: Decimal,
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
     /// Accumulated reward indexes per reward proxy. Vector of pairs (reward_proxy, index).
@@ -217,6 +233,8 @@ pub struct PoolInfo {
     pub orphan_proxy_rewards: RestrictedVector<Addr, Uint128>,
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
+    /// Total virtual amount
+    pub total_virtual_supply: Uint128,
 }
 
 /// This structure stores the outstanding amount of token rewards that a user accrued.
@@ -238,10 +256,12 @@ pub struct UserInfoV2 {
     /// The amount of LP tokens staked
     pub amount: Uint128,
     /// The amount of ASTRO rewards a user already received or is not eligible for; used for proper reward calculation
-    pub reward_debt: Uint128,
+    pub reward_user_index: Decimal,
     /// Proxy reward amount a user already received per reward proxy; used for proper reward calculation
     /// Vector of pairs (reward_proxy, reward debited).
     pub reward_debt_proxy: RestrictedVector<Addr, Uint128>,
+    /// The amount of user boosted emissions
+    pub virtual_amount: Uint128,
 }
 
 /// This structure holds the response returned when querying for the token addresses used to reward a specific generator
@@ -265,7 +285,7 @@ pub struct PoolInfoResponse {
     /// Current block number. Useful for computing APRs off-chain
     pub current_block: u64,
     /// Total amount of ASTRO rewards already accumulated per LP token staked
-    pub accumulated_rewards_per_share: Decimal,
+    pub global_reward_index: Decimal,
     /// Pending amount of total ASTRO rewards which are claimable by stakers right now
     pub pending_astro_rewards: Uint128,
     /// The address of the 3rd party reward proxy contract
@@ -291,6 +311,8 @@ pub struct ConfigResponse {
     pub factory: Addr,
     /// contract address which can only set active generators and their alloc points
     pub generator_controller: Option<Addr>,
+    /// The voting escrow contract address
+    pub voting_escrow: Option<Addr>,
     /// ASTRO token contract address
     pub astro_token: Addr,
     /// Total amount of ASTRO distributed per block
@@ -309,13 +331,27 @@ pub struct ConfigResponse {
     pub blocked_tokens_list: Vec<AssetInfo>,
     /// The guardian address
     pub guardian: Option<Addr>,
+    /// The amount of generators
+    pub checkpoint_generator_limit: Option<u32>,
 }
 
 /// This structure describes a migration message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct MigrateMsg {
-    pub params: Binary,
-    pub whitelist_code_id: u64,
+    /// The Factory address
+    pub factory: Option<String>,
+    /// Contract address which can only set active generators and their alloc points
+    pub generator_controller: Option<String>,
+    /// The blocked list of tokens
+    pub blocked_list_tokens: Option<Vec<AssetInfo>>,
+    /// The guardian address
+    pub guardian: Option<String>,
+    /// Whitelist code id
+    pub whitelist_code_id: Option<u64>,
+    /// The voting escrow contract
+    pub voting_escrow: Option<String>,
+    /// The limit of generators
+    pub generator_limit: Option<u32>,
 }
 
 /// This structure describes custom hooks for the CW20.
