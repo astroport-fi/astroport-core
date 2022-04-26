@@ -1069,7 +1069,7 @@ pub fn accumulate_rewards_per_share(
 
             let share = Decimal::from_ratio(token_rewards, proxy_lp_supply);
             pool.accumulated_proxy_rewards_per_share
-                .update(proxy, share)?;
+                .update(proxy.clone(), share)?;
             pool.proxy_reward_balance_before_update = reward_amount;
         }
     }

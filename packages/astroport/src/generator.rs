@@ -1,8 +1,7 @@
 use crate::asset::{Asset, AssetInfo};
 use crate::factory::PairType;
 use crate::restricted_vector::RestrictedVector;
-use cosmwasm_std::{Addr, StdError, StdResult, Binary, Decimal, Uint128, Uint64};
-use crate::DecimalCheckedOps;
+use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
