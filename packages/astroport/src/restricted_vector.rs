@@ -19,7 +19,7 @@ where
 
 impl<K, V> RestrictedVector<K, V>
 where
-    K: PartialEq + Display,
+    K: Clone + PartialEq + Display,
     V: Copy + Increaseable,
 {
     pub fn new(key: K, value: V) -> Self {
@@ -35,15 +35,15 @@ where
             .ok_or_else(|| StdError::generic_err(format!("Key {} not found", key)))
     }
 
-    pub fn update(&mut self, key: K, value: V) -> StdResult<V> {
-        let found = self.0.iter_mut().find(|(k, _)| k == &key);
+    pub fn update(&mut self, key: &K, value: V) -> StdResult<V> {
+        let found = self.0.iter_mut().find(|(k, _)| k == key);
         let r = match found {
             Some((_, v)) => {
                 *v = v.increase(value)?;
                 *v
-            } ,
+            }
             None => {
-                self.0.push((key, value));
+                self.0.push((key.clone(), value));
                 value
             }
         };
