@@ -341,7 +341,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-stable-bluna"
-version = "1.0.1"
+version = "1.0.1-fix1"
 dependencies = [
  "astroport 2.0.0",
  "astroport-factory",

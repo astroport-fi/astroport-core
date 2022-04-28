@@ -116,7 +116,7 @@ pub enum StablePoolUpdateParams {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
     /// The bLUNA rewarder contract
-    pub bluna_rewarder: String,
+    pub bluna_rewarder: Option<String>,
     /// The Astroport Generator contract
-    pub generator: String,
+    pub generator: Option<String>,
 }
