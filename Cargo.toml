@@ -6,6 +6,7 @@ members = [
     "contracts/pair_anchor",
     "contracts/pair_stable",
     "contracts/pair_stable_bluna",
+    "contracts/pair_reserve",
     "contracts/router",
     "contracts/token",
     "contracts/whitelist",
