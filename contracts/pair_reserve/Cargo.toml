@@ -41,3 +41,4 @@ terra-cosmwasm = { version = "2.2.0" }
 terra-multi-test = { git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra" }
 astroport-factory = { path = "../factory" }
 proptest = "0.10.1"
+anyhow = "1.0.56"

@@ -19,7 +19,9 @@ pub struct InstantiateMsg {
     /// The factory contract address
     pub factory_addr: String,
     /// Basic pool parameters
-    pub pool_params: PoolParams,
+    pub pool_params: UpdateParams,
+    /// Oracle addresses
+    pub oracles: Vec<String>,
 }
 
 /// This structure describes the execute messages available in the contract.
@@ -45,12 +47,17 @@ pub enum ExecuteMsg {
         to: Option<String>,
     },
     /// Update whitelist of allowed liquidity providers
-    UpdateWhitelist {
-        append_addrs: Option<Vec<String>>,
-        remove_addrs: Option<Vec<String>>,
+    UpdateProvidersWhitelist {
+        append_addrs: Vec<String>,
+        remove_addrs: Vec<String>,
     },
-    /// Update basic pool parameters
-    UpdatePoolParameters { pool_params: PoolParams },
+    /// Update basic pool flow parameters
+    UpdatePoolParameters { params: UpdateParams },
+    /// Update the list of BTC2USD oracles
+    UpdateOracles {
+        append_addrs: Vec<String>,
+        remove_addrs: Vec<String>,
+    },
     /// Propose a new owner for the contract
     ProposeNewOwner { new_owner: String, expires_in: u64 },
     /// Remove the ownership transfer proposal
@@ -115,12 +122,25 @@ pub struct FlowParams {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UpdateFlowParams {
+    pub base_pool: Uint128,
+    pub min_spread: u16,
+    pub recovery_period: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UpdateParams {
+    pub entry: Option<UpdateFlowParams>,
+    pub exit: Option<UpdateFlowParams>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolParams {
     /// UST -> BTC
     pub entry: FlowParams,
     /// BTC -> UST
     pub exit: FlowParams,
-    /// BTC/USD
+    /// Oracles list BTC/USD
     pub oracles: Vec<Addr>,
 }
 

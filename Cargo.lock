@@ -30,9 +30,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.55"
+version = "1.0.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "159bb86af3a200e19a068f4224eae4c8bb2d0fa054c7e5d1cacd5cef95e684cd"
+checksum = "08f9b8508dccb7687a1d6c4ce66b2b0ecef467c94667de27d8d7fe1f8d2a9cdc"
 
 [[package]]
 name = "assert_matches"
@@ -370,6 +370,7 @@ dependencies = [
 name = "astroport-reserve-pair"
 version = "1.0.0"
 dependencies = [
+ "anyhow",
  "astroport 2.0.0",
  "astroport-factory",
  "astroport-token",

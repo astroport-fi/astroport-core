@@ -1,6 +1,7 @@
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, Fraction, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, Fraction, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128,
+    WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20CoinVerified, Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -10,8 +11,9 @@ use astroport::asset::{addr_validate_to_lower, format_lp_token_name, Asset, Asse
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::PairType;
 use astroport::pair_reserve::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolParams,
-    PoolResponse, QueryMsg, ReverseSimulationResponse, SimulationResponse,
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, FlowParams, InstantiateMsg, MigrateMsg,
+    PoolParams, PoolResponse, QueryMsg, ReverseSimulationResponse, SimulationResponse,
+    UpdateFlowParams, UpdateParams,
 };
 use astroport::querier::{query_fee_info, query_supply};
 use astroport::DecimalCheckedOps;
@@ -49,9 +51,32 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     msg.asset_infos.validate(deps.api)?;
-    msg.pool_params.validate(None)?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let oracles = msg
+        .oracles
+        .iter()
+        .map(|oracle| addr_validate_to_lower(deps.api, oracle))
+        .collect::<StdResult<Vec<_>>>()?;
+
+    let mut pool_params = PoolParams {
+        entry: Default::default(),
+        exit: Default::default(),
+        oracles,
+    };
+
+    msg.pool_params
+        .entry
+        .as_ref()
+        .ok_or(StdError::generic_err("Entry flow params are not set"))?;
+    msg.pool_params
+        .exit
+        .as_ref()
+        .ok_or(StdError::generic_err("Exit flow params are not set"))?;
+    update_flow_params(&mut pool_params.entry, msg.pool_params.entry);
+    update_flow_params(&mut pool_params.exit, msg.pool_params.exit);
+    pool_params.validate(None)?;
 
     let config = Config {
         pair_info: PairInfo {
@@ -63,7 +88,7 @@ pub fn instantiate(
         factory_addr: addr_validate_to_lower(deps.api, &msg.factory_addr)?,
         owner: info.sender.clone(),
         providers_whitelist: vec![],
-        pool_params: msg.pool_params,
+        pool_params,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -194,12 +219,49 @@ pub fn execute(
                 to_addr,
             )
         }
-        ExecuteMsg::UpdateWhitelist {
+        ExecuteMsg::UpdateProvidersWhitelist {
             append_addrs,
             remove_addrs,
-        } => update_whitelist(deps, info, append_addrs, remove_addrs),
-        ExecuteMsg::UpdatePoolParameters { pool_params } => {
-            update_pool_params(deps, info, pool_params)
+        } => {
+            let mut config = CONFIG.load(deps.storage)?;
+            // Authorization check
+            if info.sender != config.owner {
+                Err(ContractError::Unauthorized {})
+            } else {
+                let result = update_addr_list(
+                    deps.api,
+                    &mut config.providers_whitelist,
+                    append_addrs,
+                    remove_addrs,
+                    "update_providers_whitelist",
+                );
+                CONFIG.save(deps.storage, &config)?;
+
+                result
+            }
+        }
+        ExecuteMsg::UpdatePoolParameters { params } => update_pool_params(deps, info, params),
+        ExecuteMsg::UpdateOracles {
+            append_addrs,
+            remove_addrs,
+        } => {
+            let mut config = CONFIG.load(deps.storage)?;
+            // Authorization check
+            if info.sender != config.owner {
+                Err(ContractError::Unauthorized {})
+            } else {
+                let result = update_addr_list(
+                    deps.api,
+                    &mut config.pool_params.oracles,
+                    append_addrs,
+                    remove_addrs,
+                    "update_oracles",
+                );
+                // TODO: validate oracle queries?
+                CONFIG.save(deps.storage, &config)?;
+
+                result
+            }
         }
         ExecuteMsg::ProposeNewOwner {
             new_owner,
@@ -363,7 +425,7 @@ pub fn provide_liquidity(
             _ => None,
         })
         .ok_or(StdError::generic_err(
-            "Are are only allowed to provide CW20 token to the pool",
+            "It is only allowed to provide CW20 token to the pool",
         ))?
         .clone();
 
@@ -474,39 +536,30 @@ pub fn withdraw_liquidity(
     ]))
 }
 
-pub fn update_whitelist(
-    deps: DepsMut,
-    info: MessageInfo,
-    append_addrs: Option<Vec<String>>,
-    remove_addrs: Option<Vec<String>>,
+pub fn update_addr_list(
+    api: &dyn Api,
+    addr_list_ref: &mut Vec<Addr>,
+    append_addrs: Vec<String>,
+    remove_addrs: Vec<String>,
+    action: &str,
 ) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
-    // Permission check
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-    let append_addrs = append_addrs.unwrap_or_default();
-    let remove_addrs = remove_addrs.unwrap_or_default();
-    let append: Vec<_> = validate_addresses(deps.api, &append_addrs)?
+    let append: Vec<_> = validate_addresses(api, &append_addrs)?
         .into_iter()
-        .filter(|addr| !config.providers_whitelist.contains(addr))
+        .filter(|addr| !addr_list_ref.contains(addr))
         .collect();
-    let remove: Vec<_> = validate_addresses(deps.api, &remove_addrs)?
+    let remove: Vec<_> = validate_addresses(api, &remove_addrs)?
         .into_iter()
-        .filter(|addr| config.providers_whitelist.contains(addr))
+        .filter(|addr| addr_list_ref.contains(addr))
         .collect();
 
     if append.is_empty() && remove.is_empty() {
         return Err(StdError::generic_err("Append and remove arrays are empty").into());
     }
 
-    config
-        .providers_whitelist
-        .retain(|addr| !remove.contains(addr));
-    config.providers_whitelist.extend(append);
-    CONFIG.save(deps.storage, &config)?;
+    addr_list_ref.retain(|addr| !remove.contains(addr));
+    addr_list_ref.extend(append);
 
-    let mut attrs = vec![attr("action", "update_whitelist")];
+    let mut attrs = vec![attr("action", action)];
     if !append_addrs.is_empty() {
         attrs.push(attr("added_addresses", append_addrs.join(",")))
     }
@@ -517,10 +570,18 @@ pub fn update_whitelist(
     Ok(Response::default().add_attributes(attrs))
 }
 
+pub fn update_flow_params(flow_params: &mut FlowParams, update_params: Option<UpdateFlowParams>) {
+    if let Some(update_params) = update_params {
+        flow_params.recovery_period = update_params.recovery_period;
+        flow_params.base_pool = update_params.base_pool;
+        flow_params.min_spread = update_params.min_spread;
+    }
+}
+
 pub fn update_pool_params(
     deps: DepsMut,
     info: MessageInfo,
-    pool_params: PoolParams,
+    update_params_msg: UpdateParams,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -528,9 +589,11 @@ pub fn update_pool_params(
         return Err(ContractError::Unauthorized {});
     }
 
-    pool_params.validate(None)?;
+    update_flow_params(&mut config.pool_params.entry, update_params_msg.entry);
+    update_flow_params(&mut config.pool_params.exit, update_params_msg.exit);
 
-    config.pool_params = pool_params;
+    config.pool_params.validate(None)?;
+
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_attributes(vec![attr("action", "update_pool_params")]))

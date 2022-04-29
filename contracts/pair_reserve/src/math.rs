@@ -224,15 +224,15 @@ pub(crate) fn replenish_pools(pool_params: &mut PoolParams, cur_block: u64) -> S
     Ok(())
 }
 
+#[cfg(test)]
 mod testing {
     use std::str::FromStr;
 
     use cosmwasm_std::Addr;
 
+    use crate::mock_querier::{CustomQuerier, ORACLE_ADDR1, ORACLE_ADDR2};
     use astroport::asset::AssetInfo;
     use astroport::pair_reserve::FlowParams;
-
-    use crate::mock_querier::{CustomQuerier, ORACLE_ADDR1, ORACLE_ADDR2};
 
     use super::*;
 
@@ -448,13 +448,11 @@ mod testing {
         let mut pool_params = PoolParams {
             entry: FlowParams {
                 recovery_period: 10,
-                last_repl_block: 0,
                 pool_delta: Decimal::from_ratio(9u8, 1u8),
                 ..Default::default()
             },
             exit: FlowParams {
                 recovery_period: 100,
-                last_repl_block: 0,
                 pool_delta: Decimal::from_ratio(60u8, 1u8),
                 ..Default::default()
             },
