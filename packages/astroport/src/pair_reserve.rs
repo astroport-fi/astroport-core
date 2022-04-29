@@ -102,7 +102,7 @@ pub struct PoolResponse {
     pub total_share: Uint128,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct FlowParams {
     pub base_pool: Uint128,
     /// min spread in form of BPS
@@ -112,20 +112,6 @@ pub struct FlowParams {
     /// the last block when replenishment was performed
     pub last_repl_block: u64,
     pub pool_delta: Decimal,
-    pub price_oracle: Addr,
-}
-
-impl Default for FlowParams {
-    fn default() -> Self {
-        FlowParams {
-            base_pool: Default::default(),
-            min_spread: 0,
-            recovery_period: 0,
-            last_repl_block: 0,
-            pool_delta: Default::default(),
-            price_oracle: Addr::unchecked(""),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -134,6 +120,8 @@ pub struct PoolParams {
     pub entry: FlowParams,
     /// BTC -> UST
     pub exit: FlowParams,
+    /// BTC/USD
+    pub oracles: Vec<Addr>,
 }
 
 /// This struct is used to return a query result with the general contract configuration.

@@ -26,7 +26,7 @@ pub enum ContractError {
     #[error("Provided spread amount exceeds allowed limit")]
     AllowedSpreadAssertion {},
 
-    #[error("Operation exceeds max splippage tolerance")]
+    #[error("Operation exceeds max slippage tolerance")]
     MaxSlippageAssertion {},
 
     #[error("Doubling assets in asset infos")]
@@ -40,6 +40,9 @@ pub enum ContractError {
 
     #[error("Failed to swap because return amount is zero")]
     SwapZeroAmount {},
+
+    #[error("Failed to retrieve the asset price from the oracles")]
+    OraclesError {},
 }
 
 impl From<OverflowError> for ContractError {

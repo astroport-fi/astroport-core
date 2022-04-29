@@ -1,8 +1,9 @@
-use cosmwasm_std::{Addr, Api, Decimal, QuerierWrapper, StdError, StdResult, Uint128};
+use cosmwasm_std::{Addr, Api, Decimal, Fraction, QuerierWrapper, StdError, StdResult, Uint128};
 
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
 use astroport::pair_reserve::{FlowParams, PoolParams};
 use astroport::querier::query_supply;
+use astroport::DecimalCheckedOps;
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -153,14 +154,34 @@ pub(crate) fn validate_addresses(api: &dyn Api, addresses: &[String]) -> StdResu
         .collect()
 }
 
-pub(crate) fn get_oracle_price(querier: &QuerierWrapper, oracle_addr: &Addr) -> StdResult<Decimal> {
-    let exchange_rate: Decimal = querier.query_wasm_smart(oracle_addr, &())?;
-    if !exchange_rate.is_zero() {
-        Ok(exchange_rate)
+pub(crate) enum RateDirection {
+    BTC2USD,
+    USD2BTC,
+}
+
+pub(crate) fn get_oracle_price(
+    querier: &QuerierWrapper,
+    direction: RateDirection,
+    oracles: &[Addr],
+) -> Result<Decimal, ContractError> {
+    let prices = oracles
+        .iter()
+        .filter_map(|oracle_addr| querier.query_wasm_smart(oracle_addr, &()).ok())
+        .collect::<Vec<_>>();
+    if prices.is_empty() {
+        Err(ContractError::OraclesError {})
     } else {
-        Err(StdError::generic_err(format!(
-            "Oracle {} returned zero exchange rate",
-            oracle_addr
-        )))
+        let sum = prices
+            .iter()
+            .try_fold(Decimal::zero(), |acc, &x| acc.checked_add(x))?;
+        if sum.is_zero() {
+            Err(ContractError::OraclesError {})
+        } else {
+            let exchange_rate = sum / Uint128::from(prices.len() as u128);
+            match direction {
+                RateDirection::BTC2USD => Ok(exchange_rate),
+                RateDirection::USD2BTC => Ok(exchange_rate.inv().unwrap()),
+            }
+        }
     }
 }

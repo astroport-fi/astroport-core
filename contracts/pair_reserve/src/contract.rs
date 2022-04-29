@@ -19,7 +19,7 @@ use astroport::DecimalCheckedOps;
 use crate::error::ContractError;
 use crate::general::{
     check_asset_info, get_oracle_price, get_share_in_assets, pool_info, validate_addresses,
-    AssetsValidator, ParametersValidator,
+    AssetsValidator, ParametersValidator, RateDirection,
 };
 use crate::math::{assert_max_spread, compute_reverse_swap, compute_swap, replenish_pools};
 use crate::response::MsgInstantiateContractResponse;
@@ -794,12 +794,13 @@ pub fn query_prices(deps: Deps) -> StdResult<CumulativePricesResponse> {
     let (assets, total_share) = pool_info(&deps.querier, &config)?;
 
     let price_closure = |asset: &Asset| -> StdResult<Uint128> {
-        let flow_params = if asset.is_native_token() {
-            &config.pool_params.entry
+        let direction = if asset.is_native_token() {
+            RateDirection::USD2BTC
         } else {
-            &config.pool_params.exit
+            RateDirection::BTC2USD
         };
-        let price = get_oracle_price(&deps.querier, &flow_params.price_oracle)?;
+        let price = get_oracle_price(&deps.querier, direction, &config.pool_params.oracles)
+            .map_err(|err| StdError::generic_err(err.to_string()))?;
         Ok(price * Uint128::from(1u8))
     };
 

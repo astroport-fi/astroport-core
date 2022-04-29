@@ -9,7 +9,7 @@ use astroport::pair_reserve::{PoolParams, MAX_ALLOWED_SLIPPAGE};
 use astroport::DecimalCheckedOps;
 
 use crate::error::ContractError;
-use crate::general::get_oracle_price;
+use crate::general::{get_oracle_price, RateDirection};
 
 fn decimal256_to_decimal(value: Decimal256) -> StdResult<Decimal> {
     let numerator: Uint128 = value.numerator().try_into()?;
@@ -65,7 +65,8 @@ pub(crate) fn compute_swap(
         // UST -> BTC
         flow_params = &mut pool_params.entry;
         offer_ust_amount = offer_asset.amount;
-        ask_exchange_rate = get_oracle_price(querier, &flow_params.price_oracle)?;
+        ask_exchange_rate =
+            get_oracle_price(querier, RateDirection::USD2BTC, &pool_params.oracles)?;
         ust_pool = flow_params
             .base_pool
             .checked_add(flow_params.pool_delta * Uint128::from(1_u8))?
@@ -73,7 +74,7 @@ pub(crate) fn compute_swap(
     } else {
         // BTC -> UST
         flow_params = &mut pool_params.exit;
-        offer_ust_amount = get_oracle_price(querier, &flow_params.price_oracle)?
+        offer_ust_amount = get_oracle_price(querier, RateDirection::BTC2USD, &pool_params.oracles)?
             .checked_mul(offer_asset.amount)?;
         ask_exchange_rate = Decimal::one();
         ust_pool = flow_params
@@ -122,16 +123,17 @@ pub(crate) fn compute_reverse_swap(
         // BTC -> UST
         flow_params = &pool_params.entry;
         ask_ust_amount = ask_asset.amount;
-        offer_exchange_rate = get_oracle_price(querier, &flow_params.price_oracle)?;
+        offer_exchange_rate =
+            get_oracle_price(querier, RateDirection::USD2BTC, &pool_params.oracles)?;
         ust_pool = flow_params
             .base_pool
             .checked_add(flow_params.pool_delta * Uint128::from(1_u8))?
             .into();
     } else {
-        // BTC -> UST
+        // UST -> BTC
         flow_params = &pool_params.exit;
-        ask_ust_amount =
-            get_oracle_price(querier, &flow_params.price_oracle)?.checked_mul(ask_asset.amount)?;
+        ask_ust_amount = get_oracle_price(querier, RateDirection::BTC2USD, &pool_params.oracles)?
+            .checked_mul(ask_asset.amount)?;
         offer_exchange_rate = Decimal::one();
         ust_pool = flow_params
             .base_pool
@@ -230,7 +232,7 @@ mod testing {
     use astroport::asset::AssetInfo;
     use astroport::pair_reserve::FlowParams;
 
-    use crate::mock_querier::{CustomQuerier, ENTRY_ORACLE_ADDR, EXIT_ORACLE_ADDR};
+    use crate::mock_querier::{CustomQuerier, ORACLE_ADDR1, ORACLE_ADDR2};
 
     use super::*;
 
@@ -260,15 +262,14 @@ mod testing {
             entry: FlowParams {
                 base_pool: Uint128::from(base_pool),
                 min_spread: 5,
-                price_oracle: Addr::unchecked(ENTRY_ORACLE_ADDR),
                 ..Default::default()
             },
             exit: FlowParams {
                 base_pool: Uint128::from(base_pool),
                 min_spread: 100,
-                price_oracle: Addr::unchecked(EXIT_ORACLE_ADDR),
                 ..Default::default()
             },
+            oracles: vec![Addr::unchecked(ORACLE_ADDR1), Addr::unchecked(ORACLE_ADDR2)],
         };
 
         let offer_asset = Asset {
@@ -457,6 +458,7 @@ mod testing {
                 pool_delta: Decimal::from_ratio(60u8, 1u8),
                 ..Default::default()
             },
+            oracles: vec![Addr::unchecked(ORACLE_ADDR2), Addr::unchecked(ORACLE_ADDR1)],
         };
 
         replenish_pools(&mut pool_params, 1).unwrap();
