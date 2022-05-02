@@ -1,4 +1,5 @@
 use cosmwasm_std::{Addr, Api, Decimal, Fraction, QuerierWrapper, StdError, StdResult, Uint128};
+use std::ops::Rem;
 
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
 use astroport::pair_reserve::{FlowParams, PoolParams};
@@ -118,6 +119,17 @@ pub(crate) fn pool_info(
     Ok((pools, total_share))
 }
 
+fn rounded_decimal_mul(a: Decimal, b: Uint128) -> Uint128 {
+    let numerator = a.numerator() * b.u128();
+    // 500000000000000000_u128 is equal to 0.5 Decimal
+    let val = if numerator.rem(a.denominator()) > 500000000000000000_u128 {
+        numerator / a.denominator() + 1
+    } else {
+        numerator / a.denominator()
+    };
+    Uint128::from(val)
+}
+
 /// ## Description
 /// Returns the amount of pool assets that correspond to an amount of LP tokens.
 /// ## Params
@@ -135,12 +147,11 @@ pub(crate) fn get_share_in_assets(
     if !total_share.is_zero() {
         share_ratio = Decimal::from_ratio(amount, total_share);
     }
-
     pools
         .iter()
         .map(|a| Asset {
             info: a.info.clone(),
-            amount: a.amount * share_ratio,
+            amount: rounded_decimal_mul(share_ratio, a.amount),
         })
         .collect()
 }

@@ -14,7 +14,7 @@ use terra_multi_test::{
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
-use astroport::pair_reserve::{ExecuteMsg, QueryMsg, UpdateFlowParams, UpdateParams};
+use astroport::pair_reserve::{Cw20HookMsg, ExecuteMsg, QueryMsg, UpdateFlowParams, UpdateParams};
 
 pub const EXCHANGE_RATE_1: &str = "39000"; // 1 BTC -> 39000 USD
 pub const EXCHANGE_RATE_2: &str = "41000"; // 1 BTC -> 41000 USD
@@ -106,6 +106,7 @@ pub struct Helper {
     pub btc_token: Addr,
     pub assets: [Asset; 2], // (BTC, UST)
     pub lp_token: Addr,
+    pub astro_token: Addr,
 }
 
 impl Helper {
@@ -133,6 +134,27 @@ impl Helper {
                 &msg,
                 &[],
                 String::from("BTC"),
+                None,
+            )
+            .unwrap();
+
+        let msg = astroport::token::InstantiateMsg {
+            name: "ASTRO".to_string(),
+            symbol: "ASTRO".to_string(),
+            decimals: 6,
+            initial_balances: vec![Cw20Coin {
+                address: owner.to_string(),
+                amount: Uint128::from(1_000_000_000_000000u128),
+            }],
+            mint: None,
+        };
+        let astro_token = app
+            .instantiate_contract(
+                token_code_id,
+                owner.clone(),
+                &msg,
+                &[],
+                String::from("ASTRO"),
                 None,
             )
             .unwrap();
@@ -271,10 +293,11 @@ impl Helper {
                 },
             ],
             lp_token: pair_info.liquidity_token,
+            astro_token,
         }
     }
 
-    pub fn give_coin(&self, app: &mut TerraApp, user: &str, asset: &Asset) {
+    pub fn give_coins(&self, app: &mut TerraApp, user: &str, asset: &Asset) {
         match &asset.info {
             AssetInfo::Token { contract_addr } => {
                 let msg = Cw20ExecuteMsg::Transfer {
@@ -284,7 +307,14 @@ impl Helper {
                 app.execute_contract(self.owner.clone(), contract_addr.clone(), &msg, &[])
                     .unwrap();
             }
-            AssetInfo::NativeToken { .. } => todo!(),
+            AssetInfo::NativeToken { denom } => {
+                app.init_bank_balance(
+                    &Addr::unchecked(user),
+                    // Giving 20% more for tax
+                    vec![coin((1.2 * asset.amount.u128() as f32) as u128, denom)],
+                )
+                .unwrap();
+            }
         }
     }
 
@@ -307,6 +337,21 @@ impl Helper {
         app.execute_contract(user, self.pair.clone(), &msg, &[])
     }
 
+    pub fn withdraw_liquidity(
+        &self,
+        app: &mut TerraApp,
+        user: &str,
+        amount: u128,
+    ) -> AnyResult<AppResponse> {
+        let user = Addr::unchecked(user);
+        let withdraw_msg = Cw20ExecuteMsg::Send {
+            contract: self.pair.to_string(),
+            amount: Uint128::from(amount),
+            msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
+        };
+        app.execute_contract(user, self.lp_token.clone(), &withdraw_msg, &[])
+    }
+
     pub fn update_whitelist(
         &self,
         app: &mut TerraApp,
@@ -324,11 +369,16 @@ impl Helper {
         app.execute_contract(user, self.pair.clone(), &msg, &[])
     }
 
-    pub fn get_lp_balance(&self, app: &mut TerraApp, user: &str) -> AnyResult<u128> {
+    pub fn get_token_balance(
+        &self,
+        app: &mut TerraApp,
+        token: &Addr,
+        user: &str,
+    ) -> AnyResult<u128> {
         let msg = Cw20QueryMsg::Balance {
             address: user.to_string(),
         };
-        let balance: BalanceResponse = app.wrap().query_wasm_smart(&self.lp_token, &msg)?;
+        let balance: BalanceResponse = app.wrap().query_wasm_smart(token, &msg)?;
         Ok(balance.balance.u128())
     }
 }

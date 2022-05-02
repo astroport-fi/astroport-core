@@ -267,7 +267,7 @@ pub fn execute(
             new_owner,
             expires_in,
         } => {
-            let config: Config = CONFIG.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
             propose_new_owner(
                 deps,
                 info,
@@ -277,12 +277,12 @@ pub fn execute(
                 config.owner,
                 OWNERSHIP_PROPOSAL,
             )
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
         ExecuteMsg::DropOwnershipProposal {} => {
-            let config: Config = CONFIG.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
             drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
-                .map_err(|e| e.into())
+                .map_err(Into::into)
         }
         ExecuteMsg::ClaimOwnership {} => {
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
@@ -292,7 +292,7 @@ pub fn execute(
                 })?;
                 Ok(())
             })
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
     }
 }
@@ -425,7 +425,7 @@ pub fn provide_liquidity(
             _ => None,
         })
         .ok_or(StdError::generic_err(
-            "It is only allowed to provide CW20 token to the pool",
+            "Provided token does not belong to the pair",
         ))?
         .clone();
 
