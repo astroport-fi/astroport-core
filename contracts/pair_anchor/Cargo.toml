@@ -43,3 +43,4 @@ terra-multi-test = { git = "https://github.com/astroport-fi/terra-plus.git", tag
 astroport-factory = { path = "../factory" }
 astroport-router = { path = "../router" }
 astroport-pair = { path = "../pair" }
+astroport-maker = { path = "../tokenomics/maker" }

@@ -369,12 +369,7 @@ pub fn swap(
     }));
 
     Ok(Response::new()
-        .add_messages(
-            // 1. (Optional) Send existing tokens from contract to maker
-            // 2. Redeem or Deposit Stable into anchor
-            // 3. Check and send result amount to receiver
-            messages,
-        )
+        .add_messages(messages)
         .add_attribute("action", "orchestrate"))
 }
 
