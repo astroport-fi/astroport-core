@@ -11,8 +11,8 @@ use astroport::asset::{addr_validate_to_lower, format_lp_token_name, Asset, Asse
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::PairType;
 use astroport::pair_reserve::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, FlowParams, InstantiateMsg, MigrateMsg,
-    PoolParams, PoolResponse, QueryMsg, ReverseSimulationResponse, SimulationResponse,
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, FlowParams, InitParams, InstantiateMsg,
+    MigrateMsg, PoolParams, PoolResponse, QueryMsg, ReverseSimulationResponse, SimulationResponse,
     UpdateFlowParams, UpdateParams,
 };
 use astroport::querier::{query_fee_info, query_supply};
@@ -54,7 +54,12 @@ pub fn instantiate(
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let oracles = msg
+    let init_params: InitParams = from_binary(
+        &msg.init_params
+            .ok_or_else(|| StdError::generic_err("Initial parameters were not found"))?,
+    )?;
+
+    let oracles = init_params
         .oracles
         .iter()
         .map(|oracle| addr_validate_to_lower(deps.api, oracle))
@@ -66,16 +71,18 @@ pub fn instantiate(
         oracles,
     };
 
-    msg.pool_params
+    init_params
+        .pool_params
         .entry
         .as_ref()
         .ok_or(StdError::generic_err("Entry flow params are not set"))?;
-    msg.pool_params
+    init_params
+        .pool_params
         .exit
         .as_ref()
         .ok_or(StdError::generic_err("Exit flow params are not set"))?;
-    update_flow_params(&mut pool_params.entry, msg.pool_params.entry);
-    update_flow_params(&mut pool_params.exit, msg.pool_params.exit);
+    update_flow_params(&mut pool_params.entry, init_params.pool_params.entry);
+    update_flow_params(&mut pool_params.exit, init_params.pool_params.exit);
     pool_params.validate(None)?;
 
     let config = Config {

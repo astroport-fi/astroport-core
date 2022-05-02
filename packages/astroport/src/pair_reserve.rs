@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{Asset, AssetInfo, PairInfo};
 
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 /// The maximum allowed swap slippage
@@ -18,6 +18,12 @@ pub struct InstantiateMsg {
     pub token_code_id: u64,
     /// The factory contract address
     pub factory_addr: String,
+    /// Serialized reserve pool initial params
+    pub init_params: Option<Binary>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct InitParams {
     /// Basic pool parameters
     pub pool_params: UpdateParams,
     /// Oracle addresses

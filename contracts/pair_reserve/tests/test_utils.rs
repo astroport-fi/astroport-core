@@ -15,7 +15,7 @@ use terra_multi_test::{
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::pair_reserve::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, QueryMsg, UpdateFlowParams, UpdateParams,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InitParams, QueryMsg, UpdateFlowParams, UpdateParams,
 };
 
 pub const EXCHANGE_RATE_1: &str = "39000"; // 1 BTC -> 39000 USD
@@ -258,17 +258,7 @@ impl Helper {
             .unwrap();
 
         let base_pool = 100_000_000_000000u128;
-        let msg = astroport::pair_reserve::InstantiateMsg {
-            asset_infos: [
-                AssetInfo::Token {
-                    contract_addr: btc_token.clone(),
-                },
-                AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-            ],
-            token_code_id,
-            factory_addr: factory_addr.to_string(),
+        let init_params = InitParams {
             pool_params: UpdateParams {
                 entry: Some(UpdateFlowParams {
                     base_pool: Uint128::from(base_pool),
@@ -282,6 +272,19 @@ impl Helper {
                 }),
             },
             oracles: vec![oracle1.to_string(), oracle2.to_string()],
+        };
+        let msg = astroport::pair_reserve::InstantiateMsg {
+            asset_infos: [
+                AssetInfo::Token {
+                    contract_addr: btc_token.clone(),
+                },
+                AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+            ],
+            token_code_id,
+            factory_addr: factory_addr.to_string(),
+            init_params: Some(to_binary(&init_params).unwrap()),
         };
         let pair = app
             .instantiate_contract(
