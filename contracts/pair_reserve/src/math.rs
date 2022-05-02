@@ -44,7 +44,7 @@ fn calc_reverse_spread(
     decimal256_to_decimal(spread)
 }
 
-/// Internal structure
+/// Internal structure to store swap result
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct SwapResult {
     pub amount: Uint128,
@@ -301,7 +301,7 @@ mod testing {
             SwapResult {
                 amount: Uint128::from(2_020_000_000000u128),
                 spread_ust_fee: Uint128::from(20000_000000u128), // $20k spread fee
-                spread: Decimal::from_str("0.01").unwrap(),      // 0.01% spread (default)
+                spread: Decimal::from_str("0.01").unwrap(),      // 1% spread (default)
             }
         );
 
@@ -335,7 +335,7 @@ mod testing {
             SwapResult {
                 amount: Uint128::from(49_735883_u128),            // 4.73 BTC,
                 spread_ust_fee: Uint128::from(10564_663023_u128), // $10564.66k spread fee
-                spread: Decimal::from_str("0.005282331511841666").unwrap(), // 0.0053% spread
+                spread: Decimal::from_str("0.005282331511841666").unwrap(), // 0.53% spread
             }
         );
 

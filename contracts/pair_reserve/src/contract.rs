@@ -20,8 +20,8 @@ use astroport::DecimalCheckedOps;
 
 use crate::error::ContractError;
 use crate::general::{
-    check_asset_info, get_oracle_price, get_share_in_assets, pool_info, validate_addresses,
-    AssetsValidator, ParametersValidator, RateDirection,
+    check_asset_info, get_oracle_price, get_share, pool_info, validate_addresses, AssetsValidator,
+    ParametersValidator, RateDirection,
 };
 use crate::math::{assert_max_spread, compute_reverse_swap, compute_swap, replenish_pools};
 use crate::response::MsgInstantiateContractResponse;
@@ -316,12 +316,12 @@ pub fn receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     let contract_addr = info.sender.clone();
-    match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::Swap {
+    match from_binary(&cw20_msg.msg)? {
+        Cw20HookMsg::Swap {
             belief_price,
             max_spread,
             to,
-        }) => {
+        } => {
             let config: Config = CONFIG.load(deps.storage)?;
 
             // Only asset contract can execute this message
@@ -339,10 +339,11 @@ pub fn receive_cw20(
                 return Err(ContractError::Unauthorized {});
             }
 
+            let user = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
             let to_addr = to
                 .map(|addr| addr_validate_to_lower(deps.api, &addr))
                 .transpose()?
-                .ok_or(ContractError::RecipientNotSet {})?;
+                .unwrap_or(user);
 
             let sender_addr = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
 
@@ -359,11 +360,10 @@ pub fn receive_cw20(
                 to_addr,
             )
         }
-        Ok(Cw20HookMsg::WithdrawLiquidity {}) => {
+        Cw20HookMsg::WithdrawLiquidity {} => {
             let sender_addr = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
             withdraw_liquidity(deps, info, sender_addr, cw20_msg.amount)
         }
-        Err(err) => Err(err.into()),
     }
 }
 
@@ -508,14 +508,16 @@ pub fn withdraw_liquidity(
     }
 
     let (pools, total_share) = pool_info(&deps.querier, &config)?;
-    let refund_assets = get_share_in_assets(&pools, amount, total_share);
+    let cw20_asset = pools
+        .into_iter()
+        .find(|asset| !asset.is_native_token())
+        .unwrap()
+        .clone();
+    let refund_asset = get_share(&cw20_asset, amount, total_share);
 
     // Update the pool info
     let messages = vec![
-        refund_assets[0]
-            .clone()
-            .into_msg(&deps.querier, sender.clone())?,
-        refund_assets[1]
+        refund_asset
             .clone()
             .into_msg(&deps.querier, sender.clone())?,
         CosmosMsg::Wasm(WasmMsg::Execute {
@@ -529,10 +531,7 @@ pub fn withdraw_liquidity(
         attr("action", "withdraw_liquidity"),
         attr("sender", sender),
         attr("withdrawn_share", amount),
-        attr(
-            "refund_assets",
-            format!("{}, {}", refund_assets[0], refund_assets[1]),
-        ),
+        attr("refund_asset", refund_asset.to_string()),
     ]))
 }
 
@@ -629,19 +628,22 @@ pub fn swap(
     max_spread: Option<Decimal>,
     receiver: Addr,
 ) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
+
+    let ask_asset = config
+        .pair_info
+        .query_pools(&deps.querier, env.contract.address.clone())?
+        .into_iter()
+        .find(|pool| pool.info.ne(&offer_asset.info))
+        .ok_or_else(|| StdError::generic_err("Asset was not found"))?;
+
+    if ask_asset.amount.is_zero() {
+        return Err(ContractError::AskPoolEmpty {});
+    }
 
     replenish_pools(&mut config.pool_params, env.block.height)?;
     let mut swap_result = compute_swap(&deps.querier, &offer_asset, &mut config.pool_params)?;
     assert_max_spread(offer_asset.amount, swap_result, belief_price, max_spread)?;
-
-    let ask_asset_info = config
-        .pair_info
-        .asset_infos
-        .iter()
-        .find(|info| info.clone().ne(&offer_asset.info))
-        .unwrap()
-        .clone();
 
     let mut messages = vec![];
 
@@ -657,7 +659,7 @@ pub fn swap(
         if !maker_fee.is_zero() {
             messages.push(
                 Asset {
-                    info: ask_asset_info.clone(),
+                    info: ask_asset.info.clone(),
                     amount: maker_fee,
                 }
                 .into_msg(&deps.querier, fee_addr)?,
@@ -667,7 +669,7 @@ pub fn swap(
     }
 
     let ask_asset = Asset {
-        info: ask_asset_info,
+        info: ask_asset.info.clone(),
         amount: swap_result.amount,
     };
     messages.push(
@@ -761,7 +763,7 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 }
 
 /// ## Description
-/// Returns the amount of assets that could be withdrawn from the pool using a specific amount of LP tokens.
+/// Returns the amount of cw20 asset that could be withdrawn from the pool using a specific amount of LP tokens.
 /// The result is returned in a vector that contains objects of type [`Asset`].
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
@@ -770,9 +772,14 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
     let config = CONFIG.load(deps.storage)?;
     let (pools, total_share) = pool_info(&deps.querier, &config)?;
-    let refund_assets = get_share_in_assets(&pools, amount, total_share);
+    let cw20_asset = pools
+        .into_iter()
+        .find(|asset| !asset.is_native_token())
+        .unwrap()
+        .clone();
+    let refund_assets = get_share(&cw20_asset, amount, total_share);
 
-    Ok(refund_assets)
+    Ok(vec![refund_assets])
 }
 
 /// ## Description

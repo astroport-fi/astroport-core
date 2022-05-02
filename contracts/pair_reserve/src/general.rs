@@ -131,29 +131,22 @@ fn rounded_decimal_mul(a: Decimal, b: Uint128) -> Uint128 {
 }
 
 /// ## Description
-/// Returns the amount of pool assets that correspond to an amount of LP tokens.
+/// Returns the amount of CW20 asset that corresponds to an amount of LP tokens.
 /// ## Params
-/// * **pools** are an array of [`Asset`] type items. These are the assets in the pool.
+/// * **asset** is an asset of [`Asset`] type. This is the only asset which can be withdrawn.
 ///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to compute a corresponding amount of assets for.
+/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to compute a corresponding amount of asset for.
 ///
 /// * **total_share** is an object of type [`Uint128`]. This is the total amount of LP tokens currently minted.
-pub(crate) fn get_share_in_assets(
-    pools: &[Asset; 2],
-    amount: Uint128,
-    total_share: Uint128,
-) -> Vec<Asset> {
+pub(crate) fn get_share(asset: &Asset, amount: Uint128, total_share: Uint128) -> Asset {
     let mut share_ratio = Decimal::zero();
     if !total_share.is_zero() {
         share_ratio = Decimal::from_ratio(amount, total_share);
     }
-    pools
-        .iter()
-        .map(|a| Asset {
-            info: a.info.clone(),
-            amount: rounded_decimal_mul(share_ratio, a.amount),
-        })
-        .collect()
+    Asset {
+        info: asset.info.clone(),
+        amount: rounded_decimal_mul(share_ratio, asset.amount),
+    }
 }
 
 /// Bulk validation and conversion between [`String`] -> [`Addr`] for an array of addresses.

@@ -3,8 +3,8 @@ use std::str::FromStr;
 use anyhow::Result as AnyResult;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    coin, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
-    Uint128,
+    coin, to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult, Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use cw_storage_plus::Item;
@@ -14,7 +14,9 @@ use terra_multi_test::{
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
-use astroport::pair_reserve::{Cw20HookMsg, ExecuteMsg, QueryMsg, UpdateFlowParams, UpdateParams};
+use astroport::pair_reserve::{
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, QueryMsg, UpdateFlowParams, UpdateParams,
+};
 
 pub const EXCHANGE_RATE_1: &str = "39000"; // 1 BTC -> 39000 USD
 pub const EXCHANGE_RATE_2: &str = "41000"; // 1 BTC -> 41000 USD
@@ -35,9 +37,47 @@ pub fn mock_app() -> TerraApp {
         .build()
 }
 
+pub trait AssetExt {
+    fn with_balance(&self, amount: u128) -> Self;
+    fn mock_coin_sent(&self, app: &mut TerraApp, user: &Addr, spender: &Addr) -> Vec<Coin>;
+}
+
+impl AssetExt for Asset {
+    fn with_balance(&self, amount: u128) -> Self {
+        Asset {
+            amount: Uint128::from(amount),
+            ..self.clone()
+        }
+    }
+
+    fn mock_coin_sent(&self, app: &mut TerraApp, user: &Addr, spender: &Addr) -> Vec<Coin> {
+        let mut funds = vec![];
+        match &self.info {
+            AssetInfo::Token { contract_addr } => {
+                let msg = Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: spender.to_string(),
+                    amount: self.amount,
+                    expires: None,
+                };
+                app.execute_contract(user.clone(), contract_addr.clone(), &msg, &[])
+                    .unwrap();
+            }
+            AssetInfo::NativeToken { denom } => {
+                if !self.amount.is_zero() {
+                    funds = vec![coin(self.amount.u128(), denom)];
+                    // app.send_tokens(user.clone(), spender.clone(), &funds)
+                    //     .unwrap();
+                }
+            }
+        }
+
+        funds
+    }
+}
+
 pub trait AssetsExt {
     fn with_balances(&self, btc: u128, ust: u128) -> Self;
-    fn mock_coins_sent(&self, app: &mut TerraApp, user: &Addr, spender: &Addr);
+    fn mock_coins_sent(&self, app: &mut TerraApp, user: &Addr, spender: &Addr) -> Vec<Coin>;
 }
 
 impl AssetsExt for [Asset; 2] {
@@ -49,30 +89,12 @@ impl AssetsExt for [Asset; 2] {
         assets
     }
 
-    fn mock_coins_sent(&self, app: &mut TerraApp, user: &Addr, pair_contract: &Addr) {
+    fn mock_coins_sent(&self, app: &mut TerraApp, user: &Addr, pair_contract: &Addr) -> Vec<Coin> {
+        let mut funds = vec![];
         for asset in self {
-            match &asset.info {
-                AssetInfo::Token { contract_addr } => {
-                    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-                        spender: pair_contract.to_string(),
-                        amount: asset.amount,
-                        expires: None,
-                    };
-                    app.execute_contract(user.clone(), contract_addr.clone(), &msg, &[])
-                        .unwrap();
-                }
-                AssetInfo::NativeToken { denom } => {
-                    if !asset.amount.is_zero() {
-                        app.send_tokens(
-                            user.clone(),
-                            pair_contract.clone(),
-                            &[coin(asset.amount.u128(), denom)],
-                        )
-                        .unwrap();
-                    }
-                }
-            }
+            funds.extend(asset.mock_coin_sent(app, user, pair_contract));
         }
+        funds
     }
 }
 
@@ -106,10 +128,13 @@ pub struct Helper {
     pub btc_token: Addr,
     pub assets: [Asset; 2], // (BTC, UST)
     pub lp_token: Addr,
-    pub astro_token: Addr,
+    pub cw20_token: Addr,
+    pub oracles: Vec<Addr>,
 }
 
 impl Helper {
+    const TAX: u128 = 1_390000;
+
     pub fn init(app: &mut TerraApp, owner: &Addr) -> Self {
         let token_contract = Box::new(ContractWrapper::new_with_empty(
             astroport_token::contract::execute,
@@ -139,8 +164,8 @@ impl Helper {
             .unwrap();
 
         let msg = astroport::token::InstantiateMsg {
-            name: "ASTRO".to_string(),
-            symbol: "ASTRO".to_string(),
+            name: "TOKEN".to_string(),
+            symbol: "TOKEN".to_string(),
             decimals: 6,
             initial_balances: vec![Cw20Coin {
                 address: owner.to_string(),
@@ -148,13 +173,13 @@ impl Helper {
             }],
             mint: None,
         };
-        let astro_token = app
+        let cw20_token = app
             .instantiate_contract(
                 token_code_id,
                 owner.clone(),
                 &msg,
                 &[],
-                String::from("ASTRO"),
+                String::from("TOKEN"),
                 None,
             )
             .unwrap();
@@ -293,7 +318,8 @@ impl Helper {
                 },
             ],
             lp_token: pair_info.liquidity_token,
-            astro_token,
+            cw20_token,
+            oracles: vec![oracle1, oracle2],
         }
     }
 
@@ -310,8 +336,8 @@ impl Helper {
             AssetInfo::NativeToken { denom } => {
                 app.init_bank_balance(
                     &Addr::unchecked(user),
-                    // Giving 20% more for tax
-                    vec![coin((1.2 * asset.amount.u128() as f32) as u128, denom)],
+                    // Giving 1.39 ust to pay tax
+                    vec![coin(asset.amount.u128() + Self::TAX, denom)],
                 )
                 .unwrap();
             }
@@ -380,5 +406,56 @@ impl Helper {
         };
         let balance: BalanceResponse = app.wrap().query_wasm_smart(token, &msg)?;
         Ok(balance.balance.u128())
+    }
+
+    pub fn get_config(&self, app: &mut TerraApp) -> AnyResult<ConfigResponse> {
+        let config: ConfigResponse = app
+            .wrap()
+            .query_wasm_smart(&self.pair, &QueryMsg::Config {})?;
+        Ok(config)
+    }
+
+    pub fn native_swap(
+        &self,
+        app: &mut TerraApp,
+        user: &str,
+        offer_asset: &Asset,
+        mock_sent: bool,
+    ) -> AnyResult<AppResponse> {
+        let user = Addr::unchecked(user);
+        let mut funds = vec![];
+        if mock_sent {
+            funds = offer_asset.mock_coin_sent(app, &user, &self.pair);
+        }
+        let msg = ExecuteMsg::Swap {
+            offer_asset: offer_asset.clone(),
+            belief_price: None,
+            max_spread: None,
+            to: None,
+        };
+        app.execute_contract(user, self.pair.clone(), &msg, &funds)
+    }
+
+    pub fn cw20_swap(
+        &self,
+        app: &mut TerraApp,
+        user: &str,
+        offer_asset: &Asset,
+    ) -> AnyResult<AppResponse> {
+        if let AssetInfo::Token { contract_addr } = &offer_asset.info {
+            let cw20_msg = Cw20ExecuteMsg::Send {
+                contract: self.pair.to_string(),
+                amount: offer_asset.amount,
+                msg: to_binary(&Cw20HookMsg::Swap {
+                    belief_price: None,
+                    max_spread: None,
+                    to: None,
+                })
+                .unwrap(),
+            };
+            app.execute_contract(Addr::unchecked(user), contract_addr.clone(), &cw20_msg, &[])
+        } else {
+            unimplemented!()
+        }
     }
 }

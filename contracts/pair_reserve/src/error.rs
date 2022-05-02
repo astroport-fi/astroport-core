@@ -41,6 +41,9 @@ pub enum ContractError {
     #[error("Failed to swap because return amount is zero")]
     SwapZeroAmount {},
 
+    #[error("Ask pool is empty")]
+    AskPoolEmpty {},
+
     #[error("Failed to retrieve the asset price from the oracles")]
     OraclesError {},
 }
