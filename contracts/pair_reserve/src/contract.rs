@@ -20,8 +20,8 @@ use astroport::DecimalCheckedOps;
 
 use crate::error::ContractError;
 use crate::general::{
-    check_asset_info, get_oracle_price, get_share, pool_info, validate_addresses, AssetsValidator,
-    ParametersValidator, RateDirection,
+    check_asset_info, get_oracle_price, get_share_in_assets, pool_info, validate_addresses,
+    AssetsValidator, ParametersValidator, RateDirection,
 };
 use crate::math::{assert_max_spread, compute_reverse_swap, compute_swap, replenish_pools};
 use crate::response::MsgInstantiateContractResponse;
@@ -515,30 +515,29 @@ pub fn withdraw_liquidity(
     }
 
     let (pools, total_share) = pool_info(&deps.querier, &config)?;
-    let cw20_asset = pools
-        .into_iter()
-        .find(|asset| !asset.is_native_token())
-        .unwrap()
-        .clone();
-    let refund_asset = get_share(&cw20_asset, amount, total_share);
+    let refund_assets = get_share_in_assets(&pools, amount, total_share);
 
-    // Update the pool info
-    let messages = vec![
-        refund_asset
-            .clone()
-            .into_msg(&deps.querier, sender.clone())?,
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.pair_info.liquidity_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
-            funds: vec![],
-        }),
-    ];
+    let mut messages = vec![];
+    for asset in refund_assets.iter() {
+        if !asset.amount.is_zero() {
+            messages.push(asset.clone().into_msg(&deps.querier, sender.clone())?)
+        }
+    }
+
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: config.pair_info.liquidity_token.to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
+        funds: vec![],
+    }));
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),
         attr("sender", sender),
         attr("withdrawn_share", amount),
-        attr("refund_asset", refund_asset.to_string()),
+        attr(
+            "refund_assets",
+            format!("{}, {}", refund_assets[0], refund_assets[1]),
+        ),
     ]))
 }
 
@@ -770,7 +769,7 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 }
 
 /// ## Description
-/// Returns the amount of cw20 asset that could be withdrawn from the pool using a specific amount of LP tokens.
+/// Returns the amount of assets that could be withdrawn from the pool using a specific amount of LP tokens.
 /// The result is returned in a vector that contains objects of type [`Asset`].
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
@@ -779,14 +778,9 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
     let config = CONFIG.load(deps.storage)?;
     let (pools, total_share) = pool_info(&deps.querier, &config)?;
-    let cw20_asset = pools
-        .into_iter()
-        .find(|asset| !asset.is_native_token())
-        .unwrap()
-        .clone();
-    let refund_assets = get_share(&cw20_asset, amount, total_share);
+    let refund_assets = get_share_in_assets(&pools, amount, total_share);
 
-    Ok(vec![refund_assets])
+    Ok(refund_assets)
 }
 
 /// ## Description
