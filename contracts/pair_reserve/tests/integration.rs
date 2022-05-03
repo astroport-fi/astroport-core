@@ -3,7 +3,8 @@ use terra_multi_test::Executor;
 
 use astroport::asset::{Asset, AssetInfo};
 use astroport::pair_reserve::{
-    ConfigResponse, ExecuteMsg, FlowParams, PoolParams, QueryMsg, UpdateFlowParams, UpdateParams,
+    ConfigResponse, ExecuteMsg, FlowParams, PoolParams, PoolResponse, QueryMsg, UpdateFlowParams,
+    UpdateParams,
 };
 
 use crate::test_utils::{mock_app, Helper};
@@ -491,4 +492,79 @@ fn check_swap() {
         .get_token_balance(&mut app, &helper.btc_token, "trader")
         .unwrap();
     assert_eq!(btc_balance, 0);
+}
+
+#[test]
+fn test_queries() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(&mut app, &owner);
+
+    // Filling up the LP pool
+    helper
+        .update_whitelist(&mut app, "owner", vec!["owner"], vec![])
+        .unwrap();
+    let lp_assets = helper.assets.with_balances(62500_000000, 0);
+    helper
+        .provide_liquidity(&mut app, "owner", lp_assets.clone(), None)
+        .unwrap();
+
+    let ust_asset = helper.assets[1].with_balance(2_000_000_000000u128);
+    let res = helper.query_simulation(&mut app, &ust_asset).unwrap();
+    assert_eq!(res.return_amount.u128(), 49_975000u128);
+    assert_eq!(res.spread_amount.u128(), 1000_000000u128); // in UST
+    assert_eq!(res.commission_amount.u128(), 0);
+
+    let ust_asset = ust_asset.with_balance(20_000_000_000000u128);
+    let res = helper.query_simulation(&mut app, &ust_asset).unwrap();
+    assert_eq!(res.return_amount.u128(), 483_333333u128);
+    assert_eq!(res.spread_amount.u128(), 666666_666666_u128); // in UST
+
+    let btc_asset = helper.assets[0].with_balance(100_000000u128);
+    let res = helper.query_simulation(&mut app, &btc_asset).unwrap();
+    assert_eq!(res.return_amount.u128(), 3960000_000000_u128);
+    assert_eq!(res.spread_amount.u128(), 40000_000000_u128); // in UST
+    assert_eq!(res.commission_amount.u128(), 0);
+
+    let btc_asset = btc_asset.with_balance(1000_000000u128);
+    let res = helper.query_simulation(&mut app, &btc_asset).unwrap();
+    assert_eq!(res.return_amount.u128(), 35_428_571_428572u128);
+    assert_eq!(res.spread_amount.u128(), 4_571_428_571428); // in UST
+
+    // --------------- reverse simulation -----------------
+
+    let btc_asset = helper.assets[0].with_balance(50_000000u128);
+    let res = helper
+        .query_reverse_simulation(&mut app, &btc_asset)
+        .unwrap();
+    assert_eq!(res.offer_amount.u128(), 2_020_000_000000u128);
+    assert_eq!(res.spread_amount.u128(), 20000_000000u128);
+    assert_eq!(res.commission_amount.u128(), 0);
+
+    let ust_asset = helper.assets[1].with_balance(2_000_000_000000u128);
+    let res = helper
+        .query_reverse_simulation(&mut app, &ust_asset)
+        .unwrap();
+    assert_eq!(res.offer_amount.u128(), 50_025000u128);
+    assert_eq!(res.spread_amount.u128(), 1000_000000u128);
+    assert_eq!(res.commission_amount.u128(), 0);
+
+    let res: Vec<Asset> = app
+        .wrap()
+        .query_wasm_smart(
+            &helper.pair,
+            &QueryMsg::Share {
+                amount: Uint128::from(1_000000u128),
+            },
+        )
+        .unwrap();
+    let true_share = helper.assets.with_balances(1_000000u128, 0);
+    assert_eq!(res, true_share);
+
+    let resp: PoolResponse = app
+        .wrap()
+        .query_wasm_smart(&helper.pair, &QueryMsg::Pool {})
+        .unwrap();
+    assert_eq!(resp.total_share.u128(), 62500_000000u128);
+    assert_eq!(resp.assets, lp_assets)
 }

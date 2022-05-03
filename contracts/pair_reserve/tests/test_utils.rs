@@ -15,8 +15,8 @@ use terra_multi_test::{
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::pair_reserve::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InitParams, QueryMsg, SimulationResponse,
-    UpdateFlowParams, UpdateParams,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InitParams, QueryMsg, ReverseSimulationResponse,
+    SimulationResponse, UpdateFlowParams, UpdateParams,
 };
 
 pub const EXCHANGE_RATE_1: &str = "39000"; // 1 BTC -> 39000 USD
@@ -487,6 +487,18 @@ impl Helper {
             offer_asset: offer_asset.clone(),
         };
         let res: SimulationResponse = app.wrap().query_wasm_smart(&self.pair, &msg)?;
+        Ok(res)
+    }
+
+    pub fn query_reverse_simulation(
+        &self,
+        app: &mut TerraApp,
+        ask_asset: &Asset,
+    ) -> AnyResult<ReverseSimulationResponse> {
+        let msg = QueryMsg::ReverseSimulation {
+            ask_asset: ask_asset.clone(),
+        };
+        let res: ReverseSimulationResponse = app.wrap().query_wasm_smart(&self.pair, &msg)?;
         Ok(res)
     }
 }
