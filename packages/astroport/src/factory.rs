@@ -21,6 +21,8 @@ pub enum PairType {
     Stable {},
     /// Custom pair type
     Custom(String),
+    /// Reserve pair type
+    Reserve {},
 }
 
 // Return a raw encoded string representing the name of each pool type
@@ -30,6 +32,7 @@ impl Display for PairType {
             PairType::Xyk {} => fmt.write_str("xyk"),
             PairType::Stable {} => fmt.write_str("stable"),
             PairType::Custom(pair_type) => fmt.write_str(format!("custom-{}", pair_type).as_str()),
+            PairType::Reserve {} => fmt.write_str("reserve"),
         }
     }
 }

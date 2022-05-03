@@ -18,14 +18,14 @@ pub struct InstantiateMsg {
     pub token_code_id: u64,
     /// The factory contract address
     pub factory_addr: String,
+    /// Pair contract owner
+    pub owner: String,
     /// Serialized reserve pool initial params
     pub init_params: Option<Binary>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct InitParams {
-    /// Pair contract owner
-    pub owner: String,
     /// Basic pool parameters
     pub pool_params: UpdateParams,
     /// Oracle addresses

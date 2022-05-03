@@ -91,10 +91,10 @@ pub fn instantiate(
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
             asset_infos: msg.asset_infos.clone(),
-            pair_type: PairType::Custom("Reserve-Pair".to_string()),
+            pair_type: PairType::Reserve {},
         },
         factory_addr: addr_validate_to_lower(deps.api, &msg.factory_addr)?,
-        owner: addr_validate_to_lower(deps.api, &init_params.owner)?,
+        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         providers_whitelist: vec![],
         pool_params,
     };

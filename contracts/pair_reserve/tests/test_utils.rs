@@ -259,7 +259,6 @@ impl Helper {
 
         let base_pool = 100_000_000_000000u128;
         let init_params = InitParams {
-            owner: owner.to_string(),
             pool_params: UpdateParams {
                 entry: Some(UpdateFlowParams {
                     base_pool: Uint128::from(base_pool),
@@ -274,7 +273,7 @@ impl Helper {
             },
             oracles: vec![oracle1.to_string(), oracle2.to_string()],
         };
-        let msg = astroport::pair::InstantiateMsg {
+        let msg = astroport::pair_reserve::InstantiateMsg {
             asset_infos: [
                 AssetInfo::Token {
                     contract_addr: btc_token.clone(),
@@ -285,6 +284,7 @@ impl Helper {
             ],
             token_code_id,
             factory_addr: factory_addr.to_string(),
+            owner: owner.to_string(),
             init_params: Some(to_binary(&init_params).unwrap()),
         };
         let pair = app
