@@ -127,21 +127,6 @@ fn test_compatibility_of_pair_anchor_with_routeswap() {
     )
     .unwrap();
 
-    app.init_bank_balance(
-        &owner.clone(),
-        vec![
-            Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128::new(10000_000000u128),
-            },
-            Coin {
-                denom: "uluna".to_string(),
-                amount: Uint128::new(10000_000000u128),
-            },
-        ],
-    )
-    .unwrap();
-
     let token_code_id = store_token_code(&mut app);
     let factory_code_id = store_factory_code(&mut app);
     let router_code_id = store_router_code(&mut app);

@@ -75,15 +75,12 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     // We can just call .unwrap() to assert this was a success
-    instantiate(deps.as_mut(), env, info, msg).unwrap();
-
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
+    instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
     // We can not update config for a virtual pool
     let res = execute(
         deps.as_mut(),
-        env.clone().clone(),
+        env,
         info,
         ExecuteMsg::UpdateConfig {
             params: Default::default(),
