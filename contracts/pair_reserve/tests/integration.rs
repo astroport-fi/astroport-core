@@ -126,6 +126,85 @@ fn test_config_update() {
         oracles: helper.oracles.clone(),
     };
     assert_eq!(config.pool_params, need_params);
+
+    // Checking update_whitelist() and update_oracles() in the same way as they use the same underlying logic
+    for func in [Helper::update_whitelist, Helper::update_oracles] {
+        let err = func(&helper, &mut router, "owner", vec![], vec![]).unwrap_err();
+        assert_eq!(
+            &err.to_string(),
+            "Generic error: Append and remove arrays are empty"
+        );
+        func(
+            &helper,
+            &mut router,
+            "owner",
+            vec!["alice", "bob", "john"],
+            vec![],
+        )
+        .unwrap();
+        // Alice is already in the list
+        let err = func(&helper, &mut router, "owner", vec!["alice"], vec![]).unwrap_err();
+        assert_eq!(
+            &err.to_string(),
+            "Generic error: Append and remove arrays are empty"
+        );
+        // Random_addr is not in the list thus it cannot be removed
+        let err = func(&helper, &mut router, "owner", vec![], vec!["random_addr"]).unwrap_err();
+        assert_eq!(
+            &err.to_string(),
+            "Generic error: Append and remove arrays are empty"
+        );
+        func(&helper, &mut router, "owner", vec![], vec!["john"]).unwrap();
+    }
+
+    let list = vec![Addr::unchecked("alice"), Addr::unchecked("bob")];
+    let config = helper.get_config(&mut router).unwrap();
+    assert_eq!(config.providers_whitelist, list);
+    let mut oracles = helper.oracles.clone();
+    oracles.extend(list);
+    assert_eq!(config.pool_params.oracles, oracles)
+}
+
+#[test]
+fn test_oracles() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(&mut app, &owner);
+
+    // Filling up the LP pool
+    helper
+        .update_whitelist(&mut app, "owner", vec!["owner"], vec![])
+        .unwrap();
+    let lp_assets = helper.assets.with_balances(1000_000000, 0);
+    helper
+        .provide_liquidity(&mut app, "owner", lp_assets, None)
+        .unwrap();
+
+    let ust_asset = helper.assets[1].with_balance(20_000000);
+    helper.give_coins(&mut app, "user", &ust_asset);
+
+    // Removing initial oracles
+    let oracles = helper.oracles.iter().map(|addr| addr.as_str()).collect();
+    helper
+        .update_oracles(&mut app, "owner", vec![], oracles)
+        .unwrap();
+
+    let err = helper
+        .native_swap(&mut app, "user", &ust_asset, true)
+        .unwrap_err();
+    assert_eq!(
+        &err.to_string(),
+        "Failed to retrieve the asset price from the oracles"
+    );
+
+    // Set one oracle
+    helper
+        .update_oracles(&mut app, "owner", vec![helper.oracles[0].as_str()], vec![])
+        .unwrap();
+    // Now swap should work
+    helper
+        .native_swap(&mut app, "user", &ust_asset, true)
+        .unwrap();
 }
 
 #[test]

@@ -15,7 +15,8 @@ use terra_multi_test::{
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::pair_reserve::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InitParams, QueryMsg, UpdateFlowParams, UpdateParams,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InitParams, QueryMsg, SimulationResponse,
+    UpdateFlowParams, UpdateParams,
 };
 
 pub const EXCHANGE_RATE_1: &str = "39000"; // 1 BTC -> 39000 USD
@@ -396,6 +397,23 @@ impl Helper {
         app.execute_contract(user, self.pair.clone(), &msg, &[])
     }
 
+    pub fn update_oracles(
+        &self,
+        app: &mut TerraApp,
+        user: &str,
+        add: Vec<&str>,
+        remove: Vec<&str>,
+    ) -> AnyResult<AppResponse> {
+        let user = Addr::unchecked(user);
+        let append_addrs = add.iter().map(|addr| addr.to_string()).collect();
+        let remove_addrs = remove.iter().map(|addr| addr.to_string()).collect();
+        let msg = ExecuteMsg::UpdateOracles {
+            append_addrs,
+            remove_addrs,
+        };
+        app.execute_contract(user, self.pair.clone(), &msg, &[])
+    }
+
     pub fn get_token_balance(
         &self,
         app: &mut TerraApp,
@@ -458,5 +476,17 @@ impl Helper {
         } else {
             unimplemented!()
         }
+    }
+
+    pub fn query_simulation(
+        &self,
+        app: &mut TerraApp,
+        offer_asset: &Asset,
+    ) -> AnyResult<SimulationResponse> {
+        let msg = QueryMsg::Simulation {
+            offer_asset: offer_asset.clone(),
+        };
+        let res: SimulationResponse = app.wrap().query_wasm_smart(&self.pair, &msg)?;
+        Ok(res)
     }
 }

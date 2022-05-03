@@ -331,7 +331,7 @@ pub fn receive_cw20(
             max_spread,
             to,
         } => {
-            let config: Config = CONFIG.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
 
             // Only asset contract can execute this message
             let authorized =
