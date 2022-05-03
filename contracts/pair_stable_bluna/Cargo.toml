@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-stable-bluna"
-version = "1.0.1-fix1"
+version = "1.0.2"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport stableswap pair contract implementation specifically designed for a pair that contains bLUNA"
