@@ -39,10 +39,7 @@ impl Display for PairType {
 
 impl PairType {
     pub fn is_restricted(&self) -> bool {
-        match self {
-            PairType::Reserve {} => true,
-            _ => false,
-        }
+        matches!(self, PairType::Reserve {})
     }
 }
 

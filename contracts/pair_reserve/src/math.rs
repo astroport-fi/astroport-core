@@ -97,7 +97,7 @@ pub(crate) fn compute_swap(
     let spread_ust_fee = spread.checked_mul(offer_ust_amount)?;
     let ask_amount = ask_exchange_rate.checked_mul(offer_ust_amount - spread_ust_fee)?;
     if ask_amount.is_zero() {
-        return Err(ContractError::SwapZeroAmount {})?;
+        return Err(ContractError::SwapZeroAmount {});
     }
     flow_params.pool_delta = flow_params
         .pool_delta

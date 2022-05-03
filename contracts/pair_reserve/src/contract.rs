@@ -77,12 +77,12 @@ pub fn instantiate(
         .pool_params
         .entry
         .as_ref()
-        .ok_or(StdError::generic_err("Entry flow params are not set"))?;
+        .ok_or_else(|| StdError::generic_err("Entry flow params are not set"))?;
     init_params
         .pool_params
         .exit
         .as_ref()
-        .ok_or(StdError::generic_err("Exit flow params are not set"))?;
+        .ok_or_else(|| StdError::generic_err("Exit flow params are not set"))?;
     update_flow_params(&mut pool_params.entry, init_params.pool_params.entry);
     update_flow_params(&mut pool_params.exit, init_params.pool_params.exit);
     pool_params.validate(None)?;
@@ -216,7 +216,7 @@ pub fn execute(
             let to_addr = to
                 .map(|addr| addr_validate_to_lower(deps.api, &addr))
                 .transpose()?
-                .unwrap_or(info.sender.clone());
+                .unwrap_or_else(|| info.sender.clone());
 
             swap(
                 deps,
@@ -340,10 +340,7 @@ pub fn receive_cw20(
                     .pair_info
                     .asset_infos
                     .iter()
-                    .any(|asset_info| match asset_info {
-                        AssetInfo::Token { contract_addr } if contract_addr == &info.sender => true,
-                        _ => false,
-                    });
+                    .any(|asset_info| matches!(asset_info, AssetInfo::Token { contract_addr } if contract_addr == &info.sender));
 
             if !authorized {
                 return Err(ContractError::Unauthorized {});
@@ -434,10 +431,7 @@ pub fn provide_liquidity(
             }
             _ => None,
         })
-        .ok_or(StdError::generic_err(
-            "Provided token does not belong to the pair",
-        ))?
-        .clone();
+        .ok_or_else(|| StdError::generic_err("Provided token does not belong to the pair"))?;
 
     if btc_asset.amount.is_zero() {
         return Err(ContractError::InvalidZeroAmount {});
@@ -678,7 +672,7 @@ pub fn swap(
     }
 
     let ask_asset = Asset {
-        info: ask_asset.info.clone(),
+        info: ask_asset.info,
         amount: swap_result.amount,
     };
     messages.push(
