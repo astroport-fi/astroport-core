@@ -1517,7 +1517,7 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, Con
         .add_attribute("previous_contract_version", &contract_version.version);
 
     match contract_version.contract.as_ref() {
-        "astroport-pair-stable-bluna" => match contract_version.version.as_ref() {
+        "astroport-pair-stable" => match contract_version.version.as_ref() {
             "1.0.0" | "1.0.0-fix1" => {
                 let config = CONFIG_PAIR_STABLE_V100.load(deps.storage)?;
                 let new_config = crate::state::Config {
@@ -1548,6 +1548,9 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, Con
                         &config.factory_addr,
                     )?);
             }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        "astroport-pair-stable-bluna" => match contract_version.version.as_ref() {
             "1.0.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
