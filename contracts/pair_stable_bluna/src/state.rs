@@ -32,8 +32,14 @@ pub struct Config {
     pub generator: Addr,
 }
 
+/// Stores the pool configuration
 pub const CONFIG: Item<Config> = Item::new("config");
 
+/// Stores the address of the contract that holds bLUNA rewards
 pub const BLUNA_REWARD_HOLDER: Item<Addr> = Item::new("bluna_reward_holder");
+
+/// Stores the bLUNA global reward index
 pub const BLUNA_REWARD_GLOBAL_INDEX: Item<Decimal256> = Item::new("bluna_reward_global_index");
+
+/// Stores each LP's reward index to know when is the last time when they claimed
 pub const BLUNA_REWARD_USER_INDEXES: Map<&Addr, Decimal256> = Map::new("bluna_reward_user_indexes");

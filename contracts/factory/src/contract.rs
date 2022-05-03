@@ -211,7 +211,6 @@ pub fn execute(
 
 /// ## Description
 /// Updates general contract settings. Returns a [`ContractError`] on failure.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -264,7 +263,6 @@ pub fn execute_update_config(
 
 /// ## Description
 /// Updates a pair type's configuration. Returns [`ContractError`] on failure.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -303,7 +301,6 @@ pub fn execute_update_pair_config(
 /// ## Description
 /// Creates a new pair of `pair_type` with the assets specified in `asset_infos`. Returns a [`ContractError`] on failure or
 /// returns the address of the pair contract if the transaction was successful.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -411,7 +408,6 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 /// ## Description
 /// Removes an existing pair from the factory. Returns an [`ContractError`] on failure or returns a [`Response`]
 /// with the specified attributes if the operation was successful.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -477,7 +473,7 @@ pub fn deregister(
 ///
 /// * **QueryMsg::FeeInfo { pair_type }** Returns the fee structure (total and maker fees) for a specific pair type.
 ///
-/// * **QueryMsg::BlacklistedPairTypes {}** Returns a vector that contains blacklisted pair types
+/// * **QueryMsg::BlacklistedPairTypes {}** Returns a vector that contains blacklisted pair types (pair types that cannot get ASTRO emissions).
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -493,6 +489,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 /// ## Description
 /// Returns a vector that contains blacklisted pair types
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
 pub fn query_blacklisted_pair_types(deps: Deps) -> StdResult<Vec<PairType>> {
     PAIR_CONFIGS
         .range(deps.storage, None, None, Order::Ascending)
@@ -511,7 +509,6 @@ pub fn query_blacklisted_pair_types(deps: Deps) -> StdResult<Vec<PairType>> {
 
 /// ## Description
 /// Returns general contract parameters using a custom [`ConfigResponse`] structure.
-///
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {

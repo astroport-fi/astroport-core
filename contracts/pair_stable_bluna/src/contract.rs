@@ -148,7 +148,7 @@ pub fn instantiate(
 
 /// ## Description
 /// The entry point to the contract for processing replies from submessages.
-/// # Params
+/// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **_env** is an object of type [`Env`].
@@ -391,7 +391,7 @@ pub fn receive_cw20(
 }
 
 /// ## Description
-/// Provides liquidity with the specified input parameters.
+/// Provides liquidity using the specified input parameters.
 /// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the
 /// specified attributes if the operation was successful.
 /// ## Params
