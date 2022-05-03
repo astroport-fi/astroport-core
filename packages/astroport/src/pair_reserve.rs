@@ -24,6 +24,8 @@ pub struct InstantiateMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct InitParams {
+    /// Pair contract owner
+    pub owner: String,
     /// Basic pool parameters
     pub pool_params: UpdateParams,
     /// Oracle addresses
@@ -70,6 +72,8 @@ pub enum ExecuteMsg {
     DropOwnershipProposal {},
     /// Claim contract ownership
     ClaimOwnership {},
+    /// This endpoint is not supported. It is intended for compatibility with Factory.
+    UpdateConfig { params: Binary },
 }
 
 /// This structure describes a CW20 hook message.

@@ -41,13 +41,14 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * **_info** is an object of type [`MessageInfo`].
+///
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     msg.asset_infos.validate(deps.api)?;
@@ -93,7 +94,7 @@ pub fn instantiate(
             pair_type: PairType::Custom("Reserve-Pair".to_string()),
         },
         factory_addr: addr_validate_to_lower(deps.api, &msg.factory_addr)?,
-        owner: info.sender.clone(),
+        owner: addr_validate_to_lower(deps.api, &init_params.owner)?,
         providers_whitelist: vec![],
         pool_params,
     };
@@ -301,6 +302,7 @@ pub fn execute(
             })
             .map_err(Into::into)
         }
+        ExecuteMsg::UpdateConfig { .. } => Err(ContractError::NonSupported {}),
     }
 }
 
