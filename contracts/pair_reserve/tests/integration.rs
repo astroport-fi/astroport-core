@@ -113,16 +113,15 @@ fn test_config_update() {
             base_pool: Uint128::from(1000u128),
             min_spread: 500,
             recovery_period: 100,
-            last_repl_block: 0,
             pool_delta: Decimal::zero(),
         },
         exit: FlowParams {
             base_pool: Uint128::from(100_000_000_000000u128),
             min_spread: 100,
             recovery_period: 100,
-            last_repl_block: 0,
             pool_delta: Decimal::zero(),
         },
+        last_repl_block: router.block_info().height,
         oracles: helper.oracles.clone(),
     };
     assert_eq!(config.pool_params, need_params);

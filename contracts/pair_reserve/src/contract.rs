@@ -69,6 +69,7 @@ pub fn instantiate(
     let mut pool_params = PoolParams {
         entry: Default::default(),
         exit: Default::default(),
+        last_repl_block: env.block.height,
         oracles,
     };
 

@@ -126,8 +126,6 @@ pub struct FlowParams {
     pub min_spread: u16,
     /// the number of blocks during which the pool should replenish to equilibrium
     pub recovery_period: u64,
-    /// the last block when replenishment was performed
-    pub last_repl_block: u64,
     pub pool_delta: Decimal,
 }
 
@@ -150,6 +148,8 @@ pub struct PoolParams {
     pub entry: FlowParams,
     /// BTC -> UST
     pub exit: FlowParams,
+    /// the last block when replenishment was performed
+    pub last_repl_block: u64,
     /// Oracles list BTC/USD
     pub oracles: Vec<Addr>,
 }

@@ -208,7 +208,7 @@ pub(crate) fn assert_max_spread(
 /// will never be called during a recovery period. Otherwise there always will be a small residual.
 pub(crate) fn replenish_pools(pool_params: &mut PoolParams, cur_block: u64) -> StdResult<()> {
     for flow_params in [&mut pool_params.exit, &mut pool_params.entry] {
-        let blocks_passed = cur_block.saturating_sub(flow_params.last_repl_block);
+        let blocks_passed = cur_block.saturating_sub(pool_params.last_repl_block);
         let delta_decay = Decimal::from_ratio(
             flow_params.pool_delta.checked_mul(blocks_passed.into())?,
             flow_params.recovery_period,
@@ -218,8 +218,8 @@ pub(crate) fn replenish_pools(pool_params: &mut PoolParams, cur_block: u64) -> S
         } else {
             Decimal::zero()
         };
-        flow_params.last_repl_block = cur_block;
     }
+    pool_params.last_repl_block = cur_block;
 
     Ok(())
 }
@@ -269,6 +269,7 @@ mod testing {
                 min_spread: 100,
                 ..Default::default()
             },
+            last_repl_block: 0,
             oracles: vec![Addr::unchecked(ORACLE_ADDR1), Addr::unchecked(ORACLE_ADDR2)],
         };
 
@@ -456,6 +457,7 @@ mod testing {
                 pool_delta: Decimal::from_ratio(60u8, 1u8),
                 ..Default::default()
             },
+            last_repl_block: 0,
             oracles: vec![Addr::unchecked(ORACLE_ADDR2), Addr::unchecked(ORACLE_ADDR1)],
         };
 
