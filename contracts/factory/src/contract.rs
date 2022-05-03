@@ -421,10 +421,7 @@ pub fn execute_create_reserve_pair(
         return Err(ContractError::DoublingAssets {});
     }
 
-    if PAIRS
-        .may_load(deps.storage, &pair_key(&asset_infos))?
-        .is_some()
-    {
+    if PAIRS.has(deps.storage, &pair_key(&asset_infos)) {
         return Err(ContractError::PairWasCreated {});
     }
 
@@ -464,7 +461,7 @@ pub fn execute_create_reserve_pair(
     Ok(Response::new()
         .add_submessages(sub_msg)
         .add_attributes(vec![
-            attr("action", "create_pair"),
+            attr("action", "create_reserve_pair"),
             attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
         ]))
 }
