@@ -112,7 +112,7 @@ pub enum ExecuteMsg {
         config: PairConfig,
     },
     /// CreatePair instantiates a new pair contract.
-    CreateReservePair {
+    PermissionedCreatePair {
         /// The pair type (exposed in [`PairType`])
         pair_type: PairType,
         /// The two assets to create the pool for

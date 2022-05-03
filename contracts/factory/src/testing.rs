@@ -740,3 +740,118 @@ fn register() {
         },]
     );
 }
+
+#[test]
+fn create_reserve_pair() {
+    let mut deps = mock_dependencies(&[]);
+
+    let pair_config = PairConfig {
+        code_id: 321u64,
+        pair_type: PairType::Reserve {},
+        total_fee_bps: 0,
+        maker_fee_bps: 0,
+        is_disabled: false,
+        is_generator_disabled: true,
+    };
+
+    let msg = InstantiateMsg {
+        pair_configs: vec![pair_config.clone()],
+        token_code_id: 123u64,
+        fee_address: None,
+        owner: "owner0000".to_string(),
+        generator_address: Some(String::from("generator")),
+        whitelist_code_id: 234u64,
+    };
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+
+    instantiate(deps.as_mut(), env, info, msg.clone()).unwrap();
+
+    let asset_infos = [
+        AssetInfo::Token {
+            contract_addr: Addr::unchecked("btc_token"),
+        },
+        AssetInfo::NativeToken {
+            denom: "uusd".to_string(),
+        },
+    ];
+
+    let config = CONFIG.load(&deps.storage).unwrap();
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+
+    let err = execute(
+        deps.as_mut(),
+        env.clone(),
+        info.clone(),
+        ExecuteMsg::CreatePair {
+            pair_type: PairType::Reserve {},
+            asset_infos: asset_infos.clone(),
+            init_params: None,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::Unauthorized {});
+
+    // This is a unit test so we do not need to supply real init params
+    let init_params = to_binary(&()).unwrap();
+
+    // Only the contact owner can call this function
+    let err = execute(
+        deps.as_mut(),
+        env.clone(),
+        info,
+        ExecuteMsg::PermissionedCreatePair {
+            pair_type: PairType::Reserve {},
+            asset_infos: asset_infos.clone(),
+            init_params: Some(init_params.clone()),
+        },
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::Unauthorized {});
+
+    let info = mock_info("owner0000", &[]);
+    let res = execute(
+        deps.as_mut(),
+        env,
+        info,
+        ExecuteMsg::PermissionedCreatePair {
+            pair_type: PairType::Reserve {},
+            asset_infos: asset_infos.clone(),
+            init_params: Some(init_params.clone()),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "permissioned_create_pair"),
+            attr("pair", "btc_token-uusd")
+        ]
+    );
+    assert_eq!(
+        res.messages,
+        vec![SubMsg {
+            msg: WasmMsg::Instantiate {
+                msg: to_binary(&astroport::pair_reserve::InstantiateMsg {
+                    factory_addr: String::from(MOCK_CONTRACT_ADDR),
+                    asset_infos: asset_infos.clone(),
+                    token_code_id: msg.token_code_id,
+                    init_params: Some(init_params),
+                    owner: "owner0000".to_string()
+                })
+                .unwrap(),
+                code_id: pair_config.code_id,
+                funds: vec![],
+                admin: Some(config.owner.to_string()),
+                label: String::from("Astroport pair"),
+            }
+            .into(),
+            id: 1,
+            gas_limit: None,
+            reply_on: ReplyOn::Success
+        }]
+    );
+}

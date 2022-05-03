@@ -169,11 +169,11 @@ pub fn execute(
             },
         ),
         ExecuteMsg::UpdatePairConfig { config } => execute_update_pair_config(deps, info, config),
-        ExecuteMsg::CreateReservePair {
+        ExecuteMsg::PermissionedCreatePair {
             pair_type,
             asset_infos,
             init_params,
-        } => execute_create_reserve_pair(deps, env, info, pair_type, asset_infos, init_params),
+        } => permissioned_create_pair(deps, env, info, pair_type, asset_infos, init_params),
         ExecuteMsg::CreatePair {
             pair_type,
             asset_infos,
@@ -401,7 +401,7 @@ pub fn execute_create_pair(
 /// * **init_params** is an [`Option`] type. These are packed params used for custom pair types that need extra data to be instantiated.
 ///
 /// NOTE: only contract owner can call this function.
-pub fn execute_create_reserve_pair(
+pub fn permissioned_create_pair(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -461,7 +461,7 @@ pub fn execute_create_reserve_pair(
     Ok(Response::new()
         .add_submessages(sub_msg)
         .add_attributes(vec![
-            attr("action", "create_reserve_pair"),
+            attr("action", "permissioned_create_pair"),
             attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
         ]))
 }
