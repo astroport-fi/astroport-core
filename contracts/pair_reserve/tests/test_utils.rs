@@ -98,10 +98,38 @@ impl AssetsExt for [Asset; 2] {
     }
 }
 
-struct OracleMock;
+struct OracleMockFactory {
+    code: u64,
+    owner: Addr,
+}
 
-impl<'a> OracleMock {
+impl<'a> OracleMockFactory {
     const EXCHANGE_RATE: Item<'a, Decimal> = Item::new("exchange_rate"); // BTC/USD
+
+    fn new(app: &mut TerraApp, owner: &Addr) -> Self {
+        let contract = Box::new(ContractWrapper::new_with_empty(
+            Self::execute,
+            Self::instantiate,
+            Self::query,
+        ));
+        let code = app.store_code(contract);
+        OracleMockFactory {
+            code,
+            owner: owner.clone(),
+        }
+    }
+
+    fn init(&self, app: &mut TerraApp, name: &str, exchange_rate: &str) -> Addr {
+        app.instantiate_contract(
+            self.code,
+            self.owner.clone(),
+            &Decimal::from_str(exchange_rate).unwrap(),
+            &[],
+            String::from(name),
+            None,
+        )
+        .unwrap()
+    }
 
     fn instantiate(
         deps: DepsMut,
@@ -229,33 +257,9 @@ impl Helper {
             )
             .unwrap();
 
-        let oracle_contract = Box::new(ContractWrapper::new_with_empty(
-            OracleMock::execute,
-            OracleMock::instantiate,
-            OracleMock::query,
-        ));
-        let oracle_code = app.store_code(oracle_contract);
-        let oracle1 = app
-            .instantiate_contract(
-                oracle_code,
-                owner.clone(),
-                &Decimal::from_str(EXCHANGE_RATE_1).unwrap(),
-                &[],
-                String::from("BTC2USD Oracle1"),
-                None,
-            )
-            .unwrap();
-
-        let oracle2 = app
-            .instantiate_contract(
-                oracle_code,
-                owner.clone(),
-                &Decimal::from_str(EXCHANGE_RATE_2).unwrap(),
-                &[],
-                String::from("BTC2USD Oracle2"),
-                None,
-            )
-            .unwrap();
+        let oracle_factory = OracleMockFactory::new(app, owner);
+        let oracle1 = oracle_factory.init(app, "BTC2USD Oracle1", EXCHANGE_RATE_1);
+        let oracle2 = oracle_factory.init(app, "BTC2USD Oracle2", EXCHANGE_RATE_2);
 
         let base_pool = 100_000_000_000000u128;
         let init_params = InitParams {
