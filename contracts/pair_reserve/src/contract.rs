@@ -874,7 +874,7 @@ pub fn query_prices(deps: Deps) -> StdResult<CumulativePricesResponse> {
         };
         let price = get_oracle_price(&deps.querier, direction, &config.pool_params.oracles)
             .map_err(|err| StdError::generic_err(err.to_string()))?;
-        Ok(price * Uint128::from(1u8))
+        Ok(price * asset.amount)
     };
 
     Ok(CumulativePricesResponse {

@@ -206,11 +206,11 @@ impl Helper {
         let msg = astroport::factory::InstantiateMsg {
             pair_configs: vec![PairConfig {
                 code_id: pair_code,
-                pair_type: PairType::Custom("Reserve-Pair".to_string()),
+                pair_type: PairType::Reserve {},
                 total_fee_bps: 0,
                 maker_fee_bps: 0,
                 is_disabled: false,
-                is_generator_disabled: false,
+                is_generator_disabled: true,
             }],
             token_code_id,
             fee_address: Some("fee_address".to_string()),
