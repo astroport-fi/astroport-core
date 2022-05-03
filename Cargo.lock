@@ -56,48 +56,6 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#7194e3b3e143ee5621102a2ff30a4a942dbfd773"
-dependencies = [
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw20",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "uint",
-]
-
-[[package]]
-name = "astroport"
-version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8#973aab9419229cb221023066f96b18f2edf75ba8"
-dependencies = [
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw20",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "uint",
-]
-
-[[package]]
-name = "astroport"
-version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport.git#a0b72d0972d53ee8ebd8b7b6e327b61d87f85d6a"
-dependencies = [
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw20",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "uint",
-]
-
-[[package]]
-name = "astroport"
 version = "2.0.0"
 dependencies = [
  "cosmwasm-schema",
@@ -147,50 +105,18 @@ dependencies = [
 
 [[package]]
 name = "astroport-generator"
-version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8#973aab9419229cb221023066f96b18f2edf75ba8"
-dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8)",
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw2",
- "cw20",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "astroport-generator"
 version = "2.0.0"
 dependencies = [
- "anyhow",
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8)",
  "astroport 2.0.0",
- "astroport-factory",
- "astroport-generator 1.2.0",
- "astroport-generator-proxy-to-mirror",
  "astroport-governance",
- "astroport-pair",
- "astroport-pair-stable",
- "astroport-staking",
- "astroport-token",
- "astroport-vesting",
- "astroport-whitelist",
- "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2",
  "cw20",
- "generator-controller",
- "mirror-protocol 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mirror-staking",
  "protobuf",
  "schemars",
  "serde",
- "terra-multi-test",
  "thiserror",
- "voting-escrow",
 ]
 
 [[package]]
@@ -203,7 +129,7 @@ dependencies = [
  "cw-storage-plus 0.8.1",
  "cw2",
  "cw20",
- "mirror-protocol 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mirror-protocol",
  "schemars",
  "serde",
  "thiserror",
@@ -1200,23 +1126,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
-name = "generator-controller"
-version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#cb18bd54b541f2e43bf804230e8981f1a31e7b0a"
-dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
- "astroport-governance",
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw2",
- "itertools",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "thiserror",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1562,33 +1471,6 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
- "schemars",
- "serde",
- "terraswap",
-]
-
-[[package]]
-name = "mirror-protocol"
-version = "2.1.1"
-source = "git+https://github.com/Mirror-Protocol/mirror-contracts.git?tag=v2.1.1#485f63677decb2c106778037d38314995ea6955e"
-dependencies = [
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "schemars",
- "serde",
- "terraswap",
-]
-
-[[package]]
-name = "mirror-staking"
-version = "2.1.1"
-source = "git+https://github.com/Mirror-Protocol/mirror-contracts.git?tag=v2.1.1#485f63677decb2c106778037d38314995ea6955e"
-dependencies = [
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "mirror-protocol 2.1.1 (git+https://github.com/Mirror-Protocol/mirror-contracts.git?tag=v2.1.1)",
  "schemars",
  "serde",
  "terraswap",
@@ -2512,24 +2394,6 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
-
-[[package]]
-name = "voting-escrow"
-version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#cb18bd54b541f2e43bf804230e8981f1a31e7b0a"
-dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git)",
- "astroport-governance",
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw2",
- "cw20",
- "cw20-base",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "thiserror",
-]
 
 [[package]]
 name = "wait-timeout"
