@@ -273,39 +273,32 @@ impl Helper {
             },
             oracles: vec![oracle1.to_string(), oracle2.to_string()],
         };
-        let msg = astroport::pair_reserve::InstantiateMsg {
-            asset_infos: [
-                AssetInfo::Token {
-                    contract_addr: btc_token.clone(),
-                },
-                AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-            ],
-            token_code_id,
-            factory_addr: factory_addr.to_string(),
-            owner: owner.to_string(),
+        let asset_infos = [
+            AssetInfo::Token {
+                contract_addr: btc_token.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+        ];
+        let create_pair_msg = astroport::factory::ExecuteMsg::PermissionedCreatePair {
+            pair_type: PairType::Reserve {},
+            asset_infos: asset_infos.clone(),
             init_params: Some(to_binary(&init_params).unwrap()),
         };
-        let pair = app
-            .instantiate_contract(
-                pair_code,
-                owner.clone(),
-                &msg,
-                &[],
-                String::from("BTC-UST POOL"),
-                None,
-            )
+        app.execute_contract(owner.clone(), factory_addr.clone(), &create_pair_msg, &[])
             .unwrap();
-
         let pair_info: PairInfo = app
             .wrap()
-            .query_wasm_smart(&pair, &QueryMsg::Pair {})
+            .query_wasm_smart(
+                &factory_addr,
+                &astroport::factory::QueryMsg::Pair { asset_infos },
+            )
             .unwrap();
 
         Self {
             owner: owner.clone(),
-            pair,
+            pair: pair_info.contract_addr,
             btc_token: btc_token.clone(),
             assets: [
                 Asset {
