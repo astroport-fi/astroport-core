@@ -37,6 +37,15 @@ impl Display for PairType {
     }
 }
 
+impl PairType {
+    pub fn is_restricted(&self) -> bool {
+        match self {
+            PairType::Reserve {} => true,
+            _ => false,
+        }
+    }
+}
+
 /// This structure stores a pair type's configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairConfig {
@@ -102,6 +111,16 @@ pub enum ExecuteMsg {
         /// New [`PairConfig`] settings for a pair type
         config: PairConfig,
     },
+    /// CreatePair instantiates a new pair contract.
+    CreateReservePair {
+        /// The pair type (exposed in [`PairType`])
+        pair_type: PairType,
+        /// The two assets to create the pool for
+        asset_infos: [AssetInfo; 2],
+        /// Optional binary serialised parameters for custom pool types
+        init_params: Option<Binary>,
+    },
+
     /// CreatePair instantiates a new pair contract.
     CreatePair {
         /// The pair type (exposed in [`PairType`])

@@ -169,6 +169,11 @@ pub fn execute(
             },
         ),
         ExecuteMsg::UpdatePairConfig { config } => execute_update_pair_config(deps, info, config),
+        ExecuteMsg::CreateReservePair {
+            pair_type,
+            asset_infos,
+            init_params,
+        } => execute_create_reserve_pair(deps, env, info, pair_type, asset_infos, init_params),
         ExecuteMsg::CreatePair {
             pair_type,
             asset_infos,
@@ -321,6 +326,9 @@ pub fn execute_create_pair(
     asset_infos: [AssetInfo; 2],
     init_params: Option<Binary>,
 ) -> Result<Response, ContractError> {
+    if pair_type.is_restricted() {
+        return Err(ContractError::Unauthorized {});
+    }
     asset_infos[0].check(deps.api)?;
     asset_infos[1].check(deps.api)?;
 
@@ -359,6 +367,90 @@ pub fn execute_create_pair(
                 asset_infos: asset_infos.clone(),
                 token_code_id: config.token_code_id,
                 factory_addr: env.contract.address.to_string(),
+                init_params,
+            })?,
+            funds: vec![],
+            label: "Astroport pair".to_string(),
+        }
+        .into(),
+        gas_limit: None,
+        reply_on: ReplyOn::Success,
+    }];
+
+    Ok(Response::new()
+        .add_submessages(sub_msg)
+        .add_attributes(vec![
+            attr("action", "create_pair"),
+            attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
+        ]))
+}
+
+/// ## Description
+/// Creates a new pair of `pair_type` with the assets specified in `asset_infos`. Returns a [`ContractError`] on failure or
+/// returns the address of the pair contract if the transaction was successful.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **pair_type** is an object of type [`PairType`]. This is the pair type of the newly created pair.
+///
+/// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the assets for which we create a pair.
+///
+/// * **init_params** is an [`Option`] type. These are packed params used for custom pair types that need extra data to be instantiated.
+///
+/// NOTE: only contract owner can call this function.
+pub fn execute_create_reserve_pair(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    pair_type: PairType,
+    asset_infos: [AssetInfo; 2],
+    init_params: Option<Binary>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    asset_infos[0].check(deps.api)?;
+    asset_infos[1].check(deps.api)?;
+
+    if asset_infos[0] == asset_infos[1] {
+        return Err(ContractError::DoublingAssets {});
+    }
+
+    if PAIRS
+        .may_load(deps.storage, &pair_key(&asset_infos))?
+        .is_some()
+    {
+        return Err(ContractError::PairWasCreated {});
+    }
+
+    // Get pair type from config
+    let pair_config = PAIR_CONFIGS
+        .load(deps.storage, pair_type.to_string())
+        .map_err(|_| ContractError::PairConfigNotFound {})?;
+
+    // Check if pair config is disabled
+    if pair_config.is_disabled {
+        return Err(ContractError::PairConfigDisabled {});
+    }
+
+    let pair_key = pair_key(&asset_infos);
+    TMP_PAIR_INFO.save(deps.storage, &TmpPairInfo { pair_key })?;
+
+    let sub_msg: Vec<SubMsg> = vec![SubMsg {
+        id: INSTANTIATE_PAIR_REPLY_ID,
+        msg: WasmMsg::Instantiate {
+            admin: Some(config.owner.to_string()),
+            code_id: pair_config.code_id,
+            msg: to_binary(&astroport::pair_reserve::InstantiateMsg {
+                asset_infos: asset_infos.clone(),
+                token_code_id: config.token_code_id,
+                factory_addr: env.contract.address.to_string(),
+                owner: config.owner.to_string(),
                 init_params,
             })?,
             funds: vec![],
