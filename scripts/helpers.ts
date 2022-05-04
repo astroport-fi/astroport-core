@@ -13,7 +13,7 @@ import {
     MsgStoreCode,
     MsgUpdateContractAdmin,
     StdTx,
-    Wallet
+    Wallet,
 } from '@terra-money/terra.js';
 import {
     readFileSync,
@@ -21,6 +21,7 @@ import {
 } from 'fs'
 import path from 'path'
 import { CustomError } from 'ts-custom-error'
+import {APIParams} from "@terra-money/terra.js/dist/client/lcd/APIRequester";
 
 export const ARTIFACTS_PATH = '../artifacts'
 const DEFAULT_GAS_CURRENCY = "uusd"
@@ -128,6 +129,22 @@ export async function executeContract(terra: LCDClient, wallet: Wallet, contract
 
 export async function queryContract(terra: LCDClient, contractAddress: string, query: object): Promise<any> {
     return await terra.wasm.contractQuery(contractAddress, query)
+}
+
+export async function queryContractInfo(terra: LCDClient, contractAddress: string): Promise<any> {
+    return await terra.wasm.contractInfo(contractAddress)
+}
+
+export async function queryCodeInfo(terra: LCDClient, codeID: number): Promise<any> {
+    return await terra.wasm.codeInfo(codeID)
+}
+
+export async function queryContractQuery(terra: LCDClient, contractAddress: string, query: any): Promise<any> {
+    return await terra.wasm.contractQuery(contractAddress, query)
+}
+
+export async function queryContractRaw(terra: LCDClient, end_point: string, params: APIParams): Promise<any> {
+    return await terra.apiRequester.getRaw(end_point, params)
 }
 
 export async function deployContract(terra: LCDClient, wallet: Wallet, admin_address: string, filepath: string, initMsg: object) {
