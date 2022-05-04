@@ -98,6 +98,8 @@ impl EscrowHelper {
             guardian_addr: "guardian".to_string(),
             deposit_token_addr: res.share_token_addr.to_string(),
             marketing: None,
+            max_exit_penalty: Default::default(),
+            slashed_fund_receiver: None,
         };
         let voting_instance = router
             .instantiate_contract(
