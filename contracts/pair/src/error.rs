@@ -1,4 +1,4 @@
-use cosmwasm_std::{OverflowError, StdError};
+use cosmwasm_std::{OverflowError, StdError, Uint128};
 use thiserror::Error;
 
 /// ## Description
@@ -37,6 +37,9 @@ pub enum ContractError {
 
     #[error("Generator address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
+
+    #[error("Pool doesn't have any liquidity to facilitate the swap. Token0 = {0}, Token1 = {1}")]
+    ZeroLiquidity(Uint128, Uint128),
 }
 
 impl From<OverflowError> for ContractError {
