@@ -15,17 +15,16 @@ async function main() {
 
     // 1. Provide ASTRO-UST liquidity
     const liquidity_amount = 5000000;
-    const liquidity_amount1 = 1000000;
     await provideLiquidity(network, astroport, cl.wallet.key.accAddress, network.poolAstroUst, [
-        new NativeAsset('uusd', liquidity_amount1.toString()),
+        new NativeAsset('uusd', liquidity_amount.toString()),
         new TokenAsset(network.tokenAddress, liquidity_amount.toString())
     ])
 
     // 2. Provide LUNA-UST liquidity
-    // await provideLiquidity(network, astroport, cl.wallet.key.accAddress, network.poolLunaUst, [
-    //     new NativeAsset('uluna', liquidity_amount.toString()),
-    //     new NativeAsset('uusd', liquidity_amount.toString())
-    // ])
+    await provideLiquidity(network, astroport, cl.wallet.key.accAddress, network.poolLunaUst, [
+        new NativeAsset('uluna', liquidity_amount.toString()),
+        new NativeAsset('uusd', liquidity_amount.toString())
+    ])
 
     // 3. Fetch the pool balances
     let lpTokenAstroUst = await astroport.getTokenBalance(network.lpTokenAstroUst, cl.wallet.key.accAddress);
@@ -34,35 +33,36 @@ async function main() {
     console.log(`AstroUst balance: ${lpTokenAstroUst}`)
     console.log(`LunaUst balance: ${lpTokenLunaUst}`)
 
-    //const generator = astroport.generator(network.generatorAddress);
-    //console.log("generator config: ", await generator.queryConfig());
+    const generator = astroport.generator(network.generatorAddress);
+    console.log("generator config: ", await generator.queryConfig());
 
     // 4. Register generators
-    // await generator.registerGenerator([
-    //     [network.lpTokenAstroUst, "24528"],
-    //     [network.lpTokenLunaUst, "24528"],
-    // ])
+    await generator.registerGenerator([
+        [network.lpTokenAstroUst, "24528"],
+        [network.lpTokenLunaUst, "24528"],
+    ])
 
     // 4. Deposit to generator
-    //await generator.deposit(network.lpTokenAstroUst, "623775")
-    //await generator.deposit(network.lpTokenLunaUst, "10000000")
+    await generator.deposit(network.lpTokenAstroUst, "623775")
+    await generator.deposit(network.lpTokenLunaUst, "10000000")
 
-    // 5. Query deposit
-    //console.log(`deposited: ${await generator.queryDeposit(network.lpTokenAstroUst, cl.wallet.key.accAddress)}`)
-    //console.log(`deposited: ${await generator.queryDeposit(network.lpTokenLunaUst, cl.wallet.key.accAddress)}`)
+    // 5. Fetch the deposit balances
+    console.log(`deposited: ${await generator.queryDeposit(network.lpTokenAstroUst, cl.wallet.key.accAddress)}`)
+    console.log(`deposited: ${await generator.queryDeposit(network.lpTokenLunaUst, cl.wallet.key.accAddress)}`)
 
     // 6. Find checkpoint generators limit for user boost
-    //await findCheckpointGeneratorsLimit(generator, network)
+    await findCheckpointGeneratorsLimit(generator, network)
 }
 
 async function findCheckpointGeneratorsLimit(generator: Generator, network: any) {
     let generators = []
     for(let i = 0; i < 40; i++) {
         generators.push(network.lpTokenAstroUst)
-        //generators.push(network.lpTokenLunaUst)
+        generators.push(network.lpTokenLunaUst)
     }
 
     await generator.checkpointUserBoost(generators)
 
 }
+
 main().catch(console.log)
