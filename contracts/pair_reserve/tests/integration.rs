@@ -632,7 +632,7 @@ fn test_swaps_and_replenishments() {
     let ust_swap_before_repl = helper.query_simulation(&mut app, &ust_asset).unwrap();
     assert_eq!(ust_swap_before_repl.return_amount.u128(), 45_355587);
 
-    // Increasing the pair's ust balance
+    // Increasing the pair's ust balance so it can pay for huge amount of BTC
     let ust_asset = helper.assets[1].with_balance(1_000_000_000_000000u128); // 1MMM$
     helper.give_coins(&mut app, helper.pair.as_str(), &ust_asset);
 
@@ -743,4 +743,43 @@ fn test_swaps_and_replenishments() {
         config.pool_params.entry.pool_delta.to_string(),
         "5600000000000"
     );
+
+    // Skipping 10 blocks so TerraDelta_entry_flow should become zero
+    app.skip_blocks(config.pool_params.entry.recovery_period);
+
+    let config = helper.get_config(&mut app).unwrap();
+    assert_eq!(config.pool_params.entry.pool_delta.to_string(), "0");
+    assert_eq!(
+        config.pool_params.exit.pool_delta.to_string(),
+        "10728000000000"
+    );
+
+    // Skipping 100 blocks so TerraDelta_exit_flow should become zero
+    app.skip_blocks(config.pool_params.exit.recovery_period);
+
+    let config = helper.get_config(&mut app).unwrap();
+    assert_eq!(config.pool_params.entry.pool_delta.to_string(), "0");
+    assert_eq!(config.pool_params.exit.pool_delta.to_string(), "0");
+
+    // Check that swaps incur default spread in both directions
+
+    let user = "user7";
+    let ust_asset = helper.assets[1].with_balance(40_000_000000u128);
+    helper.give_coins(&mut app, user, &ust_asset);
+    helper
+        .native_swap(&mut app, user, &ust_asset, true)
+        .unwrap();
+
+    let btc_balance = helper
+        .get_token_balance(&mut app, &helper.btc_token, user)
+        .unwrap();
+    assert_eq!(btc_balance, 999500);
+
+    let user = "user8";
+    let btc_asset = helper.assets[0].with_balance(1_000000);
+    helper.give_coins(&mut app, user, &btc_asset);
+    helper.cw20_swap(&mut app, user, &btc_asset).unwrap();
+    let ust_balance = app.wrap().query_balance(user, "uusd").unwrap();
+    // $40k - 0.1% spread - $1.39 tax
+    assert_eq!(ust_balance.amount.u128(), 39_598_610000);
 }
