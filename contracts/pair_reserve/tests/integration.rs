@@ -462,7 +462,6 @@ fn check_swap() {
     let ust_balance = app.wrap().query_balance("user", "uusd").unwrap();
     assert_eq!(ust_balance.amount.u128(), 0);
 
-    // 1MM$
     let assets = helper.assets.with_balances(1, 5_000000_000000);
     helper.give_coins(&mut app, "rich_person", &assets[1]);
     helper
@@ -471,8 +470,7 @@ fn check_swap() {
     let btc_balance = helper
         .get_token_balance(&mut app, &helper.btc_token, "rich_person")
         .unwrap();
-    // Spread fee 0.24%
-    assert_eq!(btc_balance, 124_700117);
+    assert_eq!(btc_balance, 119_001147);
     let ust_balance = app.wrap().query_balance("rich_person", "uusd").unwrap();
     assert_eq!(ust_balance.amount.u128(), 0);
 
@@ -509,44 +507,44 @@ fn test_queries() {
         .provide_liquidity(&mut app, "owner", lp_assets.clone(), None)
         .unwrap();
 
-    let ust_asset = helper.assets[1].with_balance(2_000_000_000000u128);
+    let ust_asset = helper.assets[1].with_balance(40_000_000000u128);
     let res = helper.query_simulation(&mut app, &ust_asset).unwrap();
-    assert_eq!(res.return_amount.u128(), 49_975000u128);
-    assert_eq!(res.spread_amount.u128(), 1000_000000u128); // in UST
+    assert_eq!(res.return_amount.u128(), 999500);
+    assert_eq!(res.spread_amount.u128(), 20000000); // in UST
     assert_eq!(res.commission_amount.u128(), 0);
 
-    let ust_asset = ust_asset.with_balance(20_000_000_000000u128);
+    let ust_asset = ust_asset.with_balance(2_000_000_000000u128);
     let res = helper.query_simulation(&mut app, &ust_asset).unwrap();
-    assert_eq!(res.return_amount.u128(), 483_333333u128);
-    assert_eq!(res.spread_amount.u128(), 666666_666666_u128); // in UST
+    assert_eq!(res.return_amount.u128(), 49_019_607);
+    assert_eq!(res.spread_amount.u128(), 39_215_686274); // in UST
 
-    let btc_asset = helper.assets[0].with_balance(100_000000u128);
+    let btc_asset = helper.assets[0].with_balance(1_000000u128);
     let res = helper.query_simulation(&mut app, &btc_asset).unwrap();
-    assert_eq!(res.return_amount.u128(), 3960000_000000_u128);
-    assert_eq!(res.spread_amount.u128(), 40000_000000_u128); // in UST
+    assert_eq!(res.return_amount.u128(), 39600_000000_u128);
+    assert_eq!(res.spread_amount.u128(), 400_000000_u128); // in UST
     assert_eq!(res.commission_amount.u128(), 0);
 
-    let btc_asset = btc_asset.with_balance(1000_000000u128);
+    let btc_asset = btc_asset.with_balance(100_000000u128);
     let res = helper.query_simulation(&mut app, &btc_asset).unwrap();
-    assert_eq!(res.return_amount.u128(), 35_428_571_428572u128);
-    assert_eq!(res.spread_amount.u128(), 4_571_428_571428); // in UST
+    assert_eq!(res.return_amount.u128(), 3_846_153_846154);
+    assert_eq!(res.spread_amount.u128(), 153_846_153846); // in UST
 
     // --------------- reverse simulation -----------------
 
-    let btc_asset = helper.assets[0].with_balance(50_000000u128);
+    let btc_asset = helper.assets[0].with_balance(1_000000u128);
     let res = helper
         .query_reverse_simulation(&mut app, &btc_asset)
         .unwrap();
-    assert_eq!(res.offer_amount.u128(), 2_020_000_000000u128);
-    assert_eq!(res.spread_amount.u128(), 20000_000000u128);
+    assert_eq!(res.offer_amount.u128(), 40_400_000000);
+    assert_eq!(res.spread_amount.u128(), 400_000000);
     assert_eq!(res.commission_amount.u128(), 0);
 
-    let ust_asset = helper.assets[1].with_balance(2_000_000_000000u128);
+    let ust_asset = helper.assets[1].with_balance(40_000_000000u128);
     let res = helper
         .query_reverse_simulation(&mut app, &ust_asset)
         .unwrap();
-    assert_eq!(res.offer_amount.u128(), 50_025000u128);
-    assert_eq!(res.spread_amount.u128(), 1000_000000u128);
+    assert_eq!(res.offer_amount.u128(), 1_000500);
+    assert_eq!(res.spread_amount.u128(), 20_000000);
     assert_eq!(res.commission_amount.u128(), 0);
 
     let res: Vec<Asset> = app
@@ -600,7 +598,7 @@ fn test_swaps_and_replenishments() {
     let btc_balance = helper
         .get_token_balance(&mut app, &helper.btc_token, user)
         .unwrap();
-    assert_eq!(btc_balance, 49_975000);
+    assert_eq!(btc_balance, 49_019607);
     let config = helper.get_config(&mut app).unwrap();
     assert_eq!(config.pool_params.exit.pool_delta.to_string(), "0");
     // Entry delta was increased
@@ -621,7 +619,7 @@ fn test_swaps_and_replenishments() {
         .get_token_balance(&mut app, &helper.btc_token, user)
         .unwrap();
     // The spread was increased thus user2 received less BTC
-    assert_eq!(btc_balance, 49_943808);
+    assert_eq!(btc_balance, 47_134238);
     let config = helper.get_config(&mut app).unwrap();
     assert_eq!(config.pool_params.exit.pool_delta.to_string(), "0");
     // Entry delta was increased again
@@ -630,26 +628,30 @@ fn test_swaps_and_replenishments() {
         "4000000000000"
     );
 
+    // Querying the swap 2MM$ for reference after replenishment
+    let ust_swap_before_repl = helper.query_simulation(&mut app, &ust_asset).unwrap();
+    assert_eq!(ust_swap_before_repl.return_amount.u128(), 45_355587);
+
     // Increasing the pair's ust balance
     let ust_asset = helper.assets[1].with_balance(1_000_000_000_000000u128); // 1MMM$
     helper.give_coins(&mut app, helper.pair.as_str(), &ust_asset);
 
     let user = "user3";
-    let btc_asset = helper.assets[0].with_balance(1000_000000);
+    let btc_asset = helper.assets[0].with_balance(100_000000);
     helper.give_coins(&mut app, user, &btc_asset);
     helper.cw20_swap(&mut app, user, &btc_asset).unwrap();
 
     let ust_balance = app.wrap().query_balance(user, "uusd").unwrap();
-    assert_eq!(ust_balance.amount.u128(), 35_428_570_038572);
+    assert_eq!(ust_balance.amount.u128(), 3_846_152_456154);
     let btc_balance = helper
         .get_token_balance(&mut app, &helper.btc_token, user)
         .unwrap();
     assert_eq!(btc_balance, 0);
     let config = helper.get_config(&mut app).unwrap();
-    // 1000 btc * 40000 usd = 40MM$
+    // 100 btc * 40000 usd = 4MM$
     assert_eq!(
         config.pool_params.exit.pool_delta.to_string(),
-        "40000000000000"
+        "4000000000000"
     );
     assert_eq!(
         config.pool_params.entry.pool_delta.to_string(),
@@ -661,8 +663,8 @@ fn test_swaps_and_replenishments() {
     helper.cw20_swap(&mut app, user, &btc_asset).unwrap();
 
     let ust_balance = app.wrap().query_balance(user, "uusd").unwrap();
-    // Spread has been increased thus swapping the same amount of BTC is more expensive
-    assert_eq!(ust_balance.amount.u128(), 33_187_095_384194);
+    // Spread has been increased thus swapping the same amount of BTC gives less UST
+    assert_eq!(ust_balance.amount.u128(), 3_550_075_651602);
     let btc_balance = helper
         .get_token_balance(&mut app, &helper.btc_token, user)
         .unwrap();
@@ -670,20 +672,25 @@ fn test_swaps_and_replenishments() {
     let config = helper.get_config(&mut app).unwrap();
     assert_eq!(
         config.pool_params.exit.pool_delta.to_string(),
-        "80000000000000"
+        "8000000000000"
     );
     assert_eq!(
         config.pool_params.entry.pool_delta.to_string(),
         "4000000000000"
     );
 
+    // Querying the swap of 100 BTC for reference after replenishment
+    let btc_swap_before_repl = helper.query_simulation(&mut app, &btc_asset).unwrap();
+    assert_eq!(btc_swap_before_repl.return_amount.u128(), 3_265_432_098766);
+
+    // Going to the next block
     app.skip_blocks(1);
 
     let config = helper.get_config(&mut app).unwrap();
     // Both deltas were decreased
     assert_eq!(
         config.pool_params.exit.pool_delta.to_string(),
-        "79200000000000"
+        "7920000000000"
     );
     assert_eq!(
         config.pool_params.entry.pool_delta.to_string(),
@@ -696,18 +703,18 @@ fn test_swaps_and_replenishments() {
     helper
         .native_swap(&mut app, user, &ust_asset, true)
         .unwrap();
-
     let ust_balance = app.wrap().query_balance(user, "uusd").unwrap();
     assert_eq!(ust_balance.amount.u128(), 0);
     let btc_balance = helper
         .get_token_balance(&mut app, &helper.btc_token, user)
         .unwrap();
-    // TODO: should be more than 49_943808 and less than 49_975000
-    // assert_eq!(btc_balance, 49_917049);
+    // should be more than 45_355587 and less than 49_019607 (first swap without big spread)
+    assert!(btc_balance > ust_swap_before_repl.return_amount.u128());
+    assert_eq!(btc_balance, 45_703170);
     let config = helper.get_config(&mut app).unwrap();
     assert_eq!(
         config.pool_params.exit.pool_delta.to_string(),
-        "79200000000000"
+        "7920000000000"
     );
     assert_eq!(
         config.pool_params.entry.pool_delta.to_string(),
@@ -715,13 +722,14 @@ fn test_swaps_and_replenishments() {
     );
 
     let user = "user6";
-    let btc_asset = helper.assets[0].with_balance(1000_000000);
+    let btc_asset = helper.assets[0].with_balance(100_000000);
     helper.give_coins(&mut app, user, &btc_asset);
     helper.cw20_swap(&mut app, user, &btc_asset).unwrap();
 
     let ust_balance = app.wrap().query_balance(user, "uusd").unwrap();
-    // TODO: should be more than 33_187_095_384194 and less than 35_428_570_038572
-    // assert_eq!(ust_balance.amount.u128(), 36_804_921_977800);
+    // should be more than 3_265_432_098766 and less than 3_846_152_456154 (first swap without big spread)
+    assert!(ust_balance.amount.u128() > btc_swap_before_repl.return_amount.u128());
+    assert_eq!(ust_balance.amount.u128(), 3_271_011_233067);
     let btc_balance = helper
         .get_token_balance(&mut app, &helper.btc_token, user)
         .unwrap();
@@ -729,7 +737,7 @@ fn test_swaps_and_replenishments() {
     let config = helper.get_config(&mut app).unwrap();
     assert_eq!(
         config.pool_params.exit.pool_delta.to_string(),
-        "119200000000000"
+        "11920000000000"
     );
     assert_eq!(
         config.pool_params.entry.pool_delta.to_string(),

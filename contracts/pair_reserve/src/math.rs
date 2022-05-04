@@ -27,7 +27,7 @@ fn calc_direct_spread(
     let offer_amount = offer_amount.into();
     // ask_amount = ask_pool - cp / (offer_pool + offer_amount)
     let ask_amount = ask_pool.checked_sub(cp / (offer_pool + offer_amount))?;
-    let spread = Decimal256::from_ratio(offer_amount - ask_amount, offer_pool);
+    let spread = Decimal256::from_ratio(offer_amount - ask_amount, offer_amount);
     decimal256_to_decimal(spread)
 }
 
@@ -40,7 +40,7 @@ fn calc_reverse_spread(
     let ask_amount = ask_amount.into();
     // offer_amount = cp / (ask_pool - ask_amount) - offer_pool
     let offer_amount = (cp / (ask_pool - ask_amount)).checked_sub(offer_pool)?;
-    let spread = Decimal256::from_ratio(offer_amount - ask_amount, offer_pool);
+    let spread = Decimal256::from_ratio(offer_amount - ask_amount, offer_amount);
     decimal256_to_decimal(spread)
 }
 
@@ -210,9 +210,9 @@ pub(crate) fn replenish_pools(pool_params: &mut PoolParams, cur_block: u64) -> S
     if pool_params.last_repl_block == cur_block {
         return Ok(());
     }
+    let blocks_passed = cur_block.saturating_sub(pool_params.last_repl_block);
 
     for flow_params in [&mut pool_params.exit, &mut pool_params.entry] {
-        let blocks_passed = cur_block.saturating_sub(pool_params.last_repl_block);
         let delta_decay = Decimal::from_ratio(
             flow_params.pool_delta.checked_mul(blocks_passed.into())?,
             flow_params.recovery_period,
@@ -247,14 +247,14 @@ mod testing {
         let cp = base_pool.full_mul(base_pool);
         let direct_spread =
             calc_direct_spread(offer_amount, base_pool.into(), base_pool.into(), cp).unwrap();
-        assert_eq!(&direct_spread.to_string(), "0.009");
+        assert_eq!(&direct_spread.to_string(), "0.09");
         let ask_amount = offer_amount * (Decimal::one() - direct_spread);
         let reverse_spread =
             calc_reverse_spread(ask_amount, base_pool.into(), base_pool.into(), cp).unwrap();
         // A small residual appears because of rounding during Uint128 and Decimal multiplication
         assert_eq!(
-            offer_amount,
-            ask_amount * (Decimal::one() + reverse_spread) - Uint128::from(1u8)
+            offer_amount * (Decimal::one() - reverse_spread) + Uint128::from(1u8),
+            ask_amount
         );
     }
 
@@ -281,22 +281,22 @@ mod testing {
             info: AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
-            amount: Uint128::from(2_000_000_000000u128), // $2MM
+            amount: Uint128::from(40_000_000000u128), // $40k
         };
         let direct_swap = compute_swap(&querier, &offer_asset, &mut pool_params.clone()).unwrap();
         assert_eq!(
             direct_swap,
             SwapResult {
-                amount: Uint128::from(49_975000u128),
-                spread_ust_fee: Uint128::from(1000_000000u128), // $1k spread fee
-                spread: Decimal::from_str("0.0005").unwrap(),   // 0.0005% spread (default)
+                amount: Uint128::from(999_500u128),
+                spread_ust_fee: Uint128::from(20_000000u128), // $20 spread fee
+                spread: Decimal::from_str("0.0005").unwrap(), // 0.0005% spread (default)
             }
         );
         let ask_asset = Asset {
             info: AssetInfo::Token {
                 contract_addr: Addr::unchecked("cw20_btc"),
             },
-            amount: Uint128::from(50_000000u128),
+            amount: Uint128::from(1_000000u128),
         };
         // Here we use exit flow parameters thus min spread is different
         let reverse_swap =
@@ -304,9 +304,9 @@ mod testing {
         assert_eq!(
             reverse_swap,
             SwapResult {
-                amount: Uint128::from(2_020_000_000000u128),
-                spread_ust_fee: Uint128::from(20000_000000u128), // $20k spread fee
-                spread: Decimal::from_str("0.01").unwrap(),      // 1% spread (default)
+                amount: Uint128::from(40_400_000000u128), // a user needs to offer $40.4k to get 1 BTC
+                spread_ust_fee: Uint128::from(400_000000u128), // $400 spread fee
+                spread: Decimal::from_str("0.01").unwrap(), // 1% spread (default)
             }
         );
 
@@ -321,9 +321,9 @@ mod testing {
         assert_eq!(
             res,
             SwapResult {
-                amount: Uint128::from(483_333333u128),
-                spread_ust_fee: Uint128::from(666666_666666_u128), // $666.66k spread fee
-                spread: Decimal::from_str("0.03333333333333").unwrap(), // $3.33% spread
+                amount: Uint128::from(416_666666u128),
+                spread_ust_fee: Uint128::from(3_333_333_333333u128), // $3.333MM spread fee
+                spread: Decimal::from_str("0.16666666666665").unwrap(), // 16.66% spread
             }
         );
 
@@ -332,15 +332,15 @@ mod testing {
             info: AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
-            amount: Uint128::from(2_000_000_000000u128), // $2M
+            amount: Uint128::from(40_000_000000u128), // $40k
         };
         let res = compute_swap(&querier, &offer_asset, &mut pool_params).unwrap();
         assert_eq!(
             res,
             SwapResult {
-                amount: Uint128::from(49_735883_u128),            // 4.73 BTC,
-                spread_ust_fee: Uint128::from(10564_663023_u128), // $10564.66k spread fee
-                spread: Decimal::from_str("0.005282331511841666").unwrap(), // 0.53% spread
+                amount: Uint128::from(694213u128),                  // 0.69 BTC,
+                spread_ust_fee: Uint128::from(12_231_478396u128),   // $12.23k spread fee
+                spread: Decimal::from_str("0.3057869599").unwrap(), // 30.5% spread
             }
         );
 
@@ -350,31 +350,15 @@ mod testing {
             info: AssetInfo::Token {
                 contract_addr: Addr::unchecked("cw20_btc"),
             },
-            amount: Uint128::from(100_000000u128),
+            amount: Uint128::from(1_000000u128),
         };
         let res = compute_swap(&querier, &offer_asset, &mut pool_params).unwrap();
         assert_eq!(
             res,
             SwapResult {
-                amount: Uint128::from(3960000_000000_u128),
-                spread_ust_fee: Uint128::from(40000_000000_u128), // 4k$ spread fee
-                spread: Decimal::from_str("0.01").unwrap(),       // 1% spread
-            }
-        );
-
-        let offer_asset = Asset {
-            info: AssetInfo::Token {
-                contract_addr: Addr::unchecked("cw20_btc"),
-            },
-            amount: Uint128::from(1000_000000u128),
-        };
-        let res = compute_swap(&querier, &offer_asset, &mut pool_params).unwrap();
-        assert_eq!(
-            res,
-            SwapResult {
-                amount: Uint128::from(34_868161_849711u128),
-                spread_ust_fee: Uint128::from(5_131_838_150289_u128), // $5.13MM spread fee
-                spread: Decimal::from_str("0.128295953757226421").unwrap(), // 12.82% spread
+                amount: Uint128::from(39600_000000u128),
+                spread_ust_fee: Uint128::from(400_000000_u128), // 400$ spread fee
+                spread: Decimal::from_str("0.01").unwrap(),     // 1% spread
             }
         );
 
@@ -388,9 +372,25 @@ mod testing {
         assert_eq!(
             res,
             SwapResult {
-                amount: Uint128::from(3_937_882_942098_u128),
-                spread_ust_fee: Uint128::from(62_117_057902_u128), // 62.1k$ spread fee
-                spread: Decimal::from_str("0.015529264475743249").unwrap(), // 1.5% spread
+                amount: Uint128::from(3_843_136_663641u128),
+                spread_ust_fee: Uint128::from(156_863_336359u128), // $156.8k spread fee
+                spread: Decimal::from_str("0.03921583408975").unwrap(), // 3.9% spread
+            }
+        );
+
+        let offer_asset = Asset {
+            info: AssetInfo::Token {
+                contract_addr: Addr::unchecked("cw20_btc"),
+            },
+            amount: Uint128::from(1_000000u128),
+        };
+        let res = compute_swap(&querier, &offer_asset, &mut pool_params).unwrap();
+        assert_eq!(
+            res,
+            SwapResult {
+                amount: Uint128::from(36819_153736u128),
+                spread_ust_fee: Uint128::from(3180_846264u128), // $3180 spread fee
+                spread: Decimal::from_str("0.0795211566").unwrap(), // 7.9% spread
             }
         );
     }
