@@ -1,5 +1,5 @@
 use astroport::asset::AssetInfo;
-use cosmwasm_std::{OverflowError, StdError};
+use cosmwasm_std::{Addr, OverflowError, StdError};
 use thiserror::Error;
 
 /// ## Description
@@ -29,6 +29,9 @@ pub enum ContractError {
 
     #[error("Incorrect governance percent of its share")]
     IncorrectGovernancePercent {},
+
+    #[error("{1} swap simulation in pool {0} returned error. Insufficent Liquidity.")]
+    SwapSimlationError(Addr, AssetInfo),
 
     #[error("Incorrect max spread")]
     IncorrectMaxSpread {},

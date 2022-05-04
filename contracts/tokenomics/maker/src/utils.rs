@@ -3,7 +3,7 @@ use crate::state::{Config, BRIDGES};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::maker::ExecuteMsg;
 use astroport::pair::Cw20HookMsg;
-use astroport::querier::query_pair_info;
+use astroport::querier::{query_pair_info, simulate};
 use cosmwasm_std::{to_binary, Coin, Deps, Env, StdResult, SubMsg, Uint128, WasmMsg};
 
 /// The default bridge depth for a fee token
@@ -32,6 +32,17 @@ pub fn build_swap_msg(
     from: AssetInfo,
     amount_in: Uint128,
 ) -> Result<SubMsg, ContractError> {
+    // Check SimulationResponse to ensure swap is valid
+    let _ = simulate(
+        &deps.querier,
+        pool.contract_addr.clone(),
+        &Asset {
+            info: from.clone(),
+            amount: amount_in,
+        },
+    )
+    .map_err(|_| ContractError::SwapSimlationError(pool.contract_addr.clone(), from.clone()));
+
     if from.is_native_token() {
         let mut offer_asset = Asset {
             info: from.clone(),
