@@ -8,6 +8,7 @@ pub mod oracle;
 pub mod pair;
 pub mod pair_anchor;
 pub mod pair_stable_bluna;
+pub mod pair_stable_owner;
 pub mod querier;
 pub mod router;
 pub mod staking;

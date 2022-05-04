@@ -367,6 +367,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-pair-stable-owner"
+version = "1.0.0"
+dependencies = [
+ "astroport 2.0.0",
+ "astroport-factory",
+ "astroport-token",
+ "cosmwasm-bignumber",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-vm",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "integer-sqrt",
+ "proptest 1.0.0",
+ "protobuf",
+ "schemars",
+ "serde",
+ "sim",
+ "terra-cosmwasm",
+ "terra-multi-test",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-router"
 version = "1.0.0"
 dependencies = [
