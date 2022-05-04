@@ -116,8 +116,7 @@ class Pair {
     async provideLiquidity(a1: NativeAsset | TokenAsset, a2: NativeAsset | TokenAsset) {
         let msg = {
             "provide_liquidity": {
-                "assets": [a1.withAmount(), a2.withAmount()],
-                "slippage_tolerance": "0.9",
+                "assets": [a1.withAmount(), a2.withAmount()]
             }
         }
 

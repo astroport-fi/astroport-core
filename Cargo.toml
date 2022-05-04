@@ -1,5 +1,4 @@
 [workspace]
-resolver = "2"
 members = [
     "packages/*",
     "contracts/factory",
@@ -15,7 +14,7 @@ members = [
 ]
 
 [profile.release]
-opt-level = "z"
+opt-level = 3
 debug = false
 rpath = false
 lto = true
