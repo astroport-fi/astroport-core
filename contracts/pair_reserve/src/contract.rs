@@ -735,7 +735,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_reverse_simulation(deps, env, ask_asset)?)
         }
         QueryMsg::CumulativePrices {} => to_binary(&query_prices(deps)?),
-        QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
+        QueryMsg::Config {} => {
+            let mut config = CONFIG.load(deps.storage)?;
+            replenish_pools(&mut config.pool_params, env.block.height)?;
+            to_binary(&config)
+        }
     }
 }
 

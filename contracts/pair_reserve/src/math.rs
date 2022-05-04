@@ -207,6 +207,10 @@ pub(crate) fn assert_max_spread(
 /// 'delta_decay' can reduce delta to zero only in case of replenish_pools()
 /// will never be called during a recovery period. Otherwise there always will be a small residual.
 pub(crate) fn replenish_pools(pool_params: &mut PoolParams, cur_block: u64) -> StdResult<()> {
+    if pool_params.last_repl_block == cur_block {
+        return Ok(());
+    }
+
     for flow_params in [&mut pool_params.exit, &mut pool_params.entry] {
         let blocks_passed = cur_block.saturating_sub(pool_params.last_repl_block);
         let delta_decay = Decimal::from_ratio(

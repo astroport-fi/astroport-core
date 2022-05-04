@@ -8,7 +8,7 @@ use astroport::pair_reserve::{
 };
 
 use crate::test_utils::{mock_app, Helper};
-use crate::test_utils::{AssetExt, AssetsExt};
+use crate::test_utils::{AssetExt, AssetsExt, TerraAppExtension};
 
 #[cfg(test)]
 mod test_utils;
@@ -567,4 +567,172 @@ fn test_queries() {
         .unwrap();
     assert_eq!(resp.total_share.u128(), 62500_000000u128);
     assert_eq!(resp.assets, lp_assets)
+}
+
+#[test]
+fn test_swaps_and_replenishments() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(&mut app, &owner);
+
+    // Filling up the LP pool
+    helper
+        .update_whitelist(&mut app, "owner", vec!["owner"], vec![])
+        .unwrap();
+    let lp_assets = helper.assets.with_balances(62500_000000, 0);
+    helper
+        .provide_liquidity(&mut app, "owner", lp_assets, None)
+        .unwrap();
+
+    let config = helper.get_config(&mut app).unwrap();
+    assert_eq!(config.pool_params.exit.pool_delta.to_string(), "0");
+    assert_eq!(config.pool_params.entry.pool_delta.to_string(), "0");
+
+    let user = "user1";
+    let ust_asset = helper.assets[1].with_balance(2_000_000_000000u128);
+    helper.give_coins(&mut app, user, &ust_asset);
+    helper
+        .native_swap(&mut app, user, &ust_asset, true)
+        .unwrap();
+
+    let ust_balance = app.wrap().query_balance(user, "uusd").unwrap();
+    assert_eq!(ust_balance.amount.u128(), 0);
+    let btc_balance = helper
+        .get_token_balance(&mut app, &helper.btc_token, user)
+        .unwrap();
+    assert_eq!(btc_balance, 49_975000);
+    let config = helper.get_config(&mut app).unwrap();
+    assert_eq!(config.pool_params.exit.pool_delta.to_string(), "0");
+    // Entry delta was increased
+    assert_eq!(
+        config.pool_params.entry.pool_delta.to_string(),
+        "2000000000000"
+    );
+
+    let user = "user2";
+    helper.give_coins(&mut app, user, &ust_asset);
+    helper
+        .native_swap(&mut app, user, &ust_asset, true)
+        .unwrap();
+
+    let ust_balance = app.wrap().query_balance(user, "uusd").unwrap();
+    assert_eq!(ust_balance.amount.u128(), 0);
+    let btc_balance = helper
+        .get_token_balance(&mut app, &helper.btc_token, user)
+        .unwrap();
+    // The spread was increased thus user2 received less BTC
+    assert_eq!(btc_balance, 49_943808);
+    let config = helper.get_config(&mut app).unwrap();
+    assert_eq!(config.pool_params.exit.pool_delta.to_string(), "0");
+    // Entry delta was increased again
+    assert_eq!(
+        config.pool_params.entry.pool_delta.to_string(),
+        "4000000000000"
+    );
+
+    // Increasing the pair's ust balance
+    let ust_asset = helper.assets[1].with_balance(1_000_000_000_000000u128); // 1MMM$
+    helper.give_coins(&mut app, helper.pair.as_str(), &ust_asset);
+
+    let user = "user3";
+    let btc_asset = helper.assets[0].with_balance(1000_000000);
+    helper.give_coins(&mut app, user, &btc_asset);
+    helper.cw20_swap(&mut app, user, &btc_asset).unwrap();
+
+    let ust_balance = app.wrap().query_balance(user, "uusd").unwrap();
+    assert_eq!(ust_balance.amount.u128(), 35_428_570_038572);
+    let btc_balance = helper
+        .get_token_balance(&mut app, &helper.btc_token, user)
+        .unwrap();
+    assert_eq!(btc_balance, 0);
+    let config = helper.get_config(&mut app).unwrap();
+    // 1000 btc * 40000 usd = 40MM$
+    assert_eq!(
+        config.pool_params.exit.pool_delta.to_string(),
+        "40000000000000"
+    );
+    assert_eq!(
+        config.pool_params.entry.pool_delta.to_string(),
+        "4000000000000"
+    );
+
+    let user = "user4";
+    helper.give_coins(&mut app, user, &btc_asset);
+    helper.cw20_swap(&mut app, user, &btc_asset).unwrap();
+
+    let ust_balance = app.wrap().query_balance(user, "uusd").unwrap();
+    // Spread has been increased thus swapping the same amount of BTC is more expensive
+    assert_eq!(ust_balance.amount.u128(), 33_187_095_384194);
+    let btc_balance = helper
+        .get_token_balance(&mut app, &helper.btc_token, user)
+        .unwrap();
+    assert_eq!(btc_balance, 0);
+    let config = helper.get_config(&mut app).unwrap();
+    assert_eq!(
+        config.pool_params.exit.pool_delta.to_string(),
+        "80000000000000"
+    );
+    assert_eq!(
+        config.pool_params.entry.pool_delta.to_string(),
+        "4000000000000"
+    );
+
+    app.skip_blocks(1);
+
+    let config = helper.get_config(&mut app).unwrap();
+    // Both deltas were decreased
+    assert_eq!(
+        config.pool_params.exit.pool_delta.to_string(),
+        "79200000000000"
+    );
+    assert_eq!(
+        config.pool_params.entry.pool_delta.to_string(),
+        "3600000000000"
+    );
+
+    let user = "user5";
+    let ust_asset = helper.assets[1].with_balance(2_000_000_000000u128);
+    helper.give_coins(&mut app, user, &ust_asset);
+    helper
+        .native_swap(&mut app, user, &ust_asset, true)
+        .unwrap();
+
+    let ust_balance = app.wrap().query_balance(user, "uusd").unwrap();
+    assert_eq!(ust_balance.amount.u128(), 0);
+    let btc_balance = helper
+        .get_token_balance(&mut app, &helper.btc_token, user)
+        .unwrap();
+    // TODO: should be more than 49_943808 and less than 49_975000
+    // assert_eq!(btc_balance, 49_917049);
+    let config = helper.get_config(&mut app).unwrap();
+    assert_eq!(
+        config.pool_params.exit.pool_delta.to_string(),
+        "79200000000000"
+    );
+    assert_eq!(
+        config.pool_params.entry.pool_delta.to_string(),
+        "5600000000000"
+    );
+
+    let user = "user6";
+    let btc_asset = helper.assets[0].with_balance(1000_000000);
+    helper.give_coins(&mut app, user, &btc_asset);
+    helper.cw20_swap(&mut app, user, &btc_asset).unwrap();
+
+    let ust_balance = app.wrap().query_balance(user, "uusd").unwrap();
+    // TODO: should be more than 33_187_095_384194 and less than 35_428_570_038572
+    // assert_eq!(ust_balance.amount.u128(), 36_804_921_977800);
+    let btc_balance = helper
+        .get_token_balance(&mut app, &helper.btc_token, user)
+        .unwrap();
+    assert_eq!(btc_balance, 0);
+    let config = helper.get_config(&mut app).unwrap();
+    assert_eq!(
+        config.pool_params.exit.pool_delta.to_string(),
+        "119200000000000"
+    );
+    assert_eq!(
+        config.pool_params.entry.pool_delta.to_string(),
+        "5600000000000"
+    );
 }

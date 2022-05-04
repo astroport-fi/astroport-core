@@ -38,6 +38,20 @@ pub fn mock_app() -> TerraApp {
         .build()
 }
 
+pub trait TerraAppExtension {
+    fn skip_blocks(&mut self, count: u64);
+}
+
+impl TerraAppExtension for TerraApp {
+    fn skip_blocks(&mut self, count: u64) {
+        self.update_block(|block| {
+            // assuming 6 sec per block
+            block.time = block.time.plus_seconds(6 * count);
+            block.height += count
+        });
+    }
+}
+
 pub trait AssetExt {
     fn with_balance(&self, amount: u128) -> Self;
     fn mock_coin_sent(&self, app: &mut TerraApp, user: &Addr, spender: &Addr) -> Vec<Coin>;
@@ -66,8 +80,6 @@ impl AssetExt for Asset {
             AssetInfo::NativeToken { denom } => {
                 if !self.amount.is_zero() {
                     funds = vec![coin(self.amount.u128(), denom)];
-                    // app.send_tokens(user.clone(), spender.clone(), &funds)
-                    //     .unwrap();
                 }
             }
         }
