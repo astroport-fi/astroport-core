@@ -10,7 +10,7 @@ use crate::response::MsgInstantiateContractResponse;
 use crate::state::Config;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 
-use astroport::pair::{
+use astroport::pair_stable_owner::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, SimulationResponse, StablePoolParams,
     TWAP_PRECISION,
 };

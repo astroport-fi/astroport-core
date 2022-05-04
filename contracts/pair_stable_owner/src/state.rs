@@ -41,3 +41,11 @@ pub const CONFIG: Item<Config> = Item::new("config");
 
 /// Stores the latest contract ownership transfer proposal
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
+
+impl Default for Owner {
+    fn default() -> Self {
+        Owner {
+            owner_addr: Addr::unchecked(""),
+        }
+    }
+}

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{Asset, AssetInfo};
 
-use cosmwasm_std::{Addr, Binary, Decimal, Uint128};
+use cosmwasm_std::{Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
@@ -115,7 +115,7 @@ pub struct PoolResponse {
 /// This struct is used to return a query result with the general contract configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub owner: Addr,
+    pub owner: String,
     /// Last timestamp when the cumulative prices in the pool were updated
     pub block_time_last: u64,
     /// The pool's parameters

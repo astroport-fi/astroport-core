@@ -1196,9 +1196,9 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
 /// * **deps** is an object of type [`Deps`].
 pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
-    let owner: Owner = OWNER.load(deps.storage)?;
+    let owner: Owner = OWNER.load(deps.storage).unwrap_or_default();
     Ok(ConfigResponse {
-        owner: owner.owner_addr,
+        owner: owner.owner_addr.to_string(),
         block_time_last: config.block_time_last,
         params: Some(to_binary(&StablePoolConfig {
             amp: Decimal::from_ratio(compute_current_amp(&config, &env)?, AMP_PRECISION),
