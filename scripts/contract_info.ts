@@ -5,7 +5,7 @@ import {
     queryContractInfo,
     queryCodeInfo,
     queryContractQuery,
-    queryContractRaw, toEncodedBinary
+    queryContractRaw, toEncodedBinary, toDecodedBinary, strToEncodedBinary
 } from "./helpers.js"
 
 async function main() {
@@ -20,18 +20,26 @@ async function main() {
     console.log('Code info:');
     console.log(await queryCodeInfo(terra, network.treasuryCodeID));
 
-    console.log("Generator config through the built-in method:");
+    console.log(`Config about address: ${network.generatorAddress}`);
     console.log(await queryContractQuery(terra, network.generatorAddress, {
         config: {}
     }));
 
-    console.log("Generator config through the raw query:");
+    console.log(`Config about address: ${network.generatorAddress}`);
     console.log(await queryContractRaw(terra, `/terra/wasm/v1beta1/contracts/${network.generatorAddress}/store`,
     {
         query_msg: Buffer.from(JSON.stringify({
             config: {}
         }), 'utf-8').toString('base64'),
     }));
+
+    console.log(`Info about address: ${network.generatorAddress}`);
+    let resp = await queryContractRaw(terra, `/terra/wasm/v1beta1/contracts/${network.generatorAddress}/store/raw`,
+        {
+            key: strToEncodedBinary("contract_info")
+        });
+    console.log(toDecodedBinary(resp.data).toString());
 }
+
 
 main().catch(console.log)
