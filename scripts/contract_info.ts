@@ -5,7 +5,7 @@ import {
     queryContractInfo,
     queryCodeInfo,
     queryContractQuery,
-    queryContractRaw
+    queryContractRaw, toEncodedBinary
 } from "./helpers.js"
 
 async function main() {
@@ -14,27 +14,24 @@ async function main() {
     const network = readArtifact(terra.config.chainID)
     console.log('Network:', network)
 
-    console.log('Contract info...');
-    console.log(await queryContractInfo(terra, network.treasuryAddress));
+    console.log('Contract info:');
+    console.log(await queryContractInfo(terra, network.generatorAddress));
 
-    console.log('Code info...');
+    console.log('Code info:');
     console.log(await queryCodeInfo(terra, network.treasuryCodeID));
 
-    // console.log("Detailed info...");
-    // console.log(await queryContractQuery(terra, network.treasuryAddress, {
-    //
-    // }));
+    console.log("Generator config through the built-in method:");
+    console.log(await queryContractQuery(terra, network.generatorAddress, {
+        config: {}
+    }));
 
-    console.log("raw info...");
-    console.log(await queryContractRaw(terra, "/terra/wasm/v1beta1/contracts/terra1zg5uheafxcyw3kzjatcvetxd4xks2fup06eas4/store",
-        {
-            raw_query: Buffer.from(JSON.stringify({
-                contract_addr: "terra1zg5uheafxcyw3kzjatcvetxd4xks2fup06eas4",
-                key: ""
-            }), 'utf-8').toString(
-                'base64'
-            ),
-        }));
+    console.log("Generator config through the raw query:");
+    console.log(await queryContractRaw(terra, `/terra/wasm/v1beta1/contracts/${network.generatorAddress}/store`,
+    {
+        query_msg: Buffer.from(JSON.stringify({
+            config: {}
+        }), 'utf-8').toString('base64'),
+    }));
 }
 
 main().catch(console.log)
