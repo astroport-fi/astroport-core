@@ -54,7 +54,6 @@ const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 ///
 /// * **_info** is an object of type [`MessageInfo`].
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters for creating the contract.
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -131,7 +130,7 @@ pub fn instantiate(
 
 /// ## Description
 /// The entry point to the contract for processing replies from submessages.
-/// # Params
+/// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **_env** is an object of type [`Env`].

@@ -1,7 +1,7 @@
 use crate::asset::{Asset, AssetInfo};
 use crate::factory::PairType;
-use crate::DecimalCheckedOps;
-use cosmwasm_std::{Addr, Decimal, StdError, StdResult, Uint128, Uint64};
+use crate::restricted_vector::RestrictedVector;
+use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -216,72 +216,6 @@ pub struct PendingTokenResponse {
     pub pending_on_proxy: Option<Vec<Asset>>,
 }
 
-/// Vec wrapper for internal use.
-/// Some business logic relies on an order of this vector, thus it is forbidden to sort it
-/// or remove elements. New values can be added using .update() ONLY.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
-pub struct RestrictedVector<T>(Vec<(Addr, T)>);
-
-pub trait Increaseable
-where
-    Self: Sized,
-{
-    fn increase(self, new: Self) -> StdResult<Self>;
-}
-
-impl<T> RestrictedVector<T>
-where
-    T: Copy + Increaseable,
-{
-    pub fn new(first_proxy: Addr, first_reward_index: T) -> Self {
-        Self(vec![(first_proxy, first_reward_index)])
-    }
-
-    pub fn get_last(&self, proxy: &Addr) -> StdResult<T> {
-        self.0
-            .last()
-            .filter(|(p, _)| p.as_str() == proxy.as_str())
-            .map(|(_, v)| v)
-            .cloned()
-            .ok_or_else(|| StdError::generic_err(format!("Proxy {} not found", proxy)))
-    }
-
-    pub fn update(&mut self, key: &Addr, value: T) -> StdResult<()> {
-        let proxy_ref = self
-            .0
-            .iter_mut()
-            .find(|(proxy_addr, _)| proxy_addr.as_str() == key.as_str());
-        match proxy_ref {
-            Some((_, index)) => *index = index.increase(value)?,
-            _ => self.0.push((key.clone(), value)),
-        }
-
-        Ok(())
-    }
-
-    pub fn inner_ref(&self) -> &Vec<(Addr, T)> {
-        &self.0
-    }
-}
-
-impl Increaseable for Decimal {
-    fn increase(self, new: Decimal) -> StdResult<Decimal> {
-        self.checked_add(new).map_err(Into::into)
-    }
-}
-
-impl Increaseable for Uint128 {
-    fn increase(self, new: Uint128) -> StdResult<Uint128> {
-        self.checked_add(new).map_err(Into::into)
-    }
-}
-
-impl<T> From<Vec<(Addr, T)>> for RestrictedVector<T> {
-    fn from(v: Vec<(Addr, T)>) -> Self {
-        Self(v)
-    }
-}
-
 /// This structure describes the main information of pool
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolInfo {
@@ -291,11 +225,11 @@ pub struct PoolInfo {
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
     /// Accumulated reward indexes per reward proxy. Vector of pairs (reward_proxy, index).
-    pub accumulated_proxy_rewards_per_share: RestrictedVector<Decimal>,
+    pub accumulated_proxy_rewards_per_share: RestrictedVector<Addr, Decimal>,
     /// for calculation of new proxy rewards
     pub proxy_reward_balance_before_update: Uint128,
     /// the orphan proxy rewards which are left by emergency withdrawals. Vector of pairs (reward_proxy, index).
-    pub orphan_proxy_rewards: RestrictedVector<Uint128>,
+    pub orphan_proxy_rewards: RestrictedVector<Addr, Uint128>,
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
     /// Total virtual amount
@@ -324,7 +258,7 @@ pub struct UserInfoV2 {
     pub reward_user_index: Decimal,
     /// Proxy reward amount a user already received per reward proxy; used for proper reward calculation
     /// Vector of pairs (reward_proxy, reward debited).
-    pub reward_debt_proxy: RestrictedVector<Uint128>,
+    pub reward_debt_proxy: RestrictedVector<Addr, Uint128>,
     /// The amount of user boosted emissions
     pub virtual_amount: Uint128,
 }

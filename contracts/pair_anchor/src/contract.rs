@@ -369,12 +369,7 @@ pub fn swap(
     }));
 
     Ok(Response::new()
-        .add_messages(
-            // 1. (Optional) Send existing tokens from contract to maker
-            // 2. Redeem or Deposit Stable into anchor
-            // 3. Check and send result amount to receiver
-            messages,
-        )
+        .add_messages(messages)
         .add_attribute("action", "orchestrate"))
 }
 
@@ -412,7 +407,7 @@ pub fn assert_receive_and_send(
     max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     if env.contract.address != info.sender {
-        // only allowed to be sent by the contract itself
+        // Only allowed to be sent by the contract itself
         return Err(ContractError::Unauthorized {});
     }
 

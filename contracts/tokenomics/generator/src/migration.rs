@@ -2,6 +2,7 @@ use crate::state::CONFIG;
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 
 use astroport::generator::{Config, MigrateMsg};
+use astroport::restricted_vector::RestrictedVector;
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
