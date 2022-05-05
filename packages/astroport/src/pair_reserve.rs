@@ -119,29 +119,40 @@ pub struct PoolResponse {
     pub total_share: Uint128,
 }
 
+/// This structure defines whole description of the flow's state.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct FlowParams {
+    /// BasePool configuration parameter
     pub base_pool: Uint128,
     /// min spread in form of BPS
     pub min_spread: u16,
     /// the number of blocks during which the pool should replenish to equilibrium
     pub recovery_period: u64,
+    /// TerraPool deviation from the base pool
     pub pool_delta: Decimal,
 }
 
+/// This struct is intended to use during the flow's initialization or configuration update.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateFlowParams {
+    /// BasePool configuration parameter
     pub base_pool: Uint128,
+    /// min spread in form of BPS
     pub min_spread: u16,
+    /// the number of blocks during which the pool should replenish to equilibrium
     pub recovery_period: u64,
 }
 
+/// This struct is intended to use during both flows initialization or configuration update.
+/// Any of the flow update parameters can be omitted.
+/// It means, that it is possible to update only one of the flow parameters and keep the other unchanged.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateParams {
     pub entry: Option<UpdateFlowParams>,
     pub exit: Option<UpdateFlowParams>,
 }
 
+/// The struct stores both flows' configuration parameters, last replenishment block and pricing oracles.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolParams {
     /// UST -> BTC
@@ -155,6 +166,7 @@ pub struct PoolParams {
 }
 
 /// This struct is used to return a query result with the general contract configuration.
+/// This is also alias to internal [`Config`] struct.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     /// General pair information (e.g pair type)

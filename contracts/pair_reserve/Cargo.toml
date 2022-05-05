@@ -3,7 +3,7 @@ name = "astroport-reserve-pair"
 version = "1.0.0"
 authors = ["Astroport"]
 edition = "2021"
-description = "The Astroport constant product pool contract implementation"
+description = "The Astroport reserve pool contract implementation"
 license = "MIT"
 
 exclude = [
@@ -31,7 +31,6 @@ cw-storage-plus = { version = "0.8.0" }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }
-cosmwasm-bignumber = "2.2.0"
 protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]

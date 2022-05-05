@@ -9,10 +9,14 @@ use astroport::DecimalCheckedOps;
 use crate::error::ContractError;
 use crate::state::Config;
 
+/// ## Description
+/// Trait for internal use. Forces an implementer to provide validation logic.
 pub(crate) trait AssetsValidator {
     fn validate(&self, api: &dyn Api) -> Result<(), ContractError>;
 }
 
+/// ## Description
+/// Validates both assets.
 impl AssetsValidator for [Asset; 2] {
     fn validate(&self, api: &dyn Api) -> Result<(), ContractError> {
         let asset_infos: [AssetInfo; 2] = self
@@ -25,6 +29,9 @@ impl AssetsValidator for [Asset; 2] {
     }
 }
 
+/// ## Description
+/// Validates both asset infos. Performs general asset validation and also checks that provided pair of asset
+/// is (native coin, CW20 token).
 impl AssetsValidator for [AssetInfo; 2] {
     fn validate(&self, api: &dyn Api) -> Result<(), ContractError> {
         self.iter()
@@ -40,17 +47,22 @@ impl AssetsValidator for [AssetInfo; 2] {
             Ok(())
         } else {
             Err(
-                StdError::generic_err("Reserve pool accepts (native token, CW20 token) pairs only")
+                StdError::generic_err("Reserve pool accepts (native coin, CW20 token) pairs only")
                     .into(),
             )
         }
     }
 }
 
+/// ## Description
+/// Trait for internal use. Forces an implementer to provide validation logic.
 pub(crate) trait ParametersValidator {
     fn validate(&self, direction: Option<&str>) -> Result<(), ContractError>;
 }
 
+/// ## Description
+/// Trait implementation which performs validation of flow parameters.
+/// In case of check failure, an error with detailed message is returned.
 impl ParametersValidator for FlowParams {
     fn validate(&self, direction: Option<&str>) -> Result<(), ContractError> {
         let direction = direction.unwrap().to_string();
@@ -76,6 +88,10 @@ impl ParametersValidator for FlowParams {
     }
 }
 
+/// ## Description
+/// Trait implementation which performs validation of flow parameters.
+/// It calls validate() method for both entry and exit flows and throws [`ContractError`]
+/// in case of check failure.
 impl ParametersValidator for PoolParams {
     fn validate(&self, _: Option<&str>) -> Result<(), ContractError> {
         self.entry
@@ -84,6 +100,8 @@ impl ParametersValidator for PoolParams {
     }
 }
 
+/// ## Description
+/// Checks that provided asset is valid. IBC assets are forbidden in reserve pool.
 pub(crate) fn check_asset_info(api: &dyn Api, asset_info: &AssetInfo) -> StdResult<()> {
     match asset_info {
         AssetInfo::Token { contract_addr } => {
@@ -119,6 +137,9 @@ pub(crate) fn pool_info(
     Ok((pools, total_share))
 }
 
+/// ## Description
+/// Implementation of Decimal and Uint128 multiplication.
+/// If the fractional part of the resulting number is greater than 0.5, then the number is rounded up.
 fn rounded_decimal_mul(a: Decimal, b: Uint128) -> Uint128 {
     let numerator = a.numerator() * b.u128();
     // 500000000000000000_u128 is equal to 0.5 Decimal
@@ -156,6 +177,7 @@ pub(crate) fn get_share_in_assets(
         .collect()
 }
 
+/// ## Description
 /// Bulk validation and conversion between [`String`] -> [`Addr`] for an array of addresses.
 /// If any address is invalid, the function returns [`StdError`].
 pub(crate) fn validate_addresses(api: &dyn Api, addresses: &[String]) -> StdResult<Vec<Addr>> {
@@ -165,11 +187,17 @@ pub(crate) fn validate_addresses(api: &dyn Api, addresses: &[String]) -> StdResu
         .collect()
 }
 
+/// ## Description
+/// The enum is for internal usage. Defines the rate direction for [`get_oracle_price()`]
 pub(crate) enum RateDirection {
     BTC2USD,
     USD2BTC,
 }
 
+/// ## Description
+/// Queries all oracle prices, calculates average price and converts it based on the rate direction.
+/// If oracle is not available, the function skips it.
+/// If none of the oracles reported any value or the sum of all prices is zero, the function returns [`StdError`].
 pub(crate) fn get_oracle_price(
     querier: &QuerierWrapper,
     direction: RateDirection,

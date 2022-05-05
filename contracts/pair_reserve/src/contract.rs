@@ -638,7 +638,7 @@ pub fn swap(
         .query_pools(&deps.querier, env.contract.address.clone())?
         .into_iter()
         .find(|pool| pool.info.ne(&offer_asset.info))
-        .ok_or_else(|| StdError::generic_err("Asset was not found"))?;
+        .unwrap();
 
     if ask_asset.amount.is_zero() {
         return Err(ContractError::AskPoolEmpty {});

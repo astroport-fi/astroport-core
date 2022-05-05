@@ -11,11 +11,8 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Operation non supported")]
+    #[error("Operation is not supported")]
     NonSupported {},
-
-    #[error("Recipient must be set")]
-    RecipientNotSet {},
 
     #[error("Event of zero transfer")]
     InvalidZeroAmount {},
@@ -26,14 +23,8 @@ pub enum ContractError {
     #[error("Provided spread amount exceeds allowed limit")]
     AllowedSpreadAssertion {},
 
-    #[error("Operation exceeds max slippage tolerance")]
-    MaxSlippageAssertion {},
-
     #[error("Doubling assets in asset infos")]
     DoublingAssets {},
-
-    #[error("Asset mismatch between the requested and the stored asset in contract")]
-    AssetMismatch {},
 
     #[error("{0} validation error: {1}")]
     ValidationError(String, String),

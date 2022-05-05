@@ -11,6 +11,9 @@ use astroport::DecimalCheckedOps;
 use crate::error::ContractError;
 use crate::general::{get_oracle_price, RateDirection};
 
+/// ## Description
+/// Converts Decimal256 to Decimal. In case the numerator is greater than [`Uint128::MAX`]
+/// the function throws an error.
 fn decimal256_to_decimal(value: Decimal256) -> StdResult<Decimal> {
     let numerator: Uint128 = value.numerator().try_into()?;
     // Decimal256::DECIMAL_FRACTIONAL is always 10**18
@@ -18,6 +21,10 @@ fn decimal256_to_decimal(value: Decimal256) -> StdResult<Decimal> {
     Ok(Decimal::from_ratio(numerator, denominator))
 }
 
+/// ## Description
+/// Calculates the direct spread based on a given variables, where `offer_amount` is amount of offered coins,
+/// `offer_pool` - the total amount of coins in the offer pool, `ask_pool` - the total amount of coins in the ask pool,
+/// `cp` - constant product i.e. k in formula x*y=k. The function considers that all values are of one denom.
 fn calc_direct_spread(
     offer_amount: impl Into<Uint256>,
     offer_pool: Uint256,
@@ -31,6 +38,10 @@ fn calc_direct_spread(
     decimal256_to_decimal(spread)
 }
 
+/// ## Description
+/// Calculates the reverse spread based on a given variables, where `ask_amount` is amount of coins asked,
+/// `ask_pool` - the total amount of coins in the ask pool, `offer_pool` - the total amount of coins in the offer pool,
+/// `cp` - constant product i.e. k in formula x*y=k. The function considers that all values are of one denom.
 fn calc_reverse_spread(
     ask_amount: impl Into<Uint256>,
     ask_pool: Uint256,
@@ -44,14 +55,23 @@ fn calc_reverse_spread(
     decimal256_to_decimal(spread)
 }
 
-/// Internal structure to store swap result
+/// ## Description
+/// Internal structure to store swap result.
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct SwapResult {
+    /// Amount of return or offer coins (depends on the swap direction: direct or reverse).
     pub amount: Uint128,
+    /// Spread fee denominated in UST
     pub spread_ust_fee: Uint128,
+    /// Spread percentage
     pub spread: Decimal,
 }
 
+/// ## Description
+/// The main calculation function of reserve pool. It selects flow parameters based on the offered asset,
+/// converts offered asset to the UST denom, calculates the spread and sets it to the default
+/// if it is less than the minimum spread limit. Return asset is converted to ask denom based on the oracles price.
+/// The function also increases certain flow delta based on the offer asset.
 pub(crate) fn compute_swap(
     querier: &QuerierWrapper,
     offer_asset: &Asset,
@@ -110,6 +130,10 @@ pub(crate) fn compute_swap(
     })
 }
 
+/// ## Description
+/// This function is reversed [`compute_swap`].
+/// It calculates the amount of the offer asset based on the amount of the ask asset and flow parameters.
+/// NOTE: this function does not mutate flow delta and is intended for querying purposes.
 pub(crate) fn compute_reverse_swap(
     querier: &QuerierWrapper,
     ask_asset: &Asset,
@@ -203,7 +227,9 @@ pub(crate) fn assert_max_spread(
     Ok(())
 }
 
-/// The idea is based on on-chain LUNA<>UST swap.
+/// ## Description
+/// Replenishes both pool flows towards equilibrium.
+/// The idea is based on the on-chain LUNA<>UST swap.
 /// 'delta_decay' can reduce delta to zero only in case of replenish_pools()
 /// will never be called during a recovery period. Otherwise there always will be a small residual.
 pub(crate) fn replenish_pools(pool_params: &mut PoolParams, cur_block: u64) -> StdResult<()> {

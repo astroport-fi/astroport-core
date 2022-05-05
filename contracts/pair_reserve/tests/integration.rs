@@ -271,7 +271,7 @@ fn test_liquidity_operations() {
         .unwrap_err();
     assert_eq!(
         &err.to_string(),
-        "Generic error: Reserve pool accepts (native token, CW20 token) pairs only"
+        "Generic error: Reserve pool accepts (native coin, CW20 token) pairs only"
     );
 
     let assets = [
