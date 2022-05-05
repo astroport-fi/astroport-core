@@ -19,7 +19,7 @@ use astroport::asset::{
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::PairType;
-use astroport::generator::{Config, PoolInfo, RestrictedVector};
+use astroport::generator::{Config, PoolInfo};
 use astroport::generator::{StakerResponse, UserInfoV2};
 use astroport::querier::query_token_balance;
 use astroport::restricted_vector::RestrictedVector;
