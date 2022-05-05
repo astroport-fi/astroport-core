@@ -8,8 +8,9 @@ use astroport::{
 };
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
 
-use cosmwasm_std::{Addr, DepsMut, Env, StdResult, Storage, Uint128, Uint64};
+use cosmwasm_std::{Addr, DepsMut, Env, StdResult, Storage, Uint128};
 
+use astroport::generator::Config;
 use cosmwasm_std::{Decimal, Deps};
 use cw20::BalanceResponse;
 use cw_storage_plus::{Item, Map};
@@ -17,39 +18,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::collections::HashMap;
-
-/// This structure stores the core parameters for the Generator contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Config {
-    /// Address allowed to change contract parameters
-    pub owner: Addr,
-    /// The Factory address
-    pub factory: Addr,
-    /// Contract address which can only set active generators and their alloc points
-    pub generator_controller: Option<Addr>,
-    /// The voting escrow contract address
-    pub voting_escrow: Option<Addr>,
-    /// The ASTRO token address
-    pub astro_token: Addr,
-    /// Total amount of ASTRO rewards per block
-    pub tokens_per_block: Uint128,
-    /// Total allocation points. Must be the sum of all allocation points in all active generators
-    pub total_alloc_point: Uint128,
-    /// The block number when the ASTRO distribution starts
-    pub start_block: Uint64,
-    /// The list of allowed proxy reward contracts
-    pub allowed_reward_proxies: Vec<Addr>,
-    /// The vesting contract from which rewards are distributed
-    pub vesting_contract: Addr,
-    /// The list of active pools with allocation points
-    pub active_pools: Vec<(Addr, Uint128)>,
-    /// The list of blocked tokens
-    pub blocked_tokens_list: Vec<AssetInfo>,
-    /// The guardian address which can add or remove tokens from blacklist
-    pub guardian: Option<Addr>,
-    /// The amount of generators
-    pub checkpoint_generator_limit: Option<u32>,
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ExecuteOnReply {
@@ -202,28 +170,27 @@ pub fn accumulate_pool_proxy_rewards(
     pool: &PoolInfo,
     user: &UserInfoV2,
 ) -> StdResult<Vec<(Addr, Uint128)>> {
-    if !pool
+    if pool
         .accumulated_proxy_rewards_per_share
         .inner_ref()
         .is_empty()
     {
-        let rewards_debt_map: HashMap<_, _> =
-            user.reward_debt_proxy.inner_ref().iter().cloned().collect();
-        pool.accumulated_proxy_rewards_per_share
-            .inner_ref()
-            .iter()
-            .map(|(proxy, rewards_per_share)| {
-                let reward_debt = rewards_debt_map.get(proxy).cloned().unwrap_or_default();
-                let pending_proxy_rewards = rewards_per_share
-                    .checked_mul(user.amount)?
-                    .saturating_sub(reward_debt);
-
-                Ok((proxy.clone(), pending_proxy_rewards))
-            })
-            .collect()
-    } else {
-        Ok(vec![])
+        return Ok(vec![]);
     }
+    let rewards_debt_map: HashMap<_, _> =
+        user.reward_debt_proxy.inner_ref().iter().cloned().collect();
+    pool.accumulated_proxy_rewards_per_share
+        .inner_ref()
+        .iter()
+        .map(|(proxy, rewards_per_share)| {
+            let reward_debt = rewards_debt_map.get(proxy).cloned().unwrap_or_default();
+            let pending_proxy_rewards = rewards_per_share
+                .checked_mul(user.amount)?
+                .saturating_sub(reward_debt);
+
+            Ok((proxy.clone(), pending_proxy_rewards))
+        })
+        .collect()
 }
 
 /// ### Description
@@ -283,7 +250,7 @@ pub(crate) fn update_virtual_amount(
         )?;
         res.balance
     };
-    let total_virtual_share = lp_balance.multiply_ratio(6u128, 10u128);
+    let total_virtual_share = lp_balance.multiply_ratio(6u8, 10u8);
 
     let vx_share_emission = if !total_vp.is_zero() {
         Decimal::from_ratio(user_vp, total_vp)

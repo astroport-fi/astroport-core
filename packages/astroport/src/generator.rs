@@ -301,34 +301,34 @@ pub struct PoolInfoResponse {
     pub lp_supply: Uint128,
 }
 
-/// This structure holds the response returned when querying the contract for general parameters
+/// This structure stores the core parameters for the Generator contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct ConfigResponse {
-    /// Address that's allowed to change contract parameters
+pub struct Config {
+    /// Address allowed to change contract parameters
     pub owner: Addr,
-    /// the Factory address
+    /// The Factory address
     pub factory: Addr,
-    /// contract address which can only set active generators and their alloc points
+    /// Contract address which can only set active generators and their alloc points
     pub generator_controller: Option<Addr>,
     /// The voting escrow contract address
     pub voting_escrow: Option<Addr>,
-    /// ASTRO token contract address
+    /// The ASTRO token address
     pub astro_token: Addr,
-    /// Total amount of ASTRO distributed per block
+    /// Total amount of ASTRO rewards per block
     pub tokens_per_block: Uint128,
-    /// Sum of total allocation points across all active generators
+    /// Total allocation points. Must be the sum of all allocation points in all active generators
     pub total_alloc_point: Uint128,
-    /// Start block for ASTRO incentives
+    /// The block number when the ASTRO distribution starts
     pub start_block: Uint64,
-    /// List of 3rd party reward proxies allowed to interact with the Generator contract
+    /// The list of allowed proxy reward contracts
     pub allowed_reward_proxies: Vec<Addr>,
-    /// The ASTRO vesting contract address
+    /// The vesting contract from which rewards are distributed
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points
     pub active_pools: Vec<(Addr, Uint128)>,
     /// The list of blocked tokens
     pub blocked_tokens_list: Vec<AssetInfo>,
-    /// The guardian address
+    /// The guardian address which can add or remove tokens from blacklist
     pub guardian: Option<Addr>,
     /// The amount of generators
     pub checkpoint_generator_limit: Option<u32>,
