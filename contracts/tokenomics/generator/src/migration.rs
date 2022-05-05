@@ -1,7 +1,8 @@
 use crate::state::{Config, CONFIG};
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 
-use astroport::generator::{MigrateMsg, RestrictedVector};
+use astroport::generator::MigrateMsg;
+use astroport::restricted_vector::RestrictedVector;
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
@@ -77,11 +78,11 @@ pub struct PoolInfoV130 {
     pub accumulated_rewards_per_share: Decimal,
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
-    pub accumulated_proxy_rewards_per_share: RestrictedVector<Decimal>,
+    pub accumulated_proxy_rewards_per_share: RestrictedVector<Addr, Decimal>,
     /// for calculation of new proxy rewards
     pub proxy_reward_balance_before_update: Uint128,
     /// the orphan proxy rewards which are left by emergency withdrawals
-    pub orphan_proxy_rewards: RestrictedVector<Uint128>,
+    pub orphan_proxy_rewards: RestrictedVector<Addr, Uint128>,
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
 }

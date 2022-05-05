@@ -9,6 +9,7 @@ pub mod pair;
 pub mod pair_anchor;
 pub mod pair_stable_bluna;
 pub mod querier;
+pub mod restricted_vector;
 pub mod router;
 pub mod staking;
 pub mod token;

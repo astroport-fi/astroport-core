@@ -1,8 +1,9 @@
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 use astroport::common::OwnershipProposal;
+use astroport::restricted_vector::RestrictedVector;
 use astroport::DecimalCheckedOps;
 use astroport::{
-    generator::{PoolInfo, RestrictedVector, UserInfo, UserInfoV2},
+    generator::{PoolInfo, UserInfo, UserInfoV2},
     generator_proxy::QueryMsg as ProxyQueryMsg,
 };
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};

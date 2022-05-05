@@ -19,9 +19,10 @@ use astroport::asset::{
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{PairConfig, PairType};
-use astroport::generator::{PoolInfo, RestrictedVector};
+use astroport::generator::PoolInfo;
 use astroport::generator::{StakerResponse, UserInfoV2};
 use astroport::querier::query_token_balance;
+use astroport::restricted_vector::RestrictedVector;
 use astroport::DecimalCheckedOps;
 use astroport::{
     factory::{ConfigResponse as FactoryConfigResponse, QueryMsg as FactoryQueryMsg},
