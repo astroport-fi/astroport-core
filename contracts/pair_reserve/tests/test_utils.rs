@@ -166,6 +166,7 @@ impl<'a> OracleMockFactory {
 pub struct Helper {
     pub owner: Addr,
     pub pair: Addr,
+    pub factory: Addr,
     pub btc_token: Addr,
     pub assets: [Asset; 2], // (BTC, UST)
     pub lp_token: Addr,
@@ -259,7 +260,7 @@ impl Helper {
             owner: owner.to_string(),
             whitelist_code_id: 123u64,
         };
-        let factory_addr = app
+        let factory = app
             .instantiate_contract(
                 factory_code,
                 owner.clone(),
@@ -303,12 +304,12 @@ impl Helper {
             asset_infos: asset_infos.clone(),
             init_params: Some(to_binary(&init_params).unwrap()),
         };
-        app.execute_contract(owner.clone(), factory_addr.clone(), &create_pair_msg, &[])
+        app.execute_contract(owner.clone(), factory.clone(), &create_pair_msg, &[])
             .unwrap();
         let pair_info: PairInfo = app
             .wrap()
             .query_wasm_smart(
-                &factory_addr,
+                &factory,
                 &astroport::factory::QueryMsg::Pair { asset_infos },
             )
             .unwrap();
@@ -316,6 +317,7 @@ impl Helper {
         Self {
             owner: owner.clone(),
             pair: pair_info.contract_addr,
+            factory,
             btc_token: btc_token.clone(),
             assets: [
                 Asset {

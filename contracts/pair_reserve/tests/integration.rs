@@ -2,6 +2,7 @@ use cosmwasm_std::{Addr, Decimal, Uint128};
 use terra_multi_test::Executor;
 
 use astroport::asset::{Asset, AssetInfo};
+use astroport::factory::{PairConfig, PairType};
 use astroport::pair_reserve::{
     ConfigResponse, ExecuteMsg, FlowParams, PoolParams, PoolResponse, QueryMsg, UpdateFlowParams,
     UpdateParams,
@@ -483,13 +484,38 @@ fn check_swap() {
         .unwrap();
     assert_eq!(btc_balance, 1_000000);
     helper.cw20_swap(&mut app, "trader", &btc_asset).unwrap();
-    let ust_balance = app.wrap().query_balance("trader", "uusd").unwrap();
+    let ust_without_fee = app.wrap().query_balance("trader", "uusd").unwrap();
     // 40k$ - 0.1% spread fee - 1.39 ust tax fee
-    assert_eq!(ust_balance.amount.u128(), 39598_610000);
+    assert_eq!(ust_without_fee.amount.u128(), 39598_610000);
     let btc_balance = helper
         .get_token_balance(&mut app, &helper.btc_token, "trader")
         .unwrap();
     assert_eq!(btc_balance, 0);
+
+    // enabling maker fee
+    let upd_msg = astroport::factory::ExecuteMsg::UpdatePairConfig {
+        config: PairConfig {
+            code_id: 123,
+            pair_type: PairType::Reserve {},
+            total_fee_bps: 0,
+            maker_fee_bps: 1000, // 10%
+            is_disabled: false,
+            is_generator_disabled: true,
+        },
+    };
+    app.execute_contract(helper.owner.clone(), helper.factory.clone(), &upd_msg, &[])
+        .unwrap();
+
+    let user = "user2";
+    let btc_asset = helper.assets[0].with_balance(1_000000);
+    helper.give_coins(&mut app, user, &btc_asset);
+    helper.cw20_swap(&mut app, user, &btc_asset).unwrap();
+    let ust_balance = app.wrap().query_balance(user, "uusd").unwrap();
+    let after_fee = ((ust_without_fee.amount + Uint128::from(1_390000u128))
+        * Decimal::from_ratio(9u8, 10u8))
+    .u128()
+        - 1_390000;
+    assert_eq!(ust_balance.amount.u128(), after_fee);
 }
 
 #[test]
