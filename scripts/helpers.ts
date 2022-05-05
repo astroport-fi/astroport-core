@@ -100,7 +100,6 @@ export async function broadcastTransaction(terra: LCDClient, tx: Tx) {
 
 export async function performTransaction(terra: LCDClient, wallet: Wallet, msg: Msg) {
     const tx = await createTransaction(wallet, msg)
-    //const signedTx = await wallet.key.signTx(tx)
     const result = await broadcastTransaction(terra, tx)
     if (isTxError(result)) {
         throw new TransactionError(result.code, result.txhash, result.raw_log)
