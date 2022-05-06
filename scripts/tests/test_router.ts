@@ -156,7 +156,7 @@ async function swapFromNative(router: Router, network: any, astroport: Astroport
     strictEqual(astro_balance_before_swap, astro_balance_after_swap + swapRate.amount.toNumber());
 }
 
-async function provideLiquidity(network: any, astroport: Astroport, accAddress: string, poolAddress: string, assets: (NativeAsset|TokenAsset)[]) {
+export async function provideLiquidity(network: any, astroport: Astroport, accAddress: string, poolAddress: string, assets: (NativeAsset|TokenAsset)[]) {
     const pool = astroport.pair(poolAddress);
     let pair_info = await pool.queryPair();
     console.log(util.inspect(pair_info, false, null, true));
