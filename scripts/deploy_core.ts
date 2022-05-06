@@ -51,24 +51,24 @@ async function main() {
 async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
-    if (!network.treasuryCodeID) {
+    if (!network.whitelistCodeID) {
         console.log('Register Treasury Contract...')
-        network.treasuryCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_whitelist.wasm')!)
+        network.whitelistCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_whitelist.wasm')!)
     }
 
-    if (!network.treasuryAddress) {
+    if (!network.whitelistAddress) {
         console.log('Instantiate the Treasury...')
         let resp = await instantiateContract(
             terra,
             wallet,
             network.multisigAddress,
-            network.treasuryCodeID,
+            network.whitelistCodeID,
             {
                 admins: [network.assemblyAddress],
                 mutable: true
             });
-        network.treasuryAddress = resp.shift()
-        console.log(`Treasure Contract Address: ${network.treasuryAddress}`)
+        network.whitelistAddress = resp.shift()
+        console.log(`Whitelist Contract Address: ${network.whitelistAddress}`)
         writeArtifact(network, terra.config.chainID)
     }
 }
@@ -171,7 +171,7 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                 token_code_id: network.tokenCodeID,
                 generator_address: undefined,
                 fee_address: undefined,
-                whitelist_code_id: network.treasuryCodeID
+                whitelist_code_id: network.whitelistCodeID
             }
         )
         network.factoryAddress = resp.shift()

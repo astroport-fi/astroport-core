@@ -276,3 +276,11 @@ export class AstroSwap {
         }
     }
 }
+
+export function checkParams(network:any, required_params: any) {
+    for (const k in required_params) {
+        if (!network[required_params[k]]) {
+            throw "Set required param: " + required_params[k]
+        }
+    }
+}
