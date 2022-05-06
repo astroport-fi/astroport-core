@@ -96,7 +96,7 @@ async function uploadAndInitVesting(terra: LCDClient, wallet: any) {
 async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
-    checkParams(network, ["factoryAddress", "vestingAddress", "assemblyAddress", "treasuryCodeID"])
+    checkParams(network, ["factoryAddress", "vestingAddress", "assemblyAddress", "whitelistCodeID"])
 
     if (!network.generatorAddress) {
         console.log('Deploy the Generator...')
@@ -114,7 +114,7 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
                 tokens_per_block: String(8403094),
                 vesting_contract: network.vestingAddress,
                 factory: network.factoryAddress,
-                whitelist_code_id: network.treasuryCodeID,
+                whitelist_code_id: network.whitelistCodeID,
                 guardian: network.assemblyAddress
 
             }
