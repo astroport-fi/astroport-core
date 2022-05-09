@@ -11,9 +11,8 @@ import {
     MsgInstantiateContract,
     MsgMigrateContract,
     MsgStoreCode,
-    MsgUpdateContractAdmin,
-    StdTx,
-    Wallet
+    MsgUpdateContractAdmin, Tx,
+    Wallet,
 } from '@terra-money/terra.js';
 import {
     readFileSync,
@@ -21,6 +20,7 @@ import {
 } from 'fs'
 import path from 'path'
 import { CustomError } from 'ts-custom-error'
+import {APIParams} from "@terra-money/terra.js/dist/client/lcd/APIRequester";
 
 export const ARTIFACTS_PATH = '../artifacts'
 const DEFAULT_GAS_CURRENCY = "uusd"
@@ -78,8 +78,8 @@ export async function sleep(timeout: number) {
 
 export class TransactionError extends CustomError {
     public constructor(
-        public code: number,
-        public codespace: string | undefined,
+        public code: number | string,
+        public txhash: string | undefined,
         public rawLog: string,
     ) {
         super("transaction failed")
@@ -89,21 +89,20 @@ export class TransactionError extends CustomError {
 export async function createTransaction(wallet: Wallet, msg: Msg) {
     let gas_currency = process.env.GAS_CURRENCY! || DEFAULT_GAS_CURRENCY
     let gas_price = process.env.GAS_PRICE! || DEFAULT_GAS_PRICE
-    return await wallet.createTx({ msgs: [msg], gasPrices: [new Coin(gas_currency, gas_price)]})
+    return await wallet.createAndSignTx({ msgs: [msg], gasPrices: [new Coin(gas_currency, gas_price)]})
 }
 
-export async function broadcastTransaction(terra: LCDClient, signedTx: StdTx) {
-    const result = await terra.tx.broadcast(signedTx)
+export async function broadcastTransaction(terra: LCDClient, tx: Tx) {
+    const result = await terra.tx.broadcast(tx)
     await sleep(TIMEOUT)
     return result
 }
 
 export async function performTransaction(terra: LCDClient, wallet: Wallet, msg: Msg) {
     const tx = await createTransaction(wallet, msg)
-    const signedTx = await wallet.key.signTx(tx)
-    const result = await broadcastTransaction(terra, signedTx)
+    const result = await broadcastTransaction(terra, tx)
     if (isTxError(result)) {
-        throw new TransactionError(result.code, result.codespace, result.raw_log)
+        throw new TransactionError(result.code, result.txhash, result.raw_log)
     }
     return result
 }
@@ -128,6 +127,22 @@ export async function executeContract(terra: LCDClient, wallet: Wallet, contract
 
 export async function queryContract(terra: LCDClient, contractAddress: string, query: object): Promise<any> {
     return await terra.wasm.contractQuery(contractAddress, query)
+}
+
+export async function queryContractInfo(terra: LCDClient, contractAddress: string): Promise<any> {
+    return await terra.wasm.contractInfo(contractAddress)
+}
+
+export async function queryCodeInfo(terra: LCDClient, codeID: number): Promise<any> {
+    return await terra.wasm.codeInfo(codeID)
+}
+
+export async function queryContractQuery(terra: LCDClient, contractAddress: string, query: any): Promise<any> {
+    return await terra.wasm.contractQuery(contractAddress, query)
+}
+
+export async function queryContractRaw(terra: LCDClient, end_point: string, params: APIParams): Promise<any> {
+    return await terra.apiRequester.getRaw(end_point, params)
 }
 
 export async function deployContract(terra: LCDClient, wallet: Wallet, admin_address: string, filepath: string, initMsg: object) {
@@ -171,6 +186,14 @@ export function initialize(terra: LCDClient) {
 
 export function toEncodedBinary(object: any) {
     return Buffer.from(JSON.stringify(object)).toString('base64');
+}
+
+export function strToEncodedBinary(data: string) {
+    return Buffer.from(data).toString('base64');
+}
+
+export function toDecodedBinary(data: string) {
+    return Buffer.from(data, 'base64')
 }
 
 export class NativeAsset {
