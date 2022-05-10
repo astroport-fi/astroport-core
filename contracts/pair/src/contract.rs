@@ -835,6 +835,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        _ => Err(StdError::generic_err("Query is not supported")),
     }
 }
 
