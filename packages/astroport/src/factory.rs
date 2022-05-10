@@ -4,6 +4,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result};
 
+const MAX_TOTAL_FEE_BPS: u16 = 10_000;
+const MAX_MAKER_FEE_BPS: u16 = 10_000;
+
 /// This enum describes available pair types.
 /// ## Available pool types
 /// ```
@@ -58,7 +61,7 @@ impl PairConfig {
     /// ## Params
     /// `&self` is the type of the caller object.
     pub fn valid_fee_bps(&self) -> bool {
-        self.total_fee_bps <= 10_000 && self.maker_fee_bps <= 10_000
+        self.total_fee_bps <= MAX_TOTAL_FEE_BPS && self.maker_fee_bps <= MAX_MAKER_FEE_BPS
     }
 }
 
