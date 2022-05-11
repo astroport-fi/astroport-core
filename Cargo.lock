@@ -334,7 +334,7 @@ dependencies = [
  "astroport-factory",
  "astroport-token",
  "astroport-whitelist",
- "basset",
+ "basset 0.1.0 (git+https://github.com/Anchor-Protocol/anchor-bAsset-contracts.git?tag=v0.2.1)",
  "cosmwasm-bignumber",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -385,6 +385,23 @@ dependencies = [
  "schemars",
  "serde",
  "terra-multi-test",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-stluna-bluna-lido-converter"
+version = "1.0.0"
+dependencies = [
+ "astroport 2.0.0",
+ "basset 0.1.0 (git+https://github.com/lidofinance/lido-terra-contracts)",
+ "cosmwasm-bignumber",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus 0.8.1",
+ "cw20",
+ "schemars",
+ "serde",
  "thiserror",
 ]
 
@@ -488,6 +505,20 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 name = "basset"
 version = "0.1.0"
 source = "git+https://github.com/Anchor-Protocol/anchor-bAsset-contracts.git?tag=v0.2.1#486f1cd495325798f884e19880180a62566b5e48"
+dependencies = [
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "thiserror",
+]
+
+[[package]]
+name = "basset"
+version = "0.1.0"
+source = "git+https://github.com/lidofinance/lido-terra-contracts#3a3b8cbf21c286c8f8b00a2eef92e23a4dfa169b"
 dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
