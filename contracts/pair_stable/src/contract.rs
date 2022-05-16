@@ -1530,6 +1530,12 @@ fn compute_current_amp(config: &Config, env: &Env) -> StdResult<u64> {
     }
 }
 
+/// ## Description
+/// Compute the current pool D value.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
 fn query_compute_d(deps: Deps, env: Env) -> StdResult<u128> {
     let config = CONFIG.load(deps.storage)?;
 
