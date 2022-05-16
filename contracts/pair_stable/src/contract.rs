@@ -8,7 +8,8 @@ use crate::state::{Config, CONFIG};
 use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
+    WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -960,6 +961,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
+        QueryMsg::QueryComputeD {} => to_binary(&query_compute_d(deps, env)?),
     }
 }
 
@@ -1526,4 +1528,27 @@ fn compute_current_amp(config: &Config, env: &Env) -> StdResult<u64> {
     } else {
         Ok(config.next_amp)
     }
+}
+
+/// ## Description
+/// Compute the current pool D value.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+fn query_compute_d(deps: Deps, env: Env) -> StdResult<u128> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let amp = compute_current_amp(&config, &env)?;
+    let pools = config
+        .pair_info
+        .query_pools(&deps.querier, env.contract.address)?;
+    let leverage = Uint64::new(amp).checked_mul(Uint64::from(N_COINS))?;
+
+    compute_d(
+        leverage.u64(),
+        pools[0].amount.u128(),
+        pools[1].amount.u128(),
+    )
+    .ok_or_else(|| StdError::generic_err("Failed to calculate the D"))
 }

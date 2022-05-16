@@ -87,6 +87,8 @@ pub enum QueryMsg {
     ReverseSimulation { ask_asset: Asset },
     /// Returns information about the cumulative prices in a [`CumulativePricesResponse`] object
     CumulativePrices {},
+    /// Returns current D invariant in as a [`u128`] value
+    QueryComputeD {},
 }
 
 /// This struct is used to return a query result with the total amount of LP tokens and the two assets in a specific pool.
