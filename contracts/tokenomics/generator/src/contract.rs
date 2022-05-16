@@ -14,7 +14,8 @@ use crate::error::ContractError;
 use crate::migration;
 
 use astroport::asset::{
-    addr_validate_to_lower, pair_info_by_pool, token_asset_info, Asset, AssetInfo, PairInfo,
+    addr_validate_to_lower, blacklisted_pair_types, pair_info_by_pool, token_asset_info, Asset,
+    AssetInfo, PairInfo,
 };
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
@@ -353,9 +354,42 @@ fn checkpoint_user_boost(
         return Err(ContractError::GeneratorsLimitExceeded {});
     }
 
+    // Check for generator duplicate
+    let generator_set: HashSet<String> = generators.clone().into_iter().collect();
+    if generator_set.len() != generators.len() {
+        return Err(ContractError::PoolDuplicate {});
+    }
+
+    let blacklisted_types = blacklisted_pair_types(deps.as_ref(), &config)?;
+
     let mut send_rewards_msg: Vec<WasmMsg> = vec![];
     for generator in generators {
         let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
+
+        // check if generator's pair type is not blacklisted
+        let pair_info = pair_info_by_pool(deps.as_ref(), generator_addr.clone())?;
+        if blacklisted_types.contains(&pair_info.pair_type) {
+            return Err(ContractError::Std(StdError::generic_err(format!(
+                "Boosted emission not allowed for {}. Pair type {} is blacklisted!",
+                generator, pair_info.pair_type
+            ))));
+        }
+
+        // check if generator's assets is not blocked
+        pair_info
+            .asset_infos
+            .iter()
+            .map(|asset| {
+                if config.blocked_tokens_list.contains(asset) {
+                    return Err(ContractError::Std(StdError::generic_err(format!(
+                        "Boosted emission not allowed for {}. Token {} is blocked!",
+                        generator, asset
+                    ))));
+                } else {
+                    Ok(())
+                }
+            })
+            .collect::<Result<Vec<()>, ContractError>>()?;
 
         // calculates the emission boost  only for user who has LP in generator
         if USER_INFO.has(deps.storage, (&generator_addr, &recipient_addr)) {
@@ -419,14 +453,11 @@ fn deactivate_pools(
         )));
     }
 
-    let blacklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
-        cfg.factory.clone(),
-        &FactoryQueryMsg::BlacklistedPairTypes {},
-    )?;
+    let blacklisted_types = blacklisted_pair_types(deps.as_ref(), &cfg)?;
 
     // checks if each pair type is blacklisted
     for pair_type in pair_types.clone() {
-        if !blacklisted_pair_types.contains(&pair_type) {
+        if !blacklisted_types.contains(&pair_type) {
             return Err(ContractError::Std(StdError::generic_err(format!(
                 "Pair type ({}) is not blacklisted!",
                 pair_type
@@ -618,10 +649,7 @@ pub fn execute_setup_pools(
 
     let mut setup_pools: Vec<(Addr, Uint128)> = vec![];
 
-    let blacklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
-        cfg.factory.clone(),
-        &FactoryQueryMsg::BlacklistedPairTypes {},
-    )?;
+    let blacklisted_types = blacklisted_pair_types(deps.as_ref(), &cfg)?;
 
     for (addr, alloc_point) in pools {
         let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
@@ -638,7 +666,7 @@ pub fn execute_setup_pools(
         }
 
         // check if pair type is blacklisted
-        if blacklisted_pair_types.contains(&pair_info.pair_type) {
+        if blacklisted_types.contains(&pair_info.pair_type) {
             return Err(ContractError::Std(StdError::generic_err(format!(
                 "Pair type ({}) is blacklisted!",
                 pair_info.pair_type

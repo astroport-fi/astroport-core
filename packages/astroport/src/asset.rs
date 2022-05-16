@@ -2,7 +2,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use crate::factory::PairType;
+use crate::factory::{PairType, QueryMsg as FactoryQueryMsg};
+use crate::generator::Config;
 use crate::pair::QueryMsg as PairQueryMsg;
 use crate::querier::{query_balance, query_token_balance, query_token_symbol};
 use cosmwasm_std::{
@@ -387,4 +388,10 @@ pub fn pair_info_by_pool(deps: Deps, pool: Addr) -> StdResult<PairInfo> {
         .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
 
     Ok(pair_info)
+}
+
+/// Returns blacklisted pair types as a list of [`PairType`].
+pub fn blacklisted_pair_types(deps: Deps, cfg: &Config) -> StdResult<Vec<PairType>> {
+    deps.querier
+        .query_wasm_smart(&cfg.factory, &FactoryQueryMsg::BlacklistedPairTypes {})
 }

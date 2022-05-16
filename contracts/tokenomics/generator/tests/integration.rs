@@ -58,6 +58,110 @@ struct PoolWithProxy {
 }
 
 #[test]
+fn test_boost_checkpoints_blacklisted_generators() {
+    let mut app = mock_app_helper();
+    let owner = Addr::unchecked("owner");
+    let helper_controller = ControllerHelper::init(&mut app, &owner);
+
+    let cny_eur_token_code_id = store_token_code(&mut app);
+
+    let cny_token = instantiate_token(&mut app, cny_eur_token_code_id, "CNY", None);
+    let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
+
+    let (_, lp_cny_eur) = create_pair(
+        &mut app,
+        &helper_controller.factory,
+        None,
+        None,
+        [
+            AssetInfo::Token {
+                contract_addr: cny_token.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: eur_token.clone(),
+            },
+        ],
+    );
+
+    register_lp_tokens_in_generator(
+        &mut app,
+        &helper_controller.generator,
+        vec![PoolWithProxy {
+            pool: (lp_cny_eur.to_string(), Uint128::from(100u32)),
+            proxy: None,
+        }],
+    );
+    let msg = ExecuteMsg::UpdateBlockedTokenslist {
+        add: Some(vec![token_asset_info(cny_token.clone())]),
+        remove: None,
+    };
+
+    app.execute_contract(
+        owner.clone(),
+        helper_controller.generator.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked(USER1),
+            helper_controller.generator.clone(),
+            &ExecuteMsg::CheckpointUserBoost {
+                generators: vec![lp_cny_eur.to_string()],
+                user: Some(USER1.to_string()),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!("Generic error: Boosted emission not allowed for contract #12. Token contract #9 is blocked!",
+               err.to_string());
+
+    let msg = ExecuteMsg::UpdateBlockedTokenslist {
+        add: None,
+        remove: Some(vec![token_asset_info(cny_token.clone())]),
+    };
+
+    app.execute_contract(
+        owner.clone(),
+        helper_controller.generator.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    // Disable generator
+    let msg = FactoryExecuteMsg::UpdatePairConfig {
+        config: PairConfig {
+            code_id: helper_controller.pair_code_id,
+            pair_type: PairType::Xyk {},
+            total_fee_bps: 100,
+            maker_fee_bps: 10,
+            is_disabled: false,
+            is_generator_disabled: true,
+        },
+    };
+
+    app.execute_contract(owner.clone(), helper_controller.factory.clone(), &msg, &[])
+        .unwrap();
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked(USER1),
+            helper_controller.generator.clone(),
+            &ExecuteMsg::CheckpointUserBoost {
+                generators: vec![lp_cny_eur.to_string()],
+                user: Some(USER1.to_string()),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!("Generic error: Boosted emission not allowed for contract #12. Pair type xyk is blacklisted!",
+               err.to_string());
+}
+
+#[test]
 fn test_boost_checkpoints() {
     let mut app = mock_app_helper();
     let owner = Addr::unchecked("owner");

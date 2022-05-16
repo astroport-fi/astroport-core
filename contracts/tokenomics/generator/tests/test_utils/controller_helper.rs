@@ -18,6 +18,7 @@ pub struct ControllerHelper {
     pub factory: Addr,
     pub escrow_helper: EscrowHelper,
     pub vesting: Addr,
+    pub pair_code_id: u64,
 }
 
 impl ControllerHelper {
@@ -206,6 +207,7 @@ impl ControllerHelper {
             factory,
             escrow_helper,
             vesting: vesting_instance,
+            pair_code_id,
         }
     }
 
