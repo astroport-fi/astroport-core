@@ -453,7 +453,7 @@ fn test_pair_migration() {
             )
             .unwrap_err();
 
-        assert_eq!(res.to_string(), "Pair is not migrated to new the admin!");
+        assert_eq!(res.to_string(), "Pair is not migrated to the new admin!");
     }
 
     // Pair is created after admin migration
@@ -468,7 +468,7 @@ fn test_pair_migration() {
         )
         .unwrap_err();
 
-    assert_ne!(res.to_string(), "Pair is not migrated to new the admin!");
+    assert_ne!(res.to_string(), "Pair is not migrated to the new admin");
 
     app.execute_contract(
         new_owner,
@@ -492,6 +492,6 @@ fn test_pair_migration() {
             )
             .unwrap_err();
 
-        assert_ne!(res.to_string(), "Pair is not migrated to new the admin!");
+        assert_ne!(res.to_string(), "Pair is not migrated to the new admin!");
     }
 }
