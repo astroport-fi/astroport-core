@@ -107,3 +107,6 @@ fn calc_range_start(start_after: Option<[AssetInfo; 2]>) -> Option<Vec<u8>> {
 
 /// Stores the latest contract ownership transfer proposal
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
+
+/// Stores pairs to migrate
+pub const PAIRS_TO_MIGRATE: Item<Vec<Addr>> = Item::new("pairs_to_migrate");

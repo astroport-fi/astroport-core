@@ -128,6 +128,8 @@ pub enum ExecuteMsg {
     DropOwnershipProposal {},
     /// Used to claim contract ownership.
     ClaimOwnership {},
+    /// MarkAsMigrated marks pairs as migrated
+    MarkAsMigrated { pairs: Vec<String> },
 }
 
 /// This structure describes the available query messages for the factory contract.
@@ -155,6 +157,8 @@ pub enum QueryMsg {
     },
     /// Returns a vector that contains blacklisted pair types
     BlacklistedPairTypes {},
+    /// Returns a vector that contains pair addresses that are not migrated
+    PairsToMigrate {},
 }
 
 /// A custom struct for each query response that returns general contract settings/configs.

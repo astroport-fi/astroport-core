@@ -37,6 +37,9 @@ pub enum ContractError {
 
     #[error("Generator address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
+
+    #[error("Pair is not migrated to new the admin!")]
+    PairIsDeactivated {},
 }
 
 impl From<OverflowError> for ContractError {

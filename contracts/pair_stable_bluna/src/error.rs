@@ -65,6 +65,9 @@ pub enum ContractError {
 
     #[error("It is not possible to provide liquidity with one token for an empty pool")]
     InvalidProvideLPsWithSingleToken {},
+
+    #[error("Pair is not migrated to new the admin!")]
+    PairIsDeactivated {},
 }
 
 impl From<OverflowError> for ContractError {
