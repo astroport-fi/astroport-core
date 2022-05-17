@@ -6,8 +6,8 @@ use crate::factory::PairType;
 use crate::pair::QueryMsg as PairQueryMsg;
 use crate::querier::{query_balance, query_token_balance, query_token_symbol};
 use cosmwasm_std::{
-    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, Deps, MessageInfo, QuerierWrapper,
-    StdError, StdResult, Uint128, WasmMsg,
+    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper, StdError,
+    StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_cosmwasm::TerraQuerier;
@@ -311,6 +311,18 @@ pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
     api.addr_validate(addr)
 }
 
+/// Returns a lowercased, validated address upon success if present. Otherwise returns [`None`].
+/// In case an address is invalid returns [`StdError`].
+/// ## Params
+/// * **api** is an object of type [`Api`]
+///
+/// * **addr** is an object of type [`Addr`]
+pub fn addr_opt_validate(api: &dyn Api, addr: &Option<String>) -> StdResult<Option<Addr>> {
+    addr.as_ref()
+        .map(|addr| addr_validate_to_lower(api, addr))
+        .transpose()
+}
+
 const TOKEN_SYMBOL_MAX_LENGTH: usize = 4;
 
 /// Returns a formatted LP token name
@@ -381,14 +393,11 @@ pub fn token_asset_info(contract_addr: Addr) -> AssetInfo {
 /// * **deps** is an object of type [`Deps`]
 ///
 /// * **pool_addr** is a [`impl Into<String>`] object representing the address of the pool.
-pub fn pair_info_by_pool(deps: Deps, pool: impl Into<String>) -> StdResult<PairInfo> {
-    let minter_info: MinterResponse = deps
-        .querier
-        .query_wasm_smart(pool, &Cw20QueryMsg::Minter {})?;
+pub fn pair_info_by_pool(querier: &QuerierWrapper, pool: impl Into<String>) -> StdResult<PairInfo> {
+    let minter_info: MinterResponse = querier.query_wasm_smart(pool, &Cw20QueryMsg::Minter {})?;
 
-    let pair_info: PairInfo = deps
-        .querier
-        .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
+    let pair_info: PairInfo =
+        querier.query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
 
     Ok(pair_info)
 }
