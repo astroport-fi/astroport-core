@@ -2,7 +2,7 @@ use cw_storage_plus::{Bound, Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Deps, Order};
+use cosmwasm_std::{Addr, Deps, Order, StdResult};
 
 use astroport::asset::AssetInfo;
 
@@ -67,22 +67,19 @@ const DEFAULT_LIMIT: u32 = 10;
 /// ## Params
 /// `start_after` is the pair from which the function starts to fetch results. It is an [`Option`].
 ///
-/// `limit` is the number of items to retreive. It is an [`Option`].
+/// `limit` is the number of items to retrieve. It is an [`Option`].
 pub fn read_pairs(
     deps: Deps,
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
-) -> Vec<Addr> {
+) -> StdResult<Vec<Addr>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = calc_range_start(start_after).map(Bound::exclusive);
 
     PAIRS
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
-        .map(|item| {
-            let (_, pair_addr) = item.unwrap();
-            pair_addr
-        })
+        .map(|item| Ok(item?.1))
         .collect()
 }
 
