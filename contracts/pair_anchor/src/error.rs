@@ -27,7 +27,7 @@ pub enum ContractError {
     AssetMismatch {},
 
     #[error("Pair is not migrated to new the admin!")]
-    PairIsDeactivated {},
+    PairIsNotMigrated {},
 }
 
 impl From<OverflowError> for ContractError {

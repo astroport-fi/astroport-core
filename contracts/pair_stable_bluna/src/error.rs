@@ -67,7 +67,7 @@ pub enum ContractError {
     InvalidProvideLPsWithSingleToken {},
 
     #[error("Pair is not migrated to new the admin!")]
-    PairIsDeactivated {},
+    PairIsNotMigrated {},
 }
 
 impl From<OverflowError> for ContractError {

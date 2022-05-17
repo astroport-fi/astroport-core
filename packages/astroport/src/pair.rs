@@ -171,13 +171,13 @@ pub enum StablePoolUpdateParams {
     StopChangingAmp {},
 }
 
-pub fn migration_check(deps: Deps, factory: Addr, pair_addr: Addr) -> StdResult<bool> {
+pub fn migration_check(deps: Deps, factory: &Addr, pair_addr: &Addr) -> StdResult<bool> {
     if let Some(res) = &deps
         .querier
         .query_wasm_raw(factory, b"pairs_to_migrate".as_slice())?
     {
         let res: Vec<Addr> = from_slice(res)?;
-        return Ok(res.contains(&pair_addr));
+        return Ok(res.contains(pair_addr));
     }
 
     Ok(false)
