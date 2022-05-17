@@ -436,7 +436,7 @@ pub fn deregister(
 
     let mut messages: Vec<CosmosMsg> = vec![];
     if let Some(generator) = config.generator_address {
-        let pair_info = query_pair_info(deps.as_ref(), &pair_addr)?;
+        let pair_info = query_pair_info(&deps.querier, &pair_addr)?;
 
         // sets the allocation point to zero for the lp_token
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -539,7 +539,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 /// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the assets traded in the pair.
 pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
-    query_pair_info(deps, &pair_addr)
+    query_pair_info(&deps.querier, &pair_addr)
 }
 
 /// ## Description
@@ -558,7 +558,7 @@ pub fn query_pairs(
 ) -> StdResult<PairsResponse> {
     let pairs: Vec<PairInfo> = read_pairs(deps, start_after, limit)
         .iter()
-        .map(|pair_addr| query_pair_info(deps, pair_addr).unwrap())
+        .map(|pair_addr| query_pair_info(&deps.querier, pair_addr).unwrap())
         .collect();
 
     Ok(PairsResponse { pairs })
