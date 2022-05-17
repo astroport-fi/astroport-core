@@ -38,7 +38,7 @@ pub enum ContractError {
     #[error("Generator address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
 
-    #[error("Pair is not migrated to new the admin!")]
+    #[error("Pair is not migrated to the new admin!")]
     PairIsNotMigrated {},
 }
 
