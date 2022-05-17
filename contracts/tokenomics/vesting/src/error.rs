@@ -18,7 +18,7 @@ pub enum ContractError {
     VestingScheduleError(Addr),
 
     #[error("Vesting schedule amount error. The total amount should be equal to the CW20 receive amount.")]
-    VestingScheduleAmountError,
+    VestingScheduleAmountError {},
 }
 
 impl From<OverflowError> for ContractError {

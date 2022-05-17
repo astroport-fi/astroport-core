@@ -27,14 +27,8 @@ pub enum ContractError {
     #[error("Operation exceeds max spread limit")]
     MaxSpreadAssertion {},
 
-    #[error("Operation exceeds max splippage tolerance")]
-    MaxSlippageAssertion {},
-
     #[error("Native token balance mismatch between the argument and the transferred")]
     AssetMismatch {},
-
-    #[error("Pair type mismatch. Check factory pair configs")]
-    PairTypeMismatch {},
 
     #[error(
         "Amp coefficient must be greater than 0 and less than or equal to {}",

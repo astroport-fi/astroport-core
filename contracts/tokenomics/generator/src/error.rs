@@ -13,9 +13,6 @@ pub enum ContractError {
     #[error("Insufficient balance in contract to process claim")]
     BalanceTooSmall {},
 
-    #[error("Pool with the LP token already exists!")]
-    TokenPoolAlreadyExists {},
-
     #[error("Reward proxy not allowed!")]
     RewardProxyNotAllowed {},
 
