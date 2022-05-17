@@ -18,8 +18,8 @@ use astroport::factory::PairType;
 
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::{
-    ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams, DEFAULT_SLIPPAGE,
-    MAX_ALLOWED_SLIPPAGE, TWAP_PRECISION,
+    migration_check, ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams,
+    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, TWAP_PRECISION,
 };
 
 use astroport::pair::{
@@ -197,6 +197,12 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
+    if migration_check(deps.as_ref(), &cfg.factory_addr, &env.contract.address)? {
+        return Err(ContractError::PairIsNotMigrated {});
+    }
+
     match msg {
         ExecuteMsg::UpdateConfig { params } => update_config(deps, env, info, params),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),

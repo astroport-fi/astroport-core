@@ -8,8 +8,8 @@ use crate::migration;
 use crate::querier::query_pair_info;
 
 use crate::state::{
-    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS, PAIR_CONFIGS,
-    TMP_PAIR_INFO,
+    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS, PAIRS_TO_MIGRATE,
+    PAIR_CONFIGS, TMP_PAIR_INFO,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -144,6 +144,8 @@ pub struct UpdateConfig {
 /// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
 ///
 /// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership.
+///
+/// * **ExecuteMsg::MarkAsMigrated {}** Mark pairs as migrated.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -196,6 +198,16 @@ pub fn execute(
                 .map_err(|e| e.into())
         }
         ExecuteMsg::ClaimOwnership {} => {
+            let pairs = PAIRS
+                .range(deps.storage, None, None, Order::Ascending)
+                .map(|pair| -> StdResult<Addr> {
+                    let (_, addr) = pair?;
+                    Ok(addr)
+                })
+                .collect::<Result<Vec<Addr>, StdError>>()?;
+
+            PAIRS_TO_MIGRATE.save(deps.storage, &pairs)?;
+
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
                 CONFIG.update::<_, StdError>(deps.storage, |mut v| {
                     v.owner = new_owner;
@@ -206,6 +218,7 @@ pub fn execute(
             })
             .map_err(|e| e.into())
         }
+        ExecuteMsg::MarkAsMigrated { pairs } => execute_mark_pairs_as_migrated(deps, info, pairs),
     }
 }
 
@@ -375,6 +388,41 @@ pub fn execute_create_pair(
 }
 
 /// ## Description
+/// Marks specified pairs as migrated to the new admin. Returns a [`ContractError`] on failure.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **pairs** is a vector of [`PairType`]. These are pairs that should be marked as transferred.
+fn execute_mark_pairs_as_migrated(
+    deps: DepsMut,
+    info: MessageInfo,
+    pairs: Vec<String>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let pairs = pairs
+        .iter()
+        .map(|addr| -> StdResult<Addr> { addr_validate_to_lower(deps.api, addr) })
+        .collect::<StdResult<Vec<Addr>>>()?;
+
+    let not_migrated: Vec<Addr> = PAIRS_TO_MIGRATE
+        .load(deps.storage)?
+        .into_iter()
+        .filter(|addr| !pairs.contains(addr))
+        .collect();
+
+    PAIRS_TO_MIGRATE.save(deps.storage, &not_migrated)?;
+
+    Ok(Response::new().add_attribute("action", "execute_mark_pairs_as_migrated"))
+}
+
+/// ## Description
 /// The entry point to the contract for processing replies from submessages.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -474,6 +522,8 @@ pub fn deregister(
 /// * **QueryMsg::FeeInfo { pair_type }** Returns the fee structure (total and maker fees) for a specific pair type.
 ///
 /// * **QueryMsg::BlacklistedPairTypes {}** Returns a vector that contains blacklisted pair types (pair types that cannot get ASTRO emissions).
+///
+/// * **QueryMsg::PairsToMigrate {}** Returns a vector that contains pair addresses that are not migrated.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -484,6 +534,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::FeeInfo { pair_type } => to_binary(&query_fee_info(deps, pair_type)?),
         QueryMsg::BlacklistedPairTypes {} => to_binary(&query_blacklisted_pair_types(deps)?),
+        QueryMsg::PairsToMigrate {} => {
+            to_binary(&PAIRS_TO_MIGRATE.may_load(deps.storage)?.unwrap_or_default())
+        }
     }
 }
 

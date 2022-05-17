@@ -4,6 +4,8 @@ use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+const MAX_PROPOSAL_TTL: u64 = 1209600;
+
 /// This structure describes the parameters used for creating a request for a change of contract ownership.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OwnershipProposal {
@@ -50,6 +52,13 @@ pub fn propose_new_owner(
     // Check that the new owner is not the same as the current one
     if new_owner == owner {
         return Err(StdError::generic_err("New owner cannot be same"));
+    }
+
+    if MAX_PROPOSAL_TTL < expires_in {
+        return Err(StdError::generic_err(format!(
+            "Parameter expires_in cannot be higher than {}",
+            MAX_PROPOSAL_TTL
+        )));
     }
 
     proposal.save(
