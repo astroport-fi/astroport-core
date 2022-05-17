@@ -40,6 +40,9 @@ pub enum ContractError {
 
     #[error("Generator address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
+
+    #[error("You need to provide init params")]
+    InitParamsNotFound {},
 }
 
 impl From<OverflowError> for ContractError {

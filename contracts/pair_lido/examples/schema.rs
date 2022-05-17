@@ -6,8 +6,8 @@ use std::env::current_dir;
 use std::fs::create_dir_all;
 
 use astroport::pair::{Cw20HookMsg, ExecuteMsg, QueryMsg};
-use astroport_stluna_bluna_lido_converter::msgs::InstantiateMsg;
-use astroport_stluna_bluna_lido_converter::state::ConfigResponse;
+use astroport::pair_lido::ConfigResponse;
+use astroport_pair_lido::msgs::InstantiateMsg;
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 fn main() {

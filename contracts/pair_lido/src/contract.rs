@@ -3,28 +3,37 @@
 // Copyright Lido
 
 use crate::error::ContractError;
-use crate::state::{Config, ConfigResponse, CONFIG, SWAP_REQUEST};
+use crate::state::{Config, CONFIG, SWAP_REQUEST};
 
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 
-use crate::msgs::InstantiateMsg;
 use crate::queries::{query_cw20_balance, query_total_tokens_issued};
 use crate::simulation::{
     convert_bluna_to_stluna, convert_stluna_to_bluna, get_required_bluna, get_required_stluna,
 };
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo, PairInfo};
+use astroport::factory::PairType;
+use astroport::pair::InstantiateMsg;
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
 };
+use astroport::pair_lido::{ConfigResponse, LidoPoolParams};
+use astroport::querier::query_fee_info;
 use basset::hub::Cw20HookMsg as HubCw20HookMsg;
+use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use std::vec;
 
 const SWAP_REPLY_ID: u64 = 1;
+
+/// Contract name that is used for migration.
+const CONTRACT_NAME: &str = "astroport-pair-lido";
+/// Contract version that is used for migration.
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
@@ -39,18 +48,43 @@ const SWAP_REPLY_ID: u64 = 1;
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
+    env: Env,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    if msg.asset_infos[0].is_native_token() || msg.asset_infos[1].is_native_token() {
+        return Err(ContractError::NonSupported {});
+    }
+
+    msg.asset_infos[0].check(deps.api)?;
+    msg.asset_infos[1].check(deps.api)?;
+
+    if msg.asset_infos[0] == msg.asset_infos[1] {
+        return Err(ContractError::DoublingAssets {});
+    }
+
+    if msg.init_params.is_none() {
+        return Err(ContractError::InitParamsNotFound {});
+    }
+
+    let params: LidoPoolParams = from_binary(&msg.init_params.unwrap())?;
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     let config = Config {
-        stluna_addr: addr_validate_to_lower(deps.api, msg.stluna_address.as_str())?,
-        bluna_addr: addr_validate_to_lower(deps.api, msg.bluna_address.as_str())?,
-        hub_addr: addr_validate_to_lower(deps.api, msg.hub_address.as_str())?,
-        owner: info.sender,
+        pair_info: PairInfo {
+            asset_infos: msg.asset_infos.clone(),
+            contract_addr: env.contract.address,
+            liquidity_token: Addr::unchecked(""),
+            pair_type: PairType::Custom("Lido-XYK".to_string()),
+        },
+        hub_addr: addr_validate_to_lower(deps.api, params.hub_address.as_str())?,
+        stluna_addr: addr_validate_to_lower(deps.api, params.stluna_addr.as_str())?,
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
+        factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr.as_str())?,
+        bluna_addr: addr_validate_to_lower(deps.api, params.bluna_addr.as_str())?,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -98,18 +132,8 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig { .. } => Err(ContractError::NonSupported {}),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::ProvideLiquidity {
-            assets: _,
-            slippage_tolerance: _,
-            auto_stake: _,
-            receiver: _,
-        } => Err(ContractError::NonSupported {}),
-        ExecuteMsg::Swap {
-            offer_asset: _,
-            belief_price: _,
-            max_spread: _,
-            to: _,
-        } => Err(ContractError::NonSupported {}),
+        ExecuteMsg::ProvideLiquidity { .. } => Err(ContractError::NonSupported {}),
+        ExecuteMsg::Swap { .. } => Err(ContractError::NonSupported {}),
     }
 }
 
@@ -137,9 +161,19 @@ pub fn receive_cw20(
             max_spread,
             to,
         }) => {
+            // Only an asset (token) contract can execute this message
+            let mut authorized: bool = false;
             let config: Config = CONFIG.load(deps.storage)?;
 
-            if !(config.stluna_addr == info.sender || config.bluna_addr == info.sender) {
+            for pool in config.clone().pair_info.asset_infos {
+                if let AssetInfo::Token { contract_addr, .. } = &pool {
+                    if contract_addr == &info.sender {
+                        authorized = true;
+                    }
+                }
+            }
+
+            if !authorized {
                 return Err(ContractError::Unauthorized {});
             }
 
@@ -166,7 +200,7 @@ pub fn receive_cw20(
             )
         }
         Ok(Cw20HookMsg::WithdrawLiquidity {}) => Err(ContractError::NonSupported {}),
-        Err(err) => Err(ContractError::Std(err)),
+        Err(err) => Err(err.into()),
     }
 }
 
@@ -192,7 +226,7 @@ pub fn receive_cw20(
 #[allow(clippy::too_many_arguments)]
 pub fn swap(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     config: Config,
     sender: Addr,
@@ -201,45 +235,79 @@ pub fn swap(
     _max_spread: Option<Decimal>,
     to: Option<Addr>,
 ) -> Result<Response, ContractError> {
-    let token_addr = if let AssetInfo::Token { contract_addr } = offer_asset.info {
-        contract_addr
-    } else {
-        return Err(ContractError::NonSupported {});
-    };
+    let pools: Vec<Asset> = config
+        .pair_info
+        .query_pools(&deps.querier, env.contract.address)?
+        .to_vec();
 
-    let ask_token_addr = if token_addr == config.bluna_addr {
-        config.stluna_addr
+    let offer_pool: Asset;
+    let ask_pool: Asset;
+
+    if offer_asset.info.equal(&pools[0].info) {
+        offer_pool = pools[0].clone();
+        ask_pool = pools[1].clone();
+    } else if offer_asset.info.equal(&pools[1].info) {
+        offer_pool = pools[1].clone();
+        ask_pool = pools[0].clone();
     } else {
-        config.bluna_addr
-    };
+        return Err(ContractError::AssetMismatch {});
+    }
 
     // saving recipient of the swap operation and ask token address to the storage
     // to send swapped tokens to the recipient in reply handler
     if let Some(to_addr) = to {
-        SWAP_REQUEST.save(deps.storage, &(to_addr, ask_token_addr))?;
+        SWAP_REQUEST.save(
+            deps.storage,
+            &(to_addr, Addr::unchecked(ask_pool.info.to_string())),
+        )?;
     } else {
-        SWAP_REQUEST.save(deps.storage, &(sender, ask_token_addr))?;
+        SWAP_REQUEST.save(
+            deps.storage,
+            &(sender, Addr::unchecked(ask_pool.info.to_string())),
+        )?;
     }
 
-    let convert_message = HubCw20HookMsg::Convert {};
-    let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: token_addr.to_string(),
-        msg: to_binary(&cw20::Cw20ExecuteMsg::Send {
-            contract: config.hub_addr.to_string(),
-            amount: offer_asset.amount,
-            msg: to_binary(&convert_message)?,
-        })?,
-        funds: vec![],
-    });
+    let mut messages: Vec<CosmosMsg> = vec![];
 
-    let sub_msg = SubMsg {
-        id: SWAP_REPLY_ID,
-        msg,
-        gas_limit: None,
-        reply_on: ReplyOn::Success,
-    };
+    if ask_pool.amount > Uint128::zero() {
+        // Get fee info from the factory
+        let fee_info = query_fee_info(
+            &deps.querier,
+            config.factory_addr.clone(),
+            config.pair_info.pair_type.clone(),
+        )?;
 
-    Ok(Response::new().add_submessage(sub_msg))
+        // if someone deposited into the pair contract instance
+        // the balance will be transferred to the maker address
+        if let Some(fee_address) = fee_info.fee_address {
+            // send funds to maker address
+            messages.push(ask_pool.into_msg(&deps.querier, fee_address).unwrap())
+        }
+    }
+
+    let mut sub_msg: Vec<SubMsg> = vec![];
+    match offer_asset.info {
+        AssetInfo::Token { contract_addr } => sub_msg.push(SubMsg::reply_on_success(
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: contract_addr.to_string(),
+                msg: to_binary(&cw20::Cw20ExecuteMsg::Send {
+                    contract: config.hub_addr.to_string(),
+                    amount: offer_asset.amount,
+                    msg: to_binary(&HubCw20HookMsg::Convert {})?,
+                })?,
+                funds: vec![],
+            }),
+            SWAP_REPLY_ID,
+        )),
+
+        AssetInfo::NativeToken { .. } => {
+            return Err(ContractError::NonSupported {});
+        }
+    }
+
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_submessages(sub_msg))
 }
 
 /// # Description
@@ -314,7 +382,7 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractE
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Pair {} => to_binary(&query_pair_info(deps, env)?),
+        QueryMsg::Pair {} => to_binary(&query_pair_info(deps)?),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
         QueryMsg::Share { amount } => to_binary(&query_share(deps, amount)?),
         QueryMsg::Simulation { offer_asset } => to_binary(&query_simulation(deps, offer_asset)?),
@@ -330,14 +398,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// Returns information about a pair in an object of type [`PairInfo`].
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_pair_info(deps: Deps, env: Env) -> StdResult<PairInfo> {
-    let pool_info = query_pool(deps)?.assets;
-    Ok(PairInfo {
-        asset_infos: [pool_info[0].clone().info, pool_info[1].clone().info],
-        contract_addr: env.contract.address,
-        liquidity_token: Addr::unchecked(""),
-        pair_type: astroport::factory::PairType::Xyk {},
-    })
+pub fn query_pair_info(deps: Deps) -> StdResult<PairInfo> {
+    let config: Config = CONFIG.load(deps.storage)?;
+    Ok(config.pair_info)
 }
 
 /// ## Description
@@ -374,6 +437,13 @@ pub fn query_share(_deps: Deps, _amount: Uint128) -> StdResult<Vec<Asset>> {
 /// * **offer_asset** is the object of type [`Asset`].
 pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
+    let pools: [AssetInfo; 2] = config.pair_info.asset_infos.clone();
+
+    if !offer_asset.info.equal(&pools[0]) && !offer_asset.info.equal(&pools[1]) {
+        return Err(StdError::generic_err(
+            "Given offer asset doesn't belong to pairs",
+        ));
+    }
 
     if let AssetInfo::Token { contract_addr } = offer_asset.info {
         if contract_addr == config.stluna_addr {
@@ -407,6 +477,13 @@ pub fn query_reverse_simulation(
     ask_asset: Asset,
 ) -> StdResult<ReverseSimulationResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
+    let pools: [AssetInfo; 2] = config.pair_info.asset_infos.clone();
+
+    if !ask_asset.info.equal(&pools[0]) && !ask_asset.info.equal(&pools[1]) {
+        return Err(StdError::generic_err(
+            "Given ask asset doesn't belong to pairs",
+        ));
+    }
 
     if let AssetInfo::Token { contract_addr } = ask_asset.info {
         if contract_addr == config.stluna_addr {
@@ -469,7 +546,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         hub_address: config.hub_addr,
         stluna_address: config.stluna_addr,
         bluna_address: config.bluna_addr,
-        owner: config.owner,
         block_time_last: config.block_time_last,
     })
 }

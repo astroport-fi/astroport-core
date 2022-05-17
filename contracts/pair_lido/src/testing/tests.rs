@@ -6,14 +6,16 @@ use super::mock_querier::mock_dependencies as dependencies;
 use crate::contract::{
     accumulate_prices, execute, instantiate, query_reverse_simulation, query_simulation,
 };
-use crate::msgs::InstantiateMsg;
 use crate::state::Config;
 use crate::testing::mock_querier::{
     MOCK_BLUNA_TOKEN_CONTRACT_ADDR, MOCK_HUB_CONTRACT_ADDR, MOCK_STLUNA_TOKEN_CONTRACT_ADDR,
 };
-use astroport::asset::{Asset, AssetInfo};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::factory::PairType;
 use astroport::pair::ExecuteMsg::Receive;
+use astroport::pair::InstantiateMsg;
 use astroport::pair::TWAP_PRECISION;
+use astroport::pair_lido::LidoPoolParams;
 use cosmwasm_std::testing::{mock_env, mock_info};
 use cosmwasm_std::{
     to_binary, Addr, Api, BlockInfo, CosmosMsg, Env, OwnedDeps, Querier, Storage, Timestamp,
@@ -24,9 +26,24 @@ use std::borrow::BorrowMut;
 
 pub fn initialize<S: Storage, A: Api, Q: Querier>(deps: &mut OwnedDeps<S, A, Q>) {
     let msg = InstantiateMsg {
-        stluna_address: MOCK_STLUNA_TOKEN_CONTRACT_ADDR.to_string(),
-        bluna_address: MOCK_BLUNA_TOKEN_CONTRACT_ADDR.to_string(),
-        hub_address: MOCK_HUB_CONTRACT_ADDR.to_string(),
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked(MOCK_STLUNA_TOKEN_CONTRACT_ADDR),
+            },
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked(MOCK_BLUNA_TOKEN_CONTRACT_ADDR),
+            },
+        ],
+        token_code_id: 0,
+        factory_addr: String::from("factory"),
+        init_params: Some(
+            to_binary(&LidoPoolParams {
+                hub_address: MOCK_HUB_CONTRACT_ADDR.to_string(),
+                stluna_addr: MOCK_STLUNA_TOKEN_CONTRACT_ADDR.to_string(),
+                bluna_addr: MOCK_BLUNA_TOKEN_CONTRACT_ADDR.to_string(),
+            })
+            .unwrap(),
+        ),
     };
 
     let owner_info = mock_info("owner", &[]);
@@ -277,15 +294,28 @@ fn test_accumulate_prices() {
         let env = mock_env_with_block_time(case.block_time);
         let config = accumulate_prices(
             deps.as_ref(),
-            env,
+            env.clone(),
             &Config {
+                pair_info: PairInfo {
+                    asset_infos: [
+                        AssetInfo::Token {
+                            contract_addr: Addr::unchecked(MOCK_STLUNA_TOKEN_CONTRACT_ADDR),
+                        },
+                        AssetInfo::Token {
+                            contract_addr: Addr::unchecked(MOCK_BLUNA_TOKEN_CONTRACT_ADDR),
+                        },
+                    ],
+                    contract_addr: env.contract.address.clone(),
+                    liquidity_token: Addr::unchecked(""),
+                    pair_type: PairType::Xyk {},
+                },
+                factory_addr: Addr::unchecked("factory"),
                 block_time_last: case.block_time_last,
                 price0_cumulative_last: Uint128::new(case.last0),
                 price1_cumulative_last: Uint128::new(case.last1),
                 hub_addr: Addr::unchecked(MOCK_HUB_CONTRACT_ADDR),
                 stluna_addr: Addr::unchecked(MOCK_STLUNA_TOKEN_CONTRACT_ADDR),
                 bluna_addr: Addr::unchecked(MOCK_BLUNA_TOKEN_CONTRACT_ADDR),
-                owner: Addr::unchecked("owner"),
             },
         )
         .unwrap();

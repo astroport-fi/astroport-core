@@ -302,6 +302,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-pair-lido"
+version = "1.0.0"
+dependencies = [
+ "astroport 2.0.0",
+ "basset 0.1.0 (git+https://github.com/lidofinance/lido-terra-contracts)",
+ "cosmwasm-bignumber",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-pair-stable"
 version = "1.0.0"
 dependencies = [
@@ -385,23 +403,6 @@ dependencies = [
  "schemars",
  "serde",
  "terra-multi-test",
- "thiserror",
-]
-
-[[package]]
-name = "astroport-stluna-bluna-lido-converter"
-version = "1.0.0"
-dependencies = [
- "astroport 2.0.0",
- "basset 0.1.0 (git+https://github.com/lidofinance/lido-terra-contracts)",
- "cosmwasm-bignumber",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 0.8.1",
- "cw20",
- "schemars",
- "serde",
  "thiserror",
 ]
 

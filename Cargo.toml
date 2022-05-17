@@ -5,7 +5,7 @@ members = [
     "contracts/factory",
     "contracts/pair",
     "contracts/pair_anchor",
-    "contracts/lido_converter",
+    "contracts/pair_lido",
     "contracts/pair_stable",
     "contracts/pair_stable_bluna",
     "contracts/router",
@@ -14,13 +14,6 @@ members = [
     "contracts/tokenomics/*",
     "contracts/periphery/*"
 ]
-
-[profile.release.package.astroport-stluna-bluna-lido-converter]
-opt-level = 3
-debug = false
-debug-assertions = false
-codegen-units = 1
-incremental = false
 
 [profile.release]
 opt-level = "z"
