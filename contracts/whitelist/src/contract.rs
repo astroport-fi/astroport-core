@@ -39,7 +39,7 @@ pub fn instantiate(
 pub fn map_validate(api: &dyn Api, admins: &[String]) -> StdResult<Vec<Addr>> {
     admins
         .iter()
-        .map(|addr| addr_validate_to_lower(api, &addr))
+        .map(|addr| addr_validate_to_lower(api, addr))
         .collect()
 }
 
