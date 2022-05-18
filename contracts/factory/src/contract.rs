@@ -14,7 +14,7 @@ use crate::state::{
 
 use crate::response::MsgInstantiateContractResponse;
 
-use astroport::asset::{addr_validate_to_lower, AssetInfo, PairInfo};
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower, AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
     PairsResponse, QueryMsg,
@@ -63,15 +63,9 @@ pub fn instantiate(
         whitelist_code_id: msg.whitelist_code_id,
     };
 
-    config.generator_address = msg
-        .generator_address
-        .map(|addr| addr_validate_to_lower(deps.api, &addr))
-        .transpose()?;
+    config.generator_address = addr_opt_validate(deps.api, &msg.generator_address)?;
 
-    config.fee_address = msg
-        .fee_address
-        .map(|addr| addr_validate_to_lower(deps.api, &addr))
-        .transpose()?;
+    config.fee_address = addr_opt_validate(deps.api, &msg.fee_address)?;
 
     let config_set: HashSet<String> = msg
         .pair_configs

@@ -450,7 +450,7 @@ pub fn execute_transfer_from(
         deps.storage,
         &rcpt_addr,
         env.block.height,
-        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_add(amount)?) },
     )?;
 
     let res = Response::new().add_attributes(vec![
@@ -556,7 +556,7 @@ pub fn execute_send_from(
         deps.storage,
         &rcpt_addr,
         env.block.height,
-        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_add(amount)?) },
     )?;
 
     let res = Response::new()

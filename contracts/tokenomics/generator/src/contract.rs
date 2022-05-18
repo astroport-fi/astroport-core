@@ -737,10 +737,10 @@ fn update_rewards_and_execute(
     })?;
 
     let mut pools = vec![];
-    match &update_single_pool {
+    match update_single_pool {
         Some(lp_token) => {
-            let pool = POOL_INFO.load(deps.storage, lp_token)?;
-            pools = vec![(lp_token.clone(), pool)];
+            let pool = POOL_INFO.load(deps.storage, &lp_token)?;
+            pools = vec![(lp_token, pool)];
         }
         None => {
             let config = CONFIG.load(deps.storage)?;
@@ -2198,7 +2198,7 @@ fn query_reward_info(deps: Deps, lp_token: String) -> Result<RewardInfoResponse,
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
-    let proxy_reward_token: Option<Addr> = pool
+    let proxy_reward_token = pool
         .reward_proxy
         .map(|proxy| {
             deps.querier

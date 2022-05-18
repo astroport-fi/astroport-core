@@ -8,7 +8,7 @@ use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use terra_cosmwasm::{TerraMsgWrapper, TerraQuerier};
 
-use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower, Asset, AssetInfo};
 use astroport::pair::{QueryMsg as PairQueryMsg, SimulationResponse};
 use astroport::querier::query_pair_info;
 use astroport::router::{
@@ -151,21 +151,15 @@ pub fn receive_cw20(
             minimum_receive,
             to,
             max_spread,
-        } => {
-            let to_addr = to
-                .map(|to| addr_validate_to_lower(deps.api, &to))
-                .transpose()?;
-
-            execute_swap_operations(
-                deps,
-                env,
-                sender,
-                operations,
-                minimum_receive,
-                to_addr,
-                max_spread,
-            )
-        }
+        } => execute_swap_operations(
+            deps,
+            env,
+            sender,
+            operations,
+            minimum_receive,
+            to,
+            max_spread,
+        ),
     }
 }
 
@@ -192,7 +186,7 @@ pub fn execute_swap_operations(
     sender: Addr,
     operations: Vec<SwapOperation>,
     minimum_receive: Option<Uint128>,
-    to: Option<Addr>,
+    to: Option<String>,
     max_spread: Option<Decimal>,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let operations_len = operations.len();
@@ -207,7 +201,7 @@ pub fn execute_swap_operations(
     // Assert the operations are properly set
     assert_operations(deps.api, &operations)?;
 
-    let to = to.unwrap_or(sender);
+    let to = addr_opt_validate(deps.api, &to)?.unwrap_or(sender);
 
     let target_asset_info = operations.last().unwrap().get_target_asset_info();
 
@@ -426,7 +420,7 @@ fn simulate_swap_operations(
                 }
 
                 let mut res: SimulationResponse = deps.querier.query_wasm_smart(
-                    pair_info.contract_addr.to_string(),
+                    pair_info.contract_addr,
                     &PairQueryMsg::Simulation {
                         offer_asset: Asset {
                             info: offer_asset_info.clone(),
