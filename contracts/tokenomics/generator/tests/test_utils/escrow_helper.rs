@@ -100,6 +100,7 @@ impl EscrowHelper {
             marketing: None,
             max_exit_penalty: Default::default(),
             slashed_fund_receiver: None,
+            logo_urls_whitelist: vec![],
         };
         let voting_instance = router
             .instantiate_contract(
