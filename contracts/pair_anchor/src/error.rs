@@ -25,6 +25,9 @@ pub enum ContractError {
 
     #[error("Asset mismatch between the requested and the stored asset in contract")]
     AssetMismatch {},
+
+    #[error("Pair is not migrated to the new admin!")]
+    PairIsNotMigrated {},
 }
 
 impl From<OverflowError> for ContractError {

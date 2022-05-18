@@ -12,7 +12,7 @@ use cosmwasm_std::{
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
 
-use astroport::pair::InstantiateMsg;
+use astroport::pair::{migration_check, InstantiateMsg};
 use astroport::pair_anchor::{ConfigResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
 use astroport::pair_anchor::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
@@ -125,6 +125,12 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
+    if migration_check(deps.as_ref(), &cfg.factory_addr, &env.contract.address)? {
+        return Err(ContractError::PairIsNotMigrated {});
+    }
+
     match msg {
         ExecuteMsg::UpdateConfig { .. } => Err(ContractError::NonSupported {}),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),

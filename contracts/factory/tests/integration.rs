@@ -5,6 +5,7 @@ use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, PairType, QueryMsg,
 };
+use astroport::pair::ExecuteMsg as PairExecuteMsg;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cw20::MinterResponse;
 
@@ -207,8 +208,74 @@ fn instantiate_contract(app: &mut TerraApp, owner: &Addr, token_code_id: u64) ->
     .unwrap()
 }
 
+fn instantiate_token(
+    app: &mut TerraApp,
+    token_code_id: u64,
+    owner: &Addr,
+    token_name: &str,
+) -> Addr {
+    let init_msg = TokenInstantiateMsg {
+        name: token_name.to_string(),
+        symbol: token_name.to_string(),
+        decimals: 18,
+        initial_balances: vec![],
+        mint: Some(MinterResponse {
+            minter: owner.to_string(),
+            cap: None,
+        }),
+    };
+
+    app.instantiate_contract(
+        token_code_id,
+        owner.clone(),
+        &init_msg,
+        &[],
+        token_name,
+        None,
+    )
+    .unwrap()
+}
+
+fn create_pair(
+    app: &mut TerraApp,
+    owner: &Addr,
+    factory: &Addr,
+    token1: &Addr,
+    token2: &Addr,
+) -> Addr {
+    let asset_infos = [
+        AssetInfo::Token {
+            contract_addr: token1.clone(),
+        },
+        AssetInfo::Token {
+            contract_addr: token2.clone(),
+        },
+    ];
+
+    let msg = ExecuteMsg::CreatePair {
+        pair_type: PairType::Xyk {},
+        asset_infos: asset_infos.clone(),
+        init_params: None,
+    };
+
+    app.execute_contract(owner.clone(), factory.clone(), &msg, &[])
+        .unwrap();
+
+    let res: PairInfo = app
+        .wrap()
+        .query_wasm_smart(
+            factory.clone(),
+            &QueryMsg::Pair {
+                asset_infos: asset_infos.clone(),
+            },
+        )
+        .unwrap();
+
+    res.contract_addr
+}
+
 #[test]
-fn create_pair() {
+fn test_create_pair() {
     let mut app = mock_app();
 
     let owner = String::from("owner");
@@ -307,4 +374,124 @@ fn create_pair() {
     assert_eq!("contract #0", factory_instance.to_string());
     assert_eq!("contract #3", res.contract_addr.to_string());
     assert_eq!("contract #4", res.liquidity_token.to_string());
+}
+
+#[test]
+fn test_pair_migration() {
+    let mut app = mock_app();
+
+    let owner = String::from("owner");
+
+    let token_code_id = store_token_code(&mut app);
+
+    let factory_instance =
+        instantiate_contract(&mut app, &Addr::unchecked(owner.clone()), token_code_id);
+
+    let owner_addr = Addr::unchecked(owner.clone());
+
+    let token_instance0 = instantiate_token(&mut app, token_code_id, &owner_addr, "tokenX");
+    let token_instance1 = instantiate_token(&mut app, token_code_id, &owner_addr, "tokenY");
+    let token_instance2 = instantiate_token(&mut app, token_code_id, &owner_addr, "tokenZ");
+
+    // Create pairs in factory
+    let pairs = [
+        create_pair(
+            &mut app,
+            &owner_addr,
+            &factory_instance,
+            &token_instance0,
+            &token_instance1,
+        ),
+        create_pair(
+            &mut app,
+            &owner_addr,
+            &factory_instance,
+            &token_instance0,
+            &token_instance2,
+        ),
+    ];
+
+    // Change contract ownership
+    let new_owner = Addr::unchecked("new_owner");
+
+    app.execute_contract(
+        owner_addr.clone(),
+        factory_instance.clone(),
+        &ExecuteMsg::ProposeNewOwner {
+            owner: new_owner.to_string(),
+            expires_in: 100,
+        },
+        &[],
+    )
+    .unwrap();
+    app.execute_contract(
+        new_owner.clone(),
+        factory_instance.clone(),
+        &ExecuteMsg::ClaimOwnership {},
+        &[],
+    )
+    .unwrap();
+
+    let pair3 = create_pair(
+        &mut app,
+        &owner_addr,
+        &factory_instance,
+        &token_instance1,
+        &token_instance2,
+    );
+
+    // Should panic due to pairs are not migrated.
+    for pair in pairs.clone() {
+        let res = app
+            .execute_contract(
+                Addr::unchecked("user1"),
+                pair,
+                &PairExecuteMsg::UpdateConfig {
+                    params: Default::default(),
+                },
+                &[],
+            )
+            .unwrap_err();
+
+        assert_eq!(res.to_string(), "Pair is not migrated to the new admin!");
+    }
+
+    // Pair is created after admin migration
+    let res = app
+        .execute_contract(
+            Addr::unchecked("user1"),
+            pair3,
+            &PairExecuteMsg::UpdateConfig {
+                params: Default::default(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_ne!(res.to_string(), "Pair is not migrated to the new admin");
+
+    app.execute_contract(
+        new_owner,
+        factory_instance,
+        &ExecuteMsg::MarkAsMigrated {
+            pairs: Vec::from(pairs.clone().map(String::from)),
+        },
+        &[],
+    )
+    .unwrap();
+
+    for pair in pairs.clone() {
+        let res = app
+            .execute_contract(
+                Addr::unchecked("user1"),
+                pair,
+                &PairExecuteMsg::UpdateConfig {
+                    params: Default::default(),
+                },
+                &[],
+            )
+            .unwrap_err();
+
+        assert_ne!(res.to_string(), "Pair is not migrated to the new admin!");
+    }
 }
