@@ -95,7 +95,7 @@ impl EscrowHelper {
 
         let msg = InstantiateMsg {
             owner: owner.to_string(),
-            guardian_addr: "guardian".to_string(),
+            guardian_addr: Some("guardian".to_string()),
             deposit_token_addr: res.share_token_addr.to_string(),
             marketing: None,
             max_exit_penalty: Default::default(),

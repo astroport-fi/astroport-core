@@ -4,9 +4,11 @@ use astroport::whitelist::{AdminListResponse, ExecuteMsg, InstantiateMsg, QueryM
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{to_binary, Addr, CosmosMsg, Empty, QueryRequest, StdError, WasmMsg, WasmQuery};
 use cw1::Cw1Contract;
-use cw_multi_test::{App, AppResponse, BankKeeper, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 use serde::{de::DeserializeOwned, Serialize};
+use terra_multi_test::{
+    App, AppBuilder, AppResponse, BankKeeper, Contract, ContractWrapper, Executor,
+};
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -14,7 +16,12 @@ fn mock_app() -> App {
     let bank = BankKeeper::new();
     let storage = MockStorage::new();
 
-    App::new(api, env.block, bank, storage)
+    AppBuilder::new()
+        .with_api(api)
+        .with_block(env.block)
+        .with_bank(bank)
+        .with_storage(storage)
+        .build()
 }
 
 fn contract_cw1() -> Box<dyn Contract<Empty>> {

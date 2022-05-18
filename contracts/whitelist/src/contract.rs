@@ -8,6 +8,7 @@ use cosmwasm_std::{
     StdResult,
 };
 
+use astroport::asset::addr_validate_to_lower;
 use cw1::CanExecuteResponse;
 use cw2::set_contract_version;
 
@@ -36,7 +37,10 @@ pub fn instantiate(
 }
 
 pub fn map_validate(api: &dyn Api, admins: &[String]) -> StdResult<Vec<Addr>> {
-    admins.iter().map(|addr| api.addr_validate(addr)).collect()
+    admins
+        .iter()
+        .map(|addr| addr_validate_to_lower(api, &addr))
+        .collect()
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
