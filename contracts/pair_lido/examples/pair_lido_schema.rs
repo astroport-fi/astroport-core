@@ -5,9 +5,8 @@
 use std::env::current_dir;
 use std::fs::create_dir_all;
 
-use astroport::pair::{Cw20HookMsg, ExecuteMsg, QueryMsg};
-use astroport::pair_lido::ConfigResponse;
-use astroport_pair_lido::msgs::InstantiateMsg;
+use astroport::pair::InstantiateMsg;
+use astroport::pair_lido::{ConfigResponse, Cw20HookMsg, ExecuteMsg, QueryMsg};
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 fn main() {

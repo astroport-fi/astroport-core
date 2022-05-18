@@ -6,6 +6,11 @@ use crate::asset::Asset;
 use cosmwasm_std::{Addr, Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
+/// The default swap slippage
+pub const DEFAULT_SLIPPAGE: &str = "0.005";
+/// The maximum allowed swap slippage
+pub const MAX_ALLOWED_SLIPPAGE: &str = "0.5";
+
 /// This structure describes the execute messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -33,6 +38,20 @@ pub enum ExecuteMsg {
     },
     /// Update the pair configuration
     UpdateConfig { params: Binary },
+}
+
+/// This structure describes a CW20 hook message.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Cw20HookMsg {
+    /// Swap a given amount of asset
+    Swap {
+        belief_price: Option<Decimal>,
+        max_spread: Option<Decimal>,
+        to: Option<String>,
+    },
+    /// Withdraw liquidity from the pool
+    WithdrawLiquidity {},
 }
 
 /// This structure describes the query messages available in the contract.

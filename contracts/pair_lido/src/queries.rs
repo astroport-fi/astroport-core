@@ -2,7 +2,7 @@
 // Copyright Lido
 
 use cosmwasm_std::{to_binary, Addr, Deps, QueryRequest, StdResult, Uint128, WasmQuery};
-use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
+use cw20::{Cw20QueryMsg, TokenInfoResponse};
 
 /// ## Description
 /// Returns current parameters of the Lido Hub
@@ -65,21 +65,4 @@ pub fn query_total_tokens_issued(deps: Deps, token_address: Addr) -> StdResult<U
             msg: to_binary(&Cw20QueryMsg::TokenInfo {})?,
         }))?;
     Ok(token_info.total_supply)
-}
-
-/// ## Description
-/// Returns balance of the CW20 tokens on address
-/// ## Params
-/// * **deps** is the object of type [`Deps`].
-///
-/// * **token** is the object of type [`Addr`]
-/// * **address** is the object of type [`Addr`].
-pub fn query_cw20_balance(deps: Deps, token: Addr, address: Addr) -> StdResult<Uint128> {
-    let balance: BalanceResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: token.to_string(),
-        msg: to_binary(&Cw20QueryMsg::Balance {
-            address: address.to_string(),
-        })?,
-    }))?;
-    Ok(balance.balance)
 }

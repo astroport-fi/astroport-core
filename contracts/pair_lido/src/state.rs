@@ -2,8 +2,8 @@
 // Copyright Astroport
 // Copyright Lido
 
-use astroport::asset::PairInfo;
-use cosmwasm_std::{Addr, Uint128};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -34,9 +34,19 @@ pub struct Config {
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// ## Description
+/// Describes additional params for user's swap request for processing in reply handler
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SwapRequestInfo {
+    pub ask_asset_info: AssetInfo,
+    pub offer_asset_info: Asset,
+    pub belief_price: Option<Decimal>,
+    pub max_spread: Option<Decimal>,
+}
+
+/// ## Description
 /// Describes user's swap request for processing in reply handler
-/// (<USER_ADDR>, <ASK_TOKEN_ADDR>)
-pub type SwapRequest = (Addr, Addr);
+/// (<USER_ADDR>, <SwapRequestInfo>)
+pub type SwapRequest = (Addr, SwapRequestInfo);
 
 /// ## Description
 /// Stores addr of recipient who should get converted tokens and address of converted tokens contract

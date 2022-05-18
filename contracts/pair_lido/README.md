@@ -1,18 +1,39 @@
-# Converter Contract
+# Pair lido Converter Contract
 
 The Converter Contract contains the logic for swapping stLuna/bLuna tokens with the same API as [Astroport's native pool
 contract](https://github.com/astroport-fi/astroport-core/tree/master/contracts/pair#executemsg), but it's just simply calls [Hub::Convert](https://docs.terra.lido.fi/contracts/hub#convert) under the hood.
 
-
 ## InstantiateMsg
 
-Initializes a new converter contract.
+Initializes a new x*y=k pair.
 
 ```json
 {
-    "stluna_address": "terra1...",
-    "bluna_address": "terra1...",
-    "hub_address": "terra1...",
+  "token_code_id": 123,
+  "factory_addr": "terra...",
+  "asset_infos": [
+    {
+      "token": {
+        "contract_addr": "terra..."
+      }
+    },
+    {
+      "token": {
+        "contract_addr": "terra..."
+      }
+    }
+  ],
+  "init_params": "<base64_encoded_json_string: optional binary serialised parameters for custom pool types>"
+}
+```
+
+For the custom pool type see:
+
+```json
+{
+  "hub_address": "terra...",
+  "stluna_addr": "terra...",
+  "bluna_addr": "terra..."
 }
 ```
 

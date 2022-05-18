@@ -3,14 +3,16 @@
 // Copyright Lido
 
 use crate::error::ContractError;
-use crate::state::{Config, CONFIG, SWAP_REQUEST};
+use crate::state::{Config, SwapRequestInfo, CONFIG, SWAP_REQUEST};
+use cosmwasm_bignumber::Decimal256;
+use std::str::FromStr;
 
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 
-use crate::queries::{query_cw20_balance, query_total_tokens_issued};
+use crate::queries::query_total_tokens_issued;
 use crate::simulation::{
     convert_bluna_to_stluna, convert_stluna_to_bluna, get_required_bluna, get_required_stluna,
 };
@@ -21,7 +23,9 @@ use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
 };
-use astroport::pair_lido::{ConfigResponse, LidoPoolParams};
+use astroport::pair_lido::{
+    ConfigResponse, LidoPoolParams, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
+};
 use astroport::querier::query_fee_info;
 use basset::hub::Cw20HookMsg as HubCw20HookMsg;
 use cw2::set_contract_version;
@@ -183,15 +187,15 @@ pub fn receive_cw20(
                 None
             };
 
-            let contract_addr = info.sender.clone();
             swap(
                 deps,
                 env,
-                info,
                 config,
                 Addr::unchecked(cw20_msg.sender),
                 Asset {
-                    info: AssetInfo::Token { contract_addr },
+                    info: AssetInfo::Token {
+                        contract_addr: info.sender,
+                    },
                     amount: cw20_msg.amount,
                 },
                 belief_price,
@@ -227,12 +231,11 @@ pub fn receive_cw20(
 pub fn swap(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
     config: Config,
     sender: Addr,
     offer_asset: Asset,
-    _belief_price: Option<Decimal>,
-    _max_spread: Option<Decimal>,
+    belief_price: Option<Decimal>,
+    max_spread: Option<Decimal>,
     to: Option<Addr>,
 ) -> Result<Response, ContractError> {
     let pools: Vec<Asset> = config
@@ -253,21 +256,25 @@ pub fn swap(
         return Err(ContractError::AssetMismatch {});
     }
 
+    let swap_request_info = SwapRequestInfo {
+        ask_asset_info: ask_pool.info.clone(),
+        offer_asset_info: Asset {
+            info: offer_pool.info,
+            amount: offer_asset.amount,
+        },
+        belief_price,
+        max_spread,
+    };
+
     // saving recipient of the swap operation and ask token address to the storage
     // to send swapped tokens to the recipient in reply handler
     if let Some(to_addr) = to {
-        SWAP_REQUEST.save(
-            deps.storage,
-            &(to_addr, Addr::unchecked(ask_pool.info.to_string())),
-        )?;
+        SWAP_REQUEST.save(deps.storage, &(to_addr, swap_request_info))?;
     } else {
-        SWAP_REQUEST.save(
-            deps.storage,
-            &(sender, Addr::unchecked(ask_pool.info.to_string())),
-        )?;
+        SWAP_REQUEST.save(deps.storage, &(sender, swap_request_info))?;
     }
 
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let mut sub_messages: Vec<SubMsg> = vec![];
 
     if ask_pool.amount > Uint128::zero() {
         // Get fee info from the factory
@@ -281,13 +288,14 @@ pub fn swap(
         // the balance will be transferred to the maker address
         if let Some(fee_address) = fee_info.fee_address {
             // send funds to maker address
-            messages.push(ask_pool.into_msg(&deps.querier, fee_address).unwrap())
+            sub_messages.push(SubMsg::new(
+                ask_pool.into_msg(&deps.querier, fee_address).unwrap(),
+            ))
         }
     }
 
-    let mut sub_msg: Vec<SubMsg> = vec![];
     match offer_asset.info {
-        AssetInfo::Token { contract_addr } => sub_msg.push(SubMsg::reply_on_success(
+        AssetInfo::Token { contract_addr } => sub_messages.push(SubMsg::reply_on_success(
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 msg: to_binary(&cw20::Cw20ExecuteMsg::Send {
@@ -305,9 +313,7 @@ pub fn swap(
         }
     }
 
-    Ok(Response::new()
-        .add_messages(messages)
-        .add_submessages(sub_msg))
+    Ok(Response::new().add_submessages(sub_messages))
 }
 
 /// # Description
@@ -322,10 +328,17 @@ pub fn swap(
 pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
     let swap_request = SWAP_REQUEST.load(deps.storage)?;
 
-    let return_amount = query_cw20_balance(
-        deps.as_ref(),
-        swap_request.1.clone(),
-        env.contract.address.clone(),
+    let return_amount = swap_request
+        .1
+        .ask_asset_info
+        .query_pool(&deps.querier, env.contract.address.clone())?;
+
+    // Check the max spread limit (if it was specified)
+    assert_max_spread(
+        swap_request.1.belief_price,
+        swap_request.1.max_spread,
+        swap_request.1.offer_asset_info.amount,
+        return_amount,
     )?;
 
     let mut config = CONFIG.load(deps.storage)?;
@@ -339,16 +352,12 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractE
         CONFIG.save(deps.storage, &config)?;
     }
 
-    let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: swap_request.1.to_string(),
-        msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-            recipient: swap_request.0.to_string(),
-            amount: return_amount,
-        })?,
-        funds: vec![],
-    });
+    let return_asset = Asset {
+        info: swap_request.1.ask_asset_info,
+        amount: return_amount,
+    };
 
-    Ok(Response::new().add_message(msg))
+    Ok(Response::new().add_message(return_asset.into_msg(&deps.querier, swap_request.0)?))
 }
 
 /// ## Description
@@ -548,6 +557,48 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         bluna_address: config.bluna_addr,
         block_time_last: config.block_time_last,
     })
+}
+
+/// ## Description
+/// Returns a [`ContractError`] on failure.
+/// If `belief_price` and `max_spread` are both specified, we compute a new spread,
+/// otherwise we just use the swap spread to check `max_spread`.
+/// ## Params
+/// * **belief_price** is an object of type [`Option<Decimal>`]. This is the belief price used in the swap.
+///
+/// * **max_spread** is an object of type [`Option<Decimal>`]. This is the
+/// max spread allowed so that the swap can be executed successfuly.
+///
+/// * **offer_amount** is an object of type [`Uint128`]. This is the amount of assets to swap.
+///
+/// * **return_amount** is an object of type [`Uint128`]. This is the amount of assets to receive from the swap.
+pub fn assert_max_spread(
+    belief_price: Option<Decimal>,
+    max_spread: Option<Decimal>,
+    offer_amount: Uint128,
+    return_amount: Uint128,
+) -> Result<(), ContractError> {
+    let default_spread = Decimal::from_str(DEFAULT_SLIPPAGE)?;
+    let max_allowed_spread = Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?;
+
+    let max_spread = max_spread.unwrap_or(default_spread);
+    if max_spread.gt(&max_allowed_spread) {
+        return Err(ContractError::AllowedSpreadAssertion {});
+    }
+
+    if let Some(belief_price) = belief_price {
+        let expected_return =
+            offer_amount * Decimal::from(Decimal256::one() / Decimal256::from(belief_price));
+        let spread_amount = expected_return.saturating_sub(return_amount);
+
+        if return_amount < expected_return
+            && Decimal::from_ratio(spread_amount, expected_return) > max_spread
+        {
+            return Err(ContractError::MaxSpreadAssertion {});
+        }
+    }
+
+    Ok(())
 }
 
 /// ## Description
