@@ -1,4 +1,4 @@
-use cosmwasm_std::{OverflowError, StdError};
+use cosmwasm_std::{DivideByZeroError, OverflowError, StdError};
 use thiserror::Error;
 
 /// ## Description
@@ -15,5 +15,11 @@ pub enum ContractError {
 impl From<OverflowError> for ContractError {
     fn from(o: OverflowError) -> Self {
         StdError::from(o).into()
+    }
+}
+
+impl From<DivideByZeroError> for ContractError {
+    fn from(err: DivideByZeroError) -> Self {
+        StdError::from(err).into()
     }
 }
