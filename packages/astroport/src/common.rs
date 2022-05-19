@@ -148,6 +148,9 @@ pub fn claim_ownership(
     ]))
 }
 
+/// ## Description
+/// Bulk validation and conversion between [`String`] -> [`Addr`] for an array of addresses.
+/// If any address is invalid, the function returns [`StdError`].
 pub fn validate_addresses(api: &dyn Api, admins: &[String]) -> StdResult<Vec<Addr>> {
     admins
         .iter()
