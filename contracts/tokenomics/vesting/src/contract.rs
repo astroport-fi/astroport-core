@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use crate::state::{read_vesting_infos, Config, CONFIG, OWNERSHIP_PROPOSAL, VESTING_INFO};
 
 use crate::error::ContractError;
-use astroport::asset::addr_validate_to_lower;
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::vesting::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg,
@@ -423,9 +423,7 @@ pub fn query_vesting_accounts(
     limit: Option<u32>,
     order_by: Option<OrderBy>,
 ) -> StdResult<VestingAccountsResponse> {
-    let start_after = start_after
-        .map(|v| addr_validate_to_lower(deps.api, &v))
-        .transpose()?;
+    let start_after = addr_opt_validate(deps.api, &start_after)?;
 
     let vesting_infos = read_vesting_infos(deps, start_after, limit, order_by)?;
 

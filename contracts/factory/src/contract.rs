@@ -21,7 +21,9 @@ use astroport::factory::{
 };
 
 use crate::migration::migrate_pair_configs_to_v120;
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::common::{
+    claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
+};
 use astroport::generator::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cw2::{get_contract_version, set_contract_version};
@@ -389,10 +391,7 @@ fn execute_mark_pairs_as_migrated(
         return Err(ContractError::Unauthorized {});
     }
 
-    let pairs = pairs
-        .iter()
-        .map(|addr| -> StdResult<Addr> { addr_validate_to_lower(deps.api, addr) })
-        .collect::<StdResult<Vec<Addr>>>()?;
+    let pairs = validate_addresses(deps.api, &pairs)?;
 
     let not_migrated: Vec<Addr> = PAIRS_TO_MIGRATE
         .load(deps.storage)?

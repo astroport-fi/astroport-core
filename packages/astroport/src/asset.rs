@@ -300,15 +300,16 @@ impl PairInfo {
 /// ## Params
 /// * **api** is an object of type [`Api`]
 ///
-/// * **addr** is an object of type [`Addr`]
-pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
+/// * **addr** is an object of type [`impl Into<String>`]
+pub fn addr_validate_to_lower(api: &dyn Api, addr: impl Into<String>) -> StdResult<Addr> {
+    let addr = addr.into();
     if addr.to_lowercase() != addr {
         return Err(StdError::generic_err(format!(
             "Address {} should be lowercase",
             addr
         )));
     }
-    api.addr_validate(addr)
+    api.addr_validate(&addr)
 }
 
 /// Returns a lowercased, validated address upon success if present. Otherwise returns [`None`].

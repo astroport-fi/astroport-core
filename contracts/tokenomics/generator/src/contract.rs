@@ -18,7 +18,9 @@ use astroport::asset::{
     AssetInfo, PairInfo,
 };
 
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::common::{
+    claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
+};
 use astroport::factory::PairType;
 use astroport::generator::{Config, PoolInfo};
 use astroport::generator::{StakerResponse, UserInfoV2};
@@ -72,11 +74,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let allowed_reward_proxies = msg
-        .allowed_reward_proxies
-        .into_iter()
-        .map(|proxy| addr_validate_to_lower(deps.api, &proxy))
-        .collect::<StdResult<Vec<_>>>()?;
+    let allowed_reward_proxies = validate_addresses(deps.api, &msg.allowed_reward_proxies)?;
 
     let generator_controller = addr_opt_validate(deps.api, &msg.generator_controller)?;
     let guardian = addr_opt_validate(deps.api, &msg.guardian)?;
@@ -229,10 +227,7 @@ pub fn execute(
             has_asset_rewards,
         } => execute_update_pool(deps, info, lp_token, has_asset_rewards),
         ExecuteMsg::ClaimRewards { lp_tokens } => {
-            let mut lp_tokens_addr: Vec<Addr> = vec![];
-            for lp_token in &lp_tokens {
-                lp_tokens_addr.push(addr_validate_to_lower(deps.api, lp_token)?);
-            }
+            let lp_tokens_addr: Vec<Addr> = validate_addresses(deps.api, &lp_tokens)?;
 
             update_rewards_and_execute(
                 deps,

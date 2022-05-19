@@ -1,5 +1,5 @@
 use crate::asset::addr_validate_to_lower;
-use cosmwasm_std::{attr, Addr, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
+use cosmwasm_std::{attr, Addr, Api, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
 use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -146,4 +146,11 @@ pub fn claim_ownership(
         attr("action", "claim_ownership"),
         attr("new_owner", p.owner),
     ]))
+}
+
+pub fn validate_addresses(api: &dyn Api, admins: &[String]) -> StdResult<Vec<Addr>> {
+    admins
+        .iter()
+        .map(|addr| addr_validate_to_lower(api, addr))
+        .collect()
 }
