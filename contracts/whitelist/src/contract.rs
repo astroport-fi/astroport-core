@@ -4,10 +4,10 @@ use std::fmt;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Api, Binary, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Response,
-    StdResult,
+    to_binary, Binary, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
 };
 
+use astroport::common::validate_addresses;
 use cw1::CanExecuteResponse;
 use cw2::set_contract_version;
 
@@ -28,15 +28,11 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     let cfg = AdminList {
-        admins: map_validate(deps.api, &msg.admins)?,
+        admins: validate_addresses(deps.api, &msg.admins)?,
         mutable: msg.mutable,
     };
     ADMIN_LIST.save(deps.storage, &cfg)?;
     Ok(Response::default())
-}
-
-pub fn map_validate(api: &dyn Api, admins: &[String]) -> StdResult<Vec<Addr>> {
-    admins.iter().map(|addr| api.addr_validate(addr)).collect()
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -101,7 +97,7 @@ pub fn execute_update_admins(
     if !cfg.can_modify(info.sender.as_ref()) {
         Err(ContractError::Unauthorized {})
     } else {
-        cfg.admins = map_validate(deps.api, &admins)?;
+        cfg.admins = validate_addresses(deps.api, &admins)?;
         ADMIN_LIST.save(deps.storage, &cfg)?;
 
         let res = Response::new().add_attribute("action", "update_admins");

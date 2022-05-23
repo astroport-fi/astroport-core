@@ -20,7 +20,7 @@ crate-type = ["cdylib", "rlib"]
 [features]
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces", "cosmwasm-vm/backtraces"]
+backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 astroport = { path = "../../packages/astroport", default-features = false }
@@ -30,12 +30,11 @@ cosmwasm-std = { version = "0.16.2" }
 cw-storage-plus = { version = "0.8.0" }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0.20" }
+thiserror = { version = "1.0" }
 moneymarket = { version = "0.3.0" }
 cosmwasm-bignumber = { version = "2.2.0" }
 
 [dev-dependencies]
-cosmwasm-vm = { version = "0.16.2", default-features = false, features = ["iterator"] }
 cosmwasm-schema = "0.16.2"
 terra-cosmwasm = { version = "2.2.0" }
 astroport-token = { path = "../token" }

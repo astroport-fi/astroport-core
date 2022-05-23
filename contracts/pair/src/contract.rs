@@ -73,7 +73,7 @@ pub fn instantiate(
 
     CONFIG.save(deps.storage, &config)?;
 
-    let token_name = format_lp_token_name(msg.asset_infos, &deps.querier)?;
+    let token_name = format_lp_token_name(&msg.asset_infos, &deps.querier)?;
 
     // Create the LP token contract
     let sub_msg: Vec<SubMsg> = vec![SubMsg {

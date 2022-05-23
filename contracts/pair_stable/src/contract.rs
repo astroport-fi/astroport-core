@@ -13,7 +13,9 @@ use cosmwasm_std::{
 };
 
 use crate::response::MsgInstantiateContractResponse;
-use astroport::asset::{addr_validate_to_lower, format_lp_token_name, Asset, AssetInfo, PairInfo};
+use astroport::asset::{
+    addr_validate_to_lower, format_lp_token_name, token_asset_info, Asset, AssetInfo, PairInfo,
+};
 use astroport::factory::PairType;
 
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
@@ -100,7 +102,7 @@ pub fn instantiate(
 
     CONFIG.save(deps.storage, &config)?;
 
-    let token_name = format_lp_token_name(msg.asset_infos, &deps.querier)?;
+    let token_name = format_lp_token_name(&msg.asset_infos, &deps.querier)?;
 
     // Create LP token
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
@@ -413,8 +415,8 @@ pub fn provide_liquidity(
     // Assert that slippage tolerance is respected
     assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
 
-    let token_precision_0 = query_token_precision(&deps.querier, pools[0].info.clone())?;
-    let token_precision_1 = query_token_precision(&deps.querier, pools[1].info.clone())?;
+    let token_precision_0 = query_token_precision(&deps.querier, &pools[0].info)?;
+    let token_precision_1 = query_token_precision(&deps.querier, &pools[1].info)?;
 
     let greater_precision = token_precision_0.max(token_precision_1);
 
@@ -425,9 +427,7 @@ pub fn provide_liquidity(
     let share = if total_share.is_zero() {
         let liquidity_token_precision = query_token_precision(
             &deps.querier,
-            AssetInfo::Token {
-                contract_addr: config.pair_info.liquidity_token.clone(),
-            },
+            &token_asset_info(config.pair_info.liquidity_token.clone()),
         )?;
 
         // Initial share = collateral amount
@@ -608,9 +608,9 @@ pub fn withdraw_liquidity(
         env,
         &config,
         pools[0].amount,
-        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        query_token_precision(&deps.querier, &pools[0].info)?,
         pools[1].amount,
-        query_token_precision(&deps.querier, pools[1].info.clone())?,
+        query_token_precision(&deps.querier, &pools[1].info)?,
     )? {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
@@ -752,9 +752,9 @@ pub fn swap(
     let offer_amount = offer_asset.amount;
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
-        query_token_precision(&deps.querier, offer_pool.info)?,
+        query_token_precision(&deps.querier, &offer_pool.info)?,
         ask_pool.amount,
-        query_token_precision(&deps.querier, ask_pool.info.clone())?,
+        query_token_precision(&deps.querier, &ask_pool.info)?,
         offer_amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -800,9 +800,9 @@ pub fn swap(
         env,
         &config,
         pools[0].amount,
-        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        query_token_precision(&deps.querier, &pools[0].info)?,
         pools[1].amount,
-        query_token_precision(&deps.querier, pools[1].info.clone())?,
+        query_token_precision(&deps.querier, &pools[1].info)?,
     )? {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
@@ -1049,9 +1049,9 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
 
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
-        query_token_precision(&deps.querier, offer_pool.info)?,
+        query_token_precision(&deps.querier, &offer_pool.info)?,
         ask_pool.amount,
-        query_token_precision(&deps.querier, ask_pool.info)?,
+        query_token_precision(&deps.querier, &ask_pool.info)?,
         offer_asset.amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -1106,9 +1106,9 @@ pub fn query_reverse_simulation(
 
     let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
         offer_pool.amount,
-        query_token_precision(&deps.querier, offer_pool.info)?,
+        query_token_precision(&deps.querier, &offer_pool.info)?,
         ask_pool.amount,
-        query_token_precision(&deps.querier, ask_pool.info)?,
+        query_token_precision(&deps.querier, &ask_pool.info)?,
         ask_asset.amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -1138,9 +1138,9 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
         env,
         &config,
         assets[0].amount,
-        query_token_precision(&deps.querier, assets[0].info.clone())?,
+        query_token_precision(&deps.querier, &assets[0].info)?,
         assets[1].amount,
-        query_token_precision(&deps.querier, assets[1].info.clone())?,
+        query_token_precision(&deps.querier, &assets[1].info)?,
     )? {
         price0_cumulative_last = price0_cumulative_new;
         price1_cumulative_last = price1_cumulative_new;
