@@ -47,13 +47,3 @@ astroport-whitelist = { path = "../../whitelist" }
 anyhow = "1"
 generator-controller = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
 voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
-
-[dev-dependencies.astroport-generator_v120]
-git = "https://github.com/astroport-fi/astroport-core"
-package = "astroport-generator"
-rev = "973aab9419229cb221023066f96b18f2edf75ba8"
-
-[dev-dependencies.astroport-package-generator_v120]
-git = "https://github.com/astroport-fi/astroport-core"
-package = "astroport"
-rev = "973aab9419229cb221023066f96b18f2edf75ba8"
