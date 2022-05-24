@@ -3,7 +3,6 @@ use crate::math::{
     calc_ask_amount, calc_offer_amount, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE,
     MIN_AMP_CHANGING_TIME, N_COINS,
 };
-use crate::migration::CONFIG_PAIR_STABLE_V100;
 use crate::state::{
     Config, BLUNA_REWARD_GLOBAL_INDEX, BLUNA_REWARD_HOLDER, BLUNA_REWARD_USER_INDEXES, CONFIG,
 };
@@ -39,7 +38,7 @@ use astroport::querier::{
     query_factory_config, query_fee_info, query_supply, query_token_precision,
 };
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
-use cw2::{get_contract_version, set_contract_version};
+use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
 use std::cmp::Ordering;
@@ -1515,59 +1514,8 @@ fn assert_slippage_tolerance(
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
-    let contract_version = get_contract_version(deps.storage)?;
-
-    let mut response = Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version);
-
-    match contract_version.contract.as_ref() {
-        "astroport-pair-stable" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.0-fix1" => {
-                let config = CONFIG_PAIR_STABLE_V100.load(deps.storage)?;
-                let new_config = crate::state::Config {
-                    bluna_rewarder: addr_validate_to_lower(
-                        deps.api,
-                        &msg.bluna_rewarder.ok_or(ContractError::MigrationError {})?,
-                    )?,
-                    generator: addr_validate_to_lower(
-                        deps.api,
-                        &msg.generator.ok_or(ContractError::MigrationError {})?,
-                    )?,
-                    block_time_last: config.block_time_last,
-                    factory_addr: config.factory_addr.clone(),
-                    init_amp: config.init_amp,
-                    init_amp_time: config.init_amp_time,
-                    next_amp: config.next_amp,
-                    next_amp_time: config.next_amp_time,
-                    pair_info: config.pair_info,
-                    price0_cumulative_last: config.price0_cumulative_last,
-                    price1_cumulative_last: config.price1_cumulative_last,
-                };
-                CONFIG.save(deps.storage, &new_config)?;
-                response
-                    .messages
-                    .push(get_bluna_reward_holder_instantiating_message(
-                        deps.as_ref(),
-                        &env,
-                        &config.factory_addr,
-                    )?);
-            }
-            _ => return Err(ContractError::MigrationError {}),
-        },
-        "astroport-pair-stable-bluna" => match contract_version.version.as_ref() {
-            "1.0.1" => {}
-            _ => return Err(ContractError::MigrationError {}),
-        },
-        _ => return Err(ContractError::MigrationError {}),
-    };
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(response
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Ok(Response::default())
 }
 
 /// ## Description
