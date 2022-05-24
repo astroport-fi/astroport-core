@@ -38,3 +38,4 @@ terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag 
 astroport-token = {path = "../token"}
 astroport-pair = {path = "../pair"}
 cw20 = { version = "0.8" }
+anyhow = "1.0"

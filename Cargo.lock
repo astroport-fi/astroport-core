@@ -76,6 +76,7 @@ dependencies = [
 name = "astroport-factory"
 version = "1.2.0"
 dependencies = [
+ "anyhow",
  "astroport 2.0.0",
  "astroport-pair",
  "astroport-token",
