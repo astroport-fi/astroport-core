@@ -1,7 +1,7 @@
 use crate::asset::{Asset, AssetInfo};
 use crate::factory::PairType;
 use crate::restricted_vector::RestrictedVector;
-use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
+use cosmwasm_std::{to_binary, Addr, Decimal, Env, StdResult, SubMsg, Uint128, Uint64, WasmMsg};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -162,6 +162,64 @@ pub enum ExecuteMsg {
         generators: Vec<String>,
         user: Option<String>,
     },
+    /// Process action after the callback
+    Callback {
+        action: ExecuteOnReply,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum ExecuteOnReply {
+    /// Updates reward and returns it to user.
+    ClaimRewards {
+        /// The list of LP tokens contract
+        lp_tokens: Vec<Addr>,
+        /// The rewards recipient
+        account: Addr,
+    },
+    /// Stake LP tokens in the Generator to receive token emissions
+    Deposit {
+        /// The LP token to stake
+        lp_token: Addr,
+        /// The account that receives ownership of the staked tokens
+        account: Addr,
+        /// The amount of tokens to deposit
+        amount: Uint128,
+    },
+    /// Withdraw LP tokens from the Generator
+    Withdraw {
+        /// The LP tokens to withdraw
+        lp_token: Addr,
+        /// The account that receives the withdrawn LP tokens
+        account: Addr,
+        /// The amount of tokens to withdraw
+        amount: Uint128,
+    },
+    /// Sets a new amount of ASTRO to distribute per block between all active generators
+    SetTokensPerBlock {
+        /// The new amount of ASTRO to distribute per block
+        amount: Uint128,
+    },
+    /// Migrate LP tokens and collected rewards to new proxy
+    MigrateProxy { lp_addr: Addr, new_proxy_addr: Addr },
+    /// Stake LP tokens into new reward proxy
+    MigrateProxyDepositLP {
+        lp_addr: Addr,
+        prev_proxy_addr: Addr,
+        amount: Uint128,
+    },
+}
+
+impl ExecuteOnReply {
+    pub fn into_submsg(self, env: &Env) -> StdResult<SubMsg> {
+        let msg = SubMsg::new(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::Callback { action: self })?,
+            funds: vec![],
+        });
+
+        Ok(msg)
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

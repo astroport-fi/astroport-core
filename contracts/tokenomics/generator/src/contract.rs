@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Order, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
-    Uint128, Uint64, WasmMsg,
+    Env, MessageInfo, Order, QuerierWrapper, Reply, Response, StdError, StdResult, SubMsg, Uint128,
+    Uint64, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
@@ -21,7 +21,7 @@ use astroport::common::{
     claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
 };
 use astroport::factory::PairType;
-use astroport::generator::{Config, PoolInfo};
+use astroport::generator::{Config, ExecuteOnReply, PoolInfo};
 use astroport::generator::{StakerResponse, UserInfo};
 use astroport::querier::query_token_balance;
 use astroport::DecimalCheckedOps;
@@ -40,9 +40,8 @@ use astroport::{
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
     accumulate_pool_proxy_rewards, update_proxy_asset, update_user_balance, update_virtual_amount,
-    ExecuteOnReply, CHECKPOINT_GENERATORS_LIMIT, CONFIG, DEFAULT_LIMIT, MAX_LIMIT,
-    OWNERSHIP_PROPOSAL, POOL_INFO, PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, TMP_USER_ACTION,
-    USER_INFO,
+    CHECKPOINT_GENERATORS_LIMIT, CONFIG, DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO,
+    PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, USER_INFO,
 };
 
 /// Contract name that is used for migration.
@@ -96,7 +95,6 @@ pub fn instantiate(
     };
 
     CONFIG.save(deps.storage, &config)?;
-    TMP_USER_ACTION.save(deps.storage, &None)?;
 
     let init_reward_holder_msg =
         init_proxy_rewards_holder(&config.owner, &env.contract.address, msg.whitelist_code_id)?;
@@ -225,7 +223,7 @@ pub fn execute(
             has_asset_rewards,
         } => execute_update_pool(deps, info, lp_token, has_asset_rewards),
         ExecuteMsg::ClaimRewards { lp_tokens } => {
-            let lp_tokens_addr: Vec<Addr> = validate_addresses(deps.api, &lp_tokens)?;
+            let lp_tokens_addr = validate_addresses(deps.api, &lp_tokens)?;
 
             update_rewards_and_execute(
                 deps,
@@ -303,6 +301,13 @@ pub fn execute(
                     .map(|_| ())
             })
             .map_err(Into::into)
+        }
+        ExecuteMsg::Callback { action } => {
+            if info.sender != env.contract.address {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            handle_callback(deps, env, action)
         }
     }
 }
@@ -718,30 +723,25 @@ fn update_rewards_and_execute(
     mut deps: DepsMut,
     env: Env,
     update_single_pool: Option<Addr>,
-    on_reply: ExecuteOnReply,
+    action_on_reply: ExecuteOnReply,
 ) -> Result<Response, ContractError> {
-    TMP_USER_ACTION.update(deps.storage, |v| {
-        if v.is_some() {
-            Err(StdError::generic_err("Repetitive reply definition!"))
-        } else {
-            Ok(Some(on_reply))
-        }
-    })?;
-
-    let mut pools = vec![];
-    match update_single_pool {
+    let pools = match update_single_pool {
         Some(lp_token) => {
             let pool = POOL_INFO.load(deps.storage, &lp_token)?;
-            pools = vec![(lp_token, pool)];
+            vec![(lp_token, pool)]
         }
         None => {
             let config = CONFIG.load(deps.storage)?;
 
-            for (lp_token, _) in config.active_pools {
-                pools.push((lp_token.clone(), POOL_INFO.load(deps.storage, &lp_token)?))
-            }
+            config
+                .active_pools
+                .iter()
+                .map(|(lp_token, _)| {
+                    Ok((lp_token.clone(), POOL_INFO.load(deps.storage, &lp_token)?))
+                })
+                .collect::<StdResult<Vec<_>>>()?
         }
-    }
+    };
 
     let mut messages = vec![];
     for (lp_token, mut pool) in pools {
@@ -755,11 +755,11 @@ fn update_rewards_and_execute(
         }
     }
 
-    if let Some(last) = messages.last_mut() {
-        last.reply_on = ReplyOn::Success;
+    if !messages.is_empty() {
+        messages.push(action_on_reply.into_submsg(&env)?);
         Ok(Response::new().add_submessages(messages))
     } else {
-        process_after_update(deps, env)
+        handle_callback(deps, env, action_on_reply)
     }
 }
 
@@ -811,7 +811,7 @@ fn get_proxy_rewards(
 ///
 /// * **_msg** is an object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
         INIT_REWARDS_HOLDER_ID => {
             let data = msg
@@ -829,7 +829,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 
             Ok(Response::new().add_attribute("action", "init_rewards_holder"))
         }
-        _ => process_after_update(deps, env),
+        _ => Err(StdError::generic_err("Unknown reply id").into()),
     }
 }
 
@@ -840,39 +840,35 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **env** is an object of type [`Env`].
-fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
-    match TMP_USER_ACTION.load(deps.storage)? {
-        Some(action) => {
-            TMP_USER_ACTION.save(deps.storage, &None)?;
-            match action {
-                ExecuteOnReply::ClaimRewards { lp_tokens, account } => {
-                    claim_rewards(deps, env, lp_tokens, account)
-                }
-                ExecuteOnReply::Deposit {
-                    lp_token,
-                    account,
-                    amount,
-                } => deposit(deps, env, lp_token, account, amount),
-                ExecuteOnReply::Withdraw {
-                    lp_token,
-                    account,
-                    amount,
-                } => withdraw(deps, env, lp_token, account, amount),
-                ExecuteOnReply::SetTokensPerBlock { amount } => {
-                    set_tokens_per_block(deps, env, amount)
-                }
-                ExecuteOnReply::MigrateProxy {
-                    lp_addr,
-                    new_proxy_addr,
-                } => migrate_proxy_callback(deps, env, lp_addr, new_proxy_addr),
-                ExecuteOnReply::MigrateProxyDepositLP {
-                    lp_addr,
-                    prev_proxy_addr,
-                    amount,
-                } => migrate_proxy_deposit_lp(deps, lp_addr, prev_proxy_addr, amount),
-            }
+fn handle_callback(
+    deps: DepsMut,
+    env: Env,
+    action: ExecuteOnReply,
+) -> Result<Response, ContractError> {
+    match action {
+        ExecuteOnReply::ClaimRewards { lp_tokens, account } => {
+            claim_rewards(deps, env, lp_tokens, account)
         }
-        None => Ok(Response::default()),
+        ExecuteOnReply::Deposit {
+            lp_token,
+            account,
+            amount,
+        } => deposit(deps, env, lp_token, account, amount),
+        ExecuteOnReply::Withdraw {
+            lp_token,
+            account,
+            amount,
+        } => withdraw(deps, env, lp_token, account, amount),
+        ExecuteOnReply::SetTokensPerBlock { amount } => set_tokens_per_block(deps, env, amount),
+        ExecuteOnReply::MigrateProxy {
+            lp_addr,
+            new_proxy_addr,
+        } => migrate_proxy_callback(deps, env, lp_addr, new_proxy_addr),
+        ExecuteOnReply::MigrateProxyDepositLP {
+            lp_addr,
+            prev_proxy_addr,
+            amount,
+        } => migrate_proxy_deposit_lp(deps, lp_addr, prev_proxy_addr, amount),
     }
 }
 
@@ -1746,30 +1742,22 @@ fn migrate_proxy_callback(
     // Migrate all LP tokens to new proxy contract
     if !proxy_lp_balance.is_zero() {
         // Firstly, transfer LP tokens to the generator address
-        let transfer_lp_msg = SubMsg::reply_on_success(
-            WasmMsg::Execute {
-                contract_addr: prev_proxy_addr.to_string(),
-                msg: to_binary(&ProxyExecuteMsg::Withdraw {
-                    account: env.contract.address.to_string(),
-                    amount: proxy_lp_balance,
-                })?,
-                funds: vec![],
-            },
-            0,
-        );
+        let transfer_lp_msg = SubMsg::new(WasmMsg::Execute {
+            contract_addr: prev_proxy_addr.to_string(),
+            msg: to_binary(&ProxyExecuteMsg::Withdraw {
+                account: env.contract.address.to_string(),
+                amount: proxy_lp_balance,
+            })?,
+            funds: vec![],
+        });
         // Secondly, depositing them to new proxy through generator balance
-        TMP_USER_ACTION.update(deps.storage, |v| {
-            if v.is_some() {
-                Err(StdError::generic_err("Repetitive reply definition!"))
-            } else {
-                Ok(Some(ExecuteOnReply::MigrateProxyDepositLP {
-                    lp_addr,
-                    prev_proxy_addr,
-                    amount: proxy_lp_balance,
-                }))
-            }
-        })?;
-        Ok(response.add_submessage(transfer_lp_msg))
+        let proxy_deposit_msg = ExecuteOnReply::MigrateProxyDepositLP {
+            lp_addr,
+            prev_proxy_addr,
+            amount: proxy_lp_balance,
+        }
+        .into_submsg(&env)?;
+        Ok(response.add_submessages(vec![transfer_lp_msg, proxy_deposit_msg]))
     } else {
         // Nothing to migrate
         Ok(response.add_attributes([
