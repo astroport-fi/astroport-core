@@ -174,7 +174,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
-    if migration_check(deps.as_ref(), &cfg.factory_addr, &env.contract.address)? {
+    if migration_check(deps.querier, &cfg.factory_addr, &env.contract.address)? {
         return Err(ContractError::PairIsNotMigrated {});
     }
 
@@ -697,7 +697,7 @@ pub fn swap(
     Ok(Response::new()
         .add_messages(
             // 1. send collateral tokens from the contract to a user
-            // 2. send inactive commission fees to the Maker ontract
+            // 2. send inactive commission fees to the Maker contract
             messages,
         )
         .add_attributes(vec![
