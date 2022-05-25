@@ -5,7 +5,7 @@ use cosmwasm_std::{attr, Addr};
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, PairType, QueryMsg,
+    ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType, QueryMsg,
 };
 use astroport::pair::ExecuteMsg as PairExecuteMsg;
 
@@ -151,13 +151,23 @@ fn test_create_pair() {
         &mut app,
         helper.cw20_token_code_id,
         &owner,
-        "tokenX",
+        "tokenY",
         Some(18),
     );
+
+    let err = helper
+        .create_pair(&mut app, &owner, PairType::Xyk {}, [&token1, &token1], None)
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Doubling assets in asset infos");
 
     let res = helper
         .create_pair(&mut app, &owner, PairType::Xyk {}, [&token1, &token2], None)
         .unwrap();
+
+    let err = helper
+        .create_pair(&mut app, &owner, PairType::Xyk {}, [&token1, &token2], None)
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Pair was already created");
 
     assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
     assert_eq!(
@@ -186,6 +196,63 @@ fn test_create_pair() {
     assert_eq!("contract #1", helper.factory.to_string());
     assert_eq!("contract #4", res.contract_addr.to_string());
     assert_eq!("contract #5", res.liquidity_token.to_string());
+
+    // Create disabled pair type
+    app.execute_contract(
+        owner.clone(),
+        helper.factory.clone(),
+        &ExecuteMsg::UpdatePairConfig {
+            config: PairConfig {
+                code_id: 0,
+                pair_type: PairType::Custom("Custom".to_string()),
+                total_fee_bps: 100,
+                maker_fee_bps: 40,
+                is_disabled: true,
+                is_generator_disabled: false,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    let token3 = instantiate_token(
+        &mut app,
+        helper.cw20_token_code_id,
+        &owner,
+        "tokenY",
+        Some(18),
+    );
+
+    let err = helper
+        .create_pair(
+            &mut app,
+            &Addr::unchecked("someone"),
+            PairType::Custom("Custom".to_string()),
+            [&token1, &token3],
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Pair config disabled");
+
+    // Query fee info
+    let fee_info: FeeInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &helper.factory,
+            &QueryMsg::FeeInfo {
+                pair_type: PairType::Custom("Custom".to_string()),
+            },
+        )
+        .unwrap();
+    assert_eq!(100, fee_info.total_fee_bps);
+    assert_eq!(40, fee_info.maker_fee_bps);
+
+    // query blacklisted pairs
+    let pair_types: Vec<PairType> = app
+        .wrap()
+        .query_wasm_smart(&helper.factory, &QueryMsg::BlacklistedPairTypes {})
+        .unwrap();
+    assert_eq!(pair_types, vec![PairType::Custom("Custom".to_string())]);
 }
 
 #[test]
@@ -259,7 +326,7 @@ fn test_pair_migration() {
     for pair in pairs.clone() {
         let res = app
             .execute_contract(
-                Addr::unchecked("user1"),
+                new_owner.clone(),
                 pair,
                 &PairExecuteMsg::UpdateConfig {
                     params: Default::default(),
@@ -284,6 +351,25 @@ fn test_pair_migration() {
         .unwrap_err();
 
     assert_ne!(res.to_string(), "Pair is not migrated to the new admin");
+
+    let pairs_res: Vec<Addr> = app
+        .wrap()
+        .query_wasm_smart(&helper.factory, &QueryMsg::PairsToMigrate {})
+        .unwrap();
+    assert_eq!(&pairs_res, &pairs);
+
+    // Factory owner was changed to new owner
+    let err = app
+        .execute_contract(
+            owner,
+            helper.factory.clone(),
+            &ExecuteMsg::MarkAsMigrated {
+                pairs: Vec::from(pairs.clone().map(String::from)),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Unauthorized");
 
     app.execute_contract(
         new_owner,
