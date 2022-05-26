@@ -53,7 +53,7 @@ pub fn instantiate(
         pair: pair_info.clone(),
     };
     CONFIG.save(deps.storage, &config)?;
-    let prices = query_cumulative_prices(&deps.querier, pair_info.contract_addr)?;
+    let prices = query_cumulative_prices(deps.querier, pair_info.contract_addr)?;
 
     let price = PriceCumulativeLast {
         price0_cumulative_last: prices.price0_cumulative_last,
@@ -103,7 +103,7 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let price_last = PRICE_LAST.load(deps.storage)?;
 
-    let prices = query_cumulative_prices(&deps.querier, config.pair.contract_addr)?;
+    let prices = query_cumulative_prices(deps.querier, config.pair.contract_addr)?;
     let time_elapsed = env.block.time.seconds() - price_last.block_timestamp_last;
 
     // Ensure that at least one full period has passed since the last update
@@ -186,7 +186,7 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, Std
         let one = Uint128::new(10_u128.pow(p.into()));
 
         let price = query_prices(
-            &deps.querier,
+            deps.querier,
             config.pair.contract_addr,
             Asset {
                 info: token,
