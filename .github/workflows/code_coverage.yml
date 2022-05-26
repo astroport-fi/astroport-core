@@ -1,9 +1,7 @@
 name: Code coverage
 
 on:
-  push:
-    branches:
-      - main
+  pull_request:
 
 jobs:
   code-coverage:
