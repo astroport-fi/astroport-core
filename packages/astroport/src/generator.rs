@@ -394,7 +394,22 @@ pub struct Config {
 
 /// This structure describes a migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    /// The Factory address
+    pub factory: Option<String>,
+    /// Contract address which can only set active generators and their alloc points
+    pub generator_controller: Option<String>,
+    /// The blocked list of tokens
+    pub blocked_list_tokens: Option<Vec<AssetInfo>>,
+    /// The guardian address
+    pub guardian: Option<String>,
+    /// Whitelist code id
+    pub whitelist_code_id: Option<u64>,
+    /// The voting escrow contract
+    pub voting_escrow: Option<String>,
+    /// The limit of generators
+    pub generator_limit: Option<u32>,
+}
 
 /// This structure describes custom hooks for the CW20.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

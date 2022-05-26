@@ -5,12 +5,13 @@ use cosmwasm_std::{
     Env, MessageInfo, Order, QuerierWrapper, Reply, Response, StdError, StdResult, SubMsg, Uint128,
     Uint64, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
 use cw_storage_plus::{Bound, PrimaryKey};
 use protobuf::Message;
 
 use crate::error::ContractError;
+use crate::migration;
 
 use astroport::asset::{
     addr_opt_validate, addr_validate_to_lower, pair_info_by_pool, token_asset_info, Asset,
@@ -24,6 +25,7 @@ use astroport::factory::PairType;
 use astroport::generator::{Config, ExecuteOnReply, PoolInfo};
 use astroport::generator::{StakerResponse, UserInfoV2};
 use astroport::querier::query_token_balance;
+use astroport::restricted_vector::RestrictedVector;
 use astroport::DecimalCheckedOps;
 use astroport::{
     factory::{ConfigResponse as FactoryConfigResponse, QueryMsg as FactoryQueryMsg},
@@ -2444,12 +2446,147 @@ pub fn create_pool(
 /// ## Description
 /// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
-/// * **_deps** is an object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **_env** is an object of type [`Env`].
 ///
-/// * **_msg** is an object of type [`MigrateMsg`].
+/// * **msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::default())
+pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-generator" => {
+            let keys = POOL_INFO
+                .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
+                .map(|v| String::from_utf8(v).map_err(StdError::from))
+                .collect::<Result<Vec<String>, StdError>>()?;
+
+            match contract_version.version.as_ref() {
+                "1.0.0" => {
+                    let mut active_pools: Vec<(Addr, Uint64)> = vec![];
+
+                    for key in keys {
+                        let pool_info_v100 = migration::POOL_INFOV100
+                            .load(deps.storage, &Addr::unchecked(key.clone()))?;
+
+                        if !pool_info_v100.alloc_point.is_zero() {
+                            active_pools.push((Addr::unchecked(&key), pool_info_v100.alloc_point));
+                        }
+
+                        let mut accumulated_proxy_rewards_per_share = Default::default();
+                        let mut orphan_proxy_rewards = Default::default();
+                        if let Some(proxy) = &pool_info_v100.reward_proxy {
+                            accumulated_proxy_rewards_per_share = RestrictedVector::new(
+                                proxy.clone(),
+                                pool_info_v100.accumulated_proxy_rewards_per_share,
+                            );
+                            orphan_proxy_rewards = RestrictedVector::new(
+                                proxy.clone(),
+                                pool_info_v100.orphan_proxy_rewards,
+                            );
+                            update_proxy_asset(deps.branch(), proxy)?;
+                        }
+
+                        let lp_balance = if let Some(proxy) = &pool_info_v100.reward_proxy {
+                            deps.querier
+                                .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
+                        } else {
+                            let res: BalanceResponse = deps.querier.query_wasm_smart(
+                                key.clone(),
+                                &cw20::Cw20QueryMsg::Balance {
+                                    address: env.contract.address.to_string(),
+                                },
+                            )?;
+                            res.balance
+                        };
+
+                        let pool_info = PoolInfo {
+                            has_asset_rewards: false,
+                            accumulated_proxy_rewards_per_share,
+                            orphan_proxy_rewards,
+                            last_reward_block: pool_info_v100.last_reward_block,
+                            proxy_reward_balance_before_update: pool_info_v100
+                                .proxy_reward_balance_before_update,
+                            reward_proxy: pool_info_v100.reward_proxy,
+                            reward_global_index: pool_info_v100.accumulated_rewards_per_share,
+                            total_virtual_supply: lp_balance,
+                        };
+                        POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
+                    }
+
+                    migration::migrate_configs_from_v100(&mut deps, active_pools, &msg)?;
+                }
+                "1.2.0" => {
+                    for key in keys {
+                        let pool_info_v120 = migration::POOL_INFOV120
+                            .load(deps.storage, &Addr::unchecked(key.clone()))?;
+
+                        let mut accumulated_proxy_rewards_per_share = Default::default();
+                        let mut orphan_proxy_rewards = Default::default();
+                        if let Some(proxy) = &pool_info_v120.reward_proxy {
+                            accumulated_proxy_rewards_per_share = RestrictedVector::new(
+                                proxy.clone(),
+                                pool_info_v120.accumulated_proxy_rewards_per_share,
+                            );
+                            orphan_proxy_rewards = RestrictedVector::new(
+                                proxy.clone(),
+                                pool_info_v120.orphan_proxy_rewards,
+                            );
+                            update_proxy_asset(deps.branch(), proxy)?;
+                        }
+
+                        let lp_balance = if let Some(proxy) = &pool_info_v120.reward_proxy {
+                            deps.querier
+                                .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
+                        } else {
+                            let res: BalanceResponse = deps.querier.query_wasm_smart(
+                                key.clone(),
+                                &cw20::Cw20QueryMsg::Balance {
+                                    address: env.contract.address.to_string(),
+                                },
+                            )?;
+                            res.balance
+                        };
+
+                        let pool_info = PoolInfo {
+                            has_asset_rewards: pool_info_v120.has_asset_rewards,
+                            accumulated_proxy_rewards_per_share,
+                            orphan_proxy_rewards,
+                            last_reward_block: pool_info_v120.last_reward_block,
+                            proxy_reward_balance_before_update: pool_info_v120
+                                .proxy_reward_balance_before_update,
+                            reward_proxy: pool_info_v120.reward_proxy,
+                            reward_global_index: pool_info_v120.accumulated_rewards_per_share,
+                            total_virtual_supply: lp_balance,
+                        };
+                        POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
+                    }
+                    migration::migrate_configs_from_v120(&mut deps, &msg)?;
+                }
+                _ => return Err(ContractError::MigrationError {}),
+            }
+        }
+        _ => return Err(ContractError::MigrationError {}),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let mut response = Response::new();
+    // Initialize the contract if it is not already initialized
+    if PROXY_REWARDS_HOLDER.may_load(deps.storage)?.is_none() {
+        let config = CONFIG.load(deps.storage)?;
+        let init_reward_holder_msg = init_proxy_rewards_holder(
+            &config.owner,
+            &env.contract.address,
+            msg.whitelist_code_id.unwrap(),
+        )?;
+        response = response.add_submessage(init_reward_holder_msg);
+    }
+
+    Ok(response
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
