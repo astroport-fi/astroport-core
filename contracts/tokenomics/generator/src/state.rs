@@ -143,8 +143,8 @@ pub(crate) fn update_virtual_amount(
     let mut total_vp = Uint128::zero();
 
     if let Some(voting_escrow) = &cfg.voting_escrow {
-        user_vp = get_voting_power(deps.querier, voting_escrow, account)?;
-        total_vp = get_total_voting_power(deps.querier, voting_escrow)?;
+        user_vp = get_voting_power(&deps.querier, voting_escrow, account)?;
+        total_vp = get_total_voting_power(&deps.querier, voting_escrow)?;
     }
 
     let user_virtual_share = user_info.amount.multiply_ratio(4u128, 10u128);
