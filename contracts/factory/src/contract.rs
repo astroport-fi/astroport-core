@@ -1,9 +1,10 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order,
-    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 
 use crate::error::ContractError;
+use crate::migration;
 use crate::querier::query_pair_info;
 
 use crate::state::{
@@ -19,12 +20,13 @@ use astroport::factory::{
     PairsResponse, QueryMsg,
 };
 
+use crate::migration::migrate_pair_configs_to_v120;
 use astroport::common::{
     claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
 };
 use astroport::generator::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use protobuf::Message;
 use std::collections::HashSet;
 
@@ -617,6 +619,39 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-factory" => match contract_version.version.as_ref() {
+            "1.0.0" | "1.0.0-fix1" => {
+                let msg: migration::MigrationMsgV100 = from_binary(&msg.params)?;
+
+                let config_v100 = migration::CONFIGV100.load(deps.storage)?;
+
+                let new_config = Config {
+                    whitelist_code_id: msg.whitelist_code_id,
+                    fee_address: config_v100.fee_address,
+                    generator_address: config_v100.generator_address,
+                    owner: config_v100.owner,
+                    token_code_id: config_v100.token_code_id,
+                };
+
+                CONFIG.save(deps.storage, &new_config)?;
+
+                migrate_pair_configs_to_v120(deps.storage)?
+            }
+            "1.1.0" => migrate_pair_configs_to_v120(deps.storage)?,
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
