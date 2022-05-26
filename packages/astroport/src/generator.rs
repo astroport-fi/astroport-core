@@ -295,8 +295,21 @@ pub struct PoolInfo {
 }
 
 /// This structure stores the outstanding amount of token rewards that a user accrued.
+/// Currently the contract works with UserInfoV2 structure, but this structure is kept for
+/// compatibility with the old version.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct UserInfo {
+    /// The amount of LP tokens staked
+    pub amount: Uint128,
+    /// The amount of ASTRO rewards a user already received or is not eligible for; used for proper reward calculation
+    pub reward_debt: Uint128,
+    /// Proxy reward amount a user already received or is not eligible for; used for proper reward calculation
+    pub reward_debt_proxy: Uint128,
+}
+
+/// This structure stores the outstanding amount of token rewards that a user accrued.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+pub struct UserInfoV2 {
     /// The amount of LP tokens staked
     pub amount: Uint128,
     /// The amount of ASTRO rewards a user already received or is not eligible for; used for proper reward calculation

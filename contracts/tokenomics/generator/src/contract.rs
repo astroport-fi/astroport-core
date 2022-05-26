@@ -22,7 +22,7 @@ use astroport::common::{
 };
 use astroport::factory::PairType;
 use astroport::generator::{Config, ExecuteOnReply, PoolInfo};
-use astroport::generator::{StakerResponse, UserInfo};
+use astroport::generator::{StakerResponse, UserInfoV2};
 use astroport::querier::query_token_balance;
 use astroport::DecimalCheckedOps;
 use astroport::{
@@ -40,8 +40,8 @@ use astroport::{
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
     accumulate_pool_proxy_rewards, update_proxy_asset, update_user_balance, update_virtual_amount,
-    CHECKPOINT_GENERATORS_LIMIT, CONFIG, DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO,
-    PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, USER_INFO,
+    CompatibleLoader, CHECKPOINT_GENERATORS_LIMIT, CONFIG, DEFAULT_LIMIT, MAX_LIMIT,
+    OWNERSHIP_PROPOSAL, POOL_INFO, PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, USER_INFO,
 };
 
 /// Contract name that is used for migration.
@@ -350,7 +350,8 @@ fn checkpoint_user_boost(
 
         // calculates the emission boost  only for user who has LP in generator
         if USER_INFO.has(deps.storage, (&generator_addr, &recipient_addr)) {
-            let user_info = USER_INFO.load(deps.storage, (&generator_addr, &recipient_addr))?;
+            let user_info =
+                USER_INFO.compatible_load(deps.storage, (&generator_addr, &recipient_addr))?;
 
             let mut pool = POOL_INFO.load(deps.storage, &generator_addr)?;
             accumulate_rewards_per_share(&deps.querier, &env, &generator_addr, &mut pool, &config)?;
@@ -970,7 +971,7 @@ pub fn claim_rewards(
     let mut send_rewards_msg = vec![];
     for lp_token in &lp_tokens {
         let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
-        let user = USER_INFO.load(deps.storage, (lp_token, &account))?;
+        let user = USER_INFO.compatible_load(deps.storage, (lp_token, &account))?;
 
         send_rewards_msg.append(&mut send_pending_rewards(
             deps.as_ref(),
@@ -1137,7 +1138,7 @@ pub fn send_pending_rewards(
     deps: Deps,
     cfg: &Config,
     pool: &PoolInfo,
-    user: &UserInfo,
+    user: &UserInfoV2,
     to: &Addr,
 ) -> Result<Vec<WasmMsg>, ContractError> {
     if user.amount.is_zero() {
@@ -1219,7 +1220,7 @@ pub fn deposit(
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let user = USER_INFO
-        .load(deps.storage, (&lp_token, &beneficiary))
+        .compatible_load(deps.storage, (&lp_token, &beneficiary))
         .unwrap_or_default();
 
     let cfg = CONFIG.load(deps.storage)?;
@@ -1301,7 +1302,7 @@ pub fn withdraw(
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let user = USER_INFO
-        .load(deps.storage, (&lp_token, &account))
+        .compatible_load(deps.storage, (&lp_token, &account))
         .unwrap_or_default();
     if user.amount < amount {
         return Err(ContractError::BalanceTooSmall {});
@@ -1445,7 +1446,7 @@ pub fn emergency_withdraw(
     let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
-    let user = USER_INFO.load(deps.storage, (&lp_token, &info.sender))?;
+    let user = USER_INFO.compatible_load(deps.storage, (&lp_token, &info.sender))?;
 
     // Instantiate the transfer call for the LP token
     let transfer_msg: WasmMsg;
@@ -2049,7 +2050,7 @@ pub fn query_deposit(deps: Deps, lp_token: String, user: String) -> Result<Uint1
     let user = addr_validate_to_lower(deps.api, &user)?;
 
     let user_info = USER_INFO
-        .load(deps.storage, (&lp_token, &user))
+        .compatible_load(deps.storage, (&lp_token, &user))
         .unwrap_or_default();
     Ok(user_info.amount)
 }
@@ -2071,7 +2072,7 @@ pub fn query_virtual_amount(
     let user = addr_validate_to_lower(deps.api, &user)?;
 
     let user_info = USER_INFO
-        .load(deps.storage, (&lp_token, &user))
+        .compatible_load(deps.storage, (&lp_token, &user))
         .unwrap_or_default();
     Ok(user_info.virtual_amount)
 }
@@ -2101,7 +2102,7 @@ pub fn pending_token(
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let user_info = USER_INFO
-        .load(deps.storage, (&lp_token, &user))
+        .compatible_load(deps.storage, (&lp_token, &user))
         .unwrap_or_default();
 
     let mut pending_on_proxy = None;

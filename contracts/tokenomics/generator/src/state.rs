@@ -1,13 +1,14 @@
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 use astroport::common::OwnershipProposal;
+use astroport::restricted_vector::RestrictedVector;
 use astroport::DecimalCheckedOps;
 use astroport::{
-    generator::{PoolInfo, UserInfo},
+    generator::{PoolInfo, UserInfo, UserInfoV2},
     generator_proxy::QueryMsg as ProxyQueryMsg,
 };
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
 
-use cosmwasm_std::{Addr, DepsMut, Env, StdResult, Uint128};
+use cosmwasm_std::{Addr, DepsMut, Env, StdResult, Storage, Uint128};
 
 use astroport::generator::Config;
 use cosmwasm_std::{Decimal, Deps};
@@ -27,11 +28,54 @@ pub const POOL_INFO: Map<&Addr, PoolInfo> = Map::new("pool_info");
 /// This is a map that contains information about all stakers.
 ///
 /// The first key is an LP token address, the second key is a depositor address.
-pub const USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
+pub const USER_INFO: Map<(&Addr, &Addr), UserInfoV2> = Map::new("user_info");
+/// Old USER_INFO storage interface for backward compatibility
+pub const OLD_USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
 /// Previous proxy rewards holder
 pub const PROXY_REWARDS_HOLDER: Item<Addr> = Item::new("proxy_rewards_holder");
 /// The struct which maps previous proxy addresses to reward assets
 pub const PROXY_REWARD_ASSET: Map<&Addr, AssetInfo> = Map::new("proxy_reward_asset");
+
+pub trait CompatibleLoader<K, R> {
+    fn compatible_load(&self, store: &dyn Storage, key: K) -> StdResult<R>;
+}
+
+impl CompatibleLoader<(&Addr, &Addr), UserInfoV2> for Map<'_, (&Addr, &Addr), UserInfoV2> {
+    fn compatible_load(&self, store: &dyn Storage, key: (&Addr, &Addr)) -> StdResult<UserInfoV2> {
+        self.load(store, key).or_else(|_| {
+            let old_user_info = OLD_USER_INFO.load(store, key)?;
+            let pool_info = POOL_INFO.load(store, key.0)?;
+            let mut reward_debt_proxy = RestrictedVector::default();
+            if let Some((first_reward_proxy, _)) = pool_info
+                .accumulated_proxy_rewards_per_share
+                .inner_ref()
+                .first()
+            {
+                reward_debt_proxy = RestrictedVector::new(
+                    first_reward_proxy.clone(),
+                    old_user_info.reward_debt_proxy,
+                )
+            }
+
+            let current_reward = pool_info
+                .reward_global_index
+                .checked_mul(old_user_info.amount)?
+                .checked_sub(old_user_info.reward_debt)?;
+
+            let user_index = pool_info.reward_global_index
+                - Decimal::from_ratio(current_reward, old_user_info.amount);
+
+            let user_info = UserInfoV2 {
+                amount: old_user_info.amount,
+                reward_user_index: user_index,
+                reward_debt_proxy,
+                virtual_amount: old_user_info.amount,
+            };
+
+            Ok(user_info)
+        })
+    }
+}
 
 /// ## Pagination settings
 /// The maximum amount of users that can be read at once from [`USER_INFO`]
@@ -54,10 +98,10 @@ pub const CHECKPOINT_GENERATORS_LIMIT: u32 = 24;
 ///
 /// * **amount** is an object of type [`Uint128`].
 pub fn update_user_balance(
-    mut user: UserInfo,
+    mut user: UserInfoV2,
     pool: &PoolInfo,
     amount: Uint128,
-) -> StdResult<UserInfo> {
+) -> StdResult<UserInfoV2> {
     user.amount = amount;
     user.reward_user_index = pool.reward_global_index;
 
@@ -79,7 +123,7 @@ pub fn update_user_balance(
 /// Returns the vector of reward amount per proxy taking into account the amount of debited rewards.
 pub fn accumulate_pool_proxy_rewards(
     pool: &PoolInfo,
-    user: &UserInfo,
+    user: &UserInfoV2,
 ) -> StdResult<Vec<(Addr, Uint128)>> {
     if pool
         .accumulated_proxy_rewards_per_share
@@ -135,7 +179,7 @@ pub(crate) fn update_virtual_amount(
     env: &Env,
     cfg: &Config,
     pool: &mut PoolInfo,
-    user_info: &mut UserInfo,
+    user_info: &mut UserInfoV2,
     account: &Addr,
     generator: &Addr,
 ) -> StdResult<()> {
