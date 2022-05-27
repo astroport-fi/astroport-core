@@ -15,7 +15,6 @@ use cosmwasm_std::Decimal;
 use cw20::BalanceResponse;
 use cw_storage_plus::{Item, Map};
 
-use std::cmp::min;
 use std::collections::HashMap;
 
 /// Stores the contract config at the given key
@@ -212,10 +211,9 @@ pub(crate) fn update_virtual_amount(
         Decimal::zero()
     };
 
-    let current_virtual_amount = min(
-        user_virtual_share + vx_share_emission * total_virtual_share,
-        user_info.amount,
-    );
+    let current_virtual_amount = user_info
+        .amount
+        .min(user_virtual_share + vx_share_emission * total_virtual_share);
 
     pool.total_virtual_supply = pool
         .total_virtual_supply

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
 /// This structure describes the parameters used for creating a contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     /// Address that can change contract settings
     pub owner: String,
@@ -34,7 +34,7 @@ pub struct InstantiateMsg {
     pub whitelist_code_id: u64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     /// Update the address of the ASTRO vesting contract
@@ -168,7 +168,7 @@ pub enum ExecuteMsg {
     },
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq, JsonSchema)]
 pub enum ExecuteOnReply {
     /// Updates reward and returns it to user.
     ClaimRewards {
@@ -222,7 +222,7 @@ impl ExecuteOnReply {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     /// Returns the length of the array that contains all the active pool generators
@@ -259,14 +259,14 @@ pub enum QueryMsg {
 }
 
 /// This structure holds the response returned when querying the total length of the array that keeps track of instantiated generators
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq)]
 pub struct PoolLengthResponse {
     pub length: usize,
 }
 
 /// This structure holds the response returned when querying the amount of pending rewards that can be withdrawn from a 3rd party
 /// rewards contract
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq)]
 pub struct PendingTokenResponse {
     /// The amount of pending ASTRO
     pub pending: Uint128,
@@ -275,7 +275,7 @@ pub struct PendingTokenResponse {
 }
 
 /// This structure describes the main information of pool
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq)]
 pub struct PoolInfo {
     /// Accumulated amount of reward per share unit. Used for reward calculations
     pub last_reward_block: Uint64,
@@ -297,7 +297,7 @@ pub struct PoolInfo {
 /// This structure stores the outstanding amount of token rewards that a user accrued.
 /// Currently the contract works with UserInfoV2 structure, but this structure is kept for
 /// compatibility with the old version.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Default)]
 pub struct UserInfo {
     /// The amount of LP tokens staked
     pub amount: Uint128,
@@ -308,7 +308,7 @@ pub struct UserInfo {
 }
 
 /// This structure stores the outstanding amount of token rewards that a user accrued.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Default)]
 pub struct UserInfoV2 {
     /// The amount of LP tokens staked
     pub amount: Uint128,
@@ -322,7 +322,7 @@ pub struct UserInfoV2 {
 }
 
 /// This structure holds the response returned when querying for the token addresses used to reward a specific generator
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq)]
 pub struct RewardInfoResponse {
     /// The address of the base reward token
     pub base_reward_token: Addr,
@@ -331,7 +331,7 @@ pub struct RewardInfoResponse {
 }
 
 /// This structure holds the response returned when querying for a pool's information
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq)]
 pub struct PoolInfoResponse {
     /// The slice of ASTRO that this pool's generator gets per block
     pub alloc_point: Uint128,
@@ -360,7 +360,7 @@ pub struct PoolInfoResponse {
 }
 
 /// This structure stores the core parameters for the Generator contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Config {
     /// Address allowed to change contract parameters
     pub owner: Addr,
@@ -393,7 +393,7 @@ pub struct Config {
 }
 
 /// This structure describes a migration message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[derive(Serialize, Deserialize, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
     /// The Factory address
     pub factory: Option<String>,
@@ -412,7 +412,7 @@ pub struct MigrateMsg {
 }
 
 /// This structure describes custom hooks for the CW20.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
     /// Deposit performs a token deposit on behalf of the message sender.
@@ -423,7 +423,7 @@ pub enum Cw20HookMsg {
 
 /// This structure holds the parameters used to return information about a staked in
 /// a specific generator.
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct StakerResponse {
     // The staker's address
     pub account: String,

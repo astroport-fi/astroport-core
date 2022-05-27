@@ -2106,7 +2106,12 @@ fn migrate_proxy() {
         generator_instance.clone(),
         &MigrateMsg {
             whitelist_code_id: Some(whitelist_code_id),
-            ..Default::default()
+            factory: None,
+            generator_controller: None,
+            blocked_list_tokens: None,
+            guardian: None,
+            voting_escrow: None,
+            generator_limit: None,
         },
         new_generator_code_id,
     )
