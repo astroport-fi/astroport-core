@@ -2985,7 +2985,7 @@ fn setup_pools() {
         .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(
-        "Generic error: The pair aren't registered: cny-eur",
+        "Generic error: The pair is not registered: cny-eur",
         err.to_string()
     );
 

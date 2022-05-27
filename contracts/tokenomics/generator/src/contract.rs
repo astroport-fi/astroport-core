@@ -186,10 +186,9 @@ pub fn execute(
                 return Err(ContractError::Unauthorized {});
             }
             let lp_token_addr = addr_validate_to_lower(deps.api, &lp_token)?;
-            let active_pools: Vec<Addr> =
-                cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+            let active_pools: Vec<_> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
             mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
-            deactivate_pool(deps, lp_token_addr)
+            deactivate_pool(deps, cfg, lp_token_addr)
         }
         ExecuteMsg::UpdateBlockedTokenslist { add, remove } => {
             update_blocked_tokens_list(deps, env, info, add, remove)
@@ -251,7 +250,7 @@ pub fn execute(
                 },
             )
         }
-        ExecuteMsg::EmergencyWithdraw { lp_token } => emergency_withdraw(deps, env, info, lp_token),
+        ExecuteMsg::EmergencyWithdraw { lp_token } => emergency_withdraw(deps, info, lp_token),
         ExecuteMsg::SetAllowedRewardProxies { proxies } => {
             set_allowed_reward_proxies(deps, info, proxies)
         }
@@ -372,9 +371,9 @@ fn checkpoint_user_boost(
 
             // Update user's virtual amount
             update_virtual_amount(
-                deps.as_ref(),
-                &env,
-                &config,
+                deps.querier,
+                &env.contract.address,
+                &config.voting_escrow,
                 &mut pool,
                 &mut user_info,
                 &recipient_addr,
@@ -412,14 +411,13 @@ fn deactivate_pools(
         )));
     }
 
-    let blacklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
-        cfg.factory.clone(),
-        &FactoryQueryMsg::BlacklistedPairTypes {},
-    )?;
+    let blacklisted_pair_types: Vec<PairType> = deps
+        .querier
+        .query_wasm_smart(&cfg.factory, &FactoryQueryMsg::BlacklistedPairTypes {})?;
 
     // checks if each pair type is blacklisted
-    for pair_type in pair_types.clone() {
-        if !blacklisted_pair_types.contains(&pair_type) {
+    for pair_type in &pair_types {
+        if !blacklisted_pair_types.contains(pair_type) {
             return Err(ContractError::Std(StdError::generic_err(format!(
                 "Pair type ({}) is not blacklisted!",
                 pair_type
@@ -427,13 +425,13 @@ fn deactivate_pools(
         }
     }
 
-    let active_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+    let active_pools: Vec<_> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
     mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
 
     // find active pools with blacklisted pair type
     for pool in &mut cfg.active_pools {
         if !pool.1.is_zero() {
-            let pair_info = pair_info_by_pool(&deps.querier, pool.0.clone())?;
+            let pair_info = pair_info_by_pool(&deps.querier, &pool.0)?;
             if pair_types.contains(&pair_info.pair_type) {
                 // recalculate total allocation point before resetting the allocation point of pool
                 cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
@@ -486,7 +484,7 @@ fn update_blocked_tokens_list(
 
     // Add tokens to the blacklist
     if let Some(asset_infos) = add {
-        let active_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+        let active_pools: Vec<_> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
         mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
         let astro = token_asset_info(cfg.astro_token.clone());
 
@@ -501,7 +499,7 @@ fn update_blocked_tokens_list(
 
                 // Find active pools with blacklisted tokens
                 for pool in &mut cfg.active_pools {
-                    let pair_info = pair_info_by_pool(&deps.querier, pool.0.clone())?;
+                    let pair_info = pair_info_by_pool(&deps.querier, &pool.0)?;
                     if pair_info.asset_infos.contains(&asset_info) {
                         // Recalculate total allocation points before resetting the pool allocation points
                         cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
@@ -637,21 +635,21 @@ pub fn execute_setup_pools(
         let _: PairInfo = deps
             .querier
             .query_wasm_smart(
-                cfg.factory.clone(),
+                &cfg.factory,
                 &FactoryQueryMsg::Pair {
                     asset_infos: pair_info.asset_infos.clone(),
                 },
             )
             .map_err(|_| {
                 ContractError::Std(StdError::generic_err(format!(
-                    "The pair aren't registered: {}-{}",
+                    "The pair is not registered: {}-{}",
                     pair_info.asset_infos[0], pair_info.asset_infos[1]
                 )))
             })?;
 
         setup_pools.push((pool_addr, alloc_point));
     }
-    let prev_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+    let prev_pools: Vec<_> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
 
     mass_update_pools(deps.branch(), &env, &cfg, &prev_pools)?;
 
@@ -723,7 +721,7 @@ pub fn execute_update_pool(
 ///
 /// * **on_reply** is an object of type [`ExecuteOnReply`]. This is the action to be performed on reply.
 fn update_rewards_and_execute(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     update_single_pool: Option<Addr>,
     action_on_reply: ExecuteOnReply,
@@ -749,12 +747,11 @@ fn update_rewards_and_execute(
     let mut messages = vec![];
     for (lp_token, mut pool) in pools {
         if let Some(reward_proxy) = pool.reward_proxy.clone() {
-            messages.append(&mut get_proxy_rewards(
-                deps.branch(),
-                &lp_token,
-                &mut pool,
-                &reward_proxy,
-            )?);
+            let msg_opt = get_proxy_rewards(deps.querier, &mut pool, &reward_proxy)?;
+            POOL_INFO.save(deps.storage, &lp_token, &pool)?;
+            if let Some(msg) = msg_opt {
+                messages.push(msg);
+            }
         }
     }
 
@@ -768,40 +765,35 @@ fn update_rewards_and_execute(
 
 /// ## Description
 /// Fetches accrued proxy rewards. Snapshots the old amount of rewards that are still unclaimed. Returns a [`ContractError`]
-/// on failure, otherwise returns a vector that contains objects of type [`SubMsg`].
+/// on failure. Otherwise returns object of type [`Some(SubMsg)`] if there is pending tokens
+/// or returns [`None`] in opposite case.
 ///
 /// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **lp_token** is an object of type [`Addr`]. This is the LP token for which we fetch the latest amount of accrued proxy rewards.
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **pool** is an object of type [`PoolInfo`]. This is the generator associated with the `lp_token`.
 ///
 /// * **reward_proxy** is an object of type [`Addr`]. This is the address of the dual rewards proxy for the target LP/generator.
 fn get_proxy_rewards(
-    deps: DepsMut,
-    lp_token: &Addr,
+    querier: QuerierWrapper,
     pool: &mut PoolInfo,
     reward_proxy: &Addr,
-) -> Result<Vec<SubMsg>, ContractError> {
-    let reward_amount: Uint128 = deps
-        .querier
-        .query_wasm_smart(reward_proxy, &ProxyQueryMsg::Reward {})?;
+) -> Result<Option<SubMsg>, ContractError> {
+    let reward_amount: Uint128 =
+        querier.query_wasm_smart(reward_proxy, &ProxyQueryMsg::Reward {})?;
 
     pool.proxy_reward_balance_before_update = reward_amount;
-    POOL_INFO.save(deps.storage, lp_token, pool)?;
 
-    let msg = ProxyQueryMsg::PendingToken {};
-    let res: Uint128 = deps.querier.query_wasm_smart(reward_proxy, &msg)?;
+    let res: Uint128 = querier.query_wasm_smart(reward_proxy, &ProxyQueryMsg::PendingToken {})?;
 
     Ok(if !res.is_zero() {
-        vec![SubMsg::new(WasmMsg::Execute {
+        Some(SubMsg::new(WasmMsg::Execute {
             contract_addr: reward_proxy.to_string(),
             funds: vec![],
             msg: to_binary(&ProxyExecuteMsg::UpdateRewards {})?,
-        })]
+        }))
     } else {
-        vec![]
+        None
     })
 }
 
@@ -820,9 +812,9 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             let data = msg
                 .result
                 .into_result()
-                .map_err(|_| StdError::generic_err("Invalid reply!"))?
+                .unwrap() // Invalid reply!
                 .data
-                .ok_or_else(|| StdError::generic_err("No data in reply"))?;
+                .unwrap(); // No data in reply
             let res: MsgInstantiateContractResponse = Message::parse_from_bytes(data.as_slice())
                 .map_err(|_| {
                     StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
@@ -877,9 +869,11 @@ fn handle_callback(
 
 /// ## Description
 /// Sets the allocation points to zero for the generator associated with the specified LP token. Recalculates total allocation points.
-pub fn deactivate_pool(deps: DepsMut, lp_token: Addr) -> Result<Response, ContractError> {
-    let mut cfg = CONFIG.load(deps.storage)?;
-
+pub fn deactivate_pool(
+    deps: DepsMut,
+    mut cfg: Config,
+    lp_token: Addr,
+) -> Result<Response, ContractError> {
     // Get old allocation points for the pool and subtract them from the total allocation points
     let old_alloc_point = get_alloc_point(&cfg.active_pools, &lp_token);
     cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(old_alloc_point)?;
@@ -964,8 +958,6 @@ pub fn claim_rewards(
     lp_tokens: Vec<Addr>,
     account: Addr,
 ) -> Result<Response, ContractError> {
-    let response = Response::default();
-
     let cfg = CONFIG.load(deps.storage)?;
 
     mass_update_pools(deps.branch(), &env, &cfg, &lp_tokens)?;
@@ -989,9 +981,9 @@ pub fn claim_rewards(
 
         // Update user's virtual amount
         update_virtual_amount(
-            deps.as_ref(),
-            &env,
-            &cfg,
+            deps.querier,
+            &env.contract.address,
+            &cfg.voting_escrow,
             &mut pool,
             &mut user,
             &account,
@@ -1002,7 +994,7 @@ pub fn claim_rewards(
         POOL_INFO.save(deps.storage, lp_token, &pool)?;
     }
 
-    Ok(response
+    Ok(Response::default()
         .add_attribute("action", "claim_rewards")
         .add_messages(send_rewards_msg))
 }
@@ -1263,9 +1255,9 @@ pub fn deposit(
     let mut user = update_user_balance(user, &pool, updated_amount)?;
 
     update_virtual_amount(
-        deps.as_ref(),
-        &env,
-        &cfg,
+        deps.querier,
+        &env.contract.address,
+        &cfg.voting_escrow,
         &mut pool,
         &mut user,
         &beneficiary,
@@ -1357,9 +1349,9 @@ pub fn withdraw(
     let mut user = update_user_balance(user, &pool, updated_amount)?;
 
     update_virtual_amount(
-        deps.as_ref(),
-        &env,
-        &cfg,
+        deps.querier,
+        &env.contract.address,
+        &cfg.voting_escrow,
         &mut pool,
         &mut user,
         &account,
@@ -1398,13 +1390,7 @@ pub fn build_claim_pools_asset_reward_messages(
             Some(proxy) => deps
                 .querier
                 .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?,
-            None => {
-                query_token_balance(
-                    &deps.querier,
-                    lp_token.clone(),
-                    env.contract.address.clone(),
-                )? - deposit
-            }
+            None => query_token_balance(&deps.querier, lp_token, &env.contract.address)? - deposit,
         };
 
         let minter_response: MinterResponse = deps
@@ -1434,14 +1420,11 @@ pub fn build_claim_pools_asset_reward_messages(
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is an object of type [`Env`].
-///
 /// * **info** is an object of type [`MessageInfo`].
 ///
 /// * **lp_token** is an object of type [`String`]. This is the LP token to withdraw.
 pub fn emergency_withdraw(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     lp_token: String,
 ) -> Result<Response, ContractError> {
@@ -1451,7 +1434,7 @@ pub fn emergency_withdraw(
     let user = USER_INFO.compatible_load(deps.storage, (&lp_token, &info.sender))?;
 
     // Instantiate the transfer call for the LP token
-    let transfer_msg: WasmMsg;
+    let transfer_msg;
     if let Some(proxy) = &pool.reward_proxy {
         let accumulated_proxy_rewards: HashMap<_, _> = accumulate_pool_proxy_rewards(&pool, &user)?
             .into_iter()
@@ -1576,16 +1559,14 @@ fn send_orphan_proxy_rewards(
         .filter(|(_, value)| !value.is_zero())
         .map(|(proxy, amount)| {
             let msg = match &pool.reward_proxy {
-                Some(reward_proxy) if reward_proxy.as_str() == proxy.as_str() => {
-                    SubMsg::new(WasmMsg::Execute {
-                        contract_addr: reward_proxy.to_string(),
-                        funds: vec![],
-                        msg: to_binary(&ProxyExecuteMsg::SendRewards {
-                            account: recipient.to_string(),
-                            amount: *amount,
-                        })?,
-                    })
-                }
+                Some(reward_proxy) if reward_proxy == proxy => SubMsg::new(WasmMsg::Execute {
+                    contract_addr: reward_proxy.to_string(),
+                    funds: vec![],
+                    msg: to_binary(&ProxyExecuteMsg::SendRewards {
+                        account: recipient.to_string(),
+                        amount: *amount,
+                    })?,
+                }),
                 _ => {
                     let asset_info = PROXY_REWARD_ASSET.load(deps.storage, proxy)?;
                     SubMsg::new(WasmMsg::Execute {
@@ -1998,15 +1979,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             start_after,
             limit,
         )?)?),
-        QueryMsg::BlockedTokensList {} => Ok(to_binary(&query_blocked_tokens_list(deps)?)?),
+        QueryMsg::BlockedTokensList {} => {
+            Ok(to_binary(&CONFIG.load(deps.storage)?.blocked_tokens_list)?)
+        }
     }
-}
-
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise returns the blocked list of tokens.
-fn query_blocked_tokens_list(deps: Deps) -> Result<Vec<AssetInfo>, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(config.blocked_tokens_list)
 }
 
 /// Returns a [`ContractError`] on failure, otherwise returns the amount of instantiated generators
@@ -2332,7 +2308,7 @@ pub fn query_list_of_stakers(
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> Result<Vec<StakerResponse>, ContractError> {
-    let lp_addr = addr_validate_to_lower(deps.api, lp_token.as_str())?;
+    let lp_addr = addr_validate_to_lower(deps.api, &lp_token)?;
     let mut active_stakers: Vec<StakerResponse> = vec![];
 
     if POOL_INFO.has(deps.storage, &lp_addr) {
@@ -2493,8 +2469,8 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                                 .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
                         } else {
                             let res: BalanceResponse = deps.querier.query_wasm_smart(
-                                key.clone(),
-                                &cw20::Cw20QueryMsg::Balance {
+                                &key,
+                                &Cw20QueryMsg::Balance {
                                     address: env.contract.address.to_string(),
                                 },
                             )?;
@@ -2541,8 +2517,8 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                                 .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
                         } else {
                             let res: BalanceResponse = deps.querier.query_wasm_smart(
-                                key.clone(),
-                                &cw20::Cw20QueryMsg::Balance {
+                                &key,
+                                &Cw20QueryMsg::Balance {
                                     address: env.contract.address.to_string(),
                                 },
                             )?;

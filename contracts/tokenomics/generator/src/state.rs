@@ -8,10 +8,10 @@ use astroport::{
 };
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
 
-use cosmwasm_std::{Addr, DepsMut, Env, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, DepsMut, QuerierWrapper, StdResult, Storage, Uint128};
 
 use astroport::generator::Config;
-use cosmwasm_std::{Decimal, Deps};
+use cosmwasm_std::Decimal;
 use cw20::BalanceResponse;
 use cw_storage_plus::{Item, Map};
 
@@ -175,32 +175,31 @@ pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
 /// - w_i is a user’s current vxASTRO balance
 /// - W is the total amount of vxASTRO
 pub(crate) fn update_virtual_amount(
-    deps: Deps,
-    env: &Env,
-    cfg: &Config,
+    querier: QuerierWrapper,
+    generator_addr: &Addr,
+    voting_escrow: &Option<Addr>,
     pool: &mut PoolInfo,
     user_info: &mut UserInfoV2,
     account: &Addr,
-    generator: &Addr,
+    lp_token: &Addr,
 ) -> StdResult<()> {
     let mut user_vp = Uint128::zero();
     let mut total_vp = Uint128::zero();
 
-    if let Some(voting_escrow) = &cfg.voting_escrow {
-        user_vp = get_voting_power(&deps.querier, voting_escrow, account)?;
-        total_vp = get_total_voting_power(&deps.querier, voting_escrow)?;
+    if let Some(voting_escrow) = &voting_escrow {
+        user_vp = get_voting_power(&querier, voting_escrow, account)?;
+        total_vp = get_total_voting_power(&querier, voting_escrow)?;
     }
 
     let user_virtual_share = user_info.amount.multiply_ratio(4u128, 10u128);
 
     let lp_balance = if let Some(proxy) = &pool.reward_proxy {
-        deps.querier
-            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
+        querier.query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
     } else {
-        let res: BalanceResponse = deps.querier.query_wasm_smart(
-            generator,
+        let res: BalanceResponse = querier.query_wasm_smart(
+            lp_token,
             &cw20::Cw20QueryMsg::Balance {
-                address: env.contract.address.to_string(),
+                address: generator_addr.to_string(),
             },
         )?;
         res.balance
