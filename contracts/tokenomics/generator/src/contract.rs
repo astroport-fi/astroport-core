@@ -31,7 +31,7 @@ use astroport::{
     factory::{ConfigResponse as FactoryConfigResponse, QueryMsg as FactoryQueryMsg},
     generator::{
         Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse,
-        PoolInfoResponse, PoolLengthResponse, QueryMsg, RewardInfoResponse,
+        PoolInfoResponse, QueryMsg, RewardInfoResponse,
     },
     generator_proxy::{
         Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
@@ -829,7 +829,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 }
 
 /// ## Description
-/// Loads an action from [`TMP_USER_ACTION`] and executes it. Returns a [`ContractError`]
+/// Processes callback. Returns a [`ContractError`]
 /// on failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -1936,8 +1936,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::TotalVirtualSupply { generator } => {
             Ok(to_binary(&total_virtual_supply(deps, generator)?)?)
         }
-        QueryMsg::ActivePoolLength {} => Ok(to_binary(&active_pool_length(deps)?)?),
-        QueryMsg::PoolLength {} => Ok(to_binary(&pool_length(deps)?)?),
+        QueryMsg::ActivePoolLength {} => {
+            let config = CONFIG.load(deps.storage)?;
+            Ok(to_binary(&config.active_pools.len())?)
+        }
+        QueryMsg::PoolLength {} => {
+            let length = POOL_INFO
+                .keys(deps.storage, None, None, Order::Ascending)
+                .count();
+            Ok(to_binary(&length)?)
+        }
         QueryMsg::UserVirtualAmount { lp_token, user } => {
             Ok(to_binary(&query_virtual_amount(deps, lp_token, user)?)?)
         }
@@ -1985,17 +1993,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
     }
 }
 
-/// Returns a [`ContractError`] on failure, otherwise returns the amount of instantiated generators
-/// using a [`PoolLengthResponse`] object.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-pub fn pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
-    let length = POOL_INFO
-        .keys(deps.storage, None, None, Order::Ascending)
-        .count();
-    Ok(PoolLengthResponse { length })
-}
-
 /// ## Description
 /// Return total virtual supply by pool
 pub fn total_virtual_supply(deps: Deps, generator: String) -> Result<Uint128, ContractError> {
@@ -2003,16 +2000,6 @@ pub fn total_virtual_supply(deps: Deps, generator: String) -> Result<Uint128, Co
     let pool = POOL_INFO.load(deps.storage, &generator_addr)?;
 
     Ok(pool.total_virtual_supply)
-}
-
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise returns the amount of active generators
-/// using a [`PoolLengthResponse`] object.
-pub fn active_pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(PoolLengthResponse {
-        length: config.active_pools.len(),
-    })
 }
 
 /// ## Description
@@ -2434,7 +2421,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
     match contract_version.contract.as_ref() {
         "astroport-generator" => {
             let keys = POOL_INFO
-                .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
+                .keys(deps.storage, None, None, Order::Ascending {})
                 .map(|v| String::from_utf8(v).map_err(StdError::from))
                 .collect::<Result<Vec<String>, StdError>>()?;
 

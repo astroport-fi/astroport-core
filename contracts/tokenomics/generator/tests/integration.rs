@@ -1,5 +1,5 @@
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
-use astroport::generator::{ExecuteMsg, MigrateMsg, PoolLengthResponse, QueryMsg, StakerResponse};
+use astroport::generator::{ExecuteMsg, MigrateMsg, QueryMsg, StakerResponse};
 use astroport_governance::utils::WEEK;
 
 use astroport::{
@@ -2968,14 +2968,14 @@ fn setup_pools() {
     assert_eq!(Uint128::zero(), res.alloc_point);
 
     // Check pool length
-    let res: PoolLengthResponse = app
+    let res: usize = app
         .wrap()
         .query_wasm_smart(
             generator_instance.to_owned(),
             &GeneratorQueryMsg::ActivePoolLength {},
         )
         .unwrap();
-    assert_eq!(3, res.length);
+    assert_eq!(3, res);
 
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {

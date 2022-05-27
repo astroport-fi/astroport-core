@@ -258,12 +258,6 @@ pub enum QueryMsg {
     BlockedTokensList {},
 }
 
-/// This structure holds the response returned when querying the total length of the array that keeps track of instantiated generators
-#[derive(Serialize, Deserialize, PartialEq)]
-pub struct PoolLengthResponse {
-    pub length: usize,
-}
-
 /// This structure holds the response returned when querying the amount of pending rewards that can be withdrawn from a 3rd party
 /// rewards contract
 #[derive(Serialize, Deserialize, PartialEq)]
