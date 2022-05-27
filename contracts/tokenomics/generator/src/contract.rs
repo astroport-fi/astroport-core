@@ -740,7 +740,7 @@ fn update_rewards_and_execute(
                 .active_pools
                 .iter()
                 .map(|(lp_token, _)| {
-                    Ok((lp_token.clone(), POOL_INFO.load(deps.storage, &lp_token)?))
+                    Ok((lp_token.clone(), POOL_INFO.load(deps.storage, lp_token)?))
                 })
                 .collect::<StdResult<Vec<_>>>()?
         }

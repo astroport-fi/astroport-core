@@ -465,7 +465,7 @@ pub fn provide_liquidity(
     }
 
     // Mint LP token for the caller (or for the receiver if it was set)
-    let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or(info.sender.clone());
+    let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());
     messages.extend(mint_liquidity_token_message(
         deps.querier,
         &config,
