@@ -33,7 +33,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> StdResult<Response> {
+) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // Check valid token info
@@ -45,7 +45,7 @@ pub fn instantiate(
     // Check supply cap
     if let Some(limit) = msg.get_cap() {
         if total_supply > limit {
-            return Err(StdError::generic_err("Initial supply greater than cap"));
+            return Err(StdError::generic_err("Initial supply greater than cap").into());
         }
     }
 
