@@ -1,5 +1,5 @@
 use crate::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
-use cosmwasm_std::{OverflowError, StdError, Uint128};
+use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
 /// ## Description
@@ -62,9 +62,6 @@ pub enum ContractError {
 
     #[error("It is not possible to provide liquidity with one token for an empty pool")]
     InvalidProvideLPsWithSingleToken {},
-
-    #[error("Pool doesn't have any liquidity to facilitate the swap. Token0 = {0}, Token1 = {1}")]
-    ZeroLiquidity(Uint128, Uint128),
 }
 
 impl From<OverflowError> for ContractError {

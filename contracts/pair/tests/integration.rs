@@ -408,6 +408,27 @@ fn test_compatibility_of_tokens_with_different_precision() {
     app.execute_contract(owner.clone(), token_y_instance.clone(), &msg, &[])
         .unwrap();
 
+    let user = Addr::unchecked("user");
+
+    let swap_msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Swap {
+            belief_price: None,
+            max_spread: None,
+            to: Some(user.to_string()),
+        })
+        .unwrap(),
+        amount: x_offer,
+    };
+
+    let err = app
+        .execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        "Generic error: Pool doesn't have any liquidity to facilitate the swap. Token0 = 0, Token1 = 0",
+        err.to_string()
+    );
+
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [
             Asset {
@@ -431,20 +452,8 @@ fn test_compatibility_of_tokens_with_different_precision() {
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
         .unwrap();
 
-    let user = Addr::unchecked("user");
-
-    let msg = Cw20ExecuteMsg::Send {
-        contract: pair_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Swap {
-            belief_price: None,
-            max_spread: None,
-            to: Some(user.to_string()),
-        })
-        .unwrap(),
-        amount: x_offer,
-    };
-
-    app.execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
+    // try to swap after provide liquidity
+    app.execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
         .unwrap();
 
     let msg = Cw20QueryMsg::Balance {
