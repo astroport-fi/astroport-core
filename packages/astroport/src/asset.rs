@@ -10,7 +10,6 @@ use cosmwasm_std::{
     StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_cosmwasm::TerraQuerier;
 
 /// UST token denomination
 pub const UUSD_DENOM: &str = "uusd";
@@ -49,22 +48,9 @@ impl Asset {
     /// * **self** is the type of the caller object.
     ///
     /// * **querier** is an object of type [`QuerierWrapper`]
-    pub fn compute_tax(&self, querier: &QuerierWrapper) -> StdResult<Uint128> {
-        let amount = self.amount;
-        if let AssetInfo::NativeToken { denom } = &self.info {
-            let terra_querier = TerraQuerier::new(querier);
-            let tax_rate: Decimal = (terra_querier.query_tax_rate()?).rate;
-            let tax_cap: Uint128 = (terra_querier.query_tax_cap(denom.to_string())?).cap;
-            Ok(std::cmp::min(
-                (amount.checked_sub(amount.multiply_ratio(
-                    DECIMAL_FRACTION,
-                    DECIMAL_FRACTION * tax_rate + DECIMAL_FRACTION,
-                )))?,
-                tax_cap,
-            ))
-        } else {
-            Ok(Uint128::zero())
-        }
+    pub fn compute_tax(&self, _querier: &QuerierWrapper) -> StdResult<Uint128> {
+        // tax rate in Terra is set to zero https://terrawiki.org/en/developers/tx-fees
+        Ok(Uint128::zero())
     }
 
     /// Calculates and returns a deducted tax for transferring the native token from the chain. For other tokens it returns an [`Err`].
@@ -72,12 +58,12 @@ impl Asset {
     /// * **self** is the type of the caller object.
     ///
     /// * **querier** is an object of type [`QuerierWrapper`]
-    pub fn deduct_tax(&self, querier: &QuerierWrapper) -> StdResult<Coin> {
+    pub fn deduct_tax(&self, _querier: &QuerierWrapper) -> StdResult<Coin> {
         let amount = self.amount;
         if let AssetInfo::NativeToken { denom } = &self.info {
             Ok(Coin {
                 denom: denom.to_string(),
-                amount: amount.checked_sub(self.compute_tax(querier)?)?,
+                amount,
             })
         } else {
             Err(StdError::generic_err("cannot deduct tax from token asset"))

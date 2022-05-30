@@ -15,8 +15,8 @@ pub mod vesting;
 pub mod whitelist;
 pub mod xastro_token;
 
-#[cfg(test)]
-mod mock_querier;
+// #[cfg(test)]
+// mod mock_querier;
 
 #[cfg(test)]
 mod testing;
