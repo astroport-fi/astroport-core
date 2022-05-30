@@ -75,7 +75,7 @@ pub fn read_pairs(
     limit: Option<u32>,
 ) -> Vec<Addr> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = calc_range_start(start_after).map(Bound::exclusive);
+    let start = calc_range_start(start_after).map(|data| Bound::exclusive(data.as_slice()));
 
     PAIRS
         .range(deps.storage, start, None, Order::Ascending)
