@@ -6,7 +6,7 @@ use cosmwasm_std::{from_binary, Addr};
 
 #[test]
 fn proper_initialization() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
 
     let msg = InstantiateMsg {
         owner: "owner".to_string(),

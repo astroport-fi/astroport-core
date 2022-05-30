@@ -7,7 +7,7 @@ use cw20::{Cw20Coin, MinterResponse};
 /// ## Description
 /// This structure describes the basic settings for creating a token contract.
 /// TokenContract InstantiateMsg
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 pub struct InstantiateMsg {
     /// the name
     pub name: String,
