@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-stable"
-version = "1.0.0"
+version = "1.0.0-fix1"
 authors = ["Astroport"]
 edition = "2018"
 description = "An Astroport pair contract"

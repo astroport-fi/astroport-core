@@ -1,6 +1,6 @@
 [package]
 name = "astroport-factory"
-version = "1.1.0"
+version = "1.0.0-fix1"
 authors = ["Astroport"]
 edition = "2018"
 description = "An Astroport factory contract - auto pair contract generator and also directory for all pairs"
@@ -34,7 +34,7 @@ protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.2"
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.8.0-terra1"}
 astroport-token = {path = "../token"}
 astroport-pair = {path = "../pair"}
 cw20 = { version = "0.8" }

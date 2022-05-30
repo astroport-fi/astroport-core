@@ -59,6 +59,9 @@ pub enum ContractError {
 
     #[error("GeneratorAddress is not set in factory. Cannot autostake")]
     AutoStakeError {},
+
+    #[error("It is not possible to provide liquidity with one token for an empty pool")]
+    InvalidProvideLPsWithSingleToken {},
 }
 
 impl From<OverflowError> for ContractError {
