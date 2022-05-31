@@ -40,8 +40,7 @@ pub fn build_swap_msg(
             info: from.clone(),
             amount: amount_in,
         },
-    )
-    .map_err(|_| ContractError::SwapSimlationError(pool.contract_addr.clone(), from.clone()));
+    )?;
 
     if from.is_native_token() {
         let mut offer_asset = Asset {
