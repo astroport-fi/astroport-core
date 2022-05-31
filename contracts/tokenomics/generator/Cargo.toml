@@ -2,7 +2,7 @@
 name = "astroport-generator"
 version = "1.1.0"
 authors = ["Astroport"]
-edition = "2018"
+edition = "2021"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -20,20 +20,18 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = { version = "0.16.2" }
-cw2 = { version = "0.8.0" }
-cw20 = { version = "0.8.0" }
-cw-storage-plus = { version = "0.8.0", features = ["iterator"] }
+cosmwasm-std = "1.0"
+cw2 = { version = "0.13.2" }
+cw20 = { version = "0.13.2" }
+cw-storage-plus = "0.13.2"
 schemars = "0.8.1"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
 astroport = { path = "../../../packages/astroport", default-features = false }
 
 [dev-dependencies]
-cosmwasm-schema = { version = "0.16.2" }
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
+cosmwasm-schema = "1.0.0"
+cw-multi-test = "0.13.2"
 astroport-token = {path = "../../token"}
-mirror-staking = {git = "https://github.com/Mirror-Protocol/mirror-contracts.git", tag = "v2.1.1", package = "mirror-staking"}
-mirror-protocol = {version = "2.1.1"}
 astroport-vesting = {path = "../vesting"}
 astroport-generator-proxy-to-mirror = {path = "../generator_proxy_to_mirror"}

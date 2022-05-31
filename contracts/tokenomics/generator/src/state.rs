@@ -131,13 +131,10 @@ pub const USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
 /// Contains proposal for change ownership.
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
-pub fn get_pools(store: &dyn Storage) -> Vec<(Addr, PoolInfo)> {
+pub fn get_pools(store: &dyn Storage) -> StdResult<Vec<(Addr, PoolInfo)>> {
     POOL_INFO
         .range(store, None, None, cosmwasm_std::Order::Ascending)
-        .filter_map(|v| {
-            v.ok()
-                .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
-        })
+        .filter(|v| v.is_ok())
         .collect()
 }
 
@@ -151,13 +148,13 @@ pub fn update_user_balance(
     if !pool.accumulated_rewards_per_share.is_zero() {
         user.reward_debt = pool
             .accumulated_rewards_per_share
-            .checked_mul(user.amount)?;
+            .astro_checked_mul(user.amount)?;
     };
 
     if !pool.accumulated_proxy_rewards_per_share.is_zero() {
         user.reward_debt_proxy = pool
             .accumulated_proxy_rewards_per_share
-            .checked_mul(user.amount)?;
+            .astro_checked_mul(user.amount)?;
     };
 
     Ok(user)

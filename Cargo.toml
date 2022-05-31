@@ -4,7 +4,7 @@ members = [
     "contracts/factory",
     "contracts/pair",
     "contracts/pair_stable",
-    "contracts/pair_stable_bluna",
+#    "contracts/pair_stable_bluna",
     "contracts/router",
     "contracts/token",
     "contracts/whitelist",
