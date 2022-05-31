@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 /// ## Description
 /// This structure describes the basic settings for creating a contract.
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     /// the owner address
     pub owner: String,

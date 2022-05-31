@@ -1,8 +1,8 @@
 [package]
 name = "astroport-staking"
-version = "1.0.0"
+version = "1.0.0-fix1"
 authors = ["Astroport"]
-edition = "2018"
+edition = "2021"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -20,17 +20,17 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = { version = "0.16.2" }
-cw-storage-plus = "0.8.0"
+cosmwasm-std = { version = "1.0" }
+cw-storage-plus = "0.13.2"
 schemars = "0.8.1"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
-cw2 = "0.8"
-cw20 = "0.8"
+cw2 = "0.13.2"
+cw20 = "0.13.2"
 astroport = { path = "../../../packages/astroport", default-features = false }
 protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
-cosmwasm-schema = { version = "0.16.2" }
+cosmwasm-schema = { version = "1.0.0" }
 astroport-token = {path = "../../token"}
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
+cw-multi-test = "0.13.2"
