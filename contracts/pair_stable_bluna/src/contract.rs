@@ -1122,6 +1122,9 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
         config.pair_info.pair_type.clone(),
     )?;
 
+    // Check if the liquidity is non-zero
+    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
+
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
         query_token_precision(&deps.querier, &offer_pool.info)?,
@@ -1176,6 +1179,9 @@ pub fn query_reverse_simulation(
         config.factory_addr.clone(),
         config.pair_info.pair_type.clone(),
     )?;
+
+    // Check if the liquidity is non-zero
+    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
     let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
         offer_pool.amount,

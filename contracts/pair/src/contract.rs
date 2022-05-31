@@ -979,6 +979,9 @@ pub fn query_reverse_simulation(
         config.pair_info.pair_type,
     )?;
 
+    // Check if the liquidity is non-zero
+    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
+
     let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
         offer_pool.amount,
         ask_pool.amount,
