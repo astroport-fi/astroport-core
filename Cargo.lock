@@ -206,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-staking"
-version = "1.0.0-fix1"
+version = "1.0.0"
 dependencies = [
  "astroport 1.2.0",
  "astroport-token",

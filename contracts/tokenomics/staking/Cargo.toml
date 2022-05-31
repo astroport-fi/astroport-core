@@ -1,6 +1,6 @@
 [package]
 name = "astroport-staking"
-version = "1.0.0-fix1"
+version = "1.0.0"
 authors = ["Astroport"]
 edition = "2021"
 
