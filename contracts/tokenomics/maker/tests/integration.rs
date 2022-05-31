@@ -10,15 +10,13 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_governance::utils::EPOCH_START;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    attr, to_binary, Addr, Coin, Decimal, QueryRequest, Timestamp, Uint128, Uint64, WasmQuery,
+    attr, coin, to_binary, Addr, Coin, Decimal, QueryRequest, Timestamp, Uint128, Uint64, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
+use cw_multi_test::{next_block, App, AppBuilder, BankKeeper, ContractWrapper, Executor};
 use std::str::FromStr;
-use terra_multi_test::{
-    next_block, AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
-};
 
-fn mock_app() -> TerraApp {
+fn mock_app() -> App {
     let mut env = mock_env();
     env.block.time = Timestamp::from_seconds(EPOCH_START);
     let api = MockApi::default();
@@ -26,13 +24,18 @@ fn mock_app() -> TerraApp {
     let storage = MockStorage::new();
     let custom = TerraMock::luna_ust_case();
 
+    // payments. note 54321 - 12321 = 42000
+    let denom = "tix";
+    let lottery = coin(54321, denom);
+    let bonus = coin(12321, denom);
+
     AppBuilder::new()
         .with_api(api)
         .with_block(env.block)
         .with_bank(bank)
         .with_storage(storage)
         .with_custom(custom)
-        .build()
+        .build(|router| router.custom)
 }
 
 fn instantiate_contracts(

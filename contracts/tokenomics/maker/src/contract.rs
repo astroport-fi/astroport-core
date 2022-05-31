@@ -888,7 +888,7 @@ fn query_get_balances(deps: Deps, env: Env, assets: Vec<AssetInfo>) -> StdResult
 fn query_bridges(deps: Deps, _env: Env) -> StdResult<Vec<(String, String)>> {
     BRIDGES
         .range(deps.storage, None, None, Order::Ascending)
-        .map(|bridge| bridge.map(|bridge| Ok((String::from_utf8(bridge.0)?, bridge.1.to_string()))))
+        .map(|bridge| bridge.map(|bridge| Ok((bridge.0, bridge.1.to_string()))))
         .collect::<StdResult<StdResult<Vec<_>>>>()?
 }
 

@@ -152,7 +152,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-maker"
-version = "1.0.1"
+version = "1.0.0-fix1"
 dependencies = [
  "astroport 1.2.0",
  "astroport-escrow-fee-distributor",
@@ -160,15 +160,14 @@ dependencies = [
  "astroport-governance",
  "astroport-pair",
  "astroport-token",
- "cosmwasm-bignumber",
  "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
+ "cosmwasm-std 1.0.0",
+ "cw-multi-test 0.13.2",
+ "cw-storage-plus 0.13.2",
+ "cw2 0.13.2",
+ "cw20 0.13.2",
  "schemars",
  "serde",
- "terra-multi-test",
  "thiserror",
 ]
 

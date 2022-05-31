@@ -39,8 +39,8 @@ mod decimal_checked_ops {
 
     impl DecimalCheckedOps for Decimal {
         fn checked_add(self, other: Decimal) -> Result<Decimal, OverflowError> {
-            Uint128::from(self.numerator())
-                .checked_add(other.numerator().into())
+            self.numerator()
+                .checked_add(other.numerator())
                 .map(|_| self + other)
         }
         fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError> {

@@ -78,25 +78,24 @@ pub fn build_distribute_msg(
     bridge_assets: Vec<AssetInfo>,
     depth: u64,
 ) -> StdResult<SubMsg> {
-    let msg: SubMsg;
-    if !bridge_assets.is_empty() {
+    let msg: SubMsg = if !bridge_assets.is_empty() {
         // Swap bridge assets
-        msg = SubMsg::new(WasmMsg::Execute {
+        SubMsg::new(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
             msg: to_binary(&ExecuteMsg::SwapBridgeAssets {
                 assets: bridge_assets,
                 depth,
             })?,
             funds: vec![],
-        });
+        })
     } else {
         // Update balances and distribute rewards
-        msg = SubMsg::new(WasmMsg::Execute {
+        SubMsg::new(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
             msg: to_binary(&ExecuteMsg::DistributeAstro {})?,
             funds: vec![],
-        });
-    }
+        })
+    };
 
     Ok(msg)
 }

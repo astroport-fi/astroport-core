@@ -307,16 +307,15 @@ pub fn format_lp_token_name(
 ) -> StdResult<String> {
     let mut short_symbols: Vec<String> = vec![];
     for asset_info in asset_infos {
-        let short_symbol: String;
-        match asset_info {
+        let short_symbol: String = match asset_info {
             AssetInfo::NativeToken { denom } => {
-                short_symbol = denom.chars().take(TOKEN_SYMBOL_MAX_LENGTH).collect();
+                denom.chars().take(TOKEN_SYMBOL_MAX_LENGTH).collect()
             }
             AssetInfo::Token { contract_addr } => {
                 let token_symbol = query_token_symbol(querier, contract_addr)?;
-                short_symbol = token_symbol.chars().take(TOKEN_SYMBOL_MAX_LENGTH).collect();
+                token_symbol.chars().take(TOKEN_SYMBOL_MAX_LENGTH).collect()
             }
-        }
+        };
         short_symbols.push(short_symbol);
     }
     Ok(format!("{}-{}-LP", short_symbols[0], short_symbols[1]).to_uppercase())
