@@ -34,4 +34,3 @@ cosmwasm-schema = "1.0.0"
 cw-multi-test = "0.13.2"
 astroport-token = {path = "../../token"}
 astroport-vesting = {path = "../vesting"}
-astroport-generator-proxy-to-mirror = {path = "../generator_proxy_to_mirror"}

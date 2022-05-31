@@ -80,7 +80,6 @@ name = "astroport-generator"
 version = "1.1.0"
 dependencies = [
  "astroport 1.2.0",
- "astroport-generator-proxy-to-mirror",
  "astroport-token",
  "astroport-vesting",
  "cosmwasm-schema 1.0.0",
@@ -89,22 +88,6 @@ dependencies = [
  "cw-storage-plus 0.13.2",
  "cw2 0.13.2",
  "cw20 0.13.2",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "astroport-generator-proxy-to-mirror"
-version = "1.0.0"
-dependencies = [
- "astroport 1.2.0",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
- "mirror-protocol",
  "schemars",
  "serde",
  "thiserror",
@@ -1145,20 +1128,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mirror-protocol"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68b4a3ba65a8fd11cd24862cc49a2c4eebb98e8dfd38d43df72145cde19d9ca6"
-dependencies = [
- "cosmwasm-std 0.16.7",
- "cosmwasm-storage 0.16.7",
- "cw20 0.8.1",
- "schemars",
- "serde",
- "terraswap",
-]
-
-[[package]]
 name = "num-traits"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1812,20 +1781,6 @@ dependencies = [
  "terra-cosmwasm",
  "terra-mocks",
  "thiserror",
-]
-
-[[package]]
-name = "terraswap"
-version = "2.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02458cd8271acd0fc98d097ca6d296f5f7abe6359ca841554db90de67c376500"
-dependencies = [
- "cosmwasm-std 1.0.0",
- "cosmwasm-storage 1.0.0",
- "cw20 0.13.2",
- "protobuf",
- "schemars",
- "serde",
 ]
 
 [[package]]

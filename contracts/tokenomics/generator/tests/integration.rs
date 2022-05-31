@@ -12,18 +12,9 @@ use astroport::{
         VestingSchedule, VestingSchedulePoint,
     },
 };
-use cosmwasm_std::{
-    testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR},
-    to_binary, Addr, StdResult, Uint128, Uint64,
-};
+use cosmwasm_std::{to_binary, Addr, StdResult, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use mirror_protocol::staking::{
-    Cw20HookMsg as MirrorStakingHookMsg, ExecuteMsg as MirrorExecuteMsg,
-    InstantiateMsg as MirrorInstantiateMsg,
-};
-use terra_multi_test::{
-    next_block, AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
-};
+use cw_multi_test::{next_block, App, BasicApp, ContractWrapper, Executor};
 
 const OWNER: &str = "owner";
 const USER1: &str = "user1";
@@ -250,8 +241,8 @@ fn update_config() {
         .unwrap();
 
     assert_eq!(res.owner, OWNER);
-    assert_eq!(res.astro_token.to_string(), "contract #0");
-    assert_eq!(res.vesting_contract.to_string(), "contract #1");
+    assert_eq!(res.astro_token.to_string(), "contract0");
+    assert_eq!(res.vesting_contract.to_string(), "contract1");
 
     let new_vesting = Addr::unchecked("new_vesting");
 
@@ -269,7 +260,7 @@ fn update_config() {
         )
         .unwrap_err();
 
-    assert_eq!(e.to_string(), "Unauthorized");
+    assert_eq!(e.root_cause().to_string(), "Unauthorized");
 
     app.execute_contract(
         Addr::unchecked(OWNER),
@@ -315,7 +306,7 @@ fn update_owner() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
     // claim before proposal
     let err = app
@@ -327,7 +318,7 @@ fn update_owner() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Ownership proposal not found"
     );
 
@@ -349,7 +340,7 @@ fn update_owner() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
     // claim ownership
     app.execute_contract(
@@ -397,7 +388,7 @@ fn send_from_unregistered_lp() {
     let resp = app
         .execute_contract(user1.clone(), lp_eur_usdt_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(resp.to_string(), "Unauthorized");
+    assert_eq!(resp.root_cause().to_string(), "Unauthorized");
 
     // Register lp token
     register_lp_tokens_in_generator(
@@ -452,12 +443,11 @@ fn generator_without_reward_proxies() {
         amount: Uint128::new(10),
     };
 
-    assert_eq!(
-        app.execute_contract(user1.clone(), (lp_cny_eur_instance).clone(), &msg, &[])
-            .unwrap_err()
-            .to_string(),
-        "Overflow: Cannot Sub with 9 and 10".to_string()
-    );
+    let err = app
+        .execute_contract(user1.clone(), (lp_cny_eur_instance).clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(err.root_cause().to_string(), "Cannot Sub with 9 and 10");
 
     mint_tokens(&mut app, &lp_cny_eur_instance, &user1, 1);
 
@@ -491,10 +481,11 @@ fn generator_without_reward_proxies() {
         lp_token: lp_cny_eur_instance.to_string(),
         amount: Uint128::new(1_000000),
     };
+    let err = app
+        .execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
     assert_eq!(
-        app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
-            .unwrap_err()
-            .to_string(),
+        err.root_cause().to_string(),
         "Insufficient balance in contract to process claim".to_string()
     );
 
@@ -502,14 +493,15 @@ fn generator_without_reward_proxies() {
     let msg = GeneratorExecuteMsg::EmergencyWithdraw {
         lp_token: lp_cny_eur_instance.to_string(),
     };
+    let err = app
+        .execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
     assert_eq!(
-        app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
-            .unwrap_err()
-            .to_string(),
+        err.root_cause().to_string(),
         "astroport_generator::state::UserInfo not found".to_string()
     );
 
-    app.update_block(|bi| next_block(bi));
+    app.update_block(next_block);
 
     // 10 per block by 5 for two pools having the same alloc points
     check_pending_rewards(
@@ -669,10 +661,11 @@ fn generator_without_reward_proxies() {
         lp_token: lp_cny_eur_instance.to_string(),
         amount: Uint128::new(1_000000),
     };
+    let err = app
+        .execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
     assert_eq!(
-        app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
-            .unwrap_err()
-            .to_string(),
+        err.root_cause().to_string(),
         "Insufficient balance in contract to process claim".to_string(),
     );
 
@@ -737,7 +730,9 @@ fn generator_without_reward_proxies() {
     check_token_balance(&mut app, &astro_token_instance, &user2, 6_000000 + 2_000000);
 }
 
-#[test]
+// TODO: Mirror protocol does not support Terra2 and cosmwasm-1.0 respectively.
+// TODO: Once astroport finds proxy reward contract this test should be updated.
+/*#[test]
 fn generator_with_mirror_reward_proxy() {
     let mut app = mock_app();
 
@@ -1222,22 +1217,11 @@ fn generator_with_mirror_reward_proxy() {
         &proxy_to_mirror_instance,
         0_000000,
     );
-}
+}*/
 
+type TerraApp = App;
 fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+    BasicApp::default()
 }
 
 fn store_token_code(app: &mut TerraApp) -> u64 {
@@ -1368,7 +1352,7 @@ fn instantiate_generator(mut app: &mut TerraApp, astro_token_instance: &Addr) ->
     generator_instance
 }
 
-fn instantiate_mirror_protocol(
+/*fn instantiate_mirror_protocol(
     app: &mut TerraApp,
     token_code_id: u64,
     asset_token: &Addr,
@@ -1431,9 +1415,9 @@ fn store_proxy_code(app: &mut TerraApp) -> u64 {
     ));
 
     app.store_code(generator_proxy_to_mirror_contract)
-}
+}*/
 
-fn instantiate_proxy(
+fn _instantiate_proxy(
     app: &mut TerraApp,
     proxy_code: u64,
     generator_instance: &Addr,
