@@ -1,7 +1,7 @@
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Api, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg,
-    WasmQuery,
+    DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest, Response, StdError, StdResult,
+    Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::error::ContractError;
@@ -18,7 +18,8 @@ use astroport::router::{
 use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use std::collections::HashMap;
-use terra_cosmwasm::{SwapResponse, TerraMsgWrapper, TerraQuerier};
+use std::ops::Deref;
+use terra_cosmwasm::{SwapResponse, TerraMsgWrapper, TerraQuerier, TerraQueryWrapper};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-router";
@@ -371,7 +372,8 @@ fn simulate_swap_operations(
 ) -> Result<SimulateSwapOperationsResponse, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
     let astroport_factory = config.astroport_factory;
-    let terra_querier = TerraQuerier::new(&deps.querier);
+    let querier: QuerierWrapper<TerraQueryWrapper> = QuerierWrapper::new(deps.querier.deref());
+    let terra_querier = TerraQuerier::new(&querier);
 
     let operations_len = operations.len();
     if operations_len == 0 {
@@ -512,8 +514,9 @@ fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), 
 
 #[test]
 fn test_invalid_operations() {
-    use cosmwasm_std::testing::mock_dependencies;
-    let deps = mock_dependencies(&[]);
+    use cosmwasm_std::coins;
+    use cosmwasm_std::testing::mock_dependencies_with_balance;
+    let deps = mock_dependencies_with_balance(&coins(2, "token"));
     // empty error
     assert_eq!(true, assert_operations(deps.as_ref().api, &vec![]).is_err());
 

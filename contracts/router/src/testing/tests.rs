@@ -431,7 +431,9 @@ fn execute_swap_operation() {
                 String::from("addr0000"),
                 Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::new(952380u128), // deduct tax
+                    amount: Uint128::new(1000000u128),
+                    // tax rate in Terra is set to zero https://terrawiki.org/en/developers/tx-fees
+                    // amount: Uint128::new(952380u128), // deduct tax
                 },
                 "uluna".to_string()
             ),
@@ -513,7 +515,7 @@ fn query_buy_with_routes() {
 
     // set tax rate as 5%
     deps.querier.with_tax(
-        Decimal::percent(5),
+        Decimal::percent(0),
         &[
             (&"uusd".to_string(), &Uint128::new(1000000u128)),
             (&"ukrw".to_string(), &Uint128::new(1000000u128)),
@@ -555,7 +557,8 @@ fn query_buy_with_routes() {
     assert_eq!(
         res,
         SimulateSwapOperationsResponse {
-            amount: Uint128::from(952380u128), // tax charged 1 times uusd => ukrw, ukrw => asset0000, asset0000 => uluna
+            amount: Uint128::from(1000000u128) // tax rate in Terra is set to zero https://terrawiki.org/en/developers/tx-fees
+                                               // amount: Uint128::from(952380u128), // tax charged 1 times uusd => ukrw, ukrw => asset0000, asset0000 => uluna
         }
     );
 
@@ -578,7 +581,9 @@ fn query_buy_with_routes() {
     assert_eq!(
         res,
         SimulateSwapOperationsResponse {
-            amount: Uint128::from(952380u128), // tax charged 1 times uusd => ukrw, ukrw => uluna
+            amount: Uint128::from(1000000u128),
+            // tax rate in Terra is set to zero https://terrawiki.org/en/developers/tx-fees
+            // amount: Uint128::from(952380u128), // tax charged 1 times uusd => ukrw, ukrw => uluna
         }
     );
 }

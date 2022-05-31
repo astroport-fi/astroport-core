@@ -37,7 +37,7 @@ dependencies = [
  "cw20 0.8.1",
  "schemars",
  "serde",
- "terra-cosmwasm",
+ "terra-cosmwasm 2.2.0",
  "uint",
 ]
 
@@ -161,7 +161,7 @@ dependencies = [
  "cw20 0.8.1",
  "schemars",
  "serde",
- "terra-cosmwasm",
+ "terra-cosmwasm 2.2.0",
  "terra-multi-test",
  "thiserror",
 ]
@@ -214,15 +214,15 @@ name = "astroport-router"
 version = "1.0.0"
 dependencies = [
  "astroport 1.2.0",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
+ "cosmwasm-schema 1.0.0",
+ "cosmwasm-std 1.0.0",
+ "cw-storage-plus 0.13.2",
+ "cw2 0.13.2",
+ "cw20 0.13.2",
  "integer-sqrt",
  "schemars",
  "serde",
- "terra-cosmwasm",
+ "terra-cosmwasm 3.0.0-beta.0",
  "thiserror",
 ]
 
@@ -1824,6 +1824,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "terra-cosmwasm"
+version = "3.0.0-beta.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fc2ee91426a9d43e17999c0999e726491d1848e3fc894beb375764aec528e48"
+dependencies = [
+ "cosmwasm-std 1.0.0",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "terra-mocks"
 version = "0.0.0"
 source = "git+https://github.com/terra-money/cosmwasm-contracts.git?rev=b25f4ac2d7bddaa3a18838cfe51d18e1ae855dcd#b25f4ac2d7bddaa3a18838cfe51d18e1ae855dcd"
@@ -1831,7 +1842,7 @@ dependencies = [
  "cosmwasm-std 0.16.7",
  "schemars",
  "serde",
- "terra-cosmwasm",
+ "terra-cosmwasm 2.2.0",
 ]
 
 [[package]]
@@ -1849,7 +1860,7 @@ dependencies = [
  "prost 0.8.0",
  "schemars",
  "serde",
- "terra-cosmwasm",
+ "terra-cosmwasm 2.2.0",
  "terra-mocks",
  "thiserror",
 ]
