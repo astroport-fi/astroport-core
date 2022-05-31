@@ -1,6 +1,6 @@
 [package]
 name = "astroport-maker"
-version = "1.0.0-fix1"
+version = "1.0.1"
 authors = ["Astroport"]
 edition = "2021"
 
