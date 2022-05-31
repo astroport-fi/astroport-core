@@ -14,8 +14,9 @@ mod mock_anchor_contract;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use mock_anchor_contract::AnchorInstantiateMsg;
 
+use astroport::maker::InstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{to_binary, Addr, Coin, Decimal, Uint128};
+use cosmwasm_std::{to_binary, Addr, Coin, Decimal, Uint128, Uint64};
 use cw20::{Cw20Coin, Cw20ExecuteMsg, MinterResponse};
 use moneymarket::market::ExecuteMsg as AnchorExecuteMsg;
 use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
@@ -152,7 +153,7 @@ fn test_compatibility_of_pair_anchor_with_routeswap() {
         decimals: 6,
         initial_balances: vec![Cw20Coin {
             address: alice_address.to_string(),
-            amount: Uint128::from(10000_000000u128),
+            amount: Uint128::from(10000000_000000u128),
         }],
         mint: Some(MinterResponse {
             minter: anchor_contract.to_string(),
@@ -219,6 +220,40 @@ fn test_compatibility_of_pair_anchor_with_routeswap() {
         )
         .unwrap();
 
+    // create maker instance
+    let maker_instance = instantiate_maker(&mut app, owner.clone(), factory_contract.clone());
+
+    // Update factory config
+    let msg = FactoryExecuteMsg::UpdateConfig {
+        token_code_id: None,
+        fee_address: Some(maker_instance.to_string()),
+        generator_address: None,
+        whitelist_code_id: None,
+    };
+
+    app.execute_contract(
+        Addr::unchecked(owner.clone()),
+        factory_contract.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    // check maker balance before swaps
+    let maker_uusd_balance = app.wrap().query_balance(&maker_instance, "uusd").unwrap();
+    let maker_aust_balance: cw20::BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &token_aust_contract,
+            &cw20::Cw20QueryMsg::Balance {
+                address: maker_instance.to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(maker_uusd_balance.amount.u128(), 0u128);
+    assert_eq!(maker_aust_balance.balance.u128(), 0u128);
+
     let init_router = RouterInstantiateMsg {
         astroport_factory: factory_contract.to_string(),
     };
@@ -283,6 +318,73 @@ fn test_compatibility_of_pair_anchor_with_routeswap() {
         .unwrap();
 
     let pair_luna_instance = res.contract_addr;
+    assert_eq!(
+        res.asset_infos,
+        [
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+            AssetInfo::Token {
+                contract_addr: token_aust_contract.clone(),
+            },
+        ],
+    );
+
+    let msg = FactoryQueryMsg::Pair {
+        asset_infos: [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::Token {
+                contract_addr: token_aust_contract.clone(),
+            },
+        ],
+    };
+
+    let res: PairInfo = app
+        .wrap()
+        .query_wasm_smart(&factory_contract, &msg)
+        .unwrap();
+
+    let pair_uusd_anchor_instance = res.contract_addr;
+    assert_eq!(
+        res.asset_infos,
+        [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::Token {
+                contract_addr: token_aust_contract.clone(),
+            },
+        ]
+    );
+
+    // transfer aust from owner to pair anchor to test receive fees to maker
+    let msg = Cw20ExecuteMsg::Mint {
+        recipient: owner.to_string(),
+        amount: Uint128::from(6000_000000u128),
+    };
+
+    app.execute_contract(
+        anchor_contract.clone(),
+        token_aust_contract.to_owned(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    let cw20_send_msg = Cw20ExecuteMsg::Transfer {
+        recipient: pair_uusd_anchor_instance.to_string(),
+        amount: Uint128::from(6000_000000u128),
+    };
+
+    app.execute_contract(
+        owner.clone(),
+        token_aust_contract.clone(),
+        &cw20_send_msg,
+        &[],
+    )
+    .unwrap();
 
     let aust_amount = Uint128::from(2000_000000u128);
     let luna_amount = Uint128::from(1000_000000u128);
@@ -382,7 +484,7 @@ fn test_compatibility_of_pair_anchor_with_routeswap() {
     // 10000 LUNA, Deposit 1000 LUNA to LP, Receive 290+ Luna from Swap
     assert_eq!(luna_balance.amount.u128(), 9290_675961u128);
     assert_eq!(uusd_balance.amount.u128(), 998_610000u128);
-    assert_eq!(aust_balance.balance.u128(), 8000_000000u128);
+    assert_eq!(aust_balance.balance.u128(), 9998000_000000u128);
 
     let route_swap_msg = RouterExecuteMsg::ExecuteSwapOperations {
         operations: vec![
@@ -434,5 +536,82 @@ fn test_compatibility_of_pair_anchor_with_routeswap() {
     // UST balance was not changed
     assert_eq!(uusd_balance.amount.u128(), 998_610000u128);
     // Spent 2 aUST
-    assert_eq!(aust_balance.balance.u128(), 7900_000000u128);
+    assert_eq!(aust_balance.balance.u128(), 9997900_000000u128);
+
+    // check maker balance
+    let maker_uusd_balance = app.wrap().query_balance(&maker_instance, "uusd").unwrap();
+    let maker_aust_balance: cw20::BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &token_aust_contract,
+            &cw20::Cw20QueryMsg::Balance {
+                address: maker_instance.to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(maker_uusd_balance.amount.u128(), 0u128);
+    assert_eq!(maker_aust_balance.balance.u128(), 6000_000000u128);
+}
+
+fn instantiate_maker(router: &mut TerraApp, owner: Addr, factory_instance: Addr) -> Addr {
+    let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_token::contract::execute,
+        astroport_token::contract::instantiate,
+        astroport_token::contract::query,
+    ));
+
+    let astro_token_code_id = router.store_code(astro_token_contract);
+
+    let msg = TokenInstantiateMsg {
+        name: String::from("Astro token"),
+        symbol: String::from("ASTRO"),
+        decimals: 6,
+        initial_balances: vec![],
+        mint: Some(MinterResponse {
+            minter: owner.to_string(),
+            cap: None,
+        }),
+    };
+
+    let astro_token_instance = router
+        .instantiate_contract(
+            astro_token_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("ASTRO"),
+            None,
+        )
+        .unwrap();
+
+    let maker_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_maker::contract::execute,
+        astroport_maker::contract::instantiate,
+        astroport_maker::contract::query,
+    ));
+
+    let market_code_id = router.store_code(maker_contract);
+
+    let msg = InstantiateMsg {
+        owner: String::from("owner"),
+        factory_contract: factory_instance.to_string(),
+        staking_contract: Addr::unchecked("staking").to_string(),
+        governance_contract: None,
+        governance_percent: Option::from(Uint64::new(10)),
+        astro_token_contract: astro_token_instance.to_string(),
+        max_spread: None,
+    };
+    let maker_instance = router
+        .instantiate_contract(
+            market_code_id,
+            owner,
+            &msg,
+            &[],
+            String::from("MAKER"),
+            None,
+        )
+        .unwrap();
+
+    maker_instance
 }

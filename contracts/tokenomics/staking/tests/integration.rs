@@ -8,9 +8,9 @@ use cosmwasm_std::{
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
 
-const ALICE: &str = "Alice";
-const BOB: &str = "Bob";
-const CAROL: &str = "Carol";
+const ALICE: &str = "alice";
+const BOB: &str = "bob";
+const CAROL: &str = "carol";
 
 fn mock_app() -> TerraApp {
     let env = mock_env();

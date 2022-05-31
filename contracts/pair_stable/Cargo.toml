@@ -20,7 +20,7 @@ crate-type = ["cdylib", "rlib"]
 [features]
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces", "cosmwasm-vm/backtraces"]
+backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 integer-sqrt = "0.1.5"
@@ -31,12 +31,11 @@ cosmwasm-std = { version = "0.16.2" }
 cw-storage-plus = {version = "0.8.0"}
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0.20" }
+thiserror = { version = "1.0" }
 cosmwasm-bignumber = "2.2.0"
 protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
-cosmwasm-vm = { version = "0.16.2", default-features = false, features = ["iterator"] }
 cosmwasm-schema = "0.16.2"
 terra-cosmwasm = { version = "2.2.0" }
 proptest = "1.0.0"

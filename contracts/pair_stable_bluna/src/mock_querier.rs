@@ -203,6 +203,13 @@ impl WasmMockQuerier {
                     }
                 }
             }
+            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, .. }) => {
+                if contract_addr == "factory" {
+                    SystemResult::Ok(to_binary(&Vec::<Addr>::new()).into())
+                } else {
+                    panic!("DO NOT ENTER HERE");
+                }
+            }
             _ => self.base.handle_query(request),
         }
     }

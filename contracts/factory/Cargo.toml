@@ -29,7 +29,7 @@ cw-storage-plus = {version = "0.8.0", features = ['iterator']}
 cw2 = "0.8"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0.20" }
+thiserror = { version = "1.0" }
 protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]

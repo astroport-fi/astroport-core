@@ -1,26 +1,6 @@
-use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::QueryMsg as FactoryQueryMsg;
+use astroport::asset::Asset;
 use astroport::pair::{CumulativePricesResponse, QueryMsg as PairQueryMsg, SimulationResponse};
 use cosmwasm_std::{to_binary, Addr, QuerierWrapper, QueryRequest, StdResult, WasmQuery};
-
-/// ## Description
-/// Returns information about the target pair using a [`PairInfo`] object.
-/// ## Params
-/// * **querier** is an object of type [`QuerierWrapper`].
-///
-/// * **factory_contract** is an object of type [`Addr`]. This is the Astroport factory contract address.
-///
-/// * **asset_infos** is an array with two items of type [`AssetInfo`]. These objects holds information about two assets in an Astroport pool.
-pub fn query_pair_info(
-    querier: &QuerierWrapper,
-    factory_contract: Addr,
-    asset_infos: [AssetInfo; 2],
-) -> StdResult<PairInfo> {
-    querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: factory_contract.to_string(),
-        msg: to_binary(&FactoryQueryMsg::Pair { asset_infos })?,
-    }))
-}
 
 /// ## Description
 /// Returns information about a pair's asset cumulative prices using a [`CumulativePricesResponse`] object.

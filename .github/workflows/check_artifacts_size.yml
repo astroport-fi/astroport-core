@@ -1,0 +1,24 @@
+name: Check Artifacts Size
+on:
+  pull_request:
+
+jobs:
+  check-artifacts-size:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/git/checkouts
+            ~/.cargo/git/db
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check Artifacts Size
+        run: |
+          $GITHUB_WORKSPACE/scripts/check_artifacts_size.sh
