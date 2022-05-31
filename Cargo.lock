@@ -253,7 +253,7 @@ dependencies = [
  "cosmwasm-std 1.0.0",
  "cw2 0.13.2",
  "cw20 0.13.2",
- "cw20-base 0.13.2",
+ "cw20-base",
  "schemars",
  "serde",
  "snafu",
@@ -301,16 +301,16 @@ name = "astroport-xastro-token"
 version = "1.0.0"
 dependencies = [
  "astroport 1.2.0",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
- "cw20-base 0.8.1",
+ "cosmwasm-schema 1.0.0",
+ "cosmwasm-std 1.0.0",
+ "cw-multi-test 0.13.2",
+ "cw-storage-plus 0.13.2",
+ "cw2 0.13.2",
+ "cw20 0.13.2",
+ "cw20-base",
  "schemars",
  "serde",
  "snafu",
- "terra-multi-test",
 ]
 
 [[package]]
@@ -776,22 +776,6 @@ dependencies = [
  "cw-utils",
  "schemars",
  "serde",
-]
-
-[[package]]
-name = "cw20-base"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe3791e0f6b4a0a82b86541d48dcc67c2d607da8e5691a91b40b2c06ddf09c52"
-dependencies = [
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw0 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
- "schemars",
- "serde",
- "thiserror",
 ]
 
 [[package]]
