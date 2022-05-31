@@ -774,6 +774,12 @@ fn test_compatibility_of_tokens_with_different_precision() {
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
         .unwrap();
 
+    let d: u128 = app
+        .wrap()
+        .query_wasm_smart(&pair_instance, &QueryMsg::QueryComputeD {})
+        .unwrap();
+    assert_eq!(d, 9179141268560);
+
     let user = Addr::unchecked("user");
 
     let msg = Cw20ExecuteMsg::Send {
@@ -800,6 +806,12 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .unwrap();
 
     assert_eq!(res.balance, y_expected_return);
+
+    let d: u128 = app
+        .wrap()
+        .query_wasm_smart(&pair_instance, &QueryMsg::QueryComputeD {})
+        .unwrap();
+    assert_eq!(d, 9179133716854);
 }
 
 #[test]

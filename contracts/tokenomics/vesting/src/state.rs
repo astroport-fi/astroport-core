@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use astroport::asset::addr_validate_to_lower;
 use astroport::common::OwnershipProposal;
 use astroport::vesting::{OrderBy, VestingInfo};
 use cosmwasm_std::{Addr, Deps, StdResult};
@@ -56,7 +57,7 @@ pub fn read_vesting_infos(
         _ => (None, start_after),
     };
 
-    let info: Vec<(Addr, VestingInfo)> = VESTING_INFO
+    let info = VESTING_INFO
         .range(
             deps.storage,
             start,
@@ -65,8 +66,11 @@ pub fn read_vesting_infos(
         )
         .take(limit)
         .filter_map(|v| v.ok())
-        .map(|(k, v)| (Addr::unchecked(String::from_utf8(k).unwrap()), v))
-        .collect();
+        .map(|(k, v)| {
+            let addr = addr_validate_to_lower(deps.api, &String::from_utf8(k)?)?;
+            Ok((addr, v))
+        })
+        .collect::<StdResult<Vec<_>>>()?;
 
     Ok(info)
 }

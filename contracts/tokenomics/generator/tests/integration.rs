@@ -8,7 +8,7 @@ use astroport::{
         InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType, QueryMsg as FactoryQueryMsg,
     },
     generator::{
-        ConfigResponse, Cw20HookMsg as GeneratorHookMsg, ExecuteMsg as GeneratorExecuteMsg,
+        Config, Cw20HookMsg as GeneratorHookMsg, ExecuteMsg as GeneratorExecuteMsg,
         InstantiateMsg as GeneratorInstantiateMsg, PendingTokenResponse, PoolInfoResponse,
         QueryMsg as GeneratorQueryMsg,
     },
@@ -497,7 +497,7 @@ fn set_tokens_per_block() {
     );
 
     let msg = QueryMsg::Config {};
-    let res: ConfigResponse = app
+    let res: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
@@ -519,7 +519,7 @@ fn set_tokens_per_block() {
     .unwrap();
 
     let msg = GeneratorQueryMsg::Config {};
-    let res: ConfigResponse = app
+    let res: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
@@ -548,7 +548,7 @@ fn update_config() {
     );
 
     let msg = QueryMsg::Config {};
-    let res: ConfigResponse = app
+    let res: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
@@ -590,7 +590,7 @@ fn update_config() {
     .unwrap();
 
     let msg = QueryMsg::Config {};
-    let res: ConfigResponse = app
+    let res: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
@@ -682,7 +682,7 @@ fn update_owner() {
 
     // Let's query the state
     let msg = QueryMsg::Config {};
-    let res: ConfigResponse = app
+    let res: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
@@ -1713,7 +1713,7 @@ fn update_allowed_proxies() {
         .unwrap();
 
     // Check if proxies were added and removed
-    let reps: ConfigResponse = app
+    let reps: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &QueryMsg::Config {})
         .unwrap();
@@ -1748,7 +1748,7 @@ fn update_allowed_proxies() {
 
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
-    let reps: ConfigResponse = app
+    let reps: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &QueryMsg::Config {})
         .unwrap();

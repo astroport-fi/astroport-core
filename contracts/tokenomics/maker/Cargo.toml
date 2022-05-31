@@ -27,9 +27,8 @@ cw20 = { version = "0.8.0" }
 cw-storage-plus = { version = "0.8.0", features = ["iterator"] }
 schemars = "0.8.1"
 astroport = { path = "../../../packages/astroport", default-features = false }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0.24" }
+thiserror = { version = "1.0" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.2" }
@@ -38,4 +37,5 @@ astroport-factory = {path = "../../factory"}
 astroport-pair = {path = "../../pair"}
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
 cosmwasm-bignumber = "2.2.0"
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
 astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }

@@ -33,19 +33,7 @@ fn proper_initialization() {
         &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(123u128))],
     )]);
 
-    let msg = InstantiateMsg {
-        factory_addr: String::from("factory"),
-        asset_infos: [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::Token {
-                contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
-            },
-        ],
-        init_params: create_init_params(),
-        token_code_id: 0u64,
-    };
+    let msg = get_instantiate_message();
 
     let sender = "addr0000";
     // We can just call .unwrap() to assert this was a success
@@ -71,6 +59,38 @@ fn proper_initialization() {
 }
 
 #[test]
+fn update_config() {
+    let mut deps = mock_dependencies(&[Coin {
+        denom: "uusd".to_string(),
+        amount: Uint128::new(200_000000000000000000u128),
+    }]);
+
+    deps.querier.with_token_balances(&[(
+        &String::from("asset0000"),
+        &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(0))],
+    )]);
+
+    let msg = get_instantiate_message();
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+    // We can just call .unwrap() to assert this was a success
+    instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+    // We can not update config for a virtual pool
+    let res = execute(
+        deps.as_mut(),
+        env,
+        info,
+        ExecuteMsg::UpdateConfig {
+            params: Default::default(),
+        },
+    );
+
+    assert_eq!(res, Err(ContractError::NonSupported {}))
+}
+
+#[test]
 fn provide_liquidity() {
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
@@ -82,19 +102,7 @@ fn provide_liquidity() {
         &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(0))],
     )]);
 
-    let msg = InstantiateMsg {
-        asset_infos: [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::Token {
-                contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
-            },
-        ],
-        factory_addr: String::from("factory"),
-        init_params: create_init_params(),
-        token_code_id: 0u64,
-    };
+    let msg = get_instantiate_message();
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
@@ -151,19 +159,7 @@ fn withdraw_liquidity() {
         &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(100u128))],
     )]);
 
-    let msg = InstantiateMsg {
-        asset_infos: [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::Token {
-                contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
-            },
-        ],
-        factory_addr: String::from("factory"),
-        init_params: create_init_params(),
-        token_code_id: 0u64,
-    };
+    let msg = get_instantiate_message();
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
@@ -205,19 +201,7 @@ fn try_native_to_token() {
         &[(&String::from(MOCK_CONTRACT_ADDR), &asset_pool_amount)],
     )]);
 
-    let msg = InstantiateMsg {
-        asset_infos: [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::Token {
-                contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
-            },
-        ],
-        factory_addr: String::from("factory"),
-        init_params: create_init_params(),
-        token_code_id: 0u64,
-    };
+    let msg = get_instantiate_message();
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
@@ -441,19 +425,7 @@ fn try_token_to_native() {
         )],
     )]);
 
-    let msg = InstantiateMsg {
-        asset_infos: [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::Token {
-                contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
-            },
-        ],
-        factory_addr: String::from("factory"),
-        init_params: create_init_params(),
-        token_code_id: 0u64,
-    };
+    let msg = get_instantiate_message();
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
@@ -765,19 +737,7 @@ fn test_query_pool() {
         &[(&String::from(MOCK_CONTRACT_ADDR), &asset_1_amount)],
     )]);
 
-    let msg = InstantiateMsg {
-        asset_infos: [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::Token {
-                contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
-            },
-        ],
-        factory_addr: String::from("factory"),
-        init_params: create_init_params(),
-        token_code_id: 0u64,
-    };
+    let msg = get_instantiate_message();
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
@@ -820,19 +780,7 @@ fn test_query_share() {
         &[(&String::from(MOCK_CONTRACT_ADDR), &asset_1_amount)],
     )]);
 
-    let msg = InstantiateMsg {
-        asset_infos: [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::Token {
-                contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
-            },
-        ],
-        factory_addr: String::from("factory"),
-        init_params: create_init_params(),
-        token_code_id: 0u64,
-    };
+    let msg = get_instantiate_message();
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
@@ -872,19 +820,7 @@ fn test_sending_aust_balance_to_maker() {
         ),
     ]);
 
-    let msg = InstantiateMsg {
-        asset_infos: [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::Token {
-                contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
-            },
-        ],
-        factory_addr: String::from("factory"),
-        init_params: create_init_params(),
-        token_code_id: 0u64,
-    };
+    let msg = get_instantiate_message();
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
@@ -1103,19 +1039,7 @@ fn test_sending_ust_balance_to_maker() {
         &[(&String::from(MOCK_CONTRACT_ADDR), &(collateral_pool_amount))],
     )]);
 
-    let msg = InstantiateMsg {
-        asset_infos: [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::Token {
-                contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
-            },
-        ],
-        factory_addr: String::from("factory"),
-        init_params: create_init_params(),
-        token_code_id: 0u64,
-    };
+    let msg = get_instantiate_message();
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
@@ -1386,4 +1310,20 @@ fn mock_env_with_block_time(time: u64) -> Env {
         chain_id: "columbus".to_string(),
     };
     env
+}
+
+fn get_instantiate_message() -> InstantiateMsg {
+    InstantiateMsg {
+        factory_addr: String::from("factory"),
+        asset_infos: [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked(MOCK_ANCHOR_TOKEN),
+            },
+        ],
+        init_params: create_init_params(),
+        token_code_id: 0u64,
+    }
 }

@@ -294,7 +294,7 @@ impl ControllerHelper {
         router.execute_contract(
             Addr::unchecked(sender),
             self.controller.clone(),
-            &ExecuteMsg::GaugePools {},
+            &ExecuteMsg::TunePools {},
             &[],
         )
     }

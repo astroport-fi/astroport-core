@@ -1,10 +1,10 @@
 use crate::error::ContractError;
-use crate::querier::{query_cumulative_prices, query_pair_info, query_prices};
+use crate::querier::{query_cumulative_prices, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
 use astroport::oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use astroport::pair::TWAP_PRECISION;
-use astroport::querier::query_token_precision;
+use astroport::querier::{query_pair_info, query_token_precision};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
@@ -43,12 +43,8 @@ pub fn instantiate(
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let factory_contract = addr_validate_to_lower(deps.api, msg.factory_contract.as_ref())?;
-    let pair_info = query_pair_info(
-        &deps.querier,
-        factory_contract.clone(),
-        msg.asset_infos.clone(),
-    )?;
+    let factory_contract = addr_validate_to_lower(deps.api, &msg.factory_contract)?;
+    let pair_info = query_pair_info(&deps.querier, &factory_contract, &msg.asset_infos)?;
 
     let config = Config {
         owner: info.sender,
@@ -186,7 +182,7 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, Std
 
     Ok(if price_average.is_zero() {
         // Get the token's precision
-        let p = query_token_precision(&deps.querier, token.clone())?;
+        let p = query_token_precision(&deps.querier, &token)?;
         let one = Uint128::new(10_u128.pow(p.into()));
 
         let price = query_prices(
@@ -196,8 +192,7 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, Std
                 info: token,
                 amount: one,
             },
-        )
-        .unwrap()
+        )?
         .return_amount;
 
         Uint256::from(price).multiply_ratio(Uint256::from(amount), Uint256::from(one))
