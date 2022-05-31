@@ -75,16 +75,31 @@ pub fn read_pairs(
     limit: Option<u32>,
 ) -> Vec<Addr> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = calc_range_start(start_after).map(|data| Bound::exclusive(data.as_slice()));
 
-    PAIRS
-        .range(deps.storage, start, None, Order::Ascending)
-        .take(limit)
-        .map(|item| {
-            let (_, pair_addr) = item.unwrap();
-            pair_addr
-        })
-        .collect()
+    if let Some(data) = calc_range_start(start_after) {
+        PAIRS
+            .range(
+                deps.storage,
+                Some(Bound::exclusive(data.as_slice())),
+                None,
+                Order::Ascending,
+            )
+            .take(limit)
+            .map(|item| {
+                let (_, pair_addr) = item.unwrap();
+                pair_addr
+            })
+            .collect()
+    } else {
+        PAIRS
+            .range(deps.storage, None, None, Order::Ascending)
+            .take(limit)
+            .map(|item| {
+                let (_, pair_addr) = item.unwrap();
+                pair_addr
+            })
+            .collect()
+    }
 }
 
 // this will set the first key after the provided key, by appending a 1 byte

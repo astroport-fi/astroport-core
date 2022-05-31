@@ -1,4 +1,3 @@
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{attr, Addr};
 
 use astroport::asset::{AssetInfo, PairInfo};
@@ -7,23 +6,11 @@ use astroport::factory::{
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cw20::MinterResponse;
+use cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
 
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
-
+type TerraApp = App;
 fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+    BasicApp::default()
 }
 
 fn store_factory_code(app: &mut TerraApp) -> u64 {
@@ -170,7 +157,7 @@ fn update_config() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(res.to_string(), "Unauthorized");
+    assert_eq!(res.root_cause().to_string(), "Unauthorized");
 }
 
 fn instantiate_contract(app: &mut TerraApp, owner: &Addr, token_code_id: u64) -> Addr {
@@ -288,7 +275,7 @@ fn create_pair() {
     assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
     assert_eq!(
         res.events[1].attributes[2],
-        attr("pair", "contract #1-contract #2")
+        attr("pair", "contract1-contract2")
     );
 
     let res: PairInfo = app
@@ -302,7 +289,7 @@ fn create_pair() {
         .unwrap();
 
     // in multitest, contract names are named in the order in which contracts are created.
-    assert_eq!("contract #0", factory_instance.to_string());
-    assert_eq!("contract #3", res.contract_addr.to_string());
-    assert_eq!("contract #4", res.liquidity_token.to_string());
+    assert_eq!("contract0", factory_instance.to_string());
+    assert_eq!("contract3", res.contract_addr.to_string());
+    assert_eq!("contract4", res.liquidity_token.to_string());
 }
