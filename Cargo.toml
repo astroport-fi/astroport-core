@@ -10,7 +10,7 @@ members = [
     "contracts/whitelist",
     "contracts/xastro_token",
     "contracts/tokenomics/*",
-    "contracts/periphery/*"
+#    "contracts/periphery/*"
 ]
 
 [profile.release]
