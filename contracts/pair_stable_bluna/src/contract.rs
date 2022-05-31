@@ -17,7 +17,7 @@ use cosmwasm_std::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
-    addr_validate_to_lower, format_lp_token_name, is_zero_liquidity, Asset, AssetInfo, PairInfo,
+    addr_validate_to_lower, format_lp_token_name, is_non_zero_liquidity, Asset, AssetInfo, PairInfo,
 };
 use astroport::factory::PairType;
 
@@ -817,7 +817,7 @@ pub fn swap(
     )?;
 
     // Check if the liquidity is non-zero
-    is_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
+    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
     let offer_amount = offer_asset.amount;
     let (return_amount, spread_amount, commission_amount) = compute_swap(
