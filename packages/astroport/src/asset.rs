@@ -307,7 +307,7 @@ pub fn format_lp_token_name(
 ) -> StdResult<String> {
     let mut short_symbols: Vec<String> = vec![];
     for asset_info in asset_infos {
-        let short_symbol: String = match asset_info {
+        let short_symbol = match asset_info {
             AssetInfo::NativeToken { denom } => {
                 denom.chars().take(TOKEN_SYMBOL_MAX_LENGTH).collect()
             }
