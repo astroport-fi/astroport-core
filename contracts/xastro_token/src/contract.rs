@@ -687,16 +687,16 @@ pub fn query_all_accounts(
     limit: Option<u32>,
 ) -> StdResult<AllAccountsResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(Bound::exclusive);
+    let start = start_after
+        .map(|addr_str| addr_validate_to_lower(deps.api, &addr_str))
+        .transpose()?;
+    let start = start.as_ref().map(Bound::exclusive);
 
-    let accounts: Result<Vec<_>, _> = BALANCES
-        .range(deps.storage, start, None, Order::Ascending)
+    let accounts = BALANCES
+        .keys(deps.storage, start, None, Order::Ascending)
         .take(limit)
-        .map(StdResult::unwrap)
-        .map(|(a, _)| String::from_utf8(a))
-        .collect();
+        .map(|addr| addr.map(String::from))
+        .collect::<StdResult<Vec<_>>>()?;
 
-    Ok(AllAccountsResponse {
-        accounts: accounts?,
-    })
+    Ok(AllAccountsResponse { accounts })
 }

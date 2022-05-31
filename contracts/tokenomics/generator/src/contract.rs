@@ -449,7 +449,7 @@ fn update_rewards_and_execute(
             pools = vec![(lp_token, pool)];
         }
         None => {
-            pools = get_pools(deps.storage);
+            pools = get_pools(deps.storage)?;
         }
     }
 
@@ -612,7 +612,7 @@ pub fn mass_update_pools(mut deps: DepsMut, env: Env) -> Result<Response, Contra
     let response = Response::default();
 
     let cfg = CONFIG.load(deps.storage)?;
-    let pools = get_pools(deps.storage);
+    let pools = get_pools(deps.storage)?;
 
     if pools.is_empty() {
         return Ok(response);
@@ -801,7 +801,7 @@ pub fn send_pending_rewards(
 
     let pending_rewards = pool
         .accumulated_rewards_per_share
-        .checked_mul(user.amount)?
+        .astro_checked_mul(user.amount)?
         .checked_sub(user.reward_debt)?;
 
     if !pending_rewards.is_zero() {
@@ -818,7 +818,7 @@ pub fn send_pending_rewards(
     if let Some(proxy) = &pool.reward_proxy {
         let pending_proxy_rewards = pool
             .accumulated_proxy_rewards_per_share
-            .checked_mul(user.amount)?
+            .astro_checked_mul(user.amount)?
             .checked_sub(user.reward_debt_proxy)?;
 
         if !pending_proxy_rewards.is_zero() {
@@ -1073,7 +1073,7 @@ pub fn emergency_withdraw(
 
     pool.orphan_proxy_rewards = pool.orphan_proxy_rewards.checked_add(
         pool.accumulated_proxy_rewards_per_share
-            .checked_mul(user.amount)?
+            .astro_checked_mul(user.amount)?
             .saturating_sub(user.reward_debt_proxy),
     )?;
 
@@ -1338,7 +1338,7 @@ pub fn pending_token(
 
                 pending_on_proxy = Some(
                     acc_per_share_on_proxy
-                        .checked_mul(user_info.amount)?
+                        .astro_checked_mul(user_info.amount)?
                         .checked_sub(user_info.reward_debt_proxy)?,
                 );
             }
@@ -1356,7 +1356,7 @@ pub fn pending_token(
     }
 
     let pending = acc_per_share
-        .checked_mul(user_info.amount)?
+        .astro_checked_mul(user_info.amount)?
         .checked_sub(user_info.reward_debt)?;
 
     Ok(PendingTokenResponse {
@@ -1578,12 +1578,10 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
             "1.0.0" => {
                 let keys = POOL_INFO
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| String::from_utf8(v).map_err(StdError::from))
-                    .collect::<Result<Vec<String>, StdError>>()?;
+                    .collect::<StdResult<Vec<_>>>()?;
 
                 for key in keys {
-                    let pool_info_v100 = migration::POOL_INFOV100
-                        .load(deps.storage, &Addr::unchecked(key.clone()))?;
+                    let pool_info_v100 = migration::POOL_INFOV100.load(deps.storage, &key)?;
                     let pool_info = PoolInfo {
                         has_asset_rewards: false,
                         accumulated_proxy_rewards_per_share: pool_info_v100
@@ -1596,7 +1594,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
                             .proxy_reward_balance_before_update,
                         reward_proxy: pool_info_v100.reward_proxy,
                     };
-                    POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
+                    POOL_INFO.save(deps.storage, &key, &pool_info)?;
                 }
             }
             _ => return Err(ContractError::MigrationError {}),
