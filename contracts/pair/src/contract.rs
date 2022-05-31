@@ -1048,7 +1048,7 @@ pub fn compute_swap(
     // offer => ask
     // ask_amount = (ask_pool - cp / (offer_pool + offer_amount))
     let cp: Uint256 = offer_pool * ask_pool;
-    let return_amount: Uint256 = (Decimal256::new(ask_pool)
+    let return_amount: Uint256 = (Decimal256::from_ratio(ask_pool, 1u8)
         - Decimal256::from_ratio(cp, offer_pool + offer_amount))
         * Uint256::from(1u8);
 

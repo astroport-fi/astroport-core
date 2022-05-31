@@ -2,7 +2,7 @@
 name = "astroport-pair"
 version = "1.0.0"
 authors = ["Astroport"]
-edition = "2018"
+edition = "2021"
 description = "An Astroport pair contract"
 license = "MIT"
 
@@ -27,7 +27,7 @@ integer-sqrt = "0.1.5"
 astroport = { path = "../../packages/astroport", default-features = false }
 cw2 = { version = "0.13.2" }
 cw20 = { version = "0.13.2" }
-cosmwasm-std = { version = "1.0.0" }
+cosmwasm-std = "1.0"
 cw-storage-plus = {version = "0.13.2"}
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
@@ -36,8 +36,7 @@ protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
 cosmwasm-schema = "1.0.0"
-terra-cosmwasm = { version = "2.2.0" }
 astroport-token = {path = "../token"}
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
+cw-multi-test = "0.13.2"
 astroport-factory = {path = "../factory"}
 proptest = "0.10.1"

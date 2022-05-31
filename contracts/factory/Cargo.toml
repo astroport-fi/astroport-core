@@ -2,7 +2,7 @@
 name = "astroport-factory"
 version = "1.0.0-fix1"
 authors = ["Astroport"]
-edition = "2018"
+edition = "2021"
 description = "An Astroport factory contract - auto pair contract generator and also directory for all pairs"
 license = "MIT"
 
@@ -24,7 +24,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 astroport = { path = "../../packages/astroport", default-features = false }
-cosmwasm-std = "1.0.0"
+cosmwasm-std = "1.0"
 cw-storage-plus = "0.13.2"
 cw2 = "0.13.2"
 schemars = "0.8.1"
@@ -34,7 +34,6 @@ protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
 cosmwasm-schema = "1.0.0"
-#terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
 cw-multi-test = "0.13.2"
 astroport-token = {path = "../token"}
 astroport-pair = {path = "../pair"}

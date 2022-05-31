@@ -203,6 +203,7 @@ dependencies = [
  "astroport-token",
  "cosmwasm-schema 1.0.0",
  "cosmwasm-std 1.0.0",
+ "cw-multi-test 0.13.2",
  "cw-storage-plus 0.13.2",
  "cw2 0.13.2",
  "cw20 0.13.2",
@@ -211,8 +212,6 @@ dependencies = [
  "protobuf",
  "schemars",
  "serde",
- "terra-cosmwasm",
- "terra-multi-test",
  "thiserror",
 ]
 
