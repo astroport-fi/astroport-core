@@ -222,21 +222,18 @@ dependencies = [
  "astroport 1.2.0",
  "astroport-factory",
  "astroport-token",
- "cosmwasm-bignumber",
  "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cosmwasm-vm",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
+ "cosmwasm-std 1.0.0",
+ "cw-multi-test 0.13.2",
+ "cw-storage-plus 0.13.2",
+ "cw2 0.13.2",
+ "cw20 0.13.2",
  "integer-sqrt",
  "proptest 1.0.0",
  "protobuf",
  "schemars",
  "serde",
- "sim",
- "terra-cosmwasm",
- "terra-multi-test",
+ "sim 0.1.0 (git+https://github.com/astroport-fi/astroport-sims.git?rev=d617510737ee2c529d3aaa7afbdac5ccb5a385c9)",
  "thiserror",
 ]
 
@@ -261,7 +258,7 @@ dependencies = [
  "protobuf",
  "schemars",
  "serde",
- "sim",
+ "sim 0.1.0",
  "terra-cosmwasm",
  "terra-multi-test",
  "thiserror",
@@ -2497,6 +2494,14 @@ dependencies = [
 [[package]]
 name = "sim"
 version = "0.1.0"
+dependencies = [
+ "pyo3",
+]
+
+[[package]]
+name = "sim"
+version = "0.1.0"
+source = "git+https://github.com/astroport-fi/astroport-sims.git?rev=d617510737ee2c529d3aaa7afbdac5ccb5a385c9#d617510737ee2c529d3aaa7afbdac5ccb5a385c9"
 dependencies = [
  "pyo3",
 ]

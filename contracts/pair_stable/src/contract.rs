@@ -5,11 +5,10 @@ use crate::math::{
 };
 use crate::state::{Config, CONFIG};
 
-use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
-    WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Decimal256,
+    Deps, DepsMut, Env, Fraction, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult,
+    SubMsg, Uint128, WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -1232,8 +1231,8 @@ fn compute_offer_amount(
     let ask_pool = adjust_precision(ask_pool, ask_precision, greater_precision)?;
     let ask_amount = adjust_precision(ask_amount, ask_precision, greater_precision)?;
 
-    let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
-    let inv_one_minus_commission: Decimal = (Decimal256::one() / one_minus_commission).into();
+    let one_minus_commission = Decimal::one() - commission_rate;
+    let inv_one_minus_commission: Decimal = Decimal::one() / one_minus_commission;
     let before_commission_deduction = ask_amount * inv_one_minus_commission;
 
     let offer_amount = Uint128::new(
@@ -1311,8 +1310,7 @@ pub fn assert_max_spread(
     }
 
     if let Some(belief_price) = belief_price {
-        let expected_return =
-            offer_amount * Decimal::from(Decimal256::one() / Decimal256::from(belief_price));
+        let expected_return = offer_amount * belief_price.inv().unwrap();
         let spread_amount = expected_return
             .checked_sub(return_amount)
             .unwrap_or_else(|_| Uint128::zero());
@@ -1513,4 +1511,15 @@ fn compute_current_amp(config: &Config, env: &Env) -> StdResult<u64> {
     } else {
         Ok(config.next_amp)
     }
+}
+
+/// ## Description
+/// Converts [`Decimal`] to [`Decimal256`].
+pub fn decimal2decimal256(dec_value: Decimal) -> StdResult<Decimal256> {
+    Decimal256::from_atomics(dec_value.atomics(), dec_value.decimal_places()).map_err(|_| {
+        StdError::generic_err(format!(
+            "Failed to convert Decimal {} to Decimal256",
+            dec_value
+        ))
+    })
 }

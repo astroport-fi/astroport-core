@@ -10,29 +10,17 @@ use astroport::pair::{
 
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_pair_stable::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
+    attr, coin, from_binary, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
+use cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
 
 const OWNER: &str = "owner";
 
+type TerraApp = App;
 fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+    BasicApp::default()
 }
 
 fn store_token_code(app: &mut TerraApp) -> u64 {
@@ -100,7 +88,10 @@ fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
             None,
         )
         .unwrap_err();
-    assert_eq!("You need to provide init params", resp.to_string());
+    assert_eq!(
+        "You need to provide init params",
+        resp.root_cause().to_string()
+    );
 
     let msg = InstantiateMsg {
         asset_infos: [
@@ -131,8 +122,8 @@ fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
         .wrap()
         .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
         .unwrap();
-    assert_eq!("contract #0", res.contract_addr);
-    assert_eq!("contract #1", res.liquidity_token);
+    assert_eq!("contract0", res.contract_addr.as_str());
+    assert_eq!("contract1", res.liquidity_token.as_str());
 
     pair
 }
@@ -141,24 +132,43 @@ fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
 fn test_provide_and_withdraw_liquidity() {
     let owner = Addr::unchecked("owner");
     let alice_address = Addr::unchecked("alice");
-    let mut router = mock_app();
-
-    // Set alice balances
-    router
-        .init_bank_balance(
-            &alice_address,
-            vec![
-                Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::new(233u128),
-                },
-                Coin {
-                    denom: "uluna".to_string(),
-                    amount: Uint128::new(200u128),
-                },
-            ],
-        )
-        .unwrap();
+    let mut router = TerraApp::new(|router, _, storage| {
+        // initialization moved to App construction
+        router
+            .bank
+            .init_balance(
+                storage,
+                &alice_address,
+                vec![
+                    Coin {
+                        denom: "uusd".to_string(),
+                        amount: Uint128::new(233u128),
+                    },
+                    Coin {
+                        denom: "uluna".to_string(),
+                        amount: Uint128::new(200u128),
+                    },
+                ],
+            )
+            .unwrap();
+        router
+            .bank
+            .init_balance(
+                storage,
+                &owner,
+                vec![
+                    Coin {
+                        denom: "uusd".to_string(),
+                        amount: Uint128::new(100_000000u128),
+                    },
+                    Coin {
+                        denom: "uluna".to_string(),
+                        amount: Uint128::new(100_000000u128),
+                    },
+                ],
+            )
+            .unwrap()
+    });
 
     // Init pair
     let pair_instance = instantiate_pair(&mut router, &owner);
@@ -183,18 +193,10 @@ fn test_provide_and_withdraw_liquidity() {
 
     // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
     router
-        .init_bank_balance(
-            &pair_instance,
-            vec![
-                Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::new(100u128),
-                },
-                Coin {
-                    denom: "uluna".to_string(),
-                    amount: Uint128::new(100u128),
-                },
-            ],
+        .send_tokens(
+            owner.clone(),
+            pair_instance.clone(),
+            &[coin(100, "uusd"), coin(100, "uluna")],
         )
         .unwrap();
 
@@ -492,24 +494,18 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
 #[test]
 fn test_if_twap_is_calculated_correctly_when_pool_idles() {
-    let mut app = mock_app();
-
     let user1 = Addr::unchecked("user1");
-
-    app.init_bank_balance(
-        &user1,
-        vec![
-            Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128::new(4666666_000000),
-            },
-            Coin {
-                denom: "uluna".to_string(),
-                amount: Uint128::new(2000000_000000),
-            },
-        ],
-    )
-    .unwrap();
+    let mut app = TerraApp::new(|router, _, storage| {
+        // initialization moved to App construction
+        router
+            .bank
+            .init_balance(
+                storage,
+                &user1,
+                vec![coin(4666666_000000, "uusd"), coin(2000000_000000, "uluna")],
+            )
+            .unwrap()
+    });
 
     // instantiate pair
     let pair_instance = instantiate_pair(&mut app, &user1);
@@ -599,7 +595,10 @@ fn create_pair_with_same_assets() {
         )
         .unwrap_err();
 
-    assert_eq!(resp.to_string(), "Doubling assets in asset infos")
+    assert_eq!(
+        resp.root_cause().to_string(),
+        "Doubling assets in asset infos"
+    )
 }
 
 #[test]
@@ -680,7 +679,7 @@ fn update_pair_config() {
         .unwrap_err();
 
     assert_eq!(
-        resp.to_string(),
+        resp.root_cause().to_string(),
         format!(
             "Amp coefficient must be greater than 0 and less than or equal to {}",
             MAX_AMP
@@ -701,7 +700,7 @@ fn update_pair_config() {
         .unwrap_err();
 
     assert_eq!(
-        resp.to_string(),
+        resp.root_cause().to_string(),
         format!(
             "The difference between the old and new amp value must not exceed {} times",
             MAX_AMP_CHANGE
@@ -722,7 +721,7 @@ fn update_pair_config() {
         .unwrap_err();
 
     assert_eq!(
-        resp.to_string(),
+        resp.root_cause().to_string(),
         format!(
             "Amp coefficient cannot be changed more often than once per {} seconds",
             MIN_AMP_CHANGING_TIME
