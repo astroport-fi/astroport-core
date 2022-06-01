@@ -29,7 +29,6 @@ cosmwasm-std = "1.0"
 cw-storage-plus = "0.13.2"
 integer-sqrt = "0.1.5"
 astroport = { path = "../../packages/astroport", default-features = false }
-terra-cosmwasm = "3.0.0-beta.0"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }

@@ -10,7 +10,6 @@ use astroport::pair::ExecuteMsg as PairExecuteMsg;
 use astroport::querier::{query_balance, query_pair_info, query_token_balance};
 use astroport::router::SwapOperation;
 use cw20::Cw20ExecuteMsg;
-use terra_cosmwasm::{create_swap_msg, create_swap_send_msg, TerraMsgWrapper};
 
 /// ## Description
 /// Execute swap operation. Swap all offer asset to ask asset.
@@ -33,46 +32,12 @@ pub fn execute_swap_operation(
     operation: SwapOperation,
     to: Option<String>,
     max_spread: Option<Decimal>,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response, ContractError> {
     if env.contract.address != info.sender {
         return Err(ContractError::Unauthorized {});
     }
 
-    let messages: Vec<CosmosMsg<TerraMsgWrapper>> = match operation {
-        SwapOperation::NativeSwap {
-            offer_denom,
-            ask_denom,
-        } => {
-            let amount =
-                query_balance(&deps.querier, env.contract.address, offer_denom.to_string())?;
-            if let Some(to) = to {
-                // if the opeation is last, and requires send
-                // deduct tax from the offer_coin
-                let asset = Asset {
-                    info: AssetInfo::NativeToken {
-                        denom: offer_denom.clone(),
-                    },
-                    amount,
-                };
-                let amount = amount.checked_sub(asset.compute_tax(&deps.querier)?)?;
-                vec![create_swap_send_msg(
-                    to,
-                    Coin {
-                        denom: offer_denom,
-                        amount,
-                    },
-                    ask_denom,
-                )]
-            } else {
-                vec![create_swap_msg(
-                    Coin {
-                        denom: offer_denom,
-                        amount,
-                    },
-                    ask_denom,
-                )]
-            }
-        }
+    let messages: Vec<CosmosMsg> = match operation {
         SwapOperation::AstroSwap {
             offer_asset_info,
             ask_asset_info,
@@ -106,6 +71,7 @@ pub fn execute_swap_operation(
                 to,
             )?]
         }
+        _ => return Err(ContractError::NativeSwapNotImplemented {}),
     };
 
     Ok(Response::new().add_messages(messages))
@@ -113,7 +79,7 @@ pub fn execute_swap_operation(
 
 /// ## Description
 /// Creates a message with an exchange operation of type CosmosMsg for each asset.
-/// Returns the [`CosmosMsg<TerraMsgWrapper>`] with the specified attributes if the operation was successful.
+/// Returns the [`CosmosMsg`] with the specified attributes if the operation was successful.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -130,7 +96,7 @@ pub fn asset_into_swap_msg(
     offer_asset: Asset,
     max_spread: Option<Decimal>,
     to: Option<String>,
-) -> StdResult<CosmosMsg<TerraMsgWrapper>> {
+) -> StdResult<CosmosMsg> {
     match offer_asset.info.clone() {
         AssetInfo::NativeToken { denom } => {
             // deduct tax first

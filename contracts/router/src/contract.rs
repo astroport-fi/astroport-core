@@ -1,7 +1,6 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Api, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest, Response, StdError, StdResult,
-    Uint128, WasmMsg, WasmQuery,
+    entry_point, from_binary, to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::error::ContractError;
@@ -18,8 +17,6 @@ use astroport::router::{
 use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use std::collections::HashMap;
-use std::ops::Deref;
-use terra_cosmwasm::{SwapResponse, TerraMsgWrapper, TerraQuerier, TerraQueryWrapper};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-router";
@@ -43,7 +40,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     CONFIG.save(
@@ -92,7 +89,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ExecuteSwapOperations {
@@ -147,7 +144,7 @@ pub fn receive_cw20(
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response, ContractError> {
     let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::ExecuteSwapOperations {
@@ -178,7 +175,7 @@ pub fn receive_cw20(
 
 /// ## Description
 /// Performs swap operations with the specified parameters.
-/// Returns an [`ContractError`] on failureб otherwise returns [`Response`] with the specified messages of type [`TerraMsgWrapper`] to execute if the operation is successful.
+/// Returns an [`ContractError`] on failureб otherwise returns [`Response`] to execute if the operation is successful.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -203,7 +200,7 @@ pub fn execute_swap_operations(
     minimum_receive: Option<Uint128>,
     to: Option<Addr>,
     max_spread: Option<Decimal>,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response, ContractError> {
     let operations_len = operations.len();
     if operations_len == 0 {
         return Err(ContractError::MustProvideOperations {});
@@ -225,7 +222,7 @@ pub fn execute_swap_operations(
     let target_asset_info = operations.last().unwrap().get_target_asset_info();
 
     let mut operation_index = 0;
-    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = operations
+    let mut messages: Vec<CosmosMsg> = operations
         .into_iter()
         .map(|op| {
             operation_index += 1;
@@ -243,7 +240,7 @@ pub fn execute_swap_operations(
                 })?,
             }))
         })
-        .collect::<StdResult<Vec<CosmosMsg<TerraMsgWrapper>>>>()?;
+        .collect::<StdResult<Vec<CosmosMsg>>>()?;
 
     // Execute minimum amount assertion
     if let Some(minimum_receive) = minimum_receive {
@@ -283,7 +280,7 @@ fn assert_minimum_receive(
     prev_balance: Uint128,
     minimum_receive: Uint128,
     receiver: Addr,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response, ContractError> {
     asset_info.check(deps.api)?;
     let receiver_balance = asset_info.query_pool(&deps.querier, receiver)?;
     let swap_amount = receiver_balance.checked_sub(prev_balance)?;
@@ -372,8 +369,6 @@ fn simulate_swap_operations(
 ) -> Result<SimulateSwapOperationsResponse, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
     let astroport_factory = config.astroport_factory;
-    let querier: QuerierWrapper<TerraQueryWrapper> = QuerierWrapper::new(deps.querier.deref());
-    let terra_querier = TerraQuerier::new(&querier);
 
     let operations_len = operations.len();
     if operations_len == 0 {
@@ -386,39 +381,9 @@ fn simulate_swap_operations(
 
     assert_operations(deps.api, &operations)?;
 
-    let mut operation_index = 0;
     let mut offer_amount = offer_amount;
     for operation in operations.into_iter() {
-        operation_index += 1;
-
         match operation {
-            SwapOperation::NativeSwap {
-                offer_denom,
-                ask_denom,
-            } => {
-                // Deduct tax before query simulation
-                // because last swap is swap_send
-                if operation_index == operations_len {
-                    let asset = Asset {
-                        info: AssetInfo::NativeToken {
-                            denom: offer_denom.clone(),
-                        },
-                        amount: offer_amount,
-                    };
-
-                    offer_amount = offer_amount.checked_sub(asset.compute_tax(&deps.querier)?)?;
-                }
-
-                let res: SwapResponse = terra_querier.query_swap(
-                    Coin {
-                        denom: offer_denom,
-                        amount: offer_amount,
-                    },
-                    ask_denom,
-                )?;
-
-                offer_amount = res.receive.amount;
-            }
             SwapOperation::AstroSwap {
                 offer_asset_info,
                 ask_asset_info,
@@ -464,6 +429,7 @@ fn simulate_swap_operations(
 
                 offer_amount = res.return_amount;
             }
+            _ => return Err(ContractError::NativeSwapNotImplemented {}),
         }
     }
 
@@ -482,21 +448,11 @@ fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), 
     let mut ask_asset_map: HashMap<String, bool> = HashMap::new();
     for operation in operations.iter() {
         let (offer_asset, ask_asset) = match operation {
-            SwapOperation::NativeSwap {
-                offer_denom,
-                ask_denom,
-            } => (
-                AssetInfo::NativeToken {
-                    denom: offer_denom.clone(),
-                },
-                AssetInfo::NativeToken {
-                    denom: ask_denom.clone(),
-                },
-            ),
             SwapOperation::AstroSwap {
                 offer_asset_info,
                 ask_asset_info,
             } => (offer_asset_info.clone(), ask_asset_info.clone()),
+            _ => return Err(ContractError::NativeSwapNotImplemented {}),
         };
         offer_asset.check(api)?;
         ask_asset.check(api)?;
@@ -526,10 +482,6 @@ fn test_invalid_operations() {
         assert_operations(
             deps.as_ref().api,
             &vec![
-                SwapOperation::NativeSwap {
-                    offer_denom: "uusd".to_string(),
-                    ask_denom: "uluna".to_string(),
-                },
                 SwapOperation::AstroSwap {
                     offer_asset_info: AssetInfo::NativeToken {
                         denom: "ukrw".to_string(),
@@ -557,10 +509,6 @@ fn test_invalid_operations() {
         assert_operations(
             deps.as_ref().api,
             &vec![
-                SwapOperation::NativeSwap {
-                    offer_denom: "uusd".to_string(),
-                    ask_denom: "uluna".to_string(),
-                },
                 SwapOperation::AstroSwap {
                     offer_asset_info: AssetInfo::NativeToken {
                         denom: "ukrw".to_string(),
@@ -596,10 +544,6 @@ fn test_invalid_operations() {
         assert_operations(
             deps.as_ref().api,
             &vec![
-                SwapOperation::NativeSwap {
-                    offer_denom: "uusd".to_string(),
-                    ask_denom: "ukrw".to_string(),
-                },
                 SwapOperation::AstroSwap {
                     offer_asset_info: AssetInfo::NativeToken {
                         denom: "ukrw".to_string(),
@@ -628,4 +572,17 @@ fn test_invalid_operations() {
         )
         .is_err()
     );
+
+    // Native swap operations are not implemented
+    assert_eq!(
+        true,
+        assert_operations(
+            deps.as_ref().api,
+            &vec![SwapOperation::NativeSwap {
+                offer_denom: "uusd".to_string(),
+                ask_denom: "uluna".to_string(),
+            },]
+        )
+        .is_err()
+    )
 }
