@@ -175,7 +175,7 @@ pub fn receive_cw20(
 
 /// ## Description
 /// Performs swap operations with the specified parameters.
-/// Returns an [`ContractError`] on failureб otherwise returns [`Response`] to execute if the operation is successful.
+/// Returns an [`ContractError`] on failure, otherwise returns [`Response`] to execute if the operation is successful.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -429,7 +429,9 @@ fn simulate_swap_operations(
 
                 offer_amount = res.return_amount;
             }
-            _ => return Err(ContractError::NativeSwapNotImplemented {}),
+            SwapOperation::NativeSwap { .. } => {
+                return Err(ContractError::NativeSwapNotSupported {})
+            }
         }
     }
 
@@ -452,7 +454,9 @@ fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), 
                 offer_asset_info,
                 ask_asset_info,
             } => (offer_asset_info.clone(), ask_asset_info.clone()),
-            _ => return Err(ContractError::NativeSwapNotImplemented {}),
+            SwapOperation::NativeSwap { .. } => {
+                return Err(ContractError::NativeSwapNotSupported {})
+            }
         };
         offer_asset.check(api)?;
         ask_asset.check(api)?;
@@ -574,15 +578,12 @@ fn test_invalid_operations() {
     );
 
     // Native swap operations are not implemented
-    assert_eq!(
-        true,
-        assert_operations(
-            deps.as_ref().api,
-            &vec![SwapOperation::NativeSwap {
-                offer_denom: "uusd".to_string(),
-                ask_denom: "uluna".to_string(),
-            },]
-        )
-        .is_err()
+    assert!(assert_operations(
+        deps.as_ref().api,
+        &vec![SwapOperation::NativeSwap {
+            offer_denom: "uusd".to_string(),
+            ask_denom: "uluna".to_string(),
+        },]
     )
+    .is_err())
 }

@@ -71,7 +71,7 @@ pub fn execute_swap_operation(
                 to,
             )?]
         }
-        _ => return Err(ContractError::NativeSwapNotImplemented {}),
+        SwapOperation::NativeSwap { .. } => return Err(ContractError::NativeSwapNotSupported {}),
     };
 
     Ok(Response::new().add_messages(messages))
