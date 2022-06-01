@@ -8,7 +8,7 @@ use std::str::FromStr;
 
 #[test]
 fn proper_initialization() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let info = mock_info("addr0000", &[]);
 
     let env = mock_env();
@@ -53,7 +53,7 @@ fn proper_initialization() {
 
 #[test]
 fn update_owner() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let info = mock_info("addr0000", &[]);
 
     let owner = Addr::unchecked("owner");
