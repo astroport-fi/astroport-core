@@ -919,10 +919,6 @@ fn collect_err_no_swap_pair() {
         owner.clone(),
         vec![
             Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128::new(100_000_000_000u128),
-            },
-            Coin {
                 denom: "uluna".to_string(),
                 amount: Uint128::new(100_000_000_000u128),
             },
@@ -948,7 +944,6 @@ fn collect_err_no_swap_pair() {
         None,
     );
 
-    let uusd_asset = String::from("uusd");
     let uluna_asset = String::from("uluna");
     let ukrt_asset = String::from("ukrt");
     let uabc_asset = String::from("uabc");
@@ -965,10 +960,6 @@ fn collect_err_no_swap_pair() {
         ],
         [
             native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
-            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
-        ],
-        [
-            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
     ] {
