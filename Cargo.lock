@@ -175,15 +175,14 @@ name = "astroport-router"
 version = "1.0.0"
 dependencies = [
  "astroport 1.2.0",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
+ "cosmwasm-schema 1.0.0",
+ "cosmwasm-std 1.0.0",
+ "cw-storage-plus 0.13.2",
+ "cw2 0.13.2",
+ "cw20 0.13.2",
  "integer-sqrt",
  "schemars",
  "serde",
- "terra-cosmwasm",
  "thiserror",
 ]
 

@@ -2,7 +2,7 @@
 name = "astroport-router"
 version = "1.0.0"
 authors = ["Astroport"]
-edition = "2018"
+edition = "2021"
 description = "An Astroport router contract - provides multi-step operations to facilitate single sign operation"
 license = "Apache-2.0"
 
@@ -23,16 +23,15 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cw2 = "0.8"
-cw20 = "0.8"
-cosmwasm-std = { version = "0.16.2", features = ["iterator"] }
-cw-storage-plus = {version = "0.8.0", features = ['iterator']}
+cw2 = "0.13.2"
+cw20 = "0.13.2"
+cosmwasm-std = "1.0"
+cw-storage-plus = "0.13.2"
 integer-sqrt = "0.1.5"
 astroport = { path = "../../packages/astroport", default-features = false }
-terra-cosmwasm = "2.2.0"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }
 
 [dev-dependencies]
-cosmwasm-schema = "0.16.2"
+cosmwasm-schema = "1.0.0"
