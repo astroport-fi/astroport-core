@@ -1251,6 +1251,7 @@ fn instantiate_token(
             minter: String::from(OWNER),
             cap: cap.map(|v| Uint128::from(v)),
         }),
+        marketing: None,
     };
 
     app.instantiate_contract(token_code_id, Addr::unchecked(OWNER), &msg, &[], name, None)

@@ -285,6 +285,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             minter: String::from(OWNER),
             cap: None,
         }),
+        marketing: None,
     };
 
     let token_x_instance = app
@@ -312,6 +313,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             minter: String::from(OWNER),
             cap: None,
         }),
+        marketing: None,
     };
 
     let token_y_instance = app

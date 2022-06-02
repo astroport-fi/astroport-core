@@ -256,6 +256,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-whitelist"
+version = "0.13.2"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "astroport 1.2.0",
+ "cosmwasm-schema 1.0.0",
+ "cosmwasm-std 1.0.0",
+ "cw-multi-test",
+ "cw-storage-plus 0.13.2",
+ "cw-utils",
+ "cw1",
+ "cw2 0.13.2",
+ "derivative",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-xastro-token"
 version = "1.0.0"
 dependencies = [

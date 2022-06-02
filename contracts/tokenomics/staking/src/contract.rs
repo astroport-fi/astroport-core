@@ -14,7 +14,7 @@ use cw20::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::addr_validate_to_lower;
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport::xastro_token::InstantiateMsg as TokenInstantiateMsg;
 use protobuf::Message;
 
 /// Contract name that is used for migration.
@@ -23,7 +23,7 @@ const CONTRACT_NAME: &str = "astroport-staking";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Staking information.
-const TOKEN_NAME: &str = "astroport-staking-token";
+const TOKEN_NAME: &str = "Staked Astroport";
 const TOKEN_SYMBOL: &str = "xASTRO";
 
 /// A `reply` call code ID of sub-message.
@@ -74,6 +74,7 @@ pub fn instantiate(
                     minter: env.contract.address.to_string(),
                     cap: None,
                 }),
+                marketing: msg.marketing,
             })?,
             funds: vec![],
             label: String::from("Astroport Staking Token"),

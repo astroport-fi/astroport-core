@@ -9,4 +9,4 @@ docker run --rm \
     --volume "$projectPath":/code \
     --volume "$(basename "$projectPath")-target":/code/target \
     --volume cargo-registry:/usr/local/cargo/registry \
-    cosmwasm/workspace-optimizer:0.12.3
+    cosmwasm/workspace-optimizer:0.12.6

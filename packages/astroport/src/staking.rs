@@ -2,6 +2,7 @@ use cosmwasm_std::Addr;
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use crate::xastro_token::InstantiateMarketingInfo;
 
 /// ## Description
 /// This structure describes the basic settings for creating a contract.
@@ -13,6 +14,8 @@ pub struct InstantiateMsg {
     pub token_code_id: u64,
     /// the deposit token address
     pub deposit_token_addr: String,
+    /// the marketing info of type [`InstantiateMarketingInfo`]
+    pub marketing: Option<InstantiateMarketingInfo>,
 }
 
 /// ## Description
