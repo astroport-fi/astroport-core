@@ -8,6 +8,7 @@ import {
     uploadContract
 } from './helpers.js'
 
+const CONTRACT_LABEL = "Astroport ASTRO"
 const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH! || '../artifacts/astroport_token.wasm'
 const TOKEN_INITIAL_AMOUNT = process.env.TOKEN_INITIAL_AMOUNT! || String(1_000_000_000_000000)
 
@@ -38,8 +39,10 @@ async function main() {
     }
 
     // Instantiate Astro token contract
-    let resp = await instantiateContract(terra, wallet, network.multisigAddress, network.tokenCodeID, TOKEN_INFO)
-    network.tokenAddress = resp.shift()
+    let resp = await instantiateContract(terra, wallet, network.multisigAddress, network.tokenCodeID, TOKEN_INFO, CONTRACT_LABEL)
+
+    // @ts-ignore
+    network.tokenAddress = resp.shift().shift()
     console.log("astro:", network.tokenAddress)
     console.log(await queryContract(terra, network.tokenAddress, { token_info: {} }))
     console.log(await queryContract(terra, network.tokenAddress, { minter: {} }))
