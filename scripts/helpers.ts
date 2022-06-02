@@ -11,8 +11,7 @@ import {
     MsgInstantiateContract,
     MsgMigrateContract,
     MsgStoreCode,
-    MsgUpdateContractAdmin,
-    StdTx,
+    MsgUpdateContractAdmin, Tx,
     Wallet
 } from '@terra-money/terra.js';
 import {
@@ -21,6 +20,7 @@ import {
 } from 'fs'
 import path from 'path'
 import { CustomError } from 'ts-custom-error'
+import util from "util";
 
 export const ARTIFACTS_PATH = '../artifacts'
 
@@ -76,7 +76,7 @@ export async function sleep(timeout: number) {
 
 export class TransactionError extends CustomError {
     public constructor(
-        public code: number,
+        public code: string | number,
         public codespace: string | undefined,
         public rawLog: string,
     ) {
@@ -85,18 +85,17 @@ export class TransactionError extends CustomError {
 }
 
 export async function createTransaction(wallet: Wallet, msg: Msg) {
-    return await wallet.createTx({ msgs: [msg]})
+    return await wallet.createAndSignTx({ msgs: [msg]})
 }
 
-export async function broadcastTransaction(terra: LCDClient, signedTx: StdTx) {
+export async function broadcastTransaction(terra: LCDClient, signedTx: Tx) {
     const result = await terra.tx.broadcast(signedTx)
     await sleep(TIMEOUT)
     return result
 }
 
 export async function performTransaction(terra: LCDClient, wallet: Wallet, msg: Msg) {
-    const tx = await createTransaction(wallet, msg)
-    const signedTx = await wallet.key.signTx(tx)
+    const signedTx = await createTransaction(wallet, msg)
     const result = await broadcastTransaction(terra, signedTx)
     if (isTxError(result)) {
         throw new TransactionError(result.code, result.codespace, result.raw_log)

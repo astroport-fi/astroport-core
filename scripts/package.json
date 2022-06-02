@@ -12,14 +12,15 @@
     "migrate": "bash migrate.sh"
   },
   "dependencies": {
-    "@terra-money/terra.js": "^2.0.14",
+    "@terra-money/terra.js": "^3.1.2",
     "bignumber.js": "^9.0.1",
     "dotenv": "^8.2.0",
+    "isomorphic-fetch": "^3.0.0",
     "ts-custom-error": "^3.2.0"
   },
   "devDependencies": {
     "eslint": "^7.24.0",
-    "ts-node": "^10.1.0",
+    "ts-node": "^10.8.0",
     "typescript": "^4.3.5"
   }
 }
