@@ -10,7 +10,7 @@ import {
 
 const CONTRACT_LABEL = "Astroport ASTRO"
 const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH! || '../artifacts/astroport_token.wasm'
-const TOKEN_INITIAL_AMOUNT = process.env.TOKEN_INITIAL_AMOUNT! || String(1_000_000_000_000000)
+const TOKEN_INITIAL_AMOUNT = process.env.TOKEN_INITIAL_AMOUNT! || String(1_100_000_000_000000)
 
 // Main
 async function main() {
@@ -22,7 +22,7 @@ async function main() {
     network.tokenCodeID = await uploadContract(terra, wallet, CW20_BINARY_PATH!)
     console.log(`Token codeId: ${network.tokenCodeID}`)
     // Token info
-    const TOKEN_NAME = "Astro"
+    const TOKEN_NAME = "Astroport"
     const TOKEN_SYMBOL = "ASTRO"
     const TOKEN_DECIMALS = 6
 
