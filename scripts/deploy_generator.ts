@@ -5,7 +5,7 @@ import {
     readArtifact,
     deployContract,
     executeContract,
-    toEncodedBinary, instantiateContract,
+    toEncodedBinary, queryContract,
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient} from '@terra-money/terra.js';
@@ -32,6 +32,8 @@ async function main() {
 
     await uploadAndInitVesting(terra, wallet)
     await uploadAndInitGenerator(terra, wallet)
+    // Set generator address in factory
+    await updateFactoryConfig(terra, wallet)
 
     // setup pools
     // await registerGenerator(terra, wallet, "terra17n5sunn88hpy965mzvt3079fqx3rttnplg779g", "28303")
@@ -163,6 +165,17 @@ async function setupVesting(terra: LCDClient, wallet: any, network: any) {
             msg: toEncodedBinary(msg)
         }
     })
+}
+
+async function updateFactoryConfig(terra: LCDClient, wallet: any) {
+    let network = readArtifact(terra.config.chainID)
+    await executeContract(terra, wallet, network.factoryAddress, {
+        update_config: {
+            generator_address: network.generatorAddress,
+        }
+    })
+
+    console.log(await queryContract(terra, network.factoryAddress, { config: {} }))
 }
 
 main().catch(console.log)
