@@ -33,7 +33,7 @@ async function main() {
         return
     }
 
-    await uploadPairContracts(terra, wallet)
+    //await uploadPairContracts(terra, wallet)
     await uploadAndInitStaking(terra, wallet)
     await uploadAndInitFactory(terra, wallet)
     await uploadAndInitRouter(terra, wallet)
@@ -177,6 +177,10 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
                 factory_contract: String(network.factoryAddress),
                 staking_contract: String(network.stakingAddress),
                 astro_token_contract: String(network.tokenAddress),
+                governance_contract: undefined,
+                governance_percent: "10",
+                max_spread: "50",
+                remainder_reward: ""
             },
             MAKER_LABEL
         )
