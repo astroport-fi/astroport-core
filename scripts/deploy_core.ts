@@ -95,7 +95,7 @@ async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
                 marketing: {
                     project: "Astroport",
                     description: "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
-                    marketing: "terra1mwdlh26e0x7cd46vmtjz48g39cdgc8selqdvtf",
+                    marketing: wallet.key.accAddress,
                     logo: {
                         url: "https://app.astroport.fi/tokens/xAstro.svg"
                     }
