@@ -19,9 +19,9 @@ pub mod xastro_token;
 // mod mock_querier;
 
 #[cfg(test)]
-mod testing;
-#[cfg(test)]
 mod mock_querier;
+#[cfg(test)]
+mod testing;
 
 #[allow(clippy::all)]
 mod uints {
