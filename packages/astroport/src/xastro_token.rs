@@ -75,9 +75,11 @@ pub enum QueryMsg {
 
 /// ## Description
 /// This structure describes a migration message.
-/// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub name: String,
+    pub symbol: String,
+}
 
 impl InstantiateMsg {
     pub fn get_cap(&self) -> Option<Uint128> {
