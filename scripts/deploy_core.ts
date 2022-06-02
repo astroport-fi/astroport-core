@@ -41,15 +41,15 @@ async function main() {
     await uploadAndInitRouter(terra, wallet)
     await uploadAndInitMaker(terra, wallet)
 
-    // Set new owner for admin
-    network = readArtifact(terra.config.chainID) // reload variables
-    console.log('Propose owner for factory. Onwership has to be claimed within 7 days')
-    await executeContract(terra, wallet, network.factoryAddress, {
-        "propose_new_owner": {
-            owner: network.multisigAddress,
-            expires_in: 604800 // 7 days
-        }
-    })
+    // // Set new owner for admin
+    // network = readArtifact(terra.config.chainID) // reload variables
+    // console.log('Propose owner for factory. Onwership has to be claimed within 7 days')
+    // await executeContract(terra, wallet, network.factoryAddress, {
+    //     "propose_new_owner": {
+    //         owner: network.multisigAddress,
+    //         expires_in: 604800 // 7 days
+    //     }
+    // })
 
 
     console.log('FINISH')
@@ -147,7 +147,7 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                 token_code_id: network.tokenCodeID,
                 generator_address: undefined,
                 fee_address: undefined,
-                whitelist_code_id: network.whiteListCodeID
+                whitelist_code_id: network.whitelistCodeID
             },
             FACTORY_LABEL
         )
