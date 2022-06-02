@@ -85,6 +85,7 @@ fn _do_instantiate(
             amount,
         }],
         mint: mint.clone(),
+        marketing: None,
     };
     let info = mock_info("creator", &[]);
     let env = mock_env();
@@ -122,6 +123,7 @@ mod instantiate {
                 amount,
             }],
             mint: None,
+            marketing: None,
         };
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -161,6 +163,7 @@ mod instantiate {
                 minter: minter.clone(),
                 cap: Some(limit),
             }),
+            marketing: None,
         };
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -207,6 +210,7 @@ mod instantiate {
                 minter,
                 cap: Some(limit),
             }),
+            marketing: None,
         };
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -323,6 +327,7 @@ fn instantiate_multiple_accounts() {
             },
         ],
         mint: None,
+        marketing: None,
     };
     let info = mock_info("creator", &[]);
     let env = mock_env();
