@@ -38,7 +38,7 @@ async function main() {
     }
 
     // Instantiate Astro token contract
-    let resp = await instantiateContract(terra, wallet, network.multisigAddress, network.tokenCodeID, TOKEN_INFO, "Astroport")
+    let resp = await instantiateContract(terra, wallet, network.multisigAddress, network.tokenCodeID, TOKEN_INFO)
     network.tokenAddress = resp.shift()
     console.log("astro:", network.tokenAddress)
     console.log(await queryContract(terra, network.tokenAddress, { token_info: {} }))
