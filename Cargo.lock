@@ -372,6 +372,7 @@ version = "1.0.0"
 dependencies = [
  "astroport 2.0.0",
  "astroport-factory",
+ "astroport-pair-stable",
  "astroport-token",
  "cosmwasm-bignumber",
  "cosmwasm-schema",

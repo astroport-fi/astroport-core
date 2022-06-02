@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{Asset, AssetInfo};
 
-use cosmwasm_std::{Binary, Decimal, Uint128};
+use cosmwasm_std::{Addr, Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
@@ -168,6 +168,8 @@ pub struct MigrateMsg {}
 pub struct StablePoolParams {
     /// The current stableswap pool amplification
     pub amp: u64,
+    /// The contract owner
+    pub owner: Addr,
 }
 
 /// This structure stores a stableswap pool's configuration.

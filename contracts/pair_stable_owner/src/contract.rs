@@ -3,7 +3,7 @@ use crate::math::{
     calc_ask_amount, calc_offer_amount, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE,
     MIN_AMP_CHANGING_TIME, N_COINS,
 };
-use crate::state::{Config, Owner, CONFIG, OWNER, OWNERSHIP_PROPOSAL};
+use crate::state::{Config, CONFIG, OWNERSHIP_PROPOSAL};
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{addr_validate_to_lower, format_lp_token_name, Asset, AssetInfo, PairInfo};
@@ -30,7 +30,7 @@ use astroport::querier::{
     query_factory_config, query_fee_info, query_supply, query_token_precision,
 };
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
 use std::cmp::Ordering;
@@ -54,6 +54,7 @@ const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 /// * **env** is an object of type [`Env`].
 ///
 /// * **_info** is an object of type [`MessageInfo`].
+///
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -82,6 +83,7 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
+        owner: params.owner,
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
@@ -243,7 +245,7 @@ pub fn execute(
             )
         }
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
-            let cur_owner: Owner = OWNER.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
 
             propose_new_owner(
                 deps,
@@ -251,22 +253,22 @@ pub fn execute(
                 env,
                 owner,
                 expires_in,
-                cur_owner.owner_addr,
+                config.owner,
                 OWNERSHIP_PROPOSAL,
             )
             .map_err(|e| e.into())
         }
         ExecuteMsg::DropOwnershipProposal {} => {
-            let cur_owner: Owner = OWNER.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
 
-            drop_ownership_proposal(deps, info, cur_owner.owner_addr, OWNERSHIP_PROPOSAL)
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
                 .map_err(|e| e.into())
         }
         ExecuteMsg::ClaimOwnership {} => {
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
-                OWNER.update::<_, StdError>(deps.storage, |mut v| {
-                    v.owner_addr = new_owner;
-                    Ok(v)
+                CONFIG.update::<_, StdError>(deps.storage, |mut config| {
+                    config.owner = new_owner;
+                    Ok(config)
                 })?;
 
                 Ok(())
@@ -1196,9 +1198,9 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
 /// * **deps** is an object of type [`Deps`].
 pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
-    let owner: Owner = OWNER.load(deps.storage).unwrap_or_default();
+
     Ok(ConfigResponse {
-        owner: owner.owner_addr.to_string(),
+        owner: config.owner.to_string(),
         block_time_last: config.block_time_last,
         params: Some(to_binary(&StablePoolConfig {
             amp: Decimal::from_ratio(compute_current_amp(&config, &env)?, AMP_PRECISION),
@@ -1422,13 +1424,44 @@ fn assert_slippage_tolerance(
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    let cur_owner = Owner {
-        owner_addr: env.contract.address,
-    };
-    OWNER.save(deps.storage, &cur_owner)?;
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
 
-    Ok(Response::default())
+    match contract_version.contract.as_ref() {
+        "astroport-pair-stable" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                let pair_config = astroport_pair_stable::state::CONFIG.load(deps.storage)?;
+                let factory_config =
+                    query_factory_config(&deps.querier, pair_config.factory_addr.clone())?;
+
+                CONFIG.save(
+                    deps.storage,
+                    &Config {
+                        owner: factory_config.owner,
+                        pair_info: pair_config.pair_info,
+                        factory_addr: pair_config.factory_addr,
+                        block_time_last: pair_config.block_time_last,
+                        price0_cumulative_last: pair_config.price0_cumulative_last,
+                        price1_cumulative_last: pair_config.price1_cumulative_last,
+                        init_amp: pair_config.init_amp,
+                        init_amp_time: pair_config.init_amp_time,
+                        next_amp: pair_config.next_amp,
+                        next_amp_time: pair_config.init_amp_time,
+                    },
+                )?;
+            }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
 
 /// ## Description
@@ -1464,9 +1497,8 @@ pub fn update_config(
     params: Binary,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let factory_config = query_factory_config(&deps.querier, config.factory_addr.clone())?;
 
-    if info.sender != factory_config.owner {
+    if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 

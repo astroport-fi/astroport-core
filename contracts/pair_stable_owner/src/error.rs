@@ -65,6 +65,9 @@ pub enum ContractError {
 
     #[error("Pool doesn't have any liquidity to facilitate the swap. Token0 = {0}, Token1 = {1}")]
     ZeroLiquidity(Uint128, Uint128),
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {

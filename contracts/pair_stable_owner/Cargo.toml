@@ -3,7 +3,7 @@ name = "astroport-pair-stable-owner"
 version = "1.0.0"
 authors = ["Astroport"]
 edition = "2021"
-description = "The Astroport stableswap pair contract implementation"
+description = "The Astroport stableswap pair contract implementation specifically designed for allowing pool admin changes."
 license = "MIT"
 
 exclude = [
@@ -34,6 +34,7 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }
 cosmwasm-bignumber = "2.2.0"
 protobuf = { version = "2", features = ["with-bytes"] }
+astroport-pair-stable = { path = "../pair_stable" }
 
 [dev-dependencies]
 cosmwasm-vm = { version = "0.16.2", default-features = false, features = ["iterator"] }
