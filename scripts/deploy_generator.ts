@@ -121,7 +121,8 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
             GENERATOR_LABEL
         )
 
-        network.generatorAddress = resp.shift()
+        // @ts-ignore
+        network.generatorAddress = resp.shift().shift()
         console.log(`Address Generator Contract: ${network.generatorAddress}`)
 
         writeArtifact(network, terra.config.chainID)

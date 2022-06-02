@@ -207,7 +207,7 @@ async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
 
     if (!network.whitelistCodeID) {
         console.log('Register Treasury Contract...')
-        network.whitelistCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_whitelist.wasm')!)
+        network.whitelistCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'cw1_whitelist.wasm')!)
     }
 
     if (!network.whitelistAddress) {
