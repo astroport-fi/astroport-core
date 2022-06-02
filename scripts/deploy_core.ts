@@ -88,8 +88,10 @@ async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
             STAKING_LABEL
         )
 
-        network.stakingAddress = resp.shift()
-        network.xastroAddress = resp.shift();
+        // @ts-ignore
+        network.stakingAddress = resp.shift().shift();
+        // @ts-ignore
+        network.xastroAddress = resp.shift().shift();
 
         console.log(`Address Staking Contract: ${network.stakingAddress}`)
         writeArtifact(network, terra.config.chainID)
@@ -131,7 +133,8 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
             },
             FACTORY_LABEL
         )
-        network.factoryAddress = resp.shift()
+        // @ts-ignore
+        network.factoryAddress = resp.shift().shift()
         console.log(`Address Factory Contract: ${network.factoryAddress}`)
         writeArtifact(network, terra.config.chainID)
     }
@@ -152,7 +155,8 @@ async function uploadAndInitRouter(terra: LCDClient, wallet: any) {
             },
             ROUTER_LABEL
         )
-        network.routerAddress = resp.shift()
+        // @ts-ignore
+        network.routerAddress = resp.shift().shift()
         console.log(`Address Router Contract: ${network.routerAddress}`)
         writeArtifact(network, terra.config.chainID)
     }
@@ -176,7 +180,8 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
             },
             MAKER_LABEL
         )
-        network.makerAddress = resp.shift()
+        // @ts-ignore
+        network.makerAddress = resp.shift().shift()
         console.log(`Address Maker Contract: ${network.makerAddress}`)
         writeArtifact(network, terra.config.chainID)
 
