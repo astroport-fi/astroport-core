@@ -12,6 +12,11 @@ import {LCDClient} from '@terra-money/terra.js';
 
 const ARTIFACTS_PATH = '../artifacts'
 
+const STAKING_LABEL = "Astroport Staking"
+const FACTORY_LABEL = "Astroport Factory"
+const ROUTER_LABEL = "Astroport Router"
+const MAKER_LABEL = "Astroport Maker"
+
 async function main() {
     const { terra, wallet } = newClient()
     console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
@@ -76,9 +81,11 @@ async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
             network.multisigAddress,
             join(ARTIFACTS_PATH, 'astroport_staking.wasm'),
             {
+                owner: network.multisigAddress,
                 token_code_id: network.tokenCodeID,
                 deposit_token_addr:  network.tokenAddress,
-            }
+            },
+            STAKING_LABEL
         )
 
         network.stakingAddress = resp.shift()
@@ -120,7 +127,9 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                 token_code_id: network.tokenCodeID,
                 generator_address: undefined,
                 fee_address: undefined,
-            }
+                whitelist_code_id: network.whiteListCodeID
+            },
+            FACTORY_LABEL
         )
         network.factoryAddress = resp.shift()
         console.log(`Address Factory Contract: ${network.factoryAddress}`)
@@ -141,6 +150,7 @@ async function uploadAndInitRouter(terra: LCDClient, wallet: any) {
             {
                 astroport_factory: network.factoryAddress,
             },
+            ROUTER_LABEL
         )
         network.routerAddress = resp.shift()
         console.log(`Address Router Contract: ${network.routerAddress}`)
@@ -163,7 +173,8 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
                 factory_contract: String(network.factoryAddress),
                 staking_contract: String(network.stakingAddress),
                 astro_token_contract: String(network.tokenAddress),
-            }
+            },
+            MAKER_LABEL
         )
         network.makerAddress = resp.shift()
         console.log(`Address Maker Contract: ${network.makerAddress}`)
