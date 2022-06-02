@@ -308,7 +308,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-token"
-version = "1.0.0"
+version = "1.0.0-fix-name"
 dependencies = [
  "astroport 1.2.0",
  "cosmwasm-schema",

@@ -1,9 +1,9 @@
 use cosmwasm_std::{
-    entry_point, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    attr, entry_point, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
 use cw20::{EmbeddedLogo, Logo, LogoInfo, MarketingInfoResponse};
 
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20_base::contract::{create_accounts, execute as cw20_execute, query as cw20_query};
 use cw20_base::msg::{ExecuteMsg, QueryMsg};
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
@@ -180,6 +180,40 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    let migration_error = Err(StdError::generic_err(format!(
+        "Contract {}, version {} is not supported",
+        contract_version.contract, contract_version.version
+    ))
+    .into());
+    match contract_version.contract.as_ref() {
+        "astroport-token" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                let mut token_info = TOKEN_INFO.load(deps.storage)?;
+                if token_info.name == "Astroport" && token_info.symbol == "ASTRO" {
+                    token_info.name = msg.name;
+                    token_info.symbol = msg.symbol;
+                } else {
+                    return Err(StdError::generic_err(format!(
+                        "Invalid token name ({}) or symbol ({})",
+                        token_info.name, token_info.symbol
+                    ))
+                    .into());
+                }
+            }
+            _ => return migration_error,
+        },
+        _ => return migration_error,
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("previous_contract_name", &contract_version.contract),
+        attr("previous_contract_version", &contract_version.version),
+        attr("new_contract_name", CONTRACT_NAME),
+        attr("new_contract_version", CONTRACT_VERSION),
+    ]))
 }
