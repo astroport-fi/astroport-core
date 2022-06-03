@@ -13,6 +13,7 @@ use astroport::asset::{
 };
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
+use astroport::math::decimal2decimal256;
 use astroport::pair::{migration_check, ConfigResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
@@ -1239,15 +1240,4 @@ pub fn pool_info(deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)>
     let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;
 
     Ok((pools, total_share))
-}
-
-/// ## Description
-/// Converts [`Decimal`] to [`Decimal256`].
-pub fn decimal2decimal256(dec_value: Decimal) -> StdResult<Decimal256> {
-    Decimal256::from_atomics(dec_value.atomics(), dec_value.decimal_places()).map_err(|_| {
-        StdError::generic_err(format!(
-            "Failed to convert Decimal {} to Decimal256",
-            dec_value
-        ))
-    })
 }
