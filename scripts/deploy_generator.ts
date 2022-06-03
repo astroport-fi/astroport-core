@@ -116,7 +116,7 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
                 owner: network.multisigAddress,
                 allowed_reward_proxies: [],
                 astro_token: network.tokenAddress,
-                start_block: '165213',
+                start_block: '106790', // 92390 + 144000
                 tokens_per_block: String(0),
                 vesting_contract: network.vestingAddress,
             },
