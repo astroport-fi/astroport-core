@@ -588,7 +588,7 @@ pub fn query_pairs(
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
 ) -> StdResult<PairsResponse> {
-    let pairs = read_pairs(deps, start_after, limit)?
+    let pairs: Vec<PairInfo> = read_pairs(deps, start_after, limit)
         .iter()
         .map(|pair_addr| query_pair_info(&deps.querier, pair_addr))
         .collect::<StdResult<Vec<_>>>()?;
