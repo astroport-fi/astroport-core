@@ -32,7 +32,7 @@ dependencies = [
 name = "astroport"
 version = "2.0.0"
 dependencies = [
- "cosmwasm-schema 1.0.0",
+ "cosmwasm-schema",
  "cosmwasm-std 1.0.0",
  "cw-storage-plus 0.13.4",
  "cw20 0.13.4",
@@ -92,7 +92,7 @@ dependencies = [
  "astroport 2.0.0",
  "astroport-pair",
  "astroport-token",
- "cosmwasm-schema 1.0.0",
+ "cosmwasm-schema",
  "cosmwasm-std 1.0.0",
  "cw-multi-test",
  "cw-storage-plus 0.13.4",
@@ -136,18 +136,18 @@ dependencies = [
  "astroport-token",
  "astroport-vesting",
  "astroport-whitelist",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-multi-test",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
  "generator-controller",
  "mirror-protocol 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mirror-staking",
  "protobuf",
  "schemars",
  "serde",
- "terra-multi-test",
  "thiserror",
  "voting-escrow",
 ]
@@ -157,11 +157,11 @@ name = "astroport-generator-proxy-to-mirror"
 version = "1.0.0"
 dependencies = [
  "astroport 2.0.0",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
  "mirror-protocol 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemars",
  "serde",
@@ -191,15 +191,14 @@ dependencies = [
  "astroport-governance",
  "astroport-pair",
  "astroport-token",
- "cosmwasm-bignumber",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-multi-test",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
  "schemars",
  "serde",
- "terra-multi-test",
  "thiserror",
 ]
 
@@ -212,16 +211,14 @@ dependencies = [
  "astroport-pair",
  "astroport-pair-stable",
  "astroport-token",
- "cosmwasm-bignumber",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-multi-test",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
  "schemars",
  "serde",
- "terra-cosmwasm",
- "terra-multi-test",
  "thiserror",
 ]
 
@@ -232,7 +229,7 @@ dependencies = [
  "astroport 2.0.0",
  "astroport-factory",
  "astroport-token",
- "cosmwasm-schema 1.0.0",
+ "cosmwasm-schema",
  "cosmwasm-std 1.0.0",
  "cw-multi-test",
  "cw-storage-plus 0.13.4",
@@ -253,7 +250,7 @@ dependencies = [
  "astroport 2.0.0",
  "astroport-factory",
  "astroport-token",
- "cosmwasm-schema 1.0.0",
+ "cosmwasm-schema",
  "cosmwasm-std 1.0.0",
  "cw-multi-test",
  "cw-storage-plus 0.13.4",
@@ -278,20 +275,18 @@ dependencies = [
  "astroport-token",
  "astroport-whitelist",
  "basset",
- "cosmwasm-bignumber",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-multi-test",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
  "integer-sqrt",
  "proptest",
  "protobuf",
  "schemars",
  "serde",
  "sim",
- "terra-cosmwasm",
- "terra-multi-test",
  "thiserror",
 ]
 
@@ -300,15 +295,14 @@ name = "astroport-router"
 version = "1.0.0"
 dependencies = [
  "astroport 2.0.0",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
  "integer-sqrt",
  "schemars",
  "serde",
- "terra-cosmwasm",
  "thiserror",
 ]
 
@@ -318,15 +312,15 @@ version = "1.0.0"
 dependencies = [
  "astroport 2.0.0",
  "astroport-token",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-multi-test",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
  "protobuf",
  "schemars",
  "serde",
- "terra-multi-test",
  "thiserror",
 ]
 
@@ -335,11 +329,11 @@ name = "astroport-token"
 version = "1.0.0"
 dependencies = [
  "astroport 2.0.0",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw2 0.8.1",
- "cw20 0.8.1",
- "cw20-base",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
+ "cw20-base 0.13.4",
  "schemars",
  "serde",
  "snafu",
@@ -351,14 +345,14 @@ version = "1.0.0"
 dependencies = [
  "astroport 2.0.0",
  "astroport-token",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-multi-test",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
  "schemars",
  "serde",
- "terra-multi-test",
  "thiserror",
 ]
 
@@ -369,16 +363,16 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "astroport 2.0.0",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw0 0.8.1",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-multi-test",
+ "cw-storage-plus 0.13.4",
+ "cw0 0.10.3",
  "cw1",
- "cw2 0.8.1",
+ "cw2 0.13.4",
  "derivative",
  "schemars",
  "serde",
- "terra-multi-test",
  "thiserror",
 ]
 
@@ -387,16 +381,16 @@ name = "astroport-xastro-token"
 version = "1.0.0"
 dependencies = [
  "astroport 2.0.0",
- "cosmwasm-schema 0.16.7",
- "cosmwasm-std 0.16.7",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "cw20 0.8.1",
- "cw20-base",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-multi-test",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
+ "cw20-base 0.13.4",
  "schemars",
  "serde",
  "snafu",
- "terra-multi-test",
 ]
 
 [[package]]
@@ -435,16 +429,6 @@ dependencies = [
  "serde",
  "terra-cosmwasm",
  "thiserror",
-]
-
-[[package]]
-name = "bigint"
-version = "4.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0e8c8a600052b52482eff2cf4d810e462fdff1f656ac1ecb6232132a1ed7def"
-dependencies = [
- "byteorder",
- "crunchy 0.1.6",
 ]
 
 [[package]]
@@ -508,18 +492,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4c78c047431fee22c1a7bb92e00ad095a02a983affe4d8a72e2a2c62c1b94f3"
 
 [[package]]
-name = "cosmwasm-bignumber"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce94de6dd2b3d74cd8d9bc2bf5d6208ffed832ad946774ea9ed2a9ef7d95161f"
-dependencies = [
- "bigint",
- "cosmwasm-std 0.16.7",
- "schemars",
- "serde",
-]
-
-[[package]]
 name = "cosmwasm-crypto"
 version = "0.16.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -561,16 +533,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b36e527620a2a3e00e46b6e731ab6c9b68d11069c986f7d7be8eba79ef081a4"
 dependencies = [
  "syn",
-]
-
-[[package]]
-name = "cosmwasm-schema"
-version = "0.16.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b021bdefb9d855c5135e83046e5407a9fddba869e42e78b6036b53a606dc8c10"
-dependencies = [
- "schemars",
- "serde_json",
 ]
 
 [[package]]
@@ -648,12 +610,6 @@ dependencies = [
 
 [[package]]
 name = "crunchy"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2f4a431c5c9f662e1200b7c7f02c34e91361150e382089a8f2dec3ba680cbda"
-
-[[package]]
-name = "crunchy"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
@@ -728,7 +684,7 @@ dependencies = [
  "cw-utils",
  "derivative",
  "itertools",
- "prost 0.9.0",
+ "prost",
  "schemars",
  "serde",
  "thiserror",
@@ -739,16 +695,6 @@ name = "cw-storage-plus"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1e867b9972b83b32e00e878dfbff48299ba26618dabeb19b9c56fae176dc225"
-dependencies = [
- "cosmwasm-std 0.16.7",
- "schemars",
- "serde",
-]
-
-[[package]]
-name = "cw-storage-plus"
-version = "0.9.1"
-source = "git+https://github.com/astroport-fi/terra-plus.git?tag=v0.9.1-terra#e0dcab33c0a414c6cfb2c24b78ddc606f574325f"
 dependencies = [
  "cosmwasm-std 0.16.7",
  "schemars",
@@ -792,10 +738,11 @@ dependencies = [
 
 [[package]]
 name = "cw0"
-version = "0.9.1"
-source = "git+https://github.com/astroport-fi/terra-plus.git?tag=v0.9.1-terra#e0dcab33c0a414c6cfb2c24b78ddc606f574325f"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ae676b6cced78a3d38ad4b01ab4ed66fc78ac191c3c0d6bfd5372cb2efd473b"
 dependencies = [
- "cosmwasm-std 0.16.7",
+ "cosmwasm-std 1.0.0",
  "schemars",
  "serde",
  "thiserror",
@@ -803,11 +750,11 @@ dependencies = [
 
 [[package]]
 name = "cw1"
-version = "0.8.1"
+version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b54b16025da3f2b31f033c1c4b917094126c385f6ffe7243560263509aed9c84"
+checksum = "362649aa18f898ff8a7a18f2bfc5568e9ba56417f3c9ce0e01bc32ccb2e125e0"
 dependencies = [
- "cosmwasm-std 0.16.7",
+ "cosmwasm-std 1.0.0",
  "schemars",
  "serde",
 ]
@@ -871,6 +818,22 @@ dependencies = [
  "cw0 0.8.1",
  "cw2 0.8.1",
  "cw20 0.8.1",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "cw20-base"
+version = "0.13.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0306e606581f4fb45e82bcbb7f0333179ed53dd949c6523f01a99b4bfc1475a0"
+dependencies = [
+ "cosmwasm-std 1.0.0",
+ "cw-storage-plus 0.13.4",
+ "cw-utils",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
  "schemars",
  "serde",
  "thiserror",
@@ -1447,35 +1410,12 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de5e2533f59d08fcf364fd374ebda0692a70bd6d7e66ef97f306f45c6c5d8020"
-dependencies = [
- "bytes",
- "prost-derive 0.8.0",
-]
-
-[[package]]
-name = "prost"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "444879275cb4fd84958b1a1d5420d15e6fcf7c235fe47f053c9c2a80aceb6001"
 dependencies = [
  "bytes",
- "prost-derive 0.9.0",
-]
-
-[[package]]
-name = "prost-derive"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "600d2f334aa05acb02a755e217ef1ab6dea4d51b58b7846588b747edec04efba"
-dependencies = [
- "anyhow",
- "itertools",
- "proc-macro2",
- "quote",
- "syn",
+ "prost-derive",
 ]
 
 [[package]]
@@ -1889,37 +1829,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "terra-mocks"
-version = "0.0.0"
-source = "git+https://github.com/terra-money/cosmwasm-contracts.git?rev=b25f4ac2d7bddaa3a18838cfe51d18e1ae855dcd#b25f4ac2d7bddaa3a18838cfe51d18e1ae855dcd"
-dependencies = [
- "cosmwasm-std 0.16.7",
- "schemars",
- "serde",
- "terra-cosmwasm",
-]
-
-[[package]]
-name = "terra-multi-test"
-version = "0.9.1"
-source = "git+https://github.com/astroport-fi/terra-plus.git?tag=v0.9.1-terra#e0dcab33c0a414c6cfb2c24b78ddc606f574325f"
-dependencies = [
- "anyhow",
- "cosmwasm-std 0.16.7",
- "cosmwasm-storage 0.16.7",
- "cw-storage-plus 0.9.1",
- "cw0 0.9.1",
- "derivative",
- "itertools",
- "prost 0.8.0",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "terra-mocks",
- "thiserror",
-]
-
-[[package]]
 name = "terraswap"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1966,7 +1875,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12f03af7ccf01dd611cc450a0d10dbc9b745770d096473e2faf0ca6e2d66d1e0"
 dependencies = [
  "byteorder",
- "crunchy 0.2.2",
+ "crunchy",
  "hex",
  "static_assertions",
 ]
@@ -2000,7 +1909,7 @@ dependencies = [
  "cw-storage-plus 0.8.1",
  "cw2 0.8.1",
  "cw20 0.8.1",
- "cw20-base",
+ "cw20-base 0.8.1",
  "schemars",
  "serde",
  "terra-cosmwasm",
