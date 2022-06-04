@@ -10,6 +10,9 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
+
+    #[error("An error occurred during migration")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {
