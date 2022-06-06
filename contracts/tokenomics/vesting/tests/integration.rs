@@ -498,6 +498,7 @@ fn instantiate_token(
             minter: String::from(OWNER1),
             cap: cap.map(|v| Uint128::from(v)),
         }),
+        marketing: None,
     };
 
     app.instantiate_contract(

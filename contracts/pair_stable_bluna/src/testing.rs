@@ -113,6 +113,7 @@ fn proper_initialization() {
                             minter: String::from(MOCK_CONTRACT_ADDR),
                             cap: None,
                         }),
+                        marketing: None
                     })
                     .unwrap(),
                     funds: vec![],

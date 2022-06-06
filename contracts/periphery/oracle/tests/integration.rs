@@ -48,6 +48,7 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, u64
             minter: owner.to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     let astro_token_instance = router
@@ -155,6 +156,7 @@ fn instantiate_token(router: &mut TerraApp, owner: Addr, name: String, symbol: S
             minter: owner.to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     let token_instance = router

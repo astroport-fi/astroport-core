@@ -229,6 +229,7 @@ fn create_pair() {
             minter: owner_addr.to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     let token_instance0 = app
@@ -253,6 +254,7 @@ fn create_pair() {
             minter: owner_addr.to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     let token_instance1 = app
