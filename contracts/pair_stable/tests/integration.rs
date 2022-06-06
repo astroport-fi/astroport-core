@@ -440,6 +440,25 @@ fn provide_lp_for_single_token() {
     app.execute_contract(owner.clone(), token_y_instance.clone(), &msg, &[])
         .unwrap();
 
+    let swap_msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Swap {
+            belief_price: None,
+            max_spread: None,
+            to: None,
+        })
+        .unwrap(),
+        amount: swap_amount,
+    };
+
+    let err = app
+        .execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        "Generic error: Pool doesn't have any liquidity to facilitate the swap. Token0 = 0, Token1 = 0",
+        err.to_string()
+    );
+
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [
             Asset {
@@ -516,33 +535,11 @@ fn provide_lp_for_single_token() {
         .unwrap();
 
     // try swap 120_000_000 from token_y to token_x (from lower token amount to higher)
-    let msg = Cw20ExecuteMsg::Send {
-        contract: pair_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Swap {
-            belief_price: None,
-            max_spread: None,
-            to: None,
-        })
-        .unwrap(),
-        amount: swap_amount,
-    };
-
-    app.execute_contract(owner.clone(), token_y_instance.clone(), &msg, &[])
+    app.execute_contract(owner.clone(), token_y_instance.clone(), &swap_msg, &[])
         .unwrap();
 
     // try swap 120_000_000 from token_x to token_y (from higher token amount to lower )
-    let msg = Cw20ExecuteMsg::Send {
-        contract: pair_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Swap {
-            belief_price: None,
-            max_spread: None,
-            to: None,
-        })
-        .unwrap(),
-        amount: swap_amount,
-    };
-
-    app.execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
+    app.execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
         .unwrap();
 
     // try to provide for single token and increase the ratio in the pool from 1 to 2.5
