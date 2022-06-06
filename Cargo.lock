@@ -129,8 +129,6 @@ dependencies = [
  "cw2",
  "cw20",
  "generator-controller",
- "mirror-protocol 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mirror-staking",
  "protobuf",
  "schemars",
  "serde",
@@ -149,7 +147,7 @@ dependencies = [
  "cw-storage-plus 0.8.1",
  "cw2",
  "cw20",
- "mirror-protocol 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mirror-protocol",
  "schemars",
  "serde",
  "thiserror",
@@ -1037,33 +1035,6 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
- "schemars",
- "serde",
- "terraswap",
-]
-
-[[package]]
-name = "mirror-protocol"
-version = "2.1.1"
-source = "git+https://github.com/Mirror-Protocol/mirror-contracts.git?tag=v2.1.1#485f63677decb2c106778037d38314995ea6955e"
-dependencies = [
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "schemars",
- "serde",
- "terraswap",
-]
-
-[[package]]
-name = "mirror-staking"
-version = "2.1.1"
-source = "git+https://github.com/Mirror-Protocol/mirror-contracts.git?tag=v2.1.1#485f63677decb2c106778037d38314995ea6955e"
-dependencies = [
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "mirror-protocol 2.1.1 (git+https://github.com/Mirror-Protocol/mirror-contracts.git?tag=v2.1.1)",
  "schemars",
  "serde",
  "terraswap",
