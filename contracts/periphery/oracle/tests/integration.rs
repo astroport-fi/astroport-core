@@ -1,9 +1,8 @@
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
     attr, to_binary, Addr, BlockInfo, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
+use cw_multi_test::{App, ContractWrapper, Executor};
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
@@ -14,23 +13,11 @@ use astroport::oracle::QueryMsg::Consult;
 use astroport::oracle::{ExecuteMsg, InstantiateMsg};
 use astroport::pair::StablePoolParams;
 
-fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+fn mock_app() -> App {
+    App::default()
 }
 
-fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, u64) {
+fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
@@ -139,7 +126,7 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, u64
     (astro_token_instance, factory_instance, oracle_code_id)
 }
 
-fn instantiate_token(router: &mut TerraApp, owner: Addr, name: String, symbol: String) -> Addr {
+fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String) -> Addr {
     let token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
@@ -172,13 +159,7 @@ fn instantiate_token(router: &mut TerraApp, owner: Addr, name: String, symbol: S
     token_instance
 }
 
-fn mint_some_token(
-    router: &mut TerraApp,
-    owner: Addr,
-    token_instance: Addr,
-    to: Addr,
-    amount: Uint128,
-) {
+fn mint_some_token(router: &mut App, owner: Addr, token_instance: Addr, to: Addr, amount: Uint128) {
     let msg = cw20::Cw20ExecuteMsg::Mint {
         recipient: to.to_string(),
         amount,
@@ -191,13 +172,7 @@ fn mint_some_token(
     assert_eq!(res.events[1].attributes[3], attr("amount", amount));
 }
 
-fn allowance_token(
-    router: &mut TerraApp,
-    owner: Addr,
-    spender: Addr,
-    token: Addr,
-    amount: Uint128,
-) {
+fn allowance_token(router: &mut App, owner: Addr, spender: Addr, token: Addr, amount: Uint128) {
     let msg = cw20::Cw20ExecuteMsg::IncreaseAllowance {
         spender: spender.to_string(),
         amount,
@@ -221,7 +196,7 @@ fn allowance_token(
     assert_eq!(res.events[1].attributes[4], attr("amount", amount));
 }
 
-fn check_balance(router: &mut TerraApp, user: Addr, token: Addr, expected_amount: Uint128) {
+fn check_balance(router: &mut App, user: Addr, token: Addr, expected_amount: Uint128) {
     let msg = Cw20QueryMsg::Balance {
         address: user.to_string(),
     };
@@ -238,7 +213,7 @@ fn check_balance(router: &mut TerraApp, user: Addr, token: Addr, expected_amount
 }
 
 fn create_pair(
-    mut router: &mut TerraApp,
+    mut router: &mut App,
     owner: Addr,
     user: Addr,
     factory_instance: &Addr,
@@ -323,7 +298,15 @@ fn create_pair(
         }
     }
 
-    router.init_bank_balance(&user, funds.clone()).unwrap();
+    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
+    for fund in funds.clone() {
+        // we cannot transfer empty coins amount
+        if !fund.amount.is_zero() {
+            router
+                .send_tokens(owner.clone(), user.clone(), &[fund])
+                .unwrap();
+        }
+    }
 
     router
         .execute_contract(
@@ -343,7 +326,7 @@ fn create_pair(
 }
 
 fn create_pair_stable(
-    mut router: &mut TerraApp,
+    mut router: &mut App,
     owner: Addr,
     user: Addr,
     factory_instance: &Addr,
@@ -428,7 +411,15 @@ fn create_pair_stable(
         }
     }
 
-    router.init_bank_balance(&user, funds.clone()).unwrap();
+    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
+    for fund in funds.clone() {
+        // we cannot transfer empty coins amount
+        if !fund.amount.is_zero() {
+            router
+                .send_tokens(owner.clone(), user.clone(), &[fund])
+                .unwrap();
+        }
+    }
 
     router
         .execute_contract(
@@ -448,7 +439,7 @@ fn create_pair_stable(
 }
 
 fn change_provide_liquidity(
-    mut router: &mut TerraApp,
+    mut router: &mut App,
     owner: Addr,
     user: Addr,
     pair_contract: Addr,
@@ -606,7 +597,7 @@ fn consult() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(e.to_string(), "Period not elapsed",);
+    assert_eq!(e.root_cause().to_string(), "Period not elapsed",);
     router.update_block(next_day);
 
     // Change pair liquidity
@@ -737,7 +728,7 @@ fn consult_pair_stable() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(e.to_string(), "Period not elapsed",);
+    assert_eq!(e.root_cause().to_string(), "Period not elapsed",);
     router.update_block(next_day);
 
     // Change pair liquidity
@@ -868,7 +859,7 @@ fn consult2() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(e.to_string(), "Period not elapsed",);
+    assert_eq!(e.root_cause().to_string(), "Period not elapsed",);
     router.update_block(next_day);
     router
         .execute_contract(
@@ -1050,7 +1041,7 @@ fn consult_zero_price() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(e.to_string(), "Period not elapsed",);
+    assert_eq!(e.root_cause().to_string(), "Period not elapsed",);
     router.update_block(next_day);
     router
         .execute_contract(
