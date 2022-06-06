@@ -14,8 +14,8 @@ use cosmwasm_std::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
-    addr_opt_validate, addr_validate_to_lower, format_lp_token_name, token_asset_info, Asset,
-    AssetInfo, PairInfo,
+    addr_opt_validate, addr_validate_to_lower, format_lp_token_name, is_non_zero_liquidity,
+    token_asset_info, Asset, AssetInfo, PairInfo,
 };
 use astroport::factory::PairType;
 
