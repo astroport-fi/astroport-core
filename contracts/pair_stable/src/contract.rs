@@ -1197,7 +1197,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
 /// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
 ///
 /// * **amp** is an object of type [`u64`]. This is the pool amplification used to calculate the swap result.
-fn compute_swap(
+pub fn compute_swap(
     offer_pool: Uint128,
     offer_precision: u8,
     ask_pool: Uint128,
@@ -1207,6 +1207,9 @@ fn compute_swap(
     amp: u64,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // offer => ask
+    if offer_amount.is_zero() {
+        return Err(StdError::generic_err("Offer amount should not be zero"));
+    }
 
     let greater_precision = offer_precision.max(ask_precision);
     let offer_pool = adjust_precision(offer_pool, offer_precision, greater_precision)?;
@@ -1246,7 +1249,7 @@ fn compute_swap(
 /// * **ask_amount** is an object of type [`Uint128`]. This is the amount of ask assets to swap to.
 ///
 /// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
-fn compute_offer_amount(
+pub fn compute_offer_amount(
     offer_pool: Uint128,
     offer_precision: u8,
     ask_pool: Uint128,
@@ -1256,6 +1259,9 @@ fn compute_offer_amount(
     amp: u64,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
+    if ask_pool.is_zero() {
+        return Err(StdError::generic_err("Ask pool is empty"));
+    }
 
     let greater_precision = offer_precision.max(ask_precision);
     let offer_pool = adjust_precision(offer_pool, offer_precision, greater_precision)?;

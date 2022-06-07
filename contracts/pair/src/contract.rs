@@ -1054,12 +1054,16 @@ pub fn compute_swap(
     offer_amount: Uint128,
     commission_rate: Decimal,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
+    // offer => ask
+    if offer_pool.is_zero() {
+        return Err(StdError::generic_err("Offer pool is empty"));
+    }
+
     let offer_pool: Uint256 = offer_pool.into();
     let ask_pool: Uint256 = ask_pool.into();
     let offer_amount: Uint256 = offer_amount.into();
     let commission_rate: Decimal256 = commission_rate.into();
 
-    // offer => ask
     // ask_amount = (ask_pool - cp / (offer_pool + offer_amount))
     let cp: Uint256 = offer_pool * ask_pool;
     let return_amount: Uint256 = (Decimal256::from_uint256(ask_pool)
@@ -1090,13 +1094,17 @@ pub fn compute_swap(
 /// * **ask_amount** is an object of type [`Uint128`]. This is the amount of ask assets to swap to.
 ///
 /// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
-fn compute_offer_amount(
+pub fn compute_offer_amount(
     offer_pool: Uint128,
     ask_pool: Uint128,
     ask_amount: Uint128,
     commission_rate: Decimal,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
+    if offer_pool.is_zero() || ask_pool.is_zero() {
+        return Err(StdError::generic_err("One of pools is empty"));
+    }
+
     // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
     let cp = Uint256::from(offer_pool) * Uint256::from(ask_pool);
     let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
