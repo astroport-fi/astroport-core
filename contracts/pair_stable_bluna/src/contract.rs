@@ -8,7 +8,6 @@ use crate::state::{
     Config, BLUNA_REWARD_GLOBAL_INDEX, BLUNA_REWARD_HOLDER, BLUNA_REWARD_USER_INDEXES, CONFIG,
 };
 
-use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
     Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint256,
@@ -1304,8 +1303,10 @@ pub fn query_pending_reward(deps: Deps, env: Env, user: String) -> StdResult<Ass
 
     let mut accrued_rewards_index = Decimal256::zero();
     if !pool_info.lp_supply.is_zero() {
-        accrued_rewards_index =
-            Decimal256::from_ratio(accrued_rewards.rewards, pool_info.lp_supply);
+        accrued_rewards_index = Decimal256::from_ratio(
+            Uint256::from(accrued_rewards.rewards.u128()),
+            Uint256::from(pool_info.lp_supply.u128()),
+        );
     }
 
     Ok(Asset {
@@ -1399,8 +1400,8 @@ fn compute_offer_amount(
     let ask_pool = adjust_precision(ask_pool, ask_precision, greater_precision)?;
     let ask_amount = adjust_precision(ask_amount, ask_precision, greater_precision)?;
 
-    let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
-    let inv_one_minus_commission: Decimal = (Decimal256::one() / one_minus_commission).into();
+    let one_minus_commission = Decimal::one() - commission_rate;
+    let inv_one_minus_commission = Decimal::one() / one_minus_commission;
     let before_commission_deduction = ask_amount * inv_one_minus_commission;
 
     let offer_amount = Uint128::new(
@@ -1480,8 +1481,7 @@ pub fn assert_max_spread(
     }
 
     if let Some(belief_price) = belief_price {
-        let expected_return =
-            offer_amount * Decimal::from(Decimal256::one() / Decimal256::from(belief_price));
+        let expected_return = offer_amount * (Decimal::one() / belief_price);
         let spread_amount = expected_return
             .checked_sub(return_amount)
             .unwrap_or_else(|_| Uint128::zero());
