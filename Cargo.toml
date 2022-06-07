@@ -4,7 +4,6 @@ members = [
     "packages/*",
     "contracts/factory",
     "contracts/pair",
-    "contracts/pair_anchor",
     "contracts/pair_stable",
     "contracts/pair_stable_bluna",
     "contracts/router",
@@ -24,3 +23,4 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
+strip = true

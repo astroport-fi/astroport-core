@@ -4,11 +4,12 @@ use astroport::factory::{
     QueryMsg as FactoryQueryMsg,
 };
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, TWAP_PRECISION,
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
+    TWAP_PRECISION,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
 
@@ -125,6 +126,10 @@ fn test_provide_and_withdraw_liquidity() {
                     denom: "uluna".to_string(),
                     amount: Uint128::new(200u128),
                 },
+                Coin {
+                    denom: "cny".to_string(),
+                    amount: Uint128::from(1000u16),
+                },
             ],
         )
         .unwrap();
@@ -132,11 +137,11 @@ fn test_provide_and_withdraw_liquidity() {
     // Init pair
     let pair_instance = instantiate_pair(&mut router, &owner);
 
-    let res: Result<PairInfo, _> = router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: pair_instance.to_string(),
-        msg: to_binary(&QueryMsg::Pair {}).unwrap(),
-    }));
-    let res = res.unwrap();
+    let res: PairInfo = router
+        .wrap()
+        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pair {})
+        .unwrap();
+    let lp_token = res.liquidity_token;
 
     assert_eq!(
         res.asset_infos,
@@ -217,6 +222,82 @@ fn test_provide_and_withdraw_liquidity() {
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "bob"));
     assert_eq!(res.events[3].attributes[3], attr("amount", 50.to_string()));
+
+    // Checking withdraw liquidity
+    let token_contract_code_id = store_token_code(&mut router);
+    let foo_token = router
+        .instantiate_contract(
+            token_contract_code_id,
+            owner.clone(),
+            &astroport::token::InstantiateMsg {
+                name: "Foo token".to_string(),
+                symbol: "FOO".to_string(),
+                decimals: 6,
+                initial_balances: vec![Cw20Coin {
+                    address: alice_address.to_string(),
+                    amount: Uint128::from(1000000000u128),
+                }],
+                mint: None,
+            },
+            &[],
+            String::from("FOO"),
+            None,
+        )
+        .unwrap();
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        amount: Uint128::from(50u8),
+        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
+    };
+    // Try to send withdraw liquidity with FOO token
+    let err = router
+        .execute_contract(alice_address.clone(), foo_token.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Unauthorized");
+    // Withdraw with LP token is successful
+    router
+        .execute_contract(alice_address.clone(), lp_token.clone(), &msg, &[])
+        .unwrap();
+
+    let err = router
+        .execute_contract(
+            alice_address.clone(),
+            pair_instance.clone(),
+            &ExecuteMsg::Swap {
+                offer_asset: Asset {
+                    info: AssetInfo::NativeToken {
+                        denom: "cny".to_string(),
+                    },
+                    amount: Uint128::from(10u8),
+                },
+                belief_price: None,
+                max_spread: None,
+                to: None,
+            },
+            &[Coin {
+                denom: "cny".to_string(),
+                amount: Uint128::from(10u8),
+            }],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Asset mismatch between the requested and the stored asset in contract"
+    );
+
+    // Check pair config
+    let config: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(
+        config,
+        ConfigResponse {
+            block_time_last: router.block_info().time.seconds(),
+            params: None
+        }
+    )
 }
 
 fn provide_liquidity_msg(

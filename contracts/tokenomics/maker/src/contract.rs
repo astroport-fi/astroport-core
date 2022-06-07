@@ -2,7 +2,6 @@ use crate::error::ContractError;
 use crate::state::{Config, BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
 use std::cmp::min;
 
-use crate::migration;
 use crate::utils::{
     build_distribute_msg, build_swap_msg, get_pool, try_build_swap_msg, validate_bridge,
     BRIDGES_EXECUTION_MAX_DEPTH, BRIDGES_INITIAL_DEPTH,
@@ -22,7 +21,7 @@ use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Order, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
-use cw2::{get_contract_version, set_contract_version};
+use cw2::set_contract_version;
 use cw20::Cw20ExecuteMsg;
 use std::collections::{HashMap, HashSet};
 
@@ -910,41 +909,6 @@ pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<[AssetInfo; 2]> 
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    let contract_version = get_contract_version(deps.storage)?;
-
-    match contract_version.contract.as_ref() {
-        "astroport-maker" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                let config_v100 = migration::CONFIGV100.load(deps.storage)?;
-
-                let new_config = Config {
-                    owner: config_v100.owner,
-                    factory_contract: config_v100.factory_contract,
-                    staking_contract: config_v100.staking_contract,
-                    governance_contract: config_v100.governance_contract,
-                    governance_percent: config_v100.governance_percent,
-                    astro_token_contract: config_v100.astro_token_contract,
-                    max_spread: config_v100.max_spread,
-                    rewards_enabled: false,
-                    pre_upgrade_blocks: 0,
-                    last_distribution_block: 0,
-                    remainder_reward: Uint128::zero(),
-                    pre_upgrade_astro_amount: Uint128::zero(),
-                };
-
-                CONFIG.save(deps.storage, &new_config)?;
-            }
-            _ => return Err(ContractError::MigrationError {}),
-        },
-        _ => return Err(ContractError::MigrationError {}),
-    }
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version)
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Err(ContractError::MigrationError {})
 }
