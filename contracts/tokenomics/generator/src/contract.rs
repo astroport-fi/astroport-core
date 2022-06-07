@@ -812,9 +812,9 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             let data = msg
                 .result
                 .into_result()
-                .unwrap() // Invalid reply!
+                .map_err(|_| StdError::generic_err("Failed to get reply"))?
                 .data
-                .unwrap(); // No data in reply
+                .ok_or_else(|| StdError::generic_err("No data in reply"))?;
             let res: MsgInstantiateContractResponse = Message::parse_from_bytes(data.as_slice())
                 .map_err(|_| {
                     StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
