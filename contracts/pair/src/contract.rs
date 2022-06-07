@@ -1102,7 +1102,7 @@ pub fn compute_offer_amount(
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
     if offer_pool.is_zero() || ask_pool.is_zero() {
-        return Err(StdError::generic_err("One of pools is empty"));
+        return Err(StdError::generic_err("One of the pools is empty"));
     }
 
     // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool

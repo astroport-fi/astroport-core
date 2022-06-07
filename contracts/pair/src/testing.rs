@@ -1444,27 +1444,27 @@ fn ensure_useful_error_messages_are_given_on_swaps() {
     // Computing offer
     assert_eq!(
         compute_offer_amount(ZERO, ZERO, ZERO, DZERO).unwrap_err(),
-        StdError::generic_err("One of pools is empty")
+        StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
         compute_offer_amount(ZERO, ZERO, AMOUNT, DZERO).unwrap_err(),
-        StdError::generic_err("One of pools is empty")
+        StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
         compute_offer_amount(ZERO, ASK, ZERO, DZERO).unwrap_err(),
-        StdError::generic_err("One of pools is empty")
+        StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
         compute_offer_amount(ZERO, ASK, AMOUNT, DZERO).unwrap_err(),
-        StdError::generic_err("One of pools is empty")
+        StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
         compute_offer_amount(OFFER, ZERO, ZERO, DZERO).unwrap_err(),
-        StdError::generic_err("One of pools is empty")
+        StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
         compute_offer_amount(OFFER, ZERO, AMOUNT, DZERO).unwrap_err(),
-        StdError::generic_err("One of pools is empty")
+        StdError::generic_err("One of the pools is empty")
     );
     compute_offer_amount(OFFER, ASK, ZERO, DZERO).unwrap();
     compute_offer_amount(OFFER, ASK, AMOUNT, DZERO).unwrap();
