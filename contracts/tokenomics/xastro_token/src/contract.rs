@@ -8,7 +8,7 @@ use cw20_base::allowances::{
 };
 
 use crate::state::{capture_total_supply_history, get_total_supply_at, BALANCES};
-use astroport::asset::addr_validate_to_lower;
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower};
 use astroport::xastro_token::{InstantiateMsg, QueryMsg};
 use cw2::set_contract_version;
 use cw20_base::contract::{
@@ -684,16 +684,14 @@ pub fn query_all_accounts(
     limit: Option<u32>,
 ) -> StdResult<AllAccountsResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after
-        .map(|addr| addr_validate_to_lower(deps.api, &addr))
-        .transpose()?;
+    let start = addr_opt_validate(deps.api, &start_after)?;
     let start = start.as_ref().map(Bound::exclusive);
 
     let accounts = BALANCES
         .keys(deps.storage, start, None, Order::Ascending)
         .take(limit)
-        .map(|addr| addr.map(String::from))
-        .collect::<StdResult<Vec<_>>>()?;
+        .map(|addr| addr.map(Into::into))
+        .collect::<StdResult<_>>()?;
 
     Ok(AllAccountsResponse { accounts })
 }

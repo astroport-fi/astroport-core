@@ -1324,7 +1324,7 @@ pub fn assert_max_spread(
         let expected_return = offer_amount
             * belief_price.inv().ok_or_else(|| {
                 ContractError::Std(StdError::generic_err(
-                    "Invalid belief_price unwrapping. Check the input values.",
+                    "Invalid belief_price. Check the input values.",
                 ))
             })?;
 

@@ -9,7 +9,7 @@ use cw20_base::msg::{ExecuteMsg, QueryMsg};
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw20_base::ContractError;
 
-use astroport::asset::addr_validate_to_lower;
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower};
 use astroport::token::{InstantiateMsg, MigrateMsg};
 
 /// Contract name that is used for migration.
@@ -109,9 +109,7 @@ pub fn instantiate(
     // Check supply cap
     if let Some(limit) = msg.get_cap() {
         if total_supply > limit {
-            return Err(ContractError::Std(StdError::generic_err(
-                "Initial supply greater than cap",
-            )));
+            return Err(StdError::generic_err("Initial supply greater than cap").into());
         }
     }
 
@@ -150,10 +148,7 @@ pub fn instantiate(
         let data = MarketingInfoResponse {
             project: marketing.project,
             description: marketing.description,
-            marketing: marketing
-                .marketing
-                .map(|addr| deps.api.addr_validate(&addr))
-                .transpose()?,
+            marketing: addr_opt_validate(deps.api, &marketing.marketing)?,
             logo,
         };
         MARKETING_INFO.save(deps.storage, &data)?;

@@ -25,7 +25,7 @@ fn proper_initialization() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
 
-    // we can just call .unwrap() to assert this was a success
+    // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     // it worked, let's query the state
@@ -456,7 +456,7 @@ fn assert_minimum_receive_native_token() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    // success
+    // Success
     let msg = ExecuteMsg::AssertMinimumReceive {
         asset_info: AssetInfo::NativeToken {
             denom: "uusd".to_string(),

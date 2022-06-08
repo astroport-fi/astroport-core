@@ -12,9 +12,9 @@ use astroport::asset::{
     addr_opt_validate, addr_validate_to_lower, format_lp_token_name, is_non_zero_liquidity, Asset,
     AssetInfo, PairInfo,
 };
+use astroport::decimal2decimal256;
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
-use astroport::math::decimal2decimal256;
 use astroport::pair::{migration_check, ConfigResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
@@ -1102,8 +1102,7 @@ fn compute_offer_amount(
 
     let before_commission_deduction = Uint256::from(ask_amount) * inv_one_minus_commission;
     let spread_amount = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool))
-        .checked_sub(before_commission_deduction.try_into()?)
-        .unwrap_or_else(|_| Uint128::zero());
+        .saturating_sub(before_commission_deduction.try_into()?);
     let commission_amount = before_commission_deduction * decimal2decimal256(commission_rate)?;
     Ok((offer_amount, spread_amount, commission_amount.try_into()?))
 }

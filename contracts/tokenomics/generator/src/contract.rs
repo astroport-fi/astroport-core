@@ -2300,9 +2300,7 @@ pub fn query_list_of_stakers(
 
     if POOL_INFO.has(deps.storage, &lp_addr) {
         let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-        let start = start_after
-            .map(|start| addr_validate_to_lower(deps.api, &start))
-            .transpose()?;
+        let start = addr_opt_validate(deps.api, &start_after)?;
         let start = start.as_ref().map(Bound::exclusive);
 
         active_stakers = USER_INFO

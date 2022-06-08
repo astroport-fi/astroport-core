@@ -1304,10 +1304,8 @@ pub fn query_pending_reward(deps: Deps, env: Env, user: String) -> StdResult<Ass
 
     let mut accrued_rewards_index = Decimal256::zero();
     if !pool_info.lp_supply.is_zero() {
-        accrued_rewards_index = Decimal256::from_ratio(
-            Uint256::from(accrued_rewards.rewards.u128()),
-            Uint256::from(pool_info.lp_supply.u128()),
-        );
+        accrued_rewards_index =
+            Decimal256::from_ratio(accrued_rewards.rewards.u128(), pool_info.lp_supply.u128());
     }
 
     Ok(Asset {

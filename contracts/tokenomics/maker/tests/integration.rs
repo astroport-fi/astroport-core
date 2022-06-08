@@ -33,7 +33,7 @@ fn mock_app(owner: Addr, coins: Vec<Coin>) -> App {
 fn validate_and_send_funds(router: &mut App, sender: &Addr, recipient: &Addr, funds: Vec<Coin>) {
     // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
     for fund in funds.clone() {
-        // we cannot transfer empty coins amount
+        // we cannot transfer zero coins
         if !fund.amount.is_zero() {
             router
                 .send_tokens(sender.clone(), recipient.clone(), &[fund])
@@ -503,7 +503,7 @@ fn test_maker_collect(
     factory_instance: Addr,
     maker_instance: Addr,
     staking: Addr,
-    _governance: Addr,
+    governance: Addr,
     governance_percent: Uint64,
     pairs: Vec<[Asset; 2]>,
     assets: Vec<AssetWithLimit>,
@@ -614,17 +614,16 @@ fn test_maker_collect(
 
         // Check balances
         let amount = Uint128::new(amount);
-        let _governance_amount =
+        let governance_amount =
             amount.multiply_ratio(Uint128::from(governance_percent), Uint128::new(100));
-        //let staking_amount = amount - governance_amount;
-        let staking_amount = amount;
+        let staking_amount = amount - governance_amount;
 
-        // check_balance(
-        //     &mut router,
-        //     governance.clone(),
-        //     token.clone(),
-        //     governance_amount,
-        // );
+        check_balance(
+            &mut router,
+            governance.clone(),
+            token.clone(),
+            governance_amount,
+        );
 
         check_balance(&mut router, staking.clone(), token, staking_amount);
     }
@@ -917,7 +916,7 @@ fn collect_default_bridges() {
         // 170 uusd (-25 native transfer fee) -> 145 uusd -> 144 ASTRO
 
         // Total: 25
-        (astro_token_instance, 266u128),
+        (astro_token_instance, 295u128),
         // (bridge_uusd_token_instance, 0u128),
         // (bridge_uluna_token_instance, 0u128),
     ];
