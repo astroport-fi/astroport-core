@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
 /// This structure describes the parameters used for creating a contract.
-#[derive(Serialize, Deserialize, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     /// Address that can change contract settings
     pub owner: String,
@@ -34,7 +34,7 @@ pub struct InstantiateMsg {
     pub whitelist_code_id: u64,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     /// Update the address of the ASTRO vesting contract
@@ -168,7 +168,7 @@ pub enum ExecuteMsg {
     },
 }
 
-#[derive(Serialize, Deserialize, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub enum ExecuteOnReply {
     /// Updates reward and returns it to user.
     ClaimRewards {
@@ -222,7 +222,7 @@ impl ExecuteOnReply {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     /// Returns the length of the array that contains all the active pool generators

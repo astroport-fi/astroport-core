@@ -3,7 +3,7 @@ use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType, QueryMsg};
 use cosmwasm_std::{Addr, Binary};
 use cw20::MinterResponse;
-use terra_multi_test::{AppResponse, ContractWrapper, Executor, TerraApp};
+use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 pub struct FactoryHelper {
     pub owner: Addr,
@@ -13,7 +13,7 @@ pub struct FactoryHelper {
 }
 
 impl FactoryHelper {
-    pub fn init(router: &mut TerraApp, owner: &Addr) -> Self {
+    pub fn init(router: &mut App, owner: &Addr) -> Self {
         let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
             astroport_token::contract::execute,
             astroport_token::contract::instantiate,
@@ -31,6 +31,7 @@ impl FactoryHelper {
                 minter: owner.to_string(),
                 cap: None,
             }),
+            marketing: None,
         };
 
         let astro_token = router
@@ -103,7 +104,7 @@ impl FactoryHelper {
 
     pub fn update_config(
         &mut self,
-        router: &mut TerraApp,
+        router: &mut App,
         sender: &Addr,
         token_code_id: Option<u64>,
         fee_address: Option<String>,
@@ -122,7 +123,7 @@ impl FactoryHelper {
 
     pub fn create_pair(
         &mut self,
-        router: &mut TerraApp,
+        router: &mut App,
         sender: &Addr,
         pair_type: PairType,
         tokens: [&Addr; 2],
@@ -148,7 +149,7 @@ impl FactoryHelper {
 
     pub fn create_pair_with_addr(
         &mut self,
-        router: &mut TerraApp,
+        router: &mut App,
         sender: &Addr,
         pair_type: PairType,
         tokens: [&Addr; 2],
@@ -177,7 +178,7 @@ impl FactoryHelper {
 }
 
 pub fn instantiate_token(
-    app: &mut TerraApp,
+    app: &mut App,
     token_code_id: u64,
     owner: &Addr,
     token_name: &str,
@@ -192,6 +193,7 @@ pub fn instantiate_token(
             minter: owner.to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     app.instantiate_contract(

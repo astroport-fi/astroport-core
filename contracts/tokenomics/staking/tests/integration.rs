@@ -1,34 +1,18 @@
 use astroport::staking::{ConfigResponse, Cw20HookMsg, InstantiateMsg as xInstatiateMsg, QueryMsg};
 use astroport::token::InstantiateMsg;
-use cosmwasm_std::{
-    attr,
-    testing::{mock_env, MockApi, MockStorage},
-    to_binary, Addr, QueryRequest, Uint128, WasmQuery,
-};
+use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
+use cw_multi_test::{App, ContractWrapper, Executor};
 
 const ALICE: &str = "alice";
 const BOB: &str = "bob";
 const CAROL: &str = "carol";
 
-fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+fn mock_app() -> App {
+    App::default()
 }
 
-fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Addr) {
+fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
@@ -46,6 +30,7 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Add
             minter: owner.to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     let astro_token_instance = router
@@ -96,9 +81,9 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Add
         .unwrap();
 
     // In multitest, contract names are named in the order in which contracts are created.
-    assert_eq!("contract #0", astro_token_instance);
-    assert_eq!("contract #1", staking_instance);
-    assert_eq!("contract #2", res.share_token_addr);
+    assert_eq!("contract0", astro_token_instance);
+    assert_eq!("contract1", staking_instance);
+    assert_eq!("contract2", res.share_token_addr);
 
     let x_astro_token_instance = res.share_token_addr;
 
@@ -109,7 +94,7 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Add
     )
 }
 
-fn mint_some_astro(router: &mut TerraApp, owner: Addr, astro_token_instance: Addr, to: &str) {
+fn mint_some_astro(router: &mut App, owner: Addr, astro_token_instance: Addr, to: &str) {
     let msg = cw20::Cw20ExecuteMsg::Mint {
         recipient: String::from(to),
         amount: Uint128::from(100u128),
@@ -175,7 +160,7 @@ fn cw20receive_enter_and_leave() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(resp.to_string(), "Unauthorized");
+    assert_eq!(resp.root_cause().to_string(), "Unauthorized");
 
     // Tru to stake Alice's 100 ASTRO for 100 xASTRO
     let msg = Cw20ExecuteMsg::Send {
@@ -256,7 +241,7 @@ fn cw20receive_enter_and_leave() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(resp.to_string(), "Unauthorized");
+    assert_eq!(resp.root_cause().to_string(), "Unauthorized");
 
     // Try to unstake Alice's 10 xASTRO for 10 ASTRO
     let msg = Cw20ExecuteMsg::Send {
@@ -416,7 +401,7 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Overflow: Cannot Sub with 100 and 200");
+    assert_eq!(res.root_cause().to_string(), "Cannot Sub with 100 and 200");
 }
 
 #[test]

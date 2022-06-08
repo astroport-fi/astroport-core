@@ -1,12 +1,11 @@
 use std::collections::HashSet;
 
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Api, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+    entry_point, from_binary, to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
-use terra_cosmwasm::{TerraMsgWrapper, TerraQuerier};
 
 use astroport::asset::{addr_opt_validate, addr_validate_to_lower, Asset, AssetInfo};
 use astroport::pair::{QueryMsg as PairQueryMsg, SimulationResponse};
@@ -42,7 +41,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     CONFIG.save(
@@ -90,7 +89,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, msg),
         ExecuteMsg::ExecuteSwapOperations {
@@ -143,7 +142,7 @@ pub fn receive_cw20(
     deps: DepsMut,
     env: Env,
     cw20_msg: Cw20ReceiveMsg,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response, ContractError> {
     let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::ExecuteSwapOperations {
@@ -188,7 +187,7 @@ pub fn execute_swap_operations(
     minimum_receive: Option<Uint128>,
     to: Option<String>,
     max_spread: Option<Decimal>,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response, ContractError> {
     let operations_len = operations.len();
     if operations_len == 0 {
         return Err(ContractError::MustProvideOperations {});
@@ -223,7 +222,7 @@ pub fn execute_swap_operations(
                 })?,
             }))
         })
-        .collect::<StdResult<Vec<CosmosMsg<TerraMsgWrapper>>>>()?;
+        .collect::<StdResult<Vec<CosmosMsg>>>()?;
 
     // Execute minimum amount assertion
     if let Some(minimum_receive) = minimum_receive {
@@ -263,7 +262,7 @@ fn assert_minimum_receive(
     prev_balance: Uint128,
     minimum_receive: Uint128,
     receiver: Addr,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response, ContractError> {
     asset_info.check(deps.api)?;
     let receiver_balance = asset_info.query_pool(&deps.querier, receiver)?;
     let swap_amount = receiver_balance.checked_sub(prev_balance)?;
@@ -351,7 +350,6 @@ fn simulate_swap_operations(
 ) -> Result<SimulateSwapOperationsResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let astroport_factory = config.astroport_factory;
-    let terra_querier = TerraQuerier::new(&deps.querier);
 
     let operations_len = operations.len();
     if operations_len == 0 {
@@ -364,39 +362,9 @@ fn simulate_swap_operations(
 
     assert_operations(deps.api, &operations)?;
 
-    let mut operation_index = 0;
     let mut offer_amount = offer_amount;
     for operation in operations.into_iter() {
-        operation_index += 1;
-
         match operation {
-            SwapOperation::NativeSwap {
-                offer_denom,
-                ask_denom,
-            } => {
-                // Deduct tax before the query simulation
-                // because last swap is swap_send
-                if operation_index == operations_len {
-                    let asset = Asset {
-                        info: AssetInfo::NativeToken {
-                            denom: offer_denom.clone(),
-                        },
-                        amount: offer_amount,
-                    };
-
-                    offer_amount = offer_amount.checked_sub(asset.compute_tax(&deps.querier)?)?;
-                }
-
-                let res = terra_querier.query_swap(
-                    Coin {
-                        denom: offer_denom,
-                        amount: offer_amount,
-                    },
-                    ask_denom,
-                )?;
-
-                offer_amount = res.receive.amount;
-            }
             SwapOperation::AstroSwap {
                 offer_asset_info,
                 ask_asset_info,
@@ -442,6 +410,9 @@ fn simulate_swap_operations(
                 }
 
                 offer_amount = res.return_amount;
+            }
+            SwapOperation::NativeSwap { .. } => {
+                return Err(ContractError::NativeSwapNotSupported {})
             }
         }
     }
@@ -494,7 +465,7 @@ fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), 
 #[test]
 fn test_invalid_operations() {
     use cosmwasm_std::testing::mock_dependencies;
-    let deps = mock_dependencies(&[]);
+    let deps = mock_dependencies();
     // Empty error
     assert_eq!(true, assert_operations(deps.as_ref().api, &[]).is_err());
 

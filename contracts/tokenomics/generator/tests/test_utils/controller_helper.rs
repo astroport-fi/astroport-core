@@ -9,7 +9,7 @@ use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
 use astroport_governance::generator_controller::{UserInfoResponse, VotedPoolInfoResponse};
 use cosmwasm_std::{to_binary, Addr, StdResult, Uint128, Uint64};
 use cw20::Cw20ExecuteMsg;
-use terra_multi_test::{AppResponse, ContractWrapper, Executor, TerraApp};
+use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 pub struct ControllerHelper {
     pub owner: String,
@@ -21,7 +21,7 @@ pub struct ControllerHelper {
 }
 
 impl ControllerHelper {
-    pub fn init(router: &mut TerraApp, owner: &Addr) -> Self {
+    pub fn init(router: &mut App, owner: &Addr) -> Self {
         let escrow_helper = EscrowHelper::init(router, owner.clone());
 
         let pair_contract = Box::new(
@@ -209,13 +209,14 @@ impl ControllerHelper {
         }
     }
 
-    pub fn init_cw20_token(&self, router: &mut TerraApp, name: &str) -> AnyResult<Addr> {
+    pub fn init_cw20_token(&self, router: &mut App, name: &str) -> AnyResult<Addr> {
         let msg = astroport::token::InstantiateMsg {
             name: name.to_string(),
             symbol: name.to_string(),
             decimals: 6,
             initial_balances: vec![],
             mint: None,
+            marketing: None,
         };
 
         router.instantiate_contract(
@@ -228,12 +229,7 @@ impl ControllerHelper {
         )
     }
 
-    pub fn create_pool(
-        &self,
-        router: &mut TerraApp,
-        token1: &Addr,
-        token2: &Addr,
-    ) -> AnyResult<Addr> {
+    pub fn create_pool(&self, router: &mut App, token1: &Addr, token2: &Addr) -> AnyResult<Addr> {
         let asset_infos = [
             AssetInfo::Token {
                 contract_addr: token1.clone(),
@@ -264,7 +260,7 @@ impl ControllerHelper {
 
     pub fn create_pool_with_tokens(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         name1: &str,
         name2: &str,
     ) -> AnyResult<Addr> {
@@ -276,7 +272,7 @@ impl ControllerHelper {
 
     pub fn vote(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         user: &str,
         votes: Vec<(impl Into<String>, u16)>,
     ) -> AnyResult<AppResponse> {
@@ -290,7 +286,7 @@ impl ControllerHelper {
         router.execute_contract(Addr::unchecked(user), self.controller.clone(), &msg, &[])
     }
 
-    pub fn gauge(&self, router: &mut TerraApp, sender: &str) -> AnyResult<AppResponse> {
+    pub fn gauge(&self, router: &mut App, sender: &str) -> AnyResult<AppResponse> {
         router.execute_contract(
             Addr::unchecked(sender),
             self.controller.clone(),
@@ -299,11 +295,7 @@ impl ControllerHelper {
         )
     }
 
-    pub fn query_user_info(
-        &self,
-        router: &mut TerraApp,
-        user: &str,
-    ) -> StdResult<UserInfoResponse> {
+    pub fn query_user_info(&self, router: &mut App, user: &str) -> StdResult<UserInfoResponse> {
         router.wrap().query_wasm_smart(
             self.controller.clone(),
             &QueryMsg::UserInfo {
@@ -314,7 +306,7 @@ impl ControllerHelper {
 
     pub fn query_voted_pool_info(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         pool: &str,
     ) -> StdResult<VotedPoolInfoResponse> {
         router.wrap().query_wasm_smart(
@@ -327,7 +319,7 @@ impl ControllerHelper {
 
     pub fn query_voted_pool_info_at_period(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         pool: &str,
         period: u64,
     ) -> StdResult<VotedPoolInfoResponse> {

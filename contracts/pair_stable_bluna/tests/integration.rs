@@ -7,27 +7,15 @@ use astroport::pair_stable_bluna::{
 };
 
 use astroport_pair_stable_bluna::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{from_binary, to_binary, Addr, Decimal};
 
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
+use cw_multi_test::{App, ContractWrapper, Executor};
 
-fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+fn mock_app() -> App {
+    App::default()
 }
-fn store_token_code(app: &mut TerraApp) -> u64 {
+
+fn store_token_code(app: &mut App) -> u64 {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
@@ -37,7 +25,7 @@ fn store_token_code(app: &mut TerraApp) -> u64 {
     app.store_code(astro_token_contract)
 }
 
-fn store_pair_code(app: &mut TerraApp) -> u64 {
+fn store_pair_code(app: &mut App) -> u64 {
     let pair_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_pair_stable_bluna::contract::execute,
@@ -50,7 +38,7 @@ fn store_pair_code(app: &mut TerraApp) -> u64 {
     app.store_code(pair_contract)
 }
 
-fn store_factory_code(app: &mut TerraApp) -> u64 {
+fn store_factory_code(app: &mut App) -> u64 {
     let factory_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_factory::contract::execute,
@@ -63,7 +51,7 @@ fn store_factory_code(app: &mut TerraApp) -> u64 {
     app.store_code(factory_contract)
 }
 
-fn store_whitelist_code(app: &mut TerraApp) -> u64 {
+fn store_whitelist_code(app: &mut App) -> u64 {
     let whitelist_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_whitelist::contract::execute,
         astroport_whitelist::contract::instantiate,
@@ -136,7 +124,10 @@ fn create_pair_with_same_assets() {
         )
         .unwrap_err();
 
-    assert_eq!(resp.to_string(), "Doubling assets in asset infos")
+    assert_eq!(
+        resp.root_cause().to_string(),
+        "Doubling assets in asset infos"
+    )
 }
 
 #[test]
@@ -225,7 +216,7 @@ fn update_pair_config() {
         .unwrap_err();
 
     assert_eq!(
-        resp.to_string(),
+        resp.root_cause().to_string(),
         format!(
             "Amp coefficient must be greater than 0 and less than or equal to {}",
             MAX_AMP
@@ -246,7 +237,7 @@ fn update_pair_config() {
         .unwrap_err();
 
     assert_eq!(
-        resp.to_string(),
+        resp.root_cause().to_string(),
         format!(
             "The difference between the old and new amp value must not exceed {} times",
             MAX_AMP_CHANGE
@@ -267,7 +258,7 @@ fn update_pair_config() {
         .unwrap_err();
 
     assert_eq!(
-        resp.to_string(),
+        resp.root_cause().to_string(),
         format!(
             "Amp coefficient cannot be changed more often than once per {} seconds",
             MIN_AMP_CHANGING_TIME

@@ -174,11 +174,6 @@ fn test_asset() {
         ],
     )]);
 
-    deps.querier.with_tax(
-        Decimal::percent(1),
-        &[(&"uusd".to_string(), &Uint128::new(1000000u128))],
-    );
-
     let token_asset = Asset {
         amount: Uint128::new(123123u128),
         info: AssetInfo::Token {
@@ -201,7 +196,7 @@ fn test_asset() {
         native_token_asset
             .compute_tax(&deps.as_ref().querier)
             .unwrap(),
-        Uint128::new(1220u128)
+        Uint128::zero()
     );
 
     assert_eq!(
@@ -210,7 +205,7 @@ fn test_asset() {
             .unwrap(),
         Coin {
             denom: "uusd".to_string(),
-            amount: Uint128::new(121903u128),
+            amount: Uint128::new(123123u128),
         }
     );
 
@@ -237,7 +232,7 @@ fn test_asset() {
             to_address: String::from("addr0000"),
             amount: vec![Coin {
                 denom: "uusd".to_string(),
-                amount: Uint128::new(121903u128),
+                amount: Uint128::new(123123u128),
             }]
         })
     );
@@ -343,12 +338,12 @@ fn test_decimal_checked_ops() {
         let dec = Decimal::from_ratio(i, 1u128);
         assert_eq!(
             dec * Uint128::new(i),
-            dec.checked_mul(Uint128::new(i)).unwrap()
+            dec.checked_mul_uint128(Uint128::from(i)).unwrap()
         );
     }
     assert!(
         Decimal::from_ratio(Uint128::MAX, Uint128::from(10u128.pow(18u32)))
-            .checked_mul(Uint128::from(10u128.pow(18u32) + 1))
+            .checked_mul(Decimal::new(Uint128::from(10u128.pow(18u32) + 1u128)))
             .is_err()
     );
 }
