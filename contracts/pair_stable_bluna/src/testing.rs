@@ -4,7 +4,7 @@ use crate::contract::{
 };
 use crate::error::ContractError;
 use crate::math::{calc_ask_amount, calc_offer_amount, AMP_PRECISION};
-use crate::mock_querier::mock_dependencies;
+use crate::mock_querier::{mock_dependencies, mock_dependencies_with_lp_supply};
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::Config;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
@@ -17,7 +17,7 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport::whitelist::InstantiateMsg as WhitelistInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, ContractResult, CosmosMsg, Decimal,
+    attr, coins, to_binary, Addr, BankMsg, BlockInfo, Coin, ContractResult, CosmosMsg, Decimal,
     Decimal256, DepsMut, Env, Reply, ReplyOn, StdError, SubMsg, SubMsgExecutionResponse, Timestamp,
     Uint128, WasmMsg,
 };
@@ -308,10 +308,13 @@ fn provide_liquidity() {
 
 #[test]
 fn withdraw_liquidity() {
-    let mut deps = mock_dependencies(&[Coin {
-        denom: "uusd".to_string(),
-        amount: Uint128::new(100u128),
-    }]);
+    let mut deps = mock_dependencies_with_lp_supply(
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::new(100u128),
+        }],
+        Some(Uint128::from(100_u8)),
+    );
 
     deps.querier.with_tax(
         Decimal::zero(),
@@ -327,6 +330,8 @@ fn withdraw_liquidity() {
             &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(100u128))],
         ),
     ]);
+    deps.querier
+        .with_balance(&[(&MOCK_CONTRACT_ADDR.to_string(), &coins(100u128, "uusd"))]);
 
     let msg = InstantiateMsg {
         asset_infos: [
@@ -379,7 +384,7 @@ fn withdraw_liquidity() {
                 to_address: String::from("addr0000"),
                 amount: vec![Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::from(0u128),
+                    amount: Uint128::from(100u128),
                 }],
             }),
             id: 0,
@@ -394,7 +399,7 @@ fn withdraw_liquidity() {
                 contract_addr: String::from("asset0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(0u128),
+                    amount: Uint128::from(100u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -429,7 +434,7 @@ fn withdraw_liquidity() {
     );
     assert_eq!(
         log_refund_assets,
-        &attr("refund_assets", "0uusd, 0asset0000")
+        &attr("refund_assets", "100uusd, 100asset0000")
     );
 }
 

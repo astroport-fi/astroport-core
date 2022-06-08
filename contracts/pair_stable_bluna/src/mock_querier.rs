@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use astroport::factory::QueryMsg::{Config, FeeInfo};
 use astroport::factory::{ConfigResponse, FeeInfoResponse};
+use cw20::Cw20QueryMsg::TokenInfo;
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
@@ -15,8 +16,26 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 pub fn mock_dependencies(
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
-    let custom_querier: WasmMockQuerier =
-        WasmMockQuerier::new(MockQuerier::new(&[(MOCK_CONTRACT_ADDR, contract_balance)]));
+    let custom_querier: WasmMockQuerier = WasmMockQuerier::new(
+        MockQuerier::new(&[(MOCK_CONTRACT_ADDR, contract_balance)]),
+        None,
+    );
+
+    OwnedDeps {
+        storage: MockStorage::default(),
+        api: MockApi::default(),
+        querier: custom_querier,
+    }
+}
+
+pub fn mock_dependencies_with_lp_supply(
+    contract_balance: &[Coin],
+    mock_lp_supply: Option<Uint128>,
+) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
+    let custom_querier: WasmMockQuerier = WasmMockQuerier::new(
+        MockQuerier::new(&[(MOCK_CONTRACT_ADDR, contract_balance)]),
+        mock_lp_supply,
+    );
 
     OwnedDeps {
         storage: MockStorage::default(),
@@ -29,6 +48,7 @@ pub struct WasmMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
+    mock_lp_supply: Option<Uint128>,
 }
 
 #[derive(Clone, Default)]
@@ -128,81 +148,92 @@ impl WasmMockQuerier {
                     panic!("DO NOT ENTER HERE")
                 }
             }
-            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
-                if contract_addr == "factory" {
+            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => match contract_addr
+                .as_str()
+            {
+                "factory" => match from_binary(&msg).unwrap() {
+                    FeeInfo { .. } => SystemResult::Ok(
+                        to_binary(&FeeInfoResponse {
+                            fee_address: Some(Addr::unchecked("fee_address")),
+                            total_fee_bps: 30,
+                            maker_fee_bps: 1660,
+                        })
+                        .into(),
+                    ),
+                    Config { .. } => SystemResult::Ok(
+                        to_binary(&ConfigResponse {
+                            owner: Addr::unchecked("owner"),
+                            pair_configs: vec![],
+                            token_code_id: 0,
+                            fee_address: Some(Addr::unchecked("fee_address")),
+                            generator_address: Some(Addr::unchecked("gen_address")),
+                            whitelist_code_id: 666,
+                        })
+                        .into(),
+                    ),
+                    _ => panic!("DO NOT ENTER HERE"),
+                },
+                "liquidity0000" if self.mock_lp_supply.is_some() => {
                     match from_binary(&msg).unwrap() {
-                        FeeInfo { .. } => SystemResult::Ok(
-                            to_binary(&FeeInfoResponse {
-                                fee_address: Some(Addr::unchecked("fee_address")),
-                                total_fee_bps: 30,
-                                maker_fee_bps: 1660,
-                            })
-                            .into(),
-                        ),
-                        Config { .. } => SystemResult::Ok(
-                            to_binary(&ConfigResponse {
-                                owner: Addr::unchecked("owner"),
-                                pair_configs: vec![],
-                                token_code_id: 0,
-                                fee_address: Some(Addr::unchecked("fee_address")),
-                                generator_address: Some(Addr::unchecked("gen_address")),
-                                whitelist_code_id: 666,
+                        TokenInfo {} => SystemResult::Ok(
+                            to_binary(&TokenInfoResponse {
+                                name: "Liquidity token".to_string(),
+                                symbol: "uLP".to_string(),
+                                decimals: 6,
+                                total_supply: self.mock_lp_supply.unwrap(),
                             })
                             .into(),
                         ),
                         _ => panic!("DO NOT ENTER HERE"),
                     }
-                } else {
-                    match from_binary(&msg).unwrap() {
-                        Cw20QueryMsg::TokenInfo {} => {
-                            let balances: &HashMap<String, Uint128> =
-                                match self.token_querier.balances.get(contract_addr) {
-                                    Some(balances) => balances,
-                                    None => {
-                                        return SystemResult::Err(SystemError::Unknown {});
-                                    }
-                                };
-
-                            let mut total_supply = Uint128::zero();
-
-                            for balance in balances {
-                                total_supply += *balance.1;
-                            }
-
-                            SystemResult::Ok(
-                                to_binary(&TokenInfoResponse {
-                                    name: "mAPPL".to_string(),
-                                    symbol: "mAPPL".to_string(),
-                                    decimals: 6,
-                                    total_supply: total_supply,
-                                })
-                                .into(),
-                            )
-                        }
-                        Cw20QueryMsg::Balance { address } => {
-                            let balances: &HashMap<String, Uint128> =
-                                match self.token_querier.balances.get(contract_addr) {
-                                    Some(balances) => balances,
-                                    None => {
-                                        return SystemResult::Err(SystemError::Unknown {});
-                                    }
-                                };
-
-                            let balance = match balances.get(&address) {
-                                Some(v) => v,
+                }
+                _ => match from_binary(&msg).unwrap() {
+                    Cw20QueryMsg::TokenInfo {} => {
+                        let balances: &HashMap<String, Uint128> =
+                            match self.token_querier.balances.get(contract_addr) {
+                                Some(balances) => balances,
                                 None => {
                                     return SystemResult::Err(SystemError::Unknown {});
                                 }
                             };
 
-                            SystemResult::Ok(
-                                to_binary(&BalanceResponse { balance: *balance }).into(),
-                            )
+                        let mut total_supply = Uint128::zero();
+
+                        for balance in balances {
+                            total_supply += *balance.1;
                         }
-                        _ => panic!("DO NOT ENTER HERE"),
+
+                        SystemResult::Ok(
+                            to_binary(&TokenInfoResponse {
+                                name: "mAPPL".to_string(),
+                                symbol: "mAPPL".to_string(),
+                                decimals: 6,
+                                total_supply: total_supply,
+                            })
+                            .into(),
+                        )
                     }
-                }
-            }
+                    Cw20QueryMsg::Balance { address } => {
+                        let balances: &HashMap<String, Uint128> =
+                            match self.token_querier.balances.get(contract_addr) {
+                                Some(balances) => balances,
+                                None => {
+                                    return SystemResult::Err(SystemError::Unknown {});
+                                }
+                            };
+
+                        let balance = match balances.get(&address) {
+                            Some(v) => v,
+                            None => {
+                                return SystemResult::Err(SystemError::Unknown {});
+                            }
+                        };
+
+                        SystemResult::Ok(to_binary(&BalanceResponse { balance: *balance }).into())
+                    }
+                    _ => panic!("DO NOT ENTER HERE"),
+                },
+            },
             QueryRequest::Wasm(WasmQuery::Raw { contract_addr, .. }) => {
                 if contract_addr == "factory" {
                     SystemResult::Ok(to_binary(&Vec::<Addr>::new()).into())
@@ -216,11 +247,12 @@ impl WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn new(base: MockQuerier<TerraQueryWrapper>) -> Self {
+    pub fn new(base: MockQuerier<TerraQueryWrapper>, mock_lp_supply: Option<Uint128>) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
             tax_querier: TaxQuerier::default(),
+            mock_lp_supply,
         }
     }
 
