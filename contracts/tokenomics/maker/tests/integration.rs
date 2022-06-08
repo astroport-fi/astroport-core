@@ -118,32 +118,32 @@ fn instantiate_contracts(
         )
         .unwrap();
 
-    // let escrow_fee_distributor_contract = Box::new(ContractWrapper::new_with_empty(
-    //     astroport_escrow_fee_distributor::contract::execute,
-    //     astroport_escrow_fee_distributor::contract::instantiate,
-    //     astroport_escrow_fee_distributor::contract::query,
-    // ));
+    let escrow_fee_distributor_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_escrow_fee_distributor::contract::execute,
+        astroport_escrow_fee_distributor::contract::instantiate,
+        astroport_escrow_fee_distributor::contract::query,
+    ));
 
-    // let escrow_fee_distributor_code_id = router.store_code(escrow_fee_distributor_contract);
-    //
-    // let init_msg = astroport_governance::escrow_fee_distributor::InstantiateMsg {
-    //     owner: owner.to_string(),
-    //     astro_token: astro_token_instance.to_string(),
-    //     voting_escrow_addr: "voting".to_string(),
-    //     claim_many_limit: None,
-    //     is_claim_disabled: None,
-    // };
-    //
-    // let governance_instance = router
-    //     .instantiate_contract(
-    //         escrow_fee_distributor_code_id,
-    //         owner.clone(),
-    //         &init_msg,
-    //         &[],
-    //         "Astroport escrow fee distributor",
-    //         None,
-    //     )
-    //     .unwrap();
+    let escrow_fee_distributor_code_id = router.store_code(escrow_fee_distributor_contract);
+
+    let init_msg = astroport_governance::escrow_fee_distributor::InstantiateMsg {
+        owner: owner.to_string(),
+        astro_token: astro_token_instance.to_string(),
+        voting_escrow_addr: "voting".to_string(),
+        claim_many_limit: None,
+        is_claim_disabled: None,
+    };
+
+    let governance_instance = router
+        .instantiate_contract(
+            escrow_fee_distributor_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "Astroport escrow fee distributor",
+            None,
+        )
+        .unwrap();
 
     let maker_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_maker::contract::execute,
@@ -157,7 +157,7 @@ fn instantiate_contracts(
         owner: String::from("owner"),
         factory_contract: factory_instance.to_string(),
         staking_contract: staking.to_string(),
-        governance_contract: None,
+        governance_contract: Some(governance_instance.to_string()),
         governance_percent: Option::from(governance_percent),
         astro_token_contract: astro_token_instance.to_string(),
         max_spread,
@@ -177,7 +177,7 @@ fn instantiate_contracts(
         astro_token_instance,
         factory_instance,
         maker_instance,
-        Addr::unchecked("governance"),
+        governance_instance,
     )
 }
 
@@ -401,7 +401,7 @@ fn update_config() {
     let staking = Addr::unchecked("staking");
     let governance_percent = Uint64::new(10);
 
-    let (astro_token_instance, factory_instance, maker_instance, _governance_instance) =
+    let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
         instantiate_contracts(
             &mut router,
             owner.clone(),

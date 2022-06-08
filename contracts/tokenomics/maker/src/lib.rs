@@ -6,6 +6,5 @@ pub mod error;
 pub mod state;
 pub mod utils;
 
-mod migration;
 #[cfg(test)]
 mod testing;

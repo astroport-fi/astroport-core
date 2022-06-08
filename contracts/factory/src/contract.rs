@@ -172,7 +172,7 @@ pub fn execute(
         } => execute_create_pair(deps, env, pair_type, asset_infos, init_params),
         ExecuteMsg::Deregister { asset_infos } => deregister(deps, info, asset_infos),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
-            let config: Config = CONFIG.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
 
             propose_new_owner(
                 deps,
@@ -186,7 +186,7 @@ pub fn execute(
             .map_err(Into::into)
         }
         ExecuteMsg::DropOwnershipProposal {} => {
-            let config: Config = CONFIG.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
 
             drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
                 .map_err(Into::into)
@@ -194,21 +194,18 @@ pub fn execute(
         ExecuteMsg::ClaimOwnership {} => {
             let pairs = PAIRS
                 .range(deps.storage, None, None, Order::Ascending)
-                .map(|pair| -> StdResult<Addr> {
-                    let (_, addr) = pair?;
-                    Ok(addr)
-                })
-                .collect::<Result<Vec<Addr>, StdError>>()?;
+                .map(|pair| -> StdResult<Addr> { Ok(pair?.1) })
+                .collect::<StdResult<Vec<_>>>()?;
 
             PAIRS_TO_MIGRATE.save(deps.storage, &pairs)?;
 
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
-                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
-                    v.owner = new_owner;
-                    Ok(v)
-                })?;
-
-                Ok(())
+                CONFIG
+                    .update::<_, StdError>(deps.storage, |mut v| {
+                        v.owner = new_owner;
+                        Ok(v)
+                    })
+                    .map(|_| ())
             })
             .map_err(Into::into)
         }

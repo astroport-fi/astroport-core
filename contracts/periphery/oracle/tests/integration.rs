@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, to_binary, Addr, BlockInfo, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
+    attr, to_binary, Addr, BlockInfo, Coin, Decimal, QueryRequest, StdResult, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, ContractWrapper, Executor};
@@ -13,8 +13,18 @@ use astroport::oracle::QueryMsg::Consult;
 use astroport::oracle::{ExecuteMsg, InstantiateMsg};
 use astroport::pair::StablePoolParams;
 
-fn mock_app() -> App {
-    App::default()
+fn mock_app(owner: Option<Addr>, coins: Option<Vec<Coin>>) -> App {
+    if owner.is_some() && coins.is_some() {
+        App::new(|router, _, storage| {
+            // initialization moved to App construction
+            router
+                .bank
+                .init_balance(storage, &owner.unwrap(), coins.unwrap())
+                .unwrap()
+        })
+    } else {
+        App::default()
+    }
 }
 
 fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
@@ -513,7 +523,7 @@ pub fn next_day(block: &mut BlockInfo) {
 
 #[test]
 fn consult() {
-    let mut router = mock_app();
+    let mut router = mock_app(None, None);
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
     let (astro_token_instance, factory_instance, oracle_code_id) =
@@ -644,7 +654,7 @@ fn consult() {
 
 #[test]
 fn consult_pair_stable() {
-    let mut router = mock_app();
+    let mut router = mock_app(None, None);
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
     let (astro_token_instance, factory_instance, oracle_code_id) =
@@ -775,7 +785,7 @@ fn consult_pair_stable() {
 
 #[test]
 fn consult2() {
-    let mut router = mock_app();
+    let mut router = mock_app(None, None);
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
     let (astro_token_instance, factory_instance, oracle_code_id) =
@@ -979,8 +989,20 @@ fn consult2() {
 
 #[test]
 fn consult_zero_price() {
-    let mut router = mock_app();
     let owner = Addr::unchecked("owner");
+    let mut router = mock_app(
+        Option::from(owner.clone()),
+        Some(vec![
+            Coin {
+                denom: "cny".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ]),
+    );
     let user = Addr::unchecked("user0000");
 
     let (astro_token_instance, factory_instance, oracle_code_id) =
@@ -1079,4 +1101,73 @@ fn consult_zero_price() {
             .unwrap();
         assert_eq!(res, amount_out);
     }
+
+    let res: StdResult<Uint128> = router.wrap().query_wasm_smart(
+        &oracle_instance,
+        &Consult {
+            token: AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            amount: Default::default(),
+        },
+    );
+    assert_eq!(
+        res.unwrap_err().to_string(),
+        "Generic error: Querier contract error: Generic error: Invalid Token"
+    );
+
+    // Consult zero price
+
+    let asset_infos = [
+        AssetInfo::NativeToken {
+            denom: "cny".to_string(),
+        },
+        AssetInfo::NativeToken {
+            denom: "uluna".to_string(),
+        },
+    ];
+
+    create_pair(
+        &mut router,
+        owner.clone(),
+        user.clone(),
+        &factory_instance,
+        [
+            Asset {
+                info: asset_infos[0].clone(),
+                amount: Uint128::from(100u8),
+            },
+            Asset {
+                info: asset_infos[1].clone(),
+                amount: Uint128::from(100_000_000_000u128),
+            },
+        ],
+    );
+
+    let oracle_instance = router
+        .instantiate_contract(
+            oracle_code_id,
+            owner.clone(),
+            &InstantiateMsg {
+                factory_contract: factory_instance.to_string(),
+                asset_infos: asset_infos.clone(),
+            },
+            &[],
+            String::from("ORACLE 2"),
+            None,
+        )
+        .unwrap();
+
+    let res: Uint128 = router
+        .wrap()
+        .query_wasm_smart(
+            &oracle_instance,
+            &Consult {
+                token: asset_infos[1].clone(),
+                amount: Uint128::from(1u8),
+            },
+        )
+        .unwrap();
+    // Price is too small thus we get zero
+    assert_eq!(res.u128(), 0u128);
 }

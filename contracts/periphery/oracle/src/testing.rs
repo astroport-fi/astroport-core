@@ -16,6 +16,7 @@ fn decimal_overflow() {
         Uint256::from(price_cumulative_current.wrapping_sub(price_cumulative_last)),
         time_elapsed,
     );
+
     println!("{}", price_average.to_string());
 
     let res: Uint128 = price_average.mul(Uint256::from(amount)).try_into().unwrap();
