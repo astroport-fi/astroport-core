@@ -1,5 +1,5 @@
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
-use astroport::generator::{ExecuteMsg, MigrateMsg, QueryMsg, StakerResponse};
+use astroport::generator::{ExecuteMsg, QueryMsg, StakerResponse};
 use astroport_governance::utils::WEEK;
 
 use astroport::{
@@ -19,15 +19,11 @@ use astroport::{
         VestingSchedule, VestingSchedulePoint,
     },
 };
-use astroport_package_generator_v120::generator as generator_v120;
 
 use astroport::pair::StablePoolParams;
-use cosmwasm_std::{
-    testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR},
-    to_binary, Addr, Binary, StdResult, Uint128, Uint64,
-};
+use cosmwasm_std::{to_binary, Addr, Binary, StdResult, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{next_block, App, AppBuilder, BankKeeper, ContractWrapper, Executor};
+use cw_multi_test::{next_block, App, ContractWrapper, Executor};
 
 use crate::test_utils::controller_helper::ControllerHelper;
 use crate::test_utils::{mock_app as mock_app_helper, AppExtension};
@@ -3719,10 +3715,10 @@ fn instantiate_generator_wth_version(
 }
 
 fn instantiate_mirror_protocol(
-    app: &mut App,
-    token_code_id: u64,
-    asset_token: &Addr,
-    staking_token: &Addr,
+    _app: &mut App,
+    _token_code_id: u64,
+    _asset_token: &Addr,
+    _staking_token: &Addr,
 ) -> (Addr, Addr) {
     /*let mirror_token_instance = instantiate_token(app, token_code_id, "MIR", None);
 

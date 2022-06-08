@@ -7,6 +7,7 @@ use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_governance::utils::EPOCH_START;
 use cosmwasm_std::{
     attr, coin, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
 };
@@ -15,10 +16,18 @@ use cw_multi_test::{next_block, App, ContractWrapper, Executor};
 use std::str::FromStr;
 
 fn mock_app(owner: Addr, coins: Vec<Coin>) -> App {
-    App::new(|router, _, storage| {
+    let mut app = App::new(|router, _, storage| {
         // initialization moved to App construction
-        router.bank.init_balance(storage, &owner, coins).unwrap()
-    })
+        router.bank.init_balance(storage, &owner, coins).unwrap();
+    });
+
+    app.update_block(|bi| {
+        bi.time = bi.time.plus_seconds(EPOCH_START);
+        bi.height += 1;
+        bi.chain_id = "cosm-wasm-test".to_string();
+    });
+
+    app
 }
 
 fn validate_and_send_funds(router: &mut App, sender: &Addr, recipient: &Addr, funds: Vec<Coin>) {
@@ -420,7 +429,7 @@ fn update_config() {
     assert_eq!(res.astro_token_contract, astro_token_instance);
     assert_eq!(res.factory_contract, factory_instance);
     assert_eq!(res.staking_contract, staking);
-    assert_eq!(res.governance_contract, None);
+    assert_eq!(res.governance_contract, Some(governance_instance));
     assert_eq!(res.governance_percent, governance_percent);
     assert_eq!(res.max_spread, Decimal::from_str("0.05").unwrap());
 
@@ -906,7 +915,7 @@ fn collect_default_bridges() {
         // 170 uusd (-25 native transfer fee) -> 145 uusd -> 144 ASTRO
 
         // Total: 25
-        (astro_token_instance, 295u128),
+        (astro_token_instance, 266u128),
         // (bridge_uusd_token_instance, 0u128),
         // (bridge_uluna_token_instance, 0u128),
     ];
@@ -1361,7 +1370,7 @@ fn collect_with_asset_limit() {
     let governance_percent = Uint64::new(10);
     let max_spread = Decimal::from_str("0.5").unwrap();
 
-    let (astro_token_instance, factory_instance, maker_instance, _governance_instance) =
+    let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
         instantiate_contracts(
             &mut router,
             owner.clone(),
@@ -1594,34 +1603,33 @@ fn collect_with_asset_limit() {
     // 2 usdc (5 - fee for 3 swaps)
     // 28 test (30 - fee for 2 swaps)
     let amount = Uint128::new(40u128);
-    // let governance_amount =
-    //     amount.multiply_ratio(Uint128::from(governance_percent), Uint128::new(100));
-    // let staking_amount = amount - governance_amount;
-    let staking_amount = amount;
+    let governance_amount =
+        amount.multiply_ratio(Uint128::from(governance_percent), Uint128::new(100));
+    let staking_amount = amount - governance_amount;
 
     // Check the governance contract's balance for the ASTRO token
-    // check_balance(
-    //     &mut router,
-    //     governance_instance.clone(),
-    //     astro_token_instance.clone(),
-    //     governance_amount,
-    // );
+    check_balance(
+        &mut router,
+        governance_instance.clone(),
+        astro_token_instance.clone(),
+        governance_amount,
+    );
 
     // Check the governance contract's balance for the USDC token
-    // check_balance(
-    //     &mut router,
-    //     governance_instance.clone(),
-    //     usdc_token_instance.clone(),
-    //     Uint128::zero(),
-    // );
+    check_balance(
+        &mut router,
+        governance_instance.clone(),
+        usdc_token_instance.clone(),
+        Uint128::zero(),
+    );
 
     // Check the governance contract's balance for the test token
-    // check_balance(
-    //     &mut router,
-    //     governance_instance.clone(),
-    //     test_token_instance.clone(),
-    //     Uint128::zero(),
-    // );
+    check_balance(
+        &mut router,
+        governance_instance.clone(),
+        test_token_instance.clone(),
+        Uint128::zero(),
+    );
 
     // Check the staking contract's balance for the ASTRO token
     check_balance(
@@ -1665,8 +1673,7 @@ impl CheckDistributedAstro {
         let cur_governance_amount = distributed_amount
             .multiply_ratio(Uint128::from(self.governance_percent), Uint128::new(100));
         self.governance_amount += cur_governance_amount;
-        //self.staking_amount += distributed_amount - cur_governance_amount;
-        self.staking_amount += distributed_amount;
+        self.staking_amount += distributed_amount - cur_governance_amount;
         self.maker_amount -= distributed_amount;
 
         check_balance(
@@ -1676,12 +1683,12 @@ impl CheckDistributedAstro {
             self.maker_amount,
         );
 
-        // check_balance(
-        //     router,
-        //     self.governance.clone(),
-        //     self.astro_token.clone(),
-        //     self.governance_amount,
-        // );
+        check_balance(
+            router,
+            self.governance.clone(),
+            self.astro_token.clone(),
+            self.governance_amount,
+        );
 
         check_balance(
             router,
@@ -1698,26 +1705,20 @@ fn distribute_initially_accrued_fees() {
     let uluna_asset = String::from("uluna");
     let owner = Addr::unchecked("owner");
 
-    let mut router = App::new(|router, _, storage| {
-        // initialization moved to App construction
-        router
-            .bank
-            .init_balance(
-                storage,
-                &owner,
-                vec![
-                    Coin {
-                        denom: uluna_asset.clone(),
-                        amount: Uint128::new(100_000_000_000_000000u128),
-                    },
-                    Coin {
-                        denom: uusd_asset.clone(),
-                        amount: Uint128::new(100_000_000_000_000000u128),
-                    },
-                ],
-            )
-            .unwrap()
-    });
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: uluna_asset.clone(),
+                amount: Uint128::new(100_000_000_000_000000u128),
+            },
+            Coin {
+                denom: uusd_asset.clone(),
+                amount: Uint128::new(100_000_000_000_000000u128),
+            },
+        ],
+    );
+
     let staking = Addr::unchecked("staking");
     let governance_percent = Uint64::new(10);
     let user = Addr::unchecked("user0000");

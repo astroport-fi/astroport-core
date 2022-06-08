@@ -1,7 +1,5 @@
 use astroport_governance::utils::{get_period, EPOCH_START};
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::Timestamp;
-use cw_multi_test::{App, AppBuilder, BankKeeper};
+use cw_multi_test::App;
 
 #[allow(clippy::all)]
 #[allow(dead_code)]

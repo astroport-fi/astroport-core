@@ -44,7 +44,7 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/update_main_to_cosmwasm_1.0.0#a18941115024f8675697cf5100809fcf61f0eff2"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/update_main_to_cosmwasm_1.0.0#95fda40ac364a014bfe0997217838e025257ea80"
 dependencies = [
  "cosmwasm-std 1.0.0",
  "cw-storage-plus 0.13.4",
@@ -1733,9 +1733,9 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "syn"
-version = "1.0.95"
+version = "1.0.96"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbaf6116ab8924f39d52792136fb74fd60a80194cf1b1c6ffa6453eef1c3f942"
+checksum = "0748dd251e24453cb8717f0354206b91557e4ec8703673a4b30208f2abaf1ebf"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1769,16 +1769,16 @@ dependencies = [
 
 [[package]]
 name = "terraswap"
-version = "2.4.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96f2c2a6371e9ddf2c942368e64645cc3e8fc2855da70c8c6bed238dcdd5522f"
+checksum = "02458cd8271acd0fc98d097ca6d296f5f7abe6359ca841554db90de67c376500"
 dependencies = [
- "cosmwasm-std 0.16.7",
- "cosmwasm-storage 0.16.7",
- "cw20 0.8.1",
+ "cosmwasm-std 1.0.0",
+ "cosmwasm-storage 1.0.0",
+ "cw20 0.13.4",
+ "protobuf",
  "schemars",
  "serde",
- "terra-cosmwasm",
 ]
 
 [[package]]
