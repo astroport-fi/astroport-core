@@ -1,5 +1,8 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, from_slice, to_binary, Coin, OwnedDeps, Querier, QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery, Empty};
+use cosmwasm_std::{
+    from_binary, from_slice, to_binary, Coin, Empty, OwnedDeps, Querier, QuerierResult,
+    QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
+};
 
 use std::collections::HashMap;
 
@@ -19,7 +22,7 @@ pub fn mock_dependencies(
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier: custom_querier,
-        custom_query_type: Default::default()
+        custom_query_type: Default::default(),
     }
 }
 enum QueryHandler {
