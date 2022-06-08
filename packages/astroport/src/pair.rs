@@ -66,7 +66,7 @@ pub enum Cw20HookMsg {
         to: Option<String>,
     },
     /// Withdraw liquidity from the pool
-    WithdrawLiquidity {},
+    WithdrawLiquidity { assets: Option<[Asset; 2]> },
 }
 
 /// This structure describes the query messages available in the contract.

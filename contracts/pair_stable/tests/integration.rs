@@ -1,4 +1,4 @@
-use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::asset::{token_asset, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{
     ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
     QueryMsg as FactoryQueryMsg,
@@ -8,6 +8,7 @@ use astroport::pair::{
     StablePoolConfig, StablePoolParams, StablePoolUpdateParams, TWAP_PRECISION,
 };
 
+use astroport::querier::query_token_balance;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_pair_stable::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
@@ -1144,4 +1145,211 @@ fn update_pair_config() {
     let params: StablePoolConfig = from_binary(&res.params.unwrap()).unwrap();
 
     assert_eq!(params.amp, Decimal::from_ratio(150u32, 1u32));
+}
+
+#[test]
+fn stable_swap_avoids_fee() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked(OWNER);
+
+    let token_code_id = store_token_code(&mut app);
+    let amount = Uint128::new(1_000_000_000_000000);
+
+    let [token_x, token_y]: [Addr; 2] = ["Xtoken", "Ytoken"]
+        .into_iter()
+        .map(|token_name| {
+            let init_msg = TokenInstantiateMsg {
+                name: token_name.to_string(),
+                symbol: token_name.to_string(),
+                decimals: 6,
+                initial_balances: vec![Cw20Coin {
+                    address: owner.to_string(),
+                    amount,
+                }],
+                mint: Some(MinterResponse {
+                    minter: owner.to_string(),
+                    cap: None,
+                }),
+            };
+
+            app.instantiate_contract(
+                token_code_id,
+                owner.clone(),
+                &init_msg,
+                &[],
+                token_name,
+                None,
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+
+    let pair_code_id = store_pair_code(&mut app);
+    let factory_code_id = store_factory_code(&mut app);
+
+    let factory_init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![PairConfig {
+            code_id: pair_code_id,
+            maker_fee_bps: 5000,
+            total_fee_bps: 5,
+            pair_type: PairType::Stable {},
+            is_disabled: false,
+            is_generator_disabled: false,
+        }],
+        token_code_id,
+        generator_address: Some(String::from("generator")),
+        owner: owner.to_string(),
+        whitelist_code_id: 234u64,
+    };
+
+    let factory_instance = app
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &factory_init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
+
+    let msg = FactoryExecuteMsg::CreatePair {
+        pair_type: PairType::Stable {},
+        asset_infos: [
+            token_asset_info(token_x.clone()),
+            token_asset_info(token_y.clone()),
+        ],
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+    };
+
+    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = FactoryQueryMsg::Pair {
+        asset_infos: [
+            token_asset_info(token_x.clone()),
+            token_asset_info(token_y.clone()),
+        ],
+    };
+
+    let res: PairInfo = app
+        .wrap()
+        .query_wasm_smart(&factory_instance, &msg)
+        .unwrap();
+
+    let pair_instance = res.contract_addr;
+    let lp_token = res.liquidity_token;
+
+    let trader = Addr::unchecked("trader");
+
+    [&token_x, &token_y].into_iter().for_each(|token| {
+        app.execute_contract(
+            owner.clone(),
+            token.clone(),
+            &Cw20ExecuteMsg::IncreaseAllowance {
+                spender: pair_instance.to_string(),
+                expires: None,
+                amount: Uint128::from(1_000_000_000_000_000000u128),
+            },
+            &[],
+        )
+        .unwrap();
+        app.execute_contract(
+            trader.clone(),
+            token.clone(),
+            &Cw20ExecuteMsg::IncreaseAllowance {
+                spender: pair_instance.to_string(),
+                expires: None,
+                amount: Uint128::from(1_000_000_000_000_000000u128),
+            },
+            &[],
+        )
+        .unwrap();
+    });
+
+    let provide_amount = Uint128::from(10_000_000_000000u128);
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: [
+            token_asset(token_x.clone(), provide_amount),
+            token_asset(token_y.clone(), provide_amount),
+        ],
+        slippage_tolerance: None,
+        auto_stake: None,
+        receiver: None,
+    };
+
+    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
+        .unwrap();
+
+    app.execute_contract(
+        owner.clone(),
+        token_x.clone(),
+        &Cw20ExecuteMsg::Transfer {
+            recipient: trader.to_string(),
+            amount: Uint128::from(100_000000u128),
+        },
+        &[],
+    )
+    .unwrap();
+
+    let swap_amount = Uint128::from(10_000000u128);
+    app.execute_contract(
+        trader.clone(),
+        token_x.clone(),
+        &Cw20ExecuteMsg::Send {
+            contract: pair_instance.to_string(),
+            amount: swap_amount,
+            msg: to_binary(&Cw20HookMsg::Swap {
+                belief_price: None,
+                max_spread: None,
+                to: None,
+            })
+            .unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    let norm_swap_y = query_token_balance(&app.wrap(), &token_y, &trader).unwrap();
+    let fee = Decimal::one() - Decimal::from_ratio(norm_swap_y, swap_amount);
+    assert_eq!(fee.to_string(), "0.0005");
+
+    // Trying to avoid fee
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: [
+            token_asset(token_x.clone(), swap_amount),
+            token_asset(token_y.clone(), Uint128::zero()),
+        ],
+        slippage_tolerance: None,
+        auto_stake: None,
+        receiver: None,
+    };
+    app.execute_contract(trader.clone(), pair_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let lp_amount = query_token_balance(&app.wrap(), &lp_token, &trader).unwrap();
+    app.execute_contract(
+        trader.clone(),
+        lp_token.clone(),
+        &Cw20ExecuteMsg::Send {
+            contract: pair_instance.to_string(),
+            amount: lp_amount,
+            msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {
+                assets: Some([
+                    token_asset(token_x.clone(), Uint128::zero()),
+                    token_asset(token_y.clone(), Uint128::from(9995000u128)),
+                ]),
+            })
+            .unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    let received_y = query_token_balance(&app.wrap(), &token_y, &trader).unwrap() - norm_swap_y;
+    let fee = Decimal::one() - Decimal::from_ratio(received_y, swap_amount);
+    assert_eq!(fee.to_string(), "0.0005");
 }

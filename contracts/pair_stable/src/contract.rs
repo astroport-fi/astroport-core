@@ -32,7 +32,7 @@ use astroport::pair::{
 use astroport::querier::{
     query_factory_config, query_fee_info, query_supply, query_token_precision,
 };
-use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
+use astroport::{token::InstantiateMsg as TokenInstantiateMsg, DecimalCheckedOps, U256};
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
@@ -307,9 +307,9 @@ pub fn receive_cw20(
                 to_addr,
             )
         }
-        Ok(Cw20HookMsg::WithdrawLiquidity {}) => {
+        Ok(Cw20HookMsg::WithdrawLiquidity { assets }) => {
             let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
-            withdraw_liquidity(deps, env, info, sender, cw20_msg.amount)
+            withdraw_liquidity(deps, env, info, sender, cw20_msg.amount, assets)
         }
         Err(err) => Err(err.into()),
     }
@@ -435,16 +435,16 @@ pub fn provide_liquidity(
             .checked_mul(u64::from(N_COINS))
             .unwrap();
 
-        let mut pool_amount_0 =
+        let old_pool_amount_0 =
             adjust_precision(pools[0].amount, token_precision_0, greater_precision)?;
-        let mut pool_amount_1 =
+        let old_pool_amount_1 =
             adjust_precision(pools[1].amount, token_precision_1, greater_precision)?;
 
         let d_before_addition_liquidity =
-            compute_d(leverage, pool_amount_0.u128(), pool_amount_1.u128()).unwrap();
+            compute_d(leverage, old_pool_amount_0.u128(), old_pool_amount_1.u128()).unwrap();
 
-        pool_amount_0 = pool_amount_0.checked_add(deposit_amount_0)?;
-        pool_amount_1 = pool_amount_1.checked_add(deposit_amount_1)?;
+        let mut pool_amount_0 = old_pool_amount_0.checked_add(deposit_amount_0)?;
+        let mut pool_amount_1 = old_pool_amount_1.checked_add(deposit_amount_1)?;
 
         let d_after_addition_liquidity =
             compute_d(leverage, pool_amount_0.u128(), pool_amount_1.u128()).unwrap();
@@ -454,8 +454,39 @@ pub fn provide_liquidity(
             return Err(ContractError::LiquidityAmountTooSmall {});
         }
 
+        // Get fee info from the factory
+        let fee_info = query_fee_info(
+            &deps.querier,
+            &config.factory_addr,
+            config.pair_info.pair_type.clone(),
+        )?;
+
+        let fee = fee_info.total_fee_rate / Uint128::from(2u8);
+
+        [
+            (old_pool_amount_0, &mut pool_amount_0),
+            (old_pool_amount_1, &mut pool_amount_1),
+        ]
+        .into_iter()
+        .try_for_each::<_, StdResult<()>>(|(old_pool_amount, new_pool_amount)| {
+            let ideal_amount = Uint128::from(d_after_addition_liquidity)
+                .multiply_ratio(old_pool_amount, d_before_addition_liquidity);
+
+            let difference = if ideal_amount > *new_pool_amount {
+                ideal_amount - *new_pool_amount
+            } else {
+                *new_pool_amount - ideal_amount
+            };
+
+            let provide_fee = fee.checked_mul(difference)?;
+            *new_pool_amount = new_pool_amount.checked_sub(provide_fee)?;
+            Ok(())
+        })?;
+
+        let d_after_fee = compute_d(leverage, pool_amount_0.u128(), pool_amount_1.u128()).unwrap();
+
         total_share.multiply_ratio(
-            d_after_addition_liquidity - d_before_addition_liquidity,
+            d_after_fee - d_before_addition_liquidity,
             d_before_addition_liquidity,
         )
     };
@@ -576,13 +607,16 @@ fn mint_liquidity_token_message(
 ///
 /// * **sender** is an object of type [`Addr`]. This is the address that will receive the withdrawn liquidity.
 ///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to burn and withdraw liquidity with.
+/// * **lp_amount_to_convert** is an object of type [`Uint128`]. This is the amount of LP tokens to burn and withdraw liquidity with.
+///
+/// * **assets** is an optional array of type [Asset; 2]. It specifies the assets amount to withdraw.
 pub fn withdraw_liquidity(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     sender: Addr,
-    amount: Uint128,
+    mut lp_amount_to_convert: Uint128,
+    assets: Option<[Asset; 2]>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage).unwrap();
 
@@ -591,7 +625,82 @@ pub fn withdraw_liquidity(
     }
 
     let (pools, total_share) = pool_info(deps.querier, &config)?;
-    let refund_assets = get_share_in_assets(&pools, amount, total_share);
+
+    let refund_assets = if let Some(assets) = assets {
+        // Imbalanced withdraw
+        if assets
+            .iter()
+            .any(|asset| !config.pair_info.asset_infos.contains(&asset.info))
+        {
+            return Err(StdError::generic_err("Invalid assets").into());
+        };
+        if assets[0].info == assets[1].info {
+            return Err(ContractError::DoublingAssets {});
+        }
+
+        let amp = compute_current_amp(&config, &env)?;
+        let d0 = compute_d(amp, pools[0].amount.u128(), pools[1].amount.u128()).unwrap();
+
+        let mut new_balances = pools
+            .iter()
+            .map(|pool| {
+                let pool_asset = if pool.info == assets[0].info {
+                    &assets[0]
+                } else {
+                    &assets[1]
+                };
+
+                pool.amount
+                    .checked_sub(pool_asset.amount)
+                    .map_err(Into::into)
+            })
+            .collect::<StdResult<Vec<_>>>()?;
+        let d1 = compute_d(amp, new_balances[0].u128(), new_balances[1].u128()).unwrap();
+
+        // Get fee info from the factory
+        let fee_info = query_fee_info(
+            &deps.querier,
+            &config.factory_addr,
+            config.pair_info.pair_type.clone(),
+        )?;
+
+        let fee = fee_info.total_fee_rate / Uint128::from(2u8);
+
+        for i in 0..=1usize {
+            let ideal_amount = Uint128::from(d1).multiply_ratio(pools[i].amount, d0);
+
+            let difference = if ideal_amount > new_balances[i] {
+                ideal_amount - new_balances[i]
+            } else {
+                new_balances[i] - ideal_amount
+            };
+
+            let withdraw_fee = fee.checked_mul(difference)?;
+            new_balances[i] = new_balances[i].checked_sub(withdraw_fee)?;
+        }
+
+        let d2 = compute_d(amp, new_balances[0].u128(), new_balances[1].u128()).unwrap();
+
+        let need_lp_tokens = Uint128::from(d0)
+            .checked_sub(d2.into())?
+            .multiply_ratio(total_share, d0)
+            .checked_add(Uint128::from(1u8))?; // In case of rounding errors - make it unfavorable for the "attacker";
+        if need_lp_tokens > lp_amount_to_convert {
+            return Err(StdError::generic_err(format!(
+                "Not enough LP tokens. You need {} LP tokens.",
+                need_lp_tokens
+            ))
+            .into());
+        } else if need_lp_tokens.is_zero() {
+            return Err(
+                StdError::generic_err("Failed to calculate necessary LP tokens amount").into(),
+            );
+        }
+        lp_amount_to_convert = need_lp_tokens;
+        assets
+    } else {
+        get_share_in_assets(&pools, lp_amount_to_convert, total_share)
+    };
 
     // Accumulate prices for the assets in the pool
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) = accumulate_prices(
@@ -608,20 +717,25 @@ pub fn withdraw_liquidity(
         CONFIG.save(deps.storage, &config)?;
     }
 
-    let messages = vec![
-        refund_assets[0].clone().into_msg(&deps.querier, &sender)?,
-        refund_assets[1].clone().into_msg(&deps.querier, &sender)?,
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.pair_info.liquidity_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
-            funds: vec![],
-        }),
-    ];
+    let mut messages = refund_assets
+        .iter()
+        .cloned()
+        .filter(|asset| !asset.amount.is_zero())
+        .map(|asset| asset.into_msg(&deps.querier, &sender))
+        .collect::<StdResult<Vec<_>>>()?;
+
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: config.pair_info.liquidity_token.to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Burn {
+            amount: lp_amount_to_convert,
+        })?,
+        funds: vec![],
+    }));
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),
         attr("sender", sender),
-        attr("withdrawn_share", amount),
+        attr("withdrawn_share", lp_amount_to_convert),
         attr(
             "refund_assets",
             format!("{}, {}", refund_assets[0], refund_assets[1]),
