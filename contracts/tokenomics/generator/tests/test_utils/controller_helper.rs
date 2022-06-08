@@ -216,6 +216,7 @@ impl ControllerHelper {
             decimals: 6,
             initial_balances: vec![],
             mint: None,
+            marketing: None
         };
 
         router.instantiate_contract(

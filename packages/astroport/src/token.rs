@@ -2,7 +2,21 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{StdError, StdResult, Uint128};
-use cw20::{Cw20Coin, MinterResponse};
+use cw20::{Cw20Coin, Logo, MinterResponse};
+
+/// ## Description
+/// This structure describes the marketing info settings such as project, description, and token logo.
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
+pub struct InstantiateMarketingInfo {
+    /// The project name
+    pub project: Option<String>,
+    /// The project description
+    pub description: Option<String>,
+    /// The address of an admin who is able to update marketing info
+    pub marketing: Option<String>,
+    /// The token logo
+    pub logo: Option<Logo>,
+}
 
 /// This structure describes the parameters used for creating a token contract.
 /// TokenContract InstantiateMsg
@@ -18,6 +32,8 @@ pub struct InstantiateMsg {
     pub initial_balances: Vec<Cw20Coin>,
     /// Minting controls specified in a [`MinterResponse`] structure
     pub mint: Option<MinterResponse>,
+    /// the marketing info of type [`InstantiateMarketingInfo`]
+    pub marketing: Option<InstantiateMarketingInfo>,
 }
 
 /// This structure describes a migration message.
