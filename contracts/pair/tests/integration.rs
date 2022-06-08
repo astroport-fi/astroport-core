@@ -247,7 +247,7 @@ fn test_provide_and_withdraw_liquidity() {
                     amount: Uint128::from(1000000000u128),
                 }],
                 mint: None,
-                marketing: None
+                marketing: None,
             },
             &[],
             String::from("FOO"),
@@ -389,7 +389,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             minter: String::from(OWNER),
             cap: None,
         }),
-        marketing: None
+        marketing: None,
     };
 
     let token_x_instance = app
@@ -417,7 +417,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             minter: String::from(OWNER),
             cap: None,
         }),
-        marketing: None
+        marketing: None,
     };
 
     let token_y_instance = app

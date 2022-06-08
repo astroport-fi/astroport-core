@@ -37,7 +37,7 @@ impl EscrowHelper {
                 minter: owner.to_string(),
                 cap: None,
             }),
-            marketing: None
+            marketing: None,
         };
 
         let astro_token = router
