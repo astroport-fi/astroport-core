@@ -459,7 +459,8 @@ pub fn provide_liquidity(
             &deps.querier,
             &config.factory_addr,
             config.pair_info.pair_type.clone(),
-        )?;
+        )
+        .unwrap_or_default(); // There may no fee exist thus 0 is a default fee.
 
         let fee = fee_info.total_fee_rate / Uint128::from(2u8);
 

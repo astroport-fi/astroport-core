@@ -360,7 +360,7 @@ fn withdraw_liquidity() {
     // Withdraw liquidity
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: String::from("addr0000"),
-        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: None }).unwrap(),
         amount: Uint128::new(100u128),
     });
 

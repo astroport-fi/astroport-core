@@ -248,7 +248,7 @@ fn test_provide_and_withdraw_liquidity() {
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         amount: Uint128::from(50u8),
-        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: None }).unwrap(),
     };
     // Try to send withdraw liquidity with FOO token
     let err = router

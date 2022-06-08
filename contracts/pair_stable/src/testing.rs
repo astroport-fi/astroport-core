@@ -313,7 +313,7 @@ fn provide_liquidity() {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(74_981956874579206461u128),
+                    amount: Uint128::from(74_944452888487171363u128),
                 })
                 .unwrap(),
                 funds: vec![],

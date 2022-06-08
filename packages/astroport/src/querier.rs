@@ -134,6 +134,7 @@ pub fn query_factory_config(
 }
 
 /// This structure holds parameters that describe the fee structure for a pool.
+#[derive(Default)]
 pub struct FeeInfo {
     /// The fee address
     pub fee_address: Option<Addr>,

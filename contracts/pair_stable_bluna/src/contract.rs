@@ -388,7 +388,8 @@ pub fn receive_cw20(
                 to_addr,
             )
         }
-        Ok(Cw20HookMsg::WithdrawLiquidity {}) => withdraw_liquidity(
+        // TODO: fix to support imbalanced withdraw
+        Ok(Cw20HookMsg::WithdrawLiquidity { .. }) => withdraw_liquidity(
             deps,
             env,
             info,
