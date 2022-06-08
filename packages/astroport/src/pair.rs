@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{Asset, AssetInfo};
 
-use cosmwasm_std::{from_slice, Addr, Binary, Decimal, Deps, StdResult, Uint128};
+use cosmwasm_std::{from_slice, Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
@@ -11,7 +11,7 @@ pub const DEFAULT_SLIPPAGE: &str = "0.005";
 /// The maximum allowed swap slippage
 pub const MAX_ALLOWED_SLIPPAGE: &str = "0.5";
 
-// Decimal precision for TWAP results
+/// Decimal precision for TWAP results
 pub const TWAP_PRECISION: u8 = 6;
 
 /// This structure describes the parameters used for creating a contract.
@@ -173,14 +173,21 @@ pub enum StablePoolUpdateParams {
     StopChangingAmp {},
 }
 
-pub fn migration_check(deps: Deps, factory: &Addr, pair_addr: &Addr) -> StdResult<bool> {
-    if let Some(res) = &deps
-        .querier
-        .query_wasm_raw(factory, b"pairs_to_migrate".as_slice())?
-    {
-        let res: Vec<Addr> = from_slice(res)?;
-        return Ok(res.contains(pair_addr));
+/// This function makes raw query to the factory contract and
+/// checks whether the pair needs to update an owner or not.
+/// # Params
+/// * **querier** - is the object of type [`QuerierWrapper`].
+/// * **pair** - The pair address which we need to check.
+/// * **factory** - The factory address.
+pub fn migration_check(
+    querier: QuerierWrapper,
+    factory: &Addr,
+    pair_addr: &Addr,
+) -> StdResult<bool> {
+    if let Some(res) = querier.query_wasm_raw(factory, b"pairs_to_migrate".as_slice())? {
+        let res: Vec<Addr> = from_slice(&res)?;
+        Ok(res.contains(pair_addr))
+    } else {
+        Ok(false)
     }
-
-    Ok(false)
 }

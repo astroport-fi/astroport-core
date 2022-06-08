@@ -253,7 +253,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
-    if migration_check(deps.as_ref(), &cfg.factory_addr, &env.contract.address)? {
+    if migration_check(deps.querier, &cfg.factory_addr, &env.contract.address)? {
         return Err(ContractError::PairIsNotMigrated {});
     }
 

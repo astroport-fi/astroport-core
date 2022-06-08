@@ -543,7 +543,65 @@ fn provide_liquidity() {
             amount: Uint128::from(99_000000000000000000u128),
         }],
     );
-    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
+    execute(deps.as_mut(), env, info, msg).unwrap();
+
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: [
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: Addr::unchecked("asset0000"),
+                },
+                amount: Uint128::zero(),
+            },
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: Uint128::from(99_000000000000000000u128),
+            },
+        ],
+        slippage_tolerance: Some(Decimal::percent(1)),
+        auto_stake: None,
+        receiver: None,
+    };
+    let info = mock_info(
+        "addr0001",
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(99_000000000000000000u128),
+        }],
+    );
+    let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+    assert_eq!(err, ContractError::InvalidZeroAmount {});
+
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: [
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: Addr::unchecked("asset0000"),
+                },
+                amount: Uint128::from(100_000000000000000000u128),
+            },
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: Uint128::from(100_000000000000000000u128),
+            },
+        ],
+        slippage_tolerance: Some(Decimal::percent(51)),
+        auto_stake: None,
+        receiver: None,
+    };
+    let info = mock_info(
+        "addr0001",
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(100_000000000000000000u128),
+        }],
+    );
+    let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+    assert_eq!(err, ContractError::AllowedSpreadAssertion {});
 }
 
 #[test]
@@ -765,6 +823,21 @@ fn try_native_to_token() {
         }],
     )]);
 
+    let err = query_simulation(
+        deps.as_ref(),
+        Asset {
+            info: AssetInfo::NativeToken {
+                denom: "cny".to_string(),
+            },
+            amount: offer_amount,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Given offer asset does not belong in the pair"
+    );
+
     let simulation_res: SimulationResponse = query_simulation(
         deps.as_ref(),
         Asset {
@@ -780,6 +853,21 @@ fn try_native_to_token() {
     assert_eq!(expected_spread_amount, simulation_res.spread_amount);
 
     // Check reverse simulation result
+    let err = query_reverse_simulation(
+        deps.as_ref(),
+        Asset {
+            info: AssetInfo::NativeToken {
+                denom: "cny".to_string(),
+            },
+            amount: expected_return_amount,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Given ask asset doesn't belong to pairs"
+    );
+
     let reverse_simulation_res: ReverseSimulationResponse = query_reverse_simulation(
         deps.as_ref(),
         Asset {
@@ -1100,6 +1188,15 @@ fn test_max_spread() {
         Uint128::from(10000u128),
     )
     .unwrap();
+
+    assert_max_spread(
+        Some(Decimal::from_ratio(1200u128, 1u128)),
+        Some(Decimal::percent(51)),
+        Uint128::from(1200000000u128),
+        Uint128::from(989999u128),
+        Uint128::zero(),
+    )
+    .unwrap_err();
 }
 
 #[test]
