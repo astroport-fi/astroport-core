@@ -9,7 +9,7 @@ use cosmwasm_std::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
-    addr_validate_to_lower, format_lp_token_name, is_non_zero_liquidity, Asset, AssetInfo, PairInfo,
+    addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset, AssetInfo, PairInfo,
 };
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
@@ -665,9 +665,6 @@ pub fn swap(
 
     let offer_amount = offer_asset.amount;
 
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
-
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
         ask_pool.amount,
@@ -925,9 +922,6 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
         config.pair_info.pair_type,
     )?;
 
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
-
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
         ask_pool.amount,
@@ -978,9 +972,6 @@ pub fn query_reverse_simulation(
         config.factory_addr,
         config.pair_info.pair_type,
     )?;
-
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
     let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
         offer_pool.amount,
@@ -1055,9 +1046,7 @@ pub fn compute_swap(
     commission_rate: Decimal,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // offer => ask
-    if offer_pool.is_zero() {
-        return Err(StdError::generic_err("Offer pool is empty"));
-    }
+    check_swap_parameters(offer_pool, ask_pool, offer_amount)?;
 
     let offer_pool: Uint256 = offer_pool.into();
     let ask_pool: Uint256 = ask_pool.into();
@@ -1101,9 +1090,7 @@ pub fn compute_offer_amount(
     commission_rate: Decimal,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
-    if offer_pool.is_zero() || ask_pool.is_zero() {
-        return Err(StdError::generic_err("One of the pools is empty"));
-    }
+    check_swap_parameters(offer_pool, ask_pool, ask_amount)?;
 
     // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
     let cp = Uint256::from(offer_pool) * Uint256::from(ask_pool);

@@ -14,7 +14,7 @@ use cosmwasm_std::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
-    addr_validate_to_lower, format_lp_token_name, is_non_zero_liquidity, token_asset_info, Asset,
+    addr_validate_to_lower, check_swap_parameters, format_lp_token_name, token_asset_info, Asset,
     AssetInfo, PairInfo,
 };
 use astroport::factory::PairType;
@@ -752,9 +752,6 @@ pub fn swap(
 
     let offer_amount = offer_asset.amount;
 
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
-
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
         query_token_precision(&deps.querier, &offer_pool.info)?,
@@ -1052,9 +1049,6 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
         config.pair_info.pair_type.clone(),
     )?;
 
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
-
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
         query_token_precision(&deps.querier, &offer_pool.info)?,
@@ -1111,9 +1105,6 @@ pub fn query_reverse_simulation(
         config.factory_addr.clone(),
         config.pair_info.pair_type.clone(),
     )?;
-
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
     let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
         offer_pool.amount,
@@ -1207,9 +1198,7 @@ pub fn compute_swap(
     amp: u64,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // offer => ask
-    if offer_amount.is_zero() {
-        return Err(StdError::generic_err("Offer amount should not be zero"));
-    }
+    check_swap_parameters(offer_pool, ask_pool, offer_amount)?;
 
     let greater_precision = offer_precision.max(ask_precision);
     let offer_pool = adjust_precision(offer_pool, offer_precision, greater_precision)?;
@@ -1259,9 +1248,7 @@ pub fn compute_offer_amount(
     amp: u64,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
-    if ask_pool.is_zero() {
-        return Err(StdError::generic_err("Ask pool is empty"));
-    }
+    check_swap_parameters(offer_pool, ask_pool, ask_amount)?;
 
     let greater_precision = offer_precision.max(ask_precision);
     let offer_pool = adjust_precision(offer_pool, offer_precision, greater_precision)?;

@@ -1422,23 +1422,32 @@ fn ensure_useful_error_messages_are_given_on_swaps() {
     // Computing ask
     assert_eq!(
         compute_swap(ZERO, ZERO, ZERO, DZERO).unwrap_err(),
-        StdError::generic_err("Offer pool is empty")
+        StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
         compute_swap(ZERO, ZERO, AMOUNT, DZERO).unwrap_err(),
-        StdError::generic_err("Offer pool is empty")
+        StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
         compute_swap(ZERO, ASK, ZERO, DZERO).unwrap_err(),
-        StdError::generic_err("Offer pool is empty")
+        StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
         compute_swap(ZERO, ASK, AMOUNT, DZERO).unwrap_err(),
-        StdError::generic_err("Offer pool is empty")
+        StdError::generic_err("One of the pools is empty")
     );
-    compute_swap(OFFER, ZERO, ZERO, DZERO).unwrap();
-    compute_swap(OFFER, ZERO, AMOUNT, DZERO).unwrap();
-    compute_swap(OFFER, ASK, ZERO, DZERO).unwrap();
+    assert_eq!(
+        compute_swap(OFFER, ZERO, ZERO, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(OFFER, ZERO, AMOUNT, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(OFFER, ASK, ZERO, DZERO).unwrap_err(),
+        StdError::generic_err("Swap amount must not be zero")
+    );
     compute_swap(OFFER, ASK, AMOUNT, DZERO).unwrap();
 
     // Computing offer
@@ -1466,6 +1475,9 @@ fn ensure_useful_error_messages_are_given_on_swaps() {
         compute_offer_amount(OFFER, ZERO, AMOUNT, DZERO).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
-    compute_offer_amount(OFFER, ASK, ZERO, DZERO).unwrap();
+    assert_eq!(
+        compute_offer_amount(OFFER, ASK, ZERO, DZERO).unwrap_err(),
+        StdError::generic_err("Swap amount must not be zero")
+    );
     compute_offer_amount(OFFER, ASK, AMOUNT, DZERO).unwrap();
 }
