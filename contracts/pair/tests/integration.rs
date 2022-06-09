@@ -505,10 +505,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
     let err = app
         .execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
         .unwrap_err();
-    assert_eq!(
-        "Generic error: Pool doesn't have any liquidity to facilitate the swap. Token0 = 0, Token1 = 0",
-        err.to_string()
-    );
+    assert_eq!("Generic error: One of the pools is empty", err.to_string());
 
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [

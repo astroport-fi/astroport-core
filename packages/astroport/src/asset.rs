@@ -403,17 +403,24 @@ pub fn pair_info_by_pool(querier: &QuerierWrapper, pool: impl Into<String>) -> S
     Ok(pair_info)
 }
 
-/// Checks if liquidity amount is non-zero. Otherwise returns [`Err`]
+/// Checks swap parameters. Otherwise returns [`Err`]
 /// ## Params
 /// * **offer_amount** is a [`Uint128`] representing an amount of offer tokens.
 ///
 /// * **ask_amount** is a [`Uint128`] representing an amount of ask tokens.
-pub fn is_non_zero_liquidity(offer_amount: Uint128, ask_amount: Uint128) -> StdResult<()> {
+///
+/// * **swap_amount** is a [`Uint128`] representing an amount to swap.
+pub fn check_swap_parameters(
+    offer_amount: Uint128,
+    ask_amount: Uint128,
+    swap_amount: Uint128,
+) -> StdResult<()> {
     if offer_amount.is_zero() || ask_amount.is_zero() {
-        return Err(StdError::generic_err(format!(
-            "Pool doesn't have any liquidity to facilitate the swap. Token0 = {0}, Token1 = {1}",
-            offer_amount, ask_amount
-        )));
+        return Err(StdError::generic_err("One of the pools is empty"));
+    }
+
+    if swap_amount.is_zero() {
+        return Err(StdError::generic_err("Swap amount must not be zero"));
     }
 
     Ok(())

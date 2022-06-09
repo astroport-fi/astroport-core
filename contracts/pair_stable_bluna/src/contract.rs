@@ -17,7 +17,7 @@ use cosmwasm_std::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
-    addr_validate_to_lower, format_lp_token_name, is_non_zero_liquidity, token_asset_info, Asset,
+    addr_validate_to_lower, check_swap_parameters, format_lp_token_name, token_asset_info, Asset,
     AssetInfo, PairInfo,
 };
 use astroport::factory::PairType;
@@ -821,9 +821,6 @@ pub fn swap(
         config.pair_info.pair_type.clone(),
     )?;
 
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
-
     let offer_amount = offer_asset.amount;
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
@@ -1122,9 +1119,6 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
         config.pair_info.pair_type.clone(),
     )?;
 
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
-
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
         query_token_precision(&deps.querier, &offer_pool.info)?,
@@ -1179,9 +1173,6 @@ pub fn query_reverse_simulation(
         config.factory_addr.clone(),
         config.pair_info.pair_type.clone(),
     )?;
-
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
     let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
         offer_pool.amount,
@@ -1334,7 +1325,7 @@ pub fn query_pending_reward(deps: Deps, env: Env, user: String) -> StdResult<Ass
 /// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
 ///
 /// * **amp** is an object of type [`u64`]. This is the pool amplification used to calculate the swap result.
-fn compute_swap(
+pub fn compute_swap(
     offer_pool: Uint128,
     offer_precision: u8,
     ask_pool: Uint128,
@@ -1344,6 +1335,7 @@ fn compute_swap(
     amp: u64,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // offer => ask
+    check_swap_parameters(offer_pool, ask_pool, offer_amount)?;
 
     let greater_precision = offer_precision.max(ask_precision);
     let offer_pool = adjust_precision(offer_pool, offer_precision, greater_precision)?;
@@ -1383,7 +1375,7 @@ fn compute_swap(
 /// * **ask_amount** is an object of type [`Uint128`]. This is the amount of ask assets to swap to.
 ///
 /// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
-fn compute_offer_amount(
+pub fn compute_offer_amount(
     offer_pool: Uint128,
     offer_precision: u8,
     ask_pool: Uint128,
@@ -1393,6 +1385,7 @@ fn compute_offer_amount(
     amp: u64,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
+    check_swap_parameters(offer_pool, ask_pool, ask_amount)?;
 
     let greater_precision = offer_precision.max(ask_precision);
     let offer_pool = adjust_precision(offer_pool, offer_precision, greater_precision)?;

@@ -454,10 +454,7 @@ fn provide_lp_for_single_token() {
     let err = app
         .execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
         .unwrap_err();
-    assert_eq!(
-        "Generic error: Pool doesn't have any liquidity to facilitate the swap. Token0 = 0, Token1 = 0",
-        err.to_string()
-    );
+    assert_eq!("Generic error: One of the pools is empty", err.to_string());
 
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [

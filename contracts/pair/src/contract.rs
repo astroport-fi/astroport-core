@@ -10,7 +10,7 @@ use cosmwasm_std::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
-    addr_opt_validate, addr_validate_to_lower, format_lp_token_name, is_non_zero_liquidity, Asset,
+    addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset,
     AssetInfo, PairInfo,
 };
 use astroport::factory::PairType;
@@ -649,9 +649,6 @@ pub fn swap(
 
     let offer_amount = offer_asset.amount;
 
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
-
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
         ask_pool.amount,
@@ -909,9 +906,6 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
         config.pair_info.pair_type,
     )?;
 
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
-
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
         ask_pool.amount,
@@ -963,9 +957,6 @@ pub fn query_reverse_simulation(
         config.factory_addr,
         config.pair_info.pair_type,
     )?;
-
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
     let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
         offer_pool.amount,
@@ -1039,12 +1030,14 @@ pub fn compute_swap(
     offer_amount: Uint128,
     commission_rate: Decimal,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
+    // offer => ask
+    check_swap_parameters(offer_pool, ask_pool, offer_amount)?;
+
     let offer_pool: Uint256 = offer_pool.into();
     let ask_pool: Uint256 = ask_pool.into();
     let offer_amount: Uint256 = offer_amount.into();
     let commission_rate: Decimal256 = commission_rate.into();
 
-    // offer => ask
     // ask_amount = (ask_pool - cp / (offer_pool + offer_amount))
     let cp: Uint256 = offer_pool * ask_pool;
     let return_amount: Uint256 = (Decimal256::from_uint256(ask_pool)
@@ -1075,13 +1068,15 @@ pub fn compute_swap(
 /// * **ask_amount** is an object of type [`Uint128`]. This is the amount of ask assets to swap to.
 ///
 /// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
-fn compute_offer_amount(
+pub fn compute_offer_amount(
     offer_pool: Uint128,
     ask_pool: Uint128,
     ask_amount: Uint128,
     commission_rate: Decimal,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
+    check_swap_parameters(offer_pool, ask_pool, ask_amount)?;
+
     // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
     let cp = Uint256::from(offer_pool) * Uint256::from(ask_pool);
     let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);

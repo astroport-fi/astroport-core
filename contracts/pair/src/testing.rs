@@ -1,7 +1,7 @@
 use crate::contract::reply;
 use crate::contract::{
-    accumulate_prices, assert_max_spread, compute_swap, execute, instantiate, query_pair_info,
-    query_pool, query_reverse_simulation, query_share, query_simulation,
+    accumulate_prices, assert_max_spread, compute_offer_amount, compute_swap, execute, instantiate,
+    query_pair_info, query_pool, query_reverse_simulation, query_share, query_simulation,
 };
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
@@ -1506,4 +1506,75 @@ proptest! {
             commission_amount,
         ).unwrap();
     }
+}
+
+#[test]
+fn ensure_useful_error_messages_are_given_on_swaps() {
+    const OFFER: Uint128 = Uint128::new(1_000_000_000000);
+    const ASK: Uint128 = Uint128::new(1_000_000_000000);
+    const AMOUNT: Uint128 = Uint128::new(1_000000);
+    const ZERO: Uint128 = Uint128::zero();
+    const DZERO: Decimal = Decimal::zero();
+
+    // Computing ask
+    assert_eq!(
+        compute_swap(ZERO, ZERO, ZERO, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(ZERO, ZERO, AMOUNT, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(ZERO, ASK, ZERO, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(ZERO, ASK, AMOUNT, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(OFFER, ZERO, ZERO, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(OFFER, ZERO, AMOUNT, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(OFFER, ASK, ZERO, DZERO).unwrap_err(),
+        StdError::generic_err("Swap amount must not be zero")
+    );
+    compute_swap(OFFER, ASK, AMOUNT, DZERO).unwrap();
+
+    // Computing offer
+    assert_eq!(
+        compute_offer_amount(ZERO, ZERO, ZERO, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_offer_amount(ZERO, ZERO, AMOUNT, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_offer_amount(ZERO, ASK, ZERO, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_offer_amount(ZERO, ASK, AMOUNT, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_offer_amount(OFFER, ZERO, ZERO, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_offer_amount(OFFER, ZERO, AMOUNT, DZERO).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_offer_amount(OFFER, ASK, ZERO, DZERO).unwrap_err(),
+        StdError::generic_err("Swap amount must not be zero")
+    );
+    compute_offer_amount(OFFER, ASK, AMOUNT, DZERO).unwrap();
 }
