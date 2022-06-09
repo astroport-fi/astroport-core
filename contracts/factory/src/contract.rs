@@ -313,7 +313,7 @@ pub fn execute_create_pair(
     deps: DepsMut,
     env: Env,
     pair_type: PairType,
-    asset_infos: [AssetInfo; 2],
+    asset_infos: Vec<AssetInfo>,
     init_params: Option<Binary>,
 ) -> Result<Response, ContractError> {
     asset_infos[0].check(deps.api)?;
@@ -447,7 +447,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 pub fn deregister(
     deps: DepsMut,
     info: MessageInfo,
-    asset_infos: [AssetInfo; 2],
+    asset_infos: Vec<AssetInfo>,
 ) -> Result<Response, ContractError> {
     asset_infos[0].check(deps.api)?;
     asset_infos[1].check(deps.api)?;
@@ -566,7 +566,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the assets traded in the pair.
-pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
+pub fn query_pair(deps: Deps, asset_infos: Vec<AssetInfo>) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     query_pair_info(&deps.querier, &pair_addr)
 }
@@ -582,7 +582,7 @@ pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo
 /// * **limit** is a [`Option`] type. Sets the number of pairs to be retrieved.
 pub fn query_pairs(
     deps: Deps,
-    start_after: Option<[AssetInfo; 2]>,
+    start_after: Option<Vec<AssetInfo>>,
     limit: Option<u32>,
 ) -> StdResult<PairsResponse> {
     let pairs = read_pairs(deps, start_after, limit)?

@@ -1,4 +1,4 @@
-use cosmwasm_std::{
+/*use cosmwasm_std::{
     attr, from_binary, to_binary, Addr, Reply, ReplyOn, SubMsg, SubMsgResponse, SubMsgResult,
     WasmMsg,
 };
@@ -740,3 +740,4 @@ fn register() {
         },]
     );
 }
+*/

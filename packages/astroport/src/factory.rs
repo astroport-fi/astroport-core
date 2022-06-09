@@ -107,14 +107,14 @@ pub enum ExecuteMsg {
         /// The pair type (exposed in [`PairType`])
         pair_type: PairType,
         /// The two assets to create the pool for
-        asset_infos: [AssetInfo; 2],
+        asset_infos: Vec<AssetInfo>,
         /// Optional binary serialised parameters for custom pool types
         init_params: Option<Binary>,
     },
     /// Deregister removes a previously created pair.
     Deregister {
         /// The assets for which we deregister a pool
-        asset_infos: [AssetInfo; 2],
+        asset_infos: Vec<AssetInfo>,
     },
     /// ProposeNewOwner creates a proposal to change contract ownership.
     /// The validity period for the proposal is set in the `expires_in` variable.
@@ -141,12 +141,12 @@ pub enum QueryMsg {
     /// Pair returns information about a specific pair according to the specified assets.
     Pair {
         /// The assets for which we return a pair
-        asset_infos: [AssetInfo; 2],
+        asset_infos: Vec<AssetInfo>,
     },
     /// Pairs returns an array of pairs and their information according to the specified parameters in `start_after` and `limit` variables.
     Pairs {
-        /// The pair item to start reading from. It is an [`Option`] type that accepts two [`AssetInfo`] elements.
-        start_after: Option<[AssetInfo; 2]>,
+        /// The pair item to start reading from. It is an [`Option`] type that accepts [`AssetInfo`] elements.
+        start_after: Option<Vec<AssetInfo>>,
         /// The number of pairs to read and return. It is an [`Option`] type.
         limit: Option<u32>,
     },

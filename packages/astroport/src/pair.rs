@@ -36,7 +36,7 @@ pub enum ExecuteMsg {
     /// ProvideLiquidity allows someone to provide liquidity in the pool
     ProvideLiquidity {
         /// The assets available in the pool
-        assets: Vec<AssetInfo>,
+        assets: Vec<Asset>,
         /// The slippage tolerance that allows liquidity provision only if the price in the pool doesn't move too much
         slippage_tolerance: Option<Decimal>,
         /// Determines whether the LP tokens minted for the user is auto_staked in the Generator contract

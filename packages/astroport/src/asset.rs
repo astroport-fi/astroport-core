@@ -225,7 +225,7 @@ impl AssetInfo {
     pub fn check(&self, api: &dyn Api) -> StdResult<()> {
         match self {
             AssetInfo::Token { contract_addr } => {
-                addr_validate_to_lower(api, contract_addr.as_str())?;
+                addr_validate_to_lower(api, contract_addr)?;
             }
             AssetInfo::NativeToken { denom } => {
                 if !denom.starts_with("ibc/") && denom != &denom.to_lowercase() {
@@ -244,7 +244,7 @@ impl AssetInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairInfo {
     /// Asset information for the two assets in the pool
-    pub asset_infos: [AssetInfo; 2],
+    pub asset_infos: Vec<AssetInfo>,
     /// Pair contract address
     pub contract_addr: Addr,
     /// Pair LP token address
@@ -265,9 +265,10 @@ impl PairInfo {
         &self,
         querier: &QuerierWrapper,
         contract_addr: impl Into<String>,
-    ) -> StdResult<[Asset; 2]> {
+    ) -> StdResult<Vec<Asset>> {
         let contract_addr = contract_addr.into();
-        Ok([
+        // TODO: support multiple assets in the pool
+        Ok(vec![
             Asset {
                 amount: self.asset_infos[0].query_pool(querier, &contract_addr)?,
                 info: self.asset_infos[0].clone(),
@@ -316,7 +317,7 @@ const TOKEN_SYMBOL_MAX_LENGTH: usize = 4;
 ///
 /// * **querier** is an object of type [`QuerierWrapper`].
 pub fn format_lp_token_name(
-    asset_infos: &[AssetInfo; 2],
+    asset_infos: &[AssetInfo],
     querier: &QuerierWrapper,
 ) -> StdResult<String> {
     let mut short_symbols: Vec<String> = vec![];

@@ -175,12 +175,12 @@ pub fn query_fee_info(
 pub fn query_pair_info(
     querier: &QuerierWrapper,
     factory_contract: impl Into<String>,
-    asset_infos: &[AssetInfo; 2],
+    asset_infos: &[AssetInfo],
 ) -> StdResult<PairInfo> {
     querier.query_wasm_smart(
         factory_contract,
         &FactoryQueryMsg::Pair {
-            asset_infos: asset_infos.clone(),
+            asset_infos: asset_infos.to_vec(),
         },
     )
 }
@@ -197,7 +197,7 @@ pub fn query_pair_info(
 pub fn query_pairs_info(
     querier: &QuerierWrapper,
     factory_contract: impl Into<String>,
-    start_after: Option<[AssetInfo; 2]>,
+    start_after: Option<Vec<AssetInfo>>,
     limit: Option<u32>,
 ) -> StdResult<PairsResponse> {
     querier.query_wasm_smart(
