@@ -211,20 +211,13 @@ pub fn execute(
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ProvideLiquidity {
             assets,
-            slippage_tolerance,
             auto_stake,
             receiver,
-        } => provide_liquidity(
-            deps,
-            env,
-            info,
-            assets,
-            slippage_tolerance,
-            auto_stake,
-            receiver,
-        ),
+            ..
+        } => provide_liquidity(deps, env, info, assets, auto_stake, receiver),
         ExecuteMsg::Swap {
             offer_asset,
+            ask_asset_info,
             belief_price,
             max_spread,
             to,
@@ -270,6 +263,7 @@ pub fn receive_cw20(
 ) -> Result<Response, ContractError> {
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::Swap {
+            ask_asset_info,
             belief_price,
             max_spread,
             to,
@@ -328,8 +322,6 @@ pub fn receive_cw20(
 ///
 /// * **assets** is an array with two objects of type [`Asset`]. These are the assets available in the pool.
 ///
-/// * **slippage_tolerance** is object of type [`Option<Decimal>`]. This is the slippage tolerance for providing liquidity.
-///
 /// * **auto_stake** is object of type [`Option<bool>`]. Determines whether the resulting LP tokens are automatically staked in
 /// the Generator contract to receive token incentives.
 ///
@@ -340,8 +332,7 @@ pub fn provide_liquidity(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    assets: [Asset; 2],
-    slippage_tolerance: Option<Decimal>,
+    assets: Vec<Asset>,
     auto_stake: Option<bool>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
@@ -401,9 +392,6 @@ pub fn provide_liquidity(
             }
         }
     }
-
-    // Assert that slippage tolerance is respected
-    assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
 
     let token_precision_0 = query_token_precision(&deps.querier, &pools[0].info)?;
     let token_precision_1 = query_token_precision(&deps.querier, &pools[1].info)?;
@@ -637,16 +625,13 @@ pub fn withdraw_liquidity(
 /// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to calculate underlying amounts for.
 ///
 /// * **total_share** is an object of type [`Uint128`]. This is the total amount of LP tokens currently issued by the pool.
-pub fn get_share_in_assets(
-    pools: &[Asset; 2],
-    amount: Uint128,
-    total_share: Uint128,
-) -> [Asset; 2] {
+pub fn get_share_in_assets(pools: &[Asset], amount: Uint128, total_share: Uint128) -> [Asset; 2] {
     let mut share_ratio = Decimal::zero();
     if !total_share.is_zero() {
         share_ratio = Decimal::from_ratio(amount, total_share);
     }
 
+    // TODO: support multiple assets
     [
         Asset {
             info: pools[0].info.clone(),
@@ -939,28 +924,21 @@ pub fn calculate_maker_fee(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Pair {} => to_binary(&query_pair_info(deps)?),
+        QueryMsg::Pair {} => to_binary(&CONFIG.load(deps.storage)?.pair_info),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
         QueryMsg::Share { amount } => to_binary(&query_share(deps, amount)?),
-        QueryMsg::Simulation { offer_asset } => {
-            to_binary(&query_simulation(deps, env, offer_asset)?)
-        }
-        QueryMsg::ReverseSimulation { ask_asset } => {
-            to_binary(&query_reverse_simulation(deps, env, ask_asset)?)
-        }
+        QueryMsg::Simulation {
+            offer_asset,
+            ask_asset_info,
+        } => to_binary(&query_simulation(deps, env, offer_asset)?),
+        QueryMsg::ReverseSimulation {
+            offer_asset_info,
+            ask_asset,
+        } => to_binary(&query_reverse_simulation(deps, env, ask_asset)?),
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
         QueryMsg::QueryComputeD {} => to_binary(&query_compute_d(deps, env)?),
     }
-}
-
-/// ## Description
-/// Returns information about the pair contract in an object of type [`PairInfo`].
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-pub fn query_pair_info(deps: Deps) -> StdResult<PairInfo> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(config.pair_info)
 }
 
 /// ## Description
@@ -1007,7 +985,7 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
     let config = CONFIG.load(deps.storage)?;
     let contract_addr = config.pair_info.contract_addr.clone();
 
-    let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
+    let pools = config.pair_info.query_pools(&deps.querier, contract_addr)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;
@@ -1345,24 +1323,6 @@ pub fn assert_max_spread(
 }
 
 /// ## Description
-/// This is an internal function that enforces slippage tolerance for swaps.
-/// Returns a [`ContractError`] on failure, otherwise returns [`Ok`].
-/// ## Params
-/// * **slippage_tolerance** is an object of type [`Option<Decimal>`]. This is the slippage tolerance to enforce.
-///
-/// * **deposits** are an array of [`Uint128`] type items. These are offer and ask amounts for a swap.
-///
-/// * **pools** are an array of [`Asset`] type items. These are total amounts of assets in the pool.
-fn assert_slippage_tolerance(
-    _slippage_tolerance: &Option<Decimal>,
-    _deposits: &[Uint128; 2],
-    _pools: &[Asset; 2],
-) -> Result<(), ContractError> {
-    // There is no slippage in the stable pool
-    Ok(())
-}
-
-/// ## Description
 /// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
 /// * **_deps** is an object of type [`DepsMut`].
@@ -1381,7 +1341,7 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Respons
 /// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **config** is an object of type [`Config`].
-pub fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<([Asset; 2], Uint128)> {
+pub fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<(Vec<Asset>, Uint128)> {
     let pools = config
         .pair_info
         .query_pools(&querier, &config.pair_info.contract_addr)?;

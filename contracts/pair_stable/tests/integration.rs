@@ -67,7 +67,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
     let pair_contract_code_id = store_pair_code(&mut router);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -96,7 +96,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
     );
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -266,7 +266,7 @@ fn provide_liquidity_msg(
     receiver: Option<String>,
 ) -> (ExecuteMsg, [Coin; 2]) {
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
@@ -411,7 +411,7 @@ fn provide_lp_for_single_token() {
 
     let msg = FactoryExecuteMsg::CreatePair {
         pair_type: PairType::Stable {},
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
@@ -426,7 +426,7 @@ fn provide_lp_for_single_token() {
         .unwrap();
 
     let msg = FactoryQueryMsg::Pair {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
@@ -464,6 +464,7 @@ fn provide_lp_for_single_token() {
     let swap_msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: None,
@@ -481,7 +482,7 @@ fn provide_lp_for_single_token() {
     );
 
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
@@ -509,7 +510,7 @@ fn provide_lp_for_single_token() {
     );
 
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
@@ -533,7 +534,7 @@ fn provide_lp_for_single_token() {
 
     // try to provide for single token and increase the ratio in the pool from 1 to 1.5
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
@@ -565,7 +566,7 @@ fn provide_lp_for_single_token() {
 
     // try to provide for single token and increase the ratio in the pool from 1 to 2.5
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
@@ -591,6 +592,7 @@ fn provide_lp_for_single_token() {
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: None,
@@ -606,6 +608,7 @@ fn provide_lp_for_single_token() {
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: None,
@@ -735,7 +738,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
     let msg = FactoryExecuteMsg::CreatePair {
         pair_type: PairType::Stable {},
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
@@ -750,7 +753,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .unwrap();
 
     let msg = FactoryQueryMsg::Pair {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
@@ -786,7 +789,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .unwrap();
 
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
@@ -819,6 +822,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: Some(user.to_string()),
@@ -960,7 +964,7 @@ fn create_pair_with_same_assets() {
     let pair_contract_code_id = store_pair_code(&mut router);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -1033,7 +1037,7 @@ fn update_pair_config() {
         .unwrap();
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
