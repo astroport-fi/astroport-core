@@ -283,7 +283,7 @@ fn create_pair(
     owner: Addr,
     user: Addr,
     factory_instance: &Addr,
-    assets: [Asset; 2],
+    assets: Vec<Asset>,
 ) -> PairInfo {
     for a in assets.clone() {
         match a.info {
@@ -301,7 +301,7 @@ fn create_pair(
         }
     }
 
-    let asset_infos = [assets[0].info.clone(), assets[1].info.clone()];
+    let asset_infos = vec![assets[0].info.clone(), assets[1].info.clone()];
 
     // Create pair in factory
     let res = router
@@ -505,7 +505,7 @@ fn test_maker_collect(
     staking: Addr,
     governance: Addr,
     governance_percent: Uint64,
-    pairs: Vec<[Asset; 2]>,
+    pairs: Vec<Vec<Asset>>,
     assets: Vec<AssetWithLimit>,
     bridges: Vec<(AssetInfo, AssetInfo)>,
     mint_balances: Vec<(Addr, u128)>,
@@ -685,23 +685,23 @@ fn collect_all() {
 
     // Create pairs
     let pairs = vec![
-        [
+        vec![
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
@@ -852,22 +852,22 @@ fn collect_default_bridges() {
 
     // Create pairs
     let pairs = vec![
-        [
+        vec![
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(
                 bridge_uusd_token_instance.clone(),
                 Uint128::from(100_000_u128),
             ),
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(
                 bridge_uluna_token_instance.clone(),
                 Uint128::from(100_000_u128),
@@ -995,23 +995,23 @@ fn collect_maxdepth_test() {
     // Create pairs
     let mut pair_addresses = vec![];
     for t in vec![
-        [
+        vec![
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
             native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
             token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
@@ -1106,19 +1106,19 @@ fn collect_err_no_swap_pair() {
 
     // Mint all tokens for Maker
     for t in vec![
-        [
+        vec![
             native_asset(ukrt_asset.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             native_asset(ukrt_asset.clone(), Uint128::from(100_000_u128)),
             native_asset(uabc_asset.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
@@ -1253,11 +1253,11 @@ fn update_bridges() {
 
     // Create pair so that add bridge check does not fail
     for pair in vec![
-        [
+        vec![
             native_asset(String::from("uluna"), Uint128::from(100_000_u128)),
             native_asset(String::from("uusd"), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             native_asset(String::from("ukrt"), Uint128::from(100_000_u128)),
             native_asset(String::from("uusd"), Uint128::from(100_000_u128)),
         ],
@@ -1286,7 +1286,7 @@ fn update_bridges() {
         owner.clone(),
         user.clone(),
         &factory_instance,
-        [
+        vec![
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
@@ -1403,23 +1403,23 @@ fn collect_with_asset_limit() {
 
     // Create pairs
     for t in vec![
-        [
+        vec![
             token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             native_asset(uluna_asset, Uint128::from(100_000_u128)),
             native_asset(uusd_asset, Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
@@ -1756,23 +1756,23 @@ fn distribute_initially_accrued_fees() {
 
     // Create pairs
     for t in vec![
-        [
+        vec![
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
-        [
+        vec![
             token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
             token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
         ],
