@@ -377,6 +377,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                     asset_token: Some(cfg.pair_addr.to_string()),
                 },
             )?;
+            // TODO:
             // let reward_infos = res.reward_infos;
             // let deposit_amount = if !reward_infos.is_empty() {
             //     reward_infos[0].bond_amount
@@ -406,6 +407,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                     asset_token: Some(cfg.pair_addr.to_string()),
                 },
             )?;
+            // TODO:
             // let reward_infos = res.reward_infos;
             // let pending_reward = if !reward_infos.is_empty() {
             //     reward_infos[0].pending_reward
