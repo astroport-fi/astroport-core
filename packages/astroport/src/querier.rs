@@ -222,6 +222,7 @@ pub fn simulate(
         pair_contract,
         &PairQueryMsg::Simulation {
             offer_asset: offer_asset.clone(),
+            ask_asset_info: None,
         },
     )
 }
@@ -241,6 +242,7 @@ pub fn reverse_simulate(
     querier.query_wasm_smart(
         pair_contract,
         &PairQueryMsg::ReverseSimulation {
+            offer_asset_info: None,
             ask_asset: ask_asset.clone(),
         },
     )

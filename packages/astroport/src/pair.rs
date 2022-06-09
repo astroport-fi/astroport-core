@@ -18,7 +18,7 @@ pub const TWAP_PRECISION: u8 = 6;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     /// Information about the two assets in the pool
-    pub asset_infos: [AssetInfo; 2],
+    pub asset_infos: Vec<AssetInfo>,
     /// The token contract code ID used for the tokens in the pool
     pub token_code_id: u64,
     /// The factory contract address
@@ -36,7 +36,7 @@ pub enum ExecuteMsg {
     /// ProvideLiquidity allows someone to provide liquidity in the pool
     ProvideLiquidity {
         /// The assets available in the pool
-        assets: [Asset; 2],
+        assets: Vec<AssetInfo>,
         /// The slippage tolerance that allows liquidity provision only if the price in the pool doesn't move too much
         slippage_tolerance: Option<Decimal>,
         /// Determines whether the LP tokens minted for the user is auto_staked in the Generator contract
@@ -47,6 +47,7 @@ pub enum ExecuteMsg {
     /// Swap performs a swap in the pool
     Swap {
         offer_asset: Asset,
+        ask_asset_info: Option<AssetInfo>,
         belief_price: Option<Decimal>,
         max_spread: Option<Decimal>,
         to: Option<String>,
@@ -61,6 +62,7 @@ pub enum ExecuteMsg {
 pub enum Cw20HookMsg {
     /// Swap a given amount of asset
     Swap {
+        ask_asset_info: Option<AssetInfo>,
         belief_price: Option<Decimal>,
         max_spread: Option<Decimal>,
         to: Option<String>,
@@ -82,9 +84,15 @@ pub enum QueryMsg {
     /// Returns information about the share of the pool in a vector that contains objects of type [`Asset`].
     Share { amount: Uint128 },
     /// Returns information about a swap simulation in a [`SimulationResponse`] object.
-    Simulation { offer_asset: Asset },
+    Simulation {
+        offer_asset: Asset,
+        ask_asset_info: Option<AssetInfo>,
+    },
     /// Returns information about cumulative prices in a [`CumulativePricesResponse`] object.
-    ReverseSimulation { ask_asset: Asset },
+    ReverseSimulation {
+        offer_asset_info: Option<AssetInfo>,
+        ask_asset: Asset,
+    },
     /// Returns information about the cumulative prices in a [`CumulativePricesResponse`] object
     CumulativePrices {},
     /// Returns current D invariant in as a [`u128`] value
@@ -95,7 +103,7 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolResponse {
     /// The assets in the pool together with asset amounts
-    pub assets: [Asset; 2],
+    pub assets: Vec<Asset>,
     /// The total amount of LP tokens currently issued
     pub total_share: Uint128,
 }
@@ -135,7 +143,7 @@ pub struct ReverseSimulationResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CumulativePricesResponse {
     /// The two assets in the pool to query
-    pub assets: [Asset; 2],
+    pub assets: Vec<Asset>,
     /// The total amount of LP tokens currently issued
     pub total_share: Uint128,
     /// The last value for the token0 cumulative price
@@ -189,5 +197,37 @@ pub fn migration_check(
         Ok(res.contains(pair_addr))
     } else {
         Ok(false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::asset::native_asset_info;
+    use cosmwasm_std::{from_binary, to_binary};
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct LegacyInstantiateMsg {
+        pub asset_infos: [AssetInfo; 2],
+        pub token_code_id: u64,
+        pub factory_addr: String,
+        pub init_params: Option<Binary>,
+    }
+
+    #[test]
+    fn test_compatability() {
+        let inst_msg = LegacyInstantiateMsg {
+            asset_infos: [
+                native_asset_info("uusd".to_string()),
+                native_asset_info("uluna".to_string()),
+            ],
+            token_code_id: 0,
+            factory_addr: "factory".to_string(),
+            init_params: None,
+        };
+
+        let ser_msg = to_binary(&inst_msg).unwrap();
+        // This .unwrap() is enough to make sure that [AssetInfo; 2] and Vec<AssetInfo> are compatible.
+        let _: InstantiateMsg = from_binary(&ser_msg).unwrap();
     }
 }
