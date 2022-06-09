@@ -169,7 +169,7 @@ fn test_create_pair() {
         .query_wasm_smart(
             helper.factory.clone(),
             &QueryMsg::Pair {
-                asset_infos: [
+                asset_infos: vec![
                     AssetInfo::Token {
                         contract_addr: token1.clone(),
                     },
