@@ -267,17 +267,15 @@ impl PairInfo {
         contract_addr: impl Into<String>,
     ) -> StdResult<Vec<Asset>> {
         let contract_addr = contract_addr.into();
-        // TODO: support multiple assets in the pool
-        Ok(vec![
-            Asset {
-                amount: self.asset_infos[0].query_pool(querier, &contract_addr)?,
-                info: self.asset_infos[0].clone(),
-            },
-            Asset {
-                amount: self.asset_infos[1].query_pool(querier, contract_addr)?,
-                info: self.asset_infos[1].clone(),
-            },
-        ])
+        self.asset_infos
+            .iter()
+            .map(|asset_info| {
+                Ok(Asset {
+                    info: asset_info.clone(),
+                    amount: asset_info.query_pool(querier, &contract_addr)?,
+                })
+            })
+            .collect()
     }
 }
 
