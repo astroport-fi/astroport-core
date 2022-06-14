@@ -1233,11 +1233,11 @@ proptest! {
         );
 
         let result = calc_ask_amount(
-            balance_in,
-            balance_out,
-            amount_in,
-            amp * AMP_PRECISION
-        ).unwrap();
+            balance_in.into(),
+            balance_out.into(),
+            amount_in.into(),
+            (amp * AMP_PRECISION).into(),
+        ).unwrap().u128();
 
         let sim_result = model.sim_exchange(0, 1, amount_in);
 
@@ -1256,11 +1256,11 @@ proptest! {
         );
 
         let reverse_result = calc_offer_amount(
-            balance_in,
-            balance_out,
-            result,
-            amp * AMP_PRECISION
-        ).unwrap();
+            balance_in.into(),
+            balance_out.into(),
+            result.into(),
+            (amp * AMP_PRECISION).into(),
+        ).unwrap().u128();
 
         let amount_in_f = amount_in as f64;
         let reverse_diff = (reverse_result as f64 - amount_in_f) / amount_in_f * 100.;

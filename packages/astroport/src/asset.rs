@@ -4,12 +4,14 @@ use std::fmt;
 
 use crate::factory::PairType;
 use crate::pair::QueryMsg as PairQueryMsg;
-use crate::querier::{query_balance, query_token_balance, query_token_symbol};
+use crate::querier::{
+    query_balance, query_token_balance, query_token_symbol, NATIVE_TOKEN_PRECISION,
+};
 use cosmwasm_std::{
     to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, MessageInfo, QuerierWrapper, StdError,
     StdResult, Uint128, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
 
 /// UST token denomination
 pub const UUSD_DENOM: &str = "uusd";
@@ -137,7 +139,7 @@ impl Asset {
 /// Token { contract_addr: Addr::unchecked("terra...") };
 /// NativeToken { denom: String::from("uluna") };
 /// ```
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetInfo {
     /// Non-native Token
@@ -182,6 +184,23 @@ impl AssetInfo {
             }
             AssetInfo::NativeToken { denom } => query_balance(querier, pool_addr, denom),
         }
+    }
+
+    /// Returns the number of decimals that a token has.
+    /// ## Params
+    /// * **querier** is an object of type [`QuerierWrapper`].
+    pub fn query_token_precision(&self, querier: &QuerierWrapper) -> StdResult<u8> {
+        let decimals = match &self {
+            AssetInfo::NativeToken { .. } => NATIVE_TOKEN_PRECISION,
+            AssetInfo::Token { contract_addr } => {
+                let res: TokenInfoResponse =
+                    querier.query_wasm_smart(contract_addr, &Cw20QueryMsg::TokenInfo {})?;
+
+                res.decimals
+            }
+        };
+
+        Ok(decimals)
     }
 
     /// Returns **true** if the calling token is the same as the token specified in the input parameters.

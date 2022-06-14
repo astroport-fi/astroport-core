@@ -59,6 +59,9 @@ pub enum ContractError {
 
     #[error("Pair is not migrated to the new admin!")]
     PairIsNotMigrated {},
+
+    #[error("You must specify target asset")]
+    AskAssetMissed {},
 }
 
 impl From<OverflowError> for ContractError {

@@ -24,6 +24,10 @@ use astroport::pair::{
     DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, TWAP_PRECISION,
 };
 
+use crate::utils::{
+    adjust_precision, check_asset_infos, check_assets, check_cw20_in_pool, compute_current_amp,
+    compute_swap, select_pools, SwapResult,
+};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse, StablePoolConfig,
@@ -35,7 +39,6 @@ use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
-use std::cmp::Ordering;
 use std::str::FromStr;
 use std::vec;
 
@@ -64,12 +67,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    msg.asset_infos[0].check(deps.api)?;
-    msg.asset_infos[1].check(deps.api)?;
-
-    if msg.asset_infos[0] == msg.asset_infos[1] {
-        return Err(ContractError::DoublingAssets {});
-    }
+    check_asset_infos(deps.api, &msg.asset_infos)?;
 
     if msg.init_params.is_none() {
         return Err(ContractError::InitParamsNotFound {});
@@ -226,15 +224,16 @@ pub fn execute(
             if !offer_asset.is_native_token() {
                 return Err(ContractError::Unauthorized {});
             }
+            offer_asset.assert_sent_native_token_balance(&info)?;
 
             let to_addr = addr_opt_validate(deps.api, &to)?;
 
             swap(
                 deps,
                 env,
-                info.clone(),
                 info.sender,
                 offer_asset,
+                ask_asset_info,
                 belief_price,
                 max_spread,
                 to_addr,
@@ -268,21 +267,10 @@ pub fn receive_cw20(
             max_spread,
             to,
         }) => {
-            // Only asset contract can execute this message
-            let mut authorized = false;
             let config = CONFIG.load(deps.storage)?;
 
-            for pool in config.pair_info.asset_infos {
-                if let AssetInfo::Token { contract_addr, .. } = &pool {
-                    if contract_addr == &info.sender {
-                        authorized = true;
-                    }
-                }
-            }
-
-            if !authorized {
-                return Err(ContractError::Unauthorized {});
-            }
+            // Only asset contract can execute this message
+            check_cw20_in_pool(&config, &info.sender)?;
 
             let to_addr = addr_opt_validate(deps.api, &to)?;
             let contract_addr = info.sender.clone();
@@ -290,12 +278,12 @@ pub fn receive_cw20(
             swap(
                 deps,
                 env,
-                info,
                 sender,
                 Asset {
                     info: AssetInfo::Token { contract_addr },
                     amount: cw20_msg.amount,
                 },
+                ask_asset_info,
                 belief_price,
                 max_spread,
                 to_addr,
@@ -336,8 +324,7 @@ pub fn provide_liquidity(
     auto_stake: Option<bool>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
-    assets[0].info.check(deps.api)?;
-    assets[1].info.check(deps.api)?;
+    check_assets(deps.api, &assets)?;
 
     let auto_stake = auto_stake.unwrap_or(false);
     for asset in assets.iter() {
@@ -419,23 +406,19 @@ pub fn provide_liquidity(
             liquidity_token_precision,
         )?
     } else {
-        let leverage = compute_current_amp(&config, &env)?
-            .checked_mul(u64::from(N_COINS))
-            .unwrap();
+        let leverage = compute_current_amp(&config, &env)?.checked_mul(N_COINS.into())?;
 
         let mut pool_amount_0 =
             adjust_precision(pools[0].amount, token_precision_0, greater_precision)?;
         let mut pool_amount_1 =
             adjust_precision(pools[1].amount, token_precision_1, greater_precision)?;
 
-        let d_before_addition_liquidity =
-            compute_d(leverage, pool_amount_0.u128(), pool_amount_1.u128()).unwrap();
+        let d_before_addition_liquidity = compute_d(leverage, pool_amount_0, pool_amount_1)?;
 
         pool_amount_0 = pool_amount_0.checked_add(deposit_amount_0)?;
         pool_amount_1 = pool_amount_1.checked_add(deposit_amount_1)?;
 
-        let d_after_addition_liquidity =
-            compute_d(leverage, pool_amount_0.u128(), pool_amount_1.u128()).unwrap();
+        let d_after_addition_liquidity = compute_d(leverage, pool_amount_0, pool_amount_1)?;
 
         // d after adding liquidity may be less than or equal to d before adding liquidity because of rounding
         if d_before_addition_liquidity >= d_after_addition_liquidity {
@@ -572,7 +555,7 @@ pub fn withdraw_liquidity(
     sender: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage).unwrap();
+    let mut config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.pair_info.liquidity_token {
         return Err(ContractError::Unauthorized {});
@@ -653,11 +636,11 @@ pub fn get_share_in_assets(pools: &[Asset], amount: Uint128, total_share: Uint12
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
 /// * **sender** is an object of type [`Addr`]. This is the default recipient of the swap operation.
 ///
 /// * **offer_asset** is an object of type [`Asset`]. This is the asset to swap.
+///
+/// * **ask_asset_info** is an object of type [`Option<AssetInfo>`]. It must contain ask asset info always if pool has > 2 assets.
 ///
 /// * **belief_price** is an object of type [`Option<Decimal>`]. This is used to calculate the maximum spread.
 ///
@@ -669,15 +652,13 @@ pub fn get_share_in_assets(pools: &[Asset], amount: Uint128, total_share: Uint12
 pub fn swap(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     sender: Addr,
     offer_asset: Asset,
+    ask_asset_info: Option<AssetInfo>,
     belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
     to: Option<Addr>,
 ) -> Result<Response, ContractError> {
-    offer_asset.assert_sent_native_token_balance(&info)?;
-
     let mut config = CONFIG.load(deps.storage)?;
 
     // If the asset balance already increased
@@ -694,18 +675,10 @@ pub fn swap(
         })
         .collect::<StdResult<Vec<_>>>()?;
 
-    let offer_pool: Asset;
-    let ask_pool: Asset;
+    let (offer_pool, ask_pool) = select_pools(&config, &offer_asset.info, ask_asset_info, pools)?;
 
-    if offer_asset.info.equal(&pools[0].info) {
-        offer_pool = pools[0].clone();
-        ask_pool = pools[1].clone();
-    } else if offer_asset.info.equal(&pools[1].info) {
-        offer_pool = pools[1].clone();
-        ask_pool = pools[0].clone();
-    } else {
-        return Err(ContractError::AssetMismatch {});
-    }
+    // Check if the liquidity is non-zero
+    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
     // Get fee info from the factory
     let fee_info = query_fee_info(
@@ -716,14 +689,14 @@ pub fn swap(
 
     let offer_amount = offer_asset.amount;
 
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
-
-    let (return_amount, spread_amount, commission_amount) = compute_swap(
-        offer_pool.amount,
-        query_token_precision(&deps.querier, &offer_pool.info)?,
-        ask_pool.amount,
-        query_token_precision(&deps.querier, &ask_pool.info)?,
+    let SwapResult {
+        return_amount,
+        spread_amount,
+        commission_amount,
+    } = compute_swap(
+        deps.querier,
+        &offer_pool,
+        &ask_pool,
         offer_amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -761,20 +734,21 @@ pub fn swap(
         }
     }
 
+    /* TODO: support multiple assets
     // Accumulate prices for the assets in the pool
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) = accumulate_prices(
         env,
         &config,
-        pools[0].amount,
-        query_token_precision(&deps.querier, &pools[0].info)?,
-        pools[1].amount,
-        query_token_precision(&deps.querier, &pools[1].info)?,
+        offer_pool.amount,
+        query_token_precision(&deps.querier, &offer_pool.info)?,
+        ask_pool.amount,
+        query_token_precision(&deps.querier, &ask_pool.info)?,
     )? {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
         config.block_time_last = block_time;
         CONFIG.save(deps.storage, &config)?;
-    }
+    }*/
 
     Ok(Response::new()
         .add_messages(
@@ -839,28 +813,22 @@ pub fn accumulate_prices(
     if !x.is_zero() && !y.is_zero() {
         let current_amp = compute_current_amp(config, &env)?;
         pcl0 = config.price0_cumulative_last.wrapping_add(adjust_precision(
-            time_elapsed.checked_mul(Uint128::new(
-                calc_ask_amount(
-                    x.u128(),
-                    y.u128(),
-                    adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
-                    current_amp,
-                )
-                .unwrap(),
-            ))?,
+            time_elapsed.checked_mul(calc_ask_amount(
+                x,
+                y,
+                adjust_precision(Uint128::new(1), 0, greater_precision)?,
+                current_amp,
+            )?)?,
             greater_precision,
             TWAP_PRECISION,
         )?);
         pcl1 = config.price1_cumulative_last.wrapping_add(adjust_precision(
-            time_elapsed.checked_mul(Uint128::new(
-                calc_ask_amount(
-                    y.u128(),
-                    x.u128(),
-                    adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
-                    current_amp,
-                )
-                .unwrap(),
-            ))?,
+            time_elapsed.checked_mul(calc_ask_amount(
+                y,
+                x,
+                adjust_precision(Uint128::new(1), 0, greater_precision)?,
+                current_amp,
+            )?)?,
             greater_precision,
             TWAP_PRECISION,
         )?)
@@ -1011,11 +979,14 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
     // Check if the liquidity is non-zero
     is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
-    let (return_amount, spread_amount, commission_amount) = compute_swap(
-        offer_pool.amount,
-        query_token_precision(&deps.querier, &offer_pool.info)?,
-        ask_pool.amount,
-        query_token_precision(&deps.querier, &ask_pool.info)?,
+    let SwapResult {
+        return_amount,
+        spread_amount,
+        commission_amount,
+    } = compute_swap(
+        deps.querier,
+        &offer_pool,
+        &ask_pool,
         offer_asset.amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -1138,57 +1109,6 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
 }
 
 /// ## Description
-/// Returns the result of a swap.
-/// ## Params
-/// * **offer_pool** is an object of type [`Uint128`]. This is the total amount of offer assets in the pool.
-///
-/// * **offer_precision** is an object of type [`u8`]. This is the token precision used for the offer amount.
-///
-/// * **ask_pool** is an object of type [`Uint128`]. This is the total amount of ask assets in the pool.
-///
-/// * **ask_precision** is an object of type [`u8`]. This is the token precision used for the ask amount.
-///
-/// * **offer_amount** is an object of type [`Uint128`]. This is the amount of offer assets to swap.
-///
-/// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
-///
-/// * **amp** is an object of type [`u64`]. This is the pool amplification used to calculate the swap result.
-fn compute_swap(
-    offer_pool: Uint128,
-    offer_precision: u8,
-    ask_pool: Uint128,
-    ask_precision: u8,
-    offer_amount: Uint128,
-    commission_rate: Decimal,
-    amp: u64,
-) -> StdResult<(Uint128, Uint128, Uint128)> {
-    // offer => ask
-
-    let greater_precision = offer_precision.max(ask_precision);
-    let offer_pool = adjust_precision(offer_pool, offer_precision, greater_precision)?;
-    let ask_pool = adjust_precision(ask_pool, ask_precision, greater_precision)?;
-    let offer_amount = adjust_precision(offer_amount, offer_precision, greater_precision)?;
-
-    let return_amount = Uint128::new(
-        calc_ask_amount(offer_pool.u128(), ask_pool.u128(), offer_amount.u128(), amp).unwrap(),
-    );
-
-    // We assume the assets should stay in a 1:1 ratio, so the true exchange rate is 1. So any exchange rate <1 could be considered the spread
-    let spread_amount = offer_amount.saturating_sub(return_amount);
-
-    let commission_amount: Uint128 = return_amount * commission_rate;
-
-    // The commission will be absorbed by the pool
-    let return_amount: Uint128 = return_amount.checked_sub(commission_amount).unwrap();
-
-    let return_amount = adjust_precision(return_amount, greater_precision, ask_precision)?;
-    let spread_amount = adjust_precision(spread_amount, greater_precision, ask_precision)?;
-    let commission_amount = adjust_precision(commission_amount, greater_precision, ask_precision)?;
-
-    Ok((return_amount, spread_amount, commission_amount))
-}
-
-/// ## Description
 /// Returns an amount of offer assets for a specified amount of ask assets.
 /// ## Params
 /// * **offer_pool** is an object of type [`Uint128`]. This is the total amount of offer assets in the pool.
@@ -1209,7 +1129,7 @@ fn compute_offer_amount(
     ask_precision: u8,
     ask_amount: Uint128,
     commission_rate: Decimal,
-    amp: u64,
+    amp: Uint64,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
 
@@ -1222,15 +1142,7 @@ fn compute_offer_amount(
     let inv_one_minus_commission = Decimal::one() / one_minus_commission;
     let before_commission_deduction = ask_amount * inv_one_minus_commission;
 
-    let offer_amount = Uint128::new(
-        calc_offer_amount(
-            offer_pool.u128(),
-            ask_pool.u128(),
-            before_commission_deduction.u128(),
-            amp,
-        )
-        .unwrap(),
-    );
+    let offer_amount = calc_offer_amount(offer_pool, ask_pool, before_commission_deduction, amp)?;
 
     // We assume the assets should stay in a 1:1 ratio, so the true exchange rate is 1. Any exchange rate < 1 could be considered the spread
     let spread_amount = offer_amount.saturating_sub(before_commission_deduction);
@@ -1242,30 +1154,6 @@ fn compute_offer_amount(
     let commission_amount = adjust_precision(commission_amount, greater_precision, ask_precision)?;
 
     Ok((offer_amount, spread_amount, commission_amount))
-}
-
-/// ## Description
-/// Return a value using a newly specified precision.
-/// ## Params
-/// * **value** is an object of type [`Uint128`]. This is the value that will have its precision adjusted.
-///
-/// * **current_precision** is an object of type [`u8`]. This is the `value`'s current precision
-///
-/// * **new_precision** is an object of type [`u8`]. This is the new precision to use when returning the `value`.
-fn adjust_precision(
-    value: Uint128,
-    current_precision: u8,
-    new_precision: u8,
-) -> StdResult<Uint128> {
-    Ok(match current_precision.cmp(&new_precision) {
-        Ordering::Equal => value,
-        Ordering::Less => value.checked_mul(Uint128::new(
-            10_u128.pow((new_precision - current_precision) as u32),
-        ))?,
-        Ordering::Greater => value.checked_div(Uint128::new(
-            10_u128.pow((current_precision - new_precision) as u32),
-        ))?,
-    })
 }
 
 /// ## Description
@@ -1306,9 +1194,7 @@ pub fn assert_max_spread(
                 ))
             })?;
 
-        let spread_amount = expected_return
-            .checked_sub(return_amount)
-            .unwrap_or_else(|_| Uint128::zero());
+        let spread_amount = expected_return.saturating_sub(return_amount);
 
         if return_amount < expected_return
             && Decimal::from_ratio(spread_amount, expected_return) > max_spread
@@ -1409,7 +1295,7 @@ fn start_changing_amp(
         return Err(ContractError::IncorrectAmp {});
     }
 
-    let current_amp = compute_current_amp(&config, &env)?;
+    let current_amp = compute_current_amp(&config, &env)?.u64();
 
     let next_amp_with_precision = next_amp * AMP_PRECISION;
 
@@ -1449,8 +1335,8 @@ fn stop_changing_amp(mut config: Config, deps: DepsMut, env: Env) -> StdResult<(
     let current_amp = compute_current_amp(&config, &env)?;
     let block_time = env.block.time.seconds();
 
-    config.init_amp = current_amp;
-    config.next_amp = current_amp;
+    config.init_amp = current_amp.u64();
+    config.next_amp = current_amp.u64();
     config.init_amp_time = block_time;
     config.next_amp_time = block_time;
 
@@ -1461,55 +1347,20 @@ fn stop_changing_amp(mut config: Config, deps: DepsMut, env: Env) -> StdResult<(
 }
 
 /// ## Description
-/// Compute the current pool amplification coefficient (AMP).
-/// ## Params
-/// * **config** is an object of type [`Config`].
-///
-/// * **env** is an object of type [`Env`].
-fn compute_current_amp(config: &Config, env: &Env) -> StdResult<u64> {
-    let block_time = env.block.time.seconds();
-
-    if block_time < config.next_amp_time {
-        let elapsed_time =
-            Uint128::from(block_time).checked_sub(Uint128::from(config.init_amp_time))?;
-        let time_range =
-            Uint128::from(config.next_amp_time).checked_sub(Uint128::from(config.init_amp_time))?;
-        let init_amp = Uint128::from(config.init_amp);
-        let next_amp = Uint128::from(config.next_amp);
-
-        if config.next_amp > config.init_amp {
-            let amp_range = next_amp - init_amp;
-            let res = init_amp + (amp_range * elapsed_time).checked_div(time_range)?;
-            Ok(res.u128() as u64)
-        } else {
-            let amp_range = init_amp - next_amp;
-            let res = init_amp - (amp_range * elapsed_time).checked_div(time_range)?;
-            Ok(res.u128() as u64)
-        }
-    } else {
-        Ok(config.next_amp)
-    }
-}
-
-/// ## Description
 /// Compute the current pool D value.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **env** is an object of type [`Env`].
-fn query_compute_d(deps: Deps, env: Env) -> StdResult<u128> {
+fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
     let amp = compute_current_amp(&config, &env)?;
     let pools = config
         .pair_info
         .query_pools(&deps.querier, env.contract.address)?;
-    let leverage = Uint64::new(amp).checked_mul(Uint64::from(N_COINS))?;
+    let leverage = amp.checked_mul(Uint64::from(N_COINS))?;
 
-    compute_d(
-        leverage.u64(),
-        pools[0].amount.u128(),
-        pools[1].amount.u128(),
-    )
-    .ok_or_else(|| StdError::generic_err("Failed to calculate the D"))
+    compute_d(leverage, pools[0].amount, pools[1].amount)
+        .map_err(|_| StdError::generic_err("Failed to calculate the D"))
 }

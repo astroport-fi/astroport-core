@@ -240,7 +240,7 @@ dependencies = [
  "cw-storage-plus 0.13.4",
  "cw2 0.13.4",
  "cw20 0.13.4",
- "integer-sqrt",
+ "itertools",
  "proptest",
  "protobuf",
  "schemars",
