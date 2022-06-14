@@ -62,6 +62,11 @@ pub enum ContractError {
 
     #[error("You must specify target asset")]
     AskAssetMissed {},
+
+    #[error(
+        "Invalid number of assets. The Astroport supports at least 2 and at most 5 assets within a stable pool"
+    )]
+    InvalidNumberOfAssets {},
 }
 
 impl From<OverflowError> for ContractError {

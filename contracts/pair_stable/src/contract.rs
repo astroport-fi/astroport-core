@@ -59,6 +59,7 @@ const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 /// * **env** is an object of type [`Env`].
 ///
 /// * **_info** is an object of type [`MessageInfo`].
+///
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -68,6 +69,10 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     check_asset_infos(deps.api, &msg.asset_infos)?;
+
+    if msg.asset_infos.len() > 5 || msg.asset_infos.len() < 2 {
+        return Err(ContractError::InvalidNumberOfAssets {});
+    }
 
     if msg.init_params.is_none() {
         return Err(ContractError::InitParamsNotFound {});
@@ -273,14 +278,15 @@ pub fn receive_cw20(
             check_cw20_in_pool(&config, &info.sender)?;
 
             let to_addr = addr_opt_validate(deps.api, &to)?;
-            let contract_addr = info.sender.clone();
             let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
             swap(
                 deps,
                 env,
                 sender,
                 Asset {
-                    info: AssetInfo::Token { contract_addr },
+                    info: AssetInfo::Token {
+                        contract_addr: info.sender,
+                    },
                     amount: cw20_msg.amount,
                 },
                 ask_asset_info,

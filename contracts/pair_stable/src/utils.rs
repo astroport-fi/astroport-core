@@ -46,7 +46,7 @@ pub(crate) fn select_pools(
     mut pools: Vec<Asset>,
 ) -> Result<(Asset, Asset), ContractError> {
     if config.pair_info.asset_infos.len() != 2 {
-        let ask_asset_info = ask_asset_info.ok_or_else(|| ContractError::AskAssetMissed {})?;
+        let ask_asset_info = ask_asset_info.ok_or(ContractError::AskAssetMissed {})?;
         pools.retain(|pool| pool.info == *offer_asset_info || pool.info == ask_asset_info);
     }
 
