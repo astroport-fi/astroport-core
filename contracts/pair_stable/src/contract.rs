@@ -7,8 +7,8 @@ use crate::state::{Config, CONFIG};
 
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult,
-    SubMsg, Uint128, Uint64, WasmMsg,
+    Env, Fraction, Isqrt, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError,
+    StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -35,7 +35,7 @@ use astroport::pair::{
 use astroport::querier::{
     query_factory_config, query_fee_info, query_supply, query_token_precision,
 };
-use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
+use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
@@ -334,7 +334,7 @@ pub fn provide_liquidity(
     let mut config = CONFIG.load(deps.storage)?;
     let mut pools = config
         .pair_info
-        .query_pools(&deps.querier, env.contract.address.clone())?;
+        .query_pools(&deps.querier, &env.contract.address)?;
     let deposits = [
         assets
             .iter()
@@ -397,11 +397,10 @@ pub fn provide_liquidity(
 
         // Initial share = collateral amount
         adjust_precision(
-            Uint128::new(
-                (U256::from(deposit_amount_0.u128()) * U256::from(deposit_amount_1.u128()))
-                    .integer_sqrt()
-                    .as_u128(),
-            ),
+            deposit_amount_0
+                .full_mul(deposit_amount_1)
+                .isqrt()
+                .try_into()?,
             greater_precision,
             liquidity_token_precision,
         )?
