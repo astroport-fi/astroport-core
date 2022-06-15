@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::asset::{Asset, AssetInfo};
 
-use cosmwasm_std::{Binary, Decimal, Uint128};
+use cosmwasm_std::{from_slice, Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
@@ -11,7 +11,7 @@ pub const DEFAULT_SLIPPAGE: &str = "0.005";
 /// The maximum allowed swap slippage
 pub const MAX_ALLOWED_SLIPPAGE: &str = "0.5";
 
-// Decimal precision for TWAP results
+/// Decimal precision for TWAP results
 pub const TWAP_PRECISION: u8 = 6;
 
 /// This structure describes the parameters used for creating a contract.
@@ -87,6 +87,8 @@ pub enum QueryMsg {
     ReverseSimulation { ask_asset: Asset },
     /// Returns information about the cumulative prices in a [`CumulativePricesResponse`] object
     CumulativePrices {},
+    /// Returns current D invariant in as a [`u128`] value
+    QueryComputeD {},
 }
 
 /// This struct is used to return a query result with the total amount of LP tokens and the two assets in a specific pool.
@@ -169,4 +171,23 @@ pub struct StablePoolConfig {
 pub enum StablePoolUpdateParams {
     StartChangingAmp { next_amp: u64, next_amp_time: u64 },
     StopChangingAmp {},
+}
+
+/// This function makes raw query to the factory contract and
+/// checks whether the pair needs to update an owner or not.
+/// # Params
+/// * **querier** - is the object of type [`QuerierWrapper`].
+/// * **pair** - The pair address which we need to check.
+/// * **factory** - The factory address.
+pub fn migration_check(
+    querier: QuerierWrapper,
+    factory: &Addr,
+    pair_addr: &Addr,
+) -> StdResult<bool> {
+    if let Some(res) = querier.query_wasm_raw(factory, b"pairs_to_migrate".as_slice())? {
+        let res: Vec<Addr> = from_slice(&res)?;
+        Ok(res.contains(pair_addr))
+    } else {
+        Ok(false)
+    }
 }

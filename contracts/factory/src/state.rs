@@ -2,7 +2,7 @@ use cw_storage_plus::{Bound, Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Deps, Order};
+use cosmwasm_std::{Addr, Deps, Order, StdResult};
 
 use astroport::asset::AssetInfo;
 
@@ -67,23 +67,38 @@ const DEFAULT_LIMIT: u32 = 10;
 /// ## Params
 /// `start_after` is the pair from which the function starts to fetch results. It is an [`Option`].
 ///
-/// `limit` is the number of items to retreive. It is an [`Option`].
+/// `limit` is the number of items to retrieve. It is an [`Option`].
 pub fn read_pairs(
     deps: Deps,
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
-) -> Vec<Addr> {
+) -> StdResult<Vec<Addr>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = calc_range_start(start_after).map(Bound::exclusive);
 
-    PAIRS
-        .range(deps.storage, start, None, Order::Ascending)
-        .take(limit)
-        .map(|item| {
-            let (_, pair_addr) = item.unwrap();
-            pair_addr
-        })
-        .collect()
+    if let Some(start) = calc_range_start(start_after) {
+        PAIRS
+            .range(
+                deps.storage,
+                Some(Bound::exclusive(start.as_slice())),
+                None,
+                Order::Ascending,
+            )
+            .take(limit)
+            .map(|item| {
+                let (_, pair_addr) = item?;
+                Ok(pair_addr)
+            })
+            .collect()
+    } else {
+        PAIRS
+            .range(deps.storage, None, None, Order::Ascending)
+            .take(limit)
+            .map(|item| {
+                let (_, pair_addr) = item?;
+                Ok(pair_addr)
+            })
+            .collect()
+    }
 }
 
 /// ## Description
@@ -107,3 +122,6 @@ fn calc_range_start(start_after: Option<[AssetInfo; 2]>) -> Option<Vec<u8>> {
 
 /// Stores the latest contract ownership transfer proposal
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
+
+/// Stores pairs to migrate
+pub const PAIRS_TO_MIGRATE: Item<Vec<Addr>> = Item::new("pairs_to_migrate");

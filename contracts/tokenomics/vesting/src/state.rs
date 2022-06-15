@@ -50,7 +50,8 @@ pub fn read_vesting_infos(
     order_by: Option<OrderBy>,
 ) -> StdResult<Vec<(Addr, VestingInfo)>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start_after = start_after.map(|v| Bound::Exclusive(v.as_bytes().to_vec()));
+    let start_after = start_after.as_ref().map(Bound::exclusive);
+
     let (start, end) = match &order_by {
         Some(OrderBy::Asc) => (start_after, None),
         _ => (None, start_after),
@@ -65,7 +66,6 @@ pub fn read_vesting_infos(
         )
         .take(limit)
         .filter_map(|v| v.ok())
-        .map(|(k, v)| (Addr::unchecked(String::from_utf8(k).unwrap()), v))
         .collect();
 
     Ok(info)
@@ -75,7 +75,7 @@ pub fn read_vesting_infos(
 fn read_vesting_infos_as_expected() {
     use cosmwasm_std::{testing::mock_dependencies, Uint128};
 
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
 
     let vi_mock = VestingInfo {
         released_amount: Uint128::zero(),

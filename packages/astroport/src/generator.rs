@@ -1,14 +1,14 @@
 use crate::asset::{Asset, AssetInfo};
 use crate::factory::PairType;
-use crate::DecimalCheckedOps;
-use cosmwasm_std::{Addr, Decimal, StdError, StdResult, Uint128, Uint64};
+use crate::restricted_vector::RestrictedVector;
+use cosmwasm_std::{to_binary, Addr, Decimal, Env, StdResult, SubMsg, Uint128, Uint64, WasmMsg};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
 /// This structure describes the parameters used for creating a contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     /// Address that can change contract settings
     pub owner: String,
@@ -34,7 +34,7 @@ pub struct InstantiateMsg {
     pub whitelist_code_id: u64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     /// Update the address of the ASTRO vesting contract
@@ -162,9 +162,67 @@ pub enum ExecuteMsg {
         generators: Vec<String>,
         user: Option<String>,
     },
+    /// Process action after the callback
+    Callback {
+        action: ExecuteOnReply,
+    },
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub enum ExecuteOnReply {
+    /// Updates reward and returns it to user.
+    ClaimRewards {
+        /// The list of LP tokens contract
+        lp_tokens: Vec<Addr>,
+        /// The rewards recipient
+        account: Addr,
+    },
+    /// Stake LP tokens in the Generator to receive token emissions
+    Deposit {
+        /// The LP token to stake
+        lp_token: Addr,
+        /// The account that receives ownership of the staked tokens
+        account: Addr,
+        /// The amount of tokens to deposit
+        amount: Uint128,
+    },
+    /// Withdraw LP tokens from the Generator
+    Withdraw {
+        /// The LP tokens to withdraw
+        lp_token: Addr,
+        /// The account that receives the withdrawn LP tokens
+        account: Addr,
+        /// The amount of tokens to withdraw
+        amount: Uint128,
+    },
+    /// Sets a new amount of ASTRO to distribute per block between all active generators
+    SetTokensPerBlock {
+        /// The new amount of ASTRO to distribute per block
+        amount: Uint128,
+    },
+    /// Migrate LP tokens and collected rewards to new proxy
+    MigrateProxy { lp_addr: Addr, new_proxy_addr: Addr },
+    /// Stake LP tokens into new reward proxy
+    MigrateProxyDepositLP {
+        lp_addr: Addr,
+        prev_proxy_addr: Addr,
+        amount: Uint128,
+    },
+}
+
+impl ExecuteOnReply {
+    pub fn into_submsg(self, env: &Env) -> StdResult<SubMsg> {
+        let msg = SubMsg::new(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::Callback { action: self })?,
+            funds: vec![],
+        });
+
+        Ok(msg)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     /// Returns the length of the array that contains all the active pool generators
@@ -200,15 +258,9 @@ pub enum QueryMsg {
     BlockedTokensList {},
 }
 
-/// This structure holds the response returned when querying the total length of the array that keeps track of instantiated generators
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PoolLengthResponse {
-    pub length: usize,
-}
-
 /// This structure holds the response returned when querying the amount of pending rewards that can be withdrawn from a 3rd party
 /// rewards contract
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq)]
 pub struct PendingTokenResponse {
     /// The amount of pending ASTRO
     pub pending: Uint128,
@@ -216,74 +268,8 @@ pub struct PendingTokenResponse {
     pub pending_on_proxy: Option<Vec<Asset>>,
 }
 
-/// Vec wrapper for internal use.
-/// Some business logic relies on an order of this vector, thus it is forbidden to sort it
-/// or remove elements. New values can be added using .update() ONLY.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
-pub struct RestrictedVector<T>(Vec<(Addr, T)>);
-
-pub trait Increaseable
-where
-    Self: Sized,
-{
-    fn increase(self, new: Self) -> StdResult<Self>;
-}
-
-impl<T> RestrictedVector<T>
-where
-    T: Copy + Increaseable,
-{
-    pub fn new(first_proxy: Addr, first_reward_index: T) -> Self {
-        Self(vec![(first_proxy, first_reward_index)])
-    }
-
-    pub fn get_last(&self, proxy: &Addr) -> StdResult<T> {
-        self.0
-            .last()
-            .filter(|(p, _)| p.as_str() == proxy.as_str())
-            .map(|(_, v)| v)
-            .cloned()
-            .ok_or_else(|| StdError::generic_err(format!("Proxy {} not found", proxy)))
-    }
-
-    pub fn update(&mut self, key: &Addr, value: T) -> StdResult<()> {
-        let proxy_ref = self
-            .0
-            .iter_mut()
-            .find(|(proxy_addr, _)| proxy_addr.as_str() == key.as_str());
-        match proxy_ref {
-            Some((_, index)) => *index = index.increase(value)?,
-            _ => self.0.push((key.clone(), value)),
-        }
-
-        Ok(())
-    }
-
-    pub fn inner_ref(&self) -> &Vec<(Addr, T)> {
-        &self.0
-    }
-}
-
-impl Increaseable for Decimal {
-    fn increase(self, new: Decimal) -> StdResult<Decimal> {
-        self.checked_add(new).map_err(Into::into)
-    }
-}
-
-impl Increaseable for Uint128 {
-    fn increase(self, new: Uint128) -> StdResult<Uint128> {
-        self.checked_add(new).map_err(Into::into)
-    }
-}
-
-impl<T> From<Vec<(Addr, T)>> for RestrictedVector<T> {
-    fn from(v: Vec<(Addr, T)>) -> Self {
-        Self(v)
-    }
-}
-
 /// This structure describes the main information of pool
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq)]
 pub struct PoolInfo {
     /// Accumulated amount of reward per share unit. Used for reward calculations
     pub last_reward_block: Uint64,
@@ -291,11 +277,11 @@ pub struct PoolInfo {
     /// the reward proxy contract
     pub reward_proxy: Option<Addr>,
     /// Accumulated reward indexes per reward proxy. Vector of pairs (reward_proxy, index).
-    pub accumulated_proxy_rewards_per_share: RestrictedVector<Decimal>,
+    pub accumulated_proxy_rewards_per_share: RestrictedVector<Addr, Decimal>,
     /// for calculation of new proxy rewards
     pub proxy_reward_balance_before_update: Uint128,
     /// the orphan proxy rewards which are left by emergency withdrawals. Vector of pairs (reward_proxy, index).
-    pub orphan_proxy_rewards: RestrictedVector<Uint128>,
+    pub orphan_proxy_rewards: RestrictedVector<Addr, Uint128>,
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
     /// Total virtual amount
@@ -305,7 +291,7 @@ pub struct PoolInfo {
 /// This structure stores the outstanding amount of token rewards that a user accrued.
 /// Currently the contract works with UserInfoV2 structure, but this structure is kept for
 /// compatibility with the old version.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Default)]
 pub struct UserInfo {
     /// The amount of LP tokens staked
     pub amount: Uint128,
@@ -316,7 +302,7 @@ pub struct UserInfo {
 }
 
 /// This structure stores the outstanding amount of token rewards that a user accrued.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Default)]
 pub struct UserInfoV2 {
     /// The amount of LP tokens staked
     pub amount: Uint128,
@@ -324,13 +310,13 @@ pub struct UserInfoV2 {
     pub reward_user_index: Decimal,
     /// Proxy reward amount a user already received per reward proxy; used for proper reward calculation
     /// Vector of pairs (reward_proxy, reward debited).
-    pub reward_debt_proxy: RestrictedVector<Uint128>,
+    pub reward_debt_proxy: RestrictedVector<Addr, Uint128>,
     /// The amount of user boosted emissions
     pub virtual_amount: Uint128,
 }
 
 /// This structure holds the response returned when querying for the token addresses used to reward a specific generator
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq)]
 pub struct RewardInfoResponse {
     /// The address of the base reward token
     pub base_reward_token: Addr,
@@ -339,7 +325,7 @@ pub struct RewardInfoResponse {
 }
 
 /// This structure holds the response returned when querying for a pool's information
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq)]
 pub struct PoolInfoResponse {
     /// The slice of ASTRO that this pool's generator gets per block
     pub alloc_point: Uint128,
@@ -367,41 +353,41 @@ pub struct PoolInfoResponse {
     pub lp_supply: Uint128,
 }
 
-/// This structure holds the response returned when querying the contract for general parameters
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct ConfigResponse {
-    /// Address that's allowed to change contract parameters
+/// This structure stores the core parameters for the Generator contract.
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+pub struct Config {
+    /// Address allowed to change contract parameters
     pub owner: Addr,
-    /// the Factory address
+    /// The Factory address
     pub factory: Addr,
-    /// contract address which can only set active generators and their alloc points
+    /// Contract address which can only set active generators and their alloc points
     pub generator_controller: Option<Addr>,
     /// The voting escrow contract address
     pub voting_escrow: Option<Addr>,
-    /// ASTRO token contract address
+    /// The ASTRO token address
     pub astro_token: Addr,
-    /// Total amount of ASTRO distributed per block
+    /// Total amount of ASTRO rewards per block
     pub tokens_per_block: Uint128,
-    /// Sum of total allocation points across all active generators
+    /// Total allocation points. Must be the sum of all allocation points in all active generators
     pub total_alloc_point: Uint128,
-    /// Start block for ASTRO incentives
+    /// The block number when the ASTRO distribution starts
     pub start_block: Uint64,
-    /// List of 3rd party reward proxies allowed to interact with the Generator contract
+    /// The list of allowed proxy reward contracts
     pub allowed_reward_proxies: Vec<Addr>,
-    /// The ASTRO vesting contract address
+    /// The vesting contract from which rewards are distributed
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points
     pub active_pools: Vec<(Addr, Uint128)>,
     /// The list of blocked tokens
     pub blocked_tokens_list: Vec<AssetInfo>,
-    /// The guardian address
+    /// The guardian address which can add or remove tokens from blacklist
     pub guardian: Option<Addr>,
     /// The amount of generators
     pub checkpoint_generator_limit: Option<u32>,
 }
 
 /// This structure describes a migration message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[derive(Serialize, Deserialize, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
     /// The Factory address
     pub factory: Option<String>,
@@ -420,7 +406,7 @@ pub struct MigrateMsg {
 }
 
 /// This structure describes custom hooks for the CW20.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
     /// Deposit performs a token deposit on behalf of the message sender.
@@ -431,7 +417,7 @@ pub enum Cw20HookMsg {
 
 /// This structure holds the parameters used to return information about a staked in
 /// a specific generator.
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct StakerResponse {
     // The staker's address
     pub account: String,

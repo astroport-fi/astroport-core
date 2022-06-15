@@ -6,11 +6,10 @@ use crate::factory::PairType;
 use crate::pair::QueryMsg as PairQueryMsg;
 use crate::querier::{query_balance, query_token_balance, query_token_symbol};
 use cosmwasm_std::{
-    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, Deps, MessageInfo, QuerierWrapper,
-    StdError, StdResult, Uint128, WasmMsg,
+    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, MessageInfo, QuerierWrapper, StdError,
+    StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_cosmwasm::TerraQuerier;
 
 /// UST token denomination
 pub const UUSD_DENOM: &str = "uusd";
@@ -33,9 +32,6 @@ impl fmt::Display for Asset {
     }
 }
 
-/// Decimal points
-static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
-
 impl Asset {
     /// Returns true if the token is native. Otherwise returns false.
     /// ## Params
@@ -49,22 +45,9 @@ impl Asset {
     /// * **self** is the type of the caller object.
     ///
     /// * **querier** is an object of type [`QuerierWrapper`]
-    pub fn compute_tax(&self, querier: &QuerierWrapper) -> StdResult<Uint128> {
-        let amount = self.amount;
-        if let AssetInfo::NativeToken { denom } = &self.info {
-            let terra_querier = TerraQuerier::new(querier);
-            let tax_rate: Decimal = (terra_querier.query_tax_rate()?).rate;
-            let tax_cap: Uint128 = (terra_querier.query_tax_cap(denom.to_string())?).cap;
-            Ok(std::cmp::min(
-                (amount.checked_sub(amount.multiply_ratio(
-                    DECIMAL_FRACTION,
-                    DECIMAL_FRACTION * tax_rate + DECIMAL_FRACTION,
-                )))?,
-                tax_cap,
-            ))
-        } else {
-            Ok(Uint128::zero())
-        }
+    pub fn compute_tax(&self, _querier: &QuerierWrapper) -> StdResult<Uint128> {
+        // tax rate in Terra is set to zero https://terrawiki.org/en/developers/tx-fees
+        Ok(Uint128::zero())
     }
 
     /// Calculates and returns a deducted tax for transferring the native token from the chain. For other tokens it returns an [`Err`].
@@ -73,11 +56,10 @@ impl Asset {
     ///
     /// * **querier** is an object of type [`QuerierWrapper`]
     pub fn deduct_tax(&self, querier: &QuerierWrapper) -> StdResult<Coin> {
-        let amount = self.amount;
         if let AssetInfo::NativeToken { denom } = &self.info {
             Ok(Coin {
                 denom: denom.to_string(),
-                amount: amount.checked_sub(self.compute_tax(querier)?)?,
+                amount: self.amount.checked_sub(self.compute_tax(querier)?)?,
             })
         } else {
             Err(StdError::generic_err("cannot deduct tax from token asset"))
@@ -96,20 +78,23 @@ impl Asset {
     /// * **querier** is an object of type [`QuerierWrapper`]
     ///
     /// * **recipient** is the address where the funds will be sent.
-    pub fn into_msg(self, querier: &QuerierWrapper, recipient: Addr) -> StdResult<CosmosMsg> {
-        let amount = self.amount;
-
+    pub fn into_msg(
+        self,
+        querier: &QuerierWrapper,
+        recipient: impl Into<String>,
+    ) -> StdResult<CosmosMsg> {
+        let recipient = recipient.into();
         match &self.info {
             AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: recipient.to_string(),
-                    amount,
+                    recipient,
+                    amount: self.amount,
                 })?,
                 funds: vec![],
             })),
             AssetInfo::NativeToken { .. } => Ok(CosmosMsg::Bank(BankMsg::Send {
-                to_address: recipient.to_string(),
+                to_address: recipient,
                 amount: vec![self.deduct_tax(querier)?],
             })),
         }
@@ -186,39 +171,37 @@ impl AssetInfo {
     /// * **self** is the type of the caller object.
     ///
     /// * **pool_addr** is the address of the contract whose token balance we check.
-    pub fn query_pool(&self, querier: &QuerierWrapper, pool_addr: Addr) -> StdResult<Uint128> {
+    pub fn query_pool(
+        &self,
+        querier: &QuerierWrapper,
+        pool_addr: impl Into<String>,
+    ) -> StdResult<Uint128> {
         match self {
             AssetInfo::Token { contract_addr, .. } => {
-                query_token_balance(querier, contract_addr.clone(), pool_addr)
+                query_token_balance(querier, contract_addr, pool_addr)
             }
-            AssetInfo::NativeToken { denom, .. } => {
-                query_balance(querier, pool_addr, denom.to_string())
-            }
+            AssetInfo::NativeToken { denom } => query_balance(querier, pool_addr, denom),
         }
     }
 
-    /// Returns True if the calling token is the same as the token specified in the input parameters.
-    /// Otherwise returns False.
+    /// Returns **true** if the calling token is the same as the token specified in the input parameters.
+    /// Otherwise returns **false**.
     /// ## Params
     /// * **self** is the type of the caller object.
     ///
     /// * **asset** is object of type [`AssetInfo`].
     pub fn equal(&self, asset: &AssetInfo) -> bool {
-        match self {
-            AssetInfo::Token { contract_addr, .. } => {
-                let self_contract_addr = contract_addr;
-                match asset {
-                    AssetInfo::Token { contract_addr, .. } => self_contract_addr == contract_addr,
-                    AssetInfo::NativeToken { .. } => false,
-                }
+        match (self, asset) {
+            (AssetInfo::NativeToken { denom }, AssetInfo::NativeToken { denom: other_denom }) => {
+                denom == other_denom
             }
-            AssetInfo::NativeToken { denom, .. } => {
-                let self_denom = denom;
-                match asset {
-                    AssetInfo::Token { .. } => false,
-                    AssetInfo::NativeToken { denom, .. } => self_denom == denom,
-                }
-            }
+            (
+                AssetInfo::Token { contract_addr },
+                AssetInfo::Token {
+                    contract_addr: other_contract_addr,
+                },
+            ) => contract_addr == other_contract_addr,
+            _ => false,
         }
     }
 
@@ -281,11 +264,12 @@ impl PairInfo {
     pub fn query_pools(
         &self,
         querier: &QuerierWrapper,
-        contract_addr: Addr,
+        contract_addr: impl Into<String>,
     ) -> StdResult<[Asset; 2]> {
+        let contract_addr = contract_addr.into();
         Ok([
             Asset {
-                amount: self.asset_infos[0].query_pool(querier, contract_addr.clone())?,
+                amount: self.asset_infos[0].query_pool(querier, &contract_addr)?,
                 info: self.asset_infos[0].clone(),
             },
             Asset {
@@ -300,15 +284,28 @@ impl PairInfo {
 /// ## Params
 /// * **api** is an object of type [`Api`]
 ///
-/// * **addr** is an object of type [`Addr`]
-pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
+/// * **addr** is an object of type [`impl Into<String>`]
+pub fn addr_validate_to_lower(api: &dyn Api, addr: impl Into<String>) -> StdResult<Addr> {
+    let addr = addr.into();
     if addr.to_lowercase() != addr {
         return Err(StdError::generic_err(format!(
             "Address {} should be lowercase",
             addr
         )));
     }
-    api.addr_validate(addr)
+    api.addr_validate(&addr)
+}
+
+/// Returns a lowercased, validated address upon success if present. Otherwise returns [`None`].
+/// In case an address is invalid returns [`StdError`].
+/// ## Params
+/// * **api** is an object of type [`Api`]
+///
+/// * **addr** is an object of type [`Addr`]
+pub fn addr_opt_validate(api: &dyn Api, addr: &Option<String>) -> StdResult<Option<Addr>> {
+    addr.as_ref()
+        .map(|addr| addr_validate_to_lower(api, addr))
+        .transpose()
 }
 
 const TOKEN_SYMBOL_MAX_LENGTH: usize = 4;
@@ -319,12 +316,12 @@ const TOKEN_SYMBOL_MAX_LENGTH: usize = 4;
 ///
 /// * **querier** is an object of type [`QuerierWrapper`].
 pub fn format_lp_token_name(
-    asset_infos: [AssetInfo; 2],
+    asset_infos: &[AssetInfo; 2],
     querier: &QuerierWrapper,
 ) -> StdResult<String> {
     let mut short_symbols: Vec<String> = vec![];
     for asset_info in asset_infos {
-        let short_symbol = match asset_info {
+        let short_symbol = match &asset_info {
             AssetInfo::NativeToken { denom } => {
                 denom.chars().take(TOKEN_SYMBOL_MAX_LENGTH).collect()
             }
@@ -377,14 +374,38 @@ pub fn token_asset_info(contract_addr: Addr) -> AssetInfo {
 }
 
 /// Returns [`PairInfo`] by specified pool address.
-pub fn pair_info_by_pool(deps: Deps, pool: Addr) -> StdResult<PairInfo> {
-    let minter_info: MinterResponse = deps
-        .querier
-        .query_wasm_smart(pool, &Cw20QueryMsg::Minter {})?;
+/// ## Params
+/// * **deps** is an object of type [`Deps`]
+///
+/// * **pool_addr** is a [`impl Into<String>`] object representing the address of the pool.
+pub fn pair_info_by_pool(querier: &QuerierWrapper, pool: impl Into<String>) -> StdResult<PairInfo> {
+    let minter_info: MinterResponse = querier.query_wasm_smart(pool, &Cw20QueryMsg::Minter {})?;
 
-    let pair_info: PairInfo = deps
-        .querier
-        .query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
+    let pair_info: PairInfo =
+        querier.query_wasm_smart(minter_info.minter, &PairQueryMsg::Pair {})?;
 
     Ok(pair_info)
+}
+
+/// Checks swap parameters. Otherwise returns [`Err`]
+/// ## Params
+/// * **offer_amount** is a [`Uint128`] representing an amount of offer tokens.
+///
+/// * **ask_amount** is a [`Uint128`] representing an amount of ask tokens.
+///
+/// * **swap_amount** is a [`Uint128`] representing an amount to swap.
+pub fn check_swap_parameters(
+    offer_amount: Uint128,
+    ask_amount: Uint128,
+    swap_amount: Uint128,
+) -> StdResult<()> {
+    if offer_amount.is_zero() || ask_amount.is_zero() {
+        return Err(StdError::generic_err("One of the pools is empty"));
+    }
+
+    if swap_amount.is_zero() {
+        return Err(StdError::generic_err("Swap amount must not be zero"));
+    }
+
+    Ok(())
 }

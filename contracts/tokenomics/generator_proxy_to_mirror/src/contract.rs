@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    Response, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 
@@ -85,7 +85,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, info, msg),
         ExecuteMsg::UpdateRewards {} => update_rewards(deps),
         ExecuteMsg::SendRewards { account, amount } => send_rewards(deps, info, account, amount),
         ExecuteMsg::Withdraw { account, amount } => withdraw(deps, env, info, account, amount),
@@ -103,14 +103,11 @@ pub fn execute(
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is an object of type [`Env`].
-///
 /// * **info** is an object of type [`MessageInfo`].
 ///
 /// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
 fn receive_cw20(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
@@ -227,7 +224,7 @@ fn withdraw(
     env: Env,
     info: MessageInfo,
     account: String,
-    amount: Uint128,
+    _amount: Uint128,
 ) -> Result<Response, ContractError> {
     let account = addr_validate_to_lower(deps.api, &account)?;
 
@@ -248,14 +245,15 @@ fn withdraw(
     };
 
     // withdraw from the end reward contract
-    response.messages.push(SubMsg::new(WasmMsg::Execute {
-        contract_addr: cfg.reward_contract_addr.to_string(),
-        funds: vec![],
-        msg: to_binary(&MirrorExecuteMsg::Unbond {
-            asset_token: cfg.pair_addr.to_string(),
-            amount,
-        })?,
-    }));
+    // TODO: mirror protocol still depends on cosmwasm 0.16
+    // response.messages.push(SubMsg::new(WasmMsg::Execute {
+    //     contract_addr: cfg.reward_contract_addr.to_string(),
+    //     funds: vec![],
+    //     msg: to_binary(&MirrorExecuteMsg::Unbond {
+    //         asset_token: cfg.pair_addr.to_string(),
+    //         amount,
+    //     })?,
+    // }));
 
     response.messages.push(SubMsg::new(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
@@ -372,49 +370,53 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             reward_token_addr: cfg.reward_token_addr.to_string(),
         }),
         QueryMsg::Deposit {} => {
-            let res: StdResult<RewardInfoResponse> = deps.querier.query_wasm_smart(
+            let _res: RewardInfoResponse = deps.querier.query_wasm_smart(
                 cfg.reward_contract_addr,
                 &MirrorQueryMsg::RewardInfo {
                     staker_addr: env.contract.address.to_string(),
                     asset_token: Some(cfg.pair_addr.to_string()),
                 },
-            );
-            let reward_infos = res?.reward_infos;
-            let deposit_amount = if !reward_infos.is_empty() {
-                reward_infos[0].bond_amount
-            } else {
-                Uint128::zero()
-            };
-
-            to_binary(&deposit_amount)
+            )?;
+            // TODO:
+            // let reward_infos = res.reward_infos;
+            // let deposit_amount = if !reward_infos.is_empty() {
+            //     reward_infos[0].bond_amount
+            // } else {
+            //     Uint128::zero()
+            // };
+            //
+            // to_binary(&deposit_amount)
+            to_binary(&Uint128::zero())
         }
         QueryMsg::Reward {} => {
-            let res: Result<BalanceResponse, StdError> = deps.querier.query_wasm_smart(
+            let res: BalanceResponse = deps.querier.query_wasm_smart(
                 cfg.reward_token_addr,
                 &Cw20QueryMsg::Balance {
                     address: env.contract.address.into_string(),
                 },
-            );
-            let reward_amount = res?.balance;
+            )?;
+            let reward_amount = res.balance;
 
             to_binary(&reward_amount)
         }
         QueryMsg::PendingToken {} => {
-            let res: StdResult<RewardInfoResponse> = deps.querier.query_wasm_smart(
+            let _res: RewardInfoResponse = deps.querier.query_wasm_smart(
                 cfg.reward_contract_addr,
                 &MirrorQueryMsg::RewardInfo {
                     staker_addr: env.contract.address.to_string(),
                     asset_token: Some(cfg.pair_addr.to_string()),
                 },
-            );
-            let reward_infos = res?.reward_infos;
-            let pending_reward = if !reward_infos.is_empty() {
-                reward_infos[0].pending_reward
-            } else {
-                Uint128::zero()
-            };
-
-            to_binary(&pending_reward)
+            )?;
+            // TODO:
+            // let reward_infos = res.reward_infos;
+            // let pending_reward = if !reward_infos.is_empty() {
+            //     reward_infos[0].pending_reward
+            // } else {
+            //     Uint128::zero()
+            // };
+            //
+            // to_binary(&pending_reward)
+            to_binary(&Uint128::zero())
         }
         QueryMsg::RewardInfo {} => {
             let config = CONFIG.load(deps.storage)?;

@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use crate::state::{read_vesting_infos, Config, CONFIG, OWNERSHIP_PROPOSAL, VESTING_INFO};
 
 use crate::error::ContractError;
-use astroport::asset::addr_validate_to_lower;
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::vesting::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg,
@@ -78,7 +78,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Claim { recipient, amount } => claim(deps, env, info, recipient, amount),
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, info, msg),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             let config: Config = CONFIG.load(deps.storage)?;
 
@@ -91,13 +91,13 @@ pub fn execute(
                 config.owner,
                 OWNERSHIP_PROPOSAL,
             )
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
         ExecuteMsg::DropOwnershipProposal {} => {
             let config: Config = CONFIG.load(deps.storage)?;
 
             drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
-                .map_err(|e| e.into())
+                .map_err(Into::into)
         }
         ExecuteMsg::ClaimOwnership {} => {
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
@@ -108,7 +108,7 @@ pub fn execute(
 
                 Ok(())
             })
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
     }
 }
@@ -120,32 +120,24 @@ pub fn execute(
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is an object of type [`Env`].
-///
 /// * **info** is an object of type [`MessageInfo`].
 ///
 /// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
 fn receive_cw20(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    let config: Config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
-    // Check owner
-    if cw20_msg.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    // Check token
-    if info.sender != config.token_addr {
+    // Permission check
+    if cw20_msg.sender != config.owner || info.sender != config.token_addr {
         return Err(ContractError::Unauthorized {});
     }
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::RegisterVestingAccounts { vesting_accounts } => {
-            register_vesting_accounts(deps, env, vesting_accounts, cw20_msg.amount)
+            register_vesting_accounts(deps, vesting_accounts, cw20_msg.amount)
         }
     }
 }
@@ -156,18 +148,15 @@ fn receive_cw20(
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is an object of type [`Env`].
-///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **vesting_accounts** is an array with items of tpye [`VestingAccount`].
+/// * **vesting_accounts** is an array with items of type [`VestingAccount`].
 /// This is the list of accounts and associated vesting schedules to create.
 ///
 /// * **cw20_amount** is an object of type [`Uint128`]. Sets the amount that confirms the total
 /// amount of all accounts to register
 pub fn register_vesting_accounts(
     deps: DepsMut,
-    _env: Env,
     vesting_accounts: Vec<VestingAccount>,
     cw20_amount: Uint128,
 ) -> Result<Response, ContractError> {
@@ -209,9 +198,12 @@ pub fn register_vesting_accounts(
         return Err(ContractError::VestingScheduleAmountError {});
     }
 
-    Ok(response
-        .add_attribute("action", "register_vesting_accounts")
-        .add_attribute("deposited", to_deposit))
+    Ok(response.add_attributes({
+        vec![
+            attr("action", "register_vesting_accounts"),
+            attr("deposited", to_deposit),
+        ]
+    }))
 }
 
 /// ## Description
@@ -225,11 +217,11 @@ fn assert_vesting_schedules(
     addr: &Addr,
     vesting_schedules: &[VestingSchedule],
 ) -> Result<(), ContractError> {
-    for sch in vesting_schedules.iter() {
+    for sch in vesting_schedules {
         if let Some(end_point) = &sch.end_point {
             if !(sch.start_point.time < end_point.time && sch.start_point.amount < end_point.amount)
             {
-                return Err(ContractError::VestingScheduleError(addr.clone()));
+                return Err(ContractError::VestingScheduleError(addr.to_string()));
             }
         }
     }
@@ -257,15 +249,8 @@ pub fn claim(
     recipient: Option<String>,
     amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::new();
-    let mut attributes = vec![
-        attr("action", "claim"),
-        attr("address", info.sender.clone()),
-    ];
-
-    let config: Config = CONFIG.load(deps.storage)?;
-
-    let mut vesting_info: VestingInfo = VESTING_INFO.load(deps.storage, &info.sender)?;
+    let config = CONFIG.load(deps.storage)?;
+    let mut vesting_info = VESTING_INFO.load(deps.storage, &info.sender)?;
 
     let available_amount = compute_available_amount(env.block.time.seconds(), &vesting_info)?;
 
@@ -278,28 +263,28 @@ pub fn claim(
         available_amount
     };
 
-    attributes.append(&mut vec![
-        attr("available_amount", available_amount),
-        attr("claimed_amount", claim_amount),
-    ]);
+    let mut response = Response::new();
 
     if !claim_amount.is_zero() {
-        response
-            .messages
-            .append(&mut vec![SubMsg::new(WasmMsg::Execute {
-                contract_addr: config.token_addr.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: recipient.unwrap_or_else(|| info.sender.to_string()),
-                    amount: claim_amount,
-                })?,
-            })]);
+        response = response.add_submessage(SubMsg::new(WasmMsg::Execute {
+            contract_addr: config.token_addr.to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: recipient.unwrap_or_else(|| info.sender.to_string()),
+                amount: claim_amount,
+            })?,
+        }));
 
         vesting_info.released_amount = vesting_info.released_amount.checked_add(claim_amount)?;
         VESTING_INFO.save(deps.storage, &info.sender, &vesting_info)?;
     };
 
-    Ok(response.add_attributes(attributes))
+    Ok(response.add_attributes(vec![
+        attr("action", "claim"),
+        attr("address", &info.sender),
+        attr("available_amount", available_amount),
+        attr("claimed_amount", claim_amount),
+    ]))
 }
 
 /// ## Description
@@ -313,7 +298,7 @@ pub fn claim(
 /// that are vested and can be claimed by the recipient.
 fn compute_available_amount(current_time: u64, vesting_info: &VestingInfo) -> StdResult<Uint128> {
     let mut available_amount: Uint128 = Uint128::zero();
-    for sch in vesting_info.schedules.iter() {
+    for sch in &vesting_info.schedules {
         if sch.start_point.time > current_time {
             continue;
         }
@@ -343,7 +328,7 @@ fn compute_available_amount(current_time: u64, vesting_info: &VestingInfo) -> St
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
-/// * **_env** is an object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
 /// * **msg** is an object of type [`QueryMsg`].
 ///
@@ -389,17 +374,19 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
-    let config: Config = CONFIG.load(deps.storage)?;
-    let resp = ConfigResponse {
+    let config = CONFIG.load(deps.storage)?;
+
+    Ok(ConfigResponse {
         owner: config.owner,
         token_addr: config.token_addr,
-    };
-
-    Ok(resp)
+    })
 }
 
 /// ## Description
 /// Return the current block timestamp (in seconds)
+///
+/// ## Params
+/// * **env** is an object of type [`Env`].
 pub fn query_timestamp(env: Env) -> StdResult<u64> {
     Ok(env.block.time.seconds())
 }
@@ -413,11 +400,9 @@ pub fn query_timestamp(env: Env) -> StdResult<u64> {
 /// * **address** is an object of type [`String`]. This is the vesting recipient for which to return vesting data.
 pub fn query_vesting_account(deps: Deps, address: String) -> StdResult<VestingAccountResponse> {
     let address = addr_validate_to_lower(deps.api, &address)?;
-    let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
+    let info = VESTING_INFO.load(deps.storage, &address)?;
 
-    let resp = VestingAccountResponse { address, info };
-
-    Ok(resp)
+    Ok(VestingAccountResponse { address, info })
 }
 
 /// ## Description
@@ -438,20 +423,16 @@ pub fn query_vesting_accounts(
     limit: Option<u32>,
     order_by: Option<OrderBy>,
 ) -> StdResult<VestingAccountsResponse> {
-    let start_after = start_after
-        .map(|v| addr_validate_to_lower(deps.api, &v))
-        .transpose()?;
+    let start_after = addr_opt_validate(deps.api, &start_after)?;
 
     let vesting_infos = read_vesting_infos(deps, start_after, limit, order_by)?;
 
-    let vesting_account_responses: Vec<VestingAccountResponse> = vesting_infos
+    let vesting_accounts: Vec<_> = vesting_infos
         .into_iter()
         .map(|(address, info)| VestingAccountResponse { address, info })
         .collect();
 
-    Ok(VestingAccountsResponse {
-        vesting_accounts: vesting_account_responses,
-    })
+    Ok(VestingAccountsResponse { vesting_accounts })
 }
 
 /// ## Description
@@ -466,7 +447,7 @@ pub fn query_vesting_accounts(
 pub fn query_vesting_available_amount(deps: Deps, env: Env, address: String) -> StdResult<Uint128> {
     let address = addr_validate_to_lower(deps.api, &address)?;
 
-    let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
+    let info = VESTING_INFO.load(deps.storage, &address)?;
     let available_amount = compute_available_amount(env.block.time.seconds(), &info)?;
     Ok(available_amount)
 }

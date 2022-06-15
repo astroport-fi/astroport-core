@@ -8,7 +8,6 @@ use crate::state::{
     Config, BLUNA_REWARD_GLOBAL_INDEX, BLUNA_REWARD_HOLDER, BLUNA_REWARD_USER_INDEXES, CONFIG,
 };
 
-use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
     Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint256,
@@ -16,16 +15,19 @@ use cosmwasm_std::{
 };
 
 use crate::response::MsgInstantiateContractResponse;
-use astroport::asset::{addr_validate_to_lower, format_lp_token_name, Asset, AssetInfo, PairInfo};
+use astroport::asset::{
+    addr_validate_to_lower, check_swap_parameters, format_lp_token_name, token_asset_info, Asset,
+    AssetInfo, PairInfo,
+};
 use astroport::factory::PairType;
 
 use astroport::generator::{
     Cw20HookMsg as GeneratorHookMsg, PoolInfoResponse, QueryMsg as GeneratorQueryMsg,
 };
 use astroport::pair::{
-    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, InstantiateMsg, PoolResponse,
-    ReverseSimulationResponse, SimulationResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
-    TWAP_PRECISION,
+    migration_check, ConfigResponse, CumulativePricesResponse, Cw20HookMsg, InstantiateMsg,
+    PoolResponse, ReverseSimulationResponse, SimulationResponse, DEFAULT_SLIPPAGE,
+    MAX_ALLOWED_SLIPPAGE, TWAP_PRECISION,
 };
 use astroport::pair_stable_bluna::{
     ExecuteMsg, MigrateMsg, QueryMsg, StablePoolConfig, StablePoolParams, StablePoolUpdateParams,
@@ -117,7 +119,7 @@ pub fn instantiate(
 
     CONFIG.save(deps.storage, &config)?;
 
-    let token_name = format_lp_token_name(msg.asset_infos, &deps.querier)?;
+    let token_name = format_lp_token_name(&msg.asset_infos, &deps.querier)?;
 
     // Create LP token
     messages.push(SubMsg {
@@ -132,6 +134,7 @@ pub fn instantiate(
                     minter: env.contract.address.to_string(),
                     cap: None,
                 }),
+                marketing: None,
             })?,
             funds: vec![],
             admin: None,
@@ -248,6 +251,12 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
+    if migration_check(deps.querier, &cfg.factory_addr, &env.contract.address)? {
+        return Err(ContractError::PairIsNotMigrated {});
+    }
+
     match msg {
         ExecuteMsg::UpdateConfig { params } => update_config(deps, env, info, params),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
@@ -478,8 +487,8 @@ pub fn provide_liquidity(
     // Assert slippage tolerance
     assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
 
-    let token_precision_0 = query_token_precision(&deps.querier, pools[0].info.clone())?;
-    let token_precision_1 = query_token_precision(&deps.querier, pools[1].info.clone())?;
+    let token_precision_0 = query_token_precision(&deps.querier, &pools[0].info)?;
+    let token_precision_1 = query_token_precision(&deps.querier, &pools[1].info)?;
 
     let greater_precision = token_precision_0.max(token_precision_1);
 
@@ -490,9 +499,7 @@ pub fn provide_liquidity(
     let share = if total_share.is_zero() {
         let liquidity_token_precision = query_token_precision(
             &deps.querier,
-            AssetInfo::Token {
-                contract_addr: config.pair_info.liquidity_token.clone(),
-            },
+            &token_asset_info(config.pair_info.liquidity_token.clone()),
         )?;
 
         // Initial share = collateral amount
@@ -673,9 +680,9 @@ pub fn withdraw_liquidity(
         env,
         &config,
         pools[0].amount,
-        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        query_token_precision(&deps.querier, &pools[0].info)?,
         pools[1].amount,
-        query_token_precision(&deps.querier, pools[1].info.clone())?,
+        query_token_precision(&deps.querier, &pools[1].info)?,
     )? {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
@@ -817,9 +824,9 @@ pub fn swap(
     let offer_amount = offer_asset.amount;
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
-        query_token_precision(&deps.querier, offer_pool.info)?,
+        query_token_precision(&deps.querier, &offer_pool.info)?,
         ask_pool.amount,
-        query_token_precision(&deps.querier, ask_pool.info.clone())?,
+        query_token_precision(&deps.querier, &ask_pool.info)?,
         offer_amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -865,9 +872,9 @@ pub fn swap(
         env,
         &config,
         pools[0].amount,
-        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        query_token_precision(&deps.querier, &pools[0].info)?,
         pools[1].amount,
-        query_token_precision(&deps.querier, pools[1].info.clone())?,
+        query_token_precision(&deps.querier, &pools[1].info)?,
     )? {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
@@ -1114,9 +1121,9 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
 
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
-        query_token_precision(&deps.querier, offer_pool.info)?,
+        query_token_precision(&deps.querier, &offer_pool.info)?,
         ask_pool.amount,
-        query_token_precision(&deps.querier, ask_pool.info)?,
+        query_token_precision(&deps.querier, &ask_pool.info)?,
         offer_asset.amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -1169,9 +1176,9 @@ pub fn query_reverse_simulation(
 
     let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
         offer_pool.amount,
-        query_token_precision(&deps.querier, offer_pool.info)?,
+        query_token_precision(&deps.querier, &offer_pool.info)?,
         ask_pool.amount,
-        query_token_precision(&deps.querier, ask_pool.info)?,
+        query_token_precision(&deps.querier, &ask_pool.info)?,
         ask_asset.amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -1201,9 +1208,9 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
         env,
         &config,
         assets[0].amount,
-        query_token_precision(&deps.querier, assets[0].info.clone())?,
+        query_token_precision(&deps.querier, &assets[0].info)?,
         assets[1].amount,
-        query_token_precision(&deps.querier, assets[1].info.clone())?,
+        query_token_precision(&deps.querier, &assets[1].info)?,
     )? {
         price0_cumulative_last = price0_cumulative_new;
         price1_cumulative_last = price1_cumulative_new;
@@ -1289,7 +1296,7 @@ pub fn query_pending_reward(deps: Deps, env: Env, user: String) -> StdResult<Ass
     let mut accrued_rewards_index = Decimal256::zero();
     if !pool_info.lp_supply.is_zero() {
         accrued_rewards_index =
-            Decimal256::from_ratio(accrued_rewards.rewards, pool_info.lp_supply);
+            Decimal256::from_ratio(accrued_rewards.rewards.u128(), pool_info.lp_supply.u128());
     }
 
     Ok(Asset {
@@ -1318,7 +1325,7 @@ pub fn query_pending_reward(deps: Deps, env: Env, user: String) -> StdResult<Ass
 /// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
 ///
 /// * **amp** is an object of type [`u64`]. This is the pool amplification used to calculate the swap result.
-fn compute_swap(
+pub fn compute_swap(
     offer_pool: Uint128,
     offer_precision: u8,
     ask_pool: Uint128,
@@ -1328,6 +1335,7 @@ fn compute_swap(
     amp: u64,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // offer => ask
+    check_swap_parameters(offer_pool, ask_pool, offer_amount)?;
 
     let greater_precision = offer_precision.max(ask_precision);
     let offer_pool = adjust_precision(offer_pool, offer_precision, greater_precision)?;
@@ -1367,7 +1375,7 @@ fn compute_swap(
 /// * **ask_amount** is an object of type [`Uint128`]. This is the amount of ask assets to swap to.
 ///
 /// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
-fn compute_offer_amount(
+pub fn compute_offer_amount(
     offer_pool: Uint128,
     offer_precision: u8,
     ask_pool: Uint128,
@@ -1377,14 +1385,15 @@ fn compute_offer_amount(
     amp: u64,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
+    check_swap_parameters(offer_pool, ask_pool, ask_amount)?;
 
     let greater_precision = offer_precision.max(ask_precision);
     let offer_pool = adjust_precision(offer_pool, offer_precision, greater_precision)?;
     let ask_pool = adjust_precision(ask_pool, ask_precision, greater_precision)?;
     let ask_amount = adjust_precision(ask_amount, ask_precision, greater_precision)?;
 
-    let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
-    let inv_one_minus_commission: Decimal = (Decimal256::one() / one_minus_commission).into();
+    let one_minus_commission = Decimal::one() - commission_rate;
+    let inv_one_minus_commission = Decimal::one() / one_minus_commission;
     let before_commission_deduction = ask_amount * inv_one_minus_commission;
 
     let offer_amount = Uint128::new(
@@ -1464,8 +1473,7 @@ pub fn assert_max_spread(
     }
 
     if let Some(belief_price) = belief_price {
-        let expected_return =
-            offer_amount * Decimal::from(Decimal256::one() / Decimal256::from(belief_price));
+        let expected_return = offer_amount * (Decimal::one() / belief_price);
         let spread_amount = expected_return
             .checked_sub(return_amount)
             .unwrap_or_else(|_| Uint128::zero());

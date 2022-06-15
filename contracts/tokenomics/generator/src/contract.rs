@@ -2,32 +2,36 @@ use std::collections::{HashMap, HashSet};
 
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Order, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
-    Uint128, Uint64, WasmMsg,
+    Env, MessageInfo, Order, QuerierWrapper, Reply, Response, StdError, StdResult, SubMsg, Uint128,
+    Uint64, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
-use cw_storage_plus::{Bound, PrimaryKey};
+use cw_storage_plus::Bound;
 use protobuf::Message;
 
 use crate::error::ContractError;
 use crate::migration;
 
 use astroport::asset::{
-    addr_validate_to_lower, pair_info_by_pool, token_asset_info, Asset, AssetInfo, PairInfo,
+    addr_opt_validate, addr_validate_to_lower, pair_info_by_pool, token_asset_info, Asset,
+    AssetInfo, PairInfo,
 };
 
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::factory::{PairConfig, PairType};
-use astroport::generator::{PoolInfo, RestrictedVector};
+use astroport::common::{
+    claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
+};
+use astroport::factory::PairType;
+use astroport::generator::{Config, ExecuteOnReply, PoolInfo};
 use astroport::generator::{StakerResponse, UserInfoV2};
 use astroport::querier::query_token_balance;
+use astroport::restricted_vector::RestrictedVector;
 use astroport::DecimalCheckedOps;
 use astroport::{
     factory::{ConfigResponse as FactoryConfigResponse, QueryMsg as FactoryQueryMsg},
     generator::{
-        ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse,
-        PoolInfoResponse, PoolLengthResponse, QueryMsg, RewardInfoResponse,
+        Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse,
+        PoolInfoResponse, QueryMsg, RewardInfoResponse,
     },
     generator_proxy::{
         Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
@@ -38,9 +42,8 @@ use astroport::{
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
     accumulate_pool_proxy_rewards, update_proxy_asset, update_user_balance, update_virtual_amount,
-    CompatibleLoader, Config, ExecuteOnReply, CHECKPOINT_GENERATORS_LIMIT, CONFIG, DEFAULT_LIMIT,
-    MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO, PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET,
-    TMP_USER_ACTION, USER_INFO,
+    CompatibleLoader, CHECKPOINT_GENERATORS_LIMIT, CONFIG, DEFAULT_LIMIT, MAX_LIMIT,
+    OWNERSHIP_PROPOSAL, POOL_INFO, PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, USER_INFO,
 };
 
 /// Contract name that is used for migration.
@@ -70,16 +73,17 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let mut allowed_reward_proxies: Vec<Addr> = vec![];
-    for proxy in msg.allowed_reward_proxies {
-        allowed_reward_proxies.push(addr_validate_to_lower(deps.api, &proxy)?);
-    }
+    let allowed_reward_proxies = validate_addresses(deps.api, &msg.allowed_reward_proxies)?;
 
-    let mut config = Config {
+    let generator_controller = addr_opt_validate(deps.api, &msg.generator_controller)?;
+    let guardian = addr_opt_validate(deps.api, &msg.guardian)?;
+    let voting_escrow = addr_opt_validate(deps.api, &msg.voting_escrow)?;
+
+    let config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         factory: addr_validate_to_lower(deps.api, &msg.factory)?,
-        generator_controller: None,
-        guardian: None,
+        generator_controller,
+        guardian,
         astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
         tokens_per_block: msg.tokens_per_block,
         total_alloc_point: Uint128::zero(),
@@ -88,25 +92,11 @@ pub fn instantiate(
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
         active_pools: vec![],
         blocked_tokens_list: vec![],
-        voting_escrow: None,
+        voting_escrow,
         checkpoint_generator_limit: None,
     };
 
-    if let Some(generator_controller) = msg.generator_controller {
-        config.generator_controller =
-            Some(addr_validate_to_lower(deps.api, &generator_controller)?);
-    }
-
-    if let Some(guardian) = msg.guardian {
-        config.guardian = Some(addr_validate_to_lower(deps.api, &guardian)?);
-    }
-
-    if let Some(voting_escrow) = msg.voting_escrow {
-        config.voting_escrow = Some(addr_validate_to_lower(deps.api, &voting_escrow)?);
-    }
-
     CONFIG.save(deps.storage, &config)?;
-    TMP_USER_ACTION.save(deps.storage, &None)?;
 
     let init_reward_holder_msg =
         init_proxy_rewards_holder(&config.owner, &env.contract.address, msg.whitelist_code_id)?;
@@ -196,10 +186,9 @@ pub fn execute(
                 return Err(ContractError::Unauthorized {});
             }
             let lp_token_addr = addr_validate_to_lower(deps.api, &lp_token)?;
-            let active_pools: Vec<Addr> =
-                cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+            let active_pools: Vec<_> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
             mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
-            deactivate_pool(deps, lp_token_addr)
+            deactivate_pool(deps, cfg, lp_token_addr)
         }
         ExecuteMsg::UpdateBlockedTokenslist { add, remove } => {
             update_blocked_tokens_list(deps, env, info, add, remove)
@@ -235,10 +224,7 @@ pub fn execute(
             has_asset_rewards,
         } => execute_update_pool(deps, info, lp_token, has_asset_rewards),
         ExecuteMsg::ClaimRewards { lp_tokens } => {
-            let mut lp_tokens_addr: Vec<Addr> = vec![];
-            for lp_token in &lp_tokens {
-                lp_tokens_addr.push(addr_validate_to_lower(deps.api, lp_token)?);
-            }
+            let lp_tokens_addr = validate_addresses(deps.api, &lp_tokens)?;
 
             update_rewards_and_execute(
                 deps,
@@ -264,7 +250,7 @@ pub fn execute(
                 },
             )
         }
-        ExecuteMsg::EmergencyWithdraw { lp_token } => emergency_withdraw(deps, env, info, lp_token),
+        ExecuteMsg::EmergencyWithdraw { lp_token } => emergency_withdraw(deps, info, lp_token),
         ExecuteMsg::SetAllowedRewardProxies { proxies } => {
             set_allowed_reward_proxies(deps, info, proxies)
         }
@@ -287,7 +273,7 @@ pub fn execute(
             )
         }
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
-            let config: Config = CONFIG.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
 
             propose_new_owner(
                 deps,
@@ -298,24 +284,31 @@ pub fn execute(
                 config.owner,
                 OWNERSHIP_PROPOSAL,
             )
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
         ExecuteMsg::DropOwnershipProposal {} => {
-            let config: Config = CONFIG.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
 
             drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
-                .map_err(|e| e.into())
+                .map_err(Into::into)
         }
         ExecuteMsg::ClaimOwnership {} => {
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
-                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
-                    v.owner = new_owner;
-                    Ok(v)
-                })?;
-
-                Ok(())
+                CONFIG
+                    .update::<_, StdError>(deps.storage, |mut v| {
+                        v.owner = new_owner;
+                        Ok(v)
+                    })
+                    .map(|_| ())
             })
-            .map_err(|e| e.into())
+            .map_err(Into::into)
+        }
+        ExecuteMsg::Callback { action } => {
+            if info.sender != env.contract.address {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            handle_callback(deps, env, action)
         }
     }
 }
@@ -344,12 +337,11 @@ fn checkpoint_user_boost(
         info.sender
     };
 
-    let mut generator_limit = CHECKPOINT_GENERATORS_LIMIT;
-    if let Some(limit) = config.checkpoint_generator_limit {
-        generator_limit = limit;
-    }
-
-    if generators.len() > generator_limit as usize {
+    if generators.len()
+        > config
+            .checkpoint_generator_limit
+            .unwrap_or(CHECKPOINT_GENERATORS_LIMIT) as usize
+    {
         return Err(ContractError::GeneratorsLimitExceeded {});
     }
 
@@ -379,9 +371,9 @@ fn checkpoint_user_boost(
 
             // Update user's virtual amount
             update_virtual_amount(
-                deps.as_ref(),
-                &env,
-                &config,
+                deps.querier,
+                &env.contract.address,
+                &config.voting_escrow,
                 &mut pool,
                 &mut user_info,
                 &recipient_addr,
@@ -419,14 +411,13 @@ fn deactivate_pools(
         )));
     }
 
-    let blacklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
-        cfg.factory.clone(),
-        &FactoryQueryMsg::BlacklistedPairTypes {},
-    )?;
+    let blacklisted_pair_types: Vec<PairType> = deps
+        .querier
+        .query_wasm_smart(&cfg.factory, &FactoryQueryMsg::BlacklistedPairTypes {})?;
 
     // checks if each pair type is blacklisted
-    for pair_type in pair_types.clone() {
-        if !blacklisted_pair_types.contains(&pair_type) {
+    for pair_type in &pair_types {
+        if !blacklisted_pair_types.contains(pair_type) {
             return Err(ContractError::Std(StdError::generic_err(format!(
                 "Pair type ({}) is not blacklisted!",
                 pair_type
@@ -434,13 +425,13 @@ fn deactivate_pools(
         }
     }
 
-    let active_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+    let active_pools: Vec<_> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
     mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
 
     // find active pools with blacklisted pair type
     for pool in &mut cfg.active_pools {
         if !pool.1.is_zero() {
-            let pair_info = pair_info_by_pool(deps.as_ref(), pool.0.clone())?;
+            let pair_info = pair_info_by_pool(&deps.querier, &pool.0)?;
             if pair_types.contains(&pair_info.pair_type) {
                 // recalculate total allocation point before resetting the allocation point of pool
                 cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
@@ -493,7 +484,7 @@ fn update_blocked_tokens_list(
 
     // Add tokens to the blacklist
     if let Some(asset_infos) = add {
-        let active_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+        let active_pools: Vec<_> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
         mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
         let astro = token_asset_info(cfg.astro_token.clone());
 
@@ -508,7 +499,7 @@ fn update_blocked_tokens_list(
 
                 // Find active pools with blacklisted tokens
                 for pool in &mut cfg.active_pools {
-                    let pair_info = pair_info_by_pool(deps.as_ref(), pool.0.clone())?;
+                    let pair_info = pair_info_by_pool(&deps.querier, &pool.0)?;
                     if pair_info.asset_infos.contains(&asset_info) {
                         // Recalculate total allocation points before resetting the pool allocation points
                         cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
@@ -560,14 +551,12 @@ pub fn execute_update_config(
     }
 
     if let Some(vesting_contract) = vesting_contract {
-        config.vesting_contract = addr_validate_to_lower(deps.api, vesting_contract.as_str())?;
+        config.vesting_contract = addr_validate_to_lower(deps.api, &vesting_contract)?;
     }
 
     if let Some(generator_controller) = generator_controller {
-        config.generator_controller = Some(addr_validate_to_lower(
-            deps.api,
-            generator_controller.as_str(),
-        )?);
+        config.generator_controller =
+            Some(addr_validate_to_lower(deps.api, &generator_controller)?);
     }
 
     if let Some(guardian) = guardian {
@@ -618,63 +607,55 @@ pub fn execute_setup_pools(
 
     let mut setup_pools: Vec<(Addr, Uint128)> = vec![];
 
-    let blacklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
-        cfg.factory.clone(),
-        &FactoryQueryMsg::BlacklistedPairTypes {},
-    )?;
+    let blacklisted_pair_types: Vec<PairType> = deps
+        .querier
+        .query_wasm_smart(&cfg.factory, &FactoryQueryMsg::BlacklistedPairTypes {})?;
 
     for (addr, alloc_point) in pools {
         let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
-        let pair_info = pair_info_by_pool(deps.as_ref(), pool_addr.clone())?;
+        let pair_info = pair_info_by_pool(&deps.querier, &pool_addr)?;
 
         // check if assets in the blocked list
-        for asset in pair_info.asset_infos.clone() {
-            if cfg.blocked_tokens_list.contains(&asset) {
-                return Err(ContractError::Std(StdError::generic_err(format!(
-                    "Token {} is blocked!",
-                    asset
-                ))));
+        for asset in &pair_info.asset_infos {
+            if cfg.blocked_tokens_list.contains(asset) {
+                return Err(StdError::generic_err(format!("Token {} is blocked!", asset)).into());
             }
         }
 
         // check if pair type is blacklisted
         if blacklisted_pair_types.contains(&pair_info.pair_type) {
-            return Err(ContractError::Std(StdError::generic_err(format!(
+            return Err(StdError::generic_err(format!(
                 "Pair type ({}) is blacklisted!",
                 pair_info.pair_type
-            ))));
+            ))
+            .into());
         }
 
         // If a pair gets deregistered from the factory, we should raise error.
         let _: PairInfo = deps
             .querier
             .query_wasm_smart(
-                cfg.factory.clone(),
+                &cfg.factory,
                 &FactoryQueryMsg::Pair {
                     asset_infos: pair_info.asset_infos.clone(),
                 },
             )
             .map_err(|_| {
                 ContractError::Std(StdError::generic_err(format!(
-                    "The pair aren't registered: {}-{}",
+                    "The pair is not registered: {}-{}",
                     pair_info.asset_infos[0], pair_info.asset_infos[1]
                 )))
             })?;
 
         setup_pools.push((pool_addr, alloc_point));
     }
-
-    let factory_cfg: FactoryConfigResponse = deps
-        .querier
-        .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
-
-    let prev_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+    let prev_pools: Vec<_> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
 
     mass_update_pools(deps.branch(), &env, &cfg, &prev_pools)?;
 
     for (lp_token, _) in &setup_pools {
         if !POOL_INFO.has(deps.storage, lp_token) {
-            create_pool(deps.branch(), &env, lp_token, &cfg, &factory_cfg)?;
+            create_pool(deps.branch(), &env, lp_token, &cfg)?;
         }
     }
 
@@ -718,10 +699,11 @@ pub fn execute_update_pool(
 
     POOL_INFO.save(deps.storage, &lp_token_addr, &pool_info)?;
 
-    Ok(Response::new()
-        .add_attribute("action", "update_pool")
-        .add_attribute("lp_token", lp_token)
-        .add_attribute("has_asset_rewards", pool_info.has_asset_rewards.to_string()))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "update_pool"),
+        attr("lp_token", lp_token),
+        attr("has_asset_rewards", pool_info.has_asset_rewards.to_string()),
+    ]))
 }
 
 /// ## Description
@@ -739,90 +721,79 @@ pub fn execute_update_pool(
 ///
 /// * **on_reply** is an object of type [`ExecuteOnReply`]. This is the action to be performed on reply.
 fn update_rewards_and_execute(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     update_single_pool: Option<Addr>,
-    on_reply: ExecuteOnReply,
+    action_on_reply: ExecuteOnReply,
 ) -> Result<Response, ContractError> {
-    TMP_USER_ACTION.update(deps.storage, |v| {
-        if v.is_some() {
-            Err(StdError::generic_err("Repetitive reply definition!"))
-        } else {
-            Ok(Some(on_reply))
-        }
-    })?;
-
-    let mut pools: Vec<(Addr, PoolInfo)> = vec![];
-    match update_single_pool {
+    let pools = match update_single_pool {
         Some(lp_token) => {
             let pool = POOL_INFO.load(deps.storage, &lp_token)?;
-            pools = vec![(lp_token, pool)];
+            vec![(lp_token, pool)]
         }
         None => {
             let config = CONFIG.load(deps.storage)?;
 
-            for (lp_token, _) in config.active_pools {
-                pools.push((lp_token.clone(), POOL_INFO.load(deps.storage, &lp_token)?))
+            config
+                .active_pools
+                .iter()
+                .map(|(lp_token, _)| {
+                    Ok((lp_token.clone(), POOL_INFO.load(deps.storage, lp_token)?))
+                })
+                .collect::<StdResult<Vec<_>>>()?
+        }
+    };
+
+    let mut messages = vec![];
+    for (lp_token, mut pool) in pools {
+        if let Some(reward_proxy) = pool.reward_proxy.clone() {
+            let msg_opt = get_proxy_rewards(deps.querier, &mut pool, &reward_proxy)?;
+            POOL_INFO.save(deps.storage, &lp_token, &pool)?;
+            if let Some(msg) = msg_opt {
+                messages.push(msg);
             }
         }
     }
 
-    let mut messages: Vec<SubMsg> = vec![];
-    for (lp_token, mut pool) in pools {
-        if let Some(reward_proxy) = pool.reward_proxy.clone() {
-            messages.append(&mut get_proxy_rewards(
-                deps.branch(),
-                &lp_token,
-                &mut pool,
-                &reward_proxy,
-            )?);
-        }
-    }
-
-    if let Some(last) = messages.last_mut() {
-        last.reply_on = ReplyOn::Success;
+    if !messages.is_empty() {
+        messages.push(action_on_reply.into_submsg(&env)?);
         Ok(Response::new().add_submessages(messages))
     } else {
-        process_after_update(deps, env)
+        handle_callback(deps, env, action_on_reply)
     }
 }
 
 /// ## Description
 /// Fetches accrued proxy rewards. Snapshots the old amount of rewards that are still unclaimed. Returns a [`ContractError`]
-/// on failure, otherwise returns a vector that contains objects of type [`SubMsg`].
+/// on failure. Otherwise returns object of type [`Some(SubMsg)`] if there is pending tokens
+/// or returns [`None`] in opposite case.
 ///
 /// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **lp_token** is an object of type [`Addr`]. This is the LP token for which we fetch the latest amount of accrued proxy rewards.
+/// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **pool** is an object of type [`PoolInfo`]. This is the generator associated with the `lp_token`.
 ///
 /// * **reward_proxy** is an object of type [`Addr`]. This is the address of the dual rewards proxy for the target LP/generator.
 fn get_proxy_rewards(
-    deps: DepsMut,
-    lp_token: &Addr,
+    querier: QuerierWrapper,
     pool: &mut PoolInfo,
     reward_proxy: &Addr,
-) -> Result<Vec<SubMsg>, ContractError> {
-    let reward_amount: Uint128 = deps
-        .querier
-        .query_wasm_smart(reward_proxy, &ProxyQueryMsg::Reward {})?;
+) -> Result<Option<SubMsg>, ContractError> {
+    let reward_amount: Uint128 =
+        querier.query_wasm_smart(reward_proxy, &ProxyQueryMsg::Reward {})?;
 
     pool.proxy_reward_balance_before_update = reward_amount;
-    POOL_INFO.save(deps.storage, lp_token, pool)?;
 
-    let msg = ProxyQueryMsg::PendingToken {};
-    let res: Uint128 = deps.querier.query_wasm_smart(reward_proxy, &msg)?;
+    let res: Uint128 = querier.query_wasm_smart(reward_proxy, &ProxyQueryMsg::PendingToken {})?;
 
     Ok(if !res.is_zero() {
-        vec![SubMsg::new(WasmMsg::Execute {
+        Some(SubMsg::new(WasmMsg::Execute {
             contract_addr: reward_proxy.to_string(),
             funds: vec![],
             msg: to_binary(&ProxyExecuteMsg::UpdateRewards {})?,
-        })]
+        }))
     } else {
-        vec![]
+        None
     })
 }
 
@@ -835,13 +806,13 @@ fn get_proxy_rewards(
 ///
 /// * **_msg** is an object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
         INIT_REWARDS_HOLDER_ID => {
             let data = msg
                 .result
                 .into_result()
-                .map_err(|_| StdError::generic_err("Invalid reply!"))?
+                .map_err(|_| StdError::generic_err("Failed to get reply"))?
                 .data
                 .ok_or_else(|| StdError::generic_err("No data in reply"))?;
             let res: MsgInstantiateContractResponse = Message::parse_from_bytes(data.as_slice())
@@ -853,63 +824,61 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 
             Ok(Response::new().add_attribute("action", "init_rewards_holder"))
         }
-        _ => process_after_update(deps, env),
+        _ => Err(StdError::generic_err("Unknown reply id").into()),
     }
 }
 
 /// ## Description
-/// Loads an action from [`TMP_USER_ACTION`] and executes it. Returns a [`ContractError`]
+/// Processes callback. Returns a [`ContractError`]
 /// on failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **env** is an object of type [`Env`].
-fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
-    match TMP_USER_ACTION.load(deps.storage)? {
-        Some(action) => {
-            TMP_USER_ACTION.save(deps.storage, &None)?;
-            match action {
-                ExecuteOnReply::ClaimRewards { lp_tokens, account } => {
-                    claim_rewards(deps, env, lp_tokens, account)
-                }
-                ExecuteOnReply::Deposit {
-                    lp_token,
-                    account,
-                    amount,
-                } => deposit(deps, env, lp_token, account, amount),
-                ExecuteOnReply::Withdraw {
-                    lp_token,
-                    account,
-                    amount,
-                } => withdraw(deps, env, lp_token, account, amount),
-                ExecuteOnReply::SetTokensPerBlock { amount } => {
-                    set_tokens_per_block(deps, env, amount)
-                }
-                ExecuteOnReply::MigrateProxy {
-                    lp_addr,
-                    new_proxy_addr,
-                } => migrate_proxy_callback(deps, env, lp_addr, new_proxy_addr),
-                ExecuteOnReply::MigrateProxyDepositLP {
-                    lp_addr,
-                    prev_proxy_addr,
-                    amount,
-                } => migrate_proxy_deposit_lp(deps, lp_addr, prev_proxy_addr, amount),
-            }
+fn handle_callback(
+    deps: DepsMut,
+    env: Env,
+    action: ExecuteOnReply,
+) -> Result<Response, ContractError> {
+    match action {
+        ExecuteOnReply::ClaimRewards { lp_tokens, account } => {
+            claim_rewards(deps, env, lp_tokens, account)
         }
-        None => Ok(Response::default()),
+        ExecuteOnReply::Deposit {
+            lp_token,
+            account,
+            amount,
+        } => deposit(deps, env, lp_token, account, amount),
+        ExecuteOnReply::Withdraw {
+            lp_token,
+            account,
+            amount,
+        } => withdraw(deps, env, lp_token, account, amount),
+        ExecuteOnReply::SetTokensPerBlock { amount } => set_tokens_per_block(deps, env, amount),
+        ExecuteOnReply::MigrateProxy {
+            lp_addr,
+            new_proxy_addr,
+        } => migrate_proxy_callback(deps, env, lp_addr, new_proxy_addr),
+        ExecuteOnReply::MigrateProxyDepositLP {
+            lp_addr,
+            prev_proxy_addr,
+            amount,
+        } => migrate_proxy_deposit_lp(deps, lp_addr, prev_proxy_addr, amount),
     }
 }
 
 /// ## Description
 /// Sets the allocation points to zero for the generator associated with the specified LP token. Recalculates total allocation points.
-pub fn deactivate_pool(deps: DepsMut, lp_token: Addr) -> Result<Response, ContractError> {
-    let mut cfg = CONFIG.load(deps.storage)?;
-
-    // Gets old allocation points for the pool and subtracts them from total allocation points
+pub fn deactivate_pool(
+    deps: DepsMut,
+    mut cfg: Config,
+    lp_token: Addr,
+) -> Result<Response, ContractError> {
+    // Get old allocation points for the pool and subtract them from the total allocation points
     let old_alloc_point = get_alloc_point(&cfg.active_pools, &lp_token);
     cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(old_alloc_point)?;
 
-    // Sets the pool allocation points to zero
+    // Set the pool allocation points to zero
     for pool in &mut cfg.active_pools {
         if pool.0 == lp_token {
             pool.1 = Uint128::zero();
@@ -919,7 +888,7 @@ pub fn deactivate_pool(deps: DepsMut, lp_token: Addr) -> Result<Response, Contra
 
     CONFIG.save(deps.storage, &cfg)?;
 
-    Ok(Response::new().add_attribute("action", "setup_pool"))
+    Ok(Response::new().add_attribute("action", "deactivate_pool"))
 }
 
 /// Sets a new amount of ASTRO distributed per block among all active generators. Before that, we
@@ -936,7 +905,7 @@ fn set_tokens_per_block(
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
-    let pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
+    let pools: Vec<_> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
 
     mass_update_pools(deps.branch(), &env, &cfg, &pools)?;
 
@@ -989,13 +958,11 @@ pub fn claim_rewards(
     lp_tokens: Vec<Addr>,
     account: Addr,
 ) -> Result<Response, ContractError> {
-    let response = Response::default();
-
     let cfg = CONFIG.load(deps.storage)?;
 
     mass_update_pools(deps.branch(), &env, &cfg, &lp_tokens)?;
 
-    let mut send_rewards_msg: Vec<WasmMsg> = vec![];
+    let mut send_rewards_msg = vec![];
     for lp_token in &lp_tokens {
         let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
         let user = USER_INFO.compatible_load(deps.storage, (lp_token, &account))?;
@@ -1014,9 +981,9 @@ pub fn claim_rewards(
 
         // Update user's virtual amount
         update_virtual_amount(
-            deps.as_ref(),
-            &env,
-            &cfg,
+            deps.querier,
+            &env.contract.address,
+            &cfg.voting_escrow,
             &mut pool,
             &mut user,
             &account,
@@ -1027,7 +994,7 @@ pub fn claim_rewards(
         POOL_INFO.save(deps.storage, lp_token, &pool)?;
     }
 
-    Ok(response
+    Ok(Response::default()
         .add_attribute("action", "claim_rewards")
         .add_messages(send_rewards_msg))
 }
@@ -1080,7 +1047,11 @@ pub fn accumulate_rewards_per_share(
         if !lp_supply.is_zero() {
             let alloc_point = get_alloc_point(&cfg.active_pools, lp_token);
 
-            let token_rewards = calculate_rewards(env, pool, &alloc_point, cfg)?;
+            let token_rewards = calculate_rewards(
+                env.block.height - pool.last_reward_block.u64(),
+                &alloc_point,
+                cfg,
+            )?;
 
             let share = Decimal::from_ratio(token_rewards, lp_supply);
             pool.reward_global_index = pool.reward_global_index.checked_add(share)?;
@@ -1115,24 +1086,23 @@ fn receive_cw20(
     let cfg = CONFIG.load(deps.storage)?;
 
     if !POOL_INFO.has(deps.storage, &lp_token) {
-        let factory_cfg: FactoryConfigResponse = deps
-            .querier
-            .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
-
-        create_pool(deps.branch(), &env, &lp_token, &cfg, &factory_cfg)?;
+        create_pool(deps.branch(), &env, &lp_token, &cfg)?;
     }
 
     match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::Deposit {} => update_rewards_and_execute(
-            deps,
-            env,
-            Some(lp_token.clone()),
-            ExecuteOnReply::Deposit {
-                lp_token,
-                account: Addr::unchecked(cw20_msg.sender),
-                amount,
-            },
-        ),
+        Cw20HookMsg::Deposit {} => {
+            let account = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
+            update_rewards_and_execute(
+                deps,
+                env,
+                Some(lp_token.clone()),
+                ExecuteOnReply::Deposit {
+                    lp_token,
+                    account,
+                    amount,
+                },
+            )
+        }
         Cw20HookMsg::DepositFor(beneficiary) => update_rewards_and_execute(
             deps,
             env,
@@ -1171,8 +1141,8 @@ pub fn send_pending_rewards(
 
     let mut messages = vec![];
 
-    let pending_rewards =
-        (pool.reward_global_index - user.reward_user_index).checked_mul(user.virtual_amount)?;
+    let pending_rewards = (pool.reward_global_index - user.reward_user_index)
+        .checked_mul_uint128(user.virtual_amount)?;
 
     if !pending_rewards.is_zero() {
         messages.push(WasmMsg::Execute {
@@ -1191,7 +1161,7 @@ pub fn send_pending_rewards(
     for (proxy, pending_proxy_rewards) in proxy_rewards {
         if !pending_proxy_rewards.is_zero() {
             match &pool.reward_proxy {
-                Some(reward_proxy) if reward_proxy.as_str() == proxy.as_str() => {
+                Some(reward_proxy) if reward_proxy == &proxy => {
                     messages.push(WasmMsg::Execute {
                         contract_addr: proxy.to_string(),
                         funds: vec![],
@@ -1285,9 +1255,9 @@ pub fn deposit(
     let mut user = update_user_balance(user, &pool, updated_amount)?;
 
     update_virtual_amount(
-        deps.as_ref(),
-        &env,
-        &cfg,
+        deps.querier,
+        &env.contract.address,
+        &cfg.voting_escrow,
         &mut pool,
         &mut user,
         &beneficiary,
@@ -1379,9 +1349,9 @@ pub fn withdraw(
     let mut user = update_user_balance(user, &pool, updated_amount)?;
 
     update_virtual_amount(
-        deps.as_ref(),
-        &env,
-        &cfg,
+        deps.querier,
+        &env.contract.address,
+        &cfg.voting_escrow,
         &mut pool,
         &mut user,
         &account,
@@ -1420,13 +1390,7 @@ pub fn build_claim_pools_asset_reward_messages(
             Some(proxy) => deps
                 .querier
                 .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?,
-            None => {
-                query_token_balance(
-                    &deps.querier,
-                    lp_token.clone(),
-                    env.contract.address.clone(),
-                )? - deposit
-            }
+            None => query_token_balance(&deps.querier, lp_token, &env.contract.address)? - deposit,
         };
 
         let minter_response: MinterResponse = deps
@@ -1456,14 +1420,11 @@ pub fn build_claim_pools_asset_reward_messages(
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is an object of type [`Env`].
-///
 /// * **info** is an object of type [`MessageInfo`].
 ///
 /// * **lp_token** is an object of type [`String`]. This is the LP token to withdraw.
 pub fn emergency_withdraw(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     lp_token: String,
 ) -> Result<Response, ContractError> {
@@ -1473,7 +1434,7 @@ pub fn emergency_withdraw(
     let user = USER_INFO.compatible_load(deps.storage, (&lp_token, &info.sender))?;
 
     // Instantiate the transfer call for the LP token
-    let transfer_msg: WasmMsg;
+    let transfer_msg;
     if let Some(proxy) = &pool.reward_proxy {
         let accumulated_proxy_rewards: HashMap<_, _> = accumulate_pool_proxy_rewards(&pool, &user)?
             .into_iter()
@@ -1598,16 +1559,14 @@ fn send_orphan_proxy_rewards(
         .filter(|(_, value)| !value.is_zero())
         .map(|(proxy, amount)| {
             let msg = match &pool.reward_proxy {
-                Some(reward_proxy) if reward_proxy.as_str() == proxy.as_str() => {
-                    SubMsg::new(WasmMsg::Execute {
-                        contract_addr: reward_proxy.to_string(),
-                        funds: vec![],
-                        msg: to_binary(&ProxyExecuteMsg::SendRewards {
-                            account: recipient.to_string(),
-                            amount: *amount,
-                        })?,
-                    })
-                }
+                Some(reward_proxy) if reward_proxy == proxy => SubMsg::new(WasmMsg::Execute {
+                    contract_addr: reward_proxy.to_string(),
+                    funds: vec![],
+                    msg: to_binary(&ProxyExecuteMsg::SendRewards {
+                        account: recipient.to_string(),
+                        amount: *amount,
+                    })?,
+                }),
                 _ => {
                     let asset_info = PROXY_REWARD_ASSET.load(deps.storage, proxy)?;
                     SubMsg::new(WasmMsg::Execute {
@@ -1618,7 +1577,7 @@ fn send_orphan_proxy_rewards(
                                 info: asset_info,
                                 amount: *amount,
                             }
-                            .into_msg(&deps.querier, recipient.clone())?],
+                            .into_msg(&deps.querier, &recipient)?],
                         })?,
                     })
                 }
@@ -1694,7 +1653,7 @@ fn migrate_proxy(
     // Check the pool has reward proxy
     let pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
     if let Some(proxy) = &pool_info.reward_proxy {
-        if proxy.as_str() == new_proxy_addr.as_str() {
+        if proxy == &new_proxy_addr {
             return Err(StdError::generic_err("Can not migrate to the same proxy").into());
         }
     } else {
@@ -1767,37 +1726,29 @@ fn migrate_proxy_callback(
     // Migrate all LP tokens to new proxy contract
     if !proxy_lp_balance.is_zero() {
         // Firstly, transfer LP tokens to the generator address
-        let transfer_lp_msg = SubMsg::reply_on_success(
-            WasmMsg::Execute {
-                contract_addr: prev_proxy_addr.to_string(),
-                msg: to_binary(&ProxyExecuteMsg::Withdraw {
-                    account: env.contract.address.to_string(),
-                    amount: proxy_lp_balance,
-                })?,
-                funds: vec![],
-            },
-            0,
-        );
+        let transfer_lp_msg = SubMsg::new(WasmMsg::Execute {
+            contract_addr: prev_proxy_addr.to_string(),
+            msg: to_binary(&ProxyExecuteMsg::Withdraw {
+                account: env.contract.address.to_string(),
+                amount: proxy_lp_balance,
+            })?,
+            funds: vec![],
+        });
         // Secondly, depositing them to new proxy through generator balance
-        TMP_USER_ACTION.update(deps.storage, |v| {
-            if v.is_some() {
-                Err(StdError::generic_err("Repetitive reply definition!"))
-            } else {
-                Ok(Some(ExecuteOnReply::MigrateProxyDepositLP {
-                    lp_addr,
-                    prev_proxy_addr,
-                    amount: proxy_lp_balance,
-                }))
-            }
-        })?;
-        Ok(response.add_submessage(transfer_lp_msg))
+        let proxy_deposit_msg = ExecuteOnReply::MigrateProxyDepositLP {
+            lp_addr,
+            prev_proxy_addr,
+            amount: proxy_lp_balance,
+        }
+        .into_submsg(&env)?;
+        Ok(response.add_submessages(vec![transfer_lp_msg, proxy_deposit_msg]))
     } else {
         // Nothing to migrate
         Ok(response.add_attributes([
-            ("action", "migrate_proxy"),
-            ("lp_token", lp_addr.as_str()),
-            ("from", prev_proxy_addr.as_str()),
-            ("to", new_proxy_addr.as_str()),
+            attr("action", "migrate_proxy"),
+            attr("lp_token", lp_addr),
+            attr("from", prev_proxy_addr),
+            attr("to", new_proxy_addr),
         ]))
     }
 }
@@ -1824,10 +1775,10 @@ fn migrate_proxy_deposit_lp(
     };
 
     Ok(Response::new().add_message(deposit_msg).add_attributes([
-        ("action", "migrate_proxy"),
-        ("lp_token", lp_addr.as_str()),
-        ("from", prev_proxy.as_str()),
-        ("to", new_proxy.as_str()),
+        attr("action", "migrate_proxy"),
+        attr("lp_token", lp_addr),
+        attr("from", prev_proxy),
+        attr("to", new_proxy),
     ]))
 }
 
@@ -1856,14 +1807,10 @@ fn move_to_proxy(
     }
 
     if !POOL_INFO.has(deps.storage, &lp_addr) {
-        let factory_cfg: FactoryConfigResponse = deps
-            .querier
-            .query_wasm_smart(cfg.factory.clone(), &FactoryQueryMsg::Config {})?;
-
-        create_pool(deps.branch(), &env, &lp_addr, &cfg, &factory_cfg)?;
+        create_pool(deps.branch(), &env, &lp_addr, &cfg)?;
     }
 
-    let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr.clone())?;
+    let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
     if pool_info.reward_proxy.is_some() {
         return Err(ContractError::PoolAlreadyHasRewardProxyContract {});
     }
@@ -1878,8 +1825,8 @@ fn move_to_proxy(
     pool_info.reward_proxy = Some(proxy_addr);
 
     let res: BalanceResponse = deps.querier.query_wasm_smart(
-        lp_addr.clone(),
-        &cw20::Cw20QueryMsg::Balance {
+        &lp_addr,
+        &Cw20QueryMsg::Balance {
             address: env.contract.address.to_string(),
         },
     )?;
@@ -1989,8 +1936,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::TotalVirtualSupply { generator } => {
             Ok(to_binary(&total_virtual_supply(deps, generator)?)?)
         }
-        QueryMsg::ActivePoolLength {} => Ok(to_binary(&active_pool_length(deps)?)?),
-        QueryMsg::PoolLength {} => Ok(to_binary(&pool_length(deps)?)?),
+        QueryMsg::ActivePoolLength {} => {
+            let config = CONFIG.load(deps.storage)?;
+            Ok(to_binary(&config.active_pools.len())?)
+        }
+        QueryMsg::PoolLength {} => {
+            let length = POOL_INFO
+                .keys(deps.storage, None, None, Order::Ascending)
+                .count();
+            Ok(to_binary(&length)?)
+        }
         QueryMsg::UserVirtualAmount { lp_token, user } => {
             Ok(to_binary(&query_virtual_amount(deps, lp_token, user)?)?)
         }
@@ -2000,7 +1955,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::PendingToken { lp_token, user } => {
             Ok(to_binary(&pending_token(deps, env, lp_token, user)?)?)
         }
-        QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
+        QueryMsg::Config {} => Ok(to_binary(&CONFIG.load(deps.storage)?)?),
         QueryMsg::RewardInfo { lp_token } => Ok(to_binary(&query_reward_info(deps, lp_token)?)?),
         QueryMsg::OrphanProxyRewards { lp_token } => {
             Ok(to_binary(&query_orphan_proxy_rewards(deps, lp_token)?)?)
@@ -2009,12 +1964,19 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::SimulateFutureReward {
             lp_token,
             future_block,
-        } => Ok(to_binary(&query_simulate_future_reward(
-            deps,
-            env,
-            lp_token,
-            future_block,
-        )?)?),
+        } => {
+            let cfg = CONFIG.load(deps.storage)?;
+            let alloc_point = get_alloc_point(
+                &cfg.active_pools,
+                &addr_validate_to_lower(deps.api, &lp_token)?,
+            );
+
+            Ok(to_binary(&calculate_rewards(
+                future_block - env.block.height,
+                &alloc_point,
+                &cfg,
+            )?)?)
+        }
         QueryMsg::PoolStakers {
             lp_token,
             start_after,
@@ -2025,26 +1987,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             start_after,
             limit,
         )?)?),
-        QueryMsg::BlockedTokensList {} => Ok(to_binary(&query_blocked_tokens_list(deps)?)?),
+        QueryMsg::BlockedTokensList {} => {
+            Ok(to_binary(&CONFIG.load(deps.storage)?.blocked_tokens_list)?)
+        }
     }
-}
-
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise returns the blocked list of tokens.
-fn query_blocked_tokens_list(deps: Deps) -> Result<Vec<AssetInfo>, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(config.blocked_tokens_list)
-}
-
-/// Returns a [`ContractError`] on failure, otherwise returns the amount of instantiated generators
-/// using a [`PoolLengthResponse`] object.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-pub fn pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
-    let length = POOL_INFO
-        .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-        .count();
-    Ok(PoolLengthResponse { length })
 }
 
 /// ## Description
@@ -2054,16 +2000,6 @@ pub fn total_virtual_supply(deps: Deps, generator: String) -> Result<Uint128, Co
     let pool = POOL_INFO.load(deps.storage, &generator_addr)?;
 
     Ok(pool.total_virtual_supply)
-}
-
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise returns the amount of active generators
-/// using a [`PoolLengthResponse`] object.
-pub fn active_pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(PoolLengthResponse {
-        length: config.active_pools.len(),
-    })
 }
 
 /// ## Description
@@ -2175,44 +2111,22 @@ pub fn pending_token(
     if env.block.height > pool.last_reward_block.u64() && !lp_supply.is_zero() {
         let alloc_point = get_alloc_point(&cfg.active_pools, &lp_token);
 
-        let token_rewards = calculate_rewards(&env, &pool, &alloc_point, &cfg)?;
+        let token_rewards = calculate_rewards(
+            env.block.height - pool.last_reward_block.u64(),
+            &alloc_point,
+            &cfg,
+        )?;
         let share = Decimal::from_ratio(token_rewards, lp_supply);
         acc_per_share = pool.reward_global_index.checked_add(share)?;
     }
 
     // we should calculate rewards by virtual amount
-    let pending =
-        (acc_per_share - user_info.reward_user_index).checked_mul(user_info.virtual_amount)?;
+    let pending = (acc_per_share - user_info.reward_user_index)
+        .checked_mul_uint128(user_info.virtual_amount)?;
 
     Ok(PendingTokenResponse {
         pending,
         pending_on_proxy,
-    })
-}
-
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise returns information about a generator's
-/// configuration using a [`ConfigResponse`] object .
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    Ok(ConfigResponse {
-        allowed_reward_proxies: config.allowed_reward_proxies,
-        astro_token: config.astro_token,
-        owner: config.owner,
-        factory: config.factory,
-        guardian: config.guardian,
-        start_block: config.start_block,
-        tokens_per_block: config.tokens_per_block,
-        total_alloc_point: config.total_alloc_point,
-        vesting_contract: config.vesting_contract,
-        generator_controller: config.generator_controller,
-        active_pools: config.active_pools,
-        blocked_tokens_list: config.blocked_tokens_list,
-        voting_escrow: config.voting_escrow,
-        checkpoint_generator_limit: config.checkpoint_generator_limit,
     })
 }
 
@@ -2230,15 +2144,13 @@ fn query_reward_info(deps: Deps, lp_token: String) -> Result<RewardInfoResponse,
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
-    let proxy_reward_token = match pool.reward_proxy {
-        Some(proxy) => {
-            let res: Addr = deps
-                .querier
-                .query_wasm_smart(&proxy, &ProxyQueryMsg::RewardInfo {})?;
-            Some(res)
-        }
-        None => None,
-    };
+    let proxy_reward_token = pool
+        .reward_proxy
+        .map(|proxy| {
+            deps.querier
+                .query_wasm_smart(&proxy, &ProxyQueryMsg::RewardInfo {})
+        })
+        .transpose()?;
 
     Ok(RewardInfoResponse {
         base_reward_token: config.astro_token,
@@ -2329,7 +2241,11 @@ fn query_pool_info(
 
     // Calculate pending ASTRO rewards
     if env.block.height > pool.last_reward_block.u64() && !lp_supply.is_zero() {
-        pending_astro_rewards = calculate_rewards(&env, &pool, &alloc_point, &config)?;
+        pending_astro_rewards = calculate_rewards(
+            env.block.height - pool.last_reward_block.u64(),
+            &alloc_point,
+            &config,
+        )?;
     }
 
     // Calculate ASTRO tokens being distributed per block to this LP token pool
@@ -2359,38 +2275,6 @@ fn query_pool_info(
 }
 
 /// ## Description
-/// Returns a [`ContractError`] on failure, otherwise returns the total amount of ASTRO tokens distributed for
-/// a specific generator up to a certain block in the future.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **lp_token** is an object of type [`Addr`]. This is the LP token for which we query the amount of future ASTRO rewards.
-pub fn query_simulate_future_reward(
-    deps: Deps,
-    env: Env,
-    lp_token: String,
-    future_block: u64,
-) -> Result<Uint128, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
-
-    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
-    let alloc_point = get_alloc_point(&cfg.active_pools, &lp_token);
-    let n_blocks = Uint128::from(future_block)
-        .checked_sub(env.block.height.into())
-        .unwrap_or_else(|_| Uint128::zero());
-
-    let simulated_reward = n_blocks
-        .checked_mul(cfg.tokens_per_block)?
-        .checked_mul(alloc_point)?
-        .checked_div(cfg.total_alloc_point)
-        .unwrap_or_else(|_| Uint128::zero());
-
-    Ok(simulated_reward)
-}
-
-/// ## Description
 /// Returns a [`ContractError`] on failure, otherwise returns a list of stakers that currently
 /// have funds in a specific generator.
 /// ## Params
@@ -2411,14 +2295,13 @@ pub fn query_list_of_stakers(
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> Result<Vec<StakerResponse>, ContractError> {
-    let lp_addr = addr_validate_to_lower(deps.api, lp_token.as_str())?;
+    let lp_addr = addr_validate_to_lower(deps.api, &lp_token)?;
     let mut active_stakers: Vec<StakerResponse> = vec![];
 
     if POOL_INFO.has(deps.storage, &lp_addr) {
         let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-        let start = start_after
-            .map(|start| start.joined_key())
-            .map(Bound::Exclusive);
+        let start = addr_opt_validate(deps.api, &start_after)?;
+        let start = start.as_ref().map(Bound::exclusive);
 
         active_stakers = USER_INFO
             .prefix(&lp_addr)
@@ -2427,7 +2310,7 @@ pub fn query_list_of_stakers(
                 stakers
                     .ok()
                     .map(|staker| StakerResponse {
-                        account: String::from_utf8(staker.0).unwrap(),
+                        account: staker.0.to_string(),
                         amount: staker.1.amount,
                     })
                     .filter(|active_staker| !active_staker.amount.is_zero())
@@ -2442,29 +2325,15 @@ pub fn query_list_of_stakers(
 /// ## Description
 /// Calculates and returns the amount of accrued rewards since the last reward checkpoint for a specific generator.
 /// ## Params
-/// * **env** is an object of type [`Env`].
-///
-/// * **pool** is an object of type [`PoolInfo`]. This is the generator for which we calculate accrued rewards.
-///
 /// * **alloc_point** is the object of type [`Uint64`].
 ///
 /// * **cfg** is an object of type [`Config`]. This is the Generator contract configuration.
-pub fn calculate_rewards(
-    env: &Env,
-    pool: &PoolInfo,
-    alloc_point: &Uint128,
-    cfg: &Config,
-) -> StdResult<Uint128> {
-    let n_blocks = Uint128::from(env.block.height).checked_sub(pool.last_reward_block.into())?;
-
-    let r = if !cfg.total_alloc_point.is_zero() {
-        n_blocks
-            .checked_mul(cfg.tokens_per_block)?
-            .checked_mul(*alloc_point)?
-            .checked_div(cfg.total_alloc_point)?
-    } else {
-        Uint128::zero()
-    };
+pub fn calculate_rewards(n_blocks: u64, alloc_point: &Uint128, cfg: &Config) -> StdResult<Uint128> {
+    let r = Uint128::from(n_blocks)
+        .checked_mul(cfg.tokens_per_block)?
+        .checked_mul(*alloc_point)?
+        .checked_div(cfg.total_alloc_point)
+        .unwrap_or_else(|_| Uint128::zero());
 
     Ok(r)
 }
@@ -2494,29 +2363,28 @@ pub fn get_alloc_point(pools: &[(Addr, Uint128)], lp_token: &Addr) -> Uint128 {
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **lp_token** is an object of type [`Addr`]. This is the
+/// * **lp_token** is an object of type [`Addr`].
+///
+/// * **cfg** is an object of type [`Config`].
 pub fn create_pool(
     deps: DepsMut,
     env: &Env,
     lp_token: &Addr,
     cfg: &Config,
-    factory_cfg: &FactoryConfigResponse,
-) -> Result<PoolInfo, ContractError> {
-    let pair_info = pair_info_by_pool(deps.as_ref(), lp_token.clone())?;
+) -> Result<(), ContractError> {
+    let factory_cfg: FactoryConfigResponse = deps
+        .querier
+        .query_wasm_smart(&cfg.factory, &FactoryQueryMsg::Config {})?;
 
-    let mut pair_config: Option<PairConfig> = None;
-    for factory_pair_config in &factory_cfg.pair_configs {
-        if factory_pair_config.pair_type == pair_info.pair_type {
-            pair_config = Some(factory_pair_config.clone());
-        }
-    }
+    let pair_info = pair_info_by_pool(&deps.querier, lp_token)?;
+    let pair_config = factory_cfg
+        .pair_configs
+        .into_iter()
+        .find(|pair| pair.pair_type == pair_info.pair_type)
+        .ok_or(ContractError::PairNotRegistered {})?;
 
-    if let Some(pair_config) = pair_config {
-        if pair_config.is_disabled || pair_config.is_generator_disabled {
-            return Err(ContractError::GeneratorIsDisabled {});
-        }
-    } else {
-        return Err(ContractError::PairNotRegistered {});
+    if pair_config.is_disabled || pair_config.is_generator_disabled {
+        return Err(ContractError::GeneratorIsDisabled {});
     }
 
     POOL_INFO.save(
@@ -2534,7 +2402,7 @@ pub fn create_pool(
         },
     )?;
 
-    Ok(POOL_INFO.load(deps.storage, lp_token)?)
+    Ok(())
 }
 
 /// ## Description
@@ -2550,223 +2418,120 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
-        "astroport-generator" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                let mut active_pools: Vec<(Addr, Uint64)> = vec![];
+        "astroport-generator" => {
+            let keys = POOL_INFO
+                .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
+                .map(|v| {
+                    let res = v?;
+                    Ok(res.to_string())
+                })
+                .collect::<Result<Vec<String>, StdError>>()?;
 
-                let keys = POOL_INFO
-                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| String::from_utf8(v).map_err(StdError::from))
-                    .collect::<Result<Vec<String>, StdError>>()?;
+            match contract_version.version.as_ref() {
+                "1.0.0" => {
+                    let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 
-                for key in keys {
-                    let pool_info_v100 = migration::POOL_INFOV100
-                        .load(deps.storage, &Addr::unchecked(key.clone()))?;
+                    for key in keys {
+                        let pool_info_v100 = migration::POOL_INFOV100
+                            .load(deps.storage, &Addr::unchecked(key.clone()))?;
 
-                    if !pool_info_v100.alloc_point.is_zero() {
-                        active_pools.push((Addr::unchecked(&key), pool_info_v100.alloc_point));
+                        if !pool_info_v100.alloc_point.is_zero() {
+                            active_pools.push((Addr::unchecked(&key), pool_info_v100.alloc_point));
+                        }
+
+                        let mut accumulated_proxy_rewards_per_share = Default::default();
+                        let mut orphan_proxy_rewards = Default::default();
+                        if let Some(proxy) = &pool_info_v100.reward_proxy {
+                            accumulated_proxy_rewards_per_share = RestrictedVector::new(
+                                proxy.clone(),
+                                pool_info_v100.accumulated_proxy_rewards_per_share,
+                            );
+                            orphan_proxy_rewards = RestrictedVector::new(
+                                proxy.clone(),
+                                pool_info_v100.orphan_proxy_rewards,
+                            );
+                            update_proxy_asset(deps.branch(), proxy)?;
+                        }
+
+                        let lp_balance = if let Some(proxy) = &pool_info_v100.reward_proxy {
+                            deps.querier
+                                .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
+                        } else {
+                            let res: BalanceResponse = deps.querier.query_wasm_smart(
+                                &key,
+                                &Cw20QueryMsg::Balance {
+                                    address: env.contract.address.to_string(),
+                                },
+                            )?;
+                            res.balance
+                        };
+
+                        let pool_info = PoolInfo {
+                            has_asset_rewards: false,
+                            accumulated_proxy_rewards_per_share,
+                            orphan_proxy_rewards,
+                            last_reward_block: pool_info_v100.last_reward_block,
+                            proxy_reward_balance_before_update: pool_info_v100
+                                .proxy_reward_balance_before_update,
+                            reward_proxy: pool_info_v100.reward_proxy,
+                            reward_global_index: pool_info_v100.accumulated_rewards_per_share,
+                            total_virtual_supply: lp_balance,
+                        };
+                        POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                     }
 
-                    let mut accumulated_proxy_rewards_per_share = Default::default();
-                    let mut orphan_proxy_rewards = Default::default();
-                    if let Some(proxy) = &pool_info_v100.reward_proxy {
-                        accumulated_proxy_rewards_per_share = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v100.accumulated_proxy_rewards_per_share,
-                        );
-                        orphan_proxy_rewards = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v100.orphan_proxy_rewards,
-                        );
-                        update_proxy_asset(deps.branch(), proxy)?;
-                    }
-
-                    let lp_balance = if let Some(proxy) = &pool_info_v100.reward_proxy {
-                        deps.querier
-                            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
-                    } else {
-                        let res: BalanceResponse = deps.querier.query_wasm_smart(
-                            key.clone(),
-                            &cw20::Cw20QueryMsg::Balance {
-                                address: env.contract.address.to_string(),
-                            },
-                        )?;
-                        res.balance
-                    };
-
-                    let pool_info = PoolInfo {
-                        has_asset_rewards: false,
-                        accumulated_proxy_rewards_per_share,
-                        orphan_proxy_rewards,
-                        last_reward_block: pool_info_v100.last_reward_block,
-                        proxy_reward_balance_before_update: pool_info_v100
-                            .proxy_reward_balance_before_update,
-                        reward_proxy: pool_info_v100.reward_proxy,
-                        reward_global_index: pool_info_v100.accumulated_rewards_per_share,
-                        total_virtual_supply: lp_balance,
-                    };
-                    POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
+                    migration::migrate_configs_from_v100(&mut deps, active_pools, &msg)?;
                 }
+                "1.2.0" => {
+                    for key in keys {
+                        let pool_info_v120 = migration::POOL_INFOV120
+                            .load(deps.storage, &Addr::unchecked(key.clone()))?;
 
-                migration::migrate_configs_to_v120(&mut deps, active_pools, &msg)?;
-                migration::migrate_configs_to_v130(deps.storage)?;
-                migration::migrate_configs_to_v200(&mut deps, &msg)?
-            }
-            "1.1.0" => {
-                let mut active_pools: Vec<(Addr, Uint64)> = vec![];
+                        let mut accumulated_proxy_rewards_per_share = Default::default();
+                        let mut orphan_proxy_rewards = Default::default();
+                        if let Some(proxy) = &pool_info_v120.reward_proxy {
+                            accumulated_proxy_rewards_per_share = RestrictedVector::new(
+                                proxy.clone(),
+                                pool_info_v120.accumulated_proxy_rewards_per_share,
+                            );
+                            orphan_proxy_rewards = RestrictedVector::new(
+                                proxy.clone(),
+                                pool_info_v120.orphan_proxy_rewards,
+                            );
+                            update_proxy_asset(deps.branch(), proxy)?;
+                        }
 
-                let keys = POOL_INFO
-                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| String::from_utf8(v).map_err(StdError::from))
-                    .collect::<Result<Vec<String>, StdError>>()?;
+                        let lp_balance = if let Some(proxy) = &pool_info_v120.reward_proxy {
+                            deps.querier
+                                .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
+                        } else {
+                            let res: BalanceResponse = deps.querier.query_wasm_smart(
+                                &key,
+                                &Cw20QueryMsg::Balance {
+                                    address: env.contract.address.to_string(),
+                                },
+                            )?;
+                            res.balance
+                        };
 
-                for key in keys {
-                    let pool_info_v110 = migration::POOL_INFOV110
-                        .load(deps.storage, &Addr::unchecked(key.clone()))?;
-
-                    if !pool_info_v110.alloc_point.is_zero() {
-                        active_pools.push((Addr::unchecked(&key), pool_info_v110.alloc_point));
+                        let pool_info = PoolInfo {
+                            has_asset_rewards: pool_info_v120.has_asset_rewards,
+                            accumulated_proxy_rewards_per_share,
+                            orphan_proxy_rewards,
+                            last_reward_block: pool_info_v120.last_reward_block,
+                            proxy_reward_balance_before_update: pool_info_v120
+                                .proxy_reward_balance_before_update,
+                            reward_proxy: pool_info_v120.reward_proxy,
+                            reward_global_index: pool_info_v120.accumulated_rewards_per_share,
+                            total_virtual_supply: lp_balance,
+                        };
+                        POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
                     }
-
-                    let mut accumulated_proxy_rewards_per_share = Default::default();
-                    let mut orphan_proxy_rewards = Default::default();
-                    if let Some(proxy) = &pool_info_v110.reward_proxy {
-                        accumulated_proxy_rewards_per_share = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v110.accumulated_proxy_rewards_per_share,
-                        );
-                        orphan_proxy_rewards = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v110.orphan_proxy_rewards,
-                        );
-                        update_proxy_asset(deps.branch(), proxy)?;
-                    }
-
-                    let lp_balance = if let Some(proxy) = &pool_info_v110.reward_proxy {
-                        deps.querier
-                            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
-                    } else {
-                        let res: BalanceResponse = deps.querier.query_wasm_smart(
-                            key.clone(),
-                            &cw20::Cw20QueryMsg::Balance {
-                                address: env.contract.address.to_string(),
-                            },
-                        )?;
-                        res.balance
-                    };
-
-                    let pool_info = PoolInfo {
-                        has_asset_rewards: pool_info_v110.has_asset_rewards,
-                        accumulated_proxy_rewards_per_share,
-                        orphan_proxy_rewards,
-                        last_reward_block: pool_info_v110.last_reward_block,
-                        proxy_reward_balance_before_update: pool_info_v110
-                            .proxy_reward_balance_before_update,
-                        reward_proxy: pool_info_v110.reward_proxy,
-                        reward_global_index: pool_info_v110.accumulated_rewards_per_share,
-                        total_virtual_supply: lp_balance,
-                    };
-                    POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
+                    migration::migrate_configs_from_v120(&mut deps, &msg)?;
                 }
-
-                migration::migrate_configs_to_v120(&mut deps, active_pools, &msg)?;
-                migration::migrate_configs_to_v130(deps.storage)?;
-                migration::migrate_configs_to_v200(&mut deps, &msg)?
+                _ => return Err(ContractError::MigrationError {}),
             }
-            "1.2.0" => {
-                let keys = POOL_INFO
-                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| String::from_utf8(v).map_err(StdError::from))
-                    .collect::<Result<Vec<String>, StdError>>()?;
-
-                for key in keys {
-                    let pool_info_v120 = migration::POOL_INFOV120
-                        .load(deps.storage, &Addr::unchecked(key.clone()))?;
-
-                    let mut accumulated_proxy_rewards_per_share = Default::default();
-                    let mut orphan_proxy_rewards = Default::default();
-                    if let Some(proxy) = &pool_info_v120.reward_proxy {
-                        accumulated_proxy_rewards_per_share = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v120.accumulated_proxy_rewards_per_share,
-                        );
-                        orphan_proxy_rewards = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v120.orphan_proxy_rewards,
-                        );
-                        update_proxy_asset(deps.branch(), proxy)?;
-                    }
-
-                    let lp_balance = if let Some(proxy) = &pool_info_v120.reward_proxy {
-                        deps.querier
-                            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
-                    } else {
-                        let res: BalanceResponse = deps.querier.query_wasm_smart(
-                            key.clone(),
-                            &cw20::Cw20QueryMsg::Balance {
-                                address: env.contract.address.to_string(),
-                            },
-                        )?;
-                        res.balance
-                    };
-
-                    let pool_info = PoolInfo {
-                        has_asset_rewards: pool_info_v120.has_asset_rewards,
-                        accumulated_proxy_rewards_per_share,
-                        orphan_proxy_rewards,
-                        last_reward_block: pool_info_v120.last_reward_block,
-                        proxy_reward_balance_before_update: pool_info_v120
-                            .proxy_reward_balance_before_update,
-                        reward_proxy: pool_info_v120.reward_proxy,
-                        reward_global_index: pool_info_v120.accumulated_rewards_per_share,
-                        total_virtual_supply: lp_balance,
-                    };
-                    POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
-                }
-                migration::migrate_configs_to_v130(deps.storage)?;
-                migration::migrate_configs_to_v200(&mut deps, &msg)?
-            }
-            "1.3.0" => {
-                let keys = POOL_INFO
-                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| String::from_utf8(v).map_err(StdError::from))
-                    .collect::<Result<Vec<String>, StdError>>()?;
-
-                for key in keys {
-                    let pool_info_v130 = migration::POOL_INFOV130
-                        .load(deps.storage, &Addr::unchecked(key.clone()))?;
-
-                    let lp_balance = if let Some(proxy) = &pool_info_v130.reward_proxy {
-                        deps.querier
-                            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
-                    } else {
-                        let res: BalanceResponse = deps.querier.query_wasm_smart(
-                            key.clone(),
-                            &cw20::Cw20QueryMsg::Balance {
-                                address: env.contract.address.to_string(),
-                            },
-                        )?;
-                        res.balance
-                    };
-
-                    let pool_info = PoolInfo {
-                        has_asset_rewards: pool_info_v130.has_asset_rewards,
-                        accumulated_proxy_rewards_per_share: pool_info_v130
-                            .accumulated_proxy_rewards_per_share,
-                        orphan_proxy_rewards: pool_info_v130.orphan_proxy_rewards,
-                        last_reward_block: pool_info_v130.last_reward_block,
-                        proxy_reward_balance_before_update: pool_info_v130
-                            .proxy_reward_balance_before_update,
-                        reward_proxy: pool_info_v130.reward_proxy,
-                        reward_global_index: pool_info_v130.accumulated_rewards_per_share,
-                        total_virtual_supply: lp_balance,
-                    };
-                    POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
-                }
-                migration::migrate_configs_to_v200(&mut deps, &msg)?
-            }
-            _ => return Err(ContractError::MigrationError {}),
-        },
+        }
         _ => return Err(ContractError::MigrationError {}),
     };
 

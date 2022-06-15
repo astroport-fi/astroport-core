@@ -1,5 +1,5 @@
 use cosmwasm_std::{Addr, Env, Order, StdResult, Storage, Uint128};
-use cw_storage_plus::{Bound, Map, SnapshotMap, Strategy, U64Key};
+use cw_storage_plus::{Bound, IntKeyOld, Map, SnapshotMap, Strategy};
 
 /// ## Description
 /// Contains snapshotted coins balances at every block.
@@ -9,6 +9,8 @@ pub const BALANCES: SnapshotMap<&Addr, Uint128> = SnapshotMap::new(
     "balance__changelog",
     Strategy::EveryBlock,
 );
+
+type U64Key = IntKeyOld<u64>;
 
 /// ## Description
 /// Contains the history of the xASTRO total supply.

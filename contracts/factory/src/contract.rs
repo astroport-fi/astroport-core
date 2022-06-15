@@ -8,20 +8,22 @@ use crate::migration;
 use crate::querier::query_pair_info;
 
 use crate::state::{
-    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS, PAIR_CONFIGS,
-    TMP_PAIR_INFO,
+    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS, PAIRS_TO_MIGRATE,
+    PAIR_CONFIGS, TMP_PAIR_INFO,
 };
 
 use crate::response::MsgInstantiateContractResponse;
 
-use astroport::asset::{addr_validate_to_lower, AssetInfo, PairInfo};
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower, AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
     PairsResponse, QueryMsg,
 };
 
 use crate::migration::migrate_pair_configs_to_v120;
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::common::{
+    claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
+};
 use astroport::generator::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cw2::{get_contract_version, set_contract_version};
@@ -63,16 +65,9 @@ pub fn instantiate(
         whitelist_code_id: msg.whitelist_code_id,
     };
 
-    if let Some(generator_address) = msg.generator_address {
-        config.generator_address = Some(addr_validate_to_lower(
-            deps.api,
-            generator_address.as_str(),
-        )?);
-    }
+    config.generator_address = addr_opt_validate(deps.api, &msg.generator_address)?;
 
-    if let Some(fee_address) = msg.fee_address {
-        config.fee_address = Some(addr_validate_to_lower(deps.api, fee_address.as_str())?);
-    }
+    config.fee_address = addr_opt_validate(deps.api, &msg.fee_address)?;
 
     let config_set: HashSet<String> = msg
         .pair_configs
@@ -89,7 +84,7 @@ pub fn instantiate(
         if !pc.valid_fee_bps() {
             return Err(ContractError::PairConfigInvalidFeeBps {});
         }
-        PAIR_CONFIGS.save(deps.storage, pc.clone().pair_type.to_string(), pc)?;
+        PAIR_CONFIGS.save(deps.storage, pc.pair_type.to_string(), pc)?;
     }
     CONFIG.save(deps.storage, &config)?;
 
@@ -144,6 +139,8 @@ pub struct UpdateConfig {
 /// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
 ///
 /// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership.
+///
+/// * **ExecuteMsg::MarkAsMigrated {}** Mark pairs as migrated.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -159,7 +156,6 @@ pub fn execute(
             whitelist_code_id,
         } => execute_update_config(
             deps,
-            env,
             info,
             UpdateConfig {
                 token_code_id,
@@ -176,7 +172,7 @@ pub fn execute(
         } => execute_create_pair(deps, env, pair_type, asset_infos, init_params),
         ExecuteMsg::Deregister { asset_infos } => deregister(deps, info, asset_infos),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
-            let config: Config = CONFIG.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
 
             propose_new_owner(
                 deps,
@@ -187,25 +183,33 @@ pub fn execute(
                 config.owner,
                 OWNERSHIP_PROPOSAL,
             )
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
         ExecuteMsg::DropOwnershipProposal {} => {
-            let config: Config = CONFIG.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
 
             drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
-                .map_err(|e| e.into())
+                .map_err(Into::into)
         }
         ExecuteMsg::ClaimOwnership {} => {
-            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
-                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
-                    v.owner = new_owner;
-                    Ok(v)
-                })?;
+            let pairs = PAIRS
+                .range(deps.storage, None, None, Order::Ascending)
+                .map(|pair| -> StdResult<Addr> { Ok(pair?.1) })
+                .collect::<StdResult<Vec<_>>>()?;
 
-                Ok(())
+            PAIRS_TO_MIGRATE.save(deps.storage, &pairs)?;
+
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG
+                    .update::<_, StdError>(deps.storage, |mut v| {
+                        v.owner = new_owner;
+                        Ok(v)
+                    })
+                    .map(|_| ())
             })
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
+        ExecuteMsg::MarkAsMigrated { pairs } => execute_mark_pairs_as_migrated(deps, info, pairs),
     }
 }
 
@@ -213,8 +217,6 @@ pub fn execute(
 /// Updates general contract settings. Returns a [`ContractError`] on failure.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
@@ -224,11 +226,10 @@ pub fn execute(
 /// Only the owner can execute this.
 pub fn execute_update_config(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     param: UpdateConfig,
 ) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     // Permission check
     if info.sender != config.owner {
@@ -237,15 +238,12 @@ pub fn execute_update_config(
 
     if let Some(fee_address) = param.fee_address {
         // Validate address format
-        config.fee_address = Some(addr_validate_to_lower(deps.api, fee_address.as_str())?);
+        config.fee_address = Some(addr_validate_to_lower(deps.api, &fee_address)?);
     }
 
     if let Some(generator_address) = param.generator_address {
         // Validate the address format
-        config.generator_address = Some(addr_validate_to_lower(
-            deps.api,
-            generator_address.as_str(),
-        )?);
+        config.generator_address = Some(addr_validate_to_lower(deps.api, &generator_address)?);
     }
 
     if let Some(token_code_id) = param.token_code_id {
@@ -327,10 +325,7 @@ pub fn execute_create_pair(
 
     let config = CONFIG.load(deps.storage)?;
 
-    if PAIRS
-        .may_load(deps.storage, &pair_key(&asset_infos))?
-        .is_some()
-    {
+    if PAIRS.has(deps.storage, &pair_key(&asset_infos)) {
         return Err(ContractError::PairWasCreated {});
     }
 
@@ -372,6 +367,38 @@ pub fn execute_create_pair(
             attr("action", "create_pair"),
             attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
         ]))
+}
+
+/// ## Description
+/// Marks specified pairs as migrated to the new admin. Returns a [`ContractError`] on failure.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **pairs** is a vector of [`PairType`]. These are pairs that should be marked as transferred.
+fn execute_mark_pairs_as_migrated(
+    deps: DepsMut,
+    info: MessageInfo,
+    pairs: Vec<String>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let pairs = validate_addresses(deps.api, &pairs)?;
+
+    let not_migrated: Vec<Addr> = PAIRS_TO_MIGRATE
+        .load(deps.storage)?
+        .into_iter()
+        .filter(|addr| !pairs.contains(addr))
+        .collect();
+
+    PAIRS_TO_MIGRATE.save(deps.storage, &not_migrated)?;
+
+    Ok(Response::new().add_attribute("action", "execute_mark_pairs_as_migrated"))
 }
 
 /// ## Description
@@ -431,15 +458,15 @@ pub fn deregister(
         return Err(ContractError::Unauthorized {});
     }
 
-    let pair_addr: Addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
+    let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     PAIRS.remove(deps.storage, &pair_key(&asset_infos));
 
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let mut response = Response::new();
     if let Some(generator) = config.generator_address {
-        let pair_info = query_pair_info(deps.as_ref(), &pair_addr)?;
+        let pair_info = query_pair_info(&deps.querier, &pair_addr)?;
 
         // sets the allocation point to zero for the lp_token
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: generator.to_string(),
             msg: to_binary(&DeactivatePool {
                 lp_token: pair_info.liquidity_token.to_string(),
@@ -448,7 +475,7 @@ pub fn deregister(
         }));
     }
 
-    Ok(Response::new().add_messages(messages).add_attributes(vec![
+    Ok(response.add_attributes(vec![
         attr("action", "deregister"),
         attr("pair_contract_addr", pair_addr),
     ]))
@@ -474,6 +501,8 @@ pub fn deregister(
 /// * **QueryMsg::FeeInfo { pair_type }** Returns the fee structure (total and maker fees) for a specific pair type.
 ///
 /// * **QueryMsg::BlacklistedPairTypes {}** Returns a vector that contains blacklisted pair types (pair types that cannot get ASTRO emissions).
+///
+/// * **QueryMsg::PairsToMigrate {}** Returns a vector that contains pair addresses that are not migrated.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -484,6 +513,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::FeeInfo { pair_type } => to_binary(&query_fee_info(deps, pair_type)?),
         QueryMsg::BlacklistedPairTypes {} => to_binary(&query_blacklisted_pair_types(deps)?),
+        QueryMsg::PairsToMigrate {} => {
+            to_binary(&PAIRS_TO_MIGRATE.may_load(deps.storage)?.unwrap_or_default())
+        }
     }
 }
 
@@ -518,11 +550,8 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         token_code_id: config.token_code_id,
         pair_configs: PAIR_CONFIGS
             .range(deps.storage, None, None, Order::Ascending)
-            .map(|item| {
-                let (_, cfg) = item.unwrap();
-                cfg
-            })
-            .collect(),
+            .map(|item| Ok(item?.1))
+            .collect::<StdResult<Vec<_>>>()?,
         fee_address: config.fee_address,
         generator_address: config.generator_address,
         whitelist_code_id: config.whitelist_code_id,
@@ -539,7 +568,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 /// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the assets traded in the pair.
 pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
-    query_pair_info(deps, &pair_addr)
+    query_pair_info(&deps.querier, &pair_addr)
 }
 
 /// ## Description
@@ -556,10 +585,10 @@ pub fn query_pairs(
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
 ) -> StdResult<PairsResponse> {
-    let pairs: Vec<PairInfo> = read_pairs(deps, start_after, limit)
+    let pairs = read_pairs(deps, start_after, limit)?
         .iter()
-        .map(|pair_addr| query_pair_info(deps, pair_addr).unwrap())
-        .collect();
+        .map(|pair_addr| query_pair_info(&deps.querier, pair_addr))
+        .collect::<StdResult<Vec<_>>>()?;
 
     Ok(PairsResponse { pairs })
 }

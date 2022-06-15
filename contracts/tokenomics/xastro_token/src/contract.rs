@@ -8,7 +8,8 @@ use cw20_base::allowances::{
 };
 
 use crate::state::{capture_total_supply_history, get_total_supply_at, BALANCES};
-use astroport::asset::addr_validate_to_lower;
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower};
+use astroport::xastro_token::{InstantiateMsg, QueryMsg};
 use cw2::set_contract_version;
 use cw20_base::contract::{
     execute_update_marketing, execute_upload_logo, query_download_logo, query_marketing_info,
@@ -19,9 +20,6 @@ use cw20_base::msg::ExecuteMsg;
 use cw20_base::state::{MinterData, TokenInfo, TOKEN_INFO};
 use cw20_base::ContractError;
 use cw_storage_plus::Bound;
-
-use crate::utils::deserialize_pair;
-use astroport::xastro_token::{InstantiateMsg, QueryMsg};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-xastro-token";
@@ -223,23 +221,21 @@ pub fn execute_transfer(
         deps.storage,
         &info.sender,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_sub(amount)?) },
     )?;
     BALANCES.update(
         deps.storage,
         &rcpt_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
     )?;
 
-    let res = Response::new()
-        .add_attribute("action", "transfer")
-        .add_attribute("from", info.sender)
-        .add_attribute("to", recipient)
-        .add_attribute("amount", amount);
-    Ok(res)
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "transfer"),
+        attr("from", info.sender),
+        attr("to", rcpt_addr),
+        attr("amount", amount),
+    ]))
 }
 
 /// ## Description
@@ -268,9 +264,7 @@ pub fn execute_burn(
         deps.storage,
         &info.sender,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_sub(amount)?) },
     )?;
 
     // Reduce total_supply
@@ -281,10 +275,11 @@ pub fn execute_burn(
 
     capture_total_supply_history(deps.storage, &env, token_info.total_supply)?;
 
-    let res = Response::new()
-        .add_attribute("action", "burn")
-        .add_attribute("from", info.sender)
-        .add_attribute("amount", amount);
+    let res = Response::new().add_attributes(vec![
+        attr("action", "burn"),
+        attr("from", info.sender),
+        attr("amount", amount),
+    ]);
     Ok(res)
 }
 
@@ -323,7 +318,10 @@ pub fn execute_mint(
     }
 
     // Update supply and enforce cap
-    config.total_supply += amount;
+    config.total_supply = config
+        .total_supply
+        .checked_add(amount)
+        .map_err(StdError::from)?;
     if let Some(limit) = config.get_cap() {
         if config.total_supply > limit {
             return Err(ContractError::CannotExceedCap {});
@@ -340,14 +338,14 @@ pub fn execute_mint(
         deps.storage,
         &rcpt_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
     )?;
 
-    let res = Response::new()
-        .add_attribute("action", "mint")
-        .add_attribute("to", recipient)
-        .add_attribute("amount", amount);
-    Ok(res)
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "mint"),
+        attr("to", rcpt_addr),
+        attr("amount", amount),
+    ]))
 }
 
 /// ## Description
@@ -384,22 +382,22 @@ pub fn execute_send(
         deps.storage,
         &info.sender,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_sub(amount)?) },
     )?;
     BALANCES.update(
         deps.storage,
         &rcpt_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
     )?;
 
     let res = Response::new()
-        .add_attribute("action", "send")
-        .add_attribute("from", &info.sender)
-        .add_attribute("to", &contract)
-        .add_attribute("amount", amount)
+        .add_attributes(vec![
+            attr("action", "send"),
+            attr("from", &info.sender),
+            attr("to", &rcpt_addr),
+            attr("amount", amount),
+        ])
         .add_message(
             Cw20ReceiveMsg {
                 sender: info.sender.into(),
@@ -444,15 +442,13 @@ pub fn execute_transfer_from(
         deps.storage,
         &owner_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_sub(amount)?) },
     )?;
     BALANCES.update(
         deps.storage,
         &rcpt_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_add(amount)?) },
     )?;
 
     let res = Response::new().add_attributes(vec![
@@ -495,9 +491,7 @@ pub fn execute_burn_from(
         deps.storage,
         &owner_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_sub(amount)?) },
     )?;
 
     // Reduce total_supply
@@ -554,34 +548,31 @@ pub fn execute_send_from(
         deps.storage,
         &owner_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_sub(amount)?) },
     )?;
     BALANCES.update(
         deps.storage,
         &rcpt_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_add(amount)?) },
     )?;
 
-    let attrs = vec![
-        attr("action", "send_from"),
-        attr("from", &owner),
-        attr("to", &contract),
-        attr("by", &info.sender),
-        attr("amount", amount),
-    ];
-
-    // Create a send message
-    let msg = Cw20ReceiveMsg {
-        sender: info.sender.into(),
-        amount,
-        msg,
-    }
-    .into_cosmos_msg(contract)?;
-
-    let res = Response::new().add_message(msg).add_attributes(attrs);
+    let res = Response::new()
+        .add_attributes(vec![
+            attr("action", "send_from"),
+            attr("from", &owner),
+            attr("to", &contract),
+            attr("by", &info.sender),
+            attr("amount", amount),
+        ])
+        .add_message(
+            Cw20ReceiveMsg {
+                sender: info.sender.into(),
+                amount,
+                msg,
+            }
+            .into_cosmos_msg(contract)?,
+        );
     Ok(res)
 }
 
@@ -693,15 +684,14 @@ pub fn query_all_accounts(
     limit: Option<u32>,
 ) -> StdResult<AllAccountsResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(Bound::exclusive);
+    let start = addr_opt_validate(deps.api, &start_after)?;
+    let start = start.as_ref().map(Bound::exclusive);
 
-    let accounts: Result<Vec<_>, _> = BALANCES
-        .range(deps.storage, start, None, Order::Ascending)
+    let accounts = BALANCES
+        .keys(deps.storage, start, None, Order::Ascending)
         .take(limit)
-        .map(deserialize_pair)
-        .collect();
+        .map(|addr| addr.map(Into::into))
+        .collect::<StdResult<_>>()?;
 
-    Ok(AllAccountsResponse {
-        accounts: accounts?,
-    })
+    Ok(AllAccountsResponse { accounts })
 }

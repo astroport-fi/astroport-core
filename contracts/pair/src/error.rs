@@ -32,11 +32,11 @@ pub enum ContractError {
     #[error("Asset mismatch between the requested and the stored asset in contract")]
     AssetMismatch {},
 
-    #[error("Pair type mismatch. Check factory pair configs")]
-    PairTypeMismatch {},
-
     #[error("Generator address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
+
+    #[error("Pair is not migrated to the new admin!")]
+    PairIsNotMigrated {},
 }
 
 impl From<OverflowError> for ContractError {

@@ -6,10 +6,9 @@ This is a collection of common types and queriers which are commonly used in Ast
 
 ### AssetInfo
 
-AssetInfo is a convenience wrapper to represent whether a token is the native one (from a specific chain, like LUNA for Terra) or not and it also returns the contract address of that token.
+AssetInfo is a convenience wrapper to represent whether a token is the native one (from a specific chain, like LUNA for Terra) or not. It also returns the contract address of that token.
 
 ```rust
-#[serde(rename_all = "snake_case")]
 pub enum AssetInfo {
     Token { contract_addr: Addr },
     NativeToken { denom: String },
@@ -33,8 +32,8 @@ It is used to represent response data coming from a [Pair-Info-Querier](#Pair-In
 
 ```rust
 pub struct PairInfo {
-    pub contract_addr: Addr,
     pub asset_infos: [AssetInfo; 2],
+    pub contract_addr: Addr,
     pub liquidity_token: Addr,
     pub pair_type: PairType,
 }
@@ -48,9 +47,9 @@ It uses the CosmWasm standard interface to query an account's balance.
 
 ```rust
 pub fn query_balance(
-    deps: &Extern<S, A, Q>,
-    account_addr: &Addr,
-    denom: String,
+    querier: &QuerierWrapper,
+    account_addr: impl Into<String>,
+    denom: impl Into<String>,
 ) -> StdResult<Uint128>
 ```
 
@@ -60,9 +59,9 @@ It provides a similar query interface to [Native-Token-Balance-Querier](Native-T
 
 ```rust
 pub fn query_token_balance(
-    deps: &Extern<S, A, Q>,
-    contract_addr: &Addr,
-    account_addr: &Addr,
+    querier: &QuerierWrapper,
+    contract_addr: impl Into<String>,
+    account_addr: impl Into<String>,
 ) -> StdResult<Uint128>
 ```
 
@@ -72,32 +71,21 @@ It fetches a CW20 token's total supply.
 
 ```rust
 pub fn query_supply(
-    deps: &Extern<S, A, Q>,
-    contract_addr: &Addr,
+    querier: &QuerierWrapper,
+    contract_addr: impl Into<String>,
 ) -> StdResult<Uint128>
 ```
 
 ### Pair Info Querier
 
-It returns an Astroport pair contract address if that pair is already available in the factory contract.
+Accepts two tokens as input and returns a pair's information.
 
 ```rust
-pub fn query_pair_contract(
-    deps: &Extern<S, A, Q>,
-    contract_addr: &Addr,
+pub fn query_pair_info(
+    querier: &QuerierWrapper,
+    factory_contract: impl Into<String>,
     asset_infos: &[AssetInfo; 2],
-) -> StdResult<Addr>
-```
-
-### Liquidity Token Querier
-
-It returns the address of a LP token if that LP token is already available (has a pair) on Astroport.
-
-```rust
-pub fn query_liquidity_token(
-    deps: &Extern<S, A, Q>,
-    contract_addr: &Addr,
-) -> StdResult<Addr>
+) -> StdResult<PairInfo>
 ```
 
 ## Swap Pairs Simulating
@@ -109,7 +97,7 @@ Simulates a swap and returns the output amount, the spread and commission amount
 ```rust
 pub fn simulate(
     querier: &QuerierWrapper,
-    pair_contract: Addr,
+    pair_contract: impl Into<String>,
     offer_asset: &Asset,
 ) -> StdResult<SimulationResponse>
 ```
@@ -121,7 +109,7 @@ Simulates a reverse swap and returns an input amount, the spread and commission 
 ```rust
 pub fn reverse_simulate(
     querier: &QuerierWrapper,
-    pair_contract: Addr,
+    pair_contract: impl Into<String>,
     offer_asset: &Asset,
 ) -> StdResult<ReverseSimulationResponse>
 ```

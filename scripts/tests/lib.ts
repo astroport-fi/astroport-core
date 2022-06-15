@@ -33,6 +33,18 @@ export class Astroport {
         return parseInt(resp.balance)
     }
 
+    async increaseAllowance(token_addr: string, amount: string, spender: string) {
+        await executeContract(this.terra, this.wallet, token_addr, {
+            "increase_allowance": {
+                "spender": spender,
+                "amount": amount,
+                "expires": {
+                    "never": {}
+                }
+            }
+        })
+    }
+
     staking(addr: string) {
         return new Staking(this.terra, this.wallet, addr);
     }
@@ -104,7 +116,7 @@ class Pair {
     async provideLiquidity(a1: NativeAsset | TokenAsset, a2: NativeAsset | TokenAsset) {
         let msg = {
             "provide_liquidity": {
-                "assets": [a1.withAmount(), a2.withAmount()],
+                "assets": [a1.withAmount(), a2.withAmount()]
             }
         }
 
@@ -288,7 +300,7 @@ export class Router {
     }
 }
 
-class Generator {
+export class Generator {
     terra: any;
     wallet: any;
     addr: string;
@@ -318,6 +330,26 @@ class Generator {
                 amount: amount,
             }
         })
+    }
+
+    async registerGenerator(generators: [string, string][]) {
+        await executeContract(this.terra, this.wallet, this.addr, {
+            setup_pools: {
+                pools: generators
+            }
+        })
+    }
+
+    async checkpointUserBoost(generators: string[]) {
+        await executeContract(this.terra, this.wallet, this.addr, {
+            checkpoint_user_boost: {
+                generators: generators
+            }
+        })
+    }
+
+    async queryConfig() {
+        return await queryContract(this.terra, this.addr, {config: {}})
     }
 
     async queryDeposit(lp_token: string, user: string) {

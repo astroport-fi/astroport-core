@@ -1,8 +1,10 @@
 use crate::asset::addr_validate_to_lower;
-use cosmwasm_std::{attr, Addr, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
+use cosmwasm_std::{attr, Addr, Api, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
 use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+const MAX_PROPOSAL_TTL: u64 = 1209600;
 
 /// This structure describes the parameters used for creating a request for a change of contract ownership.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -50,6 +52,13 @@ pub fn propose_new_owner(
     // Check that the new owner is not the same as the current one
     if new_owner == owner {
         return Err(StdError::generic_err("New owner cannot be same"));
+    }
+
+    if MAX_PROPOSAL_TTL < expires_in {
+        return Err(StdError::generic_err(format!(
+            "Parameter expires_in cannot be higher than {}",
+            MAX_PROPOSAL_TTL
+        )));
     }
 
     proposal.save(
@@ -137,4 +146,14 @@ pub fn claim_ownership(
         attr("action", "claim_ownership"),
         attr("new_owner", p.owner),
     ]))
+}
+
+/// ## Description
+/// Bulk validation and conversion between [`String`] -> [`Addr`] for an array of addresses.
+/// If any address is invalid, the function returns [`StdError`].
+pub fn validate_addresses(api: &dyn Api, admins: &[String]) -> StdResult<Vec<Addr>> {
+    admins
+        .iter()
+        .map(|addr| addr_validate_to_lower(api, addr))
+        .collect()
 }

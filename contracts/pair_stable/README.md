@@ -314,3 +314,13 @@ Returns the cumulative prices for the assets in the pair.
   "cumulative_prices": {}
 }
 ```
+
+### `query_compute_d`
+
+Returns current D value for the pool.
+
+```json
+{
+  "query_compute_d": {}
+}
+```

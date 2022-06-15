@@ -1,6 +1,7 @@
 use crate::contract::{
-    accumulate_prices, assert_max_spread, calc_user_reward, execute, instantiate, query_pair_info,
-    query_pool, query_reverse_simulation, query_share, query_simulation, reply,
+    accumulate_prices, assert_max_spread, calc_user_reward, compute_offer_amount, compute_swap,
+    execute, instantiate, query_pair_info, query_pool, query_reverse_simulation, query_share,
+    query_simulation, reply,
 };
 use crate::error::ContractError;
 use crate::math::{calc_ask_amount, calc_offer_amount, AMP_PRECISION};
@@ -17,9 +18,8 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport::whitelist::InstantiateMsg as WhitelistInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, ContractResult, CosmosMsg, Decimal,
-    Decimal256, DepsMut, Env, Reply, ReplyOn, StdError, SubMsg, SubMsgExecutionResponse, Timestamp,
-    Uint128, WasmMsg,
+    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, Decimal256, DepsMut, Env,
+    Reply, ReplyOn, StdError, SubMsg, SubMsgResponse, SubMsgResult, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
@@ -37,10 +37,12 @@ fn store_liquidity_token(deps: DepsMut, msg_id: u64, contract_addr: String) {
 
     let reply_msg = Reply {
         id: msg_id,
-        result: ContractResult::Ok(SubMsgExecutionResponse {
-            events: vec![],
-            data: Some(data.into()),
-        }),
+        result: SubMsgResult::Ok {
+            0: SubMsgResponse {
+                events: vec![],
+                data: Some(data.into()),
+            },
+        },
     };
 
     reply(deps, mock_env(), reply_msg.clone()).unwrap();
@@ -113,6 +115,7 @@ fn proper_initialization() {
                             minter: String::from(MOCK_CONTRACT_ADDR),
                             cap: None,
                         }),
+                        marketing: None
                     })
                     .unwrap(),
                     funds: vec![],
@@ -313,10 +316,6 @@ fn withdraw_liquidity() {
         amount: Uint128::new(100u128),
     }]);
 
-    deps.querier.with_tax(
-        Decimal::zero(),
-        &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
-    );
     deps.querier.with_token_balances(&[
         (
             &String::from("liquidity0000"),
@@ -444,11 +443,6 @@ fn try_native_to_token() {
         denom: "uusd".to_string(),
         amount: collateral_pool_amount + offer_amount, /* user deposit must be pre-applied */
     }]);
-
-    deps.querier.with_tax(
-        Decimal::zero(),
-        &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
-    );
 
     deps.querier.with_token_balances(&[
         (
@@ -604,10 +598,7 @@ fn try_token_to_native() {
         denom: "uusd".to_string(),
         amount: collateral_pool_amount,
     }]);
-    deps.querier.with_tax(
-        Decimal::percent(1),
-        &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
-    );
+
     deps.querier.with_token_balances(&[
         (
             &String::from("liquidity0000"),
@@ -701,14 +692,7 @@ fn try_token_to_native() {
     let expected_return_amount = expected_ret_amount
         .checked_sub(expected_commission_amount)
         .unwrap();
-    let expected_tax_amount = std::cmp::min(
-        Uint128::new(1000000u128),
-        expected_return_amount
-            .checked_sub(
-                expected_return_amount.multiply_ratio(Uint128::new(100u128), Uint128::new(101u128)),
-            )
-            .unwrap(),
-    );
+
     // Check simulation res
     // Return asset token balance
     deps.querier.with_token_balances(&[
@@ -779,7 +763,7 @@ fn try_token_to_native() {
             attr("ask_asset", "uusd"),
             attr("offer_amount", offer_amount.to_string()),
             attr("return_amount", expected_return_amount.to_string()),
-            attr("tax_amount", expected_tax_amount.to_string()),
+            attr("tax_amount", Uint128::zero().to_string()),
             attr("spread_amount", expected_spread_amount.to_string()),
             attr("commission_amount", expected_commission_amount.to_string()),
             attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
@@ -792,9 +776,7 @@ fn try_token_to_native() {
                 to_address: String::from("addr0000"),
                 amount: vec![Coin {
                     denom: "uusd".to_string(),
-                    amount: expected_return_amount
-                        .checked_sub(expected_tax_amount)
-                        .unwrap(),
+                    amount: expected_return_amount,
                 }],
             })
             .into(),
@@ -859,35 +841,6 @@ fn test_max_spread() {
         Uint128::from(10000u128),
     )
     .unwrap();
-}
-
-#[test]
-fn test_deduct() {
-    let mut deps = mock_dependencies(&[]);
-
-    let tax_rate = Decimal::percent(2);
-    let tax_cap = Uint128::from(1_000_000u128);
-    deps.querier.with_tax(
-        Decimal::percent(2),
-        &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
-    );
-
-    let amount = Uint128::new(1000_000_000u128);
-    let expected_after_amount = std::cmp::max(
-        amount.checked_sub(amount * tax_rate).unwrap(),
-        amount.checked_sub(tax_cap).unwrap(),
-    );
-
-    let after_amount = (Asset {
-        info: AssetInfo::NativeToken {
-            denom: "uusd".to_string(),
-        },
-        amount,
-    })
-    .deduct_tax(&deps.as_ref().querier)
-    .unwrap();
-
-    assert_eq!(expected_after_amount, after_amount.amount);
 }
 
 #[test]
@@ -1267,4 +1220,77 @@ proptest! {
             reverse_diff
         );
     }
+}
+
+#[test]
+fn ensure_useful_error_messages_are_given_on_swaps() {
+    const OFFER: Uint128 = Uint128::new(1_000_000_000000);
+    const ASK: Uint128 = Uint128::new(1_000_000_000000);
+    const AMOUNT: Uint128 = Uint128::new(1_000000);
+    const ZERO: Uint128 = Uint128::zero();
+    const DZERO: Decimal = Decimal::zero();
+    const AMP: u64 = 100;
+    const PRS: u8 = 6;
+
+    // Computing ask
+    assert_eq!(
+        compute_swap(ZERO, PRS, ZERO, PRS, ZERO, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(ZERO, PRS, ZERO, PRS, AMOUNT, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(ZERO, PRS, ASK, PRS, ZERO, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(ZERO, PRS, ASK, PRS, AMOUNT, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(OFFER, PRS, ZERO, PRS, ZERO, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(OFFER, PRS, ZERO, PRS, AMOUNT, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_swap(OFFER, PRS, ASK, PRS, ZERO, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("Swap amount must not be zero")
+    );
+    compute_swap(OFFER, PRS, ASK, PRS, AMOUNT, DZERO, AMP).unwrap();
+
+    // Computing offer
+    assert_eq!(
+        compute_offer_amount(ZERO, PRS, ZERO, PRS, ZERO, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_offer_amount(ZERO, PRS, ZERO, PRS, AMOUNT, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_offer_amount(ZERO, PRS, ASK, PRS, ZERO, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_offer_amount(ZERO, PRS, ASK, PRS, AMOUNT, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_offer_amount(OFFER, PRS, ZERO, PRS, ZERO, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_offer_amount(OFFER, PRS, ZERO, PRS, AMOUNT, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("One of the pools is empty")
+    );
+    assert_eq!(
+        compute_offer_amount(OFFER, PRS, ASK, PRS, ZERO, DZERO, AMP).unwrap_err(),
+        StdError::generic_err("Swap amount must not be zero")
+    );
+    compute_offer_amount(OFFER, PRS, ASK, PRS, AMOUNT, DZERO, AMP).unwrap();
 }

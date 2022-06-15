@@ -7,12 +7,9 @@ use astroport::{
     },
 };
 use astroport_vesting::state::Config;
-use cosmwasm_std::{
-    testing::{mock_env, MockApi, MockStorage},
-    to_binary, Addr, StdResult, Timestamp, Uint128,
-};
+use cosmwasm_std::{to_binary, Addr, StdResult, Timestamp, Uint128};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
+use cw_multi_test::{App, ContractWrapper, Executor};
 
 const OWNER1: &str = "owner1";
 const USER1: &str = "user1";
@@ -79,7 +76,7 @@ fn claim() {
     let res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(res.to_string(), "Vesting schedule amount error. The total amount should be equal to the CW20 receive amount.");
+    assert_eq!(res.root_cause().to_string(), "Vesting schedule amount error. The total amount should be equal to the CW20 receive amount.");
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
@@ -256,7 +253,7 @@ fn register_vesting_accounts() {
     let res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(res.to_string(), "Vesting schedule error on addr: user1. Should satisfy: (start < end and at_start < total) or (start = end and at_start = total)");
+    assert_eq!(res.root_cause().to_string(), "Vesting schedule error on addr: user1. Should satisfy: (start < end and at_start < total) or (start = end and at_start = total)");
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
@@ -287,12 +284,12 @@ fn register_vesting_accounts() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(res.to_string(), "Overflow: Cannot Sub with 0 and 100");
+    assert_eq!(res.root_cause().to_string(), "Cannot Sub with 0 and 100");
 
     let res = app
         .execute_contract(owner.clone(), noname_token_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(res.to_string(), "Unauthorized");
+    assert_eq!(res.root_cause().to_string(), "Unauthorized");
 
     let _res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
@@ -456,23 +453,11 @@ fn register_vesting_accounts() {
     );
 }
 
-fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+fn mock_app() -> App {
+    App::default()
 }
 
-fn store_token_code(app: &mut TerraApp) -> u64 {
+fn store_token_code(app: &mut App) -> u64 {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
@@ -482,12 +467,7 @@ fn store_token_code(app: &mut TerraApp) -> u64 {
     app.store_code(astro_token_contract)
 }
 
-fn instantiate_token(
-    app: &mut TerraApp,
-    token_code_id: u64,
-    name: &str,
-    cap: Option<u128>,
-) -> Addr {
+fn instantiate_token(app: &mut App, token_code_id: u64, name: &str, cap: Option<u128>) -> Addr {
     let name = String::from(name);
 
     let msg = TokenInstantiateMsg {
@@ -499,6 +479,7 @@ fn instantiate_token(
             minter: String::from(OWNER1),
             cap: cap.map(|v| Uint128::from(v)),
         }),
+        marketing: None,
     };
 
     app.instantiate_contract(
@@ -512,7 +493,7 @@ fn instantiate_token(
     .unwrap()
 }
 
-fn instantiate_vesting(mut app: &mut TerraApp, astro_token_instance: &Addr) -> Addr {
+fn instantiate_vesting(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
     let vesting_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_vesting::contract::execute,
         astroport_vesting::contract::instantiate,
@@ -560,7 +541,7 @@ fn instantiate_vesting(mut app: &mut TerraApp, astro_token_instance: &Addr) -> A
     vesting_instance
 }
 
-fn mint_tokens(app: &mut TerraApp, token: &Addr, recipient: &Addr, amount: u128) {
+fn mint_tokens(app: &mut App, token: &Addr, recipient: &Addr, amount: u128) {
     let msg = Cw20ExecuteMsg::Mint {
         recipient: recipient.to_string(),
         amount: Uint128::from(amount),
@@ -570,7 +551,7 @@ fn mint_tokens(app: &mut TerraApp, token: &Addr, recipient: &Addr, amount: u128)
         .unwrap();
 }
 
-fn check_token_balance(app: &mut TerraApp, token: &Addr, address: &Addr, expected: u128) {
+fn check_token_balance(app: &mut App, token: &Addr, address: &Addr, expected: u128) {
     let msg = Cw20QueryMsg::Balance {
         address: address.to_string(),
     };

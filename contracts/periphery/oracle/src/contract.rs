@@ -1,14 +1,13 @@
 use crate::error::ContractError;
-use crate::querier::{query_cumulative_prices, query_pair_info, query_prices};
+use crate::querier::{query_cumulative_prices, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
 use astroport::oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use astroport::pair::TWAP_PRECISION;
-use astroport::querier::query_token_precision;
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use astroport::querier::{query_pair_info, query_token_precision};
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
-    Uint128,
+    entry_point, to_binary, Binary, Decimal256, Deps, DepsMut, Env, MessageInfo, Response,
+    StdError, StdResult, Uint128, Uint256,
 };
 use cw2::set_contract_version;
 
@@ -43,12 +42,8 @@ pub fn instantiate(
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let factory_contract = addr_validate_to_lower(deps.api, msg.factory_contract.as_ref())?;
-    let pair_info = query_pair_info(
-        &deps.querier,
-        factory_contract.clone(),
-        msg.asset_infos.clone(),
-    )?;
+    let factory_contract = addr_validate_to_lower(deps.api, &msg.factory_contract)?;
+    let pair_info = query_pair_info(&deps.querier, &factory_contract, &msg.asset_infos)?;
 
     let config = Config {
         owner: info.sender,
@@ -57,7 +52,7 @@ pub fn instantiate(
         pair: pair_info.clone(),
     };
     CONFIG.save(deps.storage, &config)?;
-    let prices = query_cumulative_prices(&deps.querier, pair_info.contract_addr)?;
+    let prices = query_cumulative_prices(deps.querier, pair_info.contract_addr)?;
 
     let price = PriceCumulativeLast {
         price0_cumulative_last: prices.price0_cumulative_last,
@@ -107,7 +102,7 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let price_last = PRICE_LAST.load(deps.storage)?;
 
-    let prices = query_cumulative_prices(&deps.querier, config.pair.contract_addr)?;
+    let prices = query_cumulative_prices(deps.querier, config.pair.contract_addr)?;
     let time_elapsed = env.block.time.seconds() - price_last.block_timestamp_last;
 
     // Ensure that at least one full period has passed since the last update
@@ -186,24 +181,23 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, Std
 
     Ok(if price_average.is_zero() {
         // Get the token's precision
-        let p = query_token_precision(&deps.querier, token.clone())?;
+        let p = query_token_precision(&deps.querier, &token)?;
         let one = Uint128::new(10_u128.pow(p.into()));
 
         let price = query_prices(
-            &deps.querier,
+            deps.querier,
             config.pair.contract_addr,
             Asset {
                 info: token,
                 amount: one,
             },
-        )
-        .unwrap()
+        )?
         .return_amount;
 
         Uint256::from(price).multiply_ratio(Uint256::from(amount), Uint256::from(one))
     } else {
         let price_precision = Uint256::from(10_u128.pow(TWAP_PRECISION.into()));
-        Uint256::from(amount) * price_average / Decimal256::from_uint256(price_precision)
+        Uint256::from(amount) * price_average / price_precision
     })
 }
 

@@ -1,5 +1,5 @@
 use astroport::asset::AssetInfo;
-use cosmwasm_std::{OverflowError, StdError};
+use cosmwasm_std::{DivideByZeroError, OverflowError, StdError};
 use thiserror::Error;
 
 /// ## Description
@@ -16,10 +16,10 @@ pub enum ContractError {
     InvalidBridge(AssetInfo, AssetInfo),
 
     #[error("Invalid bridge. Pool {0} to {1} not found")]
-    InvalidBridgeNoPool(AssetInfo, AssetInfo),
+    InvalidBridgeNoPool(String, String),
 
     #[error("Invalid bridge destination. {0} cannot be swapped to ASTRO")]
-    InvalidBridgeDestination(AssetInfo),
+    InvalidBridgeDestination(String),
 
     #[error("Max bridge length of {0} was reached")]
     MaxBridgeDepth(u64),
@@ -46,5 +46,11 @@ pub enum ContractError {
 impl From<OverflowError> for ContractError {
     fn from(o: OverflowError) -> Self {
         StdError::from(o).into()
+    }
+}
+
+impl From<DivideByZeroError> for ContractError {
+    fn from(err: DivideByZeroError) -> Self {
+        StdError::from(err).into()
     }
 }
