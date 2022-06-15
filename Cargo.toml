@@ -5,6 +5,7 @@ members = [
     "contracts/factory",
     "contracts/pair",
     "contracts/pair_stable",
+    "contracts/pair_stable_owner",
     #"contracts/pair_stable_bluna", TODO: update this when bluna migrated to cosmwasm 1.0.0
     "contracts/router",
     "contracts/token",
