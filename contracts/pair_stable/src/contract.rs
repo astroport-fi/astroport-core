@@ -7,9 +7,9 @@ use crate::state::{get_precision, store_precisions, Config, CONFIG};
 use std::collections::HashMap;
 
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult,
-    SubMsg, Uint128, Uint64, WasmMsg,
+    attr, entry_point, from_binary, to_binary, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
+    Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError,
+    StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -116,10 +116,10 @@ pub fn instantiate(
     let token_name = format_lp_token_name(&msg.asset_infos, &deps.querier)?;
 
     // Create LP token
-    let sub_msg: Vec<SubMsg> = vec![SubMsg {
-        msg: WasmMsg::Instantiate {
-            code_id: msg.token_code_id,
-            msg: to_binary(&TokenInstantiateMsg {
+    let sub_msg = SubMsg::reply_on_success(
+        wasm_instantiate(
+            msg.token_code_id,
+            &TokenInstantiateMsg {
                 name: token_name,
                 symbol: "uLP".to_string(),
                 decimals: LP_TOKEN_PRECISION,
@@ -129,18 +129,14 @@ pub fn instantiate(
                     cap: None,
                 }),
                 marketing: None,
-            })?,
-            funds: vec![],
-            admin: None,
-            label: String::from("Astroport LP token"),
-        }
-        .into(),
-        id: INSTANTIATE_TOKEN_REPLY_ID,
-        gas_limit: None,
-        reply_on: ReplyOn::Success,
-    }];
+            },
+            vec![],
+            String::from("Astroport LP token"),
+        )?,
+        INSTANTIATE_TOKEN_REPLY_ID,
+    );
 
-    Ok(Response::new().add_submessages(sub_msg))
+    Ok(Response::new().add_submessage(sub_msg))
 }
 
 /// ## Description

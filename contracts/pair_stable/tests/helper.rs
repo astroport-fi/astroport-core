@@ -1,13 +1,16 @@
+use std::collections::HashMap;
+
 use anyhow::Result as AnyResult;
+use cosmwasm_std::{coin, to_binary, Addr, Coin, Empty, Uint128};
+use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
+use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
+use derivative::Derivative;
+use itertools::Itertools;
+
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::pair::{ExecuteMsg, InstantiateMsg, QueryMsg, StablePoolParams};
 use astroport::querier::NATIVE_TOKEN_PRECISION;
 use astroport_pair_stable::contract::{execute, instantiate, query, reply};
-use cosmwasm_std::{coin, to_binary, Addr, Coin, Empty, Uint128};
-use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
-use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
-use itertools::Itertools;
-use std::collections::HashMap;
 
 const INIT_BALANCE: u128 = 1_000_000_000000;
 
@@ -72,7 +75,10 @@ fn pair_contract() -> Box<dyn Contract<Empty>> {
     Box::new(ContractWrapper::new_with_empty(execute, instantiate, query).with_reply_empty(reply))
 }
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct Helper {
+    #[derivative(Debug = "ignore")]
     pub app: App,
     pub owner: Addr,
     pub assets: HashMap<TestCoin, AssetInfo>,
@@ -82,7 +88,7 @@ pub struct Helper {
 }
 
 impl Helper {
-    pub fn new(owner: &Addr, test_coins: Vec<TestCoin>, amp: u64) -> Self {
+    pub fn new(owner: &Addr, test_coins: Vec<TestCoin>, amp: u64) -> AnyResult<Self> {
         let mut app = App::new(|router, _, storage| {
             router
                 .bank
@@ -105,10 +111,12 @@ impl Helper {
             }
         });
 
-        let assets: HashMap<_, _> = asset_infos_vec.into_iter().collect();
-
         let init_msg = InstantiateMsg {
-            asset_infos: assets.values().cloned().collect_vec(),
+            asset_infos: asset_infos_vec
+                .clone()
+                .into_iter()
+                .map(|(_, asset_info)| asset_info)
+                .collect(),
             token_code_id,
             factory_addr: "factory".to_string(),
             init_params: Some(to_binary(&StablePoolParams { amp }).unwrap()),
@@ -116,30 +124,28 @@ impl Helper {
 
         let pair_code_id = app.store_code(pair_contract());
 
-        let pair_addr = app
-            .instantiate_contract(
-                pair_code_id,
-                owner.clone(),
-                &init_msg,
-                &[],
-                "pair_label",
-                None,
-            )
-            .unwrap();
+        let pair_addr = app.instantiate_contract(
+            pair_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "pair_label",
+            None,
+        )?;
 
         let resp: PairInfo = app
             .wrap()
             .query_wasm_smart(&pair_addr, &QueryMsg::Pair {})
             .unwrap();
 
-        Self {
+        Ok(Self {
             app,
             owner: owner.clone(),
-            assets,
+            assets: asset_infos_vec.into_iter().collect(),
             pair_addr,
             lp_token: resp.liquidity_token,
             amp,
-        }
+        })
     }
 
     pub fn provide_liquidity(&mut self, sender: &Addr, assets: &[Asset]) -> AnyResult<AppResponse> {
