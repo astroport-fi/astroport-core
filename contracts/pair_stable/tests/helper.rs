@@ -207,6 +207,15 @@ impl Helper {
         resp.balance
     }
 
+    pub fn coin_balance(&self, coin: &TestCoin, user: &Addr) -> Uint128 {
+        match &self.assets[coin] {
+            AssetInfo::Token { contract_addr } => self.token_balance(contract_addr, user),
+            AssetInfo::NativeToken { denom } => {
+                self.app.wrap().query_balance(user, denom).unwrap().amount
+            }
+        }
+    }
+
     pub fn give_me_money(&mut self, assets: &[Asset], recipient: &Addr) {
         let funds =
             assets.mock_coins_sent(&mut self.app, &self.owner, recipient, SendType::Transfer);

@@ -29,9 +29,15 @@ fn provide_works() {
 
     helper.provide_liquidity(&user, &assets).unwrap();
 
-    let balance = helper.token_balance(&helper.lp_token, &user);
+    let lp_balance = helper.token_balance(&helper.lp_token, &user);
+    let token1_balance = helper.coin_balance(&test_coins[0], &user);
+    let token2_balance = helper.coin_balance(&test_coins[0], &user);
+    let token3_balance = helper.coin_balance(&test_coins[0], &user);
 
-    assert_eq!(299_996666, balance.u128());
+    assert_eq!(299_996666, lp_balance.u128());
+    assert_eq!(0, token1_balance.u128());
+    assert_eq!(0, token2_balance.u128());
+    assert_eq!(0, token3_balance.u128());
 }
 
 #[test]
