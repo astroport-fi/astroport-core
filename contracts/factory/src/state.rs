@@ -74,13 +74,31 @@ pub fn read_pairs(
     limit: Option<u32>,
 ) -> StdResult<Vec<Addr>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = calc_range_start(start_after).map(Bound::exclusive);
 
-    PAIRS
-        .range(deps.storage, start, None, Order::Ascending)
-        .take(limit)
-        .map(|item| Ok(item?.1))
-        .collect()
+    if let Some(start) = calc_range_start(start_after) {
+        PAIRS
+            .range(
+                deps.storage,
+                Some(Bound::exclusive(start.as_slice())),
+                None,
+                Order::Ascending,
+            )
+            .take(limit)
+            .map(|item| {
+                let (_, pair_addr) = item?;
+                Ok(pair_addr)
+            })
+            .collect()
+    } else {
+        PAIRS
+            .range(deps.storage, None, None, Order::Ascending)
+            .take(limit)
+            .map(|item| {
+                let (_, pair_addr) = item?;
+                Ok(pair_addr)
+            })
+            .collect()
+    }
 }
 
 /// ## Description

@@ -19,6 +19,9 @@ pub enum ContractError {
 
     #[error("The swap operation limit was exceeded!")]
     SwapLimitExceeded {},
+
+    #[error("Native swap operations are not supported!")]
+    NativeSwapNotSupported {},
 }
 
 impl From<OverflowError> for ContractError {

@@ -6,11 +6,10 @@ use crate::factory::PairType;
 use crate::pair::QueryMsg as PairQueryMsg;
 use crate::querier::{query_balance, query_token_balance, query_token_symbol};
 use cosmwasm_std::{
-    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper, StdError,
+    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, MessageInfo, QuerierWrapper, StdError,
     StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_cosmwasm::TerraQuerier;
 
 /// UST token denomination
 pub const UUSD_DENOM: &str = "uusd";
@@ -33,9 +32,6 @@ impl fmt::Display for Asset {
     }
 }
 
-/// Decimal points
-static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
-
 impl Asset {
     /// Returns true if the token is native. Otherwise returns false.
     /// ## Params
@@ -49,21 +45,9 @@ impl Asset {
     /// * **self** is the type of the caller object.
     ///
     /// * **querier** is an object of type [`QuerierWrapper`]
-    pub fn compute_tax(&self, querier: &QuerierWrapper) -> StdResult<Uint128> {
-        if let AssetInfo::NativeToken { denom } = &self.info {
-            let terra_querier = TerraQuerier::new(querier);
-            let tax_rate = terra_querier.query_tax_rate()?.rate;
-            let tax_cap = terra_querier.query_tax_cap(denom)?.cap;
-            Ok(self
-                .amount
-                .checked_sub(self.amount.multiply_ratio(
-                    DECIMAL_FRACTION,
-                    DECIMAL_FRACTION * (Decimal::one() + tax_rate),
-                ))?
-                .min(tax_cap))
-        } else {
-            Ok(Uint128::zero())
-        }
+    pub fn compute_tax(&self, _querier: &QuerierWrapper) -> StdResult<Uint128> {
+        // tax rate in Terra is set to zero https://terrawiki.org/en/developers/tx-fees
+        Ok(Uint128::zero())
     }
 
     /// Calculates and returns a deducted tax for transferring the native token from the chain. For other tokens it returns an [`Err`].

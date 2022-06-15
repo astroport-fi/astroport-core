@@ -48,7 +48,6 @@ pub const PAIR_CONFIGSV110: Map<String, PairConfigV110> = Map::new("pair_configs
 pub fn migrate_pair_configs_to_v120(storage: &mut dyn Storage) -> Result<(), StdError> {
     let keys = PAIR_CONFIGSV110
         .keys(storage, None, None, cosmwasm_std::Order::Ascending {})
-        .map(|v| String::from_utf8(v).map_err(StdError::from))
         .collect::<Result<Vec<String>, StdError>>()?;
 
     for key in keys {

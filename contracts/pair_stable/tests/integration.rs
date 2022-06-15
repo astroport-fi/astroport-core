@@ -10,32 +10,22 @@ use astroport::pair::{
 
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_pair_stable::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
     attr, from_binary, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
+use cw_multi_test::{App, ContractWrapper, Executor};
 
 const OWNER: &str = "owner";
 
-fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+fn mock_app(owner: Addr, coins: Vec<Coin>) -> App {
+    App::new(|router, _, storage| {
+        // initialization moved to App construction
+        router.bank.init_balance(storage, &owner, coins).unwrap()
+    })
 }
 
-fn store_token_code(app: &mut TerraApp) -> u64 {
+fn store_token_code(app: &mut App) -> u64 {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
@@ -45,7 +35,7 @@ fn store_token_code(app: &mut TerraApp) -> u64 {
     app.store_code(astro_token_contract)
 }
 
-fn store_pair_code(app: &mut TerraApp) -> u64 {
+fn store_pair_code(app: &mut App) -> u64 {
     let pair_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_pair_stable::contract::execute,
@@ -58,7 +48,7 @@ fn store_pair_code(app: &mut TerraApp) -> u64 {
     app.store_code(pair_contract)
 }
 
-fn store_factory_code(app: &mut TerraApp) -> u64 {
+fn store_factory_code(app: &mut App) -> u64 {
     let factory_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_factory::contract::execute,
@@ -71,7 +61,7 @@ fn store_factory_code(app: &mut TerraApp) -> u64 {
     app.store_code(factory_contract)
 }
 
-fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
+fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
     let token_contract_code_id = store_token_code(&mut router);
 
     let pair_contract_code_id = store_pair_code(&mut router);
@@ -100,7 +90,10 @@ fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
             None,
         )
         .unwrap_err();
-    assert_eq!("You need to provide init params", resp.to_string());
+    assert_eq!(
+        "You need to provide init params",
+        resp.root_cause().to_string()
+    );
 
     let msg = InstantiateMsg {
         asset_infos: [
@@ -131,8 +124,8 @@ fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
         .wrap()
         .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
         .unwrap();
-    assert_eq!("contract #0", res.contract_addr);
-    assert_eq!("contract #1", res.liquidity_token);
+    assert_eq!("contract0", res.contract_addr);
+    assert_eq!("contract1", res.liquidity_token);
 
     pair
 }
@@ -141,13 +134,27 @@ fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
 fn test_provide_and_withdraw_liquidity() {
     let owner = Addr::unchecked("owner");
     let alice_address = Addr::unchecked("alice");
-    let mut router = mock_app();
+
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ],
+    );
 
     // Set Alice's balances
     router
-        .init_bank_balance(
-            &alice_address,
-            vec![
+        .send_tokens(
+            owner.clone(),
+            alice_address.clone(),
+            &[
                 Coin {
                     denom: "uusd".to_string(),
                     amount: Uint128::new(233u128),
@@ -183,9 +190,10 @@ fn test_provide_and_withdraw_liquidity() {
 
     // When dealing with native tokens, the transfer should happen before the contract call, which cw-multitest doesn't support
     router
-        .init_bank_balance(
-            &pair_instance,
-            vec![
+        .send_tokens(
+            owner.clone(),
+            pair_instance.clone(),
+            &[
                 Coin {
                     denom: "uusd".to_string(),
                     amount: Uint128::new(100u128),
@@ -293,9 +301,20 @@ fn provide_liquidity_msg(
 
 #[test]
 fn provide_lp_for_single_token() {
-    let mut app = mock_app();
-
     let owner = Addr::unchecked(OWNER);
+    let mut app = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ],
+    );
 
     let token_code_id = store_token_code(&mut app);
 
@@ -318,6 +337,7 @@ fn provide_lp_for_single_token() {
             minter: String::from(OWNER),
             cap: None,
         }),
+        marketing: None,
     };
 
     let token_x_instance = app
@@ -345,6 +365,7 @@ fn provide_lp_for_single_token() {
             minter: String::from(OWNER),
             cap: None,
         }),
+        marketing: None,
     };
 
     let token_y_instance = app
@@ -454,7 +475,10 @@ fn provide_lp_for_single_token() {
     let err = app
         .execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
         .unwrap_err();
-    assert_eq!("Generic error: One of the pools is empty", err.to_string());
+    assert_eq!(
+        "Generic error: One of the pools is empty",
+        err.root_cause().to_string()
+    );
 
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [
@@ -481,7 +505,7 @@ fn provide_lp_for_single_token() {
         .unwrap_err();
     assert_eq!(
         "It is not possible to provide liquidity with one token for an empty pool",
-        err.to_string()
+        err.root_cause().to_string()
     );
 
     let msg = ExecuteMsg::ProvideLiquidity {
@@ -593,14 +617,28 @@ fn provide_lp_for_single_token() {
     let err = app
         .execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(err.to_string(), "Operation exceeds max spread limit");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Operation exceeds max spread limit"
+    );
 }
 
 #[test]
 fn test_compatibility_of_tokens_with_different_precision() {
-    let mut app = mock_app();
-
     let owner = Addr::unchecked(OWNER);
+    let mut app = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ],
+    );
 
     let token_code_id = store_token_code(&mut app);
 
@@ -623,6 +661,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             minter: String::from(OWNER),
             cap: None,
         }),
+        marketing: None,
     };
 
     let token_x_instance = app
@@ -650,6 +689,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             minter: String::from(OWNER),
             cap: None,
         }),
+        marketing: None,
     };
 
     let token_y_instance = app
@@ -810,13 +850,28 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
 #[test]
 fn test_if_twap_is_calculated_correctly_when_pool_idles() {
-    let mut app = mock_app();
+    let owner = Addr::unchecked(OWNER);
+    let mut app = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000000u128),
+            },
+        ],
+    );
 
     let user1 = Addr::unchecked("user1");
 
-    app.init_bank_balance(
-        &user1,
-        vec![
+    // Set User1's balances
+    app.send_tokens(
+        owner.clone(),
+        user1.clone(),
+        &[
             Coin {
                 denom: "uusd".to_string(),
                 amount: Uint128::new(4666666_000000),
@@ -886,8 +941,20 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
 
 #[test]
 fn create_pair_with_same_assets() {
-    let mut router = mock_app();
-    let owner = Addr::unchecked("owner");
+    let owner = Addr::unchecked(OWNER);
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ],
+    );
 
     let token_contract_code_id = store_token_code(&mut router);
     let pair_contract_code_id = store_pair_code(&mut router);
@@ -917,13 +984,28 @@ fn create_pair_with_same_assets() {
         )
         .unwrap_err();
 
-    assert_eq!(resp.to_string(), "Doubling assets in asset infos")
+    assert_eq!(
+        resp.root_cause().to_string(),
+        "Doubling assets in asset infos"
+    )
 }
 
 #[test]
 fn update_pair_config() {
-    let mut router = mock_app();
-    let owner = Addr::unchecked("owner");
+    let owner = Addr::unchecked(OWNER);
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ],
+    );
 
     let token_contract_code_id = store_token_code(&mut router);
     let pair_contract_code_id = store_pair_code(&mut router);
@@ -998,7 +1080,7 @@ fn update_pair_config() {
         .unwrap_err();
 
     assert_eq!(
-        resp.to_string(),
+        resp.root_cause().to_string(),
         format!(
             "Amp coefficient must be greater than 0 and less than or equal to {}",
             MAX_AMP
@@ -1019,7 +1101,7 @@ fn update_pair_config() {
         .unwrap_err();
 
     assert_eq!(
-        resp.to_string(),
+        resp.root_cause().to_string(),
         format!(
             "The difference between the old and new amp value must not exceed {} times",
             MAX_AMP_CHANGE
@@ -1040,7 +1122,7 @@ fn update_pair_config() {
         .unwrap_err();
 
     assert_eq!(
-        resp.to_string(),
+        resp.root_cause().to_string(),
         format!(
             "Amp coefficient cannot be changed more often than once per {} seconds",
             MIN_AMP_CHANGING_TIME

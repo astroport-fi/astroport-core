@@ -1,11 +1,10 @@
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 
-use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
-    Uint128, WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps,
+    DepsMut, Env, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult,
+    SubMsg, Uint128, Uint256, WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -13,6 +12,7 @@ use astroport::asset::{
     addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset,
     AssetInfo, PairInfo,
 };
+use astroport::decimal2decimal256;
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::{migration_check, ConfigResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
@@ -92,6 +92,7 @@ pub fn instantiate(
                     minter: env.contract.address.to_string(),
                     cap: None,
                 }),
+                marketing: None,
             })?,
             funds: vec![],
             admin: None,
@@ -1036,13 +1037,13 @@ pub fn compute_swap(
     let offer_pool: Uint256 = offer_pool.into();
     let ask_pool: Uint256 = ask_pool.into();
     let offer_amount: Uint256 = offer_amount.into();
-    let commission_rate: Decimal256 = commission_rate.into();
+    let commission_rate = decimal2decimal256(commission_rate)?;
 
     // ask_amount = (ask_pool - cp / (offer_pool + offer_amount))
     let cp: Uint256 = offer_pool * ask_pool;
-    let return_amount: Uint256 = (Decimal256::from_uint256(ask_pool)
+    let return_amount: Uint256 = (Decimal256::from_ratio(ask_pool, 1u8)
         - Decimal256::from_ratio(cp, offer_pool + offer_amount))
-        * Uint256::one();
+        * Uint256::from(1u8);
 
     // Calculate spread & commission
     let spread_amount: Uint256 =
@@ -1052,9 +1053,9 @@ pub fn compute_swap(
     // The commision (minus the part that goes to the Maker contract) will be absorbed by the pool
     let return_amount: Uint256 = return_amount - commission_amount;
     Ok((
-        return_amount.into(),
-        spread_amount.into(),
-        commission_amount.into(),
+        return_amount.try_into()?,
+        spread_amount.try_into()?,
+        commission_amount.try_into()?,
     ))
 }
 
@@ -1079,20 +1080,26 @@ pub fn compute_offer_amount(
 
     // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
     let cp = Uint256::from(offer_pool) * Uint256::from(ask_pool);
-    let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
-    let inv_one_minus_commission: Decimal = (Decimal256::one() / one_minus_commission).into();
+    let one_minus_commission = Decimal256::one() - decimal2decimal256(commission_rate)?;
+    let inv_one_minus_commission = Decimal256::one() / one_minus_commission;
 
-    let offer_amount: Uint128 = Uint128::from(cp.multiply_ratio(
-        Uint256::one(),
-        Uint256::from(ask_pool.checked_sub(ask_amount * inv_one_minus_commission)?),
-    ))
-    .checked_sub(offer_pool)?;
+    let offer_amount: Uint128 = cp
+        .multiply_ratio(
+            Uint256::from(1u8),
+            Uint256::from(
+                ask_pool.checked_sub(
+                    (Uint256::from(ask_amount) * inv_one_minus_commission).try_into()?,
+                )?,
+            ),
+        )
+        .checked_sub(offer_pool.into())?
+        .try_into()?;
 
-    let before_commission_deduction = ask_amount * inv_one_minus_commission;
+    let before_commission_deduction = Uint256::from(ask_amount) * inv_one_minus_commission;
     let spread_amount = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool))
-        .saturating_sub(before_commission_deduction);
-    let commission_amount = before_commission_deduction * commission_rate;
-    Ok((offer_amount, spread_amount, commission_amount))
+        .saturating_sub(before_commission_deduction.try_into()?);
+    let commission_amount = before_commission_deduction * decimal2decimal256(commission_rate)?;
+    Ok((offer_amount, spread_amount, commission_amount.try_into()?))
 }
 
 /// ## Description
@@ -1126,8 +1133,7 @@ pub fn assert_max_spread(
     }
 
     if let Some(belief_price) = belief_price {
-        let expected_return =
-            offer_amount * Decimal::from(Decimal256::one() / Decimal256::from(belief_price));
+        let expected_return = offer_amount * (Decimal::one() / belief_price);
         let spread_amount = expected_return.saturating_sub(return_amount);
 
         if return_amount < expected_return
@@ -1164,7 +1170,7 @@ fn assert_slippage_tolerance(
         return Err(ContractError::AllowedSpreadAssertion {});
     }
 
-    let slippage_tolerance: Decimal256 = slippage_tolerance.into();
+    let slippage_tolerance: Decimal256 = decimal2decimal256(slippage_tolerance)?;
     let one_minus_slippage_tolerance = Decimal256::one() - slippage_tolerance;
     let deposits: [Uint256; 2] = [deposits[0].into(), deposits[1].into()];
     let pools: [Uint256; 2] = [pools[0].amount.into(), pools[1].amount.into()];

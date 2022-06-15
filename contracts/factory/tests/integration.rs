@@ -1,34 +1,21 @@
 mod factory_helper;
 
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{attr, Addr};
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType, QueryMsg,
 };
-use astroport::pair::ExecuteMsg as PairExecuteMsg;
 
 use crate::factory_helper::{instantiate_token, FactoryHelper};
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
+use astroport::pair::ExecuteMsg as PairExecuteMsg;
+use cw_multi_test::{App, ContractWrapper, Executor};
 
-fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+fn mock_app() -> App {
+    App::default()
 }
 
-fn store_factory_code(app: &mut TerraApp) -> u64 {
+fn store_factory_code(app: &mut App) -> u64 {
     let factory_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_factory::contract::execute,
@@ -130,13 +117,12 @@ fn update_config() {
             None,
         )
         .unwrap_err();
-    assert_eq!(res.to_string(), "Unauthorized");
+    assert_eq!(res.root_cause().to_string(), "Unauthorized");
 }
 
 #[test]
 fn test_create_pair() {
     let mut app = mock_app();
-
     let owner = Addr::unchecked("owner");
     let mut helper = FactoryHelper::init(&mut app, &owner);
 
@@ -158,7 +144,10 @@ fn test_create_pair() {
     let err = helper
         .create_pair(&mut app, &owner, PairType::Xyk {}, [&token1, &token1], None)
         .unwrap_err();
-    assert_eq!(err.to_string(), "Doubling assets in asset infos");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Doubling assets in asset infos"
+    );
 
     let res = helper
         .create_pair(&mut app, &owner, PairType::Xyk {}, [&token1, &token2], None)
@@ -167,7 +156,7 @@ fn test_create_pair() {
     let err = helper
         .create_pair(&mut app, &owner, PairType::Xyk {}, [&token1, &token2], None)
         .unwrap_err();
-    assert_eq!(err.to_string(), "Pair was already created");
+    assert_eq!(err.root_cause().to_string(), "Pair was already created");
 
     assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
     assert_eq!(
@@ -193,9 +182,9 @@ fn test_create_pair() {
         .unwrap();
 
     // In multitest, contract names are counted in the order in which contracts are created
-    assert_eq!("contract #1", helper.factory.to_string());
-    assert_eq!("contract #4", res.contract_addr.to_string());
-    assert_eq!("contract #5", res.liquidity_token.to_string());
+    assert_eq!("contract1", helper.factory.to_string());
+    assert_eq!("contract4", res.contract_addr.to_string());
+    assert_eq!("contract5", res.liquidity_token.to_string());
 
     // Create disabled pair type
     app.execute_contract(
@@ -232,7 +221,7 @@ fn test_create_pair() {
             None,
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Pair config disabled");
+    assert_eq!(err.root_cause().to_string(), "Pair config disabled");
 
     // Query fee info
     let fee_info: FeeInfoResponse = app
@@ -335,7 +324,10 @@ fn test_pair_migration() {
             )
             .unwrap_err();
 
-        assert_eq!(res.to_string(), "Pair is not migrated to the new admin!");
+        assert_eq!(
+            res.root_cause().to_string(),
+            "Pair is not migrated to the new admin!"
+        );
     }
 
     // Pair is created after admin migration
@@ -369,7 +361,7 @@ fn test_pair_migration() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Unauthorized");
+    assert_eq!(err.root_cause().to_string(), "Unauthorized");
 
     app.execute_contract(
         new_owner,
@@ -420,7 +412,7 @@ fn check_update_owner() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
     // Claim before proposal
     let err = app
@@ -432,7 +424,7 @@ fn check_update_owner() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Ownership proposal not found"
     );
 
@@ -449,7 +441,7 @@ fn check_update_owner() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
     // Drop ownership proposal
     let err = app
@@ -461,7 +453,7 @@ fn check_update_owner() {
         )
         .unwrap_err();
     // new_owner is not an owner yet
-    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
     app.execute_contract(
         owner.clone(),
@@ -481,7 +473,7 @@ fn check_update_owner() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Ownership proposal not found"
     );
 

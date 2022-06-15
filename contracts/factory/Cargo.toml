@@ -24,18 +24,18 @@ backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 astroport = { path = "../../packages/astroport", default-features = false }
-cosmwasm-std = { version = "0.16.2", features = ["iterator"] }
-cw-storage-plus = {version = "0.8.0", features = ['iterator']}
-cw2 = "0.8"
-schemars = "0.8.1"
+cosmwasm-std = { version = "1.0" }
+cw-storage-plus = {version = "0.13"}
+cw2 = "0.13"
+schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0" }
 protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
-cosmwasm-schema = "0.16.2"
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
+cosmwasm-schema = "1.0"
+cw-multi-test = "0.13"
 astroport-token = {path = "../token"}
 astroport-pair = {path = "../pair"}
-cw20 = { version = "0.8" }
+cw20 = { version = "0.13" }
 anyhow = "1.0"

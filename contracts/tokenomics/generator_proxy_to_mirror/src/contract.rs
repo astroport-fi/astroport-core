@@ -224,7 +224,7 @@ fn withdraw(
     env: Env,
     info: MessageInfo,
     account: String,
-    amount: Uint128,
+    _amount: Uint128,
 ) -> Result<Response, ContractError> {
     let account = addr_validate_to_lower(deps.api, &account)?;
 
@@ -245,14 +245,15 @@ fn withdraw(
     };
 
     // withdraw from the end reward contract
-    response.messages.push(SubMsg::new(WasmMsg::Execute {
-        contract_addr: cfg.reward_contract_addr.to_string(),
-        funds: vec![],
-        msg: to_binary(&MirrorExecuteMsg::Unbond {
-            asset_token: cfg.pair_addr.to_string(),
-            amount,
-        })?,
-    }));
+    // TODO: mirror protocol still depends on cosmwasm 0.16
+    // response.messages.push(SubMsg::new(WasmMsg::Execute {
+    //     contract_addr: cfg.reward_contract_addr.to_string(),
+    //     funds: vec![],
+    //     msg: to_binary(&MirrorExecuteMsg::Unbond {
+    //         asset_token: cfg.pair_addr.to_string(),
+    //         amount,
+    //     })?,
+    // }));
 
     response.messages.push(SubMsg::new(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
@@ -369,21 +370,23 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             reward_token_addr: cfg.reward_token_addr.to_string(),
         }),
         QueryMsg::Deposit {} => {
-            let res: RewardInfoResponse = deps.querier.query_wasm_smart(
+            let _res: RewardInfoResponse = deps.querier.query_wasm_smart(
                 cfg.reward_contract_addr,
                 &MirrorQueryMsg::RewardInfo {
                     staker_addr: env.contract.address.to_string(),
                     asset_token: Some(cfg.pair_addr.to_string()),
                 },
             )?;
-            let reward_infos = res.reward_infos;
-            let deposit_amount = if !reward_infos.is_empty() {
-                reward_infos[0].bond_amount
-            } else {
-                Uint128::zero()
-            };
-
-            to_binary(&deposit_amount)
+            // TODO:
+            // let reward_infos = res.reward_infos;
+            // let deposit_amount = if !reward_infos.is_empty() {
+            //     reward_infos[0].bond_amount
+            // } else {
+            //     Uint128::zero()
+            // };
+            //
+            // to_binary(&deposit_amount)
+            to_binary(&Uint128::zero())
         }
         QueryMsg::Reward {} => {
             let res: BalanceResponse = deps.querier.query_wasm_smart(
@@ -397,21 +400,23 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&reward_amount)
         }
         QueryMsg::PendingToken {} => {
-            let res: RewardInfoResponse = deps.querier.query_wasm_smart(
+            let _res: RewardInfoResponse = deps.querier.query_wasm_smart(
                 cfg.reward_contract_addr,
                 &MirrorQueryMsg::RewardInfo {
                     staker_addr: env.contract.address.to_string(),
                     asset_token: Some(cfg.pair_addr.to_string()),
                 },
             )?;
-            let reward_infos = res.reward_infos;
-            let pending_reward = if !reward_infos.is_empty() {
-                reward_infos[0].pending_reward
-            } else {
-                Uint128::zero()
-            };
-
-            to_binary(&pending_reward)
+            // TODO:
+            // let reward_infos = res.reward_infos;
+            // let pending_reward = if !reward_infos.is_empty() {
+            //     reward_infos[0].pending_reward
+            // } else {
+            //     Uint128::zero()
+            // };
+            //
+            // to_binary(&pending_reward)
+            to_binary(&Uint128::zero())
         }
         QueryMsg::RewardInfo {} => {
             let config = CONFIG.load(deps.storage)?;

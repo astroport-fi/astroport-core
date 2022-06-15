@@ -145,7 +145,7 @@ mod tests {
 
     #[test]
     fn instantiate_and_modify_config() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let alice = "alice";
         let bob = "bob";
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn execute_messages_has_proper_permissions() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let alice = "alice";
         let bob = "bob";
@@ -264,7 +264,7 @@ mod tests {
 
     #[test]
     fn can_execute_query_works() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let alice = "alice";
         let bob = "bob";
