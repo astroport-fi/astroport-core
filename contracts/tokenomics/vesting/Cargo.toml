@@ -23,6 +23,6 @@ astroport = { path = "../../../packages/astroport", default-features = false }
 thiserror = { version = "1.0" }
 
 [dev-dependencies]
-cosmwasm-schema = { version = "1.0.0", default-features = false  }
+cosmwasm-schema = { version = "1.0", default-features = false  }
 cw-multi-test = "0.13"
 astroport-token = {path = "../../token"}
