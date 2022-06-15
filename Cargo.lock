@@ -250,30 +250,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "astroport-pair-stable-bluna"
-version = "1.0.2"
-dependencies = [
- "astroport 2.0.0",
- "astroport-factory",
- "astroport-token",
- "astroport-whitelist",
- "basset",
- "cosmwasm-schema",
- "cosmwasm-std 1.0.0",
- "cw-multi-test",
- "cw-storage-plus 0.13.4",
- "cw2 0.13.4",
- "cw20 0.13.4",
- "integer-sqrt",
- "proptest",
- "protobuf",
- "schemars",
- "serde",
- "sim",
- "thiserror",
-]
-
-[[package]]
 name = "astroport-router"
 version = "1.0.0"
 dependencies = [
@@ -399,20 +375,6 @@ name = "base64ct"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dea908e7347a8c64e378c17e30ef880ad73e3b4498346b055c2c00ea342f3179"
-
-[[package]]
-name = "basset"
-version = "0.1.0"
-source = "git+https://github.com/Anchor-Protocol/anchor-bAsset-contracts.git?tag=v0.2.1#486f1cd495325798f884e19880180a62566b5e48"
-dependencies = [
- "cosmwasm-std 0.16.7",
- "cosmwasm-storage 0.16.7",
- "cw20 0.8.1",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "thiserror",
-]
 
 [[package]]
 name = "bit-set"
