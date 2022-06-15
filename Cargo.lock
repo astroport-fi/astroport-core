@@ -231,6 +231,7 @@ dependencies = [
 name = "astroport-pair-stable"
 version = "1.0.0"
 dependencies = [
+ "anyhow",
  "astroport 2.0.0",
  "astroport-factory",
  "astroport-token",

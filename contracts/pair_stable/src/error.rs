@@ -1,5 +1,5 @@
 use crate::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
-use cosmwasm_std::{ConversionOverflowError, OverflowError, StdError};
+use cosmwasm_std::{CheckedMultiplyRatioError, ConversionOverflowError, OverflowError, StdError};
 use thiserror::Error;
 
 /// ## Description
@@ -8,6 +8,9 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("{0}")]
+    CheckedMultiplyRatioError(#[from] CheckedMultiplyRatioError),
 
     #[error("Unauthorized")]
     Unauthorized {},
@@ -59,6 +62,9 @@ pub enum ContractError {
 
     #[error("Pair is not migrated to the new admin!")]
     PairIsNotMigrated {},
+
+    #[error("The asset {0} does not belong to the pair")]
+    InvalidAsset(String),
 
     #[error("You must specify target asset")]
     AskAssetMissed {},
