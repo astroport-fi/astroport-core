@@ -252,7 +252,7 @@ impl AssetExt for Asset {
     ) -> Vec<Coin> {
         let mut funds = vec![];
         match &self.info {
-            AssetInfo::Token { contract_addr } => {
+            AssetInfo::Token { contract_addr } if !self.amount.is_zero() => {
                 let msg = match typ {
                     SendType::Allowance => Cw20ExecuteMsg::IncreaseAllowance {
                         spender: spender.to_string(),
@@ -267,11 +267,10 @@ impl AssetExt for Asset {
                 app.execute_contract(user.clone(), contract_addr.clone(), &msg, &[])
                     .unwrap();
             }
-            AssetInfo::NativeToken { denom } => {
-                if !self.amount.is_zero() {
-                    funds = vec![coin(self.amount.u128(), denom)];
-                }
+            AssetInfo::NativeToken { denom } if !self.amount.is_zero() => {
+                funds = vec![coin(self.amount.u128(), denom)];
             }
+            _ => {}
         }
 
         funds

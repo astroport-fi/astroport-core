@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError,
+    Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response, StdError,
     StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
 
@@ -339,6 +339,10 @@ pub fn provide_liquidity(
     let auto_stake = auto_stake.unwrap_or(false);
     let mut config = CONFIG.load(deps.storage)?;
 
+    if assets.len() > config.pair_info.asset_infos.len() {
+        return Err(ContractError::InvalidNumberOfAssets {});
+    }
+
     let pools: HashMap<_, _> = config
         .pair_info
         .query_pools(&deps.querier, &env.contract.address)?
@@ -348,9 +352,8 @@ pub fn provide_liquidity(
 
     let mut non_zero_flag = false;
 
-    let assets_attr = assets.iter().join(" ");
-
     let mut assets_collection = assets
+        .clone()
         .into_iter()
         .map(|asset| {
             asset.assert_sent_native_token_balance(&info)?;
@@ -369,6 +372,19 @@ pub fn provide_liquidity(
             Ok((asset, pool))
         })
         .collect::<Result<Vec<_>, ContractError>>()?;
+
+    // If some assets are omitted then add them explicitly with 0 deposit
+    pools.into_iter().for_each(|(pool_info, pool_amount)| {
+        if !assets.iter().any(|asset| asset.info == pool_info) {
+            assets_collection.push((
+                Asset {
+                    amount: Uint128::zero(),
+                    info: pool_info,
+                },
+                pool_amount,
+            ));
+        }
+    });
 
     if !non_zero_flag {
         return Err(ContractError::InvalidZeroAmount {});
@@ -420,16 +436,10 @@ pub fn provide_liquidity(
     let init_d = compute_d(n_coins, amp, &old_balances)?;
 
     // Invariant (D) after deposit added
-    assets_collection
-        .iter_mut()
-        .try_for_each::<_, StdResult<()>>(|(deposit, pool)| {
-            *pool = pool.checked_add(deposit.amount)?;
-            Ok(())
-        })?;
     let mut new_balances = assets_collection
         .iter()
-        .map(|(_, pool)| *pool)
-        .collect_vec();
+        .map(|(deposit, pool)| Ok(pool.checked_add(deposit.amount)?))
+        .collect::<StdResult<Vec<_>>>()?;
     let deposit_d = compute_d(n_coins, amp, &new_balances)?;
 
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
@@ -462,10 +472,10 @@ pub fn provide_liquidity(
 
         let after_fee_d = compute_d(n_coins, amp, &new_balances)?;
 
-        total_share.checked_multiply_ratio(after_fee_d - init_d, deposit_d)?
+        total_share.checked_multiply_ratio(after_fee_d - init_d, init_d)?
     };
 
-    let mint_amount = adjust_precision(mint_amount, LP_TOKEN_PRECISION, config.greatest_precision)?;
+    let mint_amount = adjust_precision(mint_amount, config.greatest_precision, LP_TOKEN_PRECISION)?;
 
     if mint_amount.is_zero() {
         return Err(ContractError::LiquidityAmountTooSmall {});
@@ -548,7 +558,7 @@ pub fn provide_liquidity(
         attr("action", "provide_liquidity"),
         attr("sender", info.sender),
         attr("receiver", receiver),
-        attr("assets", assets_attr),
+        attr("assets", assets.iter().join(", ")),
         attr("share", mint_amount),
     ]))
 }

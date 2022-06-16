@@ -98,7 +98,9 @@ pub fn compute_d(n_coins: u8, leverage: Uint64, pools: &[Uint128]) -> StdResult<
                 .iter()
                 .try_fold::<_, _, StdResult<_>>(d, |acc, pool| {
                     let denominator = Uint256::from(*pool).checked_mul(n_coins)?;
-                    Ok(acc.checked_mul(d)?.checked_div(denominator)?)
+                    Ok(acc
+                        .checked_multiply_ratio(d, denominator)
+                        .map_err(|_| StdError::generic_err("CheckedMultiplyRatioError"))?)
                 })?;
             let d_prev = d;
             d = (ann_sum_x + d_p * n_coins) * d / (ann * d + (n_coins + Uint256::from(1u8)) * d_p);
