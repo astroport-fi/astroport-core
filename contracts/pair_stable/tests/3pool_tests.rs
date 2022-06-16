@@ -1,6 +1,5 @@
 use astroport_pair_stable::error::ContractError;
 use cosmwasm_std::Addr;
-use cw20::{BalanceResponse, Cw20Contract, Cw20QueryMsg};
 
 use crate::helper::AssetInfoExt;
 use crate::helper::{Helper, TestCoin};

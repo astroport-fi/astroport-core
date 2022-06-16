@@ -1,8 +1,13 @@
-use cosmwasm_std::{Addr, Api, Decimal, Env, QuerierWrapper, StdResult, Uint128, Uint64};
+use cosmwasm_std::{
+    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Env, QuerierWrapper, StdResult,
+    Uint128, Uint64,
+};
+use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 use std::cmp::Ordering;
 
 use astroport::asset::{Asset, AssetInfo};
+use astroport::querier::query_factory_config;
 
 use crate::error::ContractError;
 use crate::math::calc_ask_amount;
@@ -112,6 +117,103 @@ pub(crate) fn adjust_precision(
             10_u128.pow((current_precision - new_precision) as u32),
         ))?,
     })
+}
+
+/// ## Description
+/// Mint LP tokens for a beneficiary and auto stake the tokens in the Generator contract (if auto staking is specified).
+/// # Params
+/// * **querier** is an object of type [`QuerierWrapper`].
+///
+/// * **config** is an object of type [`Config`].
+///
+/// * **contract_address** is an object of type [`Addr`].
+///
+/// * **recipient** is an object of type [`Addr`]. This is the LP token recipient.
+///
+/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens that will be minted for the recipient.
+///
+/// * **auto_stake** is the field of type [`bool`]. Determines whether the newly minted LP tokens will
+/// be automatically staked in the Generator on behalf of the recipient.
+pub(crate) fn mint_liquidity_token_message(
+    querier: QuerierWrapper,
+    config: &Config,
+    contract_address: &Addr,
+    recipient: &Addr,
+    amount: Uint128,
+    auto_stake: bool,
+) -> Result<Vec<CosmosMsg>, ContractError> {
+    let lp_token = &config.pair_info.liquidity_token;
+
+    // If no auto-stake - just mint to recipient
+    if !auto_stake {
+        return Ok(vec![wasm_execute(
+            lp_token,
+            &Cw20ExecuteMsg::Mint {
+                recipient: recipient.to_string(),
+                amount,
+            },
+            vec![],
+        )?
+        .into()]);
+    }
+
+    // Mint for the pair contract and stake into the Generator contract
+    let generator = query_factory_config(&querier, &config.factory_addr)?.generator_address;
+
+    if let Some(generator) = generator {
+        Ok(vec![
+            wasm_execute(
+                lp_token,
+                &Cw20ExecuteMsg::Mint {
+                    recipient: contract_address.to_string(),
+                    amount,
+                },
+                vec![],
+            )?
+            .into(),
+            wasm_execute(
+                lp_token,
+                &Cw20ExecuteMsg::Send {
+                    contract: generator.to_string(),
+                    amount,
+                    msg: to_binary(&astroport::generator::Cw20HookMsg::DepositFor(
+                        recipient.clone(),
+                    ))?,
+                },
+                vec![],
+            )?
+            .into(),
+        ])
+    } else {
+        Err(ContractError::AutoStakeError {})
+    }
+}
+
+/// ## Description
+/// Return the amount of tokens that a specific amount of LP tokens would withdraw.
+/// ## Params
+/// * **pools** is an array of [`Asset`] type items. These are the assets available in the pool.
+///
+/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to calculate underlying amounts for.
+///
+/// * **total_share** is an object of type [`Uint128`]. This is the total amount of LP tokens currently issued by the pool.
+pub(crate) fn get_share_in_assets(
+    pools: &[Asset],
+    amount: Uint128,
+    total_share: Uint128,
+) -> Vec<Asset> {
+    let mut share_ratio = Decimal::zero();
+    if !total_share.is_zero() {
+        share_ratio = Decimal::from_ratio(amount, total_share);
+    }
+
+    pools
+        .iter()
+        .map(|pool| Asset {
+            info: pool.info.clone(),
+            amount: pool.amount * share_ratio,
+        })
+        .collect()
 }
 
 /// Structure for internal use.

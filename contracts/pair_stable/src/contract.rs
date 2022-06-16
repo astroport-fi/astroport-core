@@ -19,7 +19,6 @@ use astroport::asset::{
 };
 use astroport::factory::PairType;
 
-use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::{
     migration_check, ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams,
     DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, TWAP_PRECISION,
@@ -27,7 +26,7 @@ use astroport::pair::{
 
 use crate::utils::{
     adjust_precision, check_asset_infos, check_assets, check_cw20_in_pool, compute_current_amp,
-    compute_swap, select_pools, SwapResult,
+    compute_swap, get_share_in_assets, mint_liquidity_token_message, select_pools, SwapResult,
 };
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
@@ -517,71 +516,6 @@ pub fn provide_liquidity(
 }
 
 /// ## Description
-/// Mint LP tokens for a beneficiary and auto stake the tokens in the Generator contract (if auto staking is specified).
-/// # Params
-/// * **querier** is an object of type [`QuerierWrapper`].
-///
-/// * **config** is an object of type [`Config`].
-///
-/// * **contract_address** is an object of type [`Addr`].
-///
-/// * **recipient** is an object of type [`Addr`]. This is the LP token recipient.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens that will be minted for the recipient.
-///
-/// * **auto_stake** is the field of type [`bool`]. Determines whether the newly minted LP tokens will
-/// be automatically staked in the Generator on behalf of the recipient.
-fn mint_liquidity_token_message(
-    querier: QuerierWrapper,
-    config: &Config,
-    contract_address: &Addr,
-    recipient: &Addr,
-    amount: Uint128,
-    auto_stake: bool,
-) -> Result<Vec<CosmosMsg>, ContractError> {
-    let lp_token = &config.pair_info.liquidity_token;
-
-    // If no auto-stake - just mint to recipient
-    if !auto_stake {
-        return Ok(vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: lp_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Mint {
-                recipient: recipient.to_string(),
-                amount,
-            })?,
-            funds: vec![],
-        })]);
-    }
-
-    // Mint for the pair contract and stake into the Generator contract
-    let generator = query_factory_config(&querier, &config.factory_addr)?.generator_address;
-
-    if let Some(generator) = generator {
-        Ok(vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: lp_token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: contract_address.to_string(),
-                    amount,
-                })?,
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: lp_token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: generator.to_string(),
-                    amount,
-                    msg: to_binary(&GeneratorHookMsg::DepositFor(recipient.clone()))?,
-                })?,
-                funds: vec![],
-            }),
-        ])
-    } else {
-        Err(ContractError::AutoStakeError {})
-    }
-}
-
-/// ## Description
 /// Withdraw liquidity from the pool. Returns a [`ContractError`] on failure,
 /// otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// ## Params
@@ -815,29 +749,6 @@ fn imbalanced_withdraw(
     }
 
     Ok(burn_amount)
-}
-
-/// ## Description
-/// Return the amount of tokens that a specific amount of LP tokens would withdraw.
-/// ## Params
-/// * **pools** is an array of [`Asset`] type items. These are the assets available in the pool.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to calculate underlying amounts for.
-///
-/// * **total_share** is an object of type [`Uint128`]. This is the total amount of LP tokens currently issued by the pool.
-pub fn get_share_in_assets(pools: &[Asset], amount: Uint128, total_share: Uint128) -> Vec<Asset> {
-    let mut share_ratio = Decimal::zero();
-    if !total_share.is_zero() {
-        share_ratio = Decimal::from_ratio(amount, total_share);
-    }
-
-    pools
-        .iter()
-        .map(|pool| Asset {
-            info: pool.info.clone(),
-            amount: pool.amount * share_ratio,
-        })
-        .collect()
 }
 
 /// ## Description

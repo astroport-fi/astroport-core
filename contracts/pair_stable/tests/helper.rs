@@ -5,7 +5,6 @@ use cosmwasm_std::{coin, to_binary, Addr, Coin, Empty, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
-use itertools::Itertools;
 
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StablePoolParams};
