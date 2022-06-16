@@ -239,9 +239,11 @@ impl Helper {
         let funds =
             assets.mock_coins_sent(&mut self.app, &self.owner, recipient, SendType::Transfer);
 
-        self.app
-            .send_tokens(self.owner.clone(), recipient.clone(), &funds)
-            .unwrap();
+        if !funds.is_empty() {
+            self.app
+                .send_tokens(self.owner.clone(), recipient.clone(), &funds)
+                .unwrap();
+        }
     }
 }
 

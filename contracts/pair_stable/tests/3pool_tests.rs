@@ -122,6 +122,46 @@ fn provide_and_withdraw_no_fee() {
 }
 
 #[test]
+fn assets_with_different_precision() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![
+        TestCoin::cw20precise("FOO", 4),
+        TestCoin::cw20precise("BAR", 5),
+        TestCoin::cw20precise("ADN", 6),
+    ];
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), 100u64).unwrap();
+
+    for user_name in ["user1", "user2"] {
+        let user = Addr::unchecked(user_name);
+
+        let assets = vec![
+            helper.assets[&test_coins[0]].with_balance(100_0000),
+            helper.assets[&test_coins[1]].with_balance(100_00000),
+            helper.assets[&test_coins[2]].with_balance(100_000000),
+        ];
+        helper.give_me_money(&assets, &user);
+
+        helper.provide_liquidity(&user, &assets).unwrap();
+
+        assert_eq!(299_996666, helper.token_balance(&helper.lp_token, &user));
+        assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
+        assert_eq!(0, helper.coin_balance(&test_coins[1], &user));
+        assert_eq!(0, helper.coin_balance(&test_coins[2], &user));
+
+        helper
+            .withdraw_liquidity(&user, 299_996666, vec![])
+            .unwrap();
+
+        assert_eq!(0, helper.token_balance(&helper.lp_token, &user));
+        assert_eq!(100_0000, helper.coin_balance(&test_coins[0], &user));
+        assert_eq!(100_00000, helper.coin_balance(&test_coins[1], &user));
+        assert_eq!(100_000000, helper.coin_balance(&test_coins[2], &user));
+    }
+}
+
+#[test]
 fn check_wrong_initializations() {
     let owner = Addr::unchecked("owner");
 
