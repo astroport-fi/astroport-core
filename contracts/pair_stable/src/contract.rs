@@ -7,9 +7,9 @@ use crate::state::{get_precision, store_precisions, Config, CONFIG};
 use std::collections::HashMap;
 
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response, StdError,
-    StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    attr, entry_point, from_binary, to_binary, wasm_execute, wasm_instantiate, Addr, Binary,
+    CosmosMsg, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
+    StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -269,13 +269,13 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::Swap {
+    match from_binary(&cw20_msg.msg)? {
+        Cw20HookMsg::Swap {
             ask_asset_info,
             belief_price,
             max_spread,
             to,
-        }) => {
+        } => {
             let config = CONFIG.load(deps.storage)?;
 
             // Only asset contract can execute this message
@@ -299,11 +299,10 @@ pub fn receive_cw20(
                 to_addr,
             )
         }
-        Ok(Cw20HookMsg::WithdrawLiquidity {}) => {
+        Cw20HookMsg::WithdrawLiquidity { assets } => {
             let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
-            withdraw_liquidity(deps, env, info, sender, cw20_msg.amount)
+            withdraw_liquidity(deps, env, info, sender, cw20_msg.amount, assets)
         }
-        Err(err) => Err(err.into()),
     }
 }
 
@@ -492,53 +491,7 @@ pub fn provide_liquidity(
         auto_stake,
     )?);
 
-    // let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
-    // let share = if total_share.is_zero() {
-    //     // Initial share = collateral amount
-    //     adjust_precision(
-    //         deposit_amount_0
-    //             .full_mul(deposit_amount_1)
-    //             .isqrt()
-    //             .try_into()?,
-    //         config.greatest_precision,
-    //         LP_TOKEN_PRECISION,
-    //     )?
-    // } else {
-    //     let leverage = compute_current_amp(&config, &env)?.checked_mul(N_COINS.into())?;
-    //
-    //     let d_before_addition_liquidity = compute_d(leverage, pool_amount_0, pool_amount_1)?;
-    //
-    //     pool_amount_0 = pool_amount_0.checked_add(deposit_amount_0)?;
-    //     pool_amount_1 = pool_amount_1.checked_add(deposit_amount_1)?;
-    //
-    //     let d_after_addition_liquidity = compute_d(leverage, pool_amount_0, pool_amount_1)?;
-    //
-    //     // d after adding liquidity may be less than or equal to d before adding liquidity because of rounding
-    //     if d_before_addition_liquidity >= d_after_addition_liquidity {
-    //         return Err(ContractError::LiquidityAmountTooSmall {});
-    //     }
-    //
-    //     total_share.multiply_ratio(
-    //         d_after_addition_liquidity - d_before_addition_liquidity,
-    //         d_before_addition_liquidity,
-    //     )
-    // };
-    //
-    // if share.is_zero() {
-    //     return Err(ContractError::LiquidityAmountTooSmall {});
-    // }
-    //
-    // // Mint LP token for the caller (or for the receiver if it was set)
-    // let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());
-    // messages.extend(mint_liquidity_token_message(
-    //     deps.querier,
-    //     &config,
-    //     &env.contract.address,
-    //     &receiver,
-    //     share,
-    //     auto_stake,
-    // )?);
-    //
+    // TODO: accumulate prices for multiple assets
     // // Accumulate prices assets in the pool
     // if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) = accumulate_prices(
     //     env,
@@ -640,13 +593,16 @@ fn mint_liquidity_token_message(
 ///
 /// * **sender** is an object of type [`Addr`]. This is the address that will receive the withdrawn liquidity.
 ///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to burn and withdraw liquidity with.
+/// * **amount** is an object of type [`Uint128`]. This is the amount of provided LP tokens to withdraw liquidity with.
+///
+/// * **assets** is an optional array of type [`Vec<Asset>`]. It specifies the assets amount to withdraw.
 pub fn withdraw_liquidity(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     sender: Addr,
     amount: Uint128,
+    assets: Vec<Asset>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -654,43 +610,211 @@ pub fn withdraw_liquidity(
         return Err(ContractError::Unauthorized {});
     }
 
-    let (pools, total_share) = pool_info(deps.querier, &config)?;
-    let refund_assets = get_share_in_assets(&pools, amount, total_share);
+    let burn_amount;
+    let refund_assets;
+    let mut messages = vec![];
 
-    // Accumulate prices for the assets in the pool
-    if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) = accumulate_prices(
-        env,
-        &config,
-        pools[0].amount,
-        query_token_precision(&deps.querier, &pools[0].info)?,
-        pools[1].amount,
-        query_token_precision(&deps.querier, &pools[1].info)?,
-    )? {
-        config.price0_cumulative_last = price0_cumulative_new;
-        config.price1_cumulative_last = price1_cumulative_new;
-        config.block_time_last = block_time;
-        CONFIG.save(deps.storage, &config)?;
+    if assets.is_empty() {
+        let (pools, total_share) = pool_info(deps.querier, &config)?;
+        burn_amount = amount;
+        refund_assets = get_share_in_assets(&pools, amount, total_share);
+    } else {
+        // Imbalanced withdraw
+        burn_amount = imbalanced_withdraw(deps.as_ref(), &env, &config, amount, &assets)?;
+        if burn_amount < amount {
+            // Returning unused LP tokens back to the user
+            messages.push(
+                wasm_execute(
+                    &config.pair_info.liquidity_token,
+                    &Cw20ExecuteMsg::Transfer {
+                        recipient: sender.to_string(),
+                        amount: amount - burn_amount,
+                    },
+                    vec![],
+                )?
+                .into(),
+            )
+        }
+        refund_assets = assets;
     }
 
-    let messages = vec![
-        refund_assets[0].clone().into_msg(&deps.querier, &sender)?,
-        refund_assets[1].clone().into_msg(&deps.querier, &sender)?,
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.pair_info.liquidity_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
-            funds: vec![],
-        }),
-    ];
+    messages.extend(
+        refund_assets
+            .clone()
+            .into_iter()
+            .map(|asset| asset.into_msg(&deps.querier, &sender))
+            .collect::<StdResult<Vec<_>>>()?,
+    );
+    messages.push(
+        wasm_execute(
+            &config.pair_info.liquidity_token,
+            &Cw20ExecuteMsg::Burn {
+                amount: burn_amount,
+            },
+            vec![],
+        )?
+        .into(),
+    );
+
+    // // Accumulate prices for the assets in the pool
+    // if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) = accumulate_prices(
+    //     env,
+    //     &config,
+    //     pools[0].amount,
+    //     query_token_precision(&deps.querier, &pools[0].info)?,
+    //     pools[1].amount,
+    //     query_token_precision(&deps.querier, &pools[1].info)?,
+    // )? {
+    //     config.price0_cumulative_last = price0_cumulative_new;
+    //     config.price1_cumulative_last = price1_cumulative_new;
+    //     config.block_time_last = block_time;
+    //     CONFIG.save(deps.storage, &config)?;
+    // }
+    //
+    // let messages = vec![
+    //     refund_assets[0].clone().into_msg(&deps.querier, &sender)?,
+    //     refund_assets[1].clone().into_msg(&deps.querier, &sender)?,
+    //     CosmosMsg::Wasm(WasmMsg::Execute {
+    //         contract_addr: config.pair_info.liquidity_token.to_string(),
+    //         msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
+    //         funds: vec![],
+    //     }),
+    // ];
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),
         attr("sender", sender),
         attr("withdrawn_share", amount),
-        attr(
-            "refund_assets",
-            format!("{}, {}", refund_assets[0], refund_assets[1]),
-        ),
+        attr("refund_assets", refund_assets.iter().join(", ")),
     ]))
+}
+
+/// ## Description
+/// Imbalanced withdraw liquidity from the pool. Returns a [`ContractError`] on failure,
+/// otherwise returns the number of LP tokens to burn.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **config** is an object of type [`Config`].
+///
+/// * **provided_amount** is an object of type [`Uint128`]. This is the amount of provided LP tokens to withdraw liquidity with.
+///
+/// * **assets** is array with objects of type [`Asset`]. It specifies the assets amount to withdraw.
+fn imbalanced_withdraw(
+    deps: Deps,
+    env: &Env,
+    config: &Config,
+    provided_amount: Uint128,
+    assets: &[Asset],
+) -> Result<Uint128, ContractError> {
+    check_assets(deps.api, assets)?;
+
+    if assets.len() > config.pair_info.asset_infos.len() {
+        return Err(ContractError::InvalidNumberOfAssets {});
+    }
+
+    let pools: HashMap<_, _> = config
+        .pair_info
+        .query_pools(&deps.querier, &env.contract.address)?
+        .into_iter()
+        .map(|pool| (pool.info, pool.amount))
+        .collect();
+
+    let mut assets_collection = assets
+        .into_iter()
+        .cloned()
+        .map(|asset| {
+            // Get appropriate pool
+            let mut pool = pools
+                .get(&asset.info)
+                .copied()
+                .ok_or_else(|| ContractError::InvalidAsset(asset.info.to_string()))?;
+
+            // Adjusting to the greatest precision
+            let coin_precision = get_precision(deps.storage, &asset.info)?;
+            pool = adjust_precision(pool, coin_precision, config.greatest_precision)?;
+
+            Ok((asset, pool))
+        })
+        .collect::<Result<Vec<_>, ContractError>>()?;
+
+    // If some assets are omitted then add them explicitly with 0 withdraw amount
+    pools.into_iter().for_each(|(pool_info, pool_amount)| {
+        if !assets.iter().any(|asset| asset.info == pool_info) {
+            assets_collection.push((
+                Asset {
+                    amount: Uint128::zero(),
+                    info: pool_info,
+                },
+                pool_amount,
+            ));
+        }
+    });
+
+    let n_coins = config.pair_info.asset_infos.len() as u8;
+
+    let amp = compute_current_amp(&config, &env)?.checked_mul(n_coins.into())?;
+
+    // Initial invariant (D)
+    let old_balances = assets_collection
+        .iter()
+        .map(|(_, pool)| *pool)
+        .collect_vec();
+    let init_d = compute_d(n_coins, amp, &old_balances)?;
+
+    // Invariant (D) after assets withdrawn
+    let mut new_balances = assets_collection
+        .iter()
+        .map(|(withdraw, pool)| Ok(pool.checked_sub(withdraw.amount)?))
+        .collect::<StdResult<Vec<_>>>()?;
+    let withdraw_d = compute_d(n_coins, amp, &new_balances)?;
+
+    // Get fee info from the factory
+    let fee_info = query_fee_info(
+        &deps.querier,
+        &config.factory_addr,
+        config.pair_info.pair_type.clone(),
+    )
+    .unwrap_or_default(); // There may no fee exist thus 0 is a default fee.
+
+    // total_fee_rate * N_COINS / (4 * (N_COINS - 1))
+    let fee = fee_info
+        .total_fee_rate
+        .checked_mul(Decimal::from_ratio(n_coins, 4 * (n_coins - 1)))?;
+
+    for i in 0..n_coins as usize {
+        let ideal_balance = withdraw_d.checked_multiply_ratio(old_balances[i], init_d)?;
+        let difference = if ideal_balance > new_balances[i] {
+            ideal_balance - new_balances[i]
+        } else {
+            new_balances[i] - ideal_balance
+        };
+        new_balances[i] = new_balances[i].checked_sub(fee.checked_mul_uint128(difference)?)?;
+    }
+
+    let after_fee_d = compute_d(n_coins, amp, &new_balances)?;
+
+    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+    // How many tokens do we need to burn to withdraw asked assets?
+    let burn_amount = total_share
+        .checked_multiply_ratio(init_d - after_fee_d, init_d)?
+        .checked_add(Uint128::from(1u8))?; // In case of rounding errors - make it unfavorable for the "attacker"
+
+    let burn_amount = adjust_precision(burn_amount, LP_TOKEN_PRECISION, config.greatest_precision)?;
+
+    if burn_amount > provided_amount {
+        return Err(StdError::generic_err(format!(
+            "Not enough LP tokens. You need {} LP tokens.",
+            burn_amount
+        ))
+        .into());
+    } else if burn_amount.is_zero() {
+        return Err(StdError::generic_err("Failed to calculate necessary LP tokens amount").into());
+    }
+
+    Ok(burn_amount)
 }
 
 /// ## Description
@@ -701,23 +825,19 @@ pub fn withdraw_liquidity(
 /// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to calculate underlying amounts for.
 ///
 /// * **total_share** is an object of type [`Uint128`]. This is the total amount of LP tokens currently issued by the pool.
-pub fn get_share_in_assets(pools: &[Asset], amount: Uint128, total_share: Uint128) -> [Asset; 2] {
+pub fn get_share_in_assets(pools: &[Asset], amount: Uint128, total_share: Uint128) -> Vec<Asset> {
     let mut share_ratio = Decimal::zero();
     if !total_share.is_zero() {
         share_ratio = Decimal::from_ratio(amount, total_share);
     }
 
-    // TODO: support multiple assets
-    [
-        Asset {
-            info: pools[0].info.clone(),
-            amount: pools[0].amount * share_ratio,
-        },
-        Asset {
-            info: pools[1].info.clone(),
-            amount: pools[1].amount * share_ratio,
-        },
-    ]
+    pools
+        .iter()
+        .map(|pool| Asset {
+            info: pool.info.clone(),
+            amount: pool.amount * share_ratio,
+        })
+        .collect()
 }
 
 /// ## Description
@@ -1026,7 +1146,7 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens for which we calculate associated amounts of assets.
-pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<[Asset; 2]> {
+pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
     let config = CONFIG.load(deps.storage)?;
     let (pools, total_share) = pool_info(deps.querier, &config)?;
     let refund_assets = get_share_in_assets(&pools, amount, total_share);

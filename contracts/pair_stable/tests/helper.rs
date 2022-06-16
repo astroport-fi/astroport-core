@@ -8,7 +8,7 @@ use derivative::Derivative;
 use itertools::Itertools;
 
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
-use astroport::pair::{ExecuteMsg, InstantiateMsg, QueryMsg, StablePoolParams};
+use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StablePoolParams};
 use astroport::querier::NATIVE_TOKEN_PRECISION;
 use astroport_pair_stable::contract::{execute, instantiate, query, reply};
 
@@ -163,6 +163,22 @@ impl Helper {
             .execute_contract(sender.clone(), self.pair_addr.clone(), &msg, &funds)
     }
 
+    pub fn withdraw_liquidity(
+        &mut self,
+        sender: &Addr,
+        amount: u128,
+        assets: Vec<Asset>,
+    ) -> AnyResult<AppResponse> {
+        let msg = Cw20ExecuteMsg::Send {
+            contract: self.pair_addr.to_string(),
+            amount: Uint128::from(amount),
+            msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets }).unwrap(),
+        };
+
+        self.app
+            .execute_contract(sender.clone(), self.lp_token.clone(), &msg, &[])
+    }
+
     fn init_token(
         app: &mut App,
         token_code: u64,
@@ -192,7 +208,7 @@ impl Helper {
         .unwrap()
     }
 
-    pub fn token_balance(&self, token_addr: &Addr, user: &Addr) -> Uint128 {
+    pub fn token_balance(&self, token_addr: &Addr, user: &Addr) -> u128 {
         let resp: BalanceResponse = self
             .app
             .wrap()
@@ -204,15 +220,19 @@ impl Helper {
             )
             .unwrap();
 
-        resp.balance
+        resp.balance.u128()
     }
 
-    pub fn coin_balance(&self, coin: &TestCoin, user: &Addr) -> Uint128 {
+    pub fn coin_balance(&self, coin: &TestCoin, user: &Addr) -> u128 {
         match &self.assets[coin] {
             AssetInfo::Token { contract_addr } => self.token_balance(contract_addr, user),
-            AssetInfo::NativeToken { denom } => {
-                self.app.wrap().query_balance(user, denom).unwrap().amount
-            }
+            AssetInfo::NativeToken { denom } => self
+                .app
+                .wrap()
+                .query_balance(user, denom)
+                .unwrap()
+                .amount
+                .u128(),
         }
     }
 
