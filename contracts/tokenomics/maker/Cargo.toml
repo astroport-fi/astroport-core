@@ -36,5 +36,5 @@ astroport-token = {path = "../../token"}
 astroport-factory = {path = "../../factory"}
 astroport-pair = {path = "../../pair"}
 cw-multi-test = "0.13"
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/main-terra2"  }
-astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/main-terra2"  }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main"  }
+astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main"  }

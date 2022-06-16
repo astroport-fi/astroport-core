@@ -30,7 +30,7 @@ cw20 = "0.13"
 astroport = { path = "../../../packages/astroport", default-features = false }
 
 [dev-dependencies]
-cosmwasm-schema = { version = "1.0.0" }
+cosmwasm-schema = { version = "1.0" }
 astroport-token = {path = "../../token" }
 astroport-factory = {path = "../../factory" }
 astroport-pair = {path = "../../pair" }
