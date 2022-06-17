@@ -48,10 +48,15 @@ pub(crate) fn select_pools(
     config: &Config,
     offer_asset_info: &AssetInfo,
     ask_asset_info: Option<AssetInfo>,
-    mut pools: Vec<Asset>,
+    pools: &[Asset],
 ) -> Result<(Asset, Asset), ContractError> {
+    let mut pools = pools.to_vec();
     if config.pair_info.asset_infos.len() != 2 {
         let ask_asset_info = ask_asset_info.ok_or(ContractError::AskAssetMissed {})?;
+        if ask_asset_info.eq(&offer_asset_info) {
+            return Err(ContractError::SameAssets {});
+        }
+        // Keep only offer and ask assets
         pools.retain(|pool| pool.info == *offer_asset_info || pool.info == ask_asset_info);
     }
 

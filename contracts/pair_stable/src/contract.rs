@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::math::{
-    calc_ask_amount, calc_offer_amount, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE,
+    calc_ask_amount, calc_offer_amount, calc_y, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE,
     MIN_AMP_CHANGING_TIME,
 };
 use crate::state::{get_precision, store_precisions, Config, CONFIG};
@@ -431,14 +431,14 @@ pub fn provide_liquidity(
         .iter()
         .map(|(_, pool)| *pool)
         .collect_vec();
-    let init_d = compute_d(n_coins, amp, &old_balances)?;
+    let init_d = compute_d(amp, &old_balances)?;
 
     // Invariant (D) after deposit added
     let mut new_balances = assets_collection
         .iter()
         .map(|(deposit, pool)| Ok(pool.checked_add(deposit.amount)?))
         .collect::<StdResult<Vec<_>>>()?;
-    let deposit_d = compute_d(n_coins, amp, &new_balances)?;
+    let deposit_d = compute_d(amp, &new_balances)?;
 
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
     let mint_amount = if total_share.is_zero() {
@@ -468,7 +468,7 @@ pub fn provide_liquidity(
             new_balances[i] = new_balances[i].checked_sub(fee.checked_mul_uint128(difference)?)?;
         }
 
-        let after_fee_d = compute_d(n_coins, amp, &new_balances)?;
+        let after_fee_d = compute_d(amp, &new_balances)?;
 
         total_share.checked_multiply_ratio(after_fee_d - init_d, init_d)?
     };
@@ -696,14 +696,14 @@ fn imbalanced_withdraw(
         .iter()
         .map(|(_, pool)| *pool)
         .collect_vec();
-    let init_d = compute_d(n_coins, amp, &old_balances)?;
+    let init_d = compute_d(amp, &old_balances)?;
 
     // Invariant (D) after assets withdrawn
     let mut new_balances = assets_collection
         .iter()
         .map(|(withdraw, pool)| Ok(pool.checked_sub(withdraw.amount)?))
         .collect::<StdResult<Vec<_>>>()?;
-    let withdraw_d = compute_d(n_coins, amp, &new_balances)?;
+    let withdraw_d = compute_d(amp, &new_balances)?;
 
     // Get fee info from the factory
     let fee_info = query_fee_info(
@@ -728,7 +728,7 @@ fn imbalanced_withdraw(
         new_balances[i] = new_balances[i].checked_sub(fee.checked_mul_uint128(difference)?)?;
     }
 
-    let after_fee_d = compute_d(n_coins, amp, &new_balances)?;
+    let after_fee_d = compute_d(amp, &new_balances)?;
 
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
     // How many tokens do we need to burn to withdraw asked assets?
@@ -799,64 +799,92 @@ pub fn swap(
         })
         .collect::<StdResult<Vec<_>>>()?;
 
-    let (offer_pool, ask_pool) = select_pools(&config, &offer_asset.info, ask_asset_info, pools)?;
+    let (offer_pool, ask_pool) = select_pools(&config, &offer_asset.info, ask_asset_info, &pools)?;
 
     // Check if the liquidity is non-zero
     is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
-    // Get fee info from the factory
-    let fee_info = query_fee_info(
-        &deps.querier,
-        &config.factory_addr,
-        config.pair_info.pair_type.clone(),
-    )?;
+    let pools = pools
+        .into_iter()
+        .map(|pool| {
+            let token_precision = query_token_precision(&deps.querier, &pool.info)?;
+            Ok(Asset {
+                amount: adjust_precision(pool.amount, token_precision, config.greatest_precision)?,
+                ..pool
+            })
+        })
+        .collect::<StdResult<Vec<_>>>()?;
 
-    let offer_amount = offer_asset.amount;
+    let token_precision = query_token_precision(&deps.querier, &offer_asset.info)?;
 
-    let SwapResult {
-        return_amount,
-        spread_amount,
-        commission_amount,
-    } = compute_swap(
-        deps.querier,
-        &offer_pool,
-        &ask_pool,
-        offer_amount,
-        fee_info.total_fee_rate,
+    let new_ask_pool = calc_y(
+        &offer_asset.info,
+        &ask_pool.info,
+        adjust_precision(
+            offer_asset.amount,
+            token_precision,
+            config.greatest_precision,
+        )?,
+        &pools,
         compute_current_amp(&config, &env)?,
     )?;
 
-    // Check the max spread limit (if it was specified)
-    assert_max_spread(
-        belief_price,
-        max_spread,
-        offer_amount,
-        return_amount + commission_amount,
-        spread_amount,
-    )?;
+    let token_precision = query_token_precision(&deps.querier, &ask_pool.info)?;
+    let new_ask_pool = adjust_precision(new_ask_pool, config.greatest_precision, token_precision)?;
+    let return_amount = ask_pool.amount.checked_sub(new_ask_pool)?;
 
-    // Compute the tax for the ask asset
-    let return_asset = Asset {
-        info: ask_pool.info.clone(),
-        amount: return_amount,
-    };
+    // // Get fee info from the factory
+    // let fee_info = query_fee_info(
+    //     &deps.querier,
+    //     &config.factory_addr,
+    //     config.pair_info.pair_type.clone(),
+    // )?;
+    //
+    // let offer_amount = offer_asset.amount;
+    //
+    // let SwapResult {
+    //     return_amount,
+    //     spread_amount,
+    //     commission_amount,
+    // } = compute_swap(
+    //     deps.querier,
+    //     &offer_pool,
+    //     &ask_pool,
+    //     offer_asset.amount,
+    //     fee_info.total_fee_rate,
+    //     compute_current_amp(&config, &env)?,
+    // )?;
 
-    let tax_amount = return_asset.compute_tax(&deps.querier)?;
+    // // Check the max spread limit (if it was specified)
+    // assert_max_spread(
+    //     belief_price,
+    //     max_spread,
+    //     offer_amount,
+    //     return_amount + commission_amount,
+    //     spread_amount,
+    // )?;
+
+    let spread_amount = Uint128::zero();
+    let commission_amount = Uint128::zero();
 
     let receiver = to.unwrap_or_else(|| sender.clone());
 
-    let mut messages = vec![return_asset.into_msg(&deps.querier, &receiver)?];
+    let mut messages = vec![Asset {
+        info: ask_pool.info.clone(),
+        amount: return_amount,
+    }
+    .into_msg(&deps.querier, &receiver)?];
 
     // Compute the Maker fee
     let mut maker_fee_amount = Uint128::zero();
-    if let Some(fee_address) = fee_info.fee_address {
-        if let Some(f) =
-            calculate_maker_fee(&ask_pool.info, commission_amount, fee_info.maker_fee_rate)
-        {
-            maker_fee_amount = f.amount;
-            messages.push(f.into_msg(&deps.querier, fee_address)?);
-        }
-    }
+    // if let Some(fee_address) = fee_info.fee_address {
+    //     if let Some(f) =
+    //         calculate_maker_fee(&ask_pool.info, commission_amount, fee_info.maker_fee_rate)
+    //     {
+    //         maker_fee_amount = f.amount;
+    //         messages.push(f.into_msg(&deps.querier, fee_address)?);
+    //     }
+    // }
 
     /* TODO: support multiple assets
     // Accumulate prices for the assets in the pool
@@ -886,9 +914,8 @@ pub fn swap(
             attr("receiver", receiver),
             attr("offer_asset", offer_asset.info.to_string()),
             attr("ask_asset", ask_pool.info.to_string()),
-            attr("offer_amount", offer_amount),
+            attr("offer_amount", offer_asset.amount),
             attr("return_amount", return_amount),
-            attr("tax_amount", tax_amount),
             attr("spread_amount", spread_amount),
             attr("commission_amount", commission_amount),
             attr("maker_fee_amount", maker_fee_amount),
@@ -1489,6 +1516,5 @@ fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint128> {
     let n_coins = config.pair_info.asset_infos.len() as u8;
     let leverage = amp.checked_mul(Uint64::from(n_coins))?;
 
-    compute_d(n_coins, leverage, &pools)
-        .map_err(|_| StdError::generic_err("Failed to calculate the D"))
+    compute_d(leverage, &pools).map_err(|_| StdError::generic_err("Failed to calculate the D"))
 }

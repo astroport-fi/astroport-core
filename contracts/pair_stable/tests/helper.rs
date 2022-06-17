@@ -178,6 +178,51 @@ impl Helper {
             .execute_contract(sender.clone(), self.lp_token.clone(), &msg, &[])
     }
 
+    pub fn swap(
+        &mut self,
+        sender: &Addr,
+        offer_asset: &Asset,
+        ask_asset_info: Option<AssetInfo>,
+    ) -> AnyResult<AppResponse> {
+        match &offer_asset.info {
+            AssetInfo::Token { contract_addr } => {
+                let msg = Cw20ExecuteMsg::Send {
+                    contract: self.pair_addr.to_string(),
+                    amount: offer_asset.amount,
+                    msg: to_binary(&Cw20HookMsg::Swap {
+                        ask_asset_info,
+                        belief_price: None,
+                        max_spread: None,
+                        to: None,
+                    })
+                    .unwrap(),
+                };
+
+                self.app
+                    .execute_contract(sender.clone(), contract_addr.clone(), &msg, &[])
+            }
+            AssetInfo::NativeToken { .. } => {
+                let funds = offer_asset.mock_coin_sent(
+                    &mut self.app,
+                    sender,
+                    &self.pair_addr,
+                    SendType::None,
+                );
+
+                let msg = ExecuteMsg::Swap {
+                    offer_asset: offer_asset.clone(),
+                    ask_asset_info,
+                    belief_price: None,
+                    max_spread: None,
+                    to: None,
+                };
+
+                self.app
+                    .execute_contract(sender.clone(), self.pair_addr.clone(), &msg, &funds)
+            }
+        }
+    }
+
     fn init_token(
         app: &mut App,
         token_code: u64,
@@ -251,6 +296,7 @@ impl Helper {
 pub enum SendType {
     Allowance,
     Transfer,
+    None,
 }
 
 pub trait AssetExt {
@@ -284,6 +330,7 @@ impl AssetExt for Asset {
                         recipient: spender.to_string(),
                         amount: self.amount,
                     },
+                    _ => unimplemented!(),
                 };
                 app.execute_contract(user.clone(), contract_addr.clone(), &msg, &[])
                     .unwrap();

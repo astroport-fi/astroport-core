@@ -522,7 +522,7 @@ fn withdraw_liquidity() {
     // Withdraw liquidity
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: String::from("addr0000"),
-        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
         amount: Uint128::new(100u128),
     });
 
@@ -1178,6 +1178,7 @@ fn test_accumulate_prices() {
                 init_amp_time: env.block.time.seconds(),
                 next_amp: 100 * AMP_PRECISION,
                 next_amp_time: env.block.time.seconds(),
+                greatest_precision: 6,
             },
             Uint128::new(case.x_amount),
             6,

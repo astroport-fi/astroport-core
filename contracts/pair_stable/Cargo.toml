@@ -39,7 +39,7 @@ anyhow = "1.0"
 cosmwasm-schema = "1.0.0"
 terra-cosmwasm = { version = "2.2.0" }
 proptest = "1.0.0"
-sim = { git = "https://github.com/astroport-fi/astroport-sims.git", rev = "d617510737ee2c529d3aaa7afbdac5ccb5a385c9", package = "sim" }
+sim = { git = "https://github.com/astroport-fi/astroport-sims.git", rev = "9436fa0f5e1dec0d7eb8eb03fdb233b96ba5e428", package = "sim" }
 astroport-token = {path = "../token"}
 cw-multi-test = "0.13"
 astroport-factory = {path = "../factory"}
