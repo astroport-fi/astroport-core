@@ -223,13 +223,13 @@ fn test_provide_and_withdraw_liquidity() {
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 100u128.to_string())
+        attr("share", 400u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "alice"));
     assert_eq!(
         res.events[3].attributes[3],
-        attr("amount", 100u128.to_string())
+        attr("amount", 400u128.to_string())
     );
 
     // Provide liquidity for a custom receiver
@@ -253,11 +253,11 @@ fn test_provide_and_withdraw_liquidity() {
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 50u128.to_string())
+        attr("share", 200u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "bob"));
-    assert_eq!(res.events[3].attributes[3], attr("amount", 50.to_string()));
+    assert_eq!(res.events[3].attributes[3], attr("amount", 200.to_string()));
 }
 
 fn provide_liquidity_msg(
@@ -815,7 +815,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .wrap()
         .query_wasm_smart(&pair_instance, &QueryMsg::QueryComputeD {})
         .unwrap();
-    assert_eq!(d, 9179141268560);
+    assert_eq!(d, 10093824768437);
 
     let user = Addr::unchecked("user");
 
@@ -849,7 +849,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .wrap()
         .query_wasm_smart(&pair_instance, &QueryMsg::QueryComputeD {})
         .unwrap();
-    assert_eq!(d, 9179133716854);
+    assert_eq!(d, 10093814887067);
 }
 
 #[test]

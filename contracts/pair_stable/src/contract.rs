@@ -791,22 +791,10 @@ pub fn swap(
         .pair_info
         .query_pools(&deps.querier, &env.contract.address)?
         .into_iter()
-        .map(|mut p| {
-            if p.info.equal(&offer_asset.info) {
-                p.amount = p.amount.checked_sub(offer_asset.amount)?;
+        .map(|mut pool| {
+            if pool.info.equal(&offer_asset.info) {
+                pool.amount = pool.amount.checked_sub(offer_asset.amount)?;
             }
-            Ok(p)
-        })
-        .collect::<StdResult<Vec<_>>>()?;
-
-    let (offer_pool, ask_pool) = select_pools(&config, &offer_asset.info, ask_asset_info, &pools)?;
-
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
-
-    let pools = pools
-        .into_iter()
-        .map(|pool| {
             let token_precision = query_token_precision(&deps.querier, &pool.info)?;
             Ok(Asset {
                 amount: adjust_precision(pool.amount, token_precision, config.greatest_precision)?,
@@ -814,6 +802,11 @@ pub fn swap(
             })
         })
         .collect::<StdResult<Vec<_>>>()?;
+
+    let (offer_pool, ask_pool) = select_pools(&config, &offer_asset.info, ask_asset_info, &pools)?;
+
+    // Check if the liquidity is non-zero
+    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
     let token_precision = query_token_precision(&deps.querier, &offer_asset.info)?;
 
@@ -855,16 +848,17 @@ pub fn swap(
     //     compute_current_amp(&config, &env)?,
     // )?;
 
-    // // Check the max spread limit (if it was specified)
-    // assert_max_spread(
-    //     belief_price,
-    //     max_spread,
-    //     offer_amount,
-    //     return_amount + commission_amount,
-    //     spread_amount,
-    // )?;
+    let spread_amount = offer_asset.amount.saturating_sub(return_amount);
 
-    let spread_amount = Uint128::zero();
+    // Check the max spread limit (if it was specified)
+    assert_max_spread(
+        belief_price,
+        max_spread,
+        offer_asset.amount,
+        return_amount,
+        spread_amount,
+    )?;
+
     let commission_amount = Uint128::zero();
 
     let receiver = to.unwrap_or_else(|| sender.clone());
@@ -1337,6 +1331,10 @@ pub fn assert_max_spread(
         return Err(ContractError::AllowedSpreadAssertion {});
     }
 
+    dbg!(
+        max_spread.to_string(),
+        Decimal::from_ratio(spread_amount, return_amount + spread_amount).to_string()
+    );
     if let Some(belief_price) = belief_price {
         let expected_return = offer_amount
             * belief_price.inv().ok_or_else(|| {

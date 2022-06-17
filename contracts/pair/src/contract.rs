@@ -287,7 +287,7 @@ pub fn receive_cw20(
                 to_addr,
             )
         }
-        Ok(Cw20HookMsg::WithdrawLiquidity {}) => {
+        Ok(Cw20HookMsg::WithdrawLiquidity { .. }) => {
             let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
             withdraw_liquidity(deps, env, info, sender, cw20_msg.amount)
         }

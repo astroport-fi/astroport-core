@@ -17,8 +17,9 @@ use astroport::pair::{
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut, Env, Reply,
-    ReplyOn, Response, StdError, SubMsg, SubMsgResponse, SubMsgResult, Timestamp, Uint128, WasmMsg,
+    attr, from_binary, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut, Env,
+    Reply, ReplyOn, Response, StdError, SubMsg, SubMsgResponse, SubMsgResult, Timestamp, Uint128,
+    WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
@@ -217,7 +218,7 @@ fn provide_liquidity() {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(100_000000000000000000u128),
+                    amount: Uint128::from(299_999062555660510494u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -306,6 +307,10 @@ fn provide_liquidity() {
             reply_on: ReplyOn::Never,
         }
     );
+    if let CosmosMsg::Wasm(WasmMsg::Execute { msg, .. }) = &mint_msg.msg {
+        let mmsg: Cw20ExecuteMsg = from_binary(msg).unwrap();
+        dbg!(mmsg);
+    }
     assert_eq!(
         mint_msg,
         &SubMsg {
@@ -313,7 +318,7 @@ fn provide_liquidity() {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(74_981956874579206461u128),
+                    amount: Uint128::from(74_962408838518575458u128),
                 })
                 .unwrap(),
                 funds: vec![],
