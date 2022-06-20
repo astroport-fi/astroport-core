@@ -221,7 +221,10 @@ fn check_swaps() {
     helper.give_me_money(&[offer_asset.clone()], &user);
 
     let err = helper.swap(&user, &offer_asset, None).unwrap_err();
-    assert_eq!(ContractError::AskAssetMissed {}, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::VariableAssetMissed {},
+        err.downcast().unwrap()
+    );
 
     let err = helper
         .swap(

@@ -125,7 +125,7 @@ pub(crate) fn compute_d(amp: Uint64, pools: &[Uint128]) -> StdResult<Uint128> {
 pub(crate) fn calc_y(
     from: &AssetInfo,
     to: &AssetInfo,
-    offer_amount: Uint128,
+    new_amount: Uint128,
     pools: &[Asset],
     amp: Uint64,
 ) -> StdResult<Uint128> {
@@ -139,7 +139,7 @@ pub(crate) fn calc_y(
     let mut c = d;
     for pool in pools {
         let pool_amount: Uint256 = if pool.info.eq(from) {
-            pool.amount.checked_add(offer_amount)?
+            new_amount
         } else if !pool.info.eq(to) {
             pool.amount
         } else {
@@ -217,7 +217,7 @@ mod tests {
         let y = calc_y(
             &pools[0].info,
             &pools[1].info,
-            offer_amount,
+            pools[0].amount + offer_amount,
             &pools,
             amp * Uint64::from(AMP_PRECISION),
         )

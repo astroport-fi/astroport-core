@@ -66,8 +66,8 @@ pub enum ContractError {
     #[error("The asset {0} does not belong to the pair")]
     InvalidAsset(String),
 
-    #[error("You must specify target asset")]
-    AskAssetMissed {},
+    #[error("Ask or offer asset is missed")]
+    VariableAssetMissed {},
 
     #[error("Source and target assets are the same")]
     SameAssets {},

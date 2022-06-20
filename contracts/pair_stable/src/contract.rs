@@ -803,7 +803,8 @@ pub fn swap(
         })
         .collect::<StdResult<Vec<_>>>()?;
 
-    let (offer_pool, ask_pool) = select_pools(&config, &offer_asset.info, ask_asset_info, &pools)?;
+    let (offer_pool, ask_pool) =
+        select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)?;
 
     // Check if the liquidity is non-zero
     is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
@@ -813,11 +814,12 @@ pub fn swap(
     let new_ask_pool = calc_y(
         &offer_asset.info,
         &ask_pool.info,
-        adjust_precision(
-            offer_asset.amount,
-            token_precision,
-            config.greatest_precision,
-        )?,
+        offer_pool.amount
+            + adjust_precision(
+                offer_pool.amount.checked_add(offer_asset.amount)?,
+                token_precision,
+                config.greatest_precision,
+            )?,
         &pools,
         compute_current_amp(&config, &env)?,
     )?;
@@ -1047,7 +1049,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::ReverseSimulation {
             offer_asset_info,
             ask_asset,
-        } => to_binary(&query_reverse_simulation(deps, env, ask_asset)?),
+        } => to_binary(&query_reverse_simulation(
+            deps,
+            env,
+            ask_asset,
+            offer_asset_info,
+        )?),
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
         QueryMsg::QueryComputeD {} => to_binary(&query_compute_d(deps, env)?),
@@ -1141,54 +1148,43 @@ pub fn query_simulation(
 ///
 /// * **ask_asset** is an object of type [`Asset`]. This is the asset to swap to as well as the desired
 /// amount of ask assets to receive from the swap.
+///
+/// * **offer_asset_info** is an object of type [`Option<AssetInfo>`]. This is optional field which specifies the asset to swap from.
+/// May be omitted only in case the pool length is 2.
 pub fn query_reverse_simulation(
     deps: Deps,
     env: Env,
     ask_asset: Asset,
+    offer_asset_info: Option<AssetInfo>,
 ) -> StdResult<ReverseSimulationResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let contract_addr = config.pair_info.contract_addr.clone();
-
-    let pools = config.pair_info.query_pools(&deps.querier, contract_addr)?;
-
-    let offer_pool: Asset;
-    let ask_pool: Asset;
-    if ask_asset.info.equal(&pools[0].info) {
-        ask_pool = pools[0].clone();
-        offer_pool = pools[1].clone();
-    } else if ask_asset.info.equal(&pools[1].info) {
-        ask_pool = pools[1].clone();
-        offer_pool = pools[0].clone();
-    } else {
-        return Err(StdError::generic_err(
-            "Given ask asset doesn't belong to pairs",
-        ));
-    }
-
-    // Get fee info from the factory
-    let fee_info = query_fee_info(
-        &deps.querier,
-        &config.factory_addr,
-        config.pair_info.pair_type.clone(),
-    )?;
+    let pools = config
+        .pair_info
+        .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
+    let (offer_pool, ask_pool) =
+        select_pools(offer_asset_info.as_ref(), Some(&ask_asset.info), &pools).unwrap();
 
     // Check if the liquidity is non-zero
     is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
-    let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
-        offer_pool.amount,
-        query_token_precision(&deps.querier, &offer_pool.info)?,
-        ask_pool.amount,
-        query_token_precision(&deps.querier, &ask_pool.info)?,
-        ask_asset.amount,
-        fee_info.total_fee_rate,
+    let token_precision = get_precision(deps.storage, &ask_pool.info)?;
+
+    let offer_amount = calc_y(
+        &offer_pool.info,
+        &ask_pool.info,
+        adjust_precision(
+            offer_pool.amount - ask_asset.amount,
+            token_precision,
+            config.greatest_precision,
+        )?,
+        &pools,
         compute_current_amp(&config, &env)?,
-    )?;
+    )? - ask_pool.amount;
 
     Ok(ReverseSimulationResponse {
         offer_amount,
-        spread_amount,
-        commission_amount,
+        spread_amount: Uint128::zero(),
+        commission_amount: Uint128::zero(),
     })
 }
 

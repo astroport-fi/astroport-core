@@ -46,27 +46,50 @@ pub(crate) fn check_cw20_in_pool(config: &Config, cw20_sender: &Addr) -> Result<
 
 /// Returns: (offer_pool, ask_pool)
 pub(crate) fn select_pools(
-    config: &Config,
-    offer_asset_info: &AssetInfo,
-    ask_asset_info: Option<AssetInfo>,
+    offer_asset_info: Option<&AssetInfo>,
+    ask_asset_info: Option<&AssetInfo>,
     pools: &[Asset],
 ) -> Result<(Asset, Asset), ContractError> {
-    let mut pools = pools.to_vec();
-    if config.pair_info.asset_infos.len() != 2 {
-        let ask_asset_info = ask_asset_info.ok_or(ContractError::AskAssetMissed {})?;
-        if ask_asset_info.eq(&offer_asset_info) {
-            return Err(ContractError::SameAssets {});
+    if pools.len() == 2 {
+        match (offer_asset_info, ask_asset_info) {
+            (Some(offer_asset_info), _) => {
+                let (offer_ind, offer_pool) = pools
+                    .iter()
+                    .find_position(|pool| pool.info.eq(offer_asset_info))
+                    .ok_or(ContractError::AssetMismatch {})?;
+                Ok((
+                    offer_pool.clone(),
+                    pools[(offer_ind + 1) % pools.len()].clone(),
+                ))
+            }
+            (_, Some(ask_asset_info)) => {
+                let (ask_ind, ask_pool) = pools
+                    .iter()
+                    .find_position(|pool| pool.info.eq(ask_asset_info))
+                    .ok_or(ContractError::AssetMismatch {})?;
+                Ok((ask_pool.clone(), pools[(ask_ind + 1) % pools.len()].clone()))
+            }
+            _ => Err(ContractError::VariableAssetMissed {}), // Should always be unreachable
         }
-        // Keep only offer and ask assets
-        pools.retain(|pool| pool.info == *offer_asset_info || pool.info == ask_asset_info);
-    }
-
-    if *offer_asset_info == pools[0].info {
-        Ok((pools[0].clone(), pools[1].clone()))
-    } else if *offer_asset_info == pools[1].info {
-        Ok((pools[1].clone(), pools[0].clone()))
     } else {
-        Err(ContractError::AssetMismatch {})
+        if let (Some(offer_asset_info), Some(ask_asset_info)) = (offer_asset_info, ask_asset_info) {
+            if ask_asset_info.eq(offer_asset_info) {
+                return Err(ContractError::SameAssets {});
+            }
+
+            let offer_pool = pools
+                .iter()
+                .find(|pool| pool.info.eq(offer_asset_info))
+                .ok_or(ContractError::AssetMismatch {})?;
+            let ask_pool = pools
+                .iter()
+                .find(|pool| pool.info.eq(ask_asset_info))
+                .ok_or(ContractError::AssetMismatch {})?;
+
+            Ok((offer_pool.clone(), ask_pool.clone()))
+        } else {
+            Err(ContractError::VariableAssetMissed {}) // Should always be unreachable
+        }
     }
 }
 
@@ -250,7 +273,8 @@ pub(crate) fn compute_swap(
     ask_asset_info: Option<AssetInfo>,
     pools: &[Asset],
 ) -> Result<SwapResult, ContractError> {
-    let (offer_pool, ask_pool) = select_pools(&config, &offer_asset.info, ask_asset_info, &pools)?;
+    let (offer_pool, ask_pool) =
+        select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)?;
 
     // Check if the liquidity is non-zero
     is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
@@ -261,7 +285,7 @@ pub(crate) fn compute_swap(
         &offer_asset.info,
         &ask_pool.info,
         adjust_precision(
-            offer_asset.amount,
+            offer_pool.amount.checked_add(offer_asset.amount)?,
             token_precision,
             config.greatest_precision,
         )?,

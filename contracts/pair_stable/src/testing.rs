@@ -1,6 +1,6 @@
 use crate::contract::{
-    accumulate_prices, assert_max_spread, execute, instantiate, query_pool, query_share,
-    query_simulation, reply,
+    accumulate_prices, assert_max_spread, execute, instantiate, query_pool,
+    query_reverse_simulation, query_share, query_simulation, reply,
 };
 use crate::error::ContractError;
 use crate::math::AMP_PRECISION;
@@ -1235,76 +1235,76 @@ proptest! {
     ) {
         prop_assume!(amount_in < balance_in);
 
-    let offer_asset = native_asset("uusd".to_string(), Uint128::from(amount_in));
-    let ask_asset = native_asset_info("uluna".to_string());
+        let offer_asset = native_asset("uusd".to_string(), Uint128::from(amount_in));
+        let ask_asset = native_asset_info("uluna".to_string());
 
-    let msg = InstantiateMsg {
-        factory_addr: String::from("factory"),
-        asset_infos: vec![offer_asset.info.clone(), ask_asset.clone()],
-        token_code_id: 10u64,
-        init_params: Some(to_binary(&StablePoolParams { amp }).unwrap()),
-    };
+        let msg = InstantiateMsg {
+            factory_addr: String::from("factory"),
+            asset_infos: vec![offer_asset.info.clone(), ask_asset.clone()],
+            token_code_id: 10u64,
+            init_params: Some(to_binary(&StablePoolParams { amp }).unwrap()),
+        };
 
-    let env = mock_env();
-    let info = mock_info("owner", &[]);
-    let mut deps = mock_dependencies(&[coin(balance_in, "uusd"), coin(balance_out, "uluna")]);
+        let env = mock_env();
+        let info = mock_info("owner", &[]);
+        let mut deps = mock_dependencies(&[coin(balance_in, "uusd"), coin(balance_out, "uluna")]);
 
-    instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
-    let config = CONFIG.load(deps.as_ref().storage).unwrap();
-    let pools = config
-        .pair_info
-        .query_pools(&deps.as_ref().querier, &env.contract.address)
+        instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
+        let config = CONFIG.load(deps.as_ref().storage).unwrap();
+        let pools = config
+            .pair_info
+            .query_pools(&deps.as_ref().querier, &env.contract.address)
+            .unwrap();
+
+        let result = compute_swap(
+            deps.as_ref().storage,
+            &env,
+            &config,
+            &offer_asset,
+            Some(ask_asset),
+            &pools,
+        )
         .unwrap();
 
-    let result = compute_swap(
-        deps.as_ref().storage,
-        &env,
-        &config,
-        &offer_asset,
-        Some(ask_asset),
-        &pools,
-    )
-    .unwrap();
+        let model: StableSwapModel = StableSwapModel::new(amp.into(), vec![balance_in, balance_out], 2);
+        let sim_result = model.sim_exchange(0, 1, amount_in);
 
-    let model: StableSwapModel = StableSwapModel::new(amp.into(), vec![balance_in, balance_out], 2);
-    let sim_result = model.sim_exchange(0, 1, amount_in);
+        let diff = (sim_result as i128 - result.return_amount.u128() as i128).abs();
 
-    let diff = (sim_result as i128 - result.return_amount.u128() as i128).abs();
+        assert!(
+            diff <= 1,
+            "result={}, sim_result={}, amp={}, amount_in={}, balance_in={}, balance_out={}, diff={}",
+            result.return_amount,
+            sim_result,
+            amp,
+            amount_in,
+            balance_in,
+            balance_out,
+            diff
+        );
 
-    assert!(
-        diff <= 1,
-        "result={}, sim_result={}, amp={}, amount_in={}, balance_in={}, balance_out={}, diff={}",
-        result.return_amount,
-        sim_result,
-        amp,
-        amount_in,
-        balance_in,
-        balance_out,
-        diff
-    );
-
-        // TODO: deploy reverse swap simulation
-    /*    let reverse_result = calc_offer_amount(
-            balance_in.into(),
-            balance_out.into(),
-            result.into(),
-            (amp * AMP_PRECISION).into(),
-        ).unwrap().u128();
+        let reverse_result = query_reverse_simulation(
+            deps.as_ref(),
+            env.clone(),
+            native_asset("uluna".to_string(), result.return_amount),
+            None,
+        )
+        .unwrap();
 
         let amount_in_f = amount_in as f64;
-        let reverse_diff = (reverse_result as f64 - amount_in_f) / amount_in_f * 100.;
+        let reverse_diff =
+            (reverse_result.offer_amount.u128() as f64 - amount_in_f) / amount_in_f * 100.;
 
         assert!(
             reverse_diff <= 0.0001,
             "result={}, sim_result={}, amp={}, amount_out={}, balance_in={}, balance_out={}, diff(%)={}",
-            reverse_result,
+            reverse_result.offer_amount.u128(),
             amount_in,
             amp,
-            result,
+            result.return_amount.u128(),
             balance_in,
             balance_out,
             reverse_diff
         );
-    }*/
     }
 }
