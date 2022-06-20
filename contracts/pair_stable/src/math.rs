@@ -20,10 +20,10 @@ pub const AMP_PRECISION: u64 = 100;
 ///
 /// * **amp** is an object of type [`Uint64`]. This is the pool's amplification parameter.
 pub fn calc_ask_amount(
-    offer_pool: Uint128,
-    ask_pool: Uint128,
-    offer_amount: Uint128,
-    amp: Uint64,
+    _offer_pool: Uint128,
+    _ask_pool: Uint128,
+    _offer_amount: Uint128,
+    _amp: Uint64,
 ) -> StdResult<Uint128> {
     // TODO: fix calc ask amount
     // let leverage = amp.checked_mul(N_COINS.into())?;
@@ -50,10 +50,10 @@ pub fn calc_ask_amount(
 ///
 /// * **amp** is an object of type [`Uint64`]. This is the pool's amplification parameter.
 pub fn calc_offer_amount(
-    offer_pool: Uint128,
-    ask_pool: Uint128,
-    ask_amount: Uint128,
-    amp: Uint64,
+    _offer_pool: Uint128,
+    _ask_pool: Uint128,
+    _ask_amount: Uint128,
+    _amp: Uint64,
 ) -> StdResult<Uint128> {
     // TODO: fix calc offer amount
     // let leverage = amp.checked_mul(N_COINS.into())?;

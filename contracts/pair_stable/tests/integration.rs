@@ -815,7 +815,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .wrap()
         .query_wasm_smart(&pair_instance, &QueryMsg::QueryComputeD {})
         .unwrap();
-    assert_eq!(d, 9575244790837);
+    assert_eq!(d, 20000000000000);
 
     let user = Addr::unchecked("user");
 
@@ -849,7 +849,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .wrap()
         .query_wasm_smart(&pair_instance, &QueryMsg::QueryComputeD {})
         .unwrap();
-    assert_eq!(d, 9575236325028);
+    assert_eq!(d, 19999999999999);
 }
 
 // TODO: accumulate prices should be redesigned

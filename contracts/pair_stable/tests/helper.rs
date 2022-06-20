@@ -1,13 +1,16 @@
 use std::collections::HashMap;
 
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coin, to_binary, Addr, Coin, Empty, Uint128};
+use cosmwasm_std::{coin, to_binary, Addr, Coin, Empty, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
-use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StablePoolParams};
+use astroport::pair::{
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, ReverseSimulationResponse,
+    SimulationResponse, StablePoolParams,
+};
 use astroport::querier::NATIVE_TOKEN_PRECISION;
 use astroport_pair_stable::contract::{execute, instantiate, query, reply};
 
@@ -221,6 +224,34 @@ impl Helper {
                     .execute_contract(sender.clone(), self.pair_addr.clone(), &msg, &funds)
             }
         }
+    }
+
+    pub fn simulate_swap(
+        &self,
+        offer_asset: &Asset,
+        ask_asset_info: Option<AssetInfo>,
+    ) -> StdResult<SimulationResponse> {
+        self.app.wrap().query_wasm_smart(
+            &self.pair_addr,
+            &QueryMsg::Simulation {
+                offer_asset: offer_asset.clone(),
+                ask_asset_info,
+            },
+        )
+    }
+
+    pub fn simulate_reverse_swap(
+        &self,
+        ask_asset: &Asset,
+        offer_asset_info: Option<AssetInfo>,
+    ) -> StdResult<ReverseSimulationResponse> {
+        self.app.wrap().query_wasm_smart(
+            &self.pair_addr,
+            &QueryMsg::ReverseSimulation {
+                ask_asset: ask_asset.clone(),
+                offer_asset_info,
+            },
+        )
     }
 
     fn init_token(

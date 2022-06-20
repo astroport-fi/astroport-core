@@ -841,8 +841,6 @@ pub fn swap(
     //     compute_current_amp(&config, &env)?,
     // )?;
 
-    let spread_amount = offer_asset.amount.saturating_sub(return_amount);
-
     // Check the max spread limit (if it was specified)
     assert_max_spread(
         belief_price,
@@ -1099,19 +1097,28 @@ pub fn query_simulation(
     ask_asset_info: Option<AssetInfo>,
 ) -> StdResult<SimulationResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let contract_addr = config.pair_info.contract_addr.clone();
-
-    let pools = config.pair_info.query_pools(&deps.querier, contract_addr)?;
+    let pools = config
+        .pair_info
+        .query_pools(&deps.querier, &config.pair_info.contract_addr)?
+        .into_iter()
+        .map(|pool| {
+            let token_precision = query_token_precision(&deps.querier, &pool.info)?;
+            Ok(Asset {
+                amount: adjust_precision(pool.amount, token_precision, config.greatest_precision)?,
+                ..pool
+            })
+        })
+        .collect::<StdResult<Vec<_>>>()?;
 
     let (offer_pool, ask_pool) =
         select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools).unwrap();
 
     // Get fee info from factory
-    let fee_info = query_fee_info(
-        &deps.querier,
-        &config.factory_addr,
-        config.pair_info.pair_type.clone(),
-    )?;
+    // let fee_info = query_fee_info(
+    //     &deps.querier,
+    //     &config.factory_addr,
+    //     config.pair_info.pair_type.clone(),
+    // )?;
 
     let SwapResult {
         return_amount,
@@ -1155,7 +1162,16 @@ pub fn query_reverse_simulation(
     let config = CONFIG.load(deps.storage)?;
     let pools = config
         .pair_info
-        .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
+        .query_pools(&deps.querier, &config.pair_info.contract_addr)?
+        .into_iter()
+        .map(|pool| {
+            let token_precision = query_token_precision(&deps.querier, &pool.info)?;
+            Ok(Asset {
+                amount: adjust_precision(pool.amount, token_precision, config.greatest_precision)?,
+                ..pool
+            })
+        })
+        .collect::<StdResult<Vec<_>>>()?;
     let (offer_pool, ask_pool) =
         select_pools(offer_asset_info.as_ref(), Some(&ask_asset.info), &pools).unwrap();
 
@@ -1174,7 +1190,11 @@ pub fn query_reverse_simulation(
         )?,
         &pools,
         compute_current_amp(&config, &env)?,
-    )? - ask_pool.amount;
+    )?
+    .checked_sub(ask_pool.amount)?;
+
+    let token_precision = get_precision(deps.storage, &offer_pool.info)?;
+    let offer_amount = adjust_precision(offer_amount, config.greatest_precision, token_precision)?;
 
     Ok(ReverseSimulationResponse {
         offer_amount,
@@ -1230,54 +1250,6 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
             amp: Decimal::from_ratio(compute_current_amp(&config, &env)?, AMP_PRECISION),
         })?),
     })
-}
-
-/// ## Description
-/// Returns an amount of offer assets for a specified amount of ask assets.
-/// ## Params
-/// * **offer_pool** is an object of type [`Uint128`]. This is the total amount of offer assets in the pool.
-///
-/// * **offer_precision** is an object of type [`u8`]. This is the token precision used for the offer amount.
-///
-/// * **ask_pool** is an object of type [`Uint128`]. This is the total amount of ask assets in the pool.
-///
-/// * **ask_precision** is an object of type [`u8`]. This is the token precision used for the ask amount.
-///
-/// * **ask_amount** is an object of type [`Uint128`]. This is the amount of ask assets to swap to.
-///
-/// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
-fn compute_offer_amount(
-    offer_pool: Uint128,
-    offer_precision: u8,
-    ask_pool: Uint128,
-    ask_precision: u8,
-    ask_amount: Uint128,
-    commission_rate: Decimal,
-    amp: Uint64,
-) -> StdResult<(Uint128, Uint128, Uint128)> {
-    // ask => offer
-
-    let greater_precision = offer_precision.max(ask_precision);
-    let offer_pool = adjust_precision(offer_pool, offer_precision, greater_precision)?;
-    let ask_pool = adjust_precision(ask_pool, ask_precision, greater_precision)?;
-    let ask_amount = adjust_precision(ask_amount, ask_precision, greater_precision)?;
-
-    let one_minus_commission = Decimal::one() - commission_rate;
-    let inv_one_minus_commission = Decimal::one() / one_minus_commission;
-    let before_commission_deduction = ask_amount * inv_one_minus_commission;
-
-    let offer_amount = calc_offer_amount(offer_pool, ask_pool, before_commission_deduction, amp)?;
-
-    // We assume the assets should stay in a 1:1 ratio, so the true exchange rate is 1. Any exchange rate < 1 could be considered the spread
-    let spread_amount = offer_amount.saturating_sub(before_commission_deduction);
-
-    let commission_amount = before_commission_deduction * commission_rate;
-
-    let offer_amount = adjust_precision(offer_amount, greater_precision, offer_precision)?;
-    let spread_amount = adjust_precision(spread_amount, greater_precision, ask_precision)?;
-    let commission_amount = adjust_precision(commission_amount, greater_precision, ask_precision)?;
-
-    Ok((offer_amount, spread_amount, commission_amount))
 }
 
 /// ## Description
@@ -1484,10 +1456,13 @@ fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint128> {
         .pair_info
         .query_pools(&deps.querier, env.contract.address)?
         .into_iter()
-        .map(|p| p.amount)
-        .collect_vec();
+        .map(|pool| {
+            let token_precision = query_token_precision(&deps.querier, &pool.info)?;
+            adjust_precision(pool.amount, token_precision, config.greatest_precision)
+        })
+        .collect::<StdResult<Vec<_>>>()?;
     let n_coins = config.pair_info.asset_infos.len() as u8;
-    let leverage = amp.checked_mul(Uint64::from(n_coins))?;
+    let leverage = amp.checked_mul(n_coins.into())?;
 
     compute_d(leverage, &pools).map_err(|_| StdError::generic_err("Failed to calculate the D"))
 }
