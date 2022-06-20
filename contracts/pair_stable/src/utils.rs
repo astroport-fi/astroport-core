@@ -270,12 +270,10 @@ pub(crate) fn compute_swap(
     env: &Env,
     config: &Config,
     offer_asset: &Asset,
-    ask_asset_info: Option<AssetInfo>,
+    offer_pool: &Asset,
+    ask_pool: &Asset,
     pools: &[Asset],
 ) -> Result<SwapResult, ContractError> {
-    let (offer_pool, ask_pool) =
-        select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)?;
-
     // Check if the liquidity is non-zero
     is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 

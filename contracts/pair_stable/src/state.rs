@@ -36,7 +36,7 @@ pub const CONFIG: Item<Config> = Item::new("config");
 const PRECISIONS: Map<String, u8> = Map::new("precisions");
 
 /// ## Description
-/// Store all token precisions and return greatest one.
+/// Store all token precisions and return the greatest one.
 pub(crate) fn store_precisions(deps: DepsMut, asset_infos: &[AssetInfo]) -> StdResult<u8> {
     let mut max = 0u8;
 

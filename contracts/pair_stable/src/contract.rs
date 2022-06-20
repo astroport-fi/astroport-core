@@ -806,27 +806,18 @@ pub fn swap(
     let (offer_pool, ask_pool) =
         select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)?;
 
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
-
-    let token_precision = query_token_precision(&deps.querier, &offer_asset.info)?;
-
-    let new_ask_pool = calc_y(
-        &offer_asset.info,
-        &ask_pool.info,
-        offer_pool.amount
-            + adjust_precision(
-                offer_pool.amount.checked_add(offer_asset.amount)?,
-                token_precision,
-                config.greatest_precision,
-            )?,
+    let SwapResult {
+        return_amount,
+        spread_amount,
+    } = compute_swap(
+        deps.storage,
+        &env,
+        &config,
+        &offer_asset,
+        &offer_pool,
+        &ask_pool,
         &pools,
-        compute_current_amp(&config, &env)?,
     )?;
-
-    let token_precision = query_token_precision(&deps.querier, &ask_pool.info)?;
-    let new_ask_pool = adjust_precision(new_ask_pool, config.greatest_precision, token_precision)?;
-    let return_amount = ask_pool.amount.checked_sub(new_ask_pool)?;
 
     // // Get fee info from the factory
     // let fee_info = query_fee_info(
@@ -1112,6 +1103,9 @@ pub fn query_simulation(
 
     let pools = config.pair_info.query_pools(&deps.querier, contract_addr)?;
 
+    let (offer_pool, ask_pool) =
+        select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools).unwrap();
+
     // Get fee info from factory
     let fee_info = query_fee_info(
         &deps.querier,
@@ -1127,7 +1121,8 @@ pub fn query_simulation(
         &env,
         &config,
         &offer_asset,
-        ask_asset_info,
+        &offer_pool,
+        &ask_pool,
         &pools,
     )
     .map_err(|_| StdError::generic_err("Swap simulation error"))?;

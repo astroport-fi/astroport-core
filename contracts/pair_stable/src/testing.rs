@@ -1220,7 +1220,7 @@ fn mock_env_with_block_time(time: u64) -> Env {
     env
 }
 
-use crate::utils::compute_swap;
+use crate::utils::{compute_swap, select_pools};
 use astroport::factory::PairType;
 use proptest::prelude::*;
 use sim::StableSwapModel;
@@ -1255,13 +1255,16 @@ proptest! {
             .pair_info
             .query_pools(&deps.as_ref().querier, &env.contract.address)
             .unwrap();
+        let (offer_pool, ask_pool) =
+        select_pools(Some(&offer_asset.info), None, &pools).unwrap();
 
         let result = compute_swap(
             deps.as_ref().storage,
             &env,
             &config,
             &offer_asset,
-            Some(ask_asset),
+            &offer_pool,
+            &ask_pool,
             &pools,
         )
         .unwrap();
