@@ -87,9 +87,10 @@ pub(crate) fn compute_d(amp: Uint64, pools: &[Uint128]) -> StdResult<Uint128> {
     if sum_x.is_zero() {
         Ok(Uint128::zero())
     } else {
-        let n_coins: Uint256 = (pools.len() as u8).into();
+        let n_coins = pools.len() as u8;
+        let ann: Uint256 = (amp.checked_mul(n_coins.into())?.u64() / AMP_PRECISION).into();
+        let n_coins = Uint256::from(n_coins);
         let mut d = sum_x;
-        let ann = Uint256::from(amp).checked_mul(n_coins)?;
         let ann_sum_x = ann * sum_x;
         for _ in 0..ITERATIONS {
             // loop: D_P = D_P * D / (_x * N_COINS + 1)
@@ -105,8 +106,14 @@ pub(crate) fn compute_d(amp: Uint64, pools: &[Uint128]) -> StdResult<Uint128> {
             let d_prev = d;
             d = (ann_sum_x + d_p * n_coins) * d
                 / ((ann - Uint256::from(1u8)) * d + (n_coins + Uint256::from(1u8)) * d_p);
-            if d == d_prev {
-                return Ok(d.try_into()?);
+            if d >= d_prev {
+                if d - d_prev <= Uint256::from(1u8) {
+                    return Ok(d.try_into()?);
+                }
+            } else if d < d_prev {
+                if d_prev - d <= Uint256::from(1u8) {
+                    return Ok(d.try_into()?);
+                }
             }
         }
 
@@ -122,12 +129,14 @@ pub(crate) fn calc_y(
     pools: &[Asset],
     amp: Uint64,
 ) -> StdResult<Uint128> {
-    let n_coins: Uint256 = (pools.len() as u8).into();
+    let n_coins = pools.len() as u8;
+    let ann: Uint256 = (amp.checked_mul(n_coins.into())?.u64() / AMP_PRECISION).into();
+    let n_coins = Uint256::from(n_coins);
+
     let mut sum = Uint256::zero();
     let pool_values = pools.iter().map(|asset| asset.amount).collect_vec();
     let d: Uint256 = compute_d(amp, &pool_values)?.into();
     let mut c = d;
-    let ann = Uint256::from(amp).checked_mul(n_coins)?;
     for pool in pools {
         let pool_amount: Uint256 = if pool.info.eq(from) {
             pool.amount.checked_add(offer_amount)?
@@ -146,8 +155,14 @@ pub(crate) fn calc_y(
     for _ in 0..ITERATIONS {
         let y_prev = y;
         y = (y * y + c) / (Uint256::from(2u8) * y + b - d);
-        if y == y_prev {
-            return Ok(y.try_into()?);
+        if y >= y_prev {
+            if y - y_prev <= Uint256::from(1u8) {
+                return Ok(y.try_into()?);
+            }
+        } else if y < y_prev {
+            if y_prev - y <= Uint256::from(1u8) {
+                return Ok(y.try_into()?);
+            }
         }
     }
 
@@ -199,11 +214,16 @@ mod tests {
 
         let offer_amount = Uint128::from(100_000000u128);
         let sim_y = model.sim_y(0, 1, pool2.u128() + offer_amount.u128());
-        let y = calc_y(&pools[0].info, &pools[1].info, offer_amount, &pools, amp)
-            .unwrap()
-            .u128();
+        let y = calc_y(
+            &pools[0].info,
+            &pools[1].info,
+            offer_amount,
+            &pools,
+            amp * Uint64::from(AMP_PRECISION),
+        )
+        .unwrap()
+        .u128();
 
-        dbg!(sim_y);
         assert_eq!(sim_y, y);
     }
 }

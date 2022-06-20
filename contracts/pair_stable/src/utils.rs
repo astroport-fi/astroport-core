@@ -1,17 +1,18 @@
+use std::cmp::Ordering;
+
 use cosmwasm_std::{
     to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Env, QuerierWrapper, StdResult,
-    Uint128, Uint64,
+    Storage, Uint128, Uint64,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
-use std::cmp::Ordering;
 
-use astroport::asset::{Asset, AssetInfo};
+use astroport::asset::{is_non_zero_liquidity, Asset, AssetInfo};
 use astroport::querier::query_factory_config;
 
 use crate::error::ContractError;
-use crate::math::calc_ask_amount;
-use crate::state::Config;
+use crate::math::calc_y;
+use crate::state::{get_precision, Config};
 
 pub(crate) fn check_asset_infos(
     api: &dyn Api,
@@ -225,12 +226,13 @@ pub(crate) fn get_share_in_assets(
 pub(crate) struct SwapResult {
     pub return_amount: Uint128,
     pub spread_amount: Uint128,
-    pub commission_amount: Uint128,
 }
 
 /// ## Description
 /// Returns the result of a swap.
 /// ## Params
+/// * **storage** is an object of type [`Storage`].
+///
 /// * **offer_pool** is an object of type [`Uint128`]. This is the total amount of offer assets in the pool.
 ///
 /// * **ask_pool** is an object of type [`Uint128`]. This is the total amount of ask assets in the pool.
@@ -241,38 +243,62 @@ pub(crate) struct SwapResult {
 ///
 /// * **amp** is an object of type [`Uint64`]. This is the pool amplification used to calculate the swap result.
 pub(crate) fn compute_swap(
-    querier: QuerierWrapper,
-    offer_pool: &Asset,
-    ask_pool: &Asset,
-    offer_amount: Uint128,
-    commission_rate: Decimal,
-    amp: Uint64,
-) -> StdResult<SwapResult> {
-    let offer_precision = offer_pool.info.query_token_precision(&querier)?;
-    let ask_precision = ask_pool.info.query_token_precision(&querier)?;
-    let greatest_precision = offer_precision.max(ask_precision);
+    storage: &dyn Storage,
+    env: &Env,
+    config: &Config,
+    offer_asset: &Asset,
+    ask_asset_info: Option<AssetInfo>,
+    pools: &[Asset],
+) -> Result<SwapResult, ContractError> {
+    let (offer_pool, ask_pool) = select_pools(&config, &offer_asset.info, ask_asset_info, &pools)?;
 
-    let offer_pool = adjust_precision(offer_pool.amount, offer_precision, greatest_precision)?;
-    let ask_pool = adjust_precision(ask_pool.amount, ask_precision, greatest_precision)?;
-    let offer_amount = adjust_precision(offer_amount, offer_precision, greatest_precision)?;
+    // Check if the liquidity is non-zero
+    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
-    let return_amount = calc_ask_amount(offer_pool, ask_pool, offer_amount, amp)?;
+    let token_precision = get_precision(storage, &offer_asset.info)?;
 
-    // We assume the assets should stay in a 1:1 ratio, so the true exchange rate is 1. So any exchange rate <1 could be considered the spread
-    let spread_amount = offer_amount.saturating_sub(return_amount);
+    let new_ask_pool = calc_y(
+        &offer_asset.info,
+        &ask_pool.info,
+        adjust_precision(
+            offer_asset.amount,
+            token_precision,
+            config.greatest_precision,
+        )?,
+        &pools,
+        compute_current_amp(&config, &env)?,
+    )?;
 
-    let commission_amount: Uint128 = return_amount * commission_rate;
+    let token_precision = get_precision(storage, &ask_pool.info)?;
+    let new_ask_pool = adjust_precision(new_ask_pool, config.greatest_precision, token_precision)?;
+    let return_amount = ask_pool.amount.checked_sub(new_ask_pool)?;
 
-    // The commission will be absorbed by the pool
-    let return_amount: Uint128 = return_amount.checked_sub(commission_amount)?;
+    // // Get fee info from the factory
+    // let fee_info = query_fee_info(
+    //     &deps.querier,
+    //     &config.factory_addr,
+    //     config.pair_info.pair_type.clone(),
+    // )?;
+    //
+    // let offer_amount = offer_asset.amount;
+    //
+    // let SwapResult {
+    //     return_amount,
+    //     spread_amount,
+    //     commission_amount,
+    // } = compute_swap(
+    //     deps.querier,
+    //     &offer_pool,
+    //     &ask_pool,
+    //     offer_asset.amount,
+    //     fee_info.total_fee_rate,
+    //     compute_current_amp(&config, &env)?,
+    // )?;
 
-    let return_amount = adjust_precision(return_amount, greatest_precision, ask_precision)?;
-    let spread_amount = adjust_precision(spread_amount, greatest_precision, ask_precision)?;
-    let commission_amount = adjust_precision(commission_amount, greatest_precision, ask_precision)?;
+    let spread_amount = offer_asset.amount.saturating_sub(return_amount);
 
     Ok(SwapResult {
         return_amount,
         spread_amount,
-        commission_amount,
     })
 }

@@ -1043,7 +1043,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Simulation {
             offer_asset,
             ask_asset_info,
-        } => to_binary(&query_simulation(deps, env, offer_asset)?),
+        } => to_binary(&query_simulation(deps, env, offer_asset, ask_asset_info)?),
         QueryMsg::ReverseSimulation {
             offer_asset_info,
             ask_asset,
@@ -1094,25 +1094,16 @@ pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
 /// * **env** is an object of type [`Env`].
 ///
 /// * **offer_asset** is an object of type [`Asset`]. This is the asset to swap as well as an amount of the said asset.
-pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<SimulationResponse> {
+pub fn query_simulation(
+    deps: Deps,
+    env: Env,
+    offer_asset: Asset,
+    ask_asset_info: Option<AssetInfo>,
+) -> StdResult<SimulationResponse> {
     let config = CONFIG.load(deps.storage)?;
     let contract_addr = config.pair_info.contract_addr.clone();
 
     let pools = config.pair_info.query_pools(&deps.querier, contract_addr)?;
-
-    let offer_pool: Asset;
-    let ask_pool: Asset;
-    if offer_asset.info.equal(&pools[0].info) {
-        offer_pool = pools[0].clone();
-        ask_pool = pools[1].clone();
-    } else if offer_asset.info.equal(&pools[1].info) {
-        offer_pool = pools[1].clone();
-        ask_pool = pools[0].clone();
-    } else {
-        return Err(StdError::generic_err(
-            "Given offer asset doesn't belong to pairs",
-        ));
-    }
 
     // Get fee info from factory
     let fee_info = query_fee_info(
@@ -1121,26 +1112,23 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
         config.pair_info.pair_type.clone(),
     )?;
 
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
-
     let SwapResult {
         return_amount,
         spread_amount,
-        commission_amount,
     } = compute_swap(
-        deps.querier,
-        &offer_pool,
-        &ask_pool,
-        offer_asset.amount,
-        fee_info.total_fee_rate,
-        compute_current_amp(&config, &env)?,
-    )?;
+        deps.storage,
+        &env,
+        &config,
+        &offer_asset,
+        ask_asset_info,
+        &pools,
+    )
+    .map_err(|_| StdError::generic_err("Swap simulation error"))?;
 
     Ok(SimulationResponse {
         return_amount,
         spread_amount,
-        commission_amount,
+        commission_amount: Uint128::zero(),
     })
 }
 
@@ -1331,10 +1319,6 @@ pub fn assert_max_spread(
         return Err(ContractError::AllowedSpreadAssertion {});
     }
 
-    dbg!(
-        max_spread.to_string(),
-        Decimal::from_ratio(spread_amount, return_amount + spread_amount).to_string()
-    );
     if let Some(belief_price) = belief_price {
         let expected_return = offer_amount
             * belief_price.inv().ok_or_else(|| {
