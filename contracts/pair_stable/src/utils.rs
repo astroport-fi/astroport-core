@@ -278,15 +278,16 @@ pub(crate) fn compute_swap(
     is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
     let token_precision = get_precision(storage, &offer_asset.info)?;
+    let offer_amount = adjust_precision(
+        offer_asset.amount,
+        token_precision,
+        config.greatest_precision,
+    )?;
 
     let new_ask_pool = calc_y(
         &offer_asset.info,
         &ask_pool.info,
-        adjust_precision(
-            offer_pool.amount.checked_add(offer_asset.amount)?,
-            token_precision,
-            config.greatest_precision,
-        )?,
+        offer_pool.amount.checked_add(offer_amount)?,
         &pools,
         compute_current_amp(&config, &env)?,
     )?;
