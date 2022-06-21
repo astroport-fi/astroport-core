@@ -40,35 +40,6 @@ pub fn calc_ask_amount(
 }
 
 /// ## Description
-/// Calculates the amount to be swapped (the offer amount).
-/// ## Params
-/// * **offer_pool** is an object of type [`Uint128`]. This is the amount of offer tokens currently in a stableswap pool.
-///
-/// * **ask_pool** is an object of type [`Uint128`]. This is the amount of ask tokens currently in a stableswap pool.
-///
-/// * **ask_amount** is an object of type [`Uint128`]. This is the amount of offer tokens to swap.
-///
-/// * **amp** is an object of type [`Uint64`]. This is the pool's amplification parameter.
-pub fn calc_offer_amount(
-    _offer_pool: Uint128,
-    _ask_pool: Uint128,
-    _ask_amount: Uint128,
-    _amp: Uint64,
-) -> StdResult<Uint128> {
-    // TODO: fix calc offer amount
-    // let leverage = amp.checked_mul(N_COINS.into())?;
-    // let new_ask_pool = ask_pool.checked_sub(ask_amount)?;
-    //
-    // let d = compute_d(leverage, offer_pool, ask_pool)?;
-    //
-    // let new_offer_pool = compute_new_balance(leverage, new_ask_pool, d)?;
-    //
-    // Ok(new_offer_pool.checked_sub(offer_pool)?)
-
-    Ok(Uint128::zero())
-}
-
-/// ## Description
 /// Computes the stableswap invariant (D).
 ///
 /// * **Equation**

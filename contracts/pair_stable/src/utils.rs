@@ -304,19 +304,6 @@ pub(crate) fn compute_swap(
     // )?;
     //
     // let offer_amount = offer_asset.amount;
-    //
-    // let SwapResult {
-    //     return_amount,
-    //     spread_amount,
-    //     commission_amount,
-    // } = compute_swap(
-    //     deps.querier,
-    //     &offer_pool,
-    //     &ask_pool,
-    //     offer_asset.amount,
-    //     fee_info.total_fee_rate,
-    //     compute_current_amp(&config, &env)?,
-    // )?;
 
     let spread_amount = offer_asset.amount.saturating_sub(return_amount);
 

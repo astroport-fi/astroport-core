@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::math::{
-    calc_ask_amount, calc_offer_amount, calc_y, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE,
+    calc_ask_amount, calc_y, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE,
     MIN_AMP_CHANGING_TIME,
 };
 use crate::state::{get_precision, store_precisions, Config, CONFIG};
@@ -604,16 +604,6 @@ pub fn withdraw_liquidity(
     //     config.block_time_last = block_time;
     //     CONFIG.save(deps.storage, &config)?;
     // }
-    //
-    // let messages = vec![
-    //     refund_assets[0].clone().into_msg(&deps.querier, &sender)?,
-    //     refund_assets[1].clone().into_msg(&deps.querier, &sender)?,
-    //     CosmosMsg::Wasm(WasmMsg::Execute {
-    //         contract_addr: config.pair_info.liquidity_token.to_string(),
-    //         msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
-    //         funds: vec![],
-    //     }),
-    // ];
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),
@@ -825,21 +815,6 @@ pub fn swap(
     //     &config.factory_addr,
     //     config.pair_info.pair_type.clone(),
     // )?;
-    //
-    // let offer_amount = offer_asset.amount;
-    //
-    // let SwapResult {
-    //     return_amount,
-    //     spread_amount,
-    //     commission_amount,
-    // } = compute_swap(
-    //     deps.querier,
-    //     &offer_pool,
-    //     &ask_pool,
-    //     offer_asset.amount,
-    //     fee_info.total_fee_rate,
-    //     compute_current_amp(&config, &env)?,
-    // )?;
 
     // Check the max spread limit (if it was specified)
     assert_max_spread(
@@ -1034,16 +1009,17 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Simulation {
             offer_asset,
             ask_asset_info,
-        } => to_binary(&query_simulation(deps, env, offer_asset, ask_asset_info)?),
+        } => to_binary(
+            &query_simulation(deps, env, offer_asset, ask_asset_info)
+                .map_err(|err| StdError::generic_err(format!("{err}")))?,
+        ),
         QueryMsg::ReverseSimulation {
             offer_asset_info,
             ask_asset,
-        } => to_binary(&query_reverse_simulation(
-            deps,
-            env,
-            ask_asset,
-            offer_asset_info,
-        )?),
+        } => to_binary(
+            &query_reverse_simulation(deps, env, ask_asset, offer_asset_info)
+                .map_err(|err| StdError::generic_err(format!("{err}")))?,
+        ),
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
         QueryMsg::QueryComputeD {} => to_binary(&query_compute_d(deps, env)?),
@@ -1095,7 +1071,7 @@ pub fn query_simulation(
     env: Env,
     offer_asset: Asset,
     ask_asset_info: Option<AssetInfo>,
-) -> StdResult<SimulationResponse> {
+) -> Result<SimulationResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let pools = config
         .pair_info
@@ -1111,7 +1087,7 @@ pub fn query_simulation(
         .collect::<StdResult<Vec<_>>>()?;
 
     let (offer_pool, ask_pool) =
-        select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools).unwrap();
+        select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)?;
 
     // Get fee info from factory
     // let fee_info = query_fee_info(
@@ -1131,8 +1107,7 @@ pub fn query_simulation(
         &offer_pool,
         &ask_pool,
         &pools,
-    )
-    .map_err(|_| StdError::generic_err("Swap simulation error"))?;
+    )?;
 
     Ok(SimulationResponse {
         return_amount,
@@ -1158,7 +1133,7 @@ pub fn query_reverse_simulation(
     env: Env,
     ask_asset: Asset,
     offer_asset_info: Option<AssetInfo>,
-) -> StdResult<ReverseSimulationResponse> {
+) -> Result<ReverseSimulationResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let pools = config
         .pair_info
@@ -1173,7 +1148,7 @@ pub fn query_reverse_simulation(
         })
         .collect::<StdResult<Vec<_>>>()?;
     let (offer_pool, ask_pool) =
-        select_pools(offer_asset_info.as_ref(), Some(&ask_asset.info), &pools).unwrap();
+        select_pools(offer_asset_info.as_ref(), Some(&ask_asset.info), &pools)?;
 
     // Check if the liquidity is non-zero
     is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
@@ -1184,7 +1159,7 @@ pub fn query_reverse_simulation(
         &offer_pool.info,
         &ask_pool.info,
         adjust_precision(
-            offer_pool.amount - ask_asset.amount,
+            offer_pool.amount.checked_sub(ask_asset.amount)?,
             token_precision,
             config.greatest_precision,
         )?,
