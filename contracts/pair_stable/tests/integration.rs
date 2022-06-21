@@ -63,8 +63,35 @@ fn store_factory_code(app: &mut App) -> u64 {
 
 fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
     let token_contract_code_id = store_token_code(&mut router);
-
     let pair_contract_code_id = store_pair_code(&mut router);
+    let factory_code_id = store_factory_code(&mut router);
+
+    let factory_init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![PairConfig {
+            code_id: pair_contract_code_id,
+            maker_fee_bps: 5000,
+            total_fee_bps: 5u16,
+            pair_type: PairType::Stable {},
+            is_disabled: false,
+            is_generator_disabled: false,
+        }],
+        token_code_id: token_contract_code_id,
+        generator_address: None,
+        owner: owner.to_string(),
+        whitelist_code_id: 234u64,
+    };
+
+    let factory_addr = router
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &factory_init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
 
     let msg = InstantiateMsg {
         asset_infos: vec![
@@ -76,7 +103,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
             },
         ],
         token_code_id: token_contract_code_id,
-        factory_addr: String::from("factory"),
+        factory_addr: factory_addr.to_string(),
         init_params: None,
     };
 
@@ -105,7 +132,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
             },
         ],
         token_code_id: token_contract_code_id,
-        factory_addr: String::from("factory"),
+        factory_addr: factory_addr.to_string(),
         init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
@@ -124,8 +151,8 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         .wrap()
         .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
         .unwrap();
-    assert_eq!("contract0", res.contract_addr);
-    assert_eq!("contract1", res.liquidity_token);
+    assert_eq!("contract1", res.contract_addr);
+    assert_eq!("contract2", res.liquidity_token);
 
     pair
 }

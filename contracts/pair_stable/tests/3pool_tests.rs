@@ -16,7 +16,7 @@ fn provide_and_withdraw_no_fee() {
         TestCoin::cw20("USDD"),
     ];
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), 100u64).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), 100u64, Some(0u16)).unwrap();
 
     let user1 = Addr::unchecked("user1");
     let assets = vec![
@@ -132,7 +132,7 @@ fn provide_with_different_precision() {
         TestCoin::cw20precise("ADN", 6),
     ];
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), 100u64).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), 100u64, None).unwrap();
 
     for user_name in ["user1", "user2"] {
         let user = Addr::unchecked(user_name);
@@ -172,7 +172,7 @@ fn swap_different_precisions() {
         TestCoin::cw20precise("ADN", 6),
     ];
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), 100u64).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), 100u64, None).unwrap();
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_0000),
@@ -221,7 +221,7 @@ fn check_swaps() {
         TestCoin::cw20("USDD"),
     ];
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), 100u64).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), 100u64, None).unwrap();
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000),
@@ -264,7 +264,7 @@ fn check_swaps() {
 fn check_wrong_initializations() {
     let owner = Addr::unchecked("owner");
 
-    let err = Helper::new(&owner, vec![TestCoin::native("uluna")], 100u64).unwrap_err();
+    let err = Helper::new(&owner, vec![TestCoin::native("uluna")], 100u64, None).unwrap_err();
 
     assert_eq!(
         ContractError::InvalidNumberOfAssets {},
@@ -282,6 +282,7 @@ fn check_wrong_initializations() {
             TestCoin::cw20("six"),
         ],
         100u64,
+        None,
     )
     .unwrap_err();
 
@@ -298,6 +299,7 @@ fn check_wrong_initializations() {
             TestCoin::cw20("USDC"),
         ],
         100u64,
+        None,
     )
     .unwrap_err();
 
@@ -314,6 +316,7 @@ fn check_wrong_initializations() {
             TestCoin::native("five"),
         ],
         100u64,
+        None,
     )
     .unwrap();
 }

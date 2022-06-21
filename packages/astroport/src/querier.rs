@@ -133,7 +133,6 @@ pub fn query_factory_config(
     querier.query_wasm_smart(factory_contract, &FactoryQueryMsg::Config {})
 }
 
-#[derive(Default)]
 /// This structure holds parameters that describe the fee structure for a pool.
 pub struct FeeInfo {
     /// The fee address

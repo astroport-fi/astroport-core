@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, wasm_execute, wasm_instantiate, Addr, Binary,
     CosmosMsg, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
-    StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -449,8 +449,7 @@ pub fn provide_liquidity(
             &deps.querier,
             &config.factory_addr,
             config.pair_info.pair_type.clone(),
-        )
-        .unwrap_or_default(); // There may no fee exist thus 0 is a default fee.
+        )?;
 
         // total_fee_rate * N_COINS / (4 * (N_COINS - 1))
         let fee = fee_info
@@ -700,8 +699,7 @@ fn imbalanced_withdraw(
         &deps.querier,
         &config.factory_addr,
         config.pair_info.pair_type.clone(),
-    )
-    .unwrap_or_default(); // There may no fee exist thus 0 is a default fee.
+    )?;
 
     // total_fee_rate * N_COINS / (4 * (N_COINS - 1))
     let fee = fee_info
@@ -734,8 +732,6 @@ fn imbalanced_withdraw(
             burn_amount
         ))
         .into());
-    } else if burn_amount.is_zero() {
-        return Err(StdError::generic_err("Failed to calculate necessary LP tokens amount").into());
     }
 
     Ok(burn_amount)

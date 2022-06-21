@@ -5,8 +5,10 @@ use cosmwasm_std::{coin, to_binary, Addr, Coin, Empty, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
+use itertools::Itertools;
 
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
+use astroport::factory::{PairConfig, PairType};
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, ReverseSimulationResponse,
     SimulationResponse, StablePoolParams,
@@ -77,6 +79,17 @@ fn pair_contract() -> Box<dyn Contract<Empty>> {
     Box::new(ContractWrapper::new_with_empty(execute, instantiate, query).with_reply_empty(reply))
 }
 
+fn factory_contract() -> Box<dyn Contract<Empty>> {
+    Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_factory::contract::execute,
+            astroport_factory::contract::instantiate,
+            astroport_factory::contract::query,
+        )
+        .with_reply_empty(astroport_factory::contract::reply),
+    )
+}
+
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Helper {
@@ -84,13 +97,19 @@ pub struct Helper {
     pub app: App,
     pub owner: Addr,
     pub assets: HashMap<TestCoin, AssetInfo>,
+    pub factory: Addr,
     pub pair_addr: Addr,
     pub lp_token: Addr,
     pub amp: u64,
 }
 
 impl Helper {
-    pub fn new(owner: &Addr, test_coins: Vec<TestCoin>, amp: u64) -> AnyResult<Self> {
+    pub fn new(
+        owner: &Addr,
+        test_coins: Vec<TestCoin>,
+        amp: u64,
+        swap_fee: Option<u16>,
+    ) -> AnyResult<Self> {
         let mut app = App::new(|router, _, storage| {
             router
                 .bank
@@ -113,38 +132,64 @@ impl Helper {
             }
         });
 
-        let init_msg = InstantiateMsg {
-            asset_infos: asset_infos_vec
-                .clone()
-                .into_iter()
-                .map(|(_, asset_info)| asset_info)
-                .collect(),
+        let pair_code_id = app.store_code(pair_contract());
+        let factory_code_id = app.store_code(factory_contract());
+
+        let init_msg = astroport::factory::InstantiateMsg {
+            fee_address: None,
+            pair_configs: vec![PairConfig {
+                code_id: pair_code_id,
+                maker_fee_bps: 5000,
+                total_fee_bps: swap_fee.unwrap_or(5u16),
+                pair_type: PairType::Stable {},
+                is_disabled: false,
+                is_generator_disabled: false,
+            }],
             token_code_id,
-            factory_addr: "factory".to_string(),
+            generator_address: None,
+            owner: owner.to_string(),
+            whitelist_code_id: 234u64,
+        };
+
+        let factory = app
+            .instantiate_contract(
+                factory_code_id,
+                owner.clone(),
+                &init_msg,
+                &[],
+                "FACTORY",
+                None,
+            )
+            .unwrap();
+
+        let asset_infos = asset_infos_vec
+            .clone()
+            .into_iter()
+            .map(|(_, asset_info)| asset_info)
+            .collect_vec();
+        let init_pair_msg = astroport::factory::ExecuteMsg::CreatePair {
+            pair_type: PairType::Stable {},
+            asset_infos: asset_infos.clone(),
             init_params: Some(to_binary(&StablePoolParams { amp }).unwrap()),
         };
 
-        let pair_code_id = app.store_code(pair_contract());
-
-        let pair_addr = app.instantiate_contract(
-            pair_code_id,
-            owner.clone(),
-            &init_msg,
-            &[],
-            "pair_label",
-            None,
-        )?;
+        app.execute_contract(owner.clone(), factory.clone(), &init_pair_msg, &[])
+            .unwrap();
 
         let resp: PairInfo = app
             .wrap()
-            .query_wasm_smart(&pair_addr, &QueryMsg::Pair {})
+            .query_wasm_smart(
+                &factory,
+                &astroport::factory::QueryMsg::Pair { asset_infos },
+            )
             .unwrap();
 
         Ok(Self {
             app,
             owner: owner.clone(),
             assets: asset_infos_vec.into_iter().collect(),
-            pair_addr,
+            factory,
+            pair_addr: resp.contract_addr,
             lp_token: resp.liquidity_token,
             amp,
         })
