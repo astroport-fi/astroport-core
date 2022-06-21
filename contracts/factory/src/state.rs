@@ -1,10 +1,11 @@
-use cosmwasm_std::{Addr, Deps, Order, StdResult};
+use cosmwasm_std::{Addr, Api, Deps, Order, StdResult};
 use cw_storage_plus::{Bound, Item, Map};
 use itertools;
 use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::error::ContractError;
 use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
 use astroport::factory::PairConfig;
@@ -115,6 +116,20 @@ fn calc_range_start(start_after: Option<Vec<AssetInfo>>) -> Option<Vec<u8>> {
         key.push(1);
         key
     })
+}
+
+pub(crate) fn check_asset_infos(
+    api: &dyn Api,
+    asset_infos: &[AssetInfo],
+) -> Result<(), ContractError> {
+    if !asset_infos.iter().all_unique() {
+        return Err(ContractError::DoublingAssets {});
+    }
+
+    asset_infos
+        .iter()
+        .try_for_each(|asset_info| asset_info.check(api))
+        .map_err(Into::into)
 }
 
 /// Stores the latest contract ownership transfer proposal

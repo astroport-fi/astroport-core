@@ -151,16 +151,14 @@ impl Helper {
             whitelist_code_id: 234u64,
         };
 
-        let factory = app
-            .instantiate_contract(
-                factory_code_id,
-                owner.clone(),
-                &init_msg,
-                &[],
-                "FACTORY",
-                None,
-            )
-            .unwrap();
+        let factory = app.instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )?;
 
         let asset_infos = asset_infos_vec
             .clone()
@@ -173,16 +171,12 @@ impl Helper {
             init_params: Some(to_binary(&StablePoolParams { amp }).unwrap()),
         };
 
-        app.execute_contract(owner.clone(), factory.clone(), &init_pair_msg, &[])
-            .unwrap();
+        app.execute_contract(owner.clone(), factory.clone(), &init_pair_msg, &[])?;
 
-        let resp: PairInfo = app
-            .wrap()
-            .query_wasm_smart(
-                &factory,
-                &astroport::factory::QueryMsg::Pair { asset_infos },
-            )
-            .unwrap();
+        let resp: PairInfo = app.wrap().query_wasm_smart(
+            &factory,
+            &astroport::factory::QueryMsg::Pair { asset_infos },
+        )?;
 
         Ok(Self {
             app,

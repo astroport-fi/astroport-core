@@ -8,8 +8,8 @@ use crate::migration;
 use crate::querier::query_pair_info;
 
 use crate::state::{
-    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS, PAIRS_TO_MIGRATE,
-    PAIR_CONFIGS, TMP_PAIR_INFO,
+    check_asset_infos, pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL,
+    PAIRS, PAIRS_TO_MIGRATE, PAIR_CONFIGS, TMP_PAIR_INFO,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -27,6 +27,7 @@ use astroport::common::{
 use astroport::generator::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cw2::{get_contract_version, set_contract_version};
+use itertools::Itertools;
 use protobuf::Message;
 use std::collections::HashSet;
 
@@ -316,12 +317,7 @@ pub fn execute_create_pair(
     asset_infos: Vec<AssetInfo>,
     init_params: Option<Binary>,
 ) -> Result<Response, ContractError> {
-    asset_infos[0].check(deps.api)?;
-    asset_infos[1].check(deps.api)?;
-
-    if asset_infos[0] == asset_infos[1] {
-        return Err(ContractError::DoublingAssets {});
-    }
+    check_asset_infos(deps.api, &asset_infos)?;
 
     let config = CONFIG.load(deps.storage)?;
 
@@ -365,7 +361,7 @@ pub fn execute_create_pair(
         .add_submessages(sub_msg)
         .add_attributes(vec![
             attr("action", "create_pair"),
-            attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
+            attr("pair", asset_infos.iter().join("-")),
         ]))
 }
 

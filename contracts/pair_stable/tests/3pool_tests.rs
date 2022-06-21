@@ -303,7 +303,10 @@ fn check_wrong_initializations() {
     )
     .unwrap_err();
 
-    assert_eq!(ContractError::DoublingAssets {}, err.downcast().unwrap());
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Doubling assets in asset infos"
+    );
 
     // 5 assets in the pool is okay
     Helper::new(
