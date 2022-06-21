@@ -29,7 +29,6 @@ async function generateTable(terra: LCDClient) {
             await queryContractRaw(terra, end_point)
                 .then(resp => {
                     let result = JSON.parse(toDecodedBinary(resp.data).toString());
-
                     console.table(contractInfo(`${key}`, `${value}`, `${result.contract}`, `${result.version}`))
                 })
                 .catch(err => {console.log(`${key}: ${err}`)});
@@ -40,6 +39,7 @@ async function generateTable(terra: LCDClient) {
 async function main() {
     const {terra, wallet} = newClient()
     console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
+
     const network = readArtifact(terra.config.chainID)
     console.log('Network:', network)
 
