@@ -207,8 +207,8 @@ fn swap_different_precisions() {
         .unwrap();
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
     // 99.999010 x ADN tokens
-    assert_eq!(99_999010, sim_resp.return_amount.u128());
-    assert_eq!(99_999010, helper.coin_balance(&test_coins[2], &user));
+    assert_eq!(99_949011, sim_resp.return_amount.u128());
+    assert_eq!(99_949011, helper.coin_balance(&test_coins[2], &user));
 }
 
 #[test]
@@ -257,7 +257,7 @@ fn check_swaps() {
         )
         .unwrap();
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
-    assert_eq!(99_999010, helper.coin_balance(&test_coins[1], &user));
+    assert_eq!(99_949011, helper.coin_balance(&test_coins[1], &user));
 }
 
 #[test]

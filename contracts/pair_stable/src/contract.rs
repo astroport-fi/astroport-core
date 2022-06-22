@@ -724,7 +724,7 @@ fn imbalanced_withdraw(
         .checked_multiply_ratio(init_d - after_fee_d, init_d)?
         .checked_add(Uint128::from(1u8))?; // In case of rounding errors - make it unfavorable for the "attacker"
 
-    let burn_amount = adjust_precision(burn_amount, LP_TOKEN_PRECISION, config.greatest_precision)?;
+    let burn_amount = adjust_precision(burn_amount, config.greatest_precision, LP_TOKEN_PRECISION)?;
 
     if burn_amount > provided_amount {
         return Err(StdError::generic_err(format!(
@@ -805,12 +805,14 @@ pub fn swap(
         &pools,
     )?;
 
-    // // Get fee info from the factory
-    // let fee_info = query_fee_info(
-    //     &deps.querier,
-    //     &config.factory_addr,
-    //     config.pair_info.pair_type.clone(),
-    // )?;
+    // Get fee info from the factory
+    let fee_info = query_fee_info(
+        &deps.querier,
+        &config.factory_addr,
+        config.pair_info.pair_type.clone(),
+    )?;
+    let commission_amount = fee_info.total_fee_rate.checked_mul_uint128(return_amount)?;
+    let return_amount = return_amount.saturating_sub(commission_amount);
 
     // Check the max spread limit (if it was specified)
     assert_max_spread(
@@ -818,10 +820,8 @@ pub fn swap(
         max_spread,
         offer_asset.amount,
         return_amount,
-        spread_amount,
+        spread_amount + commission_amount,
     )?;
-
-    let commission_amount = Uint128::zero();
 
     let receiver = to.unwrap_or_else(|| sender.clone());
 
@@ -833,14 +833,14 @@ pub fn swap(
 
     // Compute the Maker fee
     let mut maker_fee_amount = Uint128::zero();
-    // if let Some(fee_address) = fee_info.fee_address {
-    //     if let Some(f) =
-    //         calculate_maker_fee(&ask_pool.info, commission_amount, fee_info.maker_fee_rate)
-    //     {
-    //         maker_fee_amount = f.amount;
-    //         messages.push(f.into_msg(&deps.querier, fee_address)?);
-    //     }
-    // }
+    if let Some(fee_address) = fee_info.fee_address {
+        if let Some(f) =
+            calculate_maker_fee(&ask_pool.info, commission_amount, fee_info.maker_fee_rate)
+        {
+            maker_fee_amount = f.amount;
+            messages.push(f.into_msg(&deps.querier, fee_address)?);
+        }
+    }
 
     /* TODO: support multiple assets
     // Accumulate prices for the assets in the pool
@@ -1068,6 +1068,14 @@ pub fn query_simulation(
     offer_asset: Asset,
     ask_asset_info: Option<AssetInfo>,
 ) -> Result<SimulationResponse, ContractError> {
+    if offer_asset.amount.is_zero() {
+        return Ok(SimulationResponse {
+            return_amount: Uint128::zero(),
+            spread_amount: Uint128::zero(),
+            commission_amount: Uint128::zero(),
+        });
+    }
+
     let config = CONFIG.load(deps.storage)?;
     let pools = config
         .pair_info
@@ -1085,13 +1093,6 @@ pub fn query_simulation(
     let (offer_pool, ask_pool) =
         select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)?;
 
-    // Get fee info from factory
-    // let fee_info = query_fee_info(
-    //     &deps.querier,
-    //     &config.factory_addr,
-    //     config.pair_info.pair_type.clone(),
-    // )?;
-
     let SwapResult {
         return_amount,
         spread_amount,
@@ -1105,10 +1106,20 @@ pub fn query_simulation(
         &pools,
     )?;
 
+    // Get fee info from factory
+    let fee_info = query_fee_info(
+        &deps.querier,
+        &config.factory_addr,
+        config.pair_info.pair_type.clone(),
+    )?;
+
+    let commission_amount = fee_info.total_fee_rate.checked_mul_uint128(return_amount)?;
+    let return_amount = return_amount.saturating_sub(commission_amount);
+
     Ok(SimulationResponse {
         return_amount,
         spread_amount,
-        commission_amount: Uint128::zero(),
+        commission_amount,
     })
 }
 
@@ -1130,6 +1141,14 @@ pub fn query_reverse_simulation(
     ask_asset: Asset,
     offer_asset_info: Option<AssetInfo>,
 ) -> Result<ReverseSimulationResponse, ContractError> {
+    if ask_asset.amount.is_zero() {
+        return Ok(ReverseSimulationResponse {
+            offer_amount: Uint128::zero(),
+            spread_amount: Uint128::zero(),
+            commission_amount: Uint128::zero(),
+        });
+    }
+
     let config = CONFIG.load(deps.storage)?;
     let pools = config
         .pair_info
@@ -1149,13 +1168,23 @@ pub fn query_reverse_simulation(
     // Check if the liquidity is non-zero
     is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
 
-    let token_precision = get_precision(deps.storage, &ask_pool.info)?;
+    // Get fee info from factory
+    let fee_info = query_fee_info(
+        &deps.querier,
+        &config.factory_addr,
+        config.pair_info.pair_type.clone(),
+    )?;
+    let before_commission = (Decimal::one() - fee_info.total_fee_rate)
+        .inv()
+        .unwrap_or_else(Decimal::one)
+        .checked_mul_uint128(ask_asset.amount)?;
 
+    let token_precision = get_precision(deps.storage, &ask_pool.info)?;
     let offer_amount = calc_y(
         &offer_pool.info,
         &ask_pool.info,
         adjust_precision(
-            offer_pool.amount.checked_sub(ask_asset.amount)?,
+            offer_pool.amount.checked_sub(before_commission)?,
             token_precision,
             config.greatest_precision,
         )?,
@@ -1169,8 +1198,10 @@ pub fn query_reverse_simulation(
 
     Ok(ReverseSimulationResponse {
         offer_amount,
-        spread_amount: Uint128::zero(),
-        commission_amount: Uint128::zero(),
+        spread_amount: offer_amount.saturating_sub(before_commission),
+        commission_amount: fee_info
+            .total_fee_rate
+            .checked_mul_uint128(before_commission)?,
     })
 }
 

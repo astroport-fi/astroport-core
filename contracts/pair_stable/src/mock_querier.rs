@@ -14,8 +14,26 @@ use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 pub fn mock_dependencies(
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
-    let custom_querier: WasmMockQuerier =
-        WasmMockQuerier::new(MockQuerier::new(&[(MOCK_CONTRACT_ADDR, contract_balance)]));
+    let custom_querier: WasmMockQuerier = WasmMockQuerier::new(
+        MockQuerier::new(&[(MOCK_CONTRACT_ADDR, contract_balance)]),
+        true,
+    );
+
+    OwnedDeps {
+        storage: MockStorage::default(),
+        api: MockApi::default(),
+        querier: custom_querier,
+        custom_query_type: Default::default(),
+    }
+}
+
+pub fn mock_dependencies_no_fee(
+    contract_balance: &[Coin],
+) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
+    let custom_querier: WasmMockQuerier = WasmMockQuerier::new(
+        MockQuerier::new(&[(MOCK_CONTRACT_ADDR, contract_balance)]),
+        false,
+    );
 
     OwnedDeps {
         storage: MockStorage::default(),
@@ -28,6 +46,7 @@ pub fn mock_dependencies(
 pub struct WasmMockQuerier {
     base: MockQuerier<Empty>,
     token_querier: TokenQuerier,
+    with_fee: bool,
 }
 
 #[derive(Clone, Default)]
@@ -84,8 +103,8 @@ impl WasmMockQuerier {
                         FeeInfo { .. } => SystemResult::Ok(
                             to_binary(&FeeInfoResponse {
                                 fee_address: Some(Addr::unchecked("fee_address")),
-                                total_fee_bps: 30,
-                                maker_fee_bps: 1660,
+                                total_fee_bps: if self.with_fee { 30 } else { 0 },
+                                maker_fee_bps: if self.with_fee { 16600 } else { 0 },
                             })
                             .into(),
                         ),
@@ -155,10 +174,11 @@ impl WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn new(base: MockQuerier<Empty>) -> Self {
+    pub fn new(base: MockQuerier<Empty>, with_fee: bool) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
+            with_fee,
         }
     }
 
