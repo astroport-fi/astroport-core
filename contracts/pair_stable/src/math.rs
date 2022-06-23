@@ -2,7 +2,7 @@ use astroport::asset::{Asset, AssetInfo};
 use cosmwasm_std::{StdError, StdResult, Uint128, Uint256, Uint64};
 use itertools::Itertools;
 
-const ITERATIONS: u8 = 64;
+const ITERATIONS: u8 = 32;
 
 pub const MAX_AMP: u64 = 1_000_000;
 pub const MAX_AMP_CHANGE: u64 = 10;
@@ -89,7 +89,8 @@ pub(crate) fn compute_d(amp: Uint64, pools: &[Uint128]) -> StdResult<Uint128> {
         }
 
         // Should definitely converge in 64 iterations.
-        Err(StdError::generic_err("D is not converging"))
+        // Err(StdError::generic_err("D is not converging"))
+        Ok(d.try_into()?)
     }
 }
 
@@ -125,7 +126,11 @@ pub(crate) fn calc_y(
     let mut y = d;
     for _ in 0..ITERATIONS {
         let y_prev = y;
-        y = (y * y + c) / (Uint256::from(2u8) * y + b - d);
+        y = (y * y + c) / (y + y + b - d);
+        println!(
+            "y_prev: {y_prev}, y: {y} diff: {:?}",
+            (y_prev.checked_sub(y))
+        );
         if y >= y_prev {
             if y - y_prev <= Uint256::from(1u8) {
                 return Ok(y.try_into()?);

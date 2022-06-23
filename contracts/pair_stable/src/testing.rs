@@ -1314,10 +1314,10 @@ proptest! {
 
 #[test]
 fn single_test() {
-    let balance_in = 42367386348;
-    let balance_out = 100;
-    let amount_in = 105114291;
-    let amp = 87;
+    let balance_in = 9779726170877673;
+    let balance_out = 888744629568274916;
+    let amount_in = 42367386347;
+    let amp = 110;
 
     let offer_asset = native_asset("uusd".to_string(), Uint128::from(amount_in));
     let ask_asset = native_asset_info("uluna".to_string());

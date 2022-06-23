@@ -1181,17 +1181,17 @@ pub fn query_reverse_simulation(
 
     let token_precision = get_precision(deps.storage, &ask_pool.info)?;
     let offer_amount = calc_y(
-        &offer_pool.info,
         &ask_pool.info,
+        &offer_pool.info,
         adjust_precision(
-            offer_pool.amount.checked_sub(before_commission)?,
+            ask_pool.amount.checked_sub(before_commission)?,
             token_precision,
             config.greatest_precision,
         )?,
         &pools,
         compute_current_amp(&config, &env)?,
     )?
-    .checked_sub(ask_pool.amount)?;
+    .checked_sub(offer_pool.amount)?;
 
     let token_precision = get_precision(deps.storage, &offer_pool.info)?;
     let offer_amount = adjust_precision(offer_amount, config.greatest_precision, token_precision)?;
