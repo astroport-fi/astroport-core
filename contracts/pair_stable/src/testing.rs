@@ -675,11 +675,8 @@ fn try_native_to_token() {
 
     let expected_ret_amount = Uint128::new(sim_result);
     let expected_spread_amount = offer_amount.saturating_sub(expected_ret_amount);
-    let expected_commission_amount = Uint128::zero();
-    let expected_maker_fee_amount = Uint128::zero();
-    // TODO: add commission and maker fee
-    // let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
-    // let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
+    let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
+    let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
 
     let expected_return_amount = expected_ret_amount
         .checked_sub(expected_commission_amount)
@@ -840,11 +837,8 @@ fn try_token_to_native() {
 
     let expected_ret_amount = Uint128::new(sim_result);
     let expected_spread_amount = offer_amount.saturating_sub(expected_ret_amount);
-    let expected_commission_amount = Uint128::zero();
-    let expected_maker_fee_amount = Uint128::zero();
-    // TODO: add commission fee
-    // let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
-    // let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
+    let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
+    let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
 
     let expected_return_amount = expected_ret_amount
         .checked_sub(expected_commission_amount)
@@ -1227,6 +1221,7 @@ use sim::StableSwapModel;
 
 proptest! {
     #[test]
+    #[ignore]
     fn constant_product_swap_no_fee(
         balance_in in 100..1_000_000_000_000_000_000u128,
         balance_out in 100..1_000_000_000_000_000_000u128,
@@ -1313,6 +1308,7 @@ proptest! {
 }
 
 #[test]
+#[ignore]
 fn single_test() {
     let balance_in = 9779726170877673;
     let balance_out = 888744629568274916;

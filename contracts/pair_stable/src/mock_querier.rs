@@ -104,7 +104,7 @@ impl WasmMockQuerier {
                             to_binary(&FeeInfoResponse {
                                 fee_address: Some(Addr::unchecked("fee_address")),
                                 total_fee_bps: if self.with_fee { 30 } else { 0 },
-                                maker_fee_bps: if self.with_fee { 16600 } else { 0 },
+                                maker_fee_bps: if self.with_fee { 1660 } else { 0 },
                             })
                             .into(),
                         ),

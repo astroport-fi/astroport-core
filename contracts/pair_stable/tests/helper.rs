@@ -10,8 +10,8 @@ use itertools::Itertools;
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, ReverseSimulationResponse,
-    SimulationResponse, StablePoolParams,
+    Cw20HookMsg, ExecuteMsg, QueryMsg, ReverseSimulationResponse, SimulationResponse,
+    StablePoolParams,
 };
 use astroport::querier::NATIVE_TOKEN_PRECISION;
 use astroport_pair_stable::contract::{execute, instantiate, query, reply};

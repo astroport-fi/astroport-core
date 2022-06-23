@@ -335,7 +335,7 @@ pub fn provide_liquidity(
     check_assets(deps.api, &assets)?;
 
     let auto_stake = auto_stake.unwrap_or(false);
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     if assets.len() > config.pair_info.asset_infos.len() {
         return Err(ContractError::InvalidNumberOfAssets {});
@@ -537,7 +537,7 @@ pub fn withdraw_liquidity(
     amount: Uint128,
     assets: Vec<Asset>,
 ) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.pair_info.liquidity_token {
         return Err(ContractError::Unauthorized {});
@@ -769,7 +769,7 @@ pub fn swap(
     max_spread: Option<Decimal>,
     to: Option<Addr>,
 ) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     // If the asset balance already increased
     // We should subtract the user deposit from the pool offer asset amount

@@ -127,10 +127,6 @@ pub(crate) fn calc_y(
     for _ in 0..ITERATIONS {
         let y_prev = y;
         y = (y * y + c) / (y + y + b - d);
-        println!(
-            "y_prev: {y_prev}, y: {y} diff: {:?}",
-            (y_prev.checked_sub(y))
-        );
         if y >= y_prev {
             if y - y_prev <= Uint256::from(1u8) {
                 return Ok(y.try_into()?);
