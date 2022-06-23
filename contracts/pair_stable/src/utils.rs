@@ -57,17 +57,14 @@ pub(crate) fn select_pools(
                     .iter()
                     .find_position(|pool| pool.info.eq(offer_asset_info))
                     .ok_or(ContractError::AssetMismatch {})?;
-                Ok((
-                    offer_pool.clone(),
-                    pools[(offer_ind + 1) % pools.len()].clone(),
-                ))
+                Ok((offer_pool.clone(), pools[(offer_ind + 1) % 2].clone()))
             }
             (_, Some(ask_asset_info)) => {
                 let (ask_ind, ask_pool) = pools
                     .iter()
                     .find_position(|pool| pool.info.eq(ask_asset_info))
                     .ok_or(ContractError::AssetMismatch {})?;
-                Ok((ask_pool.clone(), pools[(ask_ind + 1) % pools.len()].clone()))
+                Ok((pools[(ask_ind + 1) % 2].clone(), ask_pool.clone()))
             }
             _ => Err(ContractError::VariableAssetMissed {}), // Should always be unreachable
         }
