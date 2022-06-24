@@ -5,7 +5,7 @@ members = [
     "contracts/factory",
     "contracts/pair",
     "contracts/pair_stable",
-    "contracts/pair_stable_owner",
+    # TODO: "contracts/pair_stable_owner",
     # TODO: do we need to support bluna in 3pool?
     # "contracts/pair_stable_bluna",
     "contracts/router",

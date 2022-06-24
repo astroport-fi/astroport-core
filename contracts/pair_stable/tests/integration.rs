@@ -504,7 +504,7 @@ fn provide_lp_for_single_token() {
         .execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
         .unwrap_err();
     assert_eq!(
-        "Generic error: Pool doesn't have any liquidity to facilitate the swap. Token0 = 0, Token1 = 0",
+        "Generic error: One of the pools is empty",
         err.root_cause().to_string()
     );
 

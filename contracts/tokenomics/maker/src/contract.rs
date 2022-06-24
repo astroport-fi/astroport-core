@@ -8,7 +8,7 @@ use crate::utils::{
 };
 use astroport::asset::{
     addr_opt_validate, addr_validate_to_lower, native_asset_info, token_asset, token_asset_info,
-    Asset, AssetInfo, ULUNA_DENOM, UUSD_DENOM,
+    Asset, AssetInfo, PairInfo, ULUNA_DENOM, UUSD_DENOM,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
@@ -894,10 +894,10 @@ fn query_bridges(deps: Deps) -> StdResult<Vec<(String, String)>> {
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **contract_addr** is an object of type [`Addr`]. This is an Astroport pair contract address.
-pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<[AssetInfo; 2]> {
+pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<Vec<AssetInfo>> {
     let res: PairInfo = deps
         .querier
-        .query_wasm_smart(contract_addr, &PairQueryMsg::Pair {})?;
+        .query_wasm_smart(contract_addr, &astroport::pair::QueryMsg::Pair {})?;
 
     Ok(res.asset_infos)
 }

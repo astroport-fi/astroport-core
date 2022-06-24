@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 
-use astroport::asset::{is_non_zero_liquidity, Asset, AssetInfo};
+use astroport::asset::{check_swap_parameters, Asset, AssetInfo};
 use astroport::querier::query_factory_config;
 
 use crate::error::ContractError;
@@ -272,7 +272,7 @@ pub(crate) fn compute_swap(
     pools: &[Asset],
 ) -> Result<SwapResult, ContractError> {
     // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
+    check_swap_parameters(offer_pool.amount, ask_pool.amount, offer_asset.amount)?;
 
     let token_precision = get_precision(storage, &offer_asset.info)?;
     let offer_amount = adjust_precision(

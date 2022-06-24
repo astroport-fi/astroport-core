@@ -16,7 +16,7 @@ use cosmwasm_std::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
-    addr_opt_validate, addr_validate_to_lower, format_lp_token_name, is_non_zero_liquidity, Asset,
+    addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset,
     AssetInfo, PairInfo,
 };
 use astroport::factory::PairType;
@@ -1143,14 +1143,6 @@ pub fn query_reverse_simulation(
     ask_asset: Asset,
     offer_asset_info: Option<AssetInfo>,
 ) -> Result<ReverseSimulationResponse, ContractError> {
-    if ask_asset.amount.is_zero() {
-        return Ok(ReverseSimulationResponse {
-            offer_amount: Uint128::zero(),
-            spread_amount: Uint128::zero(),
-            commission_amount: Uint128::zero(),
-        });
-    }
-
     let config = CONFIG.load(deps.storage)?;
     let pools = config
         .pair_info
@@ -1167,8 +1159,14 @@ pub fn query_reverse_simulation(
     let (offer_pool, ask_pool) =
         select_pools(offer_asset_info.as_ref(), Some(&ask_asset.info), &pools)?;
 
-    // Check if the liquidity is non-zero
-    is_non_zero_liquidity(offer_pool.amount, ask_pool.amount)?;
+    // Check the swap parameters are valid
+    if check_swap_parameters(offer_pool.amount, ask_pool.amount, ask_asset.amount).is_err() {
+        return Ok(ReverseSimulationResponse {
+            offer_amount: Uint128::zero(),
+            spread_amount: Uint128::zero(),
+            commission_amount: Uint128::zero(),
+        });
+    }
 
     // Get fee info from factory
     let fee_info = query_fee_info(

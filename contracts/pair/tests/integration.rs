@@ -532,7 +532,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
         .unwrap_err();
     assert_eq!(
-        "Generic error: Pool doesn't have any liquidity to facilitate the swap. Token0 = 0, Token1 = 0",
+        "Generic error: One of the pools is empty",
         err.root_cause().to_string()
     );
 
