@@ -3,38 +3,31 @@ use crate::math::{
     calc_ask_amount, calc_offer_amount, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE,
     MIN_AMP_CHANGING_TIME, N_COINS,
 };
-use crate::migration::CONFIG_PAIR_STABLE_V100;
-use crate::state::{
-    Config, BLUNA_REWARD_GLOBAL_INDEX, BLUNA_REWARD_HOLDER, BLUNA_REWARD_USER_INDEXES, CONFIG,
-};
-
-use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, Uint256,
-    WasmMsg,
-};
+use crate::state::{Config, CONFIG, OWNERSHIP_PROPOSAL};
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
-    addr_validate_to_lower, check_swap_parameters, format_lp_token_name, token_asset_info, Asset,
-    AssetInfo, PairInfo,
+    addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset, AssetInfo, PairInfo,
 };
+use astroport::common::OwnershipProposal;
 use astroport::factory::PairType;
-
-use astroport::generator::{
-    Cw20HookMsg as GeneratorHookMsg, PoolInfoResponse, QueryMsg as GeneratorQueryMsg,
+use cosmwasm_std::{
+    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
+    Env, Fraction, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
+    WasmMsg,
 };
-use astroport::pair::{
-    migration_check, ConfigResponse, CumulativePricesResponse, Cw20HookMsg, InstantiateMsg,
-    PoolResponse, ReverseSimulationResponse, SimulationResponse, DEFAULT_SLIPPAGE,
+
+use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
+use astroport::pair_stable_owner::{
+    ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams, DEFAULT_SLIPPAGE,
     MAX_ALLOWED_SLIPPAGE, TWAP_PRECISION,
 };
-use astroport::pair_stable_bluna::{
-    ExecuteMsg, MigrateMsg, QueryMsg, StablePoolConfig, StablePoolParams, StablePoolUpdateParams,
-};
-use astroport::whitelist::InstantiateMsg as WhitelistInstantiateMsg;
 
-use anchor_basset::reward::{AccruedRewardsResponse, QueryMsg as BAssetRewardQueryMsg};
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::pair_stable_owner::{
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
+    ReverseSimulationResponse, SimulationResponse, StablePoolConfig,
+};
 use astroport::querier::{
     query_factory_config, query_fee_info, query_supply, query_token_precision,
 };
@@ -43,20 +36,18 @@ use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
 use std::cmp::Ordering;
-use std::convert::TryInto;
 use std::str::FromStr;
 use std::vec;
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = "astroport-pair-stable-bluna";
+const CONTRACT_NAME: &str = "astroport-pair-stable";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-/// `reply` call code IDs used for sub-messages.
+/// A `reply` call code ID of sub-message.
 const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
-const INSTANTIATE_BLUNA_REWARD_HOLDER_REPLY_ID: u64 = 2;
 
 /// ## Description
-/// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
+/// Creates a new contract with the specified parameters in [`InstantiateMsg`].
 /// Returns a [`Response`] with the specified attributes if the operation was successful,
 /// or a [`ContractError`] if the contract was not created.
 /// ## Params
@@ -65,7 +56,8 @@ const INSTANTIATE_BLUNA_REWARD_HOLDER_REPLY_ID: u64 = 2;
 /// * **env** is an object of type [`Env`].
 ///
 /// * **_info** is an object of type [`MessageInfo`].
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters used for creating the contract.
+///
+/// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -90,15 +82,10 @@ pub fn instantiate(
         return Err(ContractError::IncorrectAmp {});
     }
 
-    let mut messages: Vec<SubMsg> = vec![get_bluna_reward_holder_instantiating_message(
-        deps.as_ref(),
-        &env,
-        &addr_validate_to_lower(deps.api, &msg.factory_addr)?,
-    )?];
-
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
+        owner: params.owner,
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
@@ -113,8 +100,6 @@ pub fn instantiate(
         init_amp_time: env.block.time.seconds(),
         next_amp: params.amp * AMP_PRECISION,
         next_amp_time: env.block.time.seconds(),
-        bluna_rewarder: addr_validate_to_lower(deps.api, params.bluna_rewarder.as_str())?,
-        generator: addr_validate_to_lower(deps.api, params.generator.as_str())?,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -122,7 +107,7 @@ pub fn instantiate(
     let token_name = format_lp_token_name(&msg.asset_infos, &deps.querier)?;
 
     // Create LP token
-    messages.push(SubMsg {
+    let sub_msg: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
             code_id: msg.token_code_id,
             msg: to_binary(&TokenInstantiateMsg {
@@ -144,9 +129,9 @@ pub fn instantiate(
         id: INSTANTIATE_TOKEN_REPLY_ID,
         gas_limit: None,
         reply_on: ReplyOn::Success,
-    });
+    }];
 
-    Ok(Response::new().add_submessages(messages))
+    Ok(Response::new().add_submessages(sub_msg))
 }
 
 /// ## Description
@@ -156,43 +141,27 @@ pub fn instantiate(
 ///
 /// * **_env** is an object of type [`Env`].
 ///
-/// * **msg** is an object of type [`Reply`].
+/// * **msg** is an object of type [`Reply`]. This is the reply from the submessage.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+    let mut config: Config = CONFIG.load(deps.storage)?;
+
+    if config.pair_info.liquidity_token != Addr::unchecked("") {
+        return Err(ContractError::Unauthorized {});
+    }
+
     let data = msg.result.unwrap().data.unwrap();
     let res: MsgInstantiateContractResponse =
         Message::parse_from_bytes(data.as_slice()).map_err(|_| {
             StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
         })?;
 
-    let mut response = Response::new();
+    config.pair_info.liquidity_token =
+        addr_validate_to_lower(deps.api, res.get_contract_address())?;
 
-    match msg.id {
-        INSTANTIATE_TOKEN_REPLY_ID => {
-            let mut config: Config = CONFIG.load(deps.storage)?;
+    CONFIG.save(deps.storage, &config)?;
 
-            if config.pair_info.liquidity_token != Addr::unchecked("") {
-                return Err(ContractError::Unauthorized {});
-            }
-            config.pair_info.liquidity_token =
-                addr_validate_to_lower(deps.api, res.get_contract_address())?;
-
-            CONFIG.save(deps.storage, &config)?;
-
-            response.attributes.push(attr(
-                "liquidity_token_addr",
-                config.pair_info.liquidity_token,
-            ));
-        }
-        INSTANTIATE_BLUNA_REWARD_HOLDER_REPLY_ID => {
-            let addr = addr_validate_to_lower(deps.api, res.get_contract_address())?;
-            BLUNA_REWARD_HOLDER.save(deps.storage, &addr)?;
-            response.attributes.push(attr("bluna_reward_holder", addr))
-        }
-        _ => return Err(ContractError::Unauthorized {}),
-    };
-
-    Ok(response)
+    Ok(Response::new().add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
 }
 
 /// ## Description
@@ -207,7 +176,8 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 /// * **msg** is an object of type [`ExecuteMsg`].
 ///
 /// ## Queries
-/// * **ExecuteMsg::UpdateConfig { params: Binary }** Not supported.
+/// * **ExecuteMsg::UpdateConfig { params: Binary }** Updates the contract configuration with the specified
+/// input parameters.
 ///
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
 /// it depending on the received template.
@@ -217,33 +187,14 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///             slippage_tolerance,
 ///             auto_stake,
 ///             receiver,
-///         }** Provides liquidity in the pair with the specified input parameters.
+///         }** Provides liquidity in the pair using the specified input parameters.
 ///
 /// * **ExecuteMsg::Swap {
 ///             offer_asset,
 ///             belief_price,
 ///             max_spread,
 ///             to,
-///         }** Performs a swap operation with the specified parameters.
-///
-/// * **ExecuteMsg::ClaimReward {
-///             receiver,
-///             user_share,
-///             total_share,
-///         }** Claims bLUNA rewards and sends them to the receiver.
-///
-/// * **ExecuteMsg::ClaimRewardByGenerator {
-///             receiver,
-///             user_share,
-///             total_share,
-///         }** Claims bLUNA rewards for a LP position that was staked by a user in the Astroprot Generator contract.
-///
-/// * **ExecuteMsg::HandleReward {
-///             previous_reward_balance,
-///             user_share,
-///             total_share,
-///             user,
-///         }** Handles and distributes bLUNA rewards.
+///         }** Performs an swap using the specified parameters.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -251,12 +202,6 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
-
-    if migration_check(deps.querier, &cfg.factory_addr, &env.contract.address)? {
-        return Err(ContractError::PairIsNotMigrated {});
-    }
-
     match msg {
         ExecuteMsg::UpdateConfig { params } => update_config(deps, env, info, params),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
@@ -302,35 +247,44 @@ pub fn execute(
                 to_addr,
             )
         }
-        ExecuteMsg::ClaimReward { receiver } => claim_reward(deps, env, info, receiver),
-        ExecuteMsg::ClaimRewardByGenerator {
-            user,
-            user_share,
-            total_share,
-        } => claim_reward_by_generator(deps, env, info, user, user_share, total_share),
-        ExecuteMsg::HandleReward {
-            previous_reward_balance,
-            user,
-            user_share,
-            total_share,
-            receiver,
-        } => handle_reward(
-            deps,
-            env,
-            info,
-            previous_reward_balance,
-            user,
-            user_share,
-            total_share,
-            receiver,
-        ),
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            let config = CONFIG.load(deps.storage)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                owner,
+                expires_in,
+                config.owner,
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(|e| e.into())
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config = CONFIG.load(deps.storage)?;
+
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
+                .map_err(|e| e.into())
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut config| {
+                    config.owner = new_owner;
+                    Ok(config)
+                })?;
+
+                Ok(())
+            })
+            .map_err(|e| e.into())
+        }
     }
 }
 
 /// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// If the template is not found in the received message, then a [`ContractError`] is returned,
-/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
+/// If no template is not found in the received message, then an [`ContractError`] is returned,
+/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -338,7 +292,7 @@ pub fn execute(
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message that has to be processed.
+/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 receive message to process.
 pub fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -352,7 +306,7 @@ pub fn receive_cw20(
             max_spread,
             to,
         }) => {
-            // Only an asset contract can execute this message
+            // Only an asset (token) contract can execute this message
             let mut authorized: bool = false;
             let config: Config = CONFIG.load(deps.storage)?;
 
@@ -400,7 +354,7 @@ pub fn receive_cw20(
 }
 
 /// ## Description
-/// Provides liquidity using the specified input parameters.
+/// Provides liquidity with the specified input parameters.
 /// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the
 /// specified attributes if the operation was successful.
 /// ## Params
@@ -412,13 +366,14 @@ pub fn receive_cw20(
 ///
 /// * **assets** is an array with two objects of type [`Asset`]. These are the assets available in the pool.
 ///
-/// * **slippage_tolerance** is an object of type [`Option<Decimal>`]. This is the slippage tolerance for providing liquidity.
+/// * **slippage_tolerance** is object of type [`Option<Decimal>`]. This is the slippage tolerance for providing liquidity.
 ///
-/// * **auto_stake** is an object of type [`Option<bool>`]. Determines whether the resulting LP tokens are automatically staked in the Generator contract to receive token incentives.
+/// * **auto_stake** is object of type [`Option<bool>`]. Determines whether the resulting LP tokens are automatically staked in
+/// the Generator contract to receive token incentives.
 ///
-/// * **receiver** is an object of type [`Option<String>`]. This is the address that receives LP tokens.
+/// * **receiver** is object of type [`Option<String>`]. This is the address that receives LP tokens.
 /// If this address isn't specified, the function will default to the caller.
-/// NOTE - the address that wants to swap should approve the pair contract to pull the offer token.
+/// NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
 pub fn provide_liquidity(
     deps: DepsMut,
     env: Env,
@@ -464,6 +419,7 @@ pub fn provide_liquidity(
             return Err(ContractError::InvalidProvideLPsWithSingleToken {});
         }
 
+        // transfer only for non zero amount
         if !deposits[i].is_zero() {
             // If the pool is a token contract, then we need to execute a TransferFrom msg to receive funds
             if let AssetInfo::Token { contract_addr, .. } = &pool.info {
@@ -484,11 +440,11 @@ pub fn provide_liquidity(
         }
     }
 
-    // Assert slippage tolerance
+    // Assert that slippage tolerance is respected
     assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
 
-    let token_precision_0 = query_token_precision(&deps.querier, &pools[0].info)?;
-    let token_precision_1 = query_token_precision(&deps.querier, &pools[1].info)?;
+    let token_precision_0 = query_token_precision(&deps.querier, &pools[0].info.clone())?;
+    let token_precision_1 = query_token_precision(&deps.querier, &pools[1].info.clone())?;
 
     let greater_precision = token_precision_0.max(token_precision_1);
 
@@ -499,7 +455,9 @@ pub fn provide_liquidity(
     let share = if total_share.is_zero() {
         let liquidity_token_precision = query_token_precision(
             &deps.querier,
-            &token_asset_info(config.pair_info.liquidity_token.clone()),
+            &AssetInfo::Token {
+                contract_addr: config.pair_info.liquidity_token.clone(),
+            },
         )?;
 
         // Initial share = collateral amount
@@ -680,9 +638,9 @@ pub fn withdraw_liquidity(
         env,
         &config,
         pools[0].amount,
-        query_token_precision(&deps.querier, &pools[0].info)?,
+        query_token_precision(&deps.querier, &pools[0].info.clone())?,
         pools[1].amount,
-        query_token_precision(&deps.querier, &pools[1].info)?,
+        query_token_precision(&deps.querier, &pools[1].info.clone())?,
     )? {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
@@ -751,7 +709,6 @@ pub fn get_share_in_assets(
 
 /// ## Description
 /// Performs a swap with the specified parameters.
-/// CONTRACT - the user must allow the pool to pull tokens from their account in order to swap them.
 /// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the
 /// specified attributes if the operation was successful.
 /// ## Params
@@ -770,6 +727,7 @@ pub fn get_share_in_assets(
 /// * **max_spread** is an object of type [`Option<Decimal>`]. This is the maximum spread allowed for the swap.
 ///
 /// * **to** is an object of type [`Option<Addr>`]. This is the address that receives ask tokens.
+/// NOTE - the address that wants to swap should approve the pair contract to pull the offer token.
 #[allow(clippy::too_many_arguments)]
 pub fn swap(
     deps: DepsMut,
@@ -822,6 +780,15 @@ pub fn swap(
     )?;
 
     let offer_amount = offer_asset.amount;
+
+    // Check if the liquidity is non-zero
+    if offer_pool.amount.is_zero() || ask_pool.amount.is_zero() {
+        return Err(ContractError::ZeroLiquidity(
+            offer_pool.amount,
+            ask_pool.amount,
+        ));
+    }
+
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
         query_token_precision(&deps.querier, &offer_pool.info)?,
@@ -872,9 +839,9 @@ pub fn swap(
         env,
         &config,
         pools[0].amount,
-        query_token_precision(&deps.querier, &pools[0].info)?,
+        query_token_precision(&deps.querier, &pools[0].info.clone())?,
         pools[1].amount,
-        query_token_precision(&deps.querier, &pools[1].info)?,
+        query_token_precision(&deps.querier, &pools[1].info.clone())?,
     )? {
         config.price0_cumulative_last = price0_cumulative_new;
         config.price1_cumulative_last = price1_cumulative_new;
@@ -910,13 +877,13 @@ pub fn swap(
 ///
 /// * **config** is an object of type [`Config`].
 ///
-/// * **x** is the balance of asset\[\0] in the pool.
+/// * **x** is an object of type [`Uint128`]. This is the balance of asset\[\0] in the pool.
 ///
-/// * **x_precision** is the precision for the x token.
+/// * **x_precision** is an object of type [`u8`]. This is the precision for the x token.
 ///
-/// * **y** is the balance of asset\[\1] in the pool.
+/// * **y** is an object of type [`Uint128`]. This is the balance of asset\[\1] in the pool.
 ///
-/// * **y_precision** is the precision for the y token.
+/// * **y_precision** is an object of type [`u8`]. This is the precision for the y token.
 pub fn accumulate_prices(
     env: Env,
     config: &Config,
@@ -1018,15 +985,13 @@ pub fn calculate_maker_fee(
 ///
 /// * **QueryMsg::Simulation { offer_asset }** Returns the result of a swap simulation using a [`SimulationResponse`] object.
 ///
-/// * **QueryMsg::ReverseSimulation { ask_asset }** Returns the result of a reverse swap simulation  using
+/// * **QueryMsg::ReverseSimulation { ask_asset }** Returns the result of a reverse swap simulation using
 /// a [`ReverseSimulationResponse`] object.
 ///
 /// * **QueryMsg::CumulativePrices {}** Returns information about cumulative prices for the assets in the
 /// pool using a [`CumulativePricesResponse`] object.
 ///
 /// * **QueryMsg::Config {}** Returns the configuration for the pair contract using a [`ConfigResponse`] object.
-///
-/// * **QueryMsg::PendingReward {}** Returns the amount of bLUNA pending rewards for a specific address using an [`Asset`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -1041,7 +1006,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
-        QueryMsg::PendingReward { user } => to_binary(&query_pending_reward(deps, env, user)?),
+        QueryMsg::OwnershipProposal {} => to_binary(&query_ownership_proposal(deps)?),
     }
 }
 
@@ -1090,6 +1055,8 @@ pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<[Asset; 2]> {
 /// Returns information about a swap simulation in a [`SimulationResponse`] object.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
 ///
 /// * **offer_asset** is an object of type [`Asset`]. This is the asset to swap as well as an amount of the said asset.
 pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<SimulationResponse> {
@@ -1140,6 +1107,8 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
 /// Returns information about a reverse swap simulation in a [`ReverseSimulationResponse`] object.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
 ///
 /// * **ask_asset** is an object of type [`Asset`]. This is the asset to swap to as well as the desired
 /// amount of ask assets to receive from the swap.
@@ -1208,9 +1177,9 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
         env,
         &config,
         assets[0].amount,
-        query_token_precision(&deps.querier, &assets[0].info)?,
+        query_token_precision(&deps.querier, &assets[0].info.clone())?,
         assets[1].amount,
-        query_token_precision(&deps.querier, &assets[1].info)?,
+        query_token_precision(&deps.querier, &assets[1].info.clone())?,
     )? {
         price0_cumulative_last = price0_cumulative_new;
         price1_cumulative_last = price1_cumulative_new;
@@ -1232,81 +1201,23 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
 /// * **deps** is an object of type [`Deps`].
 pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
+
     Ok(ConfigResponse {
+        owner: config.owner.to_string(),
         block_time_last: config.block_time_last,
         params: Some(to_binary(&StablePoolConfig {
             amp: Decimal::from_ratio(compute_current_amp(&config, &env)?, AMP_PRECISION),
-            bluna_rewarder: config.bluna_rewarder,
-            generator: config.generator,
         })?),
     })
 }
 
 /// ## Description
-/// Returns the amount of bLUNA pending rewards for a specific address using a [`Asset`] object.
+/// Returns information about the ownership proposal in an object of type [`OwnershipProposal`].
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **user** is an object of type [`String`]. This is the address for which we query the amount of pending bLUNA rewards to claim.
-pub fn query_pending_reward(deps: Deps, env: Env, user: String) -> StdResult<Asset> {
-    use cosmwasm_std::Decimal256;
-
-    let user = addr_validate_to_lower(deps.api, &user)?;
-
-    let config = CONFIG.load(deps.storage)?;
-
-    let user_share: Uint128 = deps.querier.query_wasm_smart(
-        &config.generator,
-        &GeneratorQueryMsg::Deposit {
-            lp_token: config.pair_info.liquidity_token.to_string(),
-            user: user.to_string(),
-        },
-    )?;
-
-    let global_index = BLUNA_REWARD_GLOBAL_INDEX
-        .may_load(deps.storage)?
-        .unwrap_or_default();
-
-    let user_index_opt = BLUNA_REWARD_USER_INDEXES.may_load(deps.storage, &user)?;
-
-    let user_index = if let Some(user_index) = user_index_opt {
-        user_index
-    } else if user_share.is_zero() {
-        global_index
-    } else {
-        Decimal256::zero()
-    };
-
-    let accrued_rewards: AccruedRewardsResponse = deps.querier.query_wasm_smart(
-        config.bluna_rewarder,
-        &BAssetRewardQueryMsg::AccruedRewards {
-            address: env.contract.address.to_string(),
-        },
-    )?;
-
-    let pool_info: PoolInfoResponse = deps.querier.query_wasm_smart(
-        &config.generator,
-        &GeneratorQueryMsg::PoolInfo {
-            lp_token: config.pair_info.liquidity_token.to_string(),
-        },
-    )?;
-
-    let mut accrued_rewards_index = Decimal256::zero();
-    if !pool_info.lp_supply.is_zero() {
-        accrued_rewards_index =
-            Decimal256::from_ratio(accrued_rewards.rewards.u128(), pool_info.lp_supply.u128());
-    }
-
-    Ok(Asset {
-        info: AssetInfo::NativeToken {
-            denom: "uusd".to_string(),
-        },
-        amount: Uint128::try_from(
-            (global_index - user_index + accrued_rewards_index) * Uint256::from(user_share),
-        )?,
-    })
+pub fn query_ownership_proposal(deps: Deps) -> StdResult<OwnershipProposal> {
+    let ownership_proposal: OwnershipProposal = OWNERSHIP_PROPOSAL.load(deps.storage)?;
+    Ok(ownership_proposal)
 }
 
 /// ## Description
@@ -1325,7 +1236,7 @@ pub fn query_pending_reward(deps: Deps, env: Env, user: String) -> StdResult<Ass
 /// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
 ///
 /// * **amp** is an object of type [`u64`]. This is the pool amplification used to calculate the swap result.
-pub fn compute_swap(
+fn compute_swap(
     offer_pool: Uint128,
     offer_precision: u8,
     ask_pool: Uint128,
@@ -1375,7 +1286,7 @@ pub fn compute_swap(
 /// * **ask_amount** is an object of type [`Uint128`]. This is the amount of ask assets to swap to.
 ///
 /// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
-pub fn compute_offer_amount(
+fn compute_offer_amount(
     offer_pool: Uint128,
     offer_precision: u8,
     ask_pool: Uint128,
@@ -1406,7 +1317,7 @@ pub fn compute_offer_amount(
         .unwrap(),
     );
 
-    // We assume the assets should stay in a 1:1 ratio, so the true exchange rate is 1. So any exchange rate <1 could be considered the spread
+    // We assume the assets should stay in a 1:1 ratio, so the true exchange rate is 1. Any exchange rate < 1 could be considered the spread
     let spread_amount = offer_amount.saturating_sub(before_commission_deduction);
 
     let commission_amount = before_commission_deduction * commission_rate;
@@ -1473,7 +1384,13 @@ pub fn assert_max_spread(
     }
 
     if let Some(belief_price) = belief_price {
-        let expected_return = offer_amount * (Decimal::one() / belief_price);
+        let expected_return = offer_amount
+            * belief_price.inv().ok_or_else(|| {
+                ContractError::Std(StdError::generic_err(
+                    "Invalid belief_price. Check the input values.",
+                ))
+            })?;
+
         let spread_amount = expected_return
             .checked_sub(return_amount)
             .unwrap_or_else(|_| Uint128::zero());
@@ -1504,12 +1421,12 @@ fn assert_slippage_tolerance(
     _deposits: &[Uint128; 2],
     _pools: &[Asset; 2],
 ) -> Result<(), ContractError> {
-    //There is no slippage in the stable pool
+    // There is no slippage in the stable pool
     Ok(())
 }
 
 /// ## Description
-/// Used for the contract migration. Returns a default object of type [`Response`].
+/// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
 /// * **_deps** is an object of type [`DepsMut`].
 ///
@@ -1517,57 +1434,42 @@ fn assert_slippage_tolerance(
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
-
-    let mut response = Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version);
 
     match contract_version.contract.as_ref() {
         "astroport-pair-stable" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.0-fix1" => {
-                let config = CONFIG_PAIR_STABLE_V100.load(deps.storage)?;
-                let new_config = crate::state::Config {
-                    bluna_rewarder: addr_validate_to_lower(
-                        deps.api,
-                        &msg.bluna_rewarder.ok_or(ContractError::MigrationError {})?,
-                    )?,
-                    generator: addr_validate_to_lower(
-                        deps.api,
-                        &msg.generator.ok_or(ContractError::MigrationError {})?,
-                    )?,
-                    block_time_last: config.block_time_last,
-                    factory_addr: config.factory_addr.clone(),
-                    init_amp: config.init_amp,
-                    init_amp_time: config.init_amp_time,
-                    next_amp: config.next_amp,
-                    next_amp_time: config.next_amp_time,
-                    pair_info: config.pair_info,
-                    price0_cumulative_last: config.price0_cumulative_last,
-                    price1_cumulative_last: config.price1_cumulative_last,
-                };
-                CONFIG.save(deps.storage, &new_config)?;
-                response
-                    .messages
-                    .push(get_bluna_reward_holder_instantiating_message(
-                        deps.as_ref(),
-                        &env,
-                        &config.factory_addr,
-                    )?);
+            "1.0.0" => {
+                let pair_config = astroport_pair_stable::state::CONFIG.load(deps.storage)?;
+                let factory_config =
+                    query_factory_config(&deps.querier, pair_config.factory_addr.clone())?;
+
+                CONFIG.save(
+                    deps.storage,
+                    &Config {
+                        owner: factory_config.owner,
+                        pair_info: pair_config.pair_info,
+                        factory_addr: pair_config.factory_addr,
+                        block_time_last: pair_config.block_time_last,
+                        price0_cumulative_last: pair_config.price0_cumulative_last,
+                        price1_cumulative_last: pair_config.price1_cumulative_last,
+                        init_amp: pair_config.init_amp,
+                        init_amp_time: pair_config.init_amp_time,
+                        next_amp: pair_config.next_amp,
+                        next_amp_time: pair_config.init_amp_time,
+                    },
+                )?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },
-        "astroport-pair-stable-bluna" => match contract_version.version.as_ref() {
-            "1.0.1" => {}
-            _ => return Err(ContractError::MigrationError {}),
-        },
         _ => return Err(ContractError::MigrationError {}),
-    };
+    }
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    Ok(response
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
         .add_attribute("new_contract_name", CONTRACT_NAME)
         .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
@@ -1605,9 +1507,8 @@ pub fn update_config(
     params: Binary,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let factory_config = query_factory_config(&deps.querier, config.factory_addr.clone())?;
 
-    if info.sender != factory_config.owner {
+    if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -1617,13 +1518,6 @@ pub fn update_config(
             next_amp_time,
         } => start_changing_amp(config, deps, env, next_amp, next_amp_time)?,
         StablePoolUpdateParams::StopChangingAmp {} => stop_changing_amp(config, deps, env)?,
-        StablePoolUpdateParams::BlunaRewarder { address } => {
-            let address = addr_validate_to_lower(deps.as_ref().api, &address)?;
-            CONFIG.update::<_, StdError>(deps.storage, |mut cfg| {
-                cfg.bluna_rewarder = address;
-                Ok(cfg)
-            })?;
-        }
     }
 
     Ok(Response::default())
@@ -1697,14 +1591,14 @@ fn stop_changing_amp(mut config: Config, deps: DepsMut, env: Env) -> StdResult<(
     config.init_amp_time = block_time;
     config.next_amp_time = block_time;
 
-    // now (block_time < next_amp_time) is always False, so we return saved Amp
+    // now (block_time < next_amp_time) is always False, so we return the saved AMP
     CONFIG.save(deps.storage, &config)?;
 
     Ok(())
 }
 
 /// ## Description
-/// Compute the current amplification coefficient (AMP)
+/// Compute the current pool amplification coefficient (AMP).
 /// ## Params
 /// * **config** is an object of type [`Config`].
 ///
@@ -1732,335 +1626,4 @@ fn compute_current_amp(config: &Config, env: &Env) -> StdResult<u64> {
     } else {
         Ok(config.next_amp)
     }
-}
-
-/// ## Description
-/// Return a message object that can help claim bLUNA rewards for an account.
-/// Returns an [`ContractError`] on failure, otherwise returns the object
-/// of type [`SubMsg`].
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **factory_addr** is an object of type [`Addr`]. This is the Astroport factory address.
-fn get_bluna_reward_holder_instantiating_message(
-    deps: Deps,
-    env: &Env,
-    factory_addr: &Addr,
-) -> Result<SubMsg, ContractError> {
-    Ok(SubMsg {
-        msg: CosmosMsg::Wasm(WasmMsg::Instantiate {
-            admin: None,
-            code_id: query_factory_config(&deps.querier, factory_addr.clone())?.whitelist_code_id,
-            funds: vec![],
-            label: "Bluna rewarder".to_string(),
-            msg: to_binary(&WhitelistInstantiateMsg {
-                admins: vec![env.contract.address.to_string()],
-                mutable: false,
-            })?,
-        }),
-        id: INSTANTIATE_BLUNA_REWARD_HOLDER_REPLY_ID,
-        gas_limit: None,
-        reply_on: ReplyOn::Success,
-    })
-}
-
-/// ## Description
-/// Returns a vector of messages that are meant to claim bLUNA rewards for a specific user.
-/// Returns a [`ContractError`] on failure, otherwise returns the vector that contains objects
-/// of type [`CosmosMsg`].
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **bluna_rewarder** is an object of type [`str`]. This is the contract that distributes bLUNA rewards.
-///
-/// * **user** is an object of type [`Addr`]. This is the address for which we return messages that are meant to claim rewards.
-///
-/// * **user_share** is an object of type [`Uint128`]. This is the share of the bLUNA rewards that the `user` is entitled to.
-///
-/// * **total_share** is an object of type [`Uint128`]. This is the total amount of bLUNA rewards entitled to bLUNA LPs.
-///
-/// * **receiver** is an object of type [`Option<Addr>`]. This is a custom address that can receive the bLUNA rewards.
-/// If it's not present, the function defaults to the `user`.
-fn get_bluna_reward_handling_messages(
-    deps: Deps,
-    env: &Env,
-    bluna_rewarder: &str,
-    user: Addr,
-    user_share: Uint128,
-    total_share: Uint128,
-    receiver: Option<Addr>,
-) -> Result<Vec<CosmosMsg>, ContractError> {
-    let bluna_reward_holder = BLUNA_REWARD_HOLDER.load(deps.storage)?;
-
-    let reward_balance = astroport::querier::query_balance(
-        &deps.querier,
-        bluna_reward_holder.clone(),
-        "uusd".to_string(),
-    )?;
-
-    Ok(vec![
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: bluna_rewarder.to_string(),
-            msg: to_binary(&anchor_basset::reward::ExecuteMsg::ClaimRewards {
-                recipient: Some(bluna_reward_holder.to_string()),
-            })?,
-            funds: vec![],
-        }),
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            funds: vec![],
-            msg: to_binary(&ExecuteMsg::HandleReward {
-                previous_reward_balance: reward_balance,
-                user,
-                user_share,
-                total_share,
-                receiver,
-            })?,
-        }),
-    ])
-}
-
-/// ## Description
-/// Claims bLUNA rewards on behalf of the function caller and sends them to the specified receiver.
-/// Returns A [`ContractError`] on failure, otherwise returns A [`Response`] with the specified attributes if the operation was successful.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **receiver** is an object of type [`Option<String>`]. This is the address that receives the bLUNA rewards.
-fn claim_reward(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    receiver: Option<String>,
-) -> Result<Response, ContractError> {
-    let receiver = receiver
-        .map(|receiver| addr_validate_to_lower(deps.api, &receiver))
-        .transpose()?;
-
-    let config: Config = CONFIG.load(deps.storage)?;
-
-    let user_share: Uint128 = deps.querier.query_wasm_smart(
-        &config.generator,
-        &GeneratorQueryMsg::Deposit {
-            lp_token: config.pair_info.liquidity_token.to_string(),
-            user: info.sender.to_string(),
-        },
-    )?;
-
-    if user_share.is_zero() {
-        return Err(StdError::generic_err("No lp tokens staked to the generator!").into());
-    }
-
-    let pool_info: PoolInfoResponse = deps.querier.query_wasm_smart(
-        &config.generator,
-        &GeneratorQueryMsg::PoolInfo {
-            lp_token: config.pair_info.liquidity_token.to_string(),
-        },
-    )?;
-
-    Ok(
-        Response::new().add_messages(get_bluna_reward_handling_messages(
-            deps.as_ref(),
-            &env,
-            config.bluna_rewarder.as_str(),
-            info.sender,
-            user_share,
-            pool_info.lp_supply,
-            receiver,
-        )?),
-    )
-}
-
-/// ## Description
-/// Claims bLUNA rewards on behalf of stakers that deposited their LP tokens in the Generator contract.
-/// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the
-/// specified attributes if the operation was successful.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **user** is an object of type [`String`].
-/// This is the user for which to claim bLUNA rewards that were accrued by the Generator on their behalf.
-///
-/// * **user_share** is an object of type [`Uint128`]. This is the user's share of bLUNA rewards.
-///
-/// * **total_share** is an object of type [`Uint128`]. This is the total share of bLUNA rewards that need to be distributed.
-fn claim_reward_by_generator(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    user: String,
-    user_share: Uint128,
-    total_share: Uint128,
-) -> Result<Response, ContractError> {
-    let config: Config = CONFIG.load(deps.storage)?;
-
-    let user = addr_validate_to_lower(deps.api, &user)?;
-
-    if info.sender != config.generator {
-        return Err(StdError::generic_err("Only the generator can use this method!").into());
-    }
-
-    Ok(
-        Response::new().add_messages(get_bluna_reward_handling_messages(
-            deps.as_ref(),
-            &env,
-            config.bluna_rewarder.as_str(),
-            user,
-            user_share,
-            total_share,
-            None,
-        )?),
-    )
-}
-
-/// ## Description
-/// Handles and distributes bLUNA rewards.
-/// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the
-/// specified attributes if the operation was successful.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **previous_reward_balance** is an object of type [`Uint128`].
-/// This is the previous bLUNA rewards balance that had to be distributed to LPs.
-///
-/// * **user** is an object of type [`Addr`]. This is the address for which we distribute bLUNA rewards.
-///
-/// * **user_share** is an object of type [`Uint128`]. This is the user's share of bLUNA rewards.
-///
-/// * **total_share** is an object of type [`Uint128`]. This is the total share of bLUNA rewards that need to be distributed.
-///
-/// * **receiver** is an object of type [`Option<Addr>`]. This is the address that will receive bLUNA rewards.
-#[allow(clippy::too_many_arguments)]
-pub fn handle_reward(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    previous_reward_balance: Uint128,
-    user: Addr,
-    user_share: Uint128,
-    total_share: Uint128,
-    receiver: Option<Addr>,
-) -> Result<Response, ContractError> {
-    use astroport::whitelist::ExecuteMsg;
-
-    if info.sender != env.contract.address {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let receiver = receiver.unwrap_or_else(|| user.clone());
-
-    let bluna_reward_holder = BLUNA_REWARD_HOLDER.load(deps.storage)?;
-
-    let reward_balance = astroport::querier::query_balance(
-        &deps.querier,
-        bluna_reward_holder.clone(),
-        "uusd".to_string(),
-    )?;
-
-    let bluna_reward_global_index = BLUNA_REWARD_GLOBAL_INDEX
-        .may_load(deps.storage)?
-        .unwrap_or_default();
-    let bluna_reward_user_index = BLUNA_REWARD_USER_INDEXES.may_load(deps.storage, &user)?;
-
-    let (bluna_reward_global_index, latest_reward_amount, user_reward) = calc_user_reward(
-        reward_balance,
-        previous_reward_balance,
-        user_share,
-        total_share,
-        bluna_reward_global_index,
-        bluna_reward_user_index,
-    )?;
-
-    BLUNA_REWARD_GLOBAL_INDEX.save(deps.storage, &bluna_reward_global_index)?;
-    BLUNA_REWARD_USER_INDEXES.save(deps.storage, &user, &bluna_reward_global_index)?;
-
-    let mut response =
-        Response::new().add_attribute("bluna_claimed_reward_to_pool", latest_reward_amount);
-
-    if !user_reward.is_zero() {
-        response.messages.push(SubMsg::new(WasmMsg::Execute {
-            contract_addr: bluna_reward_holder.to_string(),
-            funds: vec![],
-            msg: to_binary(&ExecuteMsg::Execute {
-                msgs: vec![Asset {
-                    info: AssetInfo::NativeToken {
-                        denom: "uusd".to_string(),
-                    },
-                    amount: user_reward,
-                }
-                .into_msg(&deps.querier, receiver.clone())?],
-            })?,
-        }));
-    }
-
-    Ok(response
-        .add_attribute("user", user)
-        .add_attribute("receiver", receiver)
-        .add_attribute("sent_bluna_reward", user_reward))
-}
-
-/// ## Description
-/// Calculate the amount of bLUNA rewards that a user can claim.
-/// Returns a [`ContractError`] on failure, otherwise returns the tuple values
-/// [bluna_reward_global_index, latest_reward_amount and user_reward].
-/// ## Params
-/// * **reward_balance** is an object of type [`Uint128`].
-/// This is the total amount of bLUNA rewards that the bLUNA reward distributor currently holds.
-///
-/// * **previous_reward_balance** is an object of type [`Uint128`].
-/// This is the total amount of bLUNA rewards that the bLUNA reward distributor previously held.
-///
-/// * **user_share** is an object of type [`Uint128`]. This is the portion of bLUNA rewards that the user can claim.
-///
-/// * **total_share** is an object of type [`Uint128`]. This is the total share of bLUNA rewards that go to bLUNA Astroport LPs.
-///
-/// * **bluna_reward_global_index** is an object of type [`Decimal256`].
-/// This is an index tracking how many rewards have been distributed to bLUNA stakers.
-///
-/// * **bluna_reward_user_index** is an object of type [`Option<Decimal256>`].
-/// This is an index tracking how many rewards have been claimed by the `user`.
-pub fn calc_user_reward(
-    reward_balance: Uint128,
-    previous_reward_balance: Uint128,
-    user_share: Uint128,
-    total_share: Uint128,
-    bluna_reward_global_index: cosmwasm_std::Decimal256,
-    bluna_reward_user_index: Option<cosmwasm_std::Decimal256>,
-) -> Result<(cosmwasm_std::Decimal256, Uint128, Uint128), ContractError> {
-    use cosmwasm_std::Decimal256;
-
-    let latest_reward_amount = reward_balance.saturating_sub(previous_reward_balance);
-
-    let bluna_reward_global_index =
-        bluna_reward_global_index + Decimal256::from_ratio(latest_reward_amount, total_share);
-
-    let user_reward: Uint128 = if let Some(bluna_reward_user_index) = bluna_reward_user_index {
-        ((bluna_reward_global_index - bluna_reward_user_index) * Uint256::from(user_share))
-            .try_into()
-            .map_err(|e| ContractError::Std(StdError::from(e)))?
-    } else if !user_share.is_zero() {
-        (bluna_reward_global_index * Uint256::from(user_share))
-            .try_into()
-            .map_err(|e| ContractError::Std(StdError::from(e)))?
-    } else {
-        Uint128::zero()
-    };
-
-    Ok((bluna_reward_global_index, latest_reward_amount, user_reward))
 }

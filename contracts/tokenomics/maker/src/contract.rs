@@ -889,6 +889,20 @@ fn query_bridges(deps: Deps) -> StdResult<Vec<(String, String)>> {
 }
 
 /// ## Description
+/// Returns asset information for the specified pair.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **contract_addr** is an object of type [`Addr`]. This is an Astroport pair contract address.
+pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<[AssetInfo; 2]> {
+    let res: PairInfo = deps
+        .querier
+        .query_wasm_smart(contract_addr, &PairQueryMsg::Pair {})?;
+
+    Ok(res.asset_infos)
+}
+
+/// ## Description
 /// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
 /// * **_deps** is an object of type [`Deps`].

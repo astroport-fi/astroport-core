@@ -4,12 +4,14 @@ use crate::math::{
     MIN_AMP_CHANGING_TIME,
 };
 use crate::state::{get_precision, store_precisions, Config, CONFIG};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use std::collections::HashMap;
 
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, wasm_execute, wasm_instantiate, Addr, Binary,
-    CosmosMsg, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
-    StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    attr, from_binary, to_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
+    Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response, StdError,
+    StdResult, SubMsg, Uint128, WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
