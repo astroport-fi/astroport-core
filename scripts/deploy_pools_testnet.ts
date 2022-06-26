@@ -86,8 +86,9 @@ async function main() {
     console.log('network:', network)
 
     if (!network.tokenAddress) {
-        await sendNotification("token address is not set, create ASTRO token first")
-        throw new Error("token address is not set, create ASTRO token first")
+        let err = new Error("Token address is not set, create ASTRO token first")
+        await sendNotification(err.name, err.message, err.stack)
+        throw err
     }
 
     let pools =  [
@@ -153,7 +154,8 @@ async function main() {
             // await uploadAndInitGeneratorProxy(terra, wallet, pool, network, pool_pair_key, pool_lp_token_key)
         }
     } catch (e: any) {
-        await sendNotification(e)
+        let err = new Error(e.data)
+        await sendNotification(err.name, err.message, err.stack)
     }
 
 

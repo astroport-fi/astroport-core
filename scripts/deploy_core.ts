@@ -26,15 +26,15 @@ async function main() {
     console.log('network:', network)
 
     if (!network.tokenAddress) {
-        console.log(`Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...`)
-        await sendNotification("Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...")
-        return
+        let err = new Error("Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...")
+        await sendNotification(err.name, err.message, err.stack)
+        throw err
     }
 
     if (!network.multisigAddress) {
-        console.log(`Set the proper owner multisig for the contracts`)
-        await sendNotification("Set the proper owner multisig for the contracts")
-        return
+        let err = new Error("Set the proper owner multisig for the contracts")
+        await sendNotification(err.name, err.message, err.stack)
+        throw err
     }
 
     try {
@@ -45,7 +45,8 @@ async function main() {
         await uploadAndInitRouter(terra, wallet)
         await uploadAndInitMaker(terra, wallet)
     } catch (e: any) {
-        await sendNotification(e.data)
+        let err = new Error(e.data)
+        await sendNotification(err.name, err.message, err.stack)
     }
 
     // // Set new owner for admin

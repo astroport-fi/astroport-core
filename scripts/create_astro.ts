@@ -61,14 +61,15 @@ async function main() {
         strictEqual(balance.balance, TOKEN_INFO.initial_balances[0].amount)
 
         // set multisig address
-        // if (process.env.MULTISIG_ADDRESS) {
-        //     network.multisigAddress = process.env.MULTISIG_ADDRESS!
-        // }
+        if (process.env.MULTISIG_ADDRESS) {
+            network.multisigAddress = process.env.MULTISIG_ADDRESS!
+        }
 
         writeArtifact(network, terra.config.chainID)
         console.log('FINISH')
     } catch (e: any) {
-        await sendNotification(e.data)
+        let err = new Error(e.data)
+        await sendNotification(err.name, err.message, err.stack)
     }
 
 }
