@@ -1,6 +1,6 @@
-## Astroport Core Scripts
+## Scripts
 
-### Build local env
+### Build env local
 
 ```shell
 npm install
@@ -11,7 +11,7 @@ npm start
 
 Build contract:
 ```shell
-npm run build-release
+npm run build-artifacts
 ```
 
 Create `.env`:
@@ -19,11 +19,11 @@ Create `.env`:
 WALLET="mnemonic"
 LCD_CLIENT_URL=https://bombay-lcd.terra.dev
 CHAIN_ID=bombay-12
-GAS_CURRENCY="uusd"
-GAS_PRICE=0.15
+
+TOKEN_INITIAL_AMOUNT="1000000000000000"
 ```
 
-Deploy the contracts:
+Deploy contract:
 ```shell
 npm run build-app
 ```

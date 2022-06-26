@@ -21,20 +21,20 @@ async function main() {
     const router = astroport.router(network.routerAddress);
     console.log("router config: ", await router.queryConfig());
 
-    // 1. Provide ASTRO-UST liquidity
+    // 1. Provide AstroUst liquidity
     const liquidity_amount = 10000000;
     await provideLiquidity(network, astroport, cl.wallet.key.accAddress, network.poolAstroUst, [
         new NativeAsset('uusd', liquidity_amount.toString()),
         new TokenAsset(network.tokenAddress, liquidity_amount.toString())
     ])
 
-    // 2. Provide LUNA-UST liquidity
+    // 2. Provide LunaUst liquidity
     await provideLiquidity(network, astroport, cl.wallet.key.accAddress, network.poolLunaUst, [
         new NativeAsset('uluna', liquidity_amount.toString()),
         new NativeAsset('uusd', liquidity_amount.toString())
     ])
 
-    // 3. Fetch the pool balances
+    // 3. Pools balance
     let lpTokenAstroUst = await astroport.getTokenBalance(network.lpTokenAstroUst, cl.wallet.key.accAddress);
     let lpTokenLunaUst = await astroport.getTokenBalance(network.lpTokenLunaUst, cl.wallet.key.accAddress);
 
@@ -49,18 +49,6 @@ async function main() {
 
     // 6. Swap native tokens
     await swapFromNative(router, network, astroport, cl.wallet.key.accAddress);
-    // 7. Provide LUNA-aUST liquidity
-    // const liquidity_amount = 100000;
-    // await provideLiquidity(network, astroport, cl.wallet.key.accAddress, network.poolAustLuna, [
-    //     new NativeAsset('uluna', liquidity_amount.toString()),
-    //     new TokenAsset('terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl', liquidity_amount.toString())
-    // ])
-
-    // // 8. Provide aUST-UST liquidity
-    // await provideLiquidity(network, astroport, cl.wallet.key.accAddress, network.poolLunaUst, [
-    //     new NativeAsset('uluna', liquidity_amount.toString()),
-    //     new NativeAsset('uusd', liquidity_amount.toString())
-    // ])
 }
 
 async function assertMinimumReceive(router: Router, accAddress: string) {
@@ -156,7 +144,7 @@ async function swapFromNative(router: Router, network: any, astroport: Astroport
     strictEqual(astro_balance_before_swap, astro_balance_after_swap + swapRate.amount.toNumber());
 }
 
-export async function provideLiquidity(network: any, astroport: Astroport, accAddress: string, poolAddress: string, assets: (NativeAsset|TokenAsset)[]) {
+async function provideLiquidity(network: any, astroport: Astroport, accAddress: string, poolAddress: string, assets: (NativeAsset|TokenAsset)[]) {
     const pool = astroport.pair(poolAddress);
     let pair_info = await pool.queryPair();
     console.log(util.inspect(pair_info, false, null, true));

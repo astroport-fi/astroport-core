@@ -12,7 +12,7 @@ import {
     MsgMigrateContract,
     MsgStoreCode,
     MsgUpdateContractAdmin, Tx,
-    Wallet,
+    Wallet
 } from '@terra-money/terra.js';
 import {
     readFileSync,
@@ -20,11 +20,8 @@ import {
 } from 'fs'
 import path from 'path'
 import { CustomError } from 'ts-custom-error'
-import {APIParams} from "@terra-money/terra.js/dist/client/lcd/APIRequester";
 
 export const ARTIFACTS_PATH = '../artifacts'
-const DEFAULT_GAS_CURRENCY = "uusd"
-const DEFAULT_GAS_PRICE = 0.15
 
 export function readArtifact(name: string = 'artifact') {
     try {
@@ -60,7 +57,7 @@ export function writeArtifact(data: object, name: string = 'artifact') {
 }
 
 // Tequila lcd is load balanced, so txs can't be sent too fast, otherwise account sequence queries
-// may resolve an older state depending on which lcd you end up with. Generally 1000 ms is enough
+// may resolve an older state depending on which lcd you end up with. Generally 1000 ms is is enough
 // for all nodes to sync up.
 let TIMEOUT = 1000
 
@@ -78,8 +75,8 @@ export async function sleep(timeout: number) {
 
 export class TransactionError extends CustomError {
     public constructor(
-        public code: number | string,
-        public txhash: string | undefined,
+        public code: string | number,
+        public codespace: string | undefined,
         public rawLog: string,
     ) {
         super("transaction failed")
@@ -87,22 +84,20 @@ export class TransactionError extends CustomError {
 }
 
 export async function createTransaction(wallet: Wallet, msg: Msg) {
-    let gas_currency = process.env.GAS_CURRENCY! || DEFAULT_GAS_CURRENCY
-    let gas_price = process.env.GAS_PRICE! || DEFAULT_GAS_PRICE
-    return await wallet.createAndSignTx({ msgs: [msg], gasPrices: [new Coin(gas_currency, gas_price)]})
+    return await wallet.createAndSignTx({ msgs: [msg]})
 }
 
-export async function broadcastTransaction(terra: LCDClient, tx: Tx) {
-    const result = await terra.tx.broadcast(tx)
+export async function broadcastTransaction(terra: LCDClient, signedTx: Tx) {
+    const result = await terra.tx.broadcast(signedTx)
     await sleep(TIMEOUT)
     return result
 }
 
 export async function performTransaction(terra: LCDClient, wallet: Wallet, msg: Msg) {
-    const tx = await createTransaction(wallet, msg)
-    const result = await broadcastTransaction(terra, tx)
+    const signedTx = await createTransaction(wallet, msg)
+    const result = await broadcastTransaction(terra, signedTx)
     if (isTxError(result)) {
-        throw new TransactionError(result.code, result.txhash, result.raw_log)
+        throw new TransactionError(result.code, result.codespace, result.raw_log)
     }
     return result
 }
@@ -114,10 +109,10 @@ export async function uploadContract(terra: LCDClient, wallet: Wallet, filepath:
     return Number(result.logs[0].eventsByType.store_code.code_id[0]) // code_id
 }
 
-export async function instantiateContract(terra: LCDClient, wallet: Wallet, admin_address: string, codeId: number, msg: object) {
-    const instantiateMsg = new MsgInstantiateContract(wallet.key.accAddress, admin_address, codeId, msg, undefined);
+export async function instantiateContract(terra: LCDClient, wallet: Wallet, admin_address: string | undefined, codeId: number, msg: object, label: string) {
+    const instantiateMsg = new MsgInstantiateContract(wallet.key.accAddress, admin_address, codeId, msg, undefined, label);
     let result = await performTransaction(terra, wallet, instantiateMsg)
-    return result.logs[0].events[0].attributes.filter(element => element.key == 'contract_address' ).map(x => x.value);
+    return result.logs[0].events.filter(el => el.type == 'instantiate').map(x => x.attributes.filter(element => element.key == '_contract_address' ).map(x => x.value));
 }
 
 export async function executeContract(terra: LCDClient, wallet: Wallet, contractAddress: string, msg: object, coins?: Coins.Input) {
@@ -129,25 +124,9 @@ export async function queryContract(terra: LCDClient, contractAddress: string, q
     return await terra.wasm.contractQuery(contractAddress, query)
 }
 
-export async function queryContractInfo(terra: LCDClient, contractAddress: string): Promise<any> {
-    return await terra.wasm.contractInfo(contractAddress)
-}
-
-export async function queryCodeInfo(terra: LCDClient, codeID: number): Promise<any> {
-    return await terra.wasm.codeInfo(codeID)
-}
-
-export async function queryContractQuery(terra: LCDClient, contractAddress: string, query: any): Promise<any> {
-    return await terra.wasm.contractQuery(contractAddress, query)
-}
-
-export async function queryContractRaw(terra: LCDClient, end_point: string, params: APIParams): Promise<any> {
-    return await terra.apiRequester.getRaw(end_point, params)
-}
-
-export async function deployContract(terra: LCDClient, wallet: Wallet, admin_address: string, filepath: string, initMsg: object) {
+export async function deployContract(terra: LCDClient, wallet: Wallet, admin_address: string, filepath: string, initMsg: object, label: string) {
     const codeId = await uploadContract(terra, wallet, filepath);
-    return await instantiateContract(terra, wallet, admin_address, codeId, initMsg);
+    return await instantiateContract(terra, wallet, admin_address, codeId, initMsg, label);
 }
 
 export async function migrate(terra: LCDClient, wallet: Wallet, contractAddress: string, newCodeId: number, msg: object) {
@@ -186,14 +165,6 @@ export function initialize(terra: LCDClient) {
 
 export function toEncodedBinary(object: any) {
     return Buffer.from(JSON.stringify(object)).toString('base64');
-}
-
-export function strToEncodedBinary(data: string) {
-    return Buffer.from(data).toString('base64');
-}
-
-export function toDecodedBinary(data: string) {
-    return Buffer.from(data, 'base64')
 }
 
 export class NativeAsset {
@@ -296,14 +267,6 @@ export class AstroSwap {
                 "offer_asset_info": this.offer_asset_info.getInfo(),
                 "ask_asset_info": this.ask_asset_info.getInfo(),
             }
-        }
-    }
-}
-
-export function checkParams(network:any, required_params: any) {
-    for (const k in required_params) {
-        if (!network[required_params[k]]) {
-            throw "Set required param: " + required_params[k]
         }
     }
 }

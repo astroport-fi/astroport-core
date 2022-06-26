@@ -21,7 +21,7 @@ async function main() {
     console.log('network:', network)
 
     if (network.tokenAddress == "") {
-        throw new Error("Token address is not set, deploy ASTRO token first")
+        throw new Error("token address is not set, create ASTRO token first")
     }
 
     let pools =  [
@@ -78,23 +78,6 @@ async function main() {
             ],
             pairType: { stable: {} },
             initParams: toEncodedBinary({ amp: 100 })
-        },
-        {
-            identifier: "AustLuna",
-            assetInfos: [
-                new TokenAsset("terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl").getInfo(),
-                new NativeAsset("uluna").getInfo(),
-            ],
-            pairType: { xyk: {} }
-        },
-        {
-            identifier: "AustUst",
-            assetInfos: [
-                new TokenAsset("terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl").getInfo(),
-                new NativeAsset("uusd").getInfo(),
-            ],
-            pairType: { custom: "Anchor-XYK" },
-            initParams: toEncodedBinary("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal")
         }
     ]
 
@@ -126,10 +109,10 @@ async function main() {
             writeArtifact(network, terra.config.chainID)
         }
 
-        // Deploy the oracle
+        // Deploy oracle
         let pool_oracle_key = "oracle" + pool.identifier
         if (pool.initOracle && network[pool_pair_key] && !network[pool_oracle_key]) {
-            console.log(`Deploying the oracle for ${pool.identifier}...`)
+            console.log(`Deploying oracle for ${pool.identifier}...`)
 
             let resp = await deployContract(terra, wallet, network.multisigAddress, join(ARTIFACTS_PATH, 'astroport_oracle.wasm'), {
                 factory_contract: network.factoryAddress,
@@ -141,12 +124,12 @@ async function main() {
             writeArtifact(network, terra.config.chainID)
         }
 
-        // Initialize the generator
+        // Initialize generator
         if (network[pool_pair_key] && network[pool_lp_token_key] && pool.initGenerator) {
             let pool_generator_proxy_key = "generatorProxy" + pool.identifier
             network[pool_generator_proxy_key] = undefined
             if (pool.initGenerator.generatorProxy) {
-                // Deploy a proxy contract
+                // Deploy proxy contract
                 console.log(`Deploying generator proxy for ${pool.identifier}...`)
                 let resp = await deployContract(terra, wallet, network.multisigAddress, join(ARTIFACTS_PATH, pool.initGenerator.generatorProxy.artifactName), {
                     generator_contract_addr: network.generatorAddress,
@@ -164,17 +147,10 @@ async function main() {
                 })
                 let new_allowed_proxies: Array<String> = config.allowed_reward_proxies
                 new_allowed_proxies.push(network[pool_generator_proxy_key] as String)
-                console.log(`Whitelist the proxy in the generator contract. The newly allowed proxy list is: ${new_allowed_proxies}`)
+                console.log(`Set the proxy as allowed in generator... Allowed proxies with new one: ${new_allowed_proxies}`)
                 await executeContract(terra, wallet, network.generatorAddress, {
                     set_allowed_reward_proxies: {
                         proxies: new_allowed_proxies
-                    }
-                })
-                console.log(`Move the pool ${network[pool_lp_token_key]} to proxy ${network[pool_generator_proxy_key]}`)
-                await executeContract(terra, wallet, network.generatorAddress, {
-                    move_to_proxy: {
-                        lp_token: network[pool_lp_token_key],
-                        proxy: String(network[pool_generator_proxy_key])
                     }
                 })
 
@@ -183,8 +159,10 @@ async function main() {
             // Add pool to generator
             console.log(`Adding ${pool.identifier} to generator...`)
             await executeContract(terra, wallet, network.generatorAddress, {
-                setup_pools: {
-                    pools: [[network[pool_lp_token_key], String(pool.initGenerator.generatorAllocPoint)]]
+                add: {
+                    alloc_point: String(pool.initGenerator.generatorAllocPoint),
+                    reward_proxy: network[pool_generator_proxy_key],
+                    lp_token: network[pool_lp_token_key]
                 }
             })
         }
