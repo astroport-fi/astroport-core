@@ -96,7 +96,7 @@ async function main() {
                 create_pair: {
                     pair_type: pool.pairType,
                     asset_infos: pool.assetInfos,
-                    //init_params: pool.initParams
+                    init_params: pool.initParams
                 }
             })
             network[pool_pair_key] = res.logs[0].eventsByType.wasm.pair_contract_addr[0]
