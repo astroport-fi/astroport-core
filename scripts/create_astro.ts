@@ -58,6 +58,11 @@ async function main() {
     let balance = await queryContract(terra, network.tokenAddress, { balance: { address: TOKEN_INFO.initial_balances[0].address } })
     strictEqual(balance.balance, TOKEN_INFO.initial_balances[0].amount)
 
+    // set multisig address
+    if (process.env.MULTISIG_ADDRESS) {
+        network.multisigAddress = process.env.MULTISIG_ADDRESS!
+    }
+
     writeArtifact(network, terra.config.chainID)
     console.log('FINISH')
 }
