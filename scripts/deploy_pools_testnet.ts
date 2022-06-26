@@ -11,6 +11,7 @@ import {
     TokenAsset
 } from './helpers.js'
 import { join } from 'path'
+import util from "util";
 
 const ARTIFACTS_PATH = '../artifacts'
 const ORACLE_LABEL = "Astroport Oracle"
@@ -44,43 +45,43 @@ async function main() {
             pairType: { stable: {} },
             initParams: toEncodedBinary({ amp: 100 })
         },
-        {
-            identifier: "AncUst",
-            assetInfos: [
-                new TokenAsset("terra1747mad58h0w4y589y3sk84r5efqdev9q4r02pc").getInfo(),
-                new NativeAsset("uusd").getInfo(),
-            ],
-            pairType: { xyk: {} },
-            initGenerator: {
-                generatorAllocPoint: 1000000
-            }
-        },
-        {
-            identifier: "MirUst",
-            assetInfos: [
-                new TokenAsset("terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u").getInfo(),
-                new NativeAsset("uusd").getInfo(),
-            ],
-            pairType: { xyk: {} },
-            initOracle: true,
-            initGenerator: {
-                generatorAllocPoint: 1000000,
-                generatorProxy: {
-                    artifactName: "astroport_generator_proxy_to_mirror.wasm",
-                    rewardContractAddr: "terra1a06dgl27rhujjphsn4drl242ufws267qxypptx",
-                    rewardTokenAddr: "terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u"
-                }
-            }
-        },
-        {
-            identifier: "BlunaLuna",
-            assetInfos: [
-                new TokenAsset("terra1u0t35drzyy0mujj8rkdyzhe264uls4ug3wdp3x").getInfo(),
-                new NativeAsset("uusd").getInfo(),
-            ],
-            pairType: { stable: {} },
-            initParams: toEncodedBinary({ amp: 100 })
-        }
+        // {
+        //     identifier: "AncUst",
+        //     assetInfos: [
+        //         new TokenAsset("terra1747mad58h0w4y589y3sk84r5efqdev9q4r02pc").getInfo(),
+        //         new NativeAsset("uusd").getInfo(),
+        //     ],
+        //     pairType: { xyk: {} },
+        //     initGenerator: {
+        //         generatorAllocPoint: 1000000
+        //     }
+        // },
+        // {
+        //     identifier: "MirUst",
+        //     assetInfos: [
+        //         new TokenAsset("terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u").getInfo(),
+        //         new NativeAsset("uusd").getInfo(),
+        //     ],
+        //     pairType: { xyk: {} },
+        //     initOracle: true,
+        //     initGenerator: {
+        //         generatorAllocPoint: 1000000,
+        //         generatorProxy: {
+        //             artifactName: "astroport_generator_proxy_to_mirror.wasm",
+        //             rewardContractAddr: "terra1a06dgl27rhujjphsn4drl242ufws267qxypptx",
+        //             rewardTokenAddr: "terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u"
+        //         }
+        //     }
+        // },
+        // {
+        //     identifier: "BlunaLuna",
+        //     assetInfos: [
+        //         new TokenAsset("terra1u0t35drzyy0mujj8rkdyzhe264uls4ug3wdp3x").getInfo(),
+        //         new NativeAsset("uusd").getInfo(),
+        //     ],
+        //     pairType: { stable: {} },
+        //     initParams: toEncodedBinary({ amp: 100 })
+        // }
     ]
 
     for (let i = 0; i < pools.length; i++) {
@@ -95,12 +96,10 @@ async function main() {
                 create_pair: {
                     pair_type: pool.pairType,
                     asset_infos: pool.assetInfos,
-                    init_params: pool.initParams
+                    //init_params: pool.initParams
                 }
             })
-
-            network[pool_pair_key] = res.logs[0].eventsByType.from_contract.pair_contract_addr[0]
-
+            network[pool_pair_key] = res.logs[0].eventsByType.wasm.pair_contract_addr[0]
             let pool_info = await queryContract(terra, network[pool_pair_key], {
                 pair: {}
             })
