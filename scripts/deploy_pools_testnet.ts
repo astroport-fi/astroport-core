@@ -13,6 +13,8 @@ import {
 import { join } from 'path'
 
 const ARTIFACTS_PATH = '../artifacts'
+const ORACLE_LABEL = "Astroport Oracle"
+const GENERATOR_PROXY_LABEL = "Astroport Generator Proxy"
 
 async function main() {
     const { terra, wallet } = newClient()
@@ -110,62 +112,60 @@ async function main() {
         }
 
         // Deploy oracle
-        let pool_oracle_key = "oracle" + pool.identifier
-        if (pool.initOracle && network[pool_pair_key] && !network[pool_oracle_key]) {
-            console.log(`Deploying oracle for ${pool.identifier}...`)
-
-            let resp = await deployContract(terra, wallet, network.multisigAddress, join(ARTIFACTS_PATH, 'astroport_oracle.wasm'), {
-                factory_contract: network.factoryAddress,
-                asset_infos: pool.assetInfos
-            })
-            network[pool_oracle_key] = resp.shift();
-
-            console.log(`Address of ${pool.identifier} oracle contract: ${network[pool_oracle_key]}`)
-            writeArtifact(network, terra.config.chainID)
-        }
+        // let pool_oracle_key = "oracle" + pool.identifier
+        // if (pool.initOracle && network[pool_pair_key] && !network[pool_oracle_key]) {
+        //     console.log(`Deploying oracle for ${pool.identifier}...`)
+        //
+        //     let resp = await deployContract(terra, wallet, network.multisigAddress, join(ARTIFACTS_PATH, 'astroport_oracle.wasm'), {
+        //         factory_contract: network.factoryAddress,
+        //         asset_infos: pool.assetInfos
+        //     }, ORACLE_LABEL)
+        //     network[pool_oracle_key] = resp.shift();
+        //
+        //     console.log(`Address of ${pool.identifier} oracle contract: ${network[pool_oracle_key]}`)
+        //     writeArtifact(network, terra.config.chainID)
+        // }
 
         // Initialize generator
-        if (network[pool_pair_key] && network[pool_lp_token_key] && pool.initGenerator) {
-            let pool_generator_proxy_key = "generatorProxy" + pool.identifier
-            network[pool_generator_proxy_key] = undefined
-            if (pool.initGenerator.generatorProxy) {
-                // Deploy proxy contract
-                console.log(`Deploying generator proxy for ${pool.identifier}...`)
-                let resp = await deployContract(terra, wallet, network.multisigAddress, join(ARTIFACTS_PATH, pool.initGenerator.generatorProxy.artifactName), {
-                    generator_contract_addr: network.generatorAddress,
-                    pair_addr: network[pool_pair_key],
-                    lp_token_addr: network[pool_lp_token_key],
-                    reward_contract_addr: pool.initGenerator.generatorProxy.rewardContractAddr,
-                    reward_token_addr: pool.initGenerator.generatorProxy.rewardTokenAddr
-                })
-                network[pool_generator_proxy_key] = resp.shift();
-                console.log(`Address of ${pool.identifier} generator proxy contract ${network[pool_generator_proxy_key]}`)
-
-                // Set generator proxy as allowed
-                let config = await queryContract(terra, network.generatorAddress, {
-                    config: {}
-                })
-                let new_allowed_proxies: Array<String> = config.allowed_reward_proxies
-                new_allowed_proxies.push(network[pool_generator_proxy_key] as String)
-                console.log(`Set the proxy as allowed in generator... Allowed proxies with new one: ${new_allowed_proxies}`)
-                await executeContract(terra, wallet, network.generatorAddress, {
-                    set_allowed_reward_proxies: {
-                        proxies: new_allowed_proxies
-                    }
-                })
-
-            }
-
-            // Add pool to generator
-            console.log(`Adding ${pool.identifier} to generator...`)
-            await executeContract(terra, wallet, network.generatorAddress, {
-                add: {
-                    alloc_point: String(pool.initGenerator.generatorAllocPoint),
-                    reward_proxy: network[pool_generator_proxy_key],
-                    lp_token: network[pool_lp_token_key]
-                }
-            })
-        }
+        // if (network[pool_pair_key] && network[pool_lp_token_key] && pool.initGenerator) {
+        //     let pool_generator_proxy_key = "generatorProxy" + pool.identifier
+        //     network[pool_generator_proxy_key] = undefined
+        //     if (pool.initGenerator.generatorProxy) {
+        //         // Deploy proxy contract
+        //         console.log(`Deploying generator proxy for ${pool.identifier}...`)
+        //         let resp = await deployContract(terra, wallet, network.multisigAddress, join(ARTIFACTS_PATH, pool.initGenerator.generatorProxy.artifactName), {
+        //             generator_contract_addr: network.generatorAddress,
+        //             pair_addr: network[pool_pair_key],
+        //             lp_token_addr: network[pool_lp_token_key],
+        //             reward_contract_addr: pool.initGenerator.generatorProxy.rewardContractAddr,
+        //             reward_token_addr: pool.initGenerator.generatorProxy.rewardTokenAddr
+        //         }, GENERATOR_PROXY_LABEL)
+        //         network[pool_generator_proxy_key] = resp.shift();
+        //         console.log(`Address of ${pool.identifier} generator proxy contract ${network[pool_generator_proxy_key]}`)
+        //
+        //         // Set generator proxy as allowed
+        //         let config = await queryContract(terra, network.generatorAddress, {
+        //             config: {}
+        //         })
+        //         let new_allowed_proxies: Array<String> = config.allowed_reward_proxies
+        //         new_allowed_proxies.push(network[pool_generator_proxy_key] as String)
+        //         console.log(`Set the proxy as allowed in generator... Allowed proxies with new one: ${new_allowed_proxies}`)
+        //         await executeContract(terra, wallet, network.generatorAddress, {
+        //             set_allowed_reward_proxies: {
+        //                 proxies: new_allowed_proxies
+        //             }
+        //         })
+        //
+        //     }
+        //
+        //     // Add pool to generator
+        //     console.log(`Adding ${pool.identifier} to generator...`)
+        //     await executeContract(terra, wallet, network.generatorAddress, {
+        //         setup_pools: {
+        //             pools: [[network[pool_lp_token_key], String(pool.initGenerator.generatorAllocPoint)]]
+        //         }
+        //     })
+        // }
     }
 
     console.log('FINISH')
