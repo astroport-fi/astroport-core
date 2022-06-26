@@ -70,10 +70,8 @@ async function registerGenerator(terra: LCDClient, wallet: any, lp_token: string
     }
 
     await executeContract(terra, wallet, network.generatorAddress, {
-        add: {
-            lp_token: lp_token,
-            alloc_point: alloc_point,
-            reward_proxy: undefined
+        setup_pools: {
+            pools: [[lp_token, alloc_point]]
         }
     })
 }
@@ -116,9 +114,11 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
                 owner: network.multisigAddress,
                 allowed_reward_proxies: [],
                 astro_token: network.tokenAddress,
-                start_block: '106790', // 92390 + 144000
-                tokens_per_block: String(0),
+                start_block: '5918639',
+                tokens_per_block: String(8403094),
                 vesting_contract: network.vestingAddress,
+                factory: network.factoryAddress,
+                whitelist_code_id: network.whitelistCodeID,
             },
             GENERATOR_LABEL
         )
