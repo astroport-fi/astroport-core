@@ -30,7 +30,7 @@ async function main() {
     }
 
     if (!network.multisigAddress) {
-        console.log(`set the proper owner multisig for the contracts`)
+        console.log(`Set the proper owner multisig for the contracts`)
         return
     }
 
@@ -135,13 +135,17 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                         code_id: network.pairCodeID,
                         pair_type: { xyk: {} },
                         total_fee_bps: 30, // 0.3% xyk
-                        maker_fee_bps: 3333 // 1/3rd of xyk fees go to maker
+                        maker_fee_bps: 3333, // 1/3rd of xyk fees go to maker
+                        is_disabled: false,
+                        is_generator_disabled: false
                     },
                     {
                         code_id: network.pairStableCodeID,
                         pair_type: { stable: {} },
                         total_fee_bps: 5, // 0.05% stableswap
-                        maker_fee_bps: 5000 // 50% of stableswap fees go to the Maker
+                        maker_fee_bps: 5000, // 50% of stableswap fees go to the Maker
+                        is_disabled: false,
+                        is_generator_disabled: false
                     }
                 ],
                 token_code_id: network.tokenCodeID,
