@@ -1,7 +1,7 @@
 // @ts-ignore
 import SlackNotify from 'slack-notify';
 
-const MY_SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/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';
+const MY_SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL!
 const slack = SlackNotify(MY_SLACK_WEBHOOK_URL);
 
 export async function sendNotification(msg: string) {

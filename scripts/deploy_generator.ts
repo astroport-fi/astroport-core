@@ -9,6 +9,7 @@ import {
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient} from '@terra-money/terra.js';
+import {sendNotification} from "./slack_notification.js";
 
 const ARTIFACTS_PATH = '../artifacts'
 const VESTING_LABEL = "Astroport Vesting"
@@ -21,44 +22,49 @@ async function main() {
     console.log('network:', network)
 
     if (!network.tokenAddress) {
-        console.log(`Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...`)
+        await sendNotification("Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...")
         return
     }
 
     if (!network.multisigAddress) {
-        console.log(`set the proper owner multisig for the contracts`)
+        await sendNotification("Set the proper owner multisig for the contracts")
         return
     }
 
-    await uploadAndInitVesting(terra, wallet)
-    await uploadAndInitGenerator(terra, wallet)
-    // Set generator address in factory
-    await updateFactoryConfig(terra, wallet)
+    try {
+        await uploadAndInitVesting(terra, wallet)
+        await uploadAndInitGenerator(terra, wallet)
+        // Set generator address in factory
+        await updateFactoryConfig(terra, wallet)
 
-    // setup pools
-    // await registerGenerator(terra, wallet, "terra17n5sunn88hpy965mzvt3079fqx3rttnplg779g", "28303")
-    // await registerGenerator(terra, wallet, "terra1m24f7k4g66gnh9f7uncp32p722v0kyt3q4l3u5", "24528")
-    // await registerGenerator(terra, wallet, "terra1htw7hm40ch0hacm8qpgd24sus4h0tq3hsseatl", "47169")
+        // setup pools
+        // await registerGenerator(terra, wallet, "terra17n5sunn88hpy965mzvt3079fqx3rttnplg779g", "28303")
+        // await registerGenerator(terra, wallet, "terra1m24f7k4g66gnh9f7uncp32p722v0kyt3q4l3u5", "24528")
+        // await registerGenerator(terra, wallet, "terra1htw7hm40ch0hacm8qpgd24sus4h0tq3hsseatl", "47169")
 
 
-    // TESTNET
-    // await registerGenerator(terra, wallet, "terra1cs66g290h4x0pf6scmwm8904yc75l3m7z0lzjr", "28303")
-    // await registerGenerator(terra, wallet, "terra1q8aycvr54jarwhqvlr54jr2zqttctnefw7x37q", "24528")
-    // await registerGenerator(terra, wallet, "terra1jzutwpneltsys6t96vkdr2zrc6cg0ke4e6y3s0", "47169")
+        // TESTNET
+        // await registerGenerator(terra, wallet, "terra1cs66g290h4x0pf6scmwm8904yc75l3m7z0lzjr", "28303")
+        // await registerGenerator(terra, wallet, "terra1q8aycvr54jarwhqvlr54jr2zqttctnefw7x37q", "24528")
+        // await registerGenerator(terra, wallet, "terra1jzutwpneltsys6t96vkdr2zrc6cg0ke4e6y3s0", "47169")
 
-    // await setupVesting(terra, wallet, network)
+        // await setupVesting(terra, wallet, network)
 
-    // Set new owner for generator
-    // network = readArtifact(terra.config.chainID) // reload variables
-    // console.log('Propose owner for generator. Onwership has to be claimed within 7 days')
-    // await executeContract(terra, wallet, network.generatorAddress, {
-    //     "propose_new_owner": {
-    //         owner: network.multisigAddress,
-    //         expires_in: 604800 // 7 days
-    //     }
-    // })
+        // Set new owner for generator
+        // network = readArtifact(terra.config.chainID) // reload variables
+        // console.log('Propose owner for generator. Onwership has to be claimed within 7 days')
+        // await executeContract(terra, wallet, network.generatorAddress, {
+        //     "propose_new_owner": {
+        //         owner: network.multisigAddress,
+        //         expires_in: 604800 // 7 days
+        //     }
+        // })
 
-    console.log('FINISH')
+        console.log('FINISH')
+    } catch (e: any) {
+        await sendNotification(e.data)
+    }
+
 }
 
 async function registerGenerator(terra: LCDClient, wallet: any, lp_token: string, alloc_point: string) {

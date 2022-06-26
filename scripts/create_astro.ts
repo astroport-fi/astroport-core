@@ -7,7 +7,7 @@ import {
     queryContract,
     uploadContract
 } from './helpers.js'
-import {sendNotification} from "./slack_notification";
+import {sendNotification} from "./slack_notification.js";
 
 const CONTRACT_LABEL = "Astroport ASTRO"
 const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH! || '../artifacts/astroport_token.wasm'
@@ -61,9 +61,9 @@ async function main() {
         strictEqual(balance.balance, TOKEN_INFO.initial_balances[0].amount)
 
         // set multisig address
-        if (process.env.MULTISIG_ADDRESS) {
-            network.multisigAddress = process.env.MULTISIG_ADDRESS!
-        }
+        // if (process.env.MULTISIG_ADDRESS) {
+        //     network.multisigAddress = process.env.MULTISIG_ADDRESS!
+        // }
 
         writeArtifact(network, terra.config.chainID)
         console.log('FINISH')

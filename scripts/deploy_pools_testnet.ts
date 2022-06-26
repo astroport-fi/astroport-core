@@ -12,6 +12,7 @@ import {
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient} from "@terra-money/terra.js";
+import {sendNotification} from "./slack_notification.js";
 
 const ARTIFACTS_PATH = '../artifacts'
 const ORACLE_LABEL = "Astroport Oracle"
@@ -84,7 +85,8 @@ async function main() {
     const network = readArtifact(terra.config.chainID)
     console.log('network:', network)
 
-    if (network.tokenAddress == "") {
+    if (!network.tokenAddress) {
+        await sendNotification("token address is not set, create ASTRO token first")
         throw new Error("token address is not set, create ASTRO token first")
     }
 
@@ -117,38 +119,43 @@ async function main() {
         // }
     ]
 
-    for (let i = 0; i < pools.length; i++) {
-        let pool = pools[i]
-        let pool_pair_key = "pool" + pool.identifier
-        let pool_lp_token_key = "lpToken" + pool.identifier
+    try {
+        for (let i = 0; i < pools.length; i++) {
+            let pool = pools[i]
+            let pool_pair_key = "pool" + pool.identifier
+            let pool_lp_token_key = "lpToken" + pool.identifier
 
-        // Create pool
-        if (!network[pool_pair_key]) {
-            console.log(`Creating pool ${pool.identifier}...`)
-            let res = await executeContract(terra, wallet, network.factoryAddress, {
-                create_pair: {
-                    pair_type: pool.pairType,
-                    asset_infos: pool.assetInfos,
-                    init_params: pool.initParams
-                }
-            })
-            network[pool_pair_key] = res.logs[0].eventsByType.wasm.pair_contract_addr[0]
-            let pool_info = await queryContract(terra, network[pool_pair_key], {
-                pair: {}
-            })
+            // Create pool
+            if (!network[pool_pair_key]) {
+                console.log(`Creating pool ${pool.identifier}...`)
+                let res = await executeContract(terra, wallet, network.factoryAddress, {
+                    create_pair: {
+                        pair_type: pool.pairType,
+                        asset_infos: pool.assetInfos,
+                        init_params: pool.initParams
+                    }
+                })
+                network[pool_pair_key] = res.logs[0].eventsByType.wasm.pair_contract_addr[0]
+                let pool_info = await queryContract(terra, network[pool_pair_key], {
+                    pair: {}
+                })
 
-            network[pool_lp_token_key] = pool_info.liquidity_token
+                network[pool_lp_token_key] = pool_info.liquidity_token
 
-            console.log(`Pair successfully created! Address: ${network[pool_pair_key]}`)
-            writeArtifact(network, terra.config.chainID)
+                console.log(`Pair successfully created! Address: ${network[pool_pair_key]}`)
+                writeArtifact(network, terra.config.chainID)
+            }
+
+            // Deploy oracle
+            // await uploadAndInitOracle(terra, wallet, pool, network, pool_pair_key)
+
+            // Initialize generator
+            // await uploadAndInitGeneratorProxy(terra, wallet, pool, network, pool_pair_key, pool_lp_token_key)
         }
-
-        // Deploy oracle
-        // await uploadAndInitOracle(terra, wallet, pool, network, pool_pair_key)
-
-        // Initialize generator
-        // await uploadAndInitGeneratorProxy(terra, wallet, pool, network, pool_pair_key, pool_lp_token_key)
+    } catch (e: any) {
+        await sendNotification(e)
     }
+
 
     console.log('FINISH')
 }

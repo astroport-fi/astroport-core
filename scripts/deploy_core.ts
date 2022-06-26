@@ -9,8 +9,7 @@ import {
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient} from '@terra-money/terra.js';
-import {sendNotification} from "./slack_notification";
-import * as https from "https";
+import {sendNotification} from "./slack_notification.js";
 
 const ARTIFACTS_PATH = '../artifacts'
 
