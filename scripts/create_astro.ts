@@ -7,6 +7,7 @@ import {
     queryContract,
     uploadContract
 } from './helpers.js'
+import {sendNotification} from "./slack_notification";
 
 const CONTRACT_LABEL = "Astroport ASTRO"
 const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH! || '../artifacts/astroport_token.wasm'
@@ -46,24 +47,29 @@ async function main() {
         }
     }
 
-    // Instantiate Astro token contract
-    let resp = await instantiateContract(terra, wallet, wallet.key.accAddress, network.tokenCodeID, TOKEN_INFO, CONTRACT_LABEL)
+    try {
+        // Instantiate Astro token contract
+        let resp = await instantiateContract(terra, wallet, wallet.key.accAddress, network.tokenCodeID, TOKEN_INFO, CONTRACT_LABEL)
 
-    // @ts-ignore
-    network.tokenAddress = resp.shift().shift()
-    console.log("astro:", network.tokenAddress)
-    console.log(await queryContract(terra, network.tokenAddress, { token_info: {} }))
-    console.log(await queryContract(terra, network.tokenAddress, { minter: {} }))
+        // @ts-ignore
+        network.tokenAddress = resp.shift().shift()
+        console.log("astro:", network.tokenAddress)
+        console.log(await queryContract(terra, network.tokenAddress, { token_info: {} }))
+        console.log(await queryContract(terra, network.tokenAddress, { minter: {} }))
 
-    let balance = await queryContract(terra, network.tokenAddress, { balance: { address: TOKEN_INFO.initial_balances[0].address } })
-    strictEqual(balance.balance, TOKEN_INFO.initial_balances[0].amount)
+        let balance = await queryContract(terra, network.tokenAddress, { balance: { address: TOKEN_INFO.initial_balances[0].address } })
+        strictEqual(balance.balance, TOKEN_INFO.initial_balances[0].amount)
 
-    // set multisig address
-    if (process.env.MULTISIG_ADDRESS) {
-        network.multisigAddress = process.env.MULTISIG_ADDRESS!
+        // set multisig address
+        if (process.env.MULTISIG_ADDRESS) {
+            network.multisigAddress = process.env.MULTISIG_ADDRESS!
+        }
+
+        writeArtifact(network, terra.config.chainID)
+        console.log('FINISH')
+    } catch (e: any) {
+        await sendNotification(e.data)
     }
 
-    writeArtifact(network, terra.config.chainID)
-    console.log('FINISH')
 }
 main().catch(console.log)

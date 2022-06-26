@@ -9,6 +9,8 @@ import {
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient} from '@terra-money/terra.js';
+import {sendNotification} from "./slack_notification";
+import * as https from "https";
 
 const ARTIFACTS_PATH = '../artifacts'
 
@@ -26,20 +28,26 @@ async function main() {
 
     if (!network.tokenAddress) {
         console.log(`Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...`)
+        await sendNotification("Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...")
         return
     }
 
     if (!network.multisigAddress) {
         console.log(`Set the proper owner multisig for the contracts`)
+        await sendNotification("Set the proper owner multisig for the contracts")
         return
     }
 
-    await uploadAndInitTreasury(terra, wallet)
-    await uploadPairContracts(terra, wallet)
-    await uploadAndInitStaking(terra, wallet)
-    await uploadAndInitFactory(terra, wallet)
-    await uploadAndInitRouter(terra, wallet)
-    await uploadAndInitMaker(terra, wallet)
+    try {
+        await uploadAndInitTreasury(terra, wallet)
+        await uploadPairContracts(terra, wallet)
+        await uploadAndInitStaking(terra, wallet)
+        await uploadAndInitFactory(terra, wallet)
+        await uploadAndInitRouter(terra, wallet)
+        await uploadAndInitMaker(terra, wallet)
+    } catch (e: any) {
+        await sendNotification(e.data)
+    }
 
     // // Set new owner for admin
     // network = readArtifact(terra.config.chainID) // reload variables
