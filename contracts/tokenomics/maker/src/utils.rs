@@ -216,8 +216,18 @@ pub fn get_pool(
     );
     match result {
         Ok(Some(pairs)) if !pairs.is_empty() => {
-            // TODO: implement selection algorithm
-            Ok(querier.query_wasm_smart(&pairs[0], &astroport::pair::QueryMsg::Pair {})?)
+            // Selecting the pool with the least amount of assets
+            let pair_infos = pairs
+                .into_iter()
+                .map(|pair_contract| {
+                    querier.query_wasm_smart(&pair_contract, &astroport::pair::QueryMsg::Pair {})
+                })
+                .collect::<StdResult<Vec<PairInfo>>>()?;
+            let selected = pair_infos
+                .into_iter()
+                .min_by(|a, b| a.asset_infos.len().cmp(&b.asset_infos.len()))
+                .unwrap();
+            Ok(selected)
         }
         _ => query_pair_info(querier, factory_contract, &[from.clone(), to.clone()])
             .map_err(|_| ContractError::InvalidBridgeNoPool(from.to_string(), to.to_string())),
