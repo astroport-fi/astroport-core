@@ -372,12 +372,12 @@ fn swap(
 
     // 2. Check if bridge tokens exist
     let bridge_token = BRIDGES.load(deps.storage, from_token.to_string());
-    if let Ok(asset) = bridge_token {
+    if let Ok(bridge_token) = bridge_token {
         let bridge_pool = validate_bridge(
             deps,
             &cfg.factory_contract,
             &from_token,
-            &asset,
+            &bridge_token,
             &astro,
             BRIDGES_INITIAL_DEPTH,
         )?;
@@ -387,9 +387,13 @@ fn swap(
             cfg.max_spread,
             &bridge_pool,
             &from_token,
+            Some(&bridge_token),
             amount_in,
         )?;
-        return Ok(SwapTarget::Bridge { asset, msg });
+        return Ok(SwapTarget::Bridge {
+            asset: bridge_token,
+            msg,
+        });
     }
 
     // 3. Check for a pair with UST

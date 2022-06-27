@@ -17,7 +17,7 @@ use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{addr_opt_validate, addr_validate_to_lower, AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
-    PairsResponse, QueryMsg,
+    PairsResponse, QueryMsg, ROUTE,
 };
 
 use crate::migration::migrate_pair_configs_to_v120;
@@ -336,7 +336,13 @@ pub fn execute_create_pair(
     }
 
     let pair_key = pair_key(&asset_infos);
-    TMP_PAIR_INFO.save(deps.storage, &TmpPairInfo { pair_key })?;
+    TMP_PAIR_INFO.save(
+        deps.storage,
+        &TmpPairInfo {
+            pair_key,
+            asset_infos: asset_infos.clone(),
+        },
+    )?;
 
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         id: INSTANTIATE_PAIR_REPLY_ID,
@@ -408,7 +414,7 @@ fn execute_mark_pairs_as_migrated(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let tmp = TMP_PAIR_INFO.load(deps.storage)?;
-    if PAIRS.may_load(deps.storage, &tmp.pair_key)?.is_some() {
+    if PAIRS.has(deps.storage, &tmp.pair_key) {
         return Err(ContractError::PairWasRegistered {});
     }
 
@@ -421,6 +427,25 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     let pair_contract = addr_validate_to_lower(deps.api, res.get_contract_address())?;
 
     PAIRS.save(deps.storage, &tmp.pair_key, &pair_contract)?;
+
+    for asset_info in &tmp.asset_infos {
+        for asset_info_2 in &tmp.asset_infos {
+            if asset_info != asset_info_2 {
+                ROUTE.update::<_, StdError>(
+                    deps.storage,
+                    (asset_info.to_string(), asset_info_2.to_string()),
+                    |maybe_contracts| {
+                        if let Some(mut contracts) = maybe_contracts {
+                            contracts.push(pair_contract.clone());
+                            Ok(contracts)
+                        } else {
+                            Ok(vec![pair_contract.clone()])
+                        }
+                    },
+                )?;
+            }
+        }
+    }
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "register"),

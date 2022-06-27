@@ -200,6 +200,7 @@ dependencies = [
  "astroport-factory",
  "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
  "astroport-pair",
+ "astroport-pair-stable",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std 1.0.0",
