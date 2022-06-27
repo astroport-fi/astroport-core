@@ -32,7 +32,7 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-/// AssetInfo (as String) -> precision
+/// Stores map of AssetInfo (as String) -> precision
 const PRECISIONS: Map<String, u8> = Map::new("precisions");
 
 /// ## Description
@@ -49,6 +49,8 @@ pub(crate) fn store_precisions(deps: DepsMut, asset_infos: &[AssetInfo]) -> StdR
     Ok(max)
 }
 
+/// ## Description
+/// Loads precision of the given asset info.
 pub(crate) fn get_precision(storage: &dyn Storage, asset_info: &AssetInfo) -> StdResult<u8> {
     PRECISIONS.load(storage, asset_info.to_string())
 }
