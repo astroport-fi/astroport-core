@@ -21,10 +21,25 @@ import {
 import path from 'path'
 import { CustomError } from 'ts-custom-error'
 import {APIParams} from "@terra-money/terra.js/dist/client/lcd/APIRequester";
+import fs from "fs";
+import https from "https";
 
 export const ARTIFACTS_PATH = '../artifacts'
 const DEFAULT_GAS_CURRENCY = "uusd"
 const DEFAULT_GAS_PRICE = 0.15
+
+export function getRemoteFile(file: any, url: any) {
+    let localFile = fs.createWriteStream(path.join(ARTIFACTS_PATH, `${file}.json`));
+
+    https.get(url, (res) => {
+        res.pipe(localFile);
+        res.on("finish", () => {
+            file.close();
+        })
+    }).on('error', (e) => {
+        console.error(e);
+    });
+}
 
 export function readArtifact(name: string = 'artifact') {
     try {
@@ -137,11 +152,7 @@ export async function queryCodeInfo(terra: LCDClient, codeID: number): Promise<a
     return await terra.wasm.codeInfo(codeID)
 }
 
-export async function queryContractQuery(terra: LCDClient, contractAddress: string, query: any): Promise<any> {
-    return await terra.wasm.contractQuery(contractAddress, query)
-}
-
-export async function queryContractRaw(terra: LCDClient, end_point: string, params: APIParams): Promise<any> {
+export async function queryContractRaw(terra: LCDClient, end_point: string, params?: APIParams): Promise<any> {
     return await terra.apiRequester.getRaw(end_point, params)
 }
 

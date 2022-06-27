@@ -4,7 +4,6 @@ import {
     readArtifact,
     queryContractInfo,
     queryCodeInfo,
-    queryContractQuery,
     queryContractRaw, toEncodedBinary, toDecodedBinary, strToEncodedBinary
 } from "./helpers.js"
 
@@ -19,11 +18,6 @@ async function main() {
 
     console.log('Code info:');
     console.log(await queryCodeInfo(terra, network.treasuryCodeID));
-
-    console.log(`Config about address: ${network.generatorAddress}`);
-    console.log(await queryContractQuery(terra, network.generatorAddress, {
-        config: {}
-    }));
 
     console.log(`Config about address: ${network.generatorAddress}`);
     console.log(await queryContractRaw(terra, `/terra/wasm/v1beta1/contracts/${network.generatorAddress}/store`,
