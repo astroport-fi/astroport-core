@@ -14,6 +14,8 @@ use crate::error::ContractError;
 use crate::math::calc_y;
 use crate::state::{get_precision, Config};
 
+/// ## Description
+/// Helper function to check if the given asset infos are valid.
 pub(crate) fn check_asset_infos(
     api: &dyn Api,
     asset_infos: &[AssetInfo],
@@ -28,11 +30,20 @@ pub(crate) fn check_asset_infos(
         .map_err(Into::into)
 }
 
+/// ## Description
+/// Helper function to check that the assets in a given array are valid.
 pub(crate) fn check_assets(api: &dyn Api, assets: &[Asset]) -> Result<(), ContractError> {
     let asset_infos = assets.iter().map(|asset| asset.info.clone()).collect_vec();
     check_asset_infos(api, &asset_infos)
 }
 
+/// ## Description
+/// Checks that cw20 token is part of the pool. Returns [`Ok(())`] in case of success,
+/// otherwise [`ContractError`].
+/// ## Params
+/// * **config** is an object of type [`Config`].
+///
+/// * **cw20_sender** is cw20 token address which is being checked.
 pub(crate) fn check_cw20_in_pool(config: &Config, cw20_sender: &Addr) -> Result<(), ContractError> {
     for asset_info in &config.pair_info.asset_infos {
         match asset_info {
@@ -44,7 +55,16 @@ pub(crate) fn check_cw20_in_pool(config: &Config, cw20_sender: &Addr) -> Result<
     Err(ContractError::Unauthorized {})
 }
 
-/// Returns: (offer_pool, ask_pool)
+/// ## Description
+/// Select offer and ask pools based on given offer and ask infos.
+/// This function works with pools with up to 5 assets. Returns (offer_pool, ask_pool) in case of success.
+/// If it is impossible to define offer and ask pools, returns [`ContractError`].
+/// ## Params
+/// * **offer_asset_info** - asset info of the offer asset.
+///
+/// * **ask_asset_info** - asset info of the ask asset.
+///
+/// * **pools** - list of pools.
 pub(crate) fn select_pools(
     offer_asset_info: Option<&AssetInfo>,
     ask_asset_info: Option<&AssetInfo>,
@@ -122,7 +142,7 @@ pub(crate) fn compute_current_amp(config: &Config, env: &Env) -> StdResult<Uint6
 }
 
 /// ## Description
-/// Return a value using a newly specified precision.
+/// Returns a value using a newly specified precision.
 /// ## Params
 /// * **value** is an object of type [`Uint128`]. This is the value that will have its precision adjusted.
 ///
@@ -242,26 +262,28 @@ pub(crate) fn get_share_in_assets(
         .collect()
 }
 
-/// Structure for internal use.
+/// Structure for internal use which represents swap result.
 pub(crate) struct SwapResult {
     pub return_amount: Uint128,
     pub spread_amount: Uint128,
 }
 
 /// ## Description
-/// Returns the result of a swap.
+/// Returns the result of a swap in form of a [`SwapResult`] object. In case of error, returns [`ContractError`].
 /// ## Params
 /// * **storage** is an object of type [`Storage`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **config** is an object of type [`Config`].
+///
+/// * **offer_asset** is an object of type [`Asset`]. This is the asset that is being offered.
 ///
 /// * **offer_pool** is an object of type [`Uint128`]. This is the total amount of offer assets in the pool.
 ///
 /// * **ask_pool** is an object of type [`Uint128`]. This is the total amount of ask assets in the pool.
 ///
-/// * **offer_amount** is an object of type [`Uint128`]. This is the amount of offer assets to swap.
-///
-/// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
-///
-/// * **amp** is an object of type [`Uint64`]. This is the pool amplification used to calculate the swap result.
+/// * **pools** is an array of [`Asset`] type items. These are the assets available in the pool.
 pub(crate) fn compute_swap(
     storage: &dyn Storage,
     env: &Env,
@@ -293,15 +315,7 @@ pub(crate) fn compute_swap(
     let new_ask_pool = adjust_precision(new_ask_pool, config.greatest_precision, token_precision)?;
     let return_amount = ask_pool.amount.checked_sub(new_ask_pool)?;
 
-    // // Get fee info from the factory
-    // let fee_info = query_fee_info(
-    //     &deps.querier,
-    //     &config.factory_addr,
-    //     config.pair_info.pair_type.clone(),
-    // )?;
-    //
-    // let offer_amount = offer_asset.amount;
-
+    // We consider swap rate 1:1 in stable swap thus any difference is considered as spread.
     let spread_amount = offer_asset.amount.saturating_sub(return_amount);
 
     Ok(SwapResult {

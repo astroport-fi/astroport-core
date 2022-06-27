@@ -2,6 +2,7 @@ use astroport::asset::{Asset, AssetInfo};
 use cosmwasm_std::{StdError, StdResult, Uint128, Uint256, Uint64};
 use itertools::Itertools;
 
+/// The maximum number of calculation steps for Newton's method.
 const ITERATIONS: u8 = 32;
 
 pub const MAX_AMP: u64 = 1_000_000;
@@ -25,7 +26,7 @@ pub fn calc_ask_amount(
     _offer_amount: Uint128,
     _amp: Uint64,
 ) -> StdResult<Uint128> {
-    // TODO: fix calc ask amount
+    // TODO: update this function during cumulative prices redesign
     // let leverage = amp.checked_mul(N_COINS.into())?;
     // let new_offer_pool = offer_pool.checked_add(offer_amount)?;
     //
@@ -88,12 +89,20 @@ pub(crate) fn compute_d(amp: Uint64, pools: &[Uint128]) -> StdResult<Uint128> {
             }
         }
 
-        // Should definitely converge in 64 iterations.
-        // Err(StdError::generic_err("D is not converging"))
         Ok(d.try_into()?)
     }
 }
 
+/// ## Description
+/// Computes the new balance of a `to` pool if one makes `from` pool = `new_amount`.  
+///
+/// Done by solving quadratic equation iteratively.  
+///
+/// `x_1**2 + x_1 * (sum' - (A*n**n - 1) * D / (A * n**n)) = D ** (n + 1) / (n ** (2 * n) * prod' * A)`  
+///
+/// `x_1**2 + b*x_1 = c`  
+///
+/// `x_1 = (x_1**2 + c) / (2*x_1 + b)`
 pub(crate) fn calc_y(
     from: &AssetInfo,
     to: &AssetInfo,
@@ -138,7 +147,7 @@ pub(crate) fn calc_y(
         }
     }
 
-    // Should definitely converge in 64 iterations.
+    // Should definitely converge in 32 iterations.
     Err(StdError::generic_err("y is not converging"))
 }
 
