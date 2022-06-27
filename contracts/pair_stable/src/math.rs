@@ -71,9 +71,8 @@ pub(crate) fn compute_d(amp: Uint64, pools: &[Uint128]) -> StdResult<Uint128> {
                 .try_fold::<_, _, StdResult<_>>(d, |acc, pool| {
                     let denominator =
                         Uint256::from(*pool).checked_mul(n_coins)? + Uint256::from(1u8);
-                    Ok(acc
-                        .checked_multiply_ratio(d, denominator)
-                        .map_err(|_| StdError::generic_err("CheckedMultiplyRatioError"))?)
+                    acc.checked_multiply_ratio(d, denominator)
+                        .map_err(|_| StdError::generic_err("CheckedMultiplyRatioError"))
                 })?;
             let d_prev = d;
             d = (ann_sum_x + d_p * n_coins) * d
@@ -82,10 +81,8 @@ pub(crate) fn compute_d(amp: Uint64, pools: &[Uint128]) -> StdResult<Uint128> {
                 if d - d_prev <= Uint256::from(1u8) {
                     return Ok(d.try_into()?);
                 }
-            } else if d < d_prev {
-                if d_prev - d <= Uint256::from(1u8) {
-                    return Ok(d.try_into()?);
-                }
+            } else if d < d_prev && d_prev - d <= Uint256::from(1u8) {
+                return Ok(d.try_into()?);
             }
         }
 
@@ -140,10 +137,8 @@ pub(crate) fn calc_y(
             if y - y_prev <= Uint256::from(1u8) {
                 return Ok(y.try_into()?);
             }
-        } else if y < y_prev {
-            if y_prev - y <= Uint256::from(1u8) {
-                return Ok(y.try_into()?);
-            }
+        } else if y < y_prev && y_prev - y <= Uint256::from(1u8) {
+            return Ok(y.try_into()?);
         }
     }
 

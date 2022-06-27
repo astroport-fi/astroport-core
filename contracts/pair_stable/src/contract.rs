@@ -648,7 +648,7 @@ fn imbalanced_withdraw(
         .collect();
 
     let mut assets_collection = assets
-        .into_iter()
+        .iter()
         .cloned()
         .map(|asset| {
             // Get appropriate pool
@@ -680,7 +680,7 @@ fn imbalanced_withdraw(
 
     let n_coins = config.pair_info.asset_infos.len() as u8;
 
-    let amp = compute_current_amp(&config, &env)?.checked_mul(n_coins.into())?;
+    let amp = compute_current_amp(config, env)?.checked_mul(n_coins.into())?;
 
     // Initial invariant (D)
     let old_balances = assets_collection

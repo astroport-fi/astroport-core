@@ -88,25 +88,25 @@ pub(crate) fn select_pools(
             }
             _ => Err(ContractError::VariableAssetMissed {}), // Should always be unreachable
         }
-    } else {
-        if let (Some(offer_asset_info), Some(ask_asset_info)) = (offer_asset_info, ask_asset_info) {
-            if ask_asset_info.eq(offer_asset_info) {
-                return Err(ContractError::SameAssets {});
-            }
-
-            let offer_pool = pools
-                .iter()
-                .find(|pool| pool.info.eq(offer_asset_info))
-                .ok_or(ContractError::AssetMismatch {})?;
-            let ask_pool = pools
-                .iter()
-                .find(|pool| pool.info.eq(ask_asset_info))
-                .ok_or(ContractError::AssetMismatch {})?;
-
-            Ok((offer_pool.clone(), ask_pool.clone()))
-        } else {
-            Err(ContractError::VariableAssetMissed {}) // Should always be unreachable
+    } else if let (Some(offer_asset_info), Some(ask_asset_info)) =
+        (offer_asset_info, ask_asset_info)
+    {
+        if ask_asset_info.eq(offer_asset_info) {
+            return Err(ContractError::SameAssets {});
         }
+
+        let offer_pool = pools
+            .iter()
+            .find(|pool| pool.info.eq(offer_asset_info))
+            .ok_or(ContractError::AssetMismatch {})?;
+        let ask_pool = pools
+            .iter()
+            .find(|pool| pool.info.eq(ask_asset_info))
+            .ok_or(ContractError::AssetMismatch {})?;
+
+        Ok((offer_pool.clone(), ask_pool.clone()))
+    } else {
+        Err(ContractError::VariableAssetMissed {}) // Should always be unreachable
     }
 }
 
@@ -307,8 +307,8 @@ pub(crate) fn compute_swap(
         &offer_asset.info,
         &ask_pool.info,
         offer_pool.amount.checked_add(offer_amount)?,
-        &pools,
-        compute_current_amp(&config, &env)?,
+        pools,
+        compute_current_amp(config, env)?,
     )?;
 
     let token_precision = get_precision(storage, &ask_pool.info)?;
