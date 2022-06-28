@@ -19,4 +19,4 @@ export async function sendNotification(name: string, msg: string, stack: string 
     }
 }
 
-sendNotification("hello", "message", "some info").catch(console.log)
+sendNotification("hallo ", "wtf", "some info").catch(console.log)
