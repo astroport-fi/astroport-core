@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -o pipefail
 
 projectPath=$(cd "$(dirname "${0}")" && pwd)
 
@@ -22,18 +22,19 @@ function check_multi_test {
 }
 
 function check_repository {
-  if [ ! -d "$projectPath/$1" ];
-  then
-    git clone --branch main https://github.com/astroport-fi/"$1".git "$projectPath/$1"
-    check_node_modules "$1"
-    check_multi_test "$1"
-  else
-    cd "$projectPath/$1" && git pull && cargo update
-    check_node_modules "$1"
-    check_multi_test "$1"
-  fi
+  for REPOSITORY in "$1" "$2" "$3"
+  do
+    if [ ! -d "$projectPath/$REPOSITORY" ];
+    then
+      git clone --branch main https://github.com/astroport-fi/"$REPOSITORY".git "$projectPath/$REPOSITORY"
+      check_node_modules "$REPOSITORY"
+      check_multi_test "$REPOSITORY"
+    else
+      cd "$projectPath/$REPOSITORY" && git pull && cargo update
+      check_node_modules "$REPOSITORY"
+      check_multi_test "$REPOSITORY"
+    fi
+  done
 }
 
-check_repository "astroport-core"
-check_repository "astroport-governance"
-check_repository "astroport-bootstrapping"
+check_repository "astroport-core" "astroport-governance" "astroport-bootstrapping"
