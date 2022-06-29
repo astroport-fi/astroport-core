@@ -9,6 +9,11 @@ then
 	git clone --branch feat/slack_notification https://github.com/astroport-fi/astroport-core.git "$projectPath"/astroport-core
 	if ! (cd "$projectPath"/astroport-core && cargo update && cargo test);
   then
+    if [ ! -d "$projectPath"/astroport-core/scripts/node_modules ];
+    then
+    	cd "$projectPath"/astroport-core/scripts && npm install
+    	cp "$projectPath"/.env "$projectPath"/astroport-core/scripts
+    fi
     cd "$projectPath"/astroport-core/scripts && node --loader ts-node/esm slack_notification.ts
   fi
 else
@@ -16,6 +21,11 @@ else
 
   if ! (cd "$projectPath"/astroport-core && cargo update && cargo test);
   then
+    if [ ! -d "$projectPath"/astroport-core/scripts/node_modules ];
+        then
+        	cd "$projectPath"/astroport-core/scripts && npm install
+        	cp "$projectPath"/.env "$projectPath"/astroport-core/scripts
+        fi
     cd "$projectPath"/astroport-core/scripts && node --loader ts-node/esm slack_notification.ts
   fi
 fi
