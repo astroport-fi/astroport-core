@@ -323,3 +323,74 @@ fn check_wrong_initializations() {
     )
     .unwrap();
 }
+
+#[test]
+fn check_withdraw_charges_fees() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![
+        TestCoin::native("uluna"),
+        TestCoin::cw20("USDC"),
+        TestCoin::cw20("USDD"),
+    ];
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), 100u64, None).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000_000000),
+        helper.assets[&test_coins[1]].with_balance(100_000_000_000000),
+        helper.assets[&test_coins[2]].with_balance(100_000_000_000000),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    let user1 = Addr::unchecked("user1");
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000);
+
+    // Usual swap for reference
+    helper.give_me_money(&[offer_asset.clone()], &user1);
+    helper
+        .swap(
+            &user1,
+            &offer_asset,
+            Some(helper.assets[&test_coins[1]].clone()),
+        )
+        .unwrap();
+    let usual_swap_amount = helper.coin_balance(&test_coins[1], &user1);
+    assert_eq!(99_950000, usual_swap_amount);
+
+    // Trying to swap LUNA -> USDC via provide/withdraw
+    let user2 = Addr::unchecked("user2");
+    helper.give_me_money(&[offer_asset.clone()], &user2);
+
+    // Provide 100 x LUNA
+    helper.provide_liquidity(&user2, &[offer_asset]).unwrap();
+
+    // Withdraw 100 x USDC
+    let lp_tokens_amount = helper.token_balance(&helper.lp_token, &user2);
+    let err = helper
+        .withdraw_liquidity(
+            &user2,
+            lp_tokens_amount,
+            vec![helper.assets[&test_coins[1]].with_balance(100_000000)],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Not enough LP tokens. You need 100025000 LP tokens."
+    );
+
+    helper
+        .withdraw_liquidity(
+            &user2,
+            lp_tokens_amount,
+            vec![helper.assets[&test_coins[1]].with_balance(usual_swap_amount)],
+        )
+        .unwrap();
+
+    // A small residual of LP tokens is left
+    assert_eq!(16, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(
+        usual_swap_amount,
+        helper.coin_balance(&test_coins[1], &user2)
+    );
+}
