@@ -5,18 +5,18 @@ import SlackNotify from 'slack-notify';
 const MY_SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL
 const slack = SlackNotify(MY_SLACK_WEBHOOK_URL);
 
-export async function sendNotification(name: string, msg: string, stack: string | undefined) {
+async function sendNotification(msg: string) {
     if (process.env.SLACK_WEBHOOK_URL!) {
-        slack.alert({
-            text: name,
-            fields: {
-                'message': msg,
-                'stack': stack
-            }
-        });
+        slack.send(msg)
+            .then(() => {
+                console.log('done!');
+            })
+            .catch((err: any) => {
+                console.error(err);
+            });
     } else {
-        console.error(`${name} - ${msg} \n${stack}`)
+        console.error(`Slack webhook url not found: ${MY_SLACK_WEBHOOK_URL}`)
     }
 }
 
-sendNotification("hallo ", "wtf", "some info").catch(console.log)
+sendNotification(process.argv[2]).catch(console.log)

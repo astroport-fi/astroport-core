@@ -13,9 +13,9 @@ function check_node_modules {
 }
 
 function check_multi_test {
-    if ! (cd "$projectPath/$1" && cargo update && cargo test);
+    if ! (cd "$projectPath/$1" && cargo update && cargo test > ERROR);
     then
-      cd "$projectPath"/astroport-core/scripts && node --loader ts-node/esm slack_notification.ts
+      cd "$projectPath"/astroport-core/scripts && node --loader ts-node/esm slack_notification.ts "$ERROR"
     fi
 }
 
