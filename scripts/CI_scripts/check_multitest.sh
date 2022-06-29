@@ -22,7 +22,7 @@ function check_multi_test {
 }
 
 function check_repository {
-  for REPOSITORY in "$1" "$2" "$3"
+  for REPOSITORY in "$@"
   do
     if [ ! -d "$projectPath/$REPOSITORY" ];
     then
