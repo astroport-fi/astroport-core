@@ -17,15 +17,15 @@ then
     cd "$projectPath"/astroport-core/scripts && node --loader ts-node/esm slack_notification.ts
   fi
 else
-  git fetch
+  cd "$projectPath"/astroport-core && git fetch && cargo update
 
-  if ! (cd "$projectPath"/astroport-core && cargo update && cargo test);
+  if ! cargo test;
   then
     if [ ! -d "$projectPath"/astroport-core/scripts/node_modules ];
-        then
-        	cd "$projectPath"/astroport-core/scripts && npm install
-        	cp "$projectPath"/.env "$projectPath"/astroport-core/scripts
-        fi
+    then
+      cd "$projectPath"/astroport-core/scripts && npm install
+      cp "$projectPath"/.env "$projectPath"/astroport-core/scripts
+    fi
     cd "$projectPath"/astroport-core/scripts && node --loader ts-node/esm slack_notification.ts
   fi
 fi
@@ -39,9 +39,9 @@ then
     cd "$projectPath"/astroport-core/scripts && node --loader ts-node/esm slack_notification.ts
   fi
 else
-  git fetch
+   cd "$projectPath"/astroport-governance && git fetch && cargo update
 
-  if ! (cd "$projectPath"/astroport-governance && cargo update && cargo test);
+  if ! cargo test;
   then
     cd "$projectPath"/astroport-core/scripts && node --loader ts-node/esm slack_notification.ts
   fi
@@ -55,8 +55,9 @@ then
     cd "$projectPath"/astroport-core/scripts && node --loader ts-node/esm slack_notification.ts
   fi
 else
-  git fetch
-  if ! (cd "$projectPath"/astroport-bootstrapping && cargo update && cargo test);
+  cd "$projectPath"/astroport-governance && git fetch && cargo update
+
+  if ! cargo test;
   then
     cd "$projectPath"/astroport-core/scripts && node --loader ts-node/esm slack_notification.ts
   fi
