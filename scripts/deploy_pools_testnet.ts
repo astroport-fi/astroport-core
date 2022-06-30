@@ -40,6 +40,7 @@ async function uploadAndInitGeneratorProxy(terra: LCDClient, wallet: any, pool: 
     if (network[pool_pair_key] && network[pool_lp_token_key] && pool.initGenerator) {
         let pool_generator_proxy_key = "generatorProxy" + pool.identifier
         network[pool_generator_proxy_key] = undefined
+
         if (pool.initGenerator.generatorProxy) {
             // Deploy proxy contract
             console.log(`Deploying generator proxy for ${pool.identifier}...`)
@@ -50,7 +51,9 @@ async function uploadAndInitGeneratorProxy(terra: LCDClient, wallet: any, pool: 
                 reward_contract_addr: pool.initGenerator.generatorProxy.rewardContractAddr,
                 reward_token_addr: pool.initGenerator.generatorProxy.rewardTokenAddr
             }, GENERATOR_PROXY_LABEL)
-            network[pool_generator_proxy_key] = resp.shift();
+
+            // @ts-ignore
+            network[pool_generator_proxy_key] = resp.shift().shift();
             console.log(`Address of ${pool.identifier} generator proxy contract ${network[pool_generator_proxy_key]}`)
 
             // Set generator proxy as allowed
@@ -85,8 +88,7 @@ async function main() {
     console.log('network:', network)
 
     if (!network.tokenAddress) {
-        let err = new Error("Token address is not set, create ASTRO token first")
-        throw err
+        throw new Error("Token address is not set, create ASTRO token first")
     }
 
     let pools =  [
