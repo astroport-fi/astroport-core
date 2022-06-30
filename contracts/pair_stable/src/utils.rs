@@ -356,7 +356,7 @@ pub fn accumulate_prices(
             greater_precision,
         )?);
 
-        let (offer_pool, ask_pool) = select_pools(Some(from), Some(to), &pools)?;
+        let (offer_pool, ask_pool) = select_pools(Some(from), Some(to), pools)?;
         let SwapResult { return_amount, .. } = compute_swap(
             deps.storage,
             &env,
@@ -364,7 +364,7 @@ pub fn accumulate_prices(
             &offer_asset,
             &offer_pool,
             &ask_pool,
-            &pools,
+            pools,
         )?;
 
         // Get fee info from factory
