@@ -1,13 +1,13 @@
 use crate::contract::{
-    accumulate_prices, assert_max_spread, execute, instantiate, query_pool,
-    query_reverse_simulation, query_share, query_simulation, reply,
+    assert_max_spread, execute, instantiate, query_pool, query_reverse_simulation, query_share,
+    query_simulation, reply,
 };
 use crate::error::ContractError;
 use crate::math::AMP_PRECISION;
 use crate::mock_querier::mock_dependencies;
 
 use crate::response::MsgInstantiateContractResponse;
-use crate::state::{Config, CONFIG};
+use crate::state::{store_precisions, Config, CONFIG};
 use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo, PairInfo};
 
 use astroport::pair::{
@@ -1077,9 +1077,7 @@ fn test_query_share() {
     assert_eq!(res[1].amount, Uint128::new(500));
 }
 
-// TODO: cumulative prices should be redesigned for 3pool
 #[test]
-#[ignore]
 fn test_accumulate_prices() {
     struct Case {
         block_time: u64,
@@ -1094,7 +1092,6 @@ fn test_accumulate_prices() {
         block_time_last: u64,
         cumulative_price_x: u128,
         cumulative_price_y: u128,
-        is_some: bool,
     }
 
     let price_precision = 10u128.pow(TWAP_PRECISION.into());
@@ -1111,9 +1108,8 @@ fn test_accumulate_prices() {
             },
             Result {
                 block_time_last: 1000,
-                cumulative_price_x: 1008,
-                cumulative_price_y: 991,
-                is_some: true,
+                cumulative_price_x: 1005,
+                cumulative_price_y: 988,
             },
         ),
         // Same block height, no changes
@@ -1130,7 +1126,6 @@ fn test_accumulate_prices() {
                 block_time_last: 1000,
                 cumulative_price_x: 1,
                 cumulative_price_y: 2,
-                is_some: false,
             },
         ),
         (
@@ -1144,63 +1139,53 @@ fn test_accumulate_prices() {
             },
             Result {
                 block_time_last: 1500,
-                cumulative_price_x: 1004,
-                cumulative_price_y: 2495,
-                is_some: true,
+                cumulative_price_x: 1002,
+                cumulative_price_y: 2494,
             },
         ),
     ];
 
     for test_case in test_cases {
         let (case, result) = test_case;
+        let asset_x = native_asset_info("uusd".to_string());
+        let asset_y = native_asset_info("uluna".to_string());
+        let mut deps =
+            mock_dependencies(&[coin(case.x_amount, "uusd"), coin(case.y_amount, "uluna")]);
+        store_precisions(deps.as_mut(), &[asset_x.clone(), asset_y.clone()]).unwrap();
 
+        let cumulative_prices = vec![
+            (asset_x.clone(), asset_y.clone(), case.last0.into()),
+            (asset_y.clone(), asset_x.clone(), case.last1.into()),
+        ];
         let env = mock_env_with_block_time(case.block_time);
-        let config = accumulate_prices(
-            env.clone(),
-            &Config {
-                pair_info: PairInfo {
-                    asset_infos: vec![
-                        AssetInfo::NativeToken {
-                            denom: "uusd".to_string(),
-                        },
-                        AssetInfo::Token {
-                            contract_addr: Addr::unchecked("asset0000"),
-                        },
-                    ],
-                    contract_addr: Addr::unchecked("pair"),
-                    liquidity_token: Addr::unchecked("lp_token"),
-                    pair_type: PairType::Stable {},
-                },
-                factory_addr: Addr::unchecked("factory"),
-                block_time_last: case.block_time_last,
-                price0_cumulative_last: Uint128::new(case.last0),
-                price1_cumulative_last: Uint128::new(case.last1),
-                init_amp: 100 * AMP_PRECISION,
-                init_amp_time: env.block.time.seconds(),
-                next_amp: 100 * AMP_PRECISION,
-                next_amp_time: env.block.time.seconds(),
-                greatest_precision: 6,
+        let mut config = Config {
+            pair_info: PairInfo {
+                asset_infos: vec![asset_x, asset_y],
+                contract_addr: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                liquidity_token: Addr::unchecked("lp_token"),
+                pair_type: PairType::Stable {},
             },
-            Uint128::new(case.x_amount),
-            6,
-            Uint128::new(case.y_amount),
-            6,
-        )
-        .unwrap();
+            factory_addr: Addr::unchecked("factory"),
+            block_time_last: case.block_time_last,
+            init_amp: 100 * AMP_PRECISION,
+            init_amp_time: env.block.time.seconds(),
+            next_amp: 100 * AMP_PRECISION,
+            next_amp_time: env.block.time.seconds(),
+            greatest_precision: 6,
+            cumulative_prices,
+        };
+        CONFIG.save(deps.as_mut().storage, &config).unwrap();
+        accumulate_prices(deps.as_ref(), env.clone(), &mut config).unwrap();
 
-        assert_eq!(result.is_some, config.is_some());
-
-        if let Some(config) = config {
-            assert_eq!(config.2, result.block_time_last);
-            assert_eq!(
-                config.0 / Uint128::from(price_precision),
-                Uint128::new(result.cumulative_price_x)
-            );
-            assert_eq!(
-                config.1 / Uint128::from(price_precision),
-                Uint128::new(result.cumulative_price_y)
-            );
-        }
+        assert_eq!(config.block_time_last, result.block_time_last);
+        assert_eq!(
+            config.cumulative_prices[0].2 / Uint128::from(price_precision),
+            Uint128::new(result.cumulative_price_x)
+        );
+        assert_eq!(
+            config.cumulative_prices[1].2 / Uint128::from(price_precision),
+            Uint128::new(result.cumulative_price_y)
+        );
     }
 }
 
@@ -1214,7 +1199,7 @@ fn mock_env_with_block_time(time: u64) -> Env {
     env
 }
 
-use crate::utils::{compute_swap, select_pools};
+use crate::utils::{accumulate_prices, compute_swap, select_pools};
 use astroport::factory::PairType;
 use proptest::prelude::*;
 use sim::StableSwapModel;

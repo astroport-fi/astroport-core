@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
 
 use cosmwasm_std::{
     to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Deps, Env, QuerierWrapper, StdResult,
@@ -345,13 +344,7 @@ pub fn accumulate_prices(deps: Deps, env: Env, config: &mut Config) -> Result<()
 
     let time_elapsed = Uint128::from(block_time - config.block_time_last);
 
-    let mut prices_map: HashMap<(AssetInfo, AssetInfo), Uint128> = config
-        .cumulative_prices
-        .iter()
-        .cloned()
-        .map(|(from, to, price)| ((from, to), price))
-        .collect();
-    for ((from, to), value) in prices_map.iter_mut() {
+    for (from, to, value) in config.cumulative_prices.iter_mut() {
         let offer_asset = from.with_balance(adjust_precision(
             Uint128::from(1u8),
             0u8,
@@ -362,10 +355,6 @@ pub fn accumulate_prices(deps: Deps, env: Env, config: &mut Config) -> Result<()
     }
 
     config.block_time_last = block_time;
-    config.cumulative_prices = prices_map
-        .into_iter()
-        .map(|((from, to), value)| (from, to, value))
-        .collect();
 
     Ok(())
 }

@@ -879,9 +879,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
     assert_eq!(d, 19999999999999);
 }
 
-// TODO: accumulate prices should be redesigned
 #[test]
-#[ignore]
 fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     let owner = Addr::unchecked(OWNER);
     let mut app = mock_app(
@@ -963,13 +961,13 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     let cpr_new: CumulativePricesResponse =
         app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
 
-    let twap0 = cpr_new.price0_cumulative_last - cpr_old.price0_cumulative_last;
-    let twap1 = cpr_new.price1_cumulative_last - cpr_old.price1_cumulative_last;
+    let twap0 = cpr_new.cumulative_prices[0].2 - cpr_old.cumulative_prices[0].2;
+    let twap1 = cpr_new.cumulative_prices[1].2 - cpr_old.cumulative_prices[1].2;
 
     // Prices weren't changed for the last day, uusd amount in pool = 4000000_000000, uluna = 2000000_000000
     let price_precision = Uint128::from(10u128.pow(TWAP_PRECISION.into()));
-    assert_eq!(twap0 / price_precision, Uint128::new(85684)); // 1.008356286 * ELAPSED_SECONDS (86400)
-    assert_eq!(twap1 / price_precision, Uint128::new(87121)); //   0.991712963 * ELAPSED_SECONDS
+    assert_eq!(twap0 / price_precision, Uint128::new(85641)); // 1.008356286 * ELAPSED_SECONDS (86400)
+    assert_eq!(twap1 / price_precision, Uint128::new(87078)); //   0.991712963 * ELAPSED_SECONDS
 }
 
 #[test]
