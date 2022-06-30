@@ -11,36 +11,6 @@ pub const MIN_AMP_CHANGING_TIME: u64 = 86400;
 pub const AMP_PRECISION: u64 = 100;
 
 /// ## Description
-/// Calculates the ask amount (the amount of tokens swapped to).
-/// ## Params
-/// * **offer_pool** is an object of type [`Uint128`]. This is the amount of offer tokens currently in a stableswap pool.
-///
-/// * **ask_pool** is an object of type [`Uint128`]. This is the amount of ask tokens currently in a stableswap pool.
-///
-/// * **offer_amount** is an object of type [`Uint128`]. This is the amount of offer tokens to swap.
-///
-/// * **amp** is an object of type [`Uint64`]. This is the pool's amplification parameter.
-pub fn calc_ask_amount(
-    _offer_pool: Uint128,
-    _ask_pool: Uint128,
-    _offer_amount: Uint128,
-    _amp: Uint64,
-) -> StdResult<Uint128> {
-    // TODO: update this function during cumulative prices redesign
-    // let leverage = amp.checked_mul(N_COINS.into())?;
-    // let new_offer_pool = offer_pool.checked_add(offer_amount)?;
-    //
-    // let d = compute_d(leverage, offer_pool, ask_pool)?;
-    //
-    // let new_ask_pool = compute_new_balance(leverage, new_offer_pool, d)?;
-    //
-    // let amount_swapped = ask_pool.checked_sub(new_ask_pool)?;
-    // Ok(amount_swapped)
-
-    Ok(Uint128::zero())
-}
-
-/// ## Description
 /// Computes the stableswap invariant (D).
 ///
 /// * **Equation**

@@ -427,3 +427,16 @@ pub fn check_swap_parameters(
 
     Ok(())
 }
+
+pub trait AssetInfoExt {
+    fn with_balance(&self, balance: impl Into<Uint128>) -> Asset;
+}
+
+impl AssetInfoExt for AssetInfo {
+    fn with_balance(&self, balance: impl Into<Uint128>) -> Asset {
+        Asset {
+            info: self.clone(),
+            amount: balance.into(),
+        }
+    }
+}

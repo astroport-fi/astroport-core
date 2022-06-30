@@ -440,16 +440,3 @@ impl AssetsExt for &[Asset] {
         funds
     }
 }
-
-pub trait AssetInfoExt {
-    fn with_balance(&self, balance: u128) -> Asset;
-}
-
-impl AssetInfoExt for AssetInfo {
-    fn with_balance(&self, balance: u128) -> Asset {
-        Asset {
-            info: self.clone(),
-            amount: Uint128::from(balance),
-        }
-    }
-}

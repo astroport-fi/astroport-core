@@ -1,34 +1,27 @@
-use crate::error::ContractError;
-use crate::math::{
-    calc_ask_amount, calc_y, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE,
-    MIN_AMP_CHANGING_TIME,
-};
-use crate::state::{get_precision, store_precisions, Config, CONFIG};
+use std::collections::HashMap;
+use std::str::FromStr;
+use std::vec;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use std::collections::HashMap;
-
 use cosmwasm_std::{
     attr, from_binary, to_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
     Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response, StdError,
     StdResult, SubMsg, Uint128, WasmMsg,
 };
+use cw2::set_contract_version;
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
+use itertools::Itertools;
+use protobuf::Message;
 
-use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
     addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset,
     AssetInfo, PairInfo,
 };
 use astroport::factory::PairType;
-
 use astroport::pair::{
     migration_check, ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams,
-    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, TWAP_PRECISION,
-};
-
-use crate::utils::{
-    adjust_precision, check_asset_infos, check_assets, check_cw20_in_pool, compute_current_amp,
-    compute_swap, get_share_in_assets, mint_liquidity_token_message, select_pools, SwapResult,
+    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
 };
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
@@ -39,12 +32,18 @@ use astroport::querier::{
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport::DecimalCheckedOps;
-use cw2::set_contract_version;
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
-use itertools::Itertools;
-use protobuf::Message;
-use std::str::FromStr;
-use std::vec;
+
+use crate::error::ContractError;
+use crate::math::{
+    calc_y, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME,
+};
+use crate::response::MsgInstantiateContractResponse;
+use crate::state::{get_precision, store_precisions, Config, CONFIG};
+use crate::utils::{
+    accumulate_prices, adjust_precision, check_asset_infos, check_assets, check_cw20_in_pool,
+    compute_current_amp, compute_swap, get_share_in_assets, mint_liquidity_token_message,
+    select_pools, SwapResult,
+};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-pair-stable";
@@ -94,6 +93,16 @@ pub fn instantiate(
 
     let greatest_precision = store_precisions(deps.branch(), &msg.asset_infos)?;
 
+    // Initializing cumulative prices
+    let mut cumulative_prices = vec![];
+    for from_pool in &msg.asset_infos {
+        for to_pool in &msg.asset_infos {
+            if !from_pool.eq(to_pool) {
+                cumulative_prices.push((from_pool.clone(), to_pool.clone(), Uint128::zero()))
+            }
+        }
+    }
+
     let config = Config {
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
@@ -103,13 +112,12 @@ pub fn instantiate(
         },
         factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr)?,
         block_time_last: 0,
-        price0_cumulative_last: Uint128::zero(),
-        price1_cumulative_last: Uint128::zero(),
         init_amp: params.amp * AMP_PRECISION,
         init_amp_time: env.block.time.seconds(),
         next_amp: params.amp * AMP_PRECISION,
         next_amp_time: env.block.time.seconds(),
         greatest_precision,
+        cumulative_prices,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -337,7 +345,7 @@ pub fn provide_liquidity(
     check_assets(deps.api, &assets)?;
 
     let auto_stake = auto_stake.unwrap_or(false);
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     if assets.len() > config.pair_info.asset_infos.len() {
         return Err(ContractError::InvalidNumberOfAssets {});
@@ -491,21 +499,8 @@ pub fn provide_liquidity(
         auto_stake,
     )?);
 
-    // TODO: accumulate prices for multiple assets
-    // // Accumulate prices assets in the pool
-    // if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) = accumulate_prices(
-    //     env,
-    //     &config,
-    //     pools[0].amount,
-    //     token_precision_0,
-    //     pools[1].amount,
-    //     token_precision_1,
-    // )? {
-    //     config.price0_cumulative_last = price0_cumulative_new;
-    //     config.price1_cumulative_last = price1_cumulative_new;
-    //     config.block_time_last = block_time;
-    //     CONFIG.save(deps.storage, &config)?;
-    // }
+    accumulate_prices(deps.as_ref(), env, &mut config)?;
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "provide_liquidity"),
@@ -539,7 +534,7 @@ pub fn withdraw_liquidity(
     amount: Uint128,
     assets: Vec<Asset>,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.pair_info.liquidity_token {
         return Err(ContractError::Unauthorized {});
@@ -591,20 +586,8 @@ pub fn withdraw_liquidity(
         .into(),
     );
 
-    // // Accumulate prices for the assets in the pool
-    // if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) = accumulate_prices(
-    //     env,
-    //     &config,
-    //     pools[0].amount,
-    //     query_token_precision(&deps.querier, &pools[0].info)?,
-    //     pools[1].amount,
-    //     query_token_precision(&deps.querier, &pools[1].info)?,
-    // )? {
-    //     config.price0_cumulative_last = price0_cumulative_new;
-    //     config.price1_cumulative_last = price1_cumulative_new;
-    //     config.block_time_last = block_time;
-    //     CONFIG.save(deps.storage, &config)?;
-    // }
+    accumulate_prices(deps.as_ref(), env, &mut config)?;
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),
@@ -771,7 +754,7 @@ pub fn swap(
     max_spread: Option<Decimal>,
     to: Option<Addr>,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     // If the asset balance already increased
     // We should subtract the user deposit from the pool offer asset amount
@@ -844,21 +827,8 @@ pub fn swap(
         }
     }
 
-    /* TODO: support multiple assets
-    // Accumulate prices for the assets in the pool
-    if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) = accumulate_prices(
-        env,
-        &config,
-        offer_pool.amount,
-        query_token_precision(&deps.querier, &offer_pool.info)?,
-        ask_pool.amount,
-        query_token_precision(&deps.querier, &ask_pool.info)?,
-    )? {
-        config.price0_cumulative_last = price0_cumulative_new;
-        config.price1_cumulative_last = price1_cumulative_new;
-        config.block_time_last = block_time;
-        CONFIG.save(deps.storage, &config)?;
-    }*/
+    accumulate_prices(deps.as_ref(), env, &mut config)?;
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new()
         .add_messages(
@@ -878,72 +848,6 @@ pub fn swap(
             attr("commission_amount", commission_amount),
             attr("maker_fee_amount", maker_fee_amount),
         ]))
-}
-
-/// ## Description
-/// Accumulate token prices for the assets in the pool.
-/// Note that this function shifts **block_time** when any of the token prices is zero in order to not
-/// fill an accumulator with a null price for that period.
-/// ## Params
-/// * **env** is an object of type [`Env`].
-///
-/// * **config** is an object of type [`Config`].
-///
-/// * **x** is an object of type [`Uint128`]. This is the balance of asset\[\0] in the pool.
-///
-/// * **x_precision** is an object of type [`u8`]. This is the precision for the x token.
-///
-/// * **y** is an object of type [`Uint128`]. This is the balance of asset\[\1] in the pool.
-///
-/// * **y_precision** is an object of type [`u8`]. This is the precision for the y token.
-pub fn accumulate_prices(
-    env: Env,
-    config: &Config,
-    x: Uint128,
-    x_precision: u8,
-    y: Uint128,
-    y_precision: u8,
-) -> StdResult<Option<(Uint128, Uint128, u64)>> {
-    let block_time = env.block.time.seconds();
-    if block_time <= config.block_time_last {
-        return Ok(None);
-    }
-
-    // We have to shift block_time when any price is zero in order to not fill an accumulator with a null price for that period
-    let greater_precision = x_precision.max(y_precision).max(TWAP_PRECISION);
-    let x = adjust_precision(x, x_precision, greater_precision)?;
-    let y = adjust_precision(y, y_precision, greater_precision)?;
-
-    let time_elapsed = Uint128::from(block_time - config.block_time_last);
-
-    let mut pcl0 = config.price0_cumulative_last;
-    let mut pcl1 = config.price1_cumulative_last;
-
-    if !x.is_zero() && !y.is_zero() {
-        let current_amp = compute_current_amp(config, &env)?;
-        pcl0 = config.price0_cumulative_last.wrapping_add(adjust_precision(
-            time_elapsed.checked_mul(calc_ask_amount(
-                x,
-                y,
-                adjust_precision(Uint128::new(1), 0, greater_precision)?,
-                current_amp,
-            )?)?,
-            greater_precision,
-            TWAP_PRECISION,
-        )?);
-        pcl1 = config.price1_cumulative_last.wrapping_add(adjust_precision(
-            time_elapsed.checked_mul(calc_ask_amount(
-                y,
-                x,
-                adjust_precision(Uint128::new(1), 0, greater_precision)?,
-                current_amp,
-            )?)?,
-            greater_precision,
-            TWAP_PRECISION,
-        )?)
-    };
-
-    Ok(Some((pcl0, pcl1, block_time)))
 }
 
 /// ## Description
@@ -1070,21 +974,13 @@ pub fn query_simulation(
     offer_asset: Asset,
     ask_asset_info: Option<AssetInfo>,
 ) -> Result<SimulationResponse, ContractError> {
-    if offer_asset.amount.is_zero() {
-        return Ok(SimulationResponse {
-            return_amount: Uint128::zero(),
-            spread_amount: Uint128::zero(),
-            commission_amount: Uint128::zero(),
-        });
-    }
-
     let config = CONFIG.load(deps.storage)?;
     let pools = config
         .pair_info
         .query_pools(&deps.querier, &config.pair_info.contract_addr)?
         .into_iter()
         .map(|pool| {
-            let token_precision = query_token_precision(&deps.querier, &pool.info)?;
+            let token_precision = get_precision(deps.storage, &pool.info)?;
             Ok(Asset {
                 amount: adjust_precision(pool.amount, token_precision, config.greatest_precision)?,
                 ..pool
@@ -1094,6 +990,14 @@ pub fn query_simulation(
 
     let (offer_pool, ask_pool) =
         select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)?;
+
+    if check_swap_parameters(offer_pool.amount, ask_pool.amount, offer_asset.amount).is_err() {
+        return Ok(SimulationResponse {
+            return_amount: Uint128::zero(),
+            spread_amount: Uint128::zero(),
+            commission_amount: Uint128::zero(),
+        });
+    }
 
     let SwapResult {
         return_amount,
@@ -1212,32 +1116,16 @@ pub fn query_reverse_simulation(
 ///
 /// * **env** is an object of type [`Env`].
 pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps.querier, &config)?;
+    accumulate_prices(deps, env, &mut config)
+        .map_err(|err| StdError::generic_err(format!("{err}")))?;
 
-    let mut price0_cumulative_last = config.price0_cumulative_last;
-    let mut price1_cumulative_last = config.price1_cumulative_last;
-
-    if let Some((price0_cumulative_new, price1_cumulative_new, _)) = accumulate_prices(
-        env,
-        &config,
-        assets[0].amount,
-        query_token_precision(&deps.querier, &assets[0].info)?,
-        assets[1].amount,
-        query_token_precision(&deps.querier, &assets[1].info)?,
-    )? {
-        price0_cumulative_last = price0_cumulative_new;
-        price1_cumulative_last = price1_cumulative_new;
-    }
-
-    let resp = CumulativePricesResponse {
+    Ok(CumulativePricesResponse {
         assets,
         total_share,
-        price0_cumulative_last,
-        price1_cumulative_last,
-    };
-
-    Ok(resp)
+        cumulative_prices: config.cumulative_prices,
+    })
 }
 
 /// ## Description

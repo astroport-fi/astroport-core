@@ -1,13 +1,16 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Env, QuerierWrapper, StdResult,
+    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Deps, Env, QuerierWrapper, StdResult,
     Storage, Uint128, Uint64,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 
-use astroport::asset::{check_swap_parameters, Asset, AssetInfo};
+use crate::contract::query_simulation;
+use astroport::asset::{check_swap_parameters, Asset, AssetInfo, AssetInfoExt};
+use astroport::pair::TWAP_PRECISION;
 use astroport::querier::query_factory_config;
 
 use crate::error::ContractError;
@@ -322,4 +325,47 @@ pub(crate) fn compute_swap(
         return_amount,
         spread_amount,
     })
+}
+
+/// ## Description
+/// Accumulate token prices for the assets in the pool.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **config** is an object of type [`Config`].
+pub fn accumulate_prices(deps: Deps, env: Env, config: &mut Config) -> Result<(), ContractError> {
+    let block_time = env.block.time.seconds();
+    if block_time <= config.block_time_last {
+        return Ok(());
+    }
+
+    let greater_precision = config.greatest_precision.max(TWAP_PRECISION);
+
+    let time_elapsed = Uint128::from(block_time - config.block_time_last);
+
+    let mut prices_map: HashMap<(AssetInfo, AssetInfo), Uint128> = config
+        .cumulative_prices
+        .iter()
+        .cloned()
+        .map(|(from, to, price)| ((from, to), price))
+        .collect();
+    for ((from, to), value) in prices_map.iter_mut() {
+        let offer_asset = from.with_balance(adjust_precision(
+            Uint128::from(1u8),
+            0u8,
+            greater_precision,
+        )?);
+        let sim_resp = query_simulation(deps, env.clone(), offer_asset, Some(to.clone()))?;
+        *value = value.wrapping_add(time_elapsed.checked_mul(sim_resp.return_amount)?);
+    }
+
+    config.block_time_last = block_time;
+    config.cumulative_prices = prices_map
+        .into_iter()
+        .map(|((from, to), value)| (from, to, value))
+        .collect();
+
+    Ok(())
 }

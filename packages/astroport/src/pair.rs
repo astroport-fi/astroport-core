@@ -146,10 +146,8 @@ pub struct CumulativePricesResponse {
     pub assets: Vec<Asset>,
     /// The total amount of LP tokens currently issued
     pub total_share: Uint128,
-    /// The last value for the token0 cumulative price
-    pub price0_cumulative_last: Uint128,
-    /// The last value for the token1 cumulative price
-    pub price1_cumulative_last: Uint128,
+    /// The vector contains cumulative prices for each pair of assets in the pool
+    pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
 }
 
 /// This structure describes a migration message.

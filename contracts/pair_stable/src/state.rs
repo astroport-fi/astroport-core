@@ -14,10 +14,6 @@ pub struct Config {
     pub factory_addr: Addr,
     /// The last timestamp when the pair contract update the asset cumulative prices
     pub block_time_last: u64,
-    /// The last cumulative price for asset 0
-    pub price0_cumulative_last: Uint128,
-    /// The last cumulative price for asset 1
-    pub price1_cumulative_last: Uint128,
     /// This is the current amplification used in the pool
     pub init_amp: u64,
     /// This is the start time when amplification starts to scale up or down
@@ -28,6 +24,8 @@ pub struct Config {
     pub next_amp_time: u64,
     /// The greatest precision of assets in the pool
     pub greatest_precision: u8,
+    /// The vector contains cumulative prices for each pair of assets in the pool
+    pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
