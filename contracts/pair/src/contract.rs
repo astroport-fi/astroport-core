@@ -991,11 +991,23 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
         price1_cumulative_last = price1_cumulative_new;
     }
 
+    let cumulative_prices = vec![
+        (
+            assets[0].info.clone(),
+            assets[1].info.clone(),
+            price0_cumulative_last,
+        ),
+        (
+            assets[1].info.clone(),
+            assets[0].info.clone(),
+            price1_cumulative_last,
+        ),
+    ];
+
     let resp = CumulativePricesResponse {
         assets,
         total_share,
-        price0_cumulative_last,
-        price1_cumulative_last,
+        cumulative_prices,
     };
 
     Ok(resp)

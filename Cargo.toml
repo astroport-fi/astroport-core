@@ -17,7 +17,7 @@ members = [
     "contracts/tokenomics/staking",
     "contracts/tokenomics/vesting",
     "contracts/tokenomics/xastro_token",
-    "contracts/periphery/*"
+#    "contracts/periphery/*" TODO: support 3pool in oracle
 ]
 
 [profile.release]
