@@ -21,13 +21,11 @@ async function main() {
     console.log('network:', network)
 
     if (!network.tokenAddress) {
-        let err = new Error("Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...")
-        throw err
+        throw new Error("Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...")
     }
 
     if (!network.multisigAddress) {
-        let err = new Error("Set the proper owner multisig for the contracts")
-        throw err
+        throw new Error("Set the proper owner multisig for the contracts")
     }
 
     await uploadAndInitVesting(terra, wallet)
