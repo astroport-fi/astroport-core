@@ -382,14 +382,14 @@ pub fn provide_liquidity(
         .collect::<Result<Vec<_>, ContractError>>()?;
 
     // If some assets are omitted then add them explicitly with 0 deposit
-    pools.into_iter().for_each(|(pool_info, pool_amount)| {
-        if !assets.iter().any(|asset| asset.info == pool_info) {
+    pools.iter().for_each(|(pool_info, pool_amount)| {
+        if !assets.iter().any(|asset| asset.info.eq(pool_info)) {
             assets_collection.push((
                 Asset {
                     amount: Uint128::zero(),
-                    info: pool_info,
+                    info: pool_info.clone(),
                 },
-                pool_amount,
+                *pool_amount,
             ));
         }
     });
@@ -499,8 +499,14 @@ pub fn provide_liquidity(
         auto_stake,
     )?);
 
-    accumulate_prices(deps.as_ref(), env, &mut config)?;
-    CONFIG.save(deps.storage, &config)?;
+    let pools = pools
+        .into_iter()
+        .map(|(info, amount)| Asset { info, amount })
+        .collect_vec();
+
+    if accumulate_prices(deps.as_ref(), env, &mut config, &pools).is_ok() {
+        CONFIG.save(deps.storage, &config)?;
+    }
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "provide_liquidity"),
@@ -544,8 +550,8 @@ pub fn withdraw_liquidity(
     let refund_assets;
     let mut messages = vec![];
 
+    let (pools, total_share) = pool_info(deps.querier, &config)?;
     if assets.is_empty() {
-        let (pools, total_share) = pool_info(deps.querier, &config)?;
         burn_amount = amount;
         refund_assets = get_share_in_assets(&pools, amount, total_share);
     } else {
@@ -586,8 +592,9 @@ pub fn withdraw_liquidity(
         .into(),
     );
 
-    accumulate_prices(deps.as_ref(), env, &mut config)?;
-    CONFIG.save(deps.storage, &config)?;
+    if accumulate_prices(deps.as_ref(), env, &mut config, &pools).is_ok() {
+        CONFIG.save(deps.storage, &config)?;
+    }
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),
@@ -777,6 +784,9 @@ pub fn swap(
     let (offer_pool, ask_pool) =
         select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)?;
 
+    // Check if the liquidity is non-zero
+    check_swap_parameters(offer_pool.amount, ask_pool.amount, offer_asset.amount)?;
+
     let SwapResult {
         return_amount,
         spread_amount,
@@ -827,8 +837,9 @@ pub fn swap(
         }
     }
 
-    accumulate_prices(deps.as_ref(), env, &mut config)?;
-    CONFIG.save(deps.storage, &config)?;
+    if accumulate_prices(deps.as_ref(), env, &mut config, &pools).is_ok() {
+        CONFIG.save(deps.storage, &config)?;
+    }
 
     Ok(Response::new()
         .add_messages(
@@ -1118,7 +1129,7 @@ pub fn query_reverse_simulation(
 pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
     let mut config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps.querier, &config)?;
-    accumulate_prices(deps, env, &mut config)
+    accumulate_prices(deps, env, &mut config, &assets)
         .map_err(|err| StdError::generic_err(format!("{err}")))?;
 
     Ok(CumulativePricesResponse {

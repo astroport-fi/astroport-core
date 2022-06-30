@@ -7,10 +7,10 @@ use cosmwasm_std::{
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 
-use crate::contract::query_simulation;
-use astroport::asset::{check_swap_parameters, Asset, AssetInfo, AssetInfoExt};
+use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
 use astroport::pair::TWAP_PRECISION;
-use astroport::querier::query_factory_config;
+use astroport::querier::{query_factory_config, query_fee_info};
+use astroport::DecimalCheckedOps;
 
 use crate::error::ContractError;
 use crate::math::calc_y;
@@ -295,9 +295,6 @@ pub(crate) fn compute_swap(
     ask_pool: &Asset,
     pools: &[Asset],
 ) -> Result<SwapResult, ContractError> {
-    // Check if the liquidity is non-zero
-    check_swap_parameters(offer_pool.amount, ask_pool.amount, offer_asset.amount)?;
-
     let token_precision = get_precision(storage, &offer_asset.info)?;
     let offer_amount = adjust_precision(
         offer_asset.amount,
@@ -334,7 +331,14 @@ pub(crate) fn compute_swap(
 /// * **env** is an object of type [`Env`].
 ///
 /// * **config** is an object of type [`Config`].
-pub fn accumulate_prices(deps: Deps, env: Env, config: &mut Config) -> Result<(), ContractError> {
+///
+/// * **pools** is an array of [`Asset`] type items. These are the assets available in the pool.
+pub fn accumulate_prices(
+    deps: Deps,
+    env: Env,
+    config: &mut Config,
+    pools: &[Asset],
+) -> Result<(), ContractError> {
     let block_time = env.block.time.seconds();
     if block_time <= config.block_time_last {
         return Ok(());
@@ -344,14 +348,36 @@ pub fn accumulate_prices(deps: Deps, env: Env, config: &mut Config) -> Result<()
 
     let time_elapsed = Uint128::from(block_time - config.block_time_last);
 
+    let immut_config = config.clone();
     for (from, to, value) in config.cumulative_prices.iter_mut() {
         let offer_asset = from.with_balance(adjust_precision(
             Uint128::from(1u8),
             0u8,
             greater_precision,
         )?);
-        let sim_resp = query_simulation(deps, env.clone(), offer_asset, Some(to.clone()))?;
-        *value = value.wrapping_add(time_elapsed.checked_mul(sim_resp.return_amount)?);
+
+        let (offer_pool, ask_pool) = select_pools(Some(from), Some(to), &pools)?;
+        let SwapResult { return_amount, .. } = compute_swap(
+            deps.storage,
+            &env,
+            &immut_config,
+            &offer_asset,
+            &offer_pool,
+            &ask_pool,
+            &pools,
+        )?;
+
+        // Get fee info from factory
+        let fee_info = query_fee_info(
+            &deps.querier,
+            &config.factory_addr,
+            immut_config.pair_info.pair_type.clone(),
+        )?;
+
+        let commission_amount = fee_info.total_fee_rate.checked_mul_uint128(return_amount)?;
+        let return_amount = return_amount.saturating_sub(commission_amount);
+
+        *value = value.wrapping_add(time_elapsed.checked_mul(return_amount)?);
     }
 
     config.block_time_last = block_time;

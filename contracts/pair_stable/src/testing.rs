@@ -1149,14 +1149,18 @@ fn test_accumulate_prices() {
         let (case, result) = test_case;
         let asset_x = native_asset_info("uusd".to_string());
         let asset_y = native_asset_info("uluna".to_string());
-        let mut deps =
-            mock_dependencies(&[coin(case.x_amount, "uusd"), coin(case.y_amount, "uluna")]);
+        let mut deps = mock_dependencies(&[]);
         store_precisions(deps.as_mut(), &[asset_x.clone(), asset_y.clone()]).unwrap();
 
         let cumulative_prices = vec![
             (asset_x.clone(), asset_y.clone(), case.last0.into()),
             (asset_y.clone(), asset_x.clone(), case.last1.into()),
         ];
+        let pools = vec![
+            native_asset(asset_x.to_string(), case.x_amount.into()),
+            native_asset(asset_y.to_string(), case.y_amount.into()),
+        ];
+
         let env = mock_env_with_block_time(case.block_time);
         let mut config = Config {
             pair_info: PairInfo {
@@ -1174,8 +1178,7 @@ fn test_accumulate_prices() {
             greatest_precision: 6,
             cumulative_prices,
         };
-        CONFIG.save(deps.as_mut().storage, &config).unwrap();
-        accumulate_prices(deps.as_ref(), env.clone(), &mut config).unwrap();
+        accumulate_prices(deps.as_ref(), env.clone(), &mut config, &pools).unwrap();
 
         assert_eq!(config.block_time_last, result.block_time_last);
         assert_eq!(

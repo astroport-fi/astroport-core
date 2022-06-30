@@ -95,7 +95,9 @@ pub(crate) fn calc_y(
         }
         .into();
         sum += pool_amount;
-        c = c * d / (pool_amount * n_coins)
+        c = c
+            .checked_multiply_ratio(d, pool_amount * n_coins)
+            .map_err(|_| StdError::generic_err("CheckedMultiplyRatioError"))?;
     }
     c = c * d / (ann * n_coins);
     let b = sum + d / ann;
