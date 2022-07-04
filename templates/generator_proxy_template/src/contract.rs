@@ -1,3 +1,6 @@
+// Delete this after changing all todo macros
+#![allow(unused_variables, unreachable_code, clippy::diverging_sub_expression)]
+
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
     Response, StdResult, SubMsg, Uint128, WasmMsg,
@@ -114,7 +117,7 @@ fn receive_cw20(
         if cw20_msg.sender != cfg.generator_contract_addr || info.sender != cfg.lp_token_addr {
             return Err(ContractError::Unauthorized {});
         }
-        // TODO: deposit tokens in the end reward contract here
+        todo!("Deposit tokens in the end reward contract here");
     } else {
         return Err(ContractError::IncorrectCw20HookMessageVariant {});
     }
@@ -136,8 +139,7 @@ fn update_rewards(deps: DepsMut) -> Result<Response, ContractError> {
         .push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.reward_contract_addr.to_string(),
             funds: vec![],
-            // TODO: specify a withdraw rewards message that withdraws rewards from the end reward contract here
-            msg: to_binary(&())?,
+            msg: todo!("Specify a withdraw rewards message that withdraws rewards from the end reward contract here"),
         })));
 
     Ok(response)
@@ -211,7 +213,7 @@ fn withdraw(
 ) -> Result<Response, ContractError> {
     let account = addr_validate_to_lower(deps.api, &account)?;
 
-    let mut response = Response::new();
+    let response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.generator_contract_addr {
         return Err(ContractError::Unauthorized {});
@@ -227,7 +229,7 @@ fn withdraw(
         res.balance
     };
 
-    // TODO: withdraw from the 3rd party reward contract here
+    todo!("Withdraw from the 3rd party reward contract here");
 
     response.messages.push(SubMsg::new(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
@@ -269,7 +271,7 @@ fn emergency_withdraw(
 ) -> Result<Response, ContractError> {
     let account = addr_validate_to_lower(deps.api, &account)?;
 
-    let mut response = Response::new();
+    let response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.generator_contract_addr {
         return Err(ContractError::Unauthorized {});
@@ -285,7 +287,7 @@ fn emergency_withdraw(
         res.balance
     };
 
-    // TODO: emergency withdraw from the 3rd party rewards contract here
+    todo!("Emergency withdraw from the 3rd party rewards contract here");
 
     response.messages.push(SubMsg::new(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
@@ -402,9 +404,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             reward_token_addr: cfg.reward_token_addr.to_string(),
         }),
         QueryMsg::Deposit {} => {
-            // TODO: query the 3rd party reward contract to retrieve the amount of staked LP tokens or implement local storage and retrieve from it here
-            // the returned value must be a Uint128
-            to_binary(&())
+            todo!(
+                "Query the 3rd party reward contract to retrieve the amount of staked LP tokens
+            or implement local storage and retrieve from it here.
+            The returned value must be a Uint128"
+            );
         }
         QueryMsg::Reward {} => {
             let res: BalanceResponse = deps.querier.query_wasm_smart(
@@ -418,9 +422,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&reward_amount)
         }
         QueryMsg::PendingToken {} => {
-            // TODO: query the 3rd party reward contract and retrieve the pending token amount here
-            // the returned value must be a Uint128
-            to_binary(&())
+            todo!(
+                "Query the 3rd party reward contract and retrieve the pending token amount here.
+            the returned value must be a Uint128"
+            );
         }
         QueryMsg::RewardInfo {} => {
             let config = CONFIG.load(deps.storage)?;

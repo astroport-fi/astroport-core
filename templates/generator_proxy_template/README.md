@@ -2,6 +2,8 @@
 
 This generator proxy contract allows an external staking contract to be connected to the Generator. It gives Generator stakers the ability to claim both ASTRO emissions as well as 3rd party tokens at the same time. This is referred to as "dual rewards" in Astroport.
 
+## Be sure that all the template's TODOs get properly changed!
+
 ---
 
 ## InstantiateMsg
