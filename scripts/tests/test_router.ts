@@ -21,7 +21,7 @@ async function main() {
     const router = astroport.router(network.routerAddress);
     console.log("router config: ", await router.queryConfig());
 
-    // 1. Provide AstroUst liquidity
+    // 1. Provide ASTRO-UST liquidity
     const liquidity_amount = 10000000;
     await provideLiquidity(network, astroport, cl.wallet.key.accAddress, network.poolAstroUst, [
         new NativeAsset('uusd', liquidity_amount.toString()),

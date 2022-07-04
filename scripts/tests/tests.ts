@@ -18,7 +18,7 @@ async function main() {
     // 1. Provide liquidity
     await provideLiquidity(network, astroport, wallet.key.accAddress)
 
-    // 2. ASTRO
+    // 2. Stake ASTRO
     await stake(network, astroport, wallet.key.accAddress)
 
     // 3. Swap tokens in pool
