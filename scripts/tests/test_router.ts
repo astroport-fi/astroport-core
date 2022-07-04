@@ -28,13 +28,13 @@ async function main() {
         new TokenAsset(network.tokenAddress, liquidity_amount.toString())
     ])
 
-    // 2. Provide LunaUst liquidity
+    // 2. Provide LUNA-UST liquidity
     await provideLiquidity(network, astroport, cl.wallet.key.accAddress, network.poolLunaUst, [
         new NativeAsset('uluna', liquidity_amount.toString()),
         new NativeAsset('uusd', liquidity_amount.toString())
     ])
 
-    // 3. Pools balance
+    // 3. Fetch the pool balances
     let lpTokenAstroUst = await astroport.getTokenBalance(network.lpTokenAstroUst, cl.wallet.key.accAddress);
     let lpTokenLunaUst = await astroport.getTokenBalance(network.lpTokenLunaUst, cl.wallet.key.accAddress);
 
