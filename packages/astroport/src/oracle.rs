@@ -9,7 +9,7 @@ pub struct InstantiateMsg {
     /// The factory contract address
     pub factory_contract: String,
     /// The assets that have a pool for which this contract provides price feeds
-    pub asset_infos: [AssetInfo; 2],
+    pub asset_infos: Vec<AssetInfo>,
 }
 
 /// This structure describes the execute functions available in the contract.

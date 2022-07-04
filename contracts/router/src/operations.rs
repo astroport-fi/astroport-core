@@ -44,7 +44,7 @@ pub fn execute_swap_operation(
             let pair_info = query_pair_info(
                 &deps.querier,
                 &config.astroport_factory,
-                &[offer_asset_info.clone(), ask_asset_info],
+                &[offer_asset_info.clone(), ask_asset_info.clone()],
             )?;
 
             let amount = match &offer_asset_info {
@@ -64,6 +64,7 @@ pub fn execute_swap_operation(
                 deps,
                 pair_info.contract_addr.to_string(),
                 offer_asset,
+                ask_asset_info,
                 max_spread,
                 to,
             )?
@@ -84,6 +85,8 @@ pub fn execute_swap_operation(
 ///
 /// * **offer_asset** is an object of type [`Asset`]. This is the asset that is swapped. It also mentions the amount to swap.
 ///
+/// * **ask_asset_info** is an object of type [`AssetInfo`]. This is the asset that is swapped to.
+///
 /// * **max_spread** is an object of type [`Option<Decimal>`]. This is the max spread enforced for the swap.
 ///
 /// * **to** is an object of type [`Option<String>`]. This is the address that receives the ask assets.
@@ -91,6 +94,7 @@ pub fn asset_into_swap_msg(
     deps: DepsMut,
     pair_contract: String,
     offer_asset: Asset,
+    ask_asset_info: AssetInfo,
     max_spread: Option<Decimal>,
     to: Option<String>,
 ) -> StdResult<CosmosMsg> {
@@ -111,6 +115,7 @@ pub fn asset_into_swap_msg(
                         amount,
                         ..offer_asset
                     },
+                    ask_asset_info: Some(ask_asset_info),
                     belief_price: None,
                     max_spread,
                     to,
@@ -125,6 +130,7 @@ pub fn asset_into_swap_msg(
                 amount: offer_asset.amount,
                 msg: to_binary(&PairExecuteMsg::Swap {
                     offer_asset,
+                    ask_asset_info: Some(ask_asset_info),
                     belief_price: None,
                     max_spread,
                     to,

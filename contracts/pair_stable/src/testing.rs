@@ -1,14 +1,14 @@
 use crate::contract::{
-    accumulate_prices, assert_max_spread, compute_offer_amount, compute_swap, execute, instantiate,
-    query_pair_info, query_pool, query_share, query_simulation, reply,
+    assert_max_spread, execute, instantiate, query_pool, query_reverse_simulation, query_share,
+    query_simulation, reply,
 };
 use crate::error::ContractError;
-use crate::math::{calc_ask_amount, calc_offer_amount, AMP_PRECISION};
+use crate::math::AMP_PRECISION;
 use crate::mock_querier::mock_dependencies;
 
 use crate::response::MsgInstantiateContractResponse;
-use crate::state::Config;
-use astroport::asset::{Asset, AssetInfo, PairInfo};
+use crate::state::{store_precisions, Config, CONFIG};
+use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo, PairInfo};
 
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, SimulationResponse, StablePoolParams,
@@ -17,7 +17,7 @@ use astroport::pair::{
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut, Env, Reply,
+    attr, coin, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut, Env, Reply,
     ReplyOn, Response, StdError, SubMsg, SubMsgResponse, SubMsgResult, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -55,7 +55,7 @@ fn proper_initialization() {
 
     let msg = InstantiateMsg {
         factory_addr: String::from("factory"),
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -104,11 +104,11 @@ fn proper_initialization() {
     store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     // It worked, let's query the state
-    let pair_info: PairInfo = query_pair_info(deps.as_ref()).unwrap();
+    let pair_info = CONFIG.load(deps.as_ref().storage).unwrap().pair_info;
     assert_eq!(Addr::unchecked("liquidity0000"), pair_info.liquidity_token);
     assert_eq!(
         pair_info.asset_infos,
-        [
+        vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -138,7 +138,7 @@ fn provide_liquidity() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -161,7 +161,7 @@ fn provide_liquidity() {
 
     // Successfully provide liquidity for the existing pool
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -217,7 +217,7 @@ fn provide_liquidity() {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(100_000000000000000000u128),
+                    amount: Uint128::from(299_906803112262055943u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -256,7 +256,7 @@ fn provide_liquidity() {
     ]);
 
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -313,7 +313,7 @@ fn provide_liquidity() {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(74_981956874579206461u128),
+                    amount: Uint128::from(74_953430155231432408u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -327,7 +327,7 @@ fn provide_liquidity() {
 
     // Check wrong argument
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -409,7 +409,7 @@ fn provide_liquidity() {
 
     // Successfully provide liquidity
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -449,7 +449,7 @@ fn provide_liquidity() {
 
     // Successfully provide liquidity
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -498,7 +498,7 @@ fn withdraw_liquidity() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -522,7 +522,7 @@ fn withdraw_liquidity() {
     // Withdraw liquidity
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: String::from("addr0000"),
-        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
         amount: Uint128::new(100u128),
     });
 
@@ -619,7 +619,7 @@ fn try_native_to_token() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -648,6 +648,7 @@ fn try_native_to_token() {
             },
             amount: offer_amount,
         },
+        ask_asset_info: None,
         belief_price: None,
         max_spread: Some(Decimal::percent(50)),
         to: None,
@@ -680,7 +681,6 @@ fn try_native_to_token() {
     let expected_return_amount = expected_ret_amount
         .checked_sub(expected_commission_amount)
         .unwrap();
-    let expected_tax_amount = Uint128::zero(); // no tax for token
 
     // Check simulation result
     deps.querier.with_balance(&[(
@@ -700,6 +700,7 @@ fn try_native_to_token() {
             },
             amount: offer_amount,
         },
+        None,
     )
     .unwrap();
     assert_eq!(expected_return_amount, simulation_res.return_amount);
@@ -716,7 +717,6 @@ fn try_native_to_token() {
             attr("ask_asset", "asset0000"),
             attr("offer_amount", offer_amount.to_string()),
             attr("return_amount", expected_return_amount.to_string()),
-            attr("tax_amount", expected_tax_amount.to_string()),
             attr("spread_amount", expected_spread_amount.to_string()),
             attr("commission_amount", expected_commission_amount.to_string()),
             attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
@@ -770,7 +770,7 @@ fn try_token_to_native() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -799,6 +799,7 @@ fn try_token_to_native() {
             },
             amount: offer_amount,
         },
+        ask_asset_info: None,
         belief_price: None,
         max_spread: None,
         to: None,
@@ -813,6 +814,7 @@ fn try_token_to_native() {
         sender: String::from("addr0000"),
         amount: offer_amount,
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: None,
@@ -864,6 +866,7 @@ fn try_token_to_native() {
                 contract_addr: Addr::unchecked("asset0000"),
             },
         },
+        None,
     )
     .unwrap();
     assert_eq!(expected_return_amount, simulation_res.return_amount);
@@ -880,7 +883,6 @@ fn try_token_to_native() {
             attr("ask_asset", "uusd"),
             attr("offer_amount", offer_amount.to_string()),
             attr("return_amount", expected_return_amount.to_string()),
-            attr("tax_amount", Uint128::zero().to_string()),
             attr("spread_amount", expected_spread_amount.to_string()),
             attr("commission_amount", expected_commission_amount.to_string()),
             attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
@@ -909,6 +911,7 @@ fn try_token_to_native() {
         sender: String::from("addr0000"),
         amount: offer_amount,
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: None,
@@ -982,7 +985,7 @@ fn test_query_pool() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -1047,7 +1050,7 @@ fn test_query_share() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -1089,7 +1092,6 @@ fn test_accumulate_prices() {
         block_time_last: u64,
         cumulative_price_x: u128,
         cumulative_price_y: u128,
-        is_some: bool,
     }
 
     let price_precision = 10u128.pow(TWAP_PRECISION.into());
@@ -1106,9 +1108,8 @@ fn test_accumulate_prices() {
             },
             Result {
                 block_time_last: 1000,
-                cumulative_price_x: 1008,
-                cumulative_price_y: 991,
-                is_some: true,
+                cumulative_price_x: 1005,
+                cumulative_price_y: 988,
             },
         ),
         // Same block height, no changes
@@ -1125,7 +1126,6 @@ fn test_accumulate_prices() {
                 block_time_last: 1000,
                 cumulative_price_x: 1,
                 cumulative_price_y: 2,
-                is_some: false,
             },
         ),
         (
@@ -1139,62 +1139,56 @@ fn test_accumulate_prices() {
             },
             Result {
                 block_time_last: 1500,
-                cumulative_price_x: 1004,
-                cumulative_price_y: 2495,
-                is_some: true,
+                cumulative_price_x: 1002,
+                cumulative_price_y: 2494,
             },
         ),
     ];
 
     for test_case in test_cases {
         let (case, result) = test_case;
+        let asset_x = native_asset_info("uusd".to_string());
+        let asset_y = native_asset_info("uluna".to_string());
+        let mut deps = mock_dependencies(&[]);
+        store_precisions(deps.as_mut(), &[asset_x.clone(), asset_y.clone()]).unwrap();
+
+        let cumulative_prices = vec![
+            (asset_x.clone(), asset_y.clone(), case.last0.into()),
+            (asset_y.clone(), asset_x.clone(), case.last1.into()),
+        ];
+        let pools = vec![
+            native_asset(asset_x.to_string(), case.x_amount.into()),
+            native_asset(asset_y.to_string(), case.y_amount.into()),
+        ];
 
         let env = mock_env_with_block_time(case.block_time);
-        let config = accumulate_prices(
-            env.clone(),
-            &Config {
-                pair_info: PairInfo {
-                    asset_infos: [
-                        AssetInfo::NativeToken {
-                            denom: "uusd".to_string(),
-                        },
-                        AssetInfo::Token {
-                            contract_addr: Addr::unchecked("asset0000"),
-                        },
-                    ],
-                    contract_addr: Addr::unchecked("pair"),
-                    liquidity_token: Addr::unchecked("lp_token"),
-                    pair_type: PairType::Stable {},
-                },
-                factory_addr: Addr::unchecked("factory"),
-                block_time_last: case.block_time_last,
-                price0_cumulative_last: Uint128::new(case.last0),
-                price1_cumulative_last: Uint128::new(case.last1),
-                init_amp: 100 * AMP_PRECISION,
-                init_amp_time: env.block.time.seconds(),
-                next_amp: 100 * AMP_PRECISION,
-                next_amp_time: env.block.time.seconds(),
+        let mut config = Config {
+            pair_info: PairInfo {
+                asset_infos: vec![asset_x, asset_y],
+                contract_addr: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                liquidity_token: Addr::unchecked("lp_token"),
+                pair_type: PairType::Stable {},
             },
-            Uint128::new(case.x_amount),
-            6,
-            Uint128::new(case.y_amount),
-            6,
-        )
-        .unwrap();
+            factory_addr: Addr::unchecked("factory"),
+            block_time_last: case.block_time_last,
+            init_amp: 100 * AMP_PRECISION,
+            init_amp_time: env.block.time.seconds(),
+            next_amp: 100 * AMP_PRECISION,
+            next_amp_time: env.block.time.seconds(),
+            greatest_precision: 6,
+            cumulative_prices,
+        };
+        accumulate_prices(deps.as_ref(), env.clone(), &mut config, &pools).unwrap();
 
-        assert_eq!(result.is_some, config.is_some());
-
-        if let Some(config) = config {
-            assert_eq!(config.2, result.block_time_last);
-            assert_eq!(
-                config.0 / Uint128::from(price_precision),
-                Uint128::new(result.cumulative_price_x)
-            );
-            assert_eq!(
-                config.1 / Uint128::from(price_precision),
-                Uint128::new(result.cumulative_price_y)
-            );
-        }
+        assert_eq!(config.block_time_last, result.block_time_last);
+        assert_eq!(
+            config.cumulative_prices[0].2 / Uint128::from(price_precision),
+            Uint128::new(result.cumulative_price_x)
+        );
+        assert_eq!(
+            config.cumulative_prices[1].2 / Uint128::from(price_precision),
+            Uint128::new(result.cumulative_price_y)
+        );
     }
 }
 
@@ -1208,6 +1202,7 @@ fn mock_env_with_block_time(time: u64) -> Env {
     env
 }
 
+use crate::utils::{accumulate_prices, compute_swap, select_pools};
 use astroport::factory::PairType;
 use proptest::prelude::*;
 use sim::StableSwapModel;
@@ -1220,29 +1215,51 @@ proptest! {
         amount_in in 100..100_000_000_000u128,
         amp in 1..150u64
     ) {
-        prop_assume!(amount_in < balance_in);
+        prop_assume!(amount_in < balance_in && balance_out > balance_in);
 
-        let model: StableSwapModel = StableSwapModel::new(
-            amp.into(),
-            vec![balance_in, balance_out],
-            2,
-        );
+        let offer_asset = native_asset("uusd".to_string(), Uint128::from(amount_in));
+        let ask_asset = native_asset_info("uluna".to_string());
 
-        let result = calc_ask_amount(
-            balance_in,
-            balance_out,
-            amount_in,
-            amp * AMP_PRECISION
-        ).unwrap();
+        let msg = InstantiateMsg {
+            factory_addr: String::from("factory"),
+            asset_infos: vec![offer_asset.info.clone(), ask_asset.clone()],
+            token_code_id: 10u64,
+            init_params: Some(to_binary(&StablePoolParams { amp }).unwrap()),
+        };
 
+        let env = mock_env();
+        let info = mock_info("owner", &[]);
+        let mut deps = mock_dependencies(&[coin(balance_in, "uusd"), coin(balance_out, "uluna")]);
+
+        instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
+        let config = CONFIG.load(deps.as_ref().storage).unwrap();
+        let pools = config
+            .pair_info
+            .query_pools(&deps.as_ref().querier, &env.contract.address)
+            .unwrap();
+        let (offer_pool, ask_pool) =
+        select_pools(Some(&offer_asset.info), None, &pools).unwrap();
+
+        let result = compute_swap(
+            deps.as_ref().storage,
+            &env,
+            &config,
+            &offer_asset,
+            &offer_pool,
+            &ask_pool,
+            &pools,
+        )
+        .unwrap();
+
+        let model: StableSwapModel = StableSwapModel::new(amp.into(), vec![balance_in, balance_out], 2);
         let sim_result = model.sim_exchange(0, 1, amount_in);
 
-        let diff = (sim_result as i128 - result as i128).abs();
+        let diff = (sim_result as i128 - result.return_amount.u128() as i128).abs();
 
         assert!(
             diff <= 1,
             "result={}, sim_result={}, amp={}, amount_in={}, balance_in={}, balance_out={}, diff={}",
-            result,
+            result.return_amount,
             sim_result,
             amp,
             amount_in,
@@ -1251,99 +1268,28 @@ proptest! {
             diff
         );
 
-        let reverse_result = calc_offer_amount(
-            balance_in,
-            balance_out,
-            result,
-            amp * AMP_PRECISION
-        ).unwrap();
+        let reverse_result = query_reverse_simulation(
+            deps.as_ref(),
+            env.clone(),
+            native_asset("uluna".to_string(), result.return_amount),
+            None,
+        )
+        .unwrap();
 
         let amount_in_f = amount_in as f64;
-        let reverse_diff = (reverse_result as f64 - amount_in_f) / amount_in_f * 100.;
+        let reverse_diff =
+            (reverse_result.offer_amount.u128() as f64 - amount_in_f) / amount_in_f * 100.;
 
         assert!(
-            reverse_diff <= 0.0001,
+            reverse_diff <= 0.5,
             "result={}, sim_result={}, amp={}, amount_out={}, balance_in={}, balance_out={}, diff(%)={}",
-            reverse_result,
+            reverse_result.offer_amount.u128(),
             amount_in,
             amp,
-            result,
+            result.return_amount.u128(),
             balance_in,
             balance_out,
             reverse_diff
         );
     }
-}
-
-#[test]
-fn ensure_useful_error_messages_are_given_on_swaps() {
-    const OFFER: Uint128 = Uint128::new(1_000_000_000000);
-    const ASK: Uint128 = Uint128::new(1_000_000_000000);
-    const AMOUNT: Uint128 = Uint128::new(1_000000);
-    const ZERO: Uint128 = Uint128::zero();
-    const DZERO: Decimal = Decimal::zero();
-    const AMP: u64 = 100;
-    const PRS: u8 = 6;
-
-    // Computing ask
-    assert_eq!(
-        compute_swap(ZERO, PRS, ZERO, PRS, ZERO, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("One of the pools is empty")
-    );
-    assert_eq!(
-        compute_swap(ZERO, PRS, ZERO, PRS, AMOUNT, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("One of the pools is empty")
-    );
-    assert_eq!(
-        compute_swap(ZERO, PRS, ASK, PRS, ZERO, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("One of the pools is empty")
-    );
-    assert_eq!(
-        compute_swap(ZERO, PRS, ASK, PRS, AMOUNT, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("One of the pools is empty")
-    );
-    assert_eq!(
-        compute_swap(OFFER, PRS, ZERO, PRS, ZERO, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("One of the pools is empty")
-    );
-    assert_eq!(
-        compute_swap(OFFER, PRS, ZERO, PRS, AMOUNT, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("One of the pools is empty")
-    );
-    assert_eq!(
-        compute_swap(OFFER, PRS, ASK, PRS, ZERO, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("Swap amount must not be zero")
-    );
-    compute_swap(OFFER, PRS, ASK, PRS, AMOUNT, DZERO, AMP).unwrap();
-
-    // Computing offer
-    assert_eq!(
-        compute_offer_amount(ZERO, PRS, ZERO, PRS, ZERO, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("One of the pools is empty")
-    );
-    assert_eq!(
-        compute_offer_amount(ZERO, PRS, ZERO, PRS, AMOUNT, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("One of the pools is empty")
-    );
-    assert_eq!(
-        compute_offer_amount(ZERO, PRS, ASK, PRS, ZERO, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("One of the pools is empty")
-    );
-    assert_eq!(
-        compute_offer_amount(ZERO, PRS, ASK, PRS, AMOUNT, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("One of the pools is empty")
-    );
-    assert_eq!(
-        compute_offer_amount(OFFER, PRS, ZERO, PRS, ZERO, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("One of the pools is empty")
-    );
-    assert_eq!(
-        compute_offer_amount(OFFER, PRS, ZERO, PRS, AMOUNT, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("One of the pools is empty")
-    );
-    assert_eq!(
-        compute_offer_amount(OFFER, PRS, ASK, PRS, ZERO, DZERO, AMP).unwrap_err(),
-        StdError::generic_err("Swap amount must not be zero")
-    );
-    compute_offer_amount(OFFER, PRS, ASK, PRS, AMOUNT, DZERO, AMP).unwrap();
 }

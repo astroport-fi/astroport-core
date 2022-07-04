@@ -229,7 +229,7 @@ fn create_pair(
     owner: Addr,
     user: Addr,
     factory_instance: &Addr,
-    assets: [Asset; 2],
+    assets: Vec<Asset>,
 ) -> PairInfo {
     for a in assets.clone() {
         match a.info {
@@ -247,7 +247,7 @@ fn create_pair(
         }
     }
 
-    let asset_infos = [assets[0].info.clone(), assets[1].info.clone()];
+    let asset_infos = vec![assets[0].info.clone(), assets[1].info.clone()];
 
     // Create pair in factory
     let res = router
@@ -342,7 +342,7 @@ fn create_pair_stable(
     owner: Addr,
     user: Addr,
     factory_instance: &Addr,
-    assets: [Asset; 2],
+    assets: Vec<Asset>,
 ) -> PairInfo {
     for a in assets.clone() {
         match a.info {
@@ -360,7 +360,7 @@ fn create_pair_stable(
         }
     }
 
-    let asset_infos = [assets[0].info.clone(), assets[1].info.clone()];
+    let asset_infos = vec![assets[0].info.clone(), assets[1].info.clone()];
 
     // Create pair in factory
     let res = router
@@ -495,7 +495,7 @@ fn change_provide_liquidity(
             user,
             pair_contract,
             &astroport::pair::ExecuteMsg::ProvideLiquidity {
-                assets: [
+                assets: vec![
                     Asset {
                         info: AssetInfo::Token {
                             contract_addr: token1.clone(),
@@ -538,7 +538,7 @@ fn consult() {
         "USDC".to_string(),
     );
 
-    let asset_infos = [
+    let asset_infos = vec![
         AssetInfo::Token {
             contract_addr: usdc_token_instance.clone(),
         },
@@ -551,7 +551,7 @@ fn consult() {
         owner.clone(),
         user.clone(),
         &factory_instance,
-        [
+        vec![
             Asset {
                 info: asset_infos[0].clone(),
                 amount: Uint128::from(100_000_u128),
@@ -669,7 +669,7 @@ fn consult_pair_stable() {
         "USDC".to_string(),
     );
 
-    let asset_infos = [
+    let asset_infos = vec![
         AssetInfo::Token {
             contract_addr: usdc_token_instance.clone(),
         },
@@ -682,7 +682,7 @@ fn consult_pair_stable() {
         owner.clone(),
         user.clone(),
         &factory_instance,
-        [
+        vec![
             Asset {
                 info: asset_infos[0].clone(),
                 amount: Uint128::from(100_000_000000u128),
@@ -800,7 +800,7 @@ fn consult2() {
         "USDC".to_string(),
     );
 
-    let asset_infos = [
+    let asset_infos = vec![
         AssetInfo::Token {
             contract_addr: usdc_token_instance.clone(),
         },
@@ -813,7 +813,7 @@ fn consult2() {
         owner.clone(),
         user.clone(),
         &factory_instance,
-        [
+        vec![
             Asset {
                 info: asset_infos[0].clone(),
                 amount: Uint128::from(1000_u128),
@@ -1017,7 +1017,7 @@ fn consult_zero_price() {
         "USDC".to_string(),
     );
 
-    let asset_infos = [
+    let asset_infos = vec![
         AssetInfo::Token {
             contract_addr: usdc_token_instance.clone(),
         },
@@ -1030,7 +1030,7 @@ fn consult_zero_price() {
         owner.clone(),
         user.clone(),
         &factory_instance,
-        [
+        vec![
             Asset {
                 info: asset_infos[0].clone(),
                 amount: Uint128::from(100_000_000_000u128),
@@ -1120,7 +1120,7 @@ fn consult_zero_price() {
 
     // Consult zero price
 
-    let asset_infos = [
+    let asset_infos = vec![
         AssetInfo::NativeToken {
             denom: "cny".to_string(),
         },
@@ -1134,7 +1134,7 @@ fn consult_zero_price() {
         owner.clone(),
         user.clone(),
         &factory_instance,
-        [
+        vec![
             Asset {
                 info: asset_infos[0].clone(),
                 amount: Uint128::from(100u8),

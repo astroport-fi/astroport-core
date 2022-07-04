@@ -8,8 +8,8 @@ use crate::migration;
 use crate::querier::query_pair_info;
 
 use crate::state::{
-    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS, PAIRS_TO_MIGRATE,
-    PAIR_CONFIGS, TMP_PAIR_INFO,
+    check_asset_infos, pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL,
+    PAIRS, PAIRS_TO_MIGRATE, PAIR_CONFIGS, TMP_PAIR_INFO,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -17,7 +17,7 @@ use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{addr_opt_validate, addr_validate_to_lower, AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
-    PairsResponse, QueryMsg,
+    PairsResponse, QueryMsg, ROUTE,
 };
 
 use crate::migration::migrate_pair_configs_to_v120;
@@ -27,6 +27,7 @@ use astroport::common::{
 use astroport::generator::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cw2::{get_contract_version, set_contract_version};
+use itertools::Itertools;
 use protobuf::Message;
 use std::collections::HashSet;
 
@@ -313,15 +314,10 @@ pub fn execute_create_pair(
     deps: DepsMut,
     env: Env,
     pair_type: PairType,
-    asset_infos: [AssetInfo; 2],
+    asset_infos: Vec<AssetInfo>,
     init_params: Option<Binary>,
 ) -> Result<Response, ContractError> {
-    asset_infos[0].check(deps.api)?;
-    asset_infos[1].check(deps.api)?;
-
-    if asset_infos[0] == asset_infos[1] {
-        return Err(ContractError::DoublingAssets {});
-    }
+    check_asset_infos(deps.api, &asset_infos)?;
 
     let config = CONFIG.load(deps.storage)?;
 
@@ -340,7 +336,13 @@ pub fn execute_create_pair(
     }
 
     let pair_key = pair_key(&asset_infos);
-    TMP_PAIR_INFO.save(deps.storage, &TmpPairInfo { pair_key })?;
+    TMP_PAIR_INFO.save(
+        deps.storage,
+        &TmpPairInfo {
+            pair_key,
+            asset_infos: asset_infos.clone(),
+        },
+    )?;
 
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         id: INSTANTIATE_PAIR_REPLY_ID,
@@ -365,7 +367,7 @@ pub fn execute_create_pair(
         .add_submessages(sub_msg)
         .add_attributes(vec![
             attr("action", "create_pair"),
-            attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
+            attr("pair", asset_infos.iter().join("-")),
         ]))
 }
 
@@ -412,7 +414,7 @@ fn execute_mark_pairs_as_migrated(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let tmp = TMP_PAIR_INFO.load(deps.storage)?;
-    if PAIRS.may_load(deps.storage, &tmp.pair_key)?.is_some() {
+    if PAIRS.has(deps.storage, &tmp.pair_key) {
         return Err(ContractError::PairWasRegistered {});
     }
 
@@ -425,6 +427,25 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     let pair_contract = addr_validate_to_lower(deps.api, res.get_contract_address())?;
 
     PAIRS.save(deps.storage, &tmp.pair_key, &pair_contract)?;
+
+    for asset_info in &tmp.asset_infos {
+        for asset_info_2 in &tmp.asset_infos {
+            if asset_info != asset_info_2 {
+                ROUTE.update::<_, StdError>(
+                    deps.storage,
+                    (asset_info.to_string(), asset_info_2.to_string()),
+                    |maybe_contracts| {
+                        if let Some(mut contracts) = maybe_contracts {
+                            contracts.push(pair_contract.clone());
+                            Ok(contracts)
+                        } else {
+                            Ok(vec![pair_contract.clone()])
+                        }
+                    },
+                )?;
+            }
+        }
+    }
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "register"),
@@ -447,7 +468,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 pub fn deregister(
     deps: DepsMut,
     info: MessageInfo,
-    asset_infos: [AssetInfo; 2],
+    asset_infos: Vec<AssetInfo>,
 ) -> Result<Response, ContractError> {
     asset_infos[0].check(deps.api)?;
     asset_infos[1].check(deps.api)?;
@@ -566,7 +587,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the assets traded in the pair.
-pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
+pub fn query_pair(deps: Deps, asset_infos: Vec<AssetInfo>) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     query_pair_info(&deps.querier, &pair_addr)
 }
@@ -582,7 +603,7 @@ pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo
 /// * **limit** is a [`Option`] type. Sets the number of pairs to be retrieved.
 pub fn query_pairs(
     deps: Deps,
-    start_after: Option<[AssetInfo; 2]>,
+    start_after: Option<Vec<AssetInfo>>,
     limit: Option<u32>,
 ) -> StdResult<PairsResponse> {
     let pairs = read_pairs(deps, start_after, limit)?

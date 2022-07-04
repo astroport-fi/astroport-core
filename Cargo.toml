@@ -5,8 +5,9 @@ members = [
     "contracts/factory",
     "contracts/pair",
     "contracts/pair_stable",
-    "contracts/pair_stable_owner",
-    #"contracts/pair_stable_bluna", TODO: update this when bluna migrated to cosmwasm 1.0.0
+    # TODO: "contracts/pair_stable_owner",
+    # TODO: do we need to support bluna in 3pool?
+    # "contracts/pair_stable_bluna",
     "contracts/router",
     "contracts/token",
     "contracts/whitelist",
@@ -17,7 +18,7 @@ members = [
     "contracts/tokenomics/staking",
     "contracts/tokenomics/vesting",
     "contracts/tokenomics/xastro_token",
-    "contracts/periphery/*"
+#    "contracts/periphery/*" TODO: support 3pool in oracle
 ]
 
 [profile.release]

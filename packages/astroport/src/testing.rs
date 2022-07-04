@@ -245,7 +245,7 @@ fn query_astroport_pair_contract() {
     deps.querier.with_astroport_pairs(&[(
         &"asset0000uusd".to_string(),
         &PairInfo {
-            asset_infos: [
+            asset_infos: vec![
                 AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
                 },
@@ -283,7 +283,7 @@ fn test_format_lp_token_name() {
     deps.querier.with_astroport_pairs(&[(
         &"asset0000uusd".to_string(),
         &PairInfo {
-            asset_infos: [
+            asset_infos: vec![
                 AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
                 },

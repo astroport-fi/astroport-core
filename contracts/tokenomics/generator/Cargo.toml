@@ -28,7 +28,7 @@ schemars = "0.8"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0" }
 astroport = { path = "../../../packages/astroport", default-features = false }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git" }
 protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
@@ -43,8 +43,8 @@ astroport-pair = {path = "../../pair"}
 astroport-pair-stable = {path = "../../pair_stable"}
 astroport-whitelist = { path = "../../whitelist" }
 anyhow = "1"
-generator-controller = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
-voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
+generator-controller = { git = "https://github.com/astroport-fi/astroport-governance.git" }
+voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance.git" }
 
 [dev-dependencies.astroport-generator_v120]
 git = "https://github.com/astroport-fi/astroport-core"

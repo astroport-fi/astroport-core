@@ -48,11 +48,11 @@ fn oracle_overflow() {
         amount: Uint128::zero(),
     };
 
-    let asset = [astro_asset.clone(), usdc_asset.clone()];
+    let asset = vec![astro_asset.clone(), usdc_asset.clone()];
 
     let instantiate_msg = InstantiateMsg {
         factory_contract: factory.to_string(),
-        asset_infos: [astro_asset_info, usdc_asset_info],
+        asset_infos: vec![astro_asset_info, usdc_asset_info],
     };
 
     // Set cumulative price to 192738282u128

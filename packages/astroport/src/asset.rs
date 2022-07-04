@@ -4,12 +4,14 @@ use std::fmt;
 
 use crate::factory::PairType;
 use crate::pair::QueryMsg as PairQueryMsg;
-use crate::querier::{query_balance, query_token_balance, query_token_symbol};
+use crate::querier::{
+    query_balance, query_token_balance, query_token_symbol, NATIVE_TOKEN_PRECISION,
+};
 use cosmwasm_std::{
     to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, MessageInfo, QuerierWrapper, StdError,
     StdResult, Uint128, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
 
 /// UST token denomination
 pub const UUSD_DENOM: &str = "uusd";
@@ -137,7 +139,7 @@ impl Asset {
 /// Token { contract_addr: Addr::unchecked("terra...") };
 /// NativeToken { denom: String::from("uluna") };
 /// ```
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetInfo {
     /// Non-native Token
@@ -184,6 +186,23 @@ impl AssetInfo {
         }
     }
 
+    /// Returns the number of decimals that a token has.
+    /// ## Params
+    /// * **querier** is an object of type [`QuerierWrapper`].
+    pub fn query_token_precision(&self, querier: &QuerierWrapper) -> StdResult<u8> {
+        let decimals = match &self {
+            AssetInfo::NativeToken { .. } => NATIVE_TOKEN_PRECISION,
+            AssetInfo::Token { contract_addr } => {
+                let res: TokenInfoResponse =
+                    querier.query_wasm_smart(contract_addr, &Cw20QueryMsg::TokenInfo {})?;
+
+                res.decimals
+            }
+        };
+
+        Ok(decimals)
+    }
+
     /// Returns **true** if the calling token is the same as the token specified in the input parameters.
     /// Otherwise returns **false**.
     /// ## Params
@@ -225,7 +244,7 @@ impl AssetInfo {
     pub fn check(&self, api: &dyn Api) -> StdResult<()> {
         match self {
             AssetInfo::Token { contract_addr } => {
-                addr_validate_to_lower(api, contract_addr.as_str())?;
+                addr_validate_to_lower(api, contract_addr)?;
             }
             AssetInfo::NativeToken { denom } => {
                 if !denom.starts_with("ibc/") && denom != &denom.to_lowercase() {
@@ -244,7 +263,7 @@ impl AssetInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairInfo {
     /// Asset information for the two assets in the pool
-    pub asset_infos: [AssetInfo; 2],
+    pub asset_infos: Vec<AssetInfo>,
     /// Pair contract address
     pub contract_addr: Addr,
     /// Pair LP token address
@@ -265,18 +284,17 @@ impl PairInfo {
         &self,
         querier: &QuerierWrapper,
         contract_addr: impl Into<String>,
-    ) -> StdResult<[Asset; 2]> {
+    ) -> StdResult<Vec<Asset>> {
         let contract_addr = contract_addr.into();
-        Ok([
-            Asset {
-                amount: self.asset_infos[0].query_pool(querier, &contract_addr)?,
-                info: self.asset_infos[0].clone(),
-            },
-            Asset {
-                amount: self.asset_infos[1].query_pool(querier, contract_addr)?,
-                info: self.asset_infos[1].clone(),
-            },
-        ])
+        self.asset_infos
+            .iter()
+            .map(|asset_info| {
+                Ok(Asset {
+                    info: asset_info.clone(),
+                    amount: asset_info.query_pool(querier, &contract_addr)?,
+                })
+            })
+            .collect()
     }
 }
 
@@ -316,7 +334,7 @@ const TOKEN_SYMBOL_MAX_LENGTH: usize = 4;
 ///
 /// * **querier** is an object of type [`QuerierWrapper`].
 pub fn format_lp_token_name(
-    asset_infos: &[AssetInfo; 2],
+    asset_infos: &[AssetInfo],
     querier: &QuerierWrapper,
 ) -> StdResult<String> {
     let mut short_symbols: Vec<String> = vec![];
@@ -408,4 +426,17 @@ pub fn check_swap_parameters(
     }
 
     Ok(())
+}
+
+pub trait AssetInfoExt {
+    fn with_balance(&self, balance: impl Into<Uint128>) -> Asset;
+}
+
+impl AssetInfoExt for AssetInfo {
+    fn with_balance(&self, balance: impl Into<Uint128>) -> Asset {
+        Asset {
+            info: self.clone(),
+            amount: balance.into(),
+        }
+    }
 }

@@ -230,7 +230,7 @@ impl ControllerHelper {
     }
 
     pub fn create_pool(&self, router: &mut App, token1: &Addr, token2: &Addr) -> AnyResult<Addr> {
-        let asset_infos = [
+        let asset_infos = vec![
             AssetInfo::Token {
                 contract_addr: token1.clone(),
             },

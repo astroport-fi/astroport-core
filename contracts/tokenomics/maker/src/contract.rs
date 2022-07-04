@@ -16,7 +16,6 @@ use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg,
     QueryMsg,
 };
-use astroport::pair::QueryMsg as PairQueryMsg;
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Order, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
@@ -373,12 +372,12 @@ fn swap(
 
     // 2. Check if bridge tokens exist
     let bridge_token = BRIDGES.load(deps.storage, from_token.to_string());
-    if let Ok(asset) = bridge_token {
+    if let Ok(bridge_token) = bridge_token {
         let bridge_pool = validate_bridge(
             deps,
             &cfg.factory_contract,
             &from_token,
-            &asset,
+            &bridge_token,
             &astro,
             BRIDGES_INITIAL_DEPTH,
         )?;
@@ -388,9 +387,13 @@ fn swap(
             cfg.max_spread,
             &bridge_pool,
             &from_token,
+            Some(&bridge_token),
             amount_in,
         )?;
-        return Ok(SwapTarget::Bridge { asset, msg });
+        return Ok(SwapTarget::Bridge {
+            asset: bridge_token,
+            msg,
+        });
     }
 
     // 3. Check for a pair with UST
@@ -895,10 +898,10 @@ fn query_bridges(deps: Deps) -> StdResult<Vec<(String, String)>> {
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **contract_addr** is an object of type [`Addr`]. This is an Astroport pair contract address.
-pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<[AssetInfo; 2]> {
+pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<Vec<AssetInfo>> {
     let res: PairInfo = deps
         .querier
-        .query_wasm_smart(contract_addr, &PairQueryMsg::Pair {})?;
+        .query_wasm_smart(contract_addr, &astroport::pair::QueryMsg::Pair {})?;
 
     Ok(res.asset_infos)
 }

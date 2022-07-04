@@ -7,7 +7,7 @@ use crate::testing::mock_querier::mock_dependencies;
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
-use astroport::asset::{Asset, AssetInfo};
+use astroport::asset::{native_asset_info, Asset, AssetInfo};
 use astroport::pair::ExecuteMsg as PairExecuteMsg;
 use astroport::router::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
@@ -367,6 +367,7 @@ fn execute_swap_operation() {
                             },
                             amount: Uint128::new(1000000u128),
                         },
+                        ask_asset_info: Some(native_asset_info("uusd".to_string())),
                         belief_price: None,
                         max_spread: None,
                         to: Some(String::from("addr0000")),

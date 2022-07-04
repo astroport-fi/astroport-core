@@ -412,7 +412,7 @@ fn create_pair() {
     // We can just call .unwrap() to assert this was a success
     let _res = instantiate(deps.as_mut(), env, info, msg.clone()).unwrap();
 
-    let asset_infos = [
+    let asset_infos = vec![
         AssetInfo::Token {
             contract_addr: Addr::unchecked("asset0000"),
         },
@@ -507,7 +507,7 @@ fn register() {
     let info = mock_info("addr0000", &[]);
     let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    let asset_infos = [
+    let asset_infos = vec![
         AssetInfo::Token {
             contract_addr: Addr::unchecked("asset0000"),
         },
@@ -583,7 +583,7 @@ fn register() {
     assert_eq!(res, ContractError::PairWasRegistered {});
 
     // Store one more item to test query pairs
-    let asset_infos_2 = [
+    let asset_infos_2 = vec![
         AssetInfo::Token {
             contract_addr: Addr::unchecked("asset0000"),
         },

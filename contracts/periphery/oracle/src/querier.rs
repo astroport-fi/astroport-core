@@ -30,6 +30,10 @@ pub fn query_prices(
 ) -> StdResult<SimulationResponse> {
     querier.query_wasm_smart(
         pair_contract,
-        &PairQueryMsg::Simulation { offer_asset: asset },
+        &PairQueryMsg::Simulation {
+            offer_asset: asset,
+            // TODO: 3pool support?
+            ask_asset_info: None,
+        },
     )
 }

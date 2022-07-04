@@ -39,7 +39,7 @@ impl TokenQuerier {
     pub fn set(
         &mut self,
         pair: Addr,
-        assets: [Asset; 2],
+        assets: Vec<Asset>,
         total: Uint128,
         price0: Uint128,
         price1: Uint128,
@@ -120,7 +120,7 @@ impl WasmMockQuerier {
     pub fn set_cumulative_price(
         &mut self,
         pair: Addr,
-        assert: [Asset; 2],
+        assert: Vec<Asset>,
         total: Uint128,
         price1: Uint128,
         price2: Uint128,
