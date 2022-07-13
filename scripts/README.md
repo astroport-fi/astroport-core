@@ -1,6 +1,6 @@
 ## Scripts
 
-### Build env local
+### Build local env
 
 ```shell
 npm install
@@ -20,10 +20,10 @@ WALLET="mnemonic"
 LCD_CLIENT_URL=https://bombay-lcd.terra.dev
 CHAIN_ID=bombay-12
 
-TOKEN_INITIAL_AMOUNT="1000000000000000"
+TOKEN_INITIAL_AMOUNT="1_100_000_000_000000"
 ```
 
-Deploy contract:
+Deploy contracts:
 ```shell
 npm run build-app
 ```

@@ -93,7 +93,7 @@ async function uploadAndInitVesting(terra: LCDClient, wallet: any) {
         )
         // @ts-ignore
         network.vestingAddress = resp.shift().shift()
-        console.log(`Address Vesting Contract: ${network.vestingAddress}`)
+        console.log(`Vesting Contract Address: ${network.vestingAddress}`)
         writeArtifact(network, terra.config.chainID)
     }
 }
@@ -110,7 +110,7 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
             network.multisigAddress,
             join(ARTIFACTS_PATH, 'astroport_generator.wasm'),
             {
-                owner: network.multisigAddress,
+                owner: wallet.key.accAddress,
                 allowed_reward_proxies: [],
                 astro_token: network.tokenAddress,
                 start_block: '5918639',

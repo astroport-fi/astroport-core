@@ -108,8 +108,8 @@ async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
         // @ts-ignore
         network.xastroAddress = addresses.shift();
 
-        console.log(`Address Staking Contract: ${network.stakingAddress}`)
-        console.log(`Address xASTRO Contract: ${network.xastroAddress}`)
+        console.log(`Staking Contract Address: ${network.stakingAddress}`)
+        console.log(`xASTRO token Address: ${network.xastroAddress}`)
         writeArtifact(network, terra.config.chainID)
     }
 }
