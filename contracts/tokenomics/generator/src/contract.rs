@@ -442,16 +442,13 @@ fn update_rewards_and_execute(
         }
     })?;
 
-    let pools: Vec<(Addr, PoolInfo)>;
-    match update_single_pool {
+    let pools = match update_single_pool {
         Some(lp_token) => {
             let pool = POOL_INFO.load(deps.storage, &lp_token)?;
-            pools = vec![(lp_token, pool)];
+            vec![(lp_token, pool)]
         }
-        None => {
-            pools = get_pools(deps.storage);
-        }
-    }
+        None => get_pools(deps.storage),
+    };
 
     let mut messages: Vec<SubMsg> = vec![];
     for (lp_token, mut pool) in pools {
@@ -1078,26 +1075,25 @@ pub fn emergency_withdraw(
     )?;
 
     //call to transfer function for lp token
-    let transfer_msg: WasmMsg;
-    if let Some(proxy) = &pool.reward_proxy {
-        transfer_msg = WasmMsg::Execute {
+    let transfer_msg = if let Some(proxy) = &pool.reward_proxy {
+        WasmMsg::Execute {
             contract_addr: proxy.to_string(),
             msg: to_binary(&ProxyExecuteMsg::EmergencyWithdraw {
                 account: info.sender.to_string(),
                 amount: user.amount,
             })?,
             funds: vec![],
-        };
+        }
     } else {
-        transfer_msg = WasmMsg::Execute {
+        WasmMsg::Execute {
             contract_addr: lp_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: info.sender.to_string(),
                 amount: user.amount,
             })?,
             funds: vec![],
-        };
-    }
+        }
+    };
 
     // Change user balance
     USER_INFO.remove(deps.storage, (&lp_token, &info.sender));
@@ -1483,8 +1479,7 @@ fn query_pool_info(
     }
 
     // Calculate ASTRO tokens being distributed per block to this LP token pool
-    let astro_tokens_per_block: Uint128;
-    astro_tokens_per_block = config
+    let astro_tokens_per_block = config
         .tokens_per_block
         .checked_mul(Uint128::from(pool.alloc_point.u64()))?
         .checked_div(Uint128::from(config.total_alloc_point.u64()))
@@ -1548,15 +1543,14 @@ pub fn query_simulate_future_reward(
 pub fn calculate_rewards(env: &Env, pool: &PoolInfo, cfg: &Config) -> StdResult<Uint128> {
     let n_blocks = Uint128::from(env.block.height).checked_sub(pool.last_reward_block.into())?;
 
-    let r;
-    if !cfg.total_alloc_point.is_zero() {
-        r = n_blocks
+    let r = if !cfg.total_alloc_point.is_zero() {
+        n_blocks
             .checked_mul(cfg.tokens_per_block)?
             .checked_mul(Uint128::from(pool.alloc_point.u64()))?
-            .checked_div(Uint128::from(cfg.total_alloc_point.u64()))?;
+            .checked_div(Uint128::from(cfg.total_alloc_point.u64()))?
     } else {
-        r = Uint128::zero();
-    }
+        Uint128::zero()
+    };
 
     Ok(r)
 }

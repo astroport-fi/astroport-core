@@ -202,6 +202,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
                     ))
                     .into());
                 }
+                TOKEN_INFO.save(deps.storage, &token_info)?;
             }
             _ => return migration_error,
         },
