@@ -30,7 +30,7 @@ async function main() {
     }
 
     if (!network.multisigAddress) {
-        console.log(`set the proper owner multisig for the contracts`)
+        console.log(`Set the proper owner multisig for the contracts`)
         return
     }
 
@@ -51,7 +51,6 @@ async function main() {
     //     }
     // })
 
-
     console.log('FINISH')
 }
 
@@ -69,6 +68,12 @@ async function uploadPairContracts(terra: LCDClient, wallet: any) {
         network.pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable.wasm')!)
         writeArtifact(network, terra.config.chainID)
     }
+
+    if (!network.pairAnchorCodeID) {
+        console.log('Register Anchor Pair Contract...')
+        network.pairAnchorCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_anchor.wasm')!)
+        writeArtifact(network, terra.config.chainID)
+    }
 }
 
 async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
@@ -81,7 +86,7 @@ async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
     }
 
     if (!network.stakingAddress) {
-        console.log('Deploying Staking...')
+        console.log('Deploy Staking...')
 
         let resp = await deployContract(
             terra,
@@ -110,8 +115,8 @@ async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
         // @ts-ignore
         network.xastroAddress = addresses.shift();
 
-        console.log(`Address Staking Contract: ${network.stakingAddress}`)
-        console.log(`Address xASTRO Contract: ${network.xastroAddress}`)
+        console.log(`Staking Contract Address: ${network.stakingAddress}`)
+        console.log(`xASTRO token Address: ${network.xastroAddress}`)
         writeArtifact(network, terra.config.chainID)
     }
 }
@@ -120,8 +125,8 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.factoryAddress) {
-        console.log('Deploying Factory...')
-        console.log(`CodeId Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID}`)
+        console.log('Deploy the Factory...')
+        console.log(`CodeId Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID} CodeId Anchor Pair Contract: ${network.pairAnchorCodeID}`)
 
         let resp = await deployContract(
             terra,
@@ -135,13 +140,25 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                         code_id: network.pairCodeID,
                         pair_type: { xyk: {} },
                         total_fee_bps: 30, // 0.3% xyk
-                        maker_fee_bps: 3333 // 1/3rd of xyk fees go to maker
+                        maker_fee_bps: 3333, // 1/3rd of xyk fees go to maker
+                        is_disabled: false,
+                        is_generator_disabled: false
                     },
                     {
                         code_id: network.pairStableCodeID,
                         pair_type: { stable: {} },
                         total_fee_bps: 5, // 0.05% stableswap
-                        maker_fee_bps: 5000 // 50% of stableswap fees go to the Maker
+                        maker_fee_bps: 5000, // 50% of stableswap fees go to the Maker
+                        is_disabled: false,
+                        is_generator_disabled: false
+                    },
+                    {
+                        code_id: network.pairAnchorCodeID,
+                        pair_type: { custom: "Anchor-XYK" },
+                        total_fee_bps: 0,
+                        maker_fee_bps: 0,
+                        is_disabled: false,
+                        is_generator_disabled: true
                     }
                 ],
                 token_code_id: network.tokenCodeID,
@@ -162,7 +179,7 @@ async function uploadAndInitRouter(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.routerAddress) {
-        console.log('Deploying Router...')
+        console.log('Deploy the Router...')
         let resp = await deployContract(
             terra,
             wallet,
@@ -184,7 +201,7 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.makerAddress) {
-        console.log('Deploying Maker...')
+        console.log('Deploy the Maker...')
         let resp = await deployContract(
             terra,
             wallet,
@@ -201,13 +218,14 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
             },
             MAKER_LABEL
         )
+
         // @ts-ignore
         network.makerAddress = resp.shift().shift()
         console.log(`Address Maker Contract: ${network.makerAddress}`)
         writeArtifact(network, terra.config.chainID)
 
         // Set maker address in factory
-        console.log('Set maker and proper owner address in factory')
+        console.log('Set the Maker and the proper owner address in the factory')
         await executeContract(terra, wallet, network.factoryAddress, {
             "update_config": {
                 fee_address: network.makerAddress

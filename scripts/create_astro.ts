@@ -21,6 +21,7 @@ async function main() {
     // Upload contract code
     network.tokenCodeID = await uploadContract(terra, wallet, CW20_BINARY_PATH!)
     console.log(`Token codeId: ${network.tokenCodeID}`)
+    
     // Token info
     const TOKEN_NAME = "Astroport"
     const TOKEN_SYMBOL = "ASTRO"

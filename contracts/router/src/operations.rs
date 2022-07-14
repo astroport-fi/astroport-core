@@ -12,19 +12,18 @@ use astroport::router::SwapOperation;
 use cw20::Cw20ExecuteMsg;
 
 /// ## Description
-/// Execute swap operation. Swap all offer asset to ask asset.
-/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the
+/// Execute a swap operation. Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the
 /// specified attributes if the operation was successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
+/// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **operation** is the object of type [`SwapOperation`].
+/// * **operation** is an object of type [`SwapOperation`]. It's the swap operation to perform (offer/ask assets and the offer asset amount).
 ///
-/// * **to** is the object of type [`Option<String>`].
+/// * **to** is an object of type [`Option<String>`]. This is the address that receives the ask assets.
 pub fn execute_swap_operation(
     deps: DepsMut,
     env: Env,
@@ -81,15 +80,15 @@ pub fn execute_swap_operation(
 /// Creates a message with an exchange operation of type CosmosMsg for each asset.
 /// Returns the [`CosmosMsg`] with the specified attributes if the operation was successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **pair_contract** is the object of type [`String`].
+/// * **pair_contract** is an object of type [`String`]. This is the Astroport pair contract for which the swap operation is performed.
 ///
-/// * **offer_asset** is the object of type [`Asset`].
+/// * **offer_asset** is an object of type [`Asset`]. This is the asset that is swapped. It also mentions the amount to swap.
 ///
-/// * **max_spread** is the object of type [`Option<Decimal>`].
+/// * **max_spread** is an object of type [`Option<Decimal>`]. This is the max spread enforced for the swap.
 ///
-/// * **to** is the object of type [`Option<String>`].
+/// * **to** is an object of type [`Option<String>`]. This is the address that receives the ask assets.
 pub fn asset_into_swap_msg(
     deps: DepsMut,
     pair_contract: String,
@@ -99,7 +98,7 @@ pub fn asset_into_swap_msg(
 ) -> StdResult<CosmosMsg> {
     match offer_asset.info.clone() {
         AssetInfo::NativeToken { denom } => {
-            // deduct tax first
+            // Deduct tax first
             let amount = offer_asset
                 .amount
                 .checked_sub(offer_asset.compute_tax(&deps.querier)?)?;

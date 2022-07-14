@@ -11,13 +11,13 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Must provide operations!")]
+    #[error("Must specify swap operations!")]
     MustProvideOperations {},
 
     #[error("Assertion failed; minimum receive amount: {receive}, swap amount: {amount}")]
     AssertionMinimumReceive { receive: Uint128, amount: Uint128 },
 
-    #[error("The limit exceeded of swap operations!")]
+    #[error("The swap operation limit was exceeded!")]
     SwapLimitExceeded {},
 
     #[error("Native swap operations are not supported!")]

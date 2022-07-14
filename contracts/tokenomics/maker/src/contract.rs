@@ -4,12 +4,12 @@ use std::cmp::min;
 
 use crate::migration;
 use crate::utils::{
-    build_distribute_msg, build_swap_msg, try_build_swap_msg, validate_bridge,
+    build_distribute_msg, build_swap_msg, get_pool, try_build_swap_msg, validate_bridge,
     BRIDGES_EXECUTION_MAX_DEPTH, BRIDGES_INITIAL_DEPTH,
 };
 use astroport::asset::{
     addr_validate_to_lower, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo,
-    PairInfo, ULUNA_DENOM,
+    PairInfo, ULUNA_DENOM, UUSD_DENOM,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
@@ -308,6 +308,15 @@ fn swap_assets(
     let mut response = Response::default();
     let mut bridge_assets = HashMap::new();
 
+    // For default bridges we always need these two pools, hence the check
+    let astro = token_asset_info(cfg.astro_token_contract.clone());
+    let uusd = native_asset_info(UUSD_DENOM.to_string());
+    let uluna = native_asset_info(ULUNA_DENOM.to_string());
+
+    // Check the uusd - ASTRO pool and the uluna - uusd pool
+    get_pool(deps, cfg, uusd.clone(), astro)?;
+    get_pool(deps, cfg, uluna, uusd)?;
+
     for a in assets {
         // Get balance
         let mut balance = a
@@ -353,6 +362,18 @@ fn swap_assets(
 /// * **from_token** is an object of type [`AssetInfo`]. This is the token to swap to ASTRO.
 ///
 /// * **amount_in** is an object of type [`Uint128`]. This is the amount of fee tokens to swap.
+/// ## Description
+/// Checks if all required pools and bridges exists and performs a swap operation to ASTRO.
+/// Returns a [`ContractError`] on failure, otherwise returns a vector that contains objects
+/// of type [`SubMsg`] if the operation was successful.
+/// # Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **cfg** is an object of type [`Config`]. This is the Maker contract configuration.
+///
+/// * **from_token** is an object of type [`AssetInfo`]. This is the token to swap to ASTRO.
+///
+/// * **amount_in** is an object of type [`Uint128`]. This is the amount of fee tokens to swap.
 fn swap(
     deps: Deps,
     cfg: &Config,
@@ -360,7 +381,14 @@ fn swap(
     amount_in: Uint128,
 ) -> Result<SwapTarget, ContractError> {
     let astro = token_asset_info(cfg.astro_token_contract.clone());
+    let uusd = native_asset_info(UUSD_DENOM.to_string());
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
+
+    // 1. If from_token is UST, only swap to ASTRO is possible
+    if from_token.eq(&uusd) {
+        let swap_to_astro = try_build_swap_msg(deps, cfg, from_token, astro, amount_in)?;
+        return Ok(SwapTarget::Astro(swap_to_astro));
+    }
 
     // 2. Check if bridge tokens exist
     let bridge_token = BRIDGES.load(deps.storage, from_token.to_string());
@@ -378,8 +406,17 @@ fn swap(
         return Ok(SwapTarget::Bridge { asset, msg });
     }
 
+    // 3. Check for a pair with UST
+    if from_token.ne(&uusd) {
+        let swap_to_uusd =
+            try_build_swap_msg(deps, cfg, from_token.clone(), uusd.clone(), amount_in);
+        if let Ok(msg) = swap_to_uusd {
+            return Ok(SwapTarget::Bridge { asset: uusd, msg });
+        }
+    }
+
     // 4. Check for a pair with LUNA
-    if from_token.ne(&uluna) {
+    if from_token.ne(&uusd) && from_token.ne(&uluna) {
         let swap_to_uluna =
             try_build_swap_msg(deps, cfg, from_token.clone(), uluna.clone(), amount_in);
         if let Ok(msg) = swap_to_uluna {
@@ -415,6 +452,20 @@ fn swap_no_validate(
     amount_in: Uint128,
 ) -> Result<SwapTarget, ContractError> {
     let astro = token_asset_info(cfg.astro_token_contract.clone());
+    let uusd = native_asset_info(UUSD_DENOM.to_string());
+    let uluna = native_asset_info(ULUNA_DENOM.to_string());
+
+    // LUNA should be swapped to UST
+    if from_token.eq(&uluna) {
+        let msg = try_build_swap_msg(deps, cfg, from_token, uusd.clone(), amount_in)?;
+        return Ok(SwapTarget::Bridge { asset: uusd, msg });
+    }
+
+    // UST should be swapped to ASTRO
+    if from_token.eq(&uusd) {
+        let swap_to_astro = try_build_swap_msg(deps, cfg, from_token, astro, amount_in)?;
+        return Ok(SwapTarget::Astro(swap_to_astro));
+    }
 
     // Check if next level bridge exists
     let bridge_token = BRIDGES.load(deps.storage, from_token.to_string());

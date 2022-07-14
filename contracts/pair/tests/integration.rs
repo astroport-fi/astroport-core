@@ -98,6 +98,7 @@ fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
 fn test_provide_and_withdraw_liquidity() {
     let owner = Addr::unchecked("owner");
     let alice_address = Addr::unchecked("alice");
+<<<<<<< HEAD
     let mut router = TerraApp::new(|router, _, storage| {
         // initialization moved to App construction
         router
@@ -135,6 +136,26 @@ fn test_provide_and_withdraw_liquidity() {
             )
             .unwrap()
     });
+=======
+    let mut router = mock_app();
+
+    // Set Alice's balances
+    router
+        .init_bank_balance(
+            &alice_address,
+            vec![
+                Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::new(233u128),
+                },
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::new(200u128),
+                },
+            ],
+        )
+        .unwrap();
+>>>>>>> 4a0a4fc619a7549e1f347727d57e17522719f3fb
 
     // Init pair
     let pair_instance = instantiate_pair(&mut router, &owner);
@@ -157,7 +178,7 @@ fn test_provide_and_withdraw_liquidity() {
         ],
     );
 
-    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
+    // When dealing with native tokens the transfer should happen before the contract call, which cw-multitest doesn't support
     router
         .send_tokens(
             owner.clone(),
@@ -337,7 +358,8 @@ fn test_compatibility_of_tokens_with_different_precision() {
             maker_fee_bps: 0,
             pair_type: PairType::Xyk {},
             total_fee_bps: 0,
-            is_disabled: None,
+            is_disabled: false,
+            is_generator_disabled: false,
         }],
         token_code_id,
         generator_address: Some(String::from("generator")),
@@ -485,10 +507,10 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
             .unwrap();
     });
 
-    // instantiate pair
+    // Instantiate pair
     let pair_instance = instantiate_pair(&mut app, &user1);
 
-    // provide liquidity, accumulators are empty
+    // Provide liquidity, accumulators are empty
     let (msg, coins) = provide_liquidity_msg(
         Uint128::new(1000000_000000),
         Uint128::new(1000000_000000),
@@ -501,13 +523,13 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     const BLOCKS_PER_DAY: u64 = 17280;
     const ELAPSED_SECONDS: u64 = BLOCKS_PER_DAY * 5;
 
-    // a day later
+    // A day later
     app.update_block(|b| {
         b.height += BLOCKS_PER_DAY;
         b.time = b.time.plus_seconds(ELAPSED_SECONDS);
     });
 
-    // provide liquidity, accumulators firstly filled with the same prices
+    // Provide liquidity, accumulators firstly filled with the same prices
     let (msg, coins) = provide_liquidity_msg(
         Uint128::new(2000000_000000),
         Uint128::new(1000000_000000),
@@ -517,18 +539,18 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
 
-    // get current twap accumulator values
+    // Get current twap accumulator values
     let msg = QueryMsg::CumulativePrices {};
     let cpr_old: CumulativePricesResponse =
         app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
 
-    // a day later
+    // A day later
     app.update_block(|b| {
         b.height += BLOCKS_PER_DAY;
         b.time = b.time.plus_seconds(ELAPSED_SECONDS);
     });
 
-    // get current twap accumulator values, it should be added up by the query method with new 2/1 ratio
+    // Get current cumulative price values; they should have been updated by the query method with new 2/1 ratio
     let msg = QueryMsg::CumulativePrices {};
     let cpr_new: CumulativePricesResponse =
         app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
@@ -537,7 +559,7 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     let twap1 = cpr_new.price1_cumulative_last - cpr_old.price1_cumulative_last;
 
     // Prices weren't changed for the last day, uusd amount in pool = 3000000_000000, uluna = 2000000_000000
-    // In accumulators we don't have any precision so we rely on elapsed time to not consider it
+    // In accumulators we don't have any precision so we rely on elapsed time so we don't need to consider it
     let price_precision = Uint128::from(10u128.pow(TWAP_PRECISION.into()));
     assert_eq!(twap0 / price_precision, Uint128::new(57600)); // 0.666666 * ELAPSED_SECONDS (86400)
     assert_eq!(twap1 / price_precision, Uint128::new(129600)); //   1.5 * ELAPSED_SECONDS

@@ -1,5 +1,5 @@
 {
-  "name": "scripts",
+  "name": "astroport-core-scripts",
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
@@ -8,7 +8,7 @@
     "start": "npm run build-env && npm run build-app",
     "build-app": "bash build_app.sh",
     "build-env": "bash build_env.sh",
-    "build-artifacts": "bash build_artifacts.sh",
+    "build-release": "bash build_release.sh",
     "migrate": "bash migrate.sh"
   },
   "dependencies": {

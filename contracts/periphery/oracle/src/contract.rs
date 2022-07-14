@@ -17,19 +17,20 @@ const CONTRACT_NAME: &str = "astroport-oracle";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Update time interval that is used for update method
-const PERIOD: u64 = 86400;
+/// Time between two consecutive TWAP updates.
+pub const PERIOD: u64 = 86400;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns the [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if the contract was not created.
+/// Returns a [`Response`] with the specified attributes if the operation was successful,
+/// or a [`ContractError`] if the contract was not created.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
+/// * **info** is an object of type [`MessageInfo`].
+/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -70,19 +71,18 @@ pub fn instantiate(
 }
 
 /// ## Description
-/// Available the execute messages of the contract.
+/// Exposes all the execute functions available in the contract.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **_info** is the object of type [`MessageInfo`].
+/// * **_info** is an object of type [`MessageInfo`].
 ///
-/// * **msg** is the object of type [`ExecuteMsg`].
+/// * **msg** is an object of type [`ExecuteMsg`].
 ///
 /// ## Queries
-/// * **ExecuteMsg::Update {}** Updates prices for the specified time interval that sets in the
-/// [`PERIOD`] constant.
+/// * **ExecuteMsg::Update {}** Updates the local TWAP values for the assets in the Astroport pool.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -96,13 +96,13 @@ pub fn execute(
 }
 
 /// ## Description
-/// Updates prices for the specified time interval that sets in the **Period** variable.
-/// Returns the default object of type [`Response`] if the operation was successful,
-/// otherwise returns the [`ContractError`].
+/// Updates the local TWAP values for the tokens in the target Astroport pool.
+/// Returns a default object of type [`Response`] if the operation was successful,
+/// otherwise returns a [`ContractError`].
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let price_last = PRICE_LAST.load(deps.storage)?;
@@ -110,7 +110,7 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let prices = query_cumulative_prices(&deps.querier, config.pair.contract_addr)?;
     let time_elapsed = env.block.time.seconds() - price_last.block_timestamp_last;
 
-    // ensure that at least one full period has passed since the last update
+    // Ensure that at least one full period has passed since the last update
     if time_elapsed < PERIOD {
         return Err(ContractError::WrongPeriod {});
     }
@@ -145,13 +145,13 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 }
 
 /// ## Description
-/// Available the query messages of the contract.
+/// Exposes all the queries available in the contract.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **_env** is the object of type [`Env`].
+/// * **_env** is an object of type [`Env`].
 ///
-/// * **msg** is the object of type [`QueryMsg`].
+/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
 /// * **QueryMsg::Consult { token, amount }** Validates assets and calculates a new average
@@ -164,15 +164,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// ## Description
-/// Validates assets and calculates a new average amount with updated precision.
-/// Returns the average amount of type [`Uint256`] if the operation was successful,
+/// Multiplies a token amount by its latest TWAP value and returns the result as a [`Uint256`] if the operation was successful
 /// or returns [`StdError`] on failure.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **token** is the object of type [`AssetInfo`].
+/// * **token** is an object of type [`AssetInfo`]. This is the token for which we multiply its TWAP value by an amount.
 ///
-/// * **amount** is the object of type [`Uint128`].
+/// * **amount** is an object of type [`Uint128`]. This is the amount of tokens we multiply the TWAP by.
 fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, StdError> {
     let config = CONFIG.load(deps.storage)?;
     let price_last = PRICE_LAST.load(deps.storage)?;
@@ -186,7 +185,7 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, Std
     };
 
     Ok(if price_average.is_zero() {
-        // get precision
+        // Get the token's precision
         let p = query_token_precision(&deps.querier, token.clone())?;
         let one = Uint128::new(10_u128.pow(p.into()));
 
@@ -209,13 +208,13 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, Std
 }
 
 /// ## Description
-/// Used for migration of contract. Returns the default object of type [`Response`].
+/// Used for contract migration. Returns the default object of type [`Response`].
 /// ## Params
-/// * **_deps** is the object of type [`DepsMut`].
+/// * **_deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is the object of type [`Env`].
+/// * **_env** is an object of type [`Env`].
 ///
-/// * **_msg** is the object of type [`MigrateMsg`].
+/// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())

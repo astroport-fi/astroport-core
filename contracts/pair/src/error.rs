@@ -29,13 +29,13 @@ pub enum ContractError {
     #[error("Doubling assets in asset infos")]
     DoublingAssets {},
 
-    #[error("Asset mismatch between the requested and stored in contract")]
+    #[error("Asset mismatch between the requested and the stored asset in contract")]
     AssetMismatch {},
 
     #[error("Pair type mismatch. Check factory pair configs")]
     PairTypeMismatch {},
 
-    #[error("GeneratorAddress is not set in factory. Cannot autostake")]
+    #[error("Generator address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
 }
 

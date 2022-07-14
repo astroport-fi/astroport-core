@@ -29,19 +29,20 @@ use std::vec;
 const CONTRACT_NAME: &str = "astroport-pair";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-/// A `reply` call code ID of sub-message.
+/// A `reply` call code ID used for sub-messages.
 const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns the [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if the contract was not created
+/// Returns the [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if
+/// the contract was not created.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **_info** is the object of type [`MessageInfo`].
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
+/// * **_info** is an object of type [`MessageInfo`].
+/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -75,7 +76,7 @@ pub fn instantiate(
 
     let token_name = format_lp_token_name(msg.asset_infos, &deps.querier)?;
 
-    // Create LP token
+    // Create the LP token contract
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
             code_id: msg.token_code_id,
@@ -103,14 +104,14 @@ pub fn instantiate(
     Ok(Response::new().add_submessages(sub_msg))
 }
 
-/// # Description
-/// The entry point to the contract for processing the reply from the submessage
+/// ## Description
+/// The entry point to the contract for processing replies from submessages.
 /// # Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is the object of type [`Env`].
+/// * **_env** is an object of type [`Env`].
 ///
-/// * **msg** is the object of type [`Reply`].
+/// * **msg** is an object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
@@ -134,15 +135,15 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 }
 
 /// ## Description
-/// Available the execute messages of the contract.
+/// Exposes all the execute functions available in the contract.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
+/// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **msg** is the object of type [`ExecuteMsg`].
+/// * **msg** is an object of type [`ExecuteMsg`].
 ///
 /// ## Queries
 /// * **ExecuteMsg::UpdateConfig { params: Binary }** Not supported.
@@ -155,14 +156,14 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///             slippage_tolerance,
 ///             auto_stake,
 ///             receiver,
-///         }** Provides liquidity with the specified input parameters.
+///         }** Provides liquidity in the pair with the specified input parameters.
 ///
 /// * **ExecuteMsg::Swap {
 ///             offer_asset,
 ///             belief_price,
 ///             max_spread,
 ///             to,
-///         }** Performs an swap operation with the specified parameters.
+///         }** Performs a swap operation with the specified parameters.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -221,15 +222,15 @@ pub fn execute(
 /// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
 /// If the template is not found in the received message, then an [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+/// otherwise it returns the [`Response`] with the specified attributes if the operation was successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
+/// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
+/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message that has to be processed.
 pub fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -243,7 +244,7 @@ pub fn receive_cw20(
             max_spread,
             to,
         }) => {
-            // only asset contract can execute this message
+            // Only asset contract can execute this message
             let mut authorized: bool = false;
             let config: Config = CONFIG.load(deps.storage)?;
 
@@ -291,24 +292,27 @@ pub fn receive_cw20(
 }
 
 /// ## Description
-/// Provides liquidity with the specified input parameters.
-/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified
+/// Provides liquidity in the pair with the specified input parameters.
+/// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the specified
 /// attributes if the operation was successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
+/// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **slippage_tolerance** is an [`Option`] field of type [`Decimal`]. Used for sets the maximum
-/// percent of price movement.
+/// * **assets** is an array with two objects of type [`Asset`]. These are the assets available in the pool.
 ///
-/// * **auto_stake** is an [`Option`] field of type [`bool`]. Determines whether an autostake will
-/// be performed on the generator.
+/// * **slippage_tolerance** is an [`Option`] field of type [`Decimal`]. It is used to specify how much
+/// the pool price can move until the provide liquidity transaction goes through.
 ///
-/// * **receiver** is an [`Option`] field of type  [`String`]. Sets the receiver of liquidity.
-// CONTRACT - should approve contract to use the amount of token.
+/// * **auto_stake** is an [`Option`] field of type [`bool`]. Determines whether the LP tokens minted after
+/// liquidity provision are automatically staked in the Generator contract on behalf of the LP token receiver.
+///
+/// * **receiver** is an [`Option`] field of type [`String`]. This is the receiver of the LP tokens.
+/// If no custom receiver is specified, the pair will mint LP tokens for the function caller.
+// NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
 pub fn provide_liquidity(
     deps: DepsMut,
     env: Env,
@@ -349,7 +353,7 @@ pub fn provide_liquidity(
 
     let mut messages: Vec<CosmosMsg> = vec![];
     for (i, pool) in pools.iter_mut().enumerate() {
-        // If the pool is token contract, then we need to execute TransferFrom msg to receive funds
+        // If the asset is a token contract, then we need to execute a TransferFrom msg to receive assets
         if let AssetInfo::Token { contract_addr, .. } = &pool.info {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
@@ -361,8 +365,8 @@ pub fn provide_liquidity(
                 funds: vec![],
             }));
         } else {
-            // If the asset is native token, balance is already increased
-            // To calculated properly we should subtract user deposit from the pool
+            // If the asset is native token, the pool balance is already increased
+            // To calculate the total amount of deposits properly, we should subtract the user deposit from the pool
             pool.amount = pool.amount.checked_sub(deposits[i])?;
         }
     }
@@ -376,7 +380,7 @@ pub fn provide_liquidity(
                 .as_u128(),
         )
     } else {
-        // assert slippage tolerance
+        // Assert slippage tolerance
         assert_slippage_tolerance(slippage_tolerance, &deposits, &pools)?;
 
         // min(1, 2)
@@ -390,7 +394,7 @@ pub fn provide_liquidity(
         )
     };
 
-    // mint LP token for sender or receiver if set
+    // Mint LP tokens for the sender or for the receiver (if set)
     let receiver = receiver.unwrap_or_else(|| info.sender.to_string());
     messages.extend(mint_liquidity_token_message(
         deps.as_ref(),
@@ -401,7 +405,7 @@ pub fn provide_liquidity(
         auto_stake,
     )?);
 
-    // Accumulate prices for oracle
+    // Accumulate prices for the assets in the pool
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
         accumulate_prices(env, &config, pools[0].amount, pools[1].amount)?
     {
@@ -420,20 +424,21 @@ pub fn provide_liquidity(
     ]))
 }
 
-/// # Description
-/// Mint LP token to beneficiary or auto deposit into generator if set.
+/// ## Description
+/// Mint LP tokens for a beneficiary and auto stake the tokens in the Generator contract (if auto staking is specified).
 /// # Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **config** is the object of type [`Config`].
+/// * **config** is an object of type [`Config`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **recipient** is the object of type [`Addr`]. The recipient of the liquidity.
+/// * **recipient** is an object of type [`Addr`]. This is the LP token recipient.
 ///
-/// * **amount** is the object of type [`Uint128`]. The amount that will be mint to the recipient.
+/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens that will be minted for the recipient.
 ///
-/// * **auto_stake** is the field of type [`bool`]. Determines whether an autostake will be performed on the generator
+/// * **auto_stake** is the field of type [`bool`]. Determines whether the newly minted LP tokens will
+/// be automatically staked in the Generator on behalf of the recipient.
 fn mint_liquidity_token_message(
     deps: Deps,
     config: &Config,
@@ -456,7 +461,7 @@ fn mint_liquidity_token_message(
         })]);
     }
 
-    // Mint to contract and stake to generator
+    // Mint for the pair contract and stake into the Generator contract
     let generator =
         query_factory_config(&deps.querier, config.clone().factory_addr)?.generator_address;
 
@@ -486,18 +491,18 @@ fn mint_liquidity_token_message(
 }
 
 /// ## Description
-/// Withdrawing liquidity from the pool. Returns an [`ContractError`] on failure,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful.
+/// Withdraw liquidity from the pool. Returns a [`ContractError`] on failure,
+/// otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
+/// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **sender** is the object of type [`Addr`]. Sets where liquidity will be withdrawn.
+/// * **sender** is an object of type [`Addr`]. This is the address that will receive assets back from the pair contract.
 ///
-/// * **amount** is the object of type [`Uint128`]. Sets the withdrawal amount.
+/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to burn.
 pub fn withdraw_liquidity(
     deps: DepsMut,
     env: Env,
@@ -514,7 +519,7 @@ pub fn withdraw_liquidity(
     let (pools, total_share) = pool_info(deps.as_ref(), config.clone())?;
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
 
-    // Accumulate prices for oracle
+    // Accumulate prices for the pair assets
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
         accumulate_prices(env, &config, pools[0].amount, pools[1].amount)?
     {
@@ -524,7 +529,7 @@ pub fn withdraw_liquidity(
         CONFIG.save(deps.storage, &config)?;
     }
 
-    // update pool info
+    // Update the pool info
     let messages: Vec<CosmosMsg> = vec![
         refund_assets[0]
             .clone()
@@ -555,13 +560,13 @@ pub fn withdraw_liquidity(
 }
 
 /// ## Description
-/// Returns the share of assets.
+/// Returns the amount of pool assets that correspond to an amount of LP tokens.
 /// ## Params
-/// * **pools** are an array of [`Asset`] type items.
+/// * **pools** are an array of [`Asset`] type items. These are the assets in the pool.
 ///
-/// * **amount** is the object of type [`Uint128`].
+/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to compute a corresponding amount of assets for.
 ///
-/// * **total_share** is the object of type [`Uint128`].
+/// * **total_share** is an object of type [`Uint128`]. This is the total amount of LP tokens currently minted.
 pub fn get_share_in_assets(
     pools: &[Asset; 2],
     amount: Uint128,
@@ -582,24 +587,26 @@ pub fn get_share_in_assets(
 }
 
 /// ## Description
-/// Performs an swap operation with the specified parameters. CONTRACT - a user must do token approval.
+/// Performs an swap operation with the specified parameters. The trader must approve the
+/// pool contract to transfer offer assets from their wallet.
 /// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified attributes if the operation was successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
+/// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **sender** is the object of type [`Addr`]. Sets the default recipient of the swap operation.
+/// * **sender** is an object of type [`Addr`]. This is the sender of the swap operation.
 ///
-/// * **offer_asset** is the object of type [`Asset`]. Proposed asset for swapping.
+/// * **offer_asset** is an object of type [`Asset`]. Proposed asset for swapping.
 ///
-/// * **belief_price** is the object of type [`Option<Decimal>`]. Used to calculate the maximum spread.
+/// * **belief_price** is an object of type [`Option<Decimal>`]. Used to calculate the maximum swap spread.
 ///
-/// * **max_spread** is the object of type [`Option<Decimal>`]. Sets the maximum spread of the swap operation.
+/// * **max_spread** is an object of type [`Option<Decimal>`]. Sets the maximum spread of the swap operation.
 ///
-/// * **to** is the object of type [`Option<Addr>`]. Sets the recipient of the swap operation.
+/// * **to** is an object of type [`Option<Addr>`]. Sets the recipient of the swap operation.
+/// NOTE - the address that wants to swap should approve the pair contract to pull the offer token.
 #[allow(clippy::too_many_arguments)]
 pub fn swap(
     deps: DepsMut,
@@ -615,8 +622,7 @@ pub fn swap(
 
     let mut config: Config = CONFIG.load(deps.storage)?;
 
-    // If the asset balance is already increased
-    // To calculated properly we should subtract user deposit from the pool
+    // If the asset balance is already increased, we should subtract the user deposit from the pool amount
     let pools: Vec<Asset> = config
         .pair_info
         .query_pools(&deps.querier, env.clone().contract.address)?
@@ -644,7 +650,7 @@ pub fn swap(
         return Err(ContractError::AssetMismatch {});
     }
 
-    // Get fee info from factory
+    // Get fee info from the factory
     let fee_info = query_fee_info(
         &deps.querier,
         config.factory_addr.clone(),
@@ -659,7 +665,7 @@ pub fn swap(
         fee_info.total_fee_rate,
     )?;
 
-    // check max spread limit if exist
+    // Check the max spread limit (if it was specified)
     assert_max_spread(
         belief_price,
         max_spread,
@@ -668,7 +674,7 @@ pub fn swap(
         spread_amount,
     )?;
 
-    // compute tax
+    // Compute the tax for the receiving asset (if it is a native one)
     let return_asset = Asset {
         info: ask_pool.info.clone(),
         amount: return_amount,
@@ -679,7 +685,7 @@ pub fn swap(
     let mut messages: Vec<CosmosMsg> =
         vec![return_asset.into_msg(&deps.querier, receiver.clone())?];
 
-    // Maker fee
+    // Compute the Maker fee
     let mut maker_fee_amount = Uint128::new(0);
     if let Some(fee_address) = fee_info.fee_address {
         if let Some(f) = calculate_maker_fee(
@@ -692,7 +698,7 @@ pub fn swap(
         }
     }
 
-    // Accumulate prices for oracle
+    // Accumulate prices for the assets in the pool
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
         accumulate_prices(env, &config, pools[0].amount, pools[1].amount)?
     {
@@ -704,8 +710,8 @@ pub fn swap(
 
     Ok(Response::new()
         .add_messages(
-            // 1. send collateral token from the contract to a user
-            // 2. send inactive commission to collector
+            // 1. send collateral tokens from the contract to a user
+            // 2. send inactive commission fees to the Maker ontract
             messages,
         )
         .add_attribute("action", "swap")
@@ -722,15 +728,17 @@ pub fn swap(
 }
 
 /// ## Description
-/// Shifts block_time when any price is zero to not fill an accumulator with a new price to that period.
+/// Accumulate token prices for the assets in the pool.
+/// Note that this function shifts **block_time** when any of the token prices is zero in order to not
+/// fill an accumulator with a null price for that period.
 /// ## Params
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **config** is the object of type [`Config`].
+/// * **config** is an object of type [`Config`].
 ///
-/// * **x** is the balance of asset[0] within a pool
+/// * **x** is an object of type [`Uint128`]. This is the balance of asset\[\0] in the pool.
 ///
-/// * **y** is the balance of asset[1] within a pool
+/// * **y** is an object of type [`Uint128`]. This is the balance of asset\[\1] in the pool.
 pub fn accumulate_prices(
     env: Env,
     config: &Config,
@@ -742,8 +750,7 @@ pub fn accumulate_prices(
         return Ok(None);
     }
 
-    // we have to shift block_time when any price is zero to not fill an accumulator with a new price to that period
-
+    // We have to shift block_time when any price is zero in order to not fill an accumulator with a null price for that period
     let time_elapsed = Uint128::from(block_time - config.block_time_last);
 
     let mut pcl0 = config.price0_cumulative_last;
@@ -767,14 +774,14 @@ pub fn accumulate_prices(
 }
 
 /// ## Description
-/// Calculates the maker commission according to the specified parameters.
-/// Returns an [`None`] if maker fee is zero, otherwise returns the [`Asset`] with the specified attributes.
+/// Calculates the amount of fees the Maker contract gets according to specified pair parameters.
+/// Returns a [`None`] if the Maker fee is zero, otherwise returns a [`Asset`] struct with the specified attributes.
 /// ## Params
-/// * **pool_info** is the object of type [`AssetInfo`]. Information about the pool for which the commission will be calculated.
+/// * **pool_info** is an object of type [`AssetInfo`]. Contains information about the pool asset for which the commission will be calculated.
 ///
-/// * **commission_amount** is the object of type [`Env`]. Sets the commission amount for the pool.
+/// * **commission_amount** is an object of type [`Env`]. This is the total amount of fees charged for a swap.
 ///
-/// * **maker_commission_rate** is the object of type [`MessageInfo`]. Sets the maker commission rate for the pool.
+/// * **maker_commission_rate** is an object of type [`MessageInfo`]. This is the percentage of fees that go to the Maker contract.
 pub fn calculate_maker_fee(
     pool_info: AssetInfo,
     commission_amount: Uint128,
@@ -792,33 +799,32 @@ pub fn calculate_maker_fee(
 }
 
 /// ## Description
-/// Available the query messages of the contract.
+/// Exposes all the queries available in the contract.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **_env** is the object of type [`Env`].
+/// * **_env** is an object of type [`Env`].
 ///
-/// * **msg** is the object of type [`QueryMsg`].
+/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
-/// * **QueryMsg::Pair {}** Returns information about a pair in an object of type [`PairInfo`].
+/// * **QueryMsg::Pair {}** Returns information about the pair in an object of type [`PairInfo`].
 ///
-/// * **QueryMsg::Pool {}** Returns information about a pool in an object of type [`PoolResponse`].
+/// * **QueryMsg::Pool {}** Returns information about the amount of assets in the pair contract as
+/// well as the amount of LP tokens issued using an object of type [`PoolResponse`].
 ///
-/// * **QueryMsg::Share { amount }** Returns information about the share of the pool in a vector
-/// that contains objects of type [`Asset`].
+/// * **QueryMsg::Share { amount }** Returns the amount of assets that could be withdrawn from the pool
+/// using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
 ///
-/// * **QueryMsg::Simulation { offer_asset }** Returns information about the simulation of the
-/// swap in a [`SimulationResponse`] object.
+/// * **QueryMsg::Simulation { offer_asset }** Returns the result of a swap simulation using a [`SimulationResponse`] object.
 ///
-/// * **QueryMsg::ReverseSimulation { ask_asset }** Returns information about the reverse simulation
-/// in a [`ReverseSimulationResponse`] object.
+/// * **QueryMsg::ReverseSimulation { ask_asset }** Returns the result of a reverse swap simulation  using
+/// a [`ReverseSimulationResponse`] object.
 ///
-/// * **QueryMsg::CumulativePrices {}** Returns information about the cumulative prices in a
-/// [`CumulativePricesResponse`] object.
+/// * **QueryMsg::CumulativePrices {}** Returns information about cumulative prices for the assets in the
+/// pool using a [`CumulativePricesResponse`] object.
 ///
-/// * **QueryMsg::Config {}** Returns information about the controls settings in a
-/// [`ConfigResponse`] object.
+/// * **QueryMsg::Config {}** Returns the configuration for the pair contract using a [`ConfigResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -835,18 +841,19 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// ## Description
-/// Returns information about a pair in an object of type [`PairInfo`].
+/// Returns information about the pair contract in an object of type [`PairInfo`].
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 pub fn query_pair_info(deps: Deps) -> StdResult<PairInfo> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(config.pair_info)
 }
 
 /// ## Description
-/// Returns information about a pool in an object of type [`PoolResponse`].
+/// Returns the amounts of assets in the pair contract as well as the amount of LP
+/// tokens currently minted in an object of type [`PoolResponse`].
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps, config)?;
@@ -860,11 +867,12 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 }
 
 /// ## Description
-/// Returns information about the share of the pool in a vector that contains objects of type [`Asset`].
+/// Returns the amount of assets that could be withdrawn from the pool using a specific amount of LP tokens.
+/// The result is returned in a vector that contains objects of type [`Asset`].
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **amount** is the object of type [`Uint128`]. Sets the amount for which a share in the pool will be requested.
+/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens for which we calculate associated amounts of assets.
 pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (pools, total_share) = pool_info(deps, config)?;
@@ -874,11 +882,11 @@ pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
 }
 
 /// ## Description
-/// Returns information about the simulation of the swap in a [`SimulationResponse`] object.
+/// Returns information about a swap simulation in a [`SimulationResponse`] object.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **offer_asset** is the object of type [`Asset`].
+/// * **offer_asset** is an object of type [`Asset`]. This is the asset to swap as well as an amount of the said asset.
 pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let contract_addr = config.pair_info.contract_addr.clone();
@@ -895,11 +903,11 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
         ask_pool = pools[0].clone();
     } else {
         return Err(StdError::generic_err(
-            "Given offer asset doesn't belong to pairs",
+            "Given offer asset does not belong in the pair",
         ));
     }
 
-    // Get fee info from factory
+    // Get fee info from the factory contract
     let fee_info = query_fee_info(
         &deps.querier,
         config.factory_addr,
@@ -921,11 +929,12 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
 }
 
 /// ## Description
-/// Returns information about the reverse simulation in a [`ReverseSimulationResponse`] object.
+/// Returns information about a reverse swap simulation in a [`ReverseSimulationResponse`] object.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **ask_asset** is the object of type [`Asset`].
+/// * **ask_asset** is an object of type [`Asset`]. This is the asset to swap to as well as the desired
+/// amount of ask assets to receive from the swap.
 pub fn query_reverse_simulation(
     deps: Deps,
     ask_asset: Asset,
@@ -971,11 +980,11 @@ pub fn query_reverse_simulation(
 }
 
 /// ## Description
-/// Returns information about the cumulative prices in a [`CumulativePricesResponse`] object.
+/// Returns information about cumulative prices for the assets in the pool using a [`CumulativePricesResponse`] object.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps, config.clone())?;
@@ -1001,9 +1010,9 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
 }
 
 /// ## Description
-/// Returns information about the controls settings in a [`ConfigResponse`] object.
+/// Returns the pair contract configuration in a [`ConfigResponse`] object.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
@@ -1013,11 +1022,12 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 /// ## Description
-/// Returns an amount in the coin if the coin is found, otherwise returns [`zero`].
+/// Returns an amount of coins. For each coin in the specified vector, if the coin is null, we return `Uint128::zero()`,
+/// otherwise we return the specified coin amount.
 /// ## Params
-/// * **coins** are an array of [`Coin`] type items. Sets the list of coins.
+/// * **coins** is an array of [`Coin`] type items. This is a list of coins for which we return amounts.
 ///
-/// * **denom** is the object of type [`String`]. Sets the name of coin.
+/// * **denom** is an object of type [`String`]. This is the denomination used for the coins.
 pub fn amount_of(coins: &[Coin], denom: String) -> Uint128 {
     match coins.iter().find(|x| x.denom == denom) {
         Some(coin) => coin.amount,
@@ -1026,15 +1036,15 @@ pub fn amount_of(coins: &[Coin], denom: String) -> Uint128 {
 }
 
 /// ## Description
-/// Returns computed swap for the pool with specified parameters
+/// Returns the result of a swap.
 /// ## Params
-/// * **offer_pool** is the object of type [`Uint128`]. Sets the offer pool.
+/// * **offer_pool** is an object of type [`Uint128`]. This is the total amount of offer assets in the pool.
 ///
-/// * **ask_pool** is the object of type [`Uint128`]. Sets the ask pool.
+/// * **ask_pool** is an object of type [`Uint128`]. This is the total amount of ask assets in the pool.
 ///
-/// * **offer_amount** is the object of type [`Uint128`]. Sets the offer amount.
+/// * **offer_amount** is an object of type [`Uint128`]. This is the amount of offer assets to swap.
 ///
-/// * **commission_rate** is the object of type [`Decimal`]. Sets the commission rate.
+/// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
 pub fn compute_swap(
     offer_pool: Uint128,
     ask_pool: Uint128,
@@ -1053,12 +1063,12 @@ pub fn compute_swap(
         - Decimal256::from_ratio(cp, offer_pool + offer_amount))
         * Uint256::from(1u8);
 
-    // calculate spread & commission
+    // Calculate spread & commission
     let spread_amount: Uint256 =
         (offer_amount * Decimal256::from_ratio(ask_pool, offer_pool)) - return_amount;
     let commission_amount: Uint256 = return_amount * commission_rate;
 
-    // commission will be absorbed to pool
+    // The commision (minus the part that goes to the Maker contract) will be absorbed by the pool
     let return_amount: Uint256 = return_amount - commission_amount;
     Ok((
         return_amount.try_into()?,
@@ -1068,15 +1078,15 @@ pub fn compute_swap(
 }
 
 /// ## Description
-/// Returns computed offer amount for the pool with specified parameters.
+/// Returns an amount of offer assets for a specified amount of ask assets.
 /// ## Params
-/// * **offer_pool** is the object of type [`Uint128`]. Sets the offer pool.
+/// * **offer_pool** is an object of type [`Uint128`]. This is the total amount of offer assets in the pool.
 ///
-/// * **ask_pool** is the object of type [`Uint128`]. Sets the ask pool.
+/// * **ask_pool** is an object of type [`Uint128`]. This is the total amount of ask assets in the pool.
 ///
-/// * **offer_amount** is the object of type [`Uint128`]. Sets the ask amount.
+/// * **ask_amount** is an object of type [`Uint128`]. This is the amount of ask assets to swap to.
 ///
-/// * **commission_rate** is the object of type [`Decimal`]. Sets the commission rate.
+/// * **commission_rate** is an object of type [`Decimal`]. This is the total amount of fees charged for the swap.
 fn compute_offer_amount(
     offer_pool: Uint128,
     ask_pool: Uint128,
@@ -1110,18 +1120,20 @@ fn compute_offer_amount(
 }
 
 /// ## Description
-/// Returns an [`ContractError`] on failure, otherwise if `belief_price` and `max_spread` both are given, we compute new spread else we just use swap
-/// spread to check `max_spread`.
+/// Returns a [`ContractError`] on failure.
+/// If `belief_price` and `max_spread` are both specified, we compute a new spread,
+/// otherwise we just use the swap spread to check `max_spread`.
 /// ## Params
-/// * **belief_price** is the object of type [`Option<Decimal>`]. Sets the belief price.
+/// * **belief_price** is an object of type [`Option<Decimal>`]. This is the belief price used in the swap.
 ///
-/// * **max_spread** is the object of type [`Option<Decimal>`]. Sets the maximum spread.
+/// * **max_spread** is an object of type [`Option<Decimal>`]. This is the
+/// max spread allowed so that the swap can be executed successfuly.
 ///
-/// * **offer_amount** is the object of type [`Uint128`]. Sets the offer amount.
+/// * **offer_amount** is an object of type [`Uint128`]. This is the amount of assets to swap.
 ///
-/// * **return_amount** is the object of type [`Uint128`]. Sets the return amount.
+/// * **return_amount** is an object of type [`Uint128`]. This is the amount of assets to receive from the swap.
 ///
-/// * **spread_amount** is the object of type [`Uint128`]. Sets the spread amount.
+/// * **spread_amount** is an object of type [`Uint128`]. This is the spread used in the swap.
 pub fn assert_max_spread(
     belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
@@ -1156,14 +1168,14 @@ pub fn assert_max_spread(
 }
 
 /// ## Description
-/// Ensures each prices are not dropped as much as slippage tolerance rate.
-/// Returns an [`ContractError`] on failure, otherwise returns [`Ok`].
+/// This is an internal function that enforces slippage tolerance for swaps.
+/// Returns a [`ContractError`] on failure, otherwise returns [`Ok`].
 /// ## Params
-/// * **slippage_tolerance** is the object of type [`Option<Decimal>`].
+/// * **slippage_tolerance** is an object of type [`Option<Decimal>`]. This is the slippage tolerance to enforce.
 ///
-/// * **deposits** are an array of [`Uint128`] type items.
+/// * **deposits** are an array of [`Uint128`] type items. These are offer and ask amounts for a swap.
 ///
-/// * **pools** are an array of [`Asset`] type items.
+/// * **pools** are an array of [`Asset`] type items. These are total amounts of assets in the pool.
 fn assert_slippage_tolerance(
     slippage_tolerance: Option<Decimal>,
     deposits: &[Uint128; 2],
@@ -1182,7 +1194,7 @@ fn assert_slippage_tolerance(
     let deposits: [Uint256; 2] = [deposits[0].into(), deposits[1].into()];
     let pools: [Uint256; 2] = [pools[0].amount.into(), pools[1].amount.into()];
 
-    // Ensure each prices are not dropped as much as slippage tolerance rate
+    // Ensure each price does not change more than what the slippage tolerance allows
     if Decimal256::from_ratio(deposits[0], deposits[1]) * one_minus_slippage_tolerance
         > Decimal256::from_ratio(pools[0], pools[1])
         || Decimal256::from_ratio(deposits[1], deposits[0]) * one_minus_slippage_tolerance
@@ -1195,24 +1207,24 @@ fn assert_slippage_tolerance(
 }
 
 /// ## Description
-/// Used for migration of contract. Returns the default object of type [`Response`].
+/// Used for the contract migration. Returns a default object of type [`Response`].
 /// ## Params
-/// * **_deps** is the object of type [`DepsMut`].
+/// * **_deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is the object of type [`Env`].
+/// * **_env** is an object of type [`Env`].
 ///
-/// * **_msg** is the object of type [`MigrateMsg`].
+/// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
 
 /// ## Description
-/// Returns information about the pool.
+/// Returns the total amount of assets in the pool as well as the total amount of LP tokens currently minted.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **config** is the object of type [`Config`].
+/// * **config** is an object of type [`Config`].
 pub fn pool_info(deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)> {
     let contract_addr = config.pair_info.contract_addr.clone();
     let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;

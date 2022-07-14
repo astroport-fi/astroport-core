@@ -9,8 +9,8 @@ use astroport::factory::FeeInfoResponse;
 use astroport::factory::QueryMsg::FeeInfo;
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 
-/// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
-/// this uses our CustomQuerier.
+/// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies.
+/// This uses the Astroport CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
@@ -32,7 +32,7 @@ pub struct WasmMockQuerier {
 
 #[derive(Clone, Default)]
 pub struct TokenQuerier {
-    // this lets us iterate over all pairs that match the first string
+    // This lets us iterate over all pairs that match the first string
     balances: HashMap<String, HashMap<String, Uint128>>,
 }
 
@@ -180,15 +180,12 @@ impl WasmMockQuerier {
         }
     }
 
-    // configure the mint whitelist mock querier
+    // Configure the mint whitelist mock querier
     pub fn with_token_balances(&mut self, balances: &[(&String, &[(&String, &Uint128)])]) {
         self.token_querier = TokenQuerier::new(balances);
     }
 
-    /*// configure the token owner mock querier
-    pub fn with_tax(&mut self, rate: Decimal, caps: &[(&String, &Uint128)]) {
-        self.tax_querier = TaxQuerier::new(rate, caps);
-    }*/
+    /*// configure the token owner mock querier*/
 
     pub fn with_balance(&mut self, balances: &[(&String, &[Coin])]) {
         for (addr, balance) in balances {

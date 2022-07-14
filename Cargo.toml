@@ -3,11 +3,11 @@ members = [
     "packages/*",
     "contracts/factory",
     "contracts/pair",
+    "contracts/pair_anchor",
     "contracts/pair_stable",
     "contracts/router",
     "contracts/token",
     "contracts/whitelist",
-    "contracts/xastro_token",
     "contracts/tokenomics/*",
 #    "contracts/periphery/*"
 ]

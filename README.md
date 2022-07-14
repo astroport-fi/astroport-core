@@ -1,63 +1,67 @@
-# Astroport
+# Astroport Core
 
-Uniswap-inspired automated market-maker (AMM) protocol powered by Smart Contracts on the [Terra](https://terra.money) blockchain.
+[![codecov](https://codecov.io/gh/astroport-fi/astroport-core/branch/main/graph/badge.svg?token=ROOLZTGZMM)](https://codecov.io/gh/astroport-fi/astroport-core)
+
+Multi pool type automated market-maker (AMM) protocol powered by smart contracts on the [Terra](https://terra.money) blockchain.
 
 ## Contracts diagram
 
 ![contract diagram](./assets/sc_diagram.png "Contracts Diagram")
 
-## Contracts
+## General Contracts
 
 | Name                                                       | Description                                  |
 | ---------------------------------------------------------- | -------------------------------------------- |
 | [`factory`](contracts/factory)                             | Pool creation factory                        |
 | [`pair`](contracts/pair)                                   | Pair with x*y=k curve                        |
 | [`pair_stable`](contracts/pair_stable)                     | Pair with stableswap invariant curve         |
+| [`pair_stable_bluna`](contracts/pair_stable_bluna)         | Pair with stableswap invariant curve handling bLUNA rewards for LPs |
 | [`token`](contracts/token)                                 | CW20 (ERC20 equivalent) token implementation |
 | [`router`](contracts/router)                               | Multi-hop trade router                       |
-| [`oracle`](contracts/periphery/oracle)                     | Average prices calculator for x*y=k pairs    |
+| [`oracle`](contracts/periphery/oracle)                     | TWAP oracles for x*y=k pool types            |
+| [`whitelist`](contracts/whitelist)                         | CW1 whitelist contract                       |
 
-## Tokenomics contracts
+## Tokenomics Contracts
 
-Contract relative path is ../contracts/tokenomics.
+Tokenomics related smart contracts are hosted on ../contracts/tokenomics.
 
 | Name                                                       | Description                                      |
 | ---------------------------------------------------------- | ------------------------------------------------ |
 | [`generator`](contracts/tokenomics/generator)                                   | Rewards generator for liquidity providers        |
 | [`generator_proxy_to_mirror`](contracts/tokenomics/generator_proxy_to_mirror)   | Rewards generator proxy for liquidity providers  |
-| [`maker`](contracts/tokenomics/maker)                                           | Assets collector and distributor                 |
-| [`staking`](contracts/tokenomics/staking)                                       | ASTRO staking contract                           |
-| [`vesting`](contracts/tokenomics/vesting)                                       | ASTRO token distributor                          |
+| [`maker`](contracts/tokenomics/maker)                                           | Fee collector and swapper                        |
+| [`staking`](contracts/tokenomics/staking)                                       | xASTRO staking contract                          |
+| [`vesting`](contracts/tokenomics/vesting)                                       | ASTRO distributor for generator rewards          |
+| [`xastro_token`](contracts/tokenomics/xastro_token)                             | xASTRO token contract                            |
 
-## Running this contract
+## Building Contracts
 
-You will need Rust 1.44.1+ with wasm32-unknown-unknown target installed.
+You will need Rust 1.58.1+ with wasm32-unknown-unknown target installed.
 
-You can run unit tests on this on each contracts directory via :
+You can run unit tests for each contract directory via:
 
 ```
 cargo test
 ```
 
-Once you are happy with the content, you can compile it to wasm on each contracts directory via:
+#### For a production-ready (compressed) build:
+Run the following from the repository root
 
 ```
-RUSTFLAGS='-C link-arg=-s' cargo wasm
-cp ../../target/wasm32-unknown-unknown/release/cw1_subkeys.wasm .
-ls -l cw1_subkeys.wasm
-sha256sum cw1_subkeys.wasm
-```
-
-Or for a production-ready (compressed) build, run the following from the repository root:
-
-```
-docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/workspace-optimizer:0.12.3
+./scripts/build_release.sh
 ```
 
 The optimized contracts are generated in the artifacts/ directory.
+
+#### You can compile each contract:
+Go to contract directory and run 
+    
+```
+RUSTFLAGS='-C link-arg=-s' cargo wasm
+cp ../../target/wasm32-unknown-unknown/release/astroport_token.wasm .
+ls -l astroport_token.wasm
+sha256sum astroport_token.wasm
+```
 
 ## Docs
 

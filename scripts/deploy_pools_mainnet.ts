@@ -17,11 +17,11 @@ async function main() {
     console.log('network:', network)
 
     if (network.tokenAddress == "") {
-        throw new Error("token address is not set, create ASTRO token first")
+        throw new Error("Token address is not set, deploy ASTRO first")
     }
 
     if (network.factoryAddress == "") {
-        throw new Error("factory address is not set, deploy factory first")
+        throw new Error("Factory address is not set, deploy factory first")
     }
 
     let pools =  [
@@ -113,7 +113,16 @@ async function main() {
                 new NativeAsset("uusd").getInfo(),
             ],
             pairType: { xyk: {} },
-        }
+        },
+        // {
+        //     identifier: "AustUst",
+        //     assetInfos: [
+        //         new TokenAsset("terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu").getInfo(),
+        //         new NativeAsset("uusd").getInfo(),
+        //     ],
+        //     pairType: { anchor: {}},
+        //     initParams: toEncodedBinary("terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s")
+        // }
     ]
 
     for (let i = 0; i < pools.length; i++) {

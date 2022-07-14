@@ -7,8 +7,8 @@ use cosmwasm_std::{
 };
 use std::collections::HashMap;
 
-/// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
-/// this uses our CustomQuerier.
+/// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies.
+/// This uses the Astroport CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
@@ -51,7 +51,7 @@ pub(crate) fn pairs_to_map(pairs: &[(&String, &PairInfo)]) -> HashMap<String, Pa
 
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
-        // MockQuerier doesn't support Custom, so we ignore it completely here
+        // MockQuerier doesn't support Custom, so we ignore it completely
         let request: QueryRequest<Empty> = match from_slice(bin_request) {
             Ok(v) => v,
             Err(e) => {
@@ -98,14 +98,8 @@ impl WasmMockQuerier {
         }
     }
 
-    // configure the astroport pair
+    // Configure the Astroport pair
     pub fn with_astroport_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
         self.astroport_pair_querier = AstroportPairQuerier::new(pairs);
     }
-
-    // pub fn with_balance(&mut self, balances: &[(&String, &[Coin])]) {
-    //     for (addr, balance) in balances {
-    //         self.base.update_balance(addr, balance.to_vec());
-    //     }
-    // }
 }

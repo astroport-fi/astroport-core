@@ -132,6 +132,7 @@ fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
 fn test_provide_and_withdraw_liquidity() {
     let owner = Addr::unchecked("owner");
     let alice_address = Addr::unchecked("alice");
+<<<<<<< HEAD
     let mut router = TerraApp::new(|router, _, storage| {
         // initialization moved to App construction
         router
@@ -169,6 +170,26 @@ fn test_provide_and_withdraw_liquidity() {
             )
             .unwrap()
     });
+=======
+    let mut router = mock_app();
+
+    // Set Alice's balances
+    router
+        .init_bank_balance(
+            &alice_address,
+            vec![
+                Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::new(233u128),
+                },
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::new(200u128),
+                },
+            ],
+        )
+        .unwrap();
+>>>>>>> 4a0a4fc619a7549e1f347727d57e17522719f3fb
 
     // Init pair
     let pair_instance = instantiate_pair(&mut router, &owner);
@@ -191,7 +212,7 @@ fn test_provide_and_withdraw_liquidity() {
         ],
     );
 
-    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
+    // When dealing with native tokens, the transfer should happen before the contract call, which cw-multitest doesn't support
     router
         .send_tokens(
             owner.clone(),
@@ -226,7 +247,7 @@ fn test_provide_and_withdraw_liquidity() {
         attr("amount", 100u128.to_string())
     );
 
-    // Provide liquidity for receiver
+    // Provide liquidity for a custom receiver
     let (msg, coins) = provide_liquidity_msg(
         Uint128::new(100),
         Uint128::new(100),
@@ -291,6 +312,317 @@ fn provide_liquidity_msg(
     ];
 
     (msg, coins)
+}
+
+#[test]
+fn provide_lp_for_single_token() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked(OWNER);
+
+    let token_code_id = store_token_code(&mut app);
+
+    let x_amount = Uint128::new(9_000_000_000_000_000);
+    let y_amount = Uint128::new(9_000_000_000_000_000);
+    let x_offer = Uint128::new(1_000_000_000_000_000);
+    let swap_amount = Uint128::new(120_000_000);
+
+    let token_name = "Xtoken";
+
+    let init_msg = TokenInstantiateMsg {
+        name: token_name.to_string(),
+        symbol: token_name.to_string(),
+        decimals: 6,
+        initial_balances: vec![Cw20Coin {
+            address: OWNER.to_string(),
+            amount: x_amount,
+        }],
+        mint: Some(MinterResponse {
+            minter: String::from(OWNER),
+            cap: None,
+        }),
+    };
+
+    let token_x_instance = app
+        .instantiate_contract(
+            token_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            token_name,
+            None,
+        )
+        .unwrap();
+
+    let token_name = "Ytoken";
+
+    let init_msg = TokenInstantiateMsg {
+        name: token_name.to_string(),
+        symbol: token_name.to_string(),
+        decimals: 6,
+        initial_balances: vec![Cw20Coin {
+            address: OWNER.to_string(),
+            amount: y_amount,
+        }],
+        mint: Some(MinterResponse {
+            minter: String::from(OWNER),
+            cap: None,
+        }),
+    };
+
+    let token_y_instance = app
+        .instantiate_contract(
+            token_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            token_name,
+            None,
+        )
+        .unwrap();
+
+    let pair_code_id = store_pair_code(&mut app);
+    let factory_code_id = store_factory_code(&mut app);
+
+    let init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![PairConfig {
+            code_id: pair_code_id,
+            maker_fee_bps: 0,
+            total_fee_bps: 0,
+            pair_type: PairType::Stable {},
+            is_disabled: false,
+            is_generator_disabled: false,
+        }],
+        token_code_id,
+        generator_address: Some(String::from("generator")),
+        owner: String::from("owner0000"),
+        whitelist_code_id: 234u64,
+    };
+
+    let factory_instance = app
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
+
+    let msg = FactoryExecuteMsg::CreatePair {
+        pair_type: PairType::Stable {},
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: token_x_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: token_y_instance.clone(),
+            },
+        ],
+        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+    };
+
+    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = FactoryQueryMsg::Pair {
+        asset_infos: [
+            AssetInfo::Token {
+                contract_addr: token_x_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: token_y_instance.clone(),
+            },
+        ],
+    };
+
+    let res: PairInfo = app
+        .wrap()
+        .query_wasm_smart(&factory_instance, &msg)
+        .unwrap();
+
+    let pair_instance = res.contract_addr;
+
+    let msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: pair_instance.to_string(),
+        expires: None,
+        amount: x_amount,
+    };
+
+    app.execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: pair_instance.to_string(),
+        expires: None,
+        amount: y_amount,
+    };
+
+    app.execute_contract(owner.clone(), token_y_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: [
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_x_instance.clone(),
+                },
+                amount: x_offer,
+            },
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_y_instance.clone(),
+                },
+                amount: Uint128::zero(),
+            },
+        ],
+        slippage_tolerance: None,
+        auto_stake: None,
+        receiver: None,
+    };
+
+    let err = app
+        .execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        "It is not possible to provide liquidity with one token for an empty pool",
+        err.to_string()
+    );
+
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: [
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_x_instance.clone(),
+                },
+                amount: Uint128::new(1_000_000_000_000_000),
+            },
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_y_instance.clone(),
+                },
+                amount: Uint128::new(1_000_000_000_000_000),
+            },
+        ],
+        slippage_tolerance: None,
+        auto_stake: None,
+        receiver: None,
+    };
+
+    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // try to provide for single token and increase the ratio in the pool from 1 to 1.5
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: [
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_x_instance.clone(),
+                },
+                amount: Uint128::new(500_000_000_000_000),
+            },
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_y_instance.clone(),
+                },
+                amount: Uint128::zero(),
+            },
+        ],
+        slippage_tolerance: None,
+        auto_stake: None,
+        receiver: None,
+    };
+
+    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // try swap 120_000_000 from token_y to token_x (from lower token amount to higher)
+    let msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Swap {
+            belief_price: None,
+            max_spread: None,
+            to: None,
+        })
+        .unwrap(),
+        amount: swap_amount,
+    };
+
+    app.execute_contract(owner.clone(), token_y_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // try swap 120_000_000 from token_x to token_y (from higher token amount to lower )
+    let msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Swap {
+            belief_price: None,
+            max_spread: None,
+            to: None,
+        })
+        .unwrap(),
+        amount: swap_amount,
+    };
+
+    app.execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // try to provide for single token and increase the ratio in the pool from 1 to 2.5
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: [
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_x_instance.clone(),
+                },
+                amount: Uint128::new(1_000_000_000_000_000),
+            },
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_y_instance.clone(),
+                },
+                amount: Uint128::zero(),
+            },
+        ],
+        slippage_tolerance: None,
+        auto_stake: None,
+        receiver: None,
+    };
+
+    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // try swap 120_000_000 from token_y to token_x (from lower token amount to higher)
+    let msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Swap {
+            belief_price: None,
+            max_spread: None,
+            to: None,
+        })
+        .unwrap(),
+        amount: swap_amount,
+    };
+
+    app.execute_contract(owner.clone(), token_y_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // try swap 120_000_000 from token_x to token_y (from higher token amount to lower )
+    let msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Swap {
+            belief_price: None,
+            max_spread: None,
+            to: None,
+        })
+        .unwrap(),
+        amount: swap_amount,
+    };
+
+    let err = app
+        .execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Operation exceeds max spread limit");
 }
 
 #[test]
@@ -372,7 +704,8 @@ fn test_compatibility_of_tokens_with_different_precision() {
             maker_fee_bps: 0,
             total_fee_bps: 0,
             pair_type: PairType::Stable {},
-            is_disabled: None,
+            is_disabled: false,
+            is_generator_disabled: false,
         }],
         token_code_id,
         generator_address: Some(String::from("generator")),
@@ -509,10 +842,10 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
             .unwrap()
     });
 
-    // instantiate pair
+    // Instantiate pair
     let pair_instance = instantiate_pair(&mut app, &user1);
 
-    // provide liquidity, accumulators are empty
+    // Provide liquidity, accumulators are empty
     let (msg, coins) = provide_liquidity_msg(
         Uint128::new(1000000_000000),
         Uint128::new(1000000_000000),
@@ -524,13 +857,13 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     const BLOCKS_PER_DAY: u64 = 17280;
     const ELAPSED_SECONDS: u64 = BLOCKS_PER_DAY * 5;
 
-    // a day later
+    // A day later
     app.update_block(|b| {
         b.height += BLOCKS_PER_DAY;
         b.time = b.time.plus_seconds(ELAPSED_SECONDS);
     });
 
-    // provide liquidity, accumulators firstly filled with the same prices
+    // Provide liquidity, accumulators firstly filled with the same prices
     let (msg, coins) = provide_liquidity_msg(
         Uint128::new(3000000_000000),
         Uint128::new(1000000_000000),
@@ -539,18 +872,18 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
 
-    // get current twap accumulator values
+    // Get current TWAP accumulator values
     let msg = QueryMsg::CumulativePrices {};
     let cpr_old: CumulativePricesResponse =
         app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
 
-    // a day later
+    // A day later
     app.update_block(|b| {
         b.height += BLOCKS_PER_DAY;
         b.time = b.time.plus_seconds(ELAPSED_SECONDS);
     });
 
-    // get current twap accumulator values, it should be added up by the query method with new 2/1 ratio
+    // Get current twap accumulator values
     let msg = QueryMsg::CumulativePrices {};
     let cpr_new: CumulativePricesResponse =
         app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
@@ -667,7 +1000,7 @@ fn update_pair_config() {
 
     assert_eq!(params.amp, Decimal::from_ratio(100u32, 1u32));
 
-    //Start changing amp with incorrect next amp
+    // Start changing amp with incorrect next amp
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: MAX_AMP + 1,
@@ -688,7 +1021,7 @@ fn update_pair_config() {
         )
     );
 
-    //Start changing amp with big difference between the old and new amp value
+    // Start changing amp with big difference between the old and new amp value
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: 100 * MAX_AMP_CHANGE + 1,
@@ -709,7 +1042,7 @@ fn update_pair_config() {
         )
     );
 
-    //Start changing amp earlier than the MIN_AMP_CHANGING_TIME has elapsed
+    // Start changing amp before the MIN_AMP_CHANGING_TIME has elapsed
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: 250,

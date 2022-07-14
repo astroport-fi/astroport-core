@@ -2,7 +2,7 @@ pub mod contract;
 pub mod math;
 pub mod state;
 
-mod error;
+pub mod error;
 
 mod response;
 

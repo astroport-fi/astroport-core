@@ -3,7 +3,7 @@ name = "astroport-pair-stable"
 version = "1.0.0-fix1"
 authors = ["Astroport"]
 edition = "2021"
-description = "An Astroport pair contract"
+description = "The Astroport stableswap pair contract implementation"
 license = "MIT"
 
 exclude = [
