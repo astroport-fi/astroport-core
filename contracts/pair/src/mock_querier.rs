@@ -59,38 +59,14 @@ pub(crate) fn balances_to_map(
     balances_map
 }
 
-#[derive(Clone, Default)]
-pub struct TaxQuerier {
-    rate: Decimal,
-    // This lets us iterate over all pairs that match the first string
-    caps: HashMap<String, Uint128>,
-}
-
-impl TaxQuerier {
-    pub fn new(rate: Decimal, caps: &[(&String, &Uint128)]) -> Self {
-        TaxQuerier {
-            rate,
-            caps: caps_to_map(caps),
-        }
-    }
-}
-
-pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint128> {
-    let mut owner_map: HashMap<String, Uint128> = HashMap::new();
-    for (denom, cap) in caps.iter() {
-        owner_map.insert(denom.to_string(), **cap);
-    }
-    owner_map
-}
-
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
         // MockQuerier doesn't support Custom, so we ignore it completely
-        let request: QueryRequest<TerraQueryWrapper> = match from_slice(bin_request) {
+        let request: QueryRequest<Empty> = match from_slice(bin_request) {
             Ok(v) => v,
             Err(e) => {
                 return SystemResult::Err(SystemError::InvalidRequest {
-                    error: format!("Parsing query request: {}", e.into()),
+                    error: format!("Parsing query request: {}", e),
                     request: bin_request.into(),
                 })
             }
@@ -102,31 +78,6 @@ impl Querier for WasmMockQuerier {
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<Empty>) -> QuerierResult {
         match &request {
-            /*QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
-                if route == &TerraRoute::Treasury {
-                    match query_data {
-                        TerraQuery::TaxRate {} => {
-                            let res = TaxRateResponse {
-                                rate: self.tax_querier.rate,
-                            };
-                            SystemResult::Ok(to_binary(&res).into())
-                        }
-                        TerraQuery::TaxCap { denom } => {
-                            let cap = self
-                                .tax_querier
-                                .caps
-                                .get(denom)
-                                .copied()
-                                .unwrap_or_default();
-                            let res = TaxCapResponse { cap };
-                            SystemResult::Ok(to_binary(&res).into())
-                        }
-                        _ => panic!("DO NOT ENTER HERE"),
-                    }
-                } else {
-                    panic!("DO NOT ENTER HERE")
-                }
-            }*/
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if contract_addr == "factory" {
                     match from_binary(&msg).unwrap() {
@@ -189,6 +140,13 @@ impl WasmMockQuerier {
                         }
                         _ => panic!("DO NOT ENTER HERE"),
                     }
+                }
+            }
+            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, .. }) => {
+                if contract_addr == "factory" {
+                    SystemResult::Ok(to_binary(&Vec::<Addr>::new()).into())
+                } else {
+                    panic!("DO NOT ENTER HERE");
                 }
             }
             _ => self.base.handle_query(request),

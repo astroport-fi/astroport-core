@@ -1,5 +1,5 @@
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
-use astroport::generator::{ExecuteMsg, MigrateMsg, PoolLengthResponse, QueryMsg, StakerResponse};
+use astroport::generator::{ExecuteMsg, QueryMsg, StakerResponse};
 use astroport_governance::utils::WEEK;
 
 use astroport::{
@@ -8,7 +8,7 @@ use astroport::{
         InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType, QueryMsg as FactoryQueryMsg,
     },
     generator::{
-        ConfigResponse, Cw20HookMsg as GeneratorHookMsg, ExecuteMsg as GeneratorExecuteMsg,
+        Cw20HookMsg as GeneratorHookMsg, ExecuteMsg as GeneratorExecuteMsg,
         InstantiateMsg as GeneratorInstantiateMsg, PendingTokenResponse, PoolInfoResponse,
         QueryMsg as GeneratorQueryMsg,
     },
@@ -19,18 +19,15 @@ use astroport::{
         VestingSchedule, VestingSchedulePoint,
     },
 };
-use astroport_package_generator_v120::generator as generator_v120;
 
 use astroport::pair::StablePoolParams;
-use cosmwasm_std::{
-    testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR},
-    to_binary, Addr, Binary, StdResult, Uint128, Uint64,
-};
+use astroport_generator::state::Config;
+use cosmwasm_std::{to_binary, Addr, Binary, StdResult, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{next_block, App, BasicApp, ContractWrapper, Executor};
+use cw_multi_test::{next_block, App, ContractWrapper, Executor};
 
 use crate::test_utils::controller_helper::ControllerHelper;
-use crate::test_utils::{mock_app as mock_app_helper, TerraAppExtension};
+use crate::test_utils::{mock_app as mock_app_helper, AppExtension};
 
 #[cfg(test)]
 mod test_utils;
@@ -162,7 +159,10 @@ fn test_boost_checkpoints() {
             &[],
         )
         .unwrap_err();
-    assert_eq!("Maximum generator limit exceeded!", err.to_string());
+    assert_eq!(
+        "Maximum generator limit exceeded!",
+        err.root_cause().to_string()
+    );
 
     app.execute_contract(
         Addr::unchecked(USER1),
@@ -491,7 +491,7 @@ fn set_tokens_per_block() {
     );
 
     let msg = QueryMsg::Config {};
-    let res: ConfigResponse = app
+    let res: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
@@ -513,7 +513,7 @@ fn set_tokens_per_block() {
     .unwrap();
 
     let msg = GeneratorQueryMsg::Config {};
-    let res: ConfigResponse = app
+    let res: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
@@ -542,7 +542,7 @@ fn update_config() {
     );
 
     let msg = QueryMsg::Config {};
-    let res: ConfigResponse = app
+    let res: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
@@ -584,7 +584,7 @@ fn update_config() {
     .unwrap();
 
     let msg = QueryMsg::Config {};
-    let res: ConfigResponse = app
+    let res: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
@@ -676,7 +676,7 @@ fn update_owner() {
 
     // Let's query the state
     let msg = QueryMsg::Config {};
-    let res: ConfigResponse = app
+    let res: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
@@ -754,7 +754,7 @@ fn disabling_pool() {
     let resp = app
         .execute_contract(user1.clone(), lp_eur_usdt.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(resp.root_cause().to_string(), "Unauthorized");
+    assert_eq!(resp.root_cause().to_string(), "Generator is disabled!");
 
     // Enable generator
     let msg = FactoryExecuteMsg::UpdatePairConfig {
@@ -879,8 +879,9 @@ fn generator_without_reward_proxies() {
     assert_eq!(
         app.execute_contract(user1.clone(), lp_cny_eur.clone(), &msg, &[])
             .unwrap_err()
+            .root_cause()
             .to_string(),
-        "Overflow: Cannot Sub with 9 and 10".to_string()
+        "Cannot Sub with 9 and 10".to_string()
     );
 
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 1);
@@ -903,11 +904,11 @@ fn generator_without_reward_proxies() {
         lp_token: lp_cny_eur.to_string(),
         amount: Uint128::new(1_000000),
     };
-    let err = app
-        .execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
+        app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
+            .unwrap_err()
+            .root_cause()
+            .to_string(),
         "Insufficient balance in contract to process claim".to_string()
     );
 
@@ -915,17 +916,15 @@ fn generator_without_reward_proxies() {
     let msg = GeneratorExecuteMsg::EmergencyWithdraw {
         lp_token: lp_cny_eur.to_string(),
     };
-    let err = app
-        .execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap_err();
     assert_eq!(
         app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
             .unwrap_err()
+            .root_cause()
             .to_string(),
         "astroport::generator::UserInfo not found".to_string()
     );
 
-    app.update_block(next_block);
+    app.update_block(|bi| next_block(bi));
 
     // 10 tokens per block split equally between 2 pools
     check_pending_rewards(
@@ -1066,11 +1065,11 @@ fn generator_without_reward_proxies() {
         lp_token: lp_cny_eur.to_string(),
         amount: Uint128::new(1_000000),
     };
-    let err = app
-        .execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
+        app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+            .unwrap_err()
+            .root_cause()
+            .to_string(),
         "Insufficient balance in contract to process claim".to_string(),
     );
 
@@ -1131,8 +1130,6 @@ fn generator_without_reward_proxies() {
     check_token_balance(&mut app, &astro_token_instance, &user2, 5_000000);
 }
 
-// TODO: Mirror protocol does not support Terra2 and cosmwasm-1.0 respectively.
-// TODO: Once astroport finds proxy reward contract this test should be updated.
 /*#[test]
 fn generator_with_mirror_reward_proxy() {
     let mut app = mock_app();
@@ -1664,8 +1661,6 @@ fn generator_with_mirror_reward_proxy() {
     );
 }*/
 
-type TerraApp = App;
-
 #[test]
 fn update_allowed_proxies() {
     let mut app = mock_app();
@@ -1704,7 +1699,7 @@ fn update_allowed_proxies() {
         .unwrap_err();
     assert_eq!(
         "Generic error: Need to provide add or remove parameters",
-        err.to_string()
+        err.root_cause().to_string()
     );
 
     let msg = ExecuteMsg::UpdateAllowedProxies {
@@ -1716,7 +1711,7 @@ fn update_allowed_proxies() {
         .unwrap();
 
     // Check if proxies were added and removed
-    let reps: ConfigResponse = app
+    let reps: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &QueryMsg::Config {})
         .unwrap();
@@ -1740,7 +1735,7 @@ fn update_allowed_proxies() {
         .unwrap_err();
     assert_eq!(
         "Generic error: Can't remove proxy contract. It is not found in allowed list.",
-        err.to_string()
+        err.root_cause().to_string()
     );
 
     // Only add proxies
@@ -1751,7 +1746,7 @@ fn update_allowed_proxies() {
 
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
-    let reps: ConfigResponse = app
+    let reps: Config = app
         .wrap()
         .query_wasm_smart(&generator_instance, &QueryMsg::Config {})
         .unwrap();
@@ -1765,7 +1760,7 @@ fn update_allowed_proxies() {
     assert_eq!(allowed_reward_proxies, reps.allowed_reward_proxies);
 }
 
-#[test]
+/*#[test]
 fn move_to_proxy() {
     let mut app = mock_app();
 
@@ -1850,7 +1845,7 @@ fn move_to_proxy() {
     let err = app
         .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!("Reward proxy not allowed!", err.to_string());
+    assert_eq!("Reward proxy not allowed!", err.root_cause().to_string());
 
     let msg = GeneratorExecuteMsg::SetAllowedRewardProxies {
         proxies: vec![proxy_to_mirror_instance.to_string()],
@@ -1937,11 +1932,11 @@ fn move_to_proxy() {
         .unwrap_err();
     assert_eq!(
         "The pool already has a reward proxy contract!",
-        err.to_string()
+        err.root_cause().to_string()
     )
-}
+}*/
 
-#[test]
+/*#[test]
 fn migrate_proxy() {
     let mut app = mock_app();
 
@@ -2109,7 +2104,12 @@ fn migrate_proxy() {
         generator_instance.clone(),
         &MigrateMsg {
             whitelist_code_id: Some(whitelist_code_id),
-            ..Default::default()
+            factory: None,
+            generator_controller: None,
+            blocked_list_tokens: None,
+            guardian: None,
+            voting_escrow: None,
+            generator_limit: None,
         },
         new_generator_code_id,
     )
@@ -2143,7 +2143,7 @@ fn migrate_proxy() {
         .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Can not migrate to the same proxy"
     );
 
@@ -2271,7 +2271,7 @@ fn migrate_proxy() {
             )
         ]
     );
-}
+}*/
 
 #[test]
 fn query_all_stakers() {
@@ -2677,7 +2677,7 @@ fn update_tokens_blocked_list() {
         .unwrap_err();
     assert_eq!(
         "Generic error: Need to provide add or remove parameters",
-        err.to_string()
+        err.root_cause().to_string()
     );
 
     let msg = ExecuteMsg::UpdateBlockedTokenslist {
@@ -2688,14 +2688,14 @@ fn update_tokens_blocked_list() {
     let err = app
         .execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!("Unauthorized", err.to_string());
+    assert_eq!("Unauthorized", err.root_cause().to_string());
 
     let err = app
         .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(
         "ASTRO or Terra native assets (UST, LUNA etc) cannot be blocked!",
-        err.to_string()
+        err.root_cause().to_string()
     );
 
     let msg = ExecuteMsg::UpdateBlockedTokenslist {
@@ -2720,7 +2720,7 @@ fn update_tokens_blocked_list() {
 
     assert_eq!(
         format!("Generic error: Token {} is blocked!", cny_token.to_string()),
-        err.to_string()
+        err.root_cause().to_string()
     );
 
     // Change pool alloc points
@@ -2774,7 +2774,7 @@ fn update_tokens_blocked_list() {
         .unwrap_err();
     assert_eq!(
         "Generic error: Can't remove token. It is not found in the blocked list.",
-        err.to_string()
+        err.root_cause().to_string()
     );
 
     let msg = ExecuteMsg::UpdateBlockedTokenslist {
@@ -2966,14 +2966,14 @@ fn setup_pools() {
     assert_eq!(Uint128::zero(), res.alloc_point);
 
     // Check pool length
-    let res: PoolLengthResponse = app
-        .wrap()
-        .query_wasm_smart(
-            generator_instance.to_owned(),
-            &GeneratorQueryMsg::ActivePoolLength {},
-        )
-        .unwrap();
-    assert_eq!(3, res.length);
+    // let res: usize = app
+    //     .wrap()
+    //     .query_wasm_smart(
+    //         generator_instance.to_owned(),
+    //         &GeneratorQueryMsg::ActivePoolLength {},
+    //     )
+    //     .unwrap();
+    // assert_eq!(3, res);
 
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {
@@ -2989,7 +2989,7 @@ fn setup_pools() {
         .unwrap_err();
     assert_eq!(
         "Generic error: The pair aren't registered: cny-eur",
-        err.to_string()
+        err.root_cause().to_string()
     );
 
     // Change pool alloc points
@@ -3204,7 +3204,7 @@ fn deactivate_pools_by_pair_types() {
             "Generic error: Pair type ({}) is not blacklisted!",
             PairType::Xyk {}
         ),
-        err.to_string()
+        err.root_cause().to_string()
     );
 
     // Add stable pair type to blacklist
@@ -3263,7 +3263,7 @@ fn deactivate_pools_by_pair_types() {
         .unwrap_err();
     assert_eq!(
         "Generic error: Pair type (stable) is blacklisted!",
-        err.to_string()
+        err.root_cause().to_string()
     );
 
     // Change pool alloc points
@@ -3379,23 +3379,11 @@ fn deactivate_pools_by_pair_types() {
     assert_eq!(Uint128::new(80), reps.alloc_point);
 }
 
-fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+fn mock_app() -> App {
+    App::default()
 }
 
-fn store_token_code(app: &mut TerraApp) -> u64 {
+fn store_token_code(app: &mut App) -> u64 {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
@@ -3405,7 +3393,7 @@ fn store_token_code(app: &mut TerraApp) -> u64 {
     app.store_code(astro_token_contract)
 }
 
-fn store_factory_code(app: &mut TerraApp) -> u64 {
+fn store_factory_code(app: &mut App) -> u64 {
     let factory_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_factory::contract::execute,
@@ -3418,7 +3406,7 @@ fn store_factory_code(app: &mut TerraApp) -> u64 {
     app.store_code(factory_contract)
 }
 
-fn store_pair_code_id(app: &mut TerraApp) -> u64 {
+fn store_pair_code_id(app: &mut App) -> u64 {
     let pair_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_pair::contract::execute,
@@ -3431,7 +3419,7 @@ fn store_pair_code_id(app: &mut TerraApp) -> u64 {
     app.store_code(pair_contract)
 }
 
-fn store_pair_stable_code_id(app: &mut TerraApp) -> u64 {
+fn store_pair_stable_code_id(app: &mut App) -> u64 {
     let pair_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_pair_stable::contract::execute,
@@ -3444,12 +3432,7 @@ fn store_pair_stable_code_id(app: &mut TerraApp) -> u64 {
     app.store_code(pair_contract)
 }
 
-fn instantiate_token(
-    app: &mut TerraApp,
-    token_code_id: u64,
-    name: &str,
-    cap: Option<u128>,
-) -> Addr {
+fn instantiate_token(app: &mut App, token_code_id: u64, name: &str, cap: Option<u128>) -> Addr {
     let name = String::from(name);
 
     let msg = TokenInstantiateMsg {
@@ -3461,6 +3444,7 @@ fn instantiate_token(
             minter: String::from(OWNER),
             cap: cap.map(|v| Uint128::from(v)),
         }),
+        marketing: None,
     };
 
     app.instantiate_contract(token_code_id, Addr::unchecked(OWNER), &msg, &[], name, None)
@@ -3468,7 +3452,7 @@ fn instantiate_token(
 }
 
 fn instantiate_factory(
-    app: &mut TerraApp,
+    app: &mut App,
     factory_code_id: u64,
     token_code_id: u64,
     pair_code_id: u64,
@@ -3512,7 +3496,7 @@ fn instantiate_factory(
     .unwrap()
 }
 
-fn setup_generator_code(app: &mut TerraApp) -> u64 {
+fn setup_generator_code(app: &mut App) -> u64 {
     let generator_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_generator::contract::execute,
@@ -3526,21 +3510,8 @@ fn setup_generator_code(app: &mut TerraApp) -> u64 {
     app.store_code(generator_contract)
 }
 
-fn setup_generator_v120_code(app: &mut TerraApp) -> u64 {
-    let generator_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_generator_v120::contract::execute,
-            astroport_generator_v120::contract::instantiate,
-            astroport_generator_v120::contract::query,
-        )
-        .with_reply_empty(astroport_generator_v120::contract::reply),
-    );
-
-    app.store_code(generator_contract)
-}
-
 fn instantiate_generator(
-    mut app: &mut TerraApp,
+    mut app: &mut App,
     factory_instance: &Addr,
     astro_token_instance: &Addr,
     allowed_proxies: Option<Vec<String>>,
@@ -3647,7 +3618,7 @@ fn instantiate_generator(
 }
 
 fn instantiate_generator_wth_version(
-    mut app: &mut TerraApp,
+    mut app: &mut App,
     factory_instance: &Addr,
     astro_token_instance: &Addr,
     allowed_proxies: Option<Vec<String>>,
@@ -3688,7 +3659,6 @@ fn instantiate_generator_wth_version(
 
     let whitelist_code_id = store_whitelist_code(&mut app);
     let generator_code_id = match generator_version {
-        "1.2.0" => setup_generator_v120_code(&mut app),
         _ => setup_generator_code(&mut app),
     };
 
@@ -3746,13 +3716,13 @@ fn instantiate_generator_wth_version(
     generator_instance
 }
 
-/*fn instantiate_mirror_protocol(
-    app: &mut TerraApp,
-    token_code_id: u64,
-    asset_token: &Addr,
-    staking_token: &Addr,
+fn instantiate_mirror_protocol(
+    _app: &mut App,
+    _token_code_id: u64,
+    _asset_token: &Addr,
+    _staking_token: &Addr,
 ) -> (Addr, Addr) {
-    let mirror_token_instance = instantiate_token(app, token_code_id, "MIR", None);
+    /*let mirror_token_instance = instantiate_token(app, token_code_id, "MIR", None);
 
     // Mirror staking
     let mirror_staking_contract = Box::new(ContractWrapper::new_with_empty(
@@ -3798,10 +3768,12 @@ fn instantiate_generator_wth_version(
     )
     .unwrap();
 
-    (mirror_token_instance, mirror_staking_instance)
+    (mirror_token_instance, mirror_staking_instance)*/
+
+    (Addr::unchecked(""), Addr::unchecked(""))
 }
 
-fn store_proxy_code(app: &mut TerraApp) -> u64 {
+fn store_proxy_code(app: &mut App) -> u64 {
     let generator_proxy_to_mirror_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_generator_proxy_to_mirror::contract::execute,
         astroport_generator_proxy_to_mirror::contract::instantiate,
@@ -3809,10 +3781,10 @@ fn store_proxy_code(app: &mut TerraApp) -> u64 {
     ));
 
     app.store_code(generator_proxy_to_mirror_contract)
-}*/
+}
 
-fn _instantiate_proxy(
-    app: &mut TerraApp,
+fn instantiate_proxy(
+    app: &mut App,
     proxy_code: u64,
     generator_instance: &Addr,
     pair: &Addr,
@@ -3840,7 +3812,7 @@ fn _instantiate_proxy(
 }
 
 fn register_lp_tokens_in_generator(
-    app: &mut TerraApp,
+    app: &mut App,
     generator_instance: &Addr,
     pools_with_proxy: Vec<PoolWithProxy>,
 ) {
@@ -3870,7 +3842,7 @@ fn register_lp_tokens_in_generator(
     }
 }
 
-fn mint_tokens(app: &mut TerraApp, sender: Addr, token: &Addr, recipient: &Addr, amount: u128) {
+fn mint_tokens(app: &mut App, sender: Addr, token: &Addr, recipient: &Addr, amount: u128) {
     let msg = Cw20ExecuteMsg::Mint {
         recipient: recipient.to_string(),
         amount: Uint128::from(amount),
@@ -3881,7 +3853,7 @@ fn mint_tokens(app: &mut TerraApp, sender: Addr, token: &Addr, recipient: &Addr,
 }
 
 fn deposit_lp_tokens_to_generator(
-    app: &mut TerraApp,
+    app: &mut App,
     generator_instance: &Addr,
     depositor: &str,
     lp_tokens: &[(&Addr, u128)],
@@ -3898,7 +3870,7 @@ fn deposit_lp_tokens_to_generator(
     }
 }
 
-fn check_token_balance(app: &mut TerraApp, token: &Addr, address: &Addr, expected: u128) {
+fn check_token_balance(app: &mut App, token: &Addr, address: &Addr, expected: u128) {
     let msg = Cw20QueryMsg::Balance {
         address: address.to_string(),
     };
@@ -3907,7 +3879,7 @@ fn check_token_balance(app: &mut TerraApp, token: &Addr, address: &Addr, expecte
 }
 
 fn check_emission_balance(
-    app: &mut TerraApp,
+    app: &mut App,
     generator: &Addr,
     lp_token: &Addr,
     user: &Addr,
@@ -3923,7 +3895,7 @@ fn check_emission_balance(
 }
 
 fn check_pending_rewards(
-    app: &mut TerraApp,
+    app: &mut App,
     generator_instance: &Addr,
     token: &Addr,
     depositor: &str,
@@ -3949,33 +3921,8 @@ fn check_pending_rewards(
     assert_eq!(pending_on_proxy, expected_on_proxy)
 }
 
-fn check_pending_rewards_v120(
-    app: &mut TerraApp,
-    generator_instance: &Addr,
-    token: &Addr,
-    depositor: &str,
-    expected: (u128, Option<u128>),
-) {
-    let msg = GeneratorQueryMsg::PendingToken {
-        lp_token: token.to_string(),
-        user: String::from(depositor),
-    };
-
-    let res: generator_v120::PendingTokenResponse = app
-        .wrap()
-        .query_wasm_smart(generator_instance.to_owned(), &msg)
-        .unwrap();
-    assert_eq!(
-        (res.pending, res.pending_on_proxy),
-        (
-            Uint128::from(expected.0),
-            expected.1.map(|v| Uint128::from(v))
-        )
-    );
-}
-
 fn create_pair(
-    app: &mut TerraApp,
+    app: &mut App,
     factory: &Addr,
     pair_type: Option<PairType>,
     init_param: Option<Binary>,
@@ -4006,7 +3953,7 @@ fn create_pair(
     (res.contract_addr, res.liquidity_token)
 }
 
-fn store_whitelist_code(app: &mut TerraApp) -> u64 {
+fn store_whitelist_code(app: &mut App) -> u64 {
     let whitelist_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_whitelist::contract::execute,
         astroport_whitelist::contract::instantiate,

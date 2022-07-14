@@ -78,7 +78,7 @@ pub fn build_distribute_msg(
     bridge_assets: Vec<AssetInfo>,
     depth: u64,
 ) -> StdResult<SubMsg> {
-    let msg = if !bridge_assets.is_empty() {
+    let msg: SubMsg = if !bridge_assets.is_empty() {
         // Swap bridge assets
         SubMsg::new(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),

@@ -1,7 +1,6 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Api, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg,
-    WasmQuery,
+    entry_point, from_binary, to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::error::ContractError;

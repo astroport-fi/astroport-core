@@ -23,7 +23,6 @@ use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw20_base::ContractError;
 use cw_storage_plus::Bound;
 
-use crate::utils::deserialize_pair;
 use astroport::xastro_token::{InstantiateMsg, QueryMsg};
 
 /// Contract name that is used for migration.

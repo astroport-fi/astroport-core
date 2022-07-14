@@ -7,7 +7,7 @@ use cosmwasm_std::{
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
-use cw_storage_plus::{Bound, PrimaryKey};
+use cw_storage_plus::Bound;
 use protobuf::Message;
 
 use crate::error::ContractError;
@@ -1170,8 +1170,8 @@ pub fn send_pending_rewards(
 
     let mut messages = vec![];
 
-    let pending_rewards =
-        (pool.reward_global_index - user.reward_user_index).checked_mul(user.virtual_amount)?;
+    let pending_rewards = (pool.reward_global_index - user.reward_user_index)
+        .astro_checked_mul(user.virtual_amount)?;
 
     if !pending_rewards.is_zero() {
         messages.push(WasmMsg::Execute {
@@ -2180,8 +2180,8 @@ pub fn pending_token(
     }
 
     // we should calculate rewards by virtual amount
-    let pending =
-        (acc_per_share - user_info.reward_user_index).checked_mul(user_info.virtual_amount)?;
+    let pending = (acc_per_share - user_info.reward_user_index)
+        .astro_checked_mul(user_info.virtual_amount)?;
 
     Ok(PendingTokenResponse {
         pending,
@@ -2416,8 +2416,9 @@ pub fn query_list_of_stakers(
     if POOL_INFO.has(deps.storage, &lp_addr) {
         let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
         let start = start_after
-            .map(|start| start.joined_key())
-            .map(Bound::Exclusive);
+            .map(|start| addr_validate_to_lower(deps.api, start.as_str()))
+            .transpose()?;
+        let start = start.as_ref().map(Bound::exclusive);
 
         active_stakers = USER_INFO
             .prefix(&lp_addr)
@@ -2426,7 +2427,7 @@ pub fn query_list_of_stakers(
                 stakers
                     .ok()
                     .map(|staker| StakerResponse {
-                        account: String::from_utf8(staker.0).unwrap(),
+                        account: staker.0.to_string(),
                         amount: staker.1.amount,
                     })
                     .filter(|active_staker| !active_staker.amount.is_zero())
@@ -2615,8 +2616,11 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
 
                 let keys = POOL_INFO
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| String::from_utf8(v).map_err(StdError::from))
-                    .collect::<Result<Vec<String>, StdError>>()?;
+                    .map(|v| {
+                        let res = v?;
+                        Ok(res)
+                    })
+                    .collect::<Result<Vec<Addr>, StdError>>()?;
 
                 for key in keys {
                     let pool_info_v110 = migration::POOL_INFOV110
@@ -2674,8 +2678,11 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             "1.2.0" => {
                 let keys = POOL_INFO
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| String::from_utf8(v).map_err(StdError::from))
-                    .collect::<Result<Vec<String>, StdError>>()?;
+                    .map(|v| {
+                        let res = v?;
+                        Ok(res)
+                    })
+                    .collect::<Result<Vec<Addr>, StdError>>()?;
 
                 for key in keys {
                     let pool_info_v120 = migration::POOL_INFOV120
@@ -2727,8 +2734,11 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             "1.3.0" => {
                 let keys = POOL_INFO
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| String::from_utf8(v).map_err(StdError::from))
-                    .collect::<Result<Vec<String>, StdError>>()?;
+                    .map(|v| {
+                        let res = v?;
+                        Ok(res)
+                    })
+                    .collect::<Result<Vec<Addr>, StdError>>()?;
 
                 for key in keys {
                     let pool_info_v130 = migration::POOL_INFOV130
