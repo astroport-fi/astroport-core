@@ -19,7 +19,7 @@ use std::str::FromStr;
 
 pub trait PairBonded<'a> {
     /// Contract name that is used for migration.
-    const CONTRACT_NAME: &'a str = "astroport-pair-bonded";
+    const CONTRACT_NAME: &'a str;
     /// Contract version that is used for migration.
     const CONTRACT_VERSION: &'a str = env!("CARGO_PKG_VERSION");
 

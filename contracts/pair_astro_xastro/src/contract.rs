@@ -31,6 +31,8 @@ impl<'a> Contract<'a> {
 
 /// Implementation of the bonded pair template. Performs ASTRO-xASTRO swap operations.
 impl<'a> PairBonded<'a> for Contract<'a> {
+    const CONTRACT_NAME: &'a str = "astroport-pair-astro-xastro";
+
     fn swap(
         &self,
         deps: DepsMut,
@@ -87,9 +89,7 @@ impl<'a> PairBonded<'a> for Contract<'a> {
                 })?,
                 funds: vec![],
             }))
-        } else if offer_asset.info.equal(&AssetInfo::Token {
-            contract_addr: params.xastro_addr.clone(),
-        }) {
+        } else {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: params.xastro_addr.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
@@ -99,8 +99,6 @@ impl<'a> PairBonded<'a> for Contract<'a> {
                 })?,
                 funds: vec![],
             }))
-        } else {
-            return Err(ContractError::AssetMismatch {});
         }
 
         let receiver = to.unwrap_or_else(|| sender.clone());
@@ -136,7 +134,7 @@ impl<'a> PairBonded<'a> for Contract<'a> {
 
         if !offer_asset.info.equal(&pools[0]) && !offer_asset.info.equal(&pools[1]) {
             return Err(StdError::generic_err(
-                "Given offer asset doesn't belong to pairs",
+                "Given offer asset doesn't belong to pair",
             ));
         }
 

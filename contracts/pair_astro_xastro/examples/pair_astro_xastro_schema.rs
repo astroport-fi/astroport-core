@@ -21,6 +21,7 @@ fn main() {
     export_schema_with_title(&schema_for!(Cw20HookMsg), &out_dir, "Cw20HookMsg");
     export_schema_with_title(&schema_for!(QueryMsg), &out_dir, "QueryMsg");
     export_schema_with_title(&schema_for!(PairInfo), &out_dir, "PairInfo");
+    export_schema_with_title(&schema_for!(Config), &out_dir, "Config");
     export_schema_with_title(&schema_for!(PoolResponse), &out_dir, "PoolResponse");
     export_schema_with_title(
         &schema_for!(ReverseSimulationResponse),

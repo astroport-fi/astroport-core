@@ -24,7 +24,6 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-integer-sqrt = "0.1.5"
 astroport = { path = "../../packages/astroport", default-features = false }
 astroport-pair-bonded-template = { path = "../../templates/pair_bonded_template" }
 cw2 = { version = "0.13" }

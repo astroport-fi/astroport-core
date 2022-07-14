@@ -24,7 +24,6 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-integer-sqrt = "0.1.5"
 astroport = { path = "../../packages/astroport", default-features = false }
 cw2 = { version = "0.13" }
 cw20 = { version = "0.13" }
