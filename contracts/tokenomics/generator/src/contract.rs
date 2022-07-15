@@ -1269,15 +1269,15 @@ pub fn deposit(
         vec![]
     };
 
-    let reward_msg = build_claim_pools_asset_reward_messages(
-        deps.as_ref(),
-        &env,
-        &lp_token,
-        &pool,
-        &beneficiary,
-        user.amount,
-        amount,
-    )?;
+    // let reward_msg = build_claim_pools_asset_reward_messages(
+    //     deps.as_ref(),
+    //     &env,
+    //     &lp_token,
+    //     &pool,
+    //     &beneficiary,
+    //     user.amount,
+    //     amount,
+    // )?;
 
     // Update user's LP token balance
     let updated_amount = user.amount.checked_add(amount)?;
@@ -1299,7 +1299,7 @@ pub fn deposit(
     Ok(Response::new()
         .add_messages(send_rewards_msg)
         .add_messages(transfer_msg)
-        .add_messages(reward_msg)
+        //.add_messages(reward_msg)
         .add_attribute("action", "deposit")
         .add_attribute("amount", amount))
 }
@@ -1363,15 +1363,15 @@ pub fn withdraw(
         vec![]
     };
 
-    let reward_msg = build_claim_pools_asset_reward_messages(
-        deps.as_ref(),
-        &env,
-        &lp_token,
-        &pool,
-        &account,
-        user.amount,
-        Uint128::zero(),
-    )?;
+    // let reward_msg = build_claim_pools_asset_reward_messages(
+    //     deps.as_ref(),
+    //     &env,
+    //     &lp_token,
+    //     &pool,
+    //     &account,
+    //     user.amount,
+    //     Uint128::zero(),
+    // )?;
 
     // Update user's balance
     let updated_amount = user.amount.checked_sub(amount)?;
@@ -1398,7 +1398,7 @@ pub fn withdraw(
     Ok(Response::new()
         .add_messages(send_rewards_msg)
         .add_messages(transfer_msg)
-        .add_messages(reward_msg)
+        //.add_messages(reward_msg)
         .add_attribute("action", "withdraw")
         .add_attribute("amount", amount))
 }
