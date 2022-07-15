@@ -68,12 +68,6 @@ async function uploadPairContracts(terra: LCDClient, wallet: any) {
         network.pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable.wasm')!)
         writeArtifact(network, terra.config.chainID)
     }
-
-    if (!network.pairAnchorCodeID) {
-        console.log('Register Anchor Pair Contract...')
-        network.pairAnchorCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_anchor.wasm')!)
-        writeArtifact(network, terra.config.chainID)
-    }
 }
 
 async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
@@ -126,7 +120,7 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
 
     if (!network.factoryAddress) {
         console.log('Deploy the Factory...')
-        console.log(`CodeId Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID} CodeId Anchor Pair Contract: ${network.pairAnchorCodeID}`)
+        console.log(`CodeId Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID}`)
 
         let resp = await deployContract(
             terra,

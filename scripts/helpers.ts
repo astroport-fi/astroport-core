@@ -22,8 +22,6 @@ import path from 'path'
 import { CustomError } from 'ts-custom-error'
 
 export const ARTIFACTS_PATH = '../artifacts'
-const DEFAULT_GAS_CURRENCY = "uusd"
-const DEFAULT_GAS_PRICE = 0.15
 
 export function readArtifact(name: string = 'artifact') {
     try {
