@@ -615,7 +615,6 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
 
                 migrate_pair_configs_to_v120(deps.storage)?
             }
-            "1.1.0" => migrate_pair_configs_to_v120(deps.storage)?,
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

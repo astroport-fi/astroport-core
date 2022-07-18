@@ -67,9 +67,6 @@ pub struct PoolInfoV120 {
     pub has_asset_rewards: bool,
 }
 
-/// Stores the contract config(V1.2.0) at the given key
-pub const POOL_INFOV120: Map<&Addr, PoolInfoV120> = Map::new("pool_info");
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolInfoV130 {
     /// Accumulated amount of reward per share unit. Used for reward calculations
@@ -85,9 +82,6 @@ pub struct PoolInfoV130 {
     /// The pool has assets giving additional rewards
     pub has_asset_rewards: bool,
 }
-
-/// Stores the contract config(V1.3.0) at the given key
-pub const POOL_INFOV130: Map<&Addr, PoolInfoV130> = Map::new("pool_info");
 
 /// This structure describes the main control config of generator.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

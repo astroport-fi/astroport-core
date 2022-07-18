@@ -146,14 +146,6 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                         is_disabled: false,
                         is_generator_disabled: false
                     },
-                    {
-                        code_id: network.pairAnchorCodeID,
-                        pair_type: { custom: "Anchor-XYK" },
-                        total_fee_bps: 0,
-                        maker_fee_bps: 0,
-                        is_disabled: false,
-                        is_generator_disabled: true
-                    }
                 ],
                 token_code_id: network.tokenCodeID,
                 generator_address: undefined,

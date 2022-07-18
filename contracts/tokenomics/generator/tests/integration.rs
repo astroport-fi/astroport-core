@@ -1130,6 +1130,8 @@ fn generator_without_reward_proxies() {
     check_token_balance(&mut app, &astro_token_instance, &user2, 5_000000);
 }
 
+// TODO: Mirror protocol does not support Terra2 and cosmwasm-1.0 respectively.
+// TODO: Once astroport finds proxy reward contract this test should be updated.
 /*#[test]
 fn generator_with_mirror_reward_proxy() {
     let mut app = mock_app();
