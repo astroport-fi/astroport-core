@@ -1,7 +1,7 @@
 use crate::state::{Config, CONFIG};
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 
-use astroport::generator::{MigrateMsg, RestrictedVector};
+use astroport::generator::MigrateMsg;
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
@@ -50,38 +50,6 @@ pub struct PoolInfoV110 {
 
 /// Stores the contract config(V1.1.0) at the given key
 pub const POOL_INFOV110: Map<&Addr, PoolInfoV110> = Map::new("pool_info");
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PoolInfoV120 {
-    /// Accumulated amount of reward per share unit. Used for reward calculations
-    pub last_reward_block: Uint64,
-    pub accumulated_rewards_per_share: Decimal,
-    /// the reward proxy contract
-    pub reward_proxy: Option<Addr>,
-    pub accumulated_proxy_rewards_per_share: Decimal,
-    /// for calculation of new proxy rewards
-    pub proxy_reward_balance_before_update: Uint128,
-    /// the orphan proxy rewards which are left by emergency withdrawals
-    pub orphan_proxy_rewards: Uint128,
-    /// The pool has assets giving additional rewards
-    pub has_asset_rewards: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PoolInfoV130 {
-    /// Accumulated amount of reward per share unit. Used for reward calculations
-    pub last_reward_block: Uint64,
-    pub accumulated_rewards_per_share: Decimal,
-    /// the reward proxy contract
-    pub reward_proxy: Option<Addr>,
-    pub accumulated_proxy_rewards_per_share: RestrictedVector<Decimal>,
-    /// for calculation of new proxy rewards
-    pub proxy_reward_balance_before_update: Uint128,
-    /// the orphan proxy rewards which are left by emergency withdrawals
-    pub orphan_proxy_rewards: RestrictedVector<Uint128>,
-    /// The pool has assets giving additional rewards
-    pub has_asset_rewards: bool,
-}
 
 /// This structure describes the main control config of generator.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
