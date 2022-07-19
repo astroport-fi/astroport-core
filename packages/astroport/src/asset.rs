@@ -11,11 +11,6 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 
-/// UST token denomination
-pub const UUSD_DENOM: &str = "uusd";
-/// LUNA token denomination
-pub const ULUNA_DENOM: &str = "uluna";
-
 /// ## Description
 /// This enum describes a Terra asset (native or CW20).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

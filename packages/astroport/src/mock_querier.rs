@@ -11,7 +11,7 @@ use crate::factory::QueryMsg as FactoryQueryMsg;
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
-/// this uses our CustomQuerier.
+/// This uses the Astroport CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
@@ -38,7 +38,7 @@ pub struct WasmMockQuerier {
 
 #[derive(Clone, Default)]
 pub struct TokenQuerier {
-    // this lets us iterate over all pairs that match the first string
+    // This lets us iterate over all pairs that match the first string
     balances: HashMap<String, HashMap<String, Uint128>>,
 }
 
@@ -214,7 +214,7 @@ impl WasmMockQuerier {
         }
     }
 
-    // configure the mint whitelist mock querier
+    // Configure the mint whitelist mock querier
     pub fn with_token_balances(&mut self, balances: &[(&String, &[(&String, &Uint128)])]) {
         self.cw20_query_handler.token_querier = TokenQuerier::new(balances);
     }

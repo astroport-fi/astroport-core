@@ -62,7 +62,8 @@ fn proper_initialization() {
         pair_type: PairType::Xyk {},
         total_fee_bps: 100,
         maker_fee_bps: 10,
-        is_disabled: None,
+        is_disabled: false,
+        is_generator_disabled: false,
     }];
 
     let msg = InstantiateMsg {
@@ -106,7 +107,7 @@ fn update_config() {
     let factory_instance =
         instantiate_contract(&mut app, &Addr::unchecked(owner.clone()), token_code_id);
 
-    // update config
+    // Update config
     let fee_address = Some(String::from("fee"));
     let generator_address = Some(String::from("generator"));
 
@@ -169,7 +170,8 @@ fn instantiate_contract(app: &mut TerraApp, owner: &Addr, token_code_id: u64) ->
         pair_type: PairType::Xyk {},
         total_fee_bps: 100,
         maker_fee_bps: 10,
-        is_disabled: None,
+        is_disabled: false,
+        is_generator_disabled: false,
     }];
 
     let msg = InstantiateMsg {

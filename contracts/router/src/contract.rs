@@ -25,15 +25,15 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns the default object of type [`Response`] if the operation was successful,
+/// Returns a default object of type [`Response`] if the operation was successful,
 /// or a [`ContractError`] if the contract was not created.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **_info** is the object of type [`MessageInfo`].
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
+/// * **_info** is an object of type [`MessageInfo`].
+/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -54,15 +54,15 @@ pub fn instantiate(
 }
 
 /// ## Description
-/// Available the execute messages of the contract.
+/// Exposes all the execute functions available in the contract.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **_info** is the object of type [`MessageInfo`].
+/// * **_info** is an object of type [`MessageInfo`].
 ///
-/// * **msg** is the object of type [`ExecuteMsg`].
+/// * **msg** is an object of type [`ExecuteMsg`].
 ///
 /// ## Queries
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
@@ -74,15 +74,14 @@ pub fn instantiate(
 ///             to
 ///         }** Performs swap operations with the specified parameters.
 ///
-/// * **ExecuteMsg::ExecuteSwapOperation { operation, to }** Execute swap operation.
-/// Swap all offer asset to ask asset.
+/// * **ExecuteMsg::ExecuteSwapOperation { operation, to }** Execute a single swap operation.
 ///
 /// * **ExecuteMsg::AssertMinimumReceive {
 ///             asset_info,
 ///             prev_balance,
 ///             minimum_receive,
 ///             receiver
-///         }** Performs minimum receive amount assertion.
+///         }** Checks if an ask amount is higher than or equal to the minimum amount to receive.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -129,16 +128,16 @@ pub fn execute(
 
 /// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// If the template is not found in the received message, then an [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+/// If no template is found in the received message, then a [`ContractError`] is returned,
+/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
+/// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
+/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`].
 pub fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -177,17 +176,17 @@ pub fn receive_cw20(
 /// Performs swap operations with the specified parameters.
 /// Returns an [`ContractError`] on failure, otherwise returns [`Response`] to execute if the operation is successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **_info** is the object of type [`MessageInfo`].
+/// * **_info** is an object of type [`MessageInfo`].
 ///
-/// * **sender** is the object of type [`Addr`]. Sets the default recipient of the swap operation.
+/// * **sender** is an object of type [`Addr`]. This is the address that swaps tokens.
 ///
-/// * **operations** is a vector that contains object of type [`SwapOperation`]. Sets the number of transactions for exchange.
+/// * **operations** is a vector that contains objects of type [`SwapOperation`]. These are all the swap operations to perform.
 ///
-/// * **minimum_receive** is the object of type [`Option<Uint128>`]. Used to minimum amount assertion.
+/// * **minimum_receive** is an object of type [`Option<Uint128>`]. Used to guarantee that the ask amount is above a minimum amount.
 ///
 /// * **to** is the object of type [`Option<Addr>`]. Sets the recipient of the swap operation.
 #[allow(clippy::too_many_arguments)]
@@ -261,19 +260,19 @@ pub fn execute_swap_operations(
 }
 
 /// ## Description
-/// Performs minimum receive amount assertion.
-/// Returns an [`ContractError`] on failure, otherwise returns default object of type [`Response`]
+/// Checks if an ask amount is equal to or above a minimum amount.
+/// Returns a [`ContractError`] on failure, otherwise returns a default object of type [`Response`]
 /// if the operation is successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **asset_info** is the object of type [`AssetInfo`].
+/// * **asset_info** is an object of type [`AssetInfo`]. Specifies the asset to check the ask amount for.
 ///
-/// * **prev_balance** is the object of type [`Uint128`].
+/// * **prev_balance** is an object of type [`Uint128`]. This is the previous balance that the swap receive had before getting `ask` assets.
 ///
-/// * **minimum_receive** is the object of type [`Uint128`].
+/// * **minimum_receive** is an object of type [`Uint128`]. This is the minimum amount of `ask` assets to receive.
 ///
-/// * **receiver** is the object of type [`Addr`]. Sets recipient for which the receive minimum amount assertion will be performed.
+/// * **receiver** is an object of type [`Addr`]. This is the address that received `ask` assets.
 fn assert_minimum_receive(
     deps: Deps,
     asset_info: AssetInfo,
@@ -296,21 +295,20 @@ fn assert_minimum_receive(
 }
 
 /// ## Description
-/// Available the query messages of the contract.
+/// Exposes all the queries available in the contract.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **_env** is the object of type [`Env`].
+/// * **_env** is an object of type [`Env`].
 ///
-/// * **msg** is the object of type [`QueryMsg`].
+/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
-/// * **QueryMsg::Config {}** Returns information about the controls settings in a [`ConfigResponse`] object.
+/// * **QueryMsg::Config {}** Returns general router parameters using a [`ConfigResponse`] object.
 /// * **QueryMsg::SimulateSwapOperations {
 ///             offer_amount,
 ///             operations,
-///         }** Returns information about the simulation of the swap operations in a
-/// [`SimulateSwapOperationsResponse`] object.
+///         }** Simulates one or multiple swap operations and returns the end result in a [`SimulateSwapOperationsResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
@@ -327,10 +325,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 }
 
 /// ## Description
-/// Returns an [`ContractError`] on failure, otherwise returns information about the controls
-/// settings in a [`ConfigResponse`] object.
+/// Returns a [`ContractError`] on failure, otherwise returns general contract settings in a [`ConfigResponse`] object.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 pub fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
     let state = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
@@ -341,27 +338,28 @@ pub fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
 }
 
 /// ## Description
-/// Used for migration of contract. Returns the default object of type [`Response`].
+/// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
-/// * **_deps** is the object of type [`DepsMut`].
+/// * **_deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is the object of type [`Env`].
+/// * **_env** is an object of type [`Env`].
 ///
-/// * **_msg** is the object of type [`MigrateMsg`].
+/// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
 
 /// ## Description
-/// Returns an [`ContractError`] on failure, otherwise returns information about the simulation of
-/// the swap operations in a [`SimulateSwapOperationsResponse`] object.
+/// Returns a [`ContractError`] on failure, otherwise returns the end result of a simulation for one or multiple swap
+/// operations using a [`SimulateSwapOperationsResponse`] object.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **offer_amount** is the object of type [`Uint128`]. Sets a offer amount.
+/// * **offer_amount** is an object of type [`Uint128`]. This is the amount of offer assets being swapped.
 ///
-/// * **operations** is a vector that contains object of type [`SwapOperation`].
+/// * **operations** is a vector that contains objects of type [`SwapOperation`].
+/// These are all the swap operations for which we perform a simulation.
 fn simulate_swap_operations(
     deps: Deps,
     offer_amount: Uint128,
@@ -394,7 +392,7 @@ fn simulate_swap_operations(
                     &[offer_asset_info.clone(), ask_asset_info.clone()],
                 )?;
 
-                // Deduct tax before querying simulation
+                // Deduct tax
                 if let AssetInfo::NativeToken { denom } = offer_asset_info.clone() {
                     let asset = Asset {
                         info: AssetInfo::NativeToken { denom },
@@ -415,7 +413,7 @@ fn simulate_swap_operations(
                         })?,
                     }))?;
 
-                // Deduct tax after querying simulation
+                // Deduct tax
                 if let AssetInfo::NativeToken { denom } = ask_asset_info.clone() {
                     let asset = Asset {
                         info: AssetInfo::NativeToken { denom },
@@ -441,11 +439,11 @@ fn simulate_swap_operations(
 }
 
 /// ## Description
-/// Validates assets in operations. Returns an [`ContractError`] on failure, otherwise returns [`Ok`].
+/// Validates swap operations. Returns a [`ContractError`] on failure, otherwise returns [`Ok`].
 /// ## Params
-/// * **api** is the object of type [`Api`].
+/// * **api** is an object of type [`Api`].
 ///
-/// * **operations** is a vector that contains object of type [`SwapOperation`].
+/// * **operations** is a vector that contains objects of type [`SwapOperation`]. These are all the swap operations we check.
 fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), ContractError> {
     let mut ask_asset_map: HashMap<String, bool> = HashMap::new();
     for operation in operations.iter() {
@@ -542,7 +540,7 @@ fn test_invalid_operations() {
         .is_ok()
     );
 
-    // multiple output token types error
+    // Multiple output token type errors
     assert_eq!(
         true,
         assert_operations(

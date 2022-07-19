@@ -78,7 +78,7 @@ fn claim() {
     let res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(res.root_cause().to_string(), "Vesting schedule amount error. Schedules total amount should be equal to cw20 receive amount.");
+    assert_eq!(res.root_cause().to_string(), "Vesting schedule amount error. The total amount should be equal to the CW20 receive amount.");
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
@@ -136,7 +136,7 @@ fn claim() {
         .unwrap();
     assert_eq!(user1_vesting_amount.clone(), Uint128::new(300u128));
 
-    // check owner balance
+    // Check owner balance
     check_token_balance(
         &mut app,
         &astro_token_instance,
@@ -144,7 +144,7 @@ fn claim() {
         TOKEN_INITIAL_AMOUNT - 300u128,
     );
 
-    // check vesting balance
+    // Check vesting balance
     check_token_balance(
         &mut app,
         &astro_token_instance,
@@ -170,7 +170,7 @@ fn claim() {
         .unwrap();
     assert_eq!(vesting_res.info.released_amount, Uint128::from(300u128));
 
-    // check vesting balance
+    // Check vesting balance
     check_token_balance(
         &mut app,
         &astro_token_instance,
@@ -178,10 +178,10 @@ fn claim() {
         0u128,
     );
 
-    //check user balance
+    // Check user balance
     check_token_balance(&mut app, &astro_token_instance, &user1.clone(), 300u128);
 
-    // owner balance mustn't change after claim
+    // Owner balance mustn't change after claim
     check_token_balance(
         &mut app,
         &astro_token_instance,
@@ -193,7 +193,7 @@ fn claim() {
         address: user1.to_string(),
     };
 
-    // check user balance after claim
+    // Check user balance after claim
     let user1_vesting_amount: Uint128 = app
         .wrap()
         .query_wasm_smart(vesting_instance.clone(), &msg)
@@ -320,7 +320,7 @@ fn register_vesting_accounts() {
         100u128,
     );
 
-    // let's check user1 final vesting amount after add schedule for a new one
+    // Let's check user1's final vesting amount after add schedule for a new one
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::RegisterVestingAccounts {
@@ -367,12 +367,12 @@ fn register_vesting_accounts() {
         &vesting_instance.clone(),
         300u128,
     );
-    // A new schedule have been added successfully and an old one haven't changed.
-    // The new one doesn't have the same value as old one.
+    // A new schedule has been added successfully and an old one hasn't changed.
+    // The new schedule doesn't have the same value as the old one.
     assert_eq!(user2_vesting_amount, Uint128::new(200u128));
     assert_eq!(user1_vesting_amount, Uint128::from(100u128));
 
-    // add one more vesting schedule account, final vesting amount must increase only
+    // Add one more vesting schedule; final amount to vest must increase
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::RegisterVestingAccounts {
@@ -445,7 +445,8 @@ fn register_vesting_accounts() {
         200u128,
     );
     check_token_balance(&mut app, &astro_token_instance, &user1.clone(), 110u128);
-    // owner balance mustn't change after claim
+
+    // Owner balance mustn't change after claim
     check_token_balance(
         &mut app,
         &astro_token_instance,

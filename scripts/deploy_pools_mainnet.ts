@@ -17,11 +17,11 @@ async function main() {
     console.log('network:', network)
 
     if (network.tokenAddress == "") {
-        throw new Error("token address is not set, create ASTRO token first")
+        throw new Error("Token address is not set, deploy ASTRO first")
     }
 
     if (network.factoryAddress == "") {
-        throw new Error("factory address is not set, deploy factory first")
+        throw new Error("Factory address is not set, deploy factory first")
     }
 
     let pools =  [
@@ -113,7 +113,7 @@ async function main() {
                 new NativeAsset("uusd").getInfo(),
             ],
             pairType: { xyk: {} },
-        }
+        },
     ]
 
     for (let i = 0; i < pools.length; i++) {

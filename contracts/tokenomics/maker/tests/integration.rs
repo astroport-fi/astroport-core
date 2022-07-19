@@ -1,12 +1,12 @@
 use astroport::asset::{
     native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
-    ULUNA_DENOM,
 };
 use astroport::factory::{PairConfig, PairType, UpdateAddr};
 use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_governance::astroport::asset::ULUNA_DENOM;
 use cosmwasm_std::{
     attr, coin, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
 };
@@ -87,7 +87,8 @@ fn instantiate_contracts(
             pair_type: PairType::Xyk {},
             total_fee_bps: 0,
             maker_fee_bps: 0,
-            is_disabled: Some(false),
+            is_disabled: false,
+            is_generator_disabled: false,
         }],
         token_code_id: 1u64,
         fee_address: None,

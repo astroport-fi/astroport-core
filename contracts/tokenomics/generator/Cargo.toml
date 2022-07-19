@@ -1,13 +1,13 @@
 [package]
 name = "astroport-generator"
-version = "1.1.0"
+version = "2.0.0"
 authors = ["Astroport"]
 edition = "2021"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -28,9 +28,31 @@ schemars = "0.8.1"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
 astroport = { path = "../../../packages/astroport", default-features = false }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
+protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
 cosmwasm-schema = "1.0.0"
 cw-multi-test = "0.13.2"
 astroport-token = {path = "../../token"}
+
 astroport-vesting = {path = "../vesting"}
+astroport-staking = {path = "../staking"}
+astroport-generator-proxy-to-mirror = {path = "../generator_proxy_to_mirror"}
+astroport-factory = {path = "../../factory"}
+astroport-pair = {path = "../../pair"}
+astroport-pair-stable = {path = "../../pair_stable"}
+astroport-whitelist = { path = "../../whitelist" }
+anyhow = "1"
+generator-controller = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
+voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
+
+[dev-dependencies.astroport-generator_v120]
+git = "https://github.com/astroport-fi/astroport-core"
+package = "astroport-generator"
+rev = "973aab9419229cb221023066f96b18f2edf75ba8"
+
+[dev-dependencies.astroport-package-generator_v120]
+git = "https://github.com/astroport-fi/astroport-core"
+package = "astroport"
+rev = "973aab9419229cb221023066f96b18f2edf75ba8"

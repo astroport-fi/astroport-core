@@ -1,9 +1,9 @@
 [package]
 name = "astroport-factory"
-version = "1.0.0-fix1"
+version = "1.2.0"
 authors = ["Astroport"]
 edition = "2021"
-description = "An Astroport factory contract - auto pair contract generator and also directory for all pairs"
+description = "Astroport factory contract - pair contract generator and directory"
 license = "MIT"
 
 exclude = [

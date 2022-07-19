@@ -56,7 +56,7 @@ fn oracle_overflow() {
         asset_infos: [astro_asset_info, usdc_asset_info],
     };
 
-    //set cumulative price 192738282u128
+    // Set cumulative price to 192738282u128
     deps.querier.set_cumulative_price(
         Addr::unchecked("pair"),
         asset.clone(),
@@ -66,7 +66,7 @@ fn oracle_overflow() {
     );
     let res = instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
-    //set cumulative price 100 (overflow)
+    // Set cumulative price to 100 (overflow)
     deps.querier.set_cumulative_price(
         Addr::unchecked("pair"),
         asset,

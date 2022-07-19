@@ -2,24 +2,25 @@ use std::convert::TryFrom;
 
 use astroport::U256;
 
-pub const N_COINS: u8 = 2;
 const N_COINS_SQUARED: u8 = 4;
 const ITERATIONS: u8 = 32;
+
+pub const N_COINS: u8 = 2;
 pub const MAX_AMP: u64 = 1_000_000;
 pub const MAX_AMP_CHANGE: u64 = 10;
 pub const MIN_AMP_CHANGING_TIME: u64 = 86400;
 pub const AMP_PRECISION: u64 = 100;
 
 /// ## Description
-/// Calculates swapped amount.
+/// Calculates the ask amount (the amount of tokens swapped to).
 /// ## Params
-/// * **offer_pool** is the object of type [`u128`].
+/// * **offer_pool** is an object of type [`u128`]. This is the amount of offer tokens currently in a stableswap pool.
 ///
-/// * **ask_pool** is the object of type [`u128`].
+/// * **ask_pool** is an object of type [`u128`]. This is the amount of ask tokens currently in a stableswap pool.
 ///
-/// * **offer_amount** is the object of type [`u128`].
+/// * **offer_amount** is an object of type [`u128`]. This is the amount of offer tokens to swap.
 ///
-/// * **amp** is the object of type [`u64`].
+/// * **amp** is an object of type [`u64`]. This is the pool's amplification parameter.
 pub fn calc_ask_amount(
     offer_pool: u128,
     ask_pool: u128,
@@ -38,15 +39,15 @@ pub fn calc_ask_amount(
 }
 
 /// ## Description
-/// Calculates swapped amount.
+/// Calculates the amount to be swapped (the offer amount).
 /// ## Params
-/// * **offer_pool** is the object of type [`u128`].
+/// * **offer_pool** is an object of type [`u128`]. This is the amount of offer tokens currently in a stableswap pool.
 ///
-/// * **ask_pool** is the object of type [`u128`].
+/// * **ask_pool** is an object of type [`u128`]. This is the amount of ask tokens currently in a stableswap pool.
 ///
-/// * **ask_amount** is the object of type [`u128`].
+/// * **ask_amount** is an object of type [`u128`]. This is the amount of offer tokens to swap.
 ///
-/// * **amp** is the object of type [`u64`].
+/// * **amp** is an object of type [`u64`]. This is the pool's amplification parameter.
 pub fn calc_offer_amount(
     offer_pool: u128,
     ask_pool: u128,
@@ -65,18 +66,18 @@ pub fn calc_offer_amount(
 }
 
 /// ## Description
-/// Computes stable swap invariant (D)
+/// Computes the stableswap invariant (D).
 ///
 /// * **Equation**
 ///
 /// A * sum(x_i) * n**n + D = A * D * n**n + D**(n+1) / (n**n * prod(x_i))
 ///
 /// ## Params
-/// * **leverage** is the object of type [`u128`].
+/// * **leverage** is an object of type [`u128`].
 ///
-/// * **amount_a** is the object of type [`u128`].
+/// * **amount_a** is an object of type [`u128`].
 ///
-/// * **amount_b** is the object of type [`u128`].
+/// * **amount_b** is an object of type [`u128`].
 pub fn compute_d(leverage: u64, amount_a: u128, amount_b: u128) -> Option<u128> {
     let amount_a_times_coins =
         checked_u8_mul(&U256::from(amount_a), N_COINS)?.checked_add(U256::one())?;
@@ -99,7 +100,7 @@ pub fn compute_d(leverage: u64, amount_a: u128, amount_b: u128) -> Option<u128> 
                 .checked_mul(d)?
                 .checked_div(amount_b_times_coins)?;
             d_previous = d;
-            //d = (leverage * sum_x + d_p * n_coins) * d / ((leverage - 1) * d + (n_coins + 1) * d_p);
+            // d = (leverage * sum_x + d_p * n_coins) * d / ((leverage - 1) * d + (n_coins + 1) * d_p);
             d = calculate_step(&d, leverage, sum_x, &d_product)?;
             // Equality with the precision of 1
             if d == d_previous {
@@ -111,7 +112,7 @@ pub fn compute_d(leverage: u64, amount_a: u128, amount_b: u128) -> Option<u128> 
 }
 
 /// ## Description
-/// Calculates step
+/// Helper function used to calculate the D invariant as a last step in the `compute_d` public function.
 ///
 /// * **Equation**:
 ///
@@ -132,7 +133,7 @@ fn calculate_step(initial_d: &U256, leverage: u64, sum_x: u128, d_product: &U256
 }
 
 /// ## Description
-/// Compute swap amount `y` in proportion to `x`
+/// Compute the swap amount `y` in proportion to `x`.
 ///
 /// * **Solve for y**
 ///
@@ -173,7 +174,7 @@ fn compute_new_balance(leverage: u64, new_source_amount: u128, d_val: u128) -> O
 }
 
 /// ## Description
-/// Returns self to the power of b
+/// Returns self to the power of b.
 fn checked_u8_power(a: &U256, b: u8) -> Option<U256> {
     let mut result = *a;
     for _ in 1..b {
@@ -183,7 +184,7 @@ fn checked_u8_power(a: &U256, b: u8) -> Option<U256> {
 }
 
 /// ## Description
-/// Returns self multiplied by b
+/// Returns self multiplied by b.
 fn checked_u8_mul(a: &U256, b: u8) -> Option<U256> {
     let mut result = *a;
     for _ in 1..b {

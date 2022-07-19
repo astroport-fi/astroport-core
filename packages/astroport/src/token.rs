@@ -18,26 +18,24 @@ pub struct InstantiateMarketingInfo {
     pub logo: Option<Logo>,
 }
 
-/// ## Description
-/// This structure describes the basic settings for creating a token contract.
+/// This structure describes the parameters used for creating a token contract.
 /// TokenContract InstantiateMsg
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 pub struct InstantiateMsg {
-    /// the name
+    /// Token name
     pub name: String,
-    /// the symbol
+    /// Token symbol
     pub symbol: String,
-    /// the precision after the decimal point
+    /// The amount of decimals the token has
     pub decimals: u8,
-    /// the initial balance of token
+    /// Initial token balances
     pub initial_balances: Vec<Cw20Coin>,
-    /// the controls configs of type [`MinterResponse`]
+    /// Minting controls specified in a [`MinterResponse`] structure
     pub mint: Option<MinterResponse>,
     /// the marketing info of type [`InstantiateMarketingInfo`]
     pub marketing: Option<InstantiateMarketingInfo>,
 }
 
-/// ## Description
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -67,10 +65,9 @@ impl InstantiateMsg {
     }
 }
 
-/// ## Description
 /// Checks the validity of the token name
 /// ## Params
-/// * **name** is the object of type [`str`]. the name to check
+/// * **name** is an object of type [`str`]. It is the token name to check
 fn is_valid_name(name: &str) -> bool {
     let bytes = name.as_bytes();
     if bytes.len() < 3 || bytes.len() > 50 {
@@ -79,10 +76,9 @@ fn is_valid_name(name: &str) -> bool {
     true
 }
 
-/// ## Description
 /// Checks the validity of the token symbol
 /// ## Params
-/// * **symbol** is the object of type [`str`]. the symbol to check
+/// * **symbol** is an object of type [`str`]. It is the token symbol to check
 fn is_valid_symbol(symbol: &str) -> bool {
     let bytes = symbol.as_bytes();
     if bytes.len() < 3 || bytes.len() > 12 {

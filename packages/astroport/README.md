@@ -1,12 +1,12 @@
 # Astroport: Common Types
 
-This is a collection of common types and the queriers which are commonly used in astroport contracts.
+This is a collection of common types and queriers which are commonly used in Astroport contracts.
 
 ## Data Types
 
 ### AssetInfo
 
-AssetInfo is a convenience wrapper to represent the native token and the contract token as a single type.
+AssetInfo is a convenience wrapper to represent whether a token is the native one (from a specific chain, like LUNA for Terra) or not and it also returns the contract address of that token.
 
 ```rust
 #[serde(rename_all = "snake_case")]
@@ -18,7 +18,7 @@ pub enum AssetInfo {
 
 ### Asset
 
-It contains asset info with the amount of token.
+It contains asset info and a token amount.
 
 ```rust
 pub struct Asset {
@@ -29,7 +29,7 @@ pub struct Asset {
 
 ### PairInfo
 
-It is used to represent response data of [Pair-Info-Querier](#Pair-Info-Querier)
+It is used to represent response data coming from a [Pair-Info-Querier](#Pair-Info-Querier).
 
 ```rust
 pub struct PairInfo {
@@ -44,7 +44,7 @@ pub struct PairInfo {
 
 ### Native Token Balance Querier
 
-It uses CosmWasm standard interface to query the account balance to chain.
+It uses the CosmWasm standard interface to query an account's balance.
 
 ```rust
 pub fn query_balance(
@@ -56,7 +56,7 @@ pub fn query_balance(
 
 ### Token Balance Querier
 
-It provides similar query interface with [Native-Token-Balance-Querier](Native-Token-Balance-Querier) for CW20 token balance.
+It provides a similar query interface to [Native-Token-Balance-Querier](Native-Token-Balance-Querier) for fetching CW20 token balances.
 
 ```rust
 pub fn query_token_balance(
@@ -68,7 +68,7 @@ pub fn query_token_balance(
 
 ### Token Supply Querier
 
-It provides token supply querier for CW20 token contract.
+It fetches a CW20 token's total supply.
 
 ```rust
 pub fn query_supply(
@@ -79,7 +79,7 @@ pub fn query_supply(
 
 ### Pair Info Querier
 
-It also provides the query interface to query available astroport pair contract info. Any contract can query pair info to astroport factory contract.
+It returns an Astroport pair contract address if that pair is already available in the factory contract.
 
 ```rust
 pub fn query_pair_contract(
@@ -91,7 +91,7 @@ pub fn query_pair_contract(
 
 ### Liquidity Token Querier
 
-It returns liquidity token contract address of astroport pair contract.
+It returns the address of a LP token if that LP token is already available (has a pair) on Astroport.
 
 ```rust
 pub fn query_liquidity_token(
@@ -104,7 +104,7 @@ pub fn query_liquidity_token(
 
 ### Simulate
 
-Returns simulation swap return, spread, commission amounts.
+Simulates a swap and returns the output amount, the spread and commission amounts.
 
 ```rust
 pub fn simulate(
@@ -116,7 +116,7 @@ pub fn simulate(
 
 ### Reverse Simulate
 
-Returns simulation swap offer, spread, commission amounts.
+Simulates a reverse swap and returns an input amount, the spread and commission amounts.
 
 ```rust
 pub fn reverse_simulate(

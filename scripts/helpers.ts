@@ -57,7 +57,7 @@ export function writeArtifact(data: object, name: string = 'artifact') {
 }
 
 // Tequila lcd is load balanced, so txs can't be sent too fast, otherwise account sequence queries
-// may resolve an older state depending on which lcd you end up with. Generally 1000 ms is is enough
+// may resolve an older state depending on which lcd you end up with. Generally 1000 ms is enough
 // for all nodes to sync up.
 let TIMEOUT = 1000
 

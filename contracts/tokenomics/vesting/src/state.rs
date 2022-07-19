@@ -7,41 +7,42 @@ use cosmwasm_std::{Addr, Deps, StdResult};
 use cw_storage_plus::{Bound, Item, Map};
 
 /// ## Description
-/// This structure describes the main control config of vesting contract.
+/// This structure stores the main parameters for the generator vesting contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// contract address that controls settings
+    /// Address that's allowed to change contract parameters
     pub owner: Addr,
-    /// The vesting token contract address
+    /// The address of the ASTRO token
     pub token_addr: Addr,
 }
 
 /// ## Description
-/// Stores config at the given key
+/// Stores the contract config at the given key.
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// ## Description
-/// The first key part is account contract address, the second key part is an object of type [`VestingInfo`].
+/// The first key is the address of an account that's vesting, the second key is an object of type [`VestingInfo`].
 pub const VESTING_INFO: Map<&Addr, VestingInfo> = Map::new("vesting_info");
 
 /// ## Description
-/// Contains proposal for change ownership.
+/// Contains a proposal to change contract ownership.
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
 const MAX_LIMIT: u32 = 30;
 const DEFAULT_LIMIT: u32 = 10;
 
 /// ## Description
-/// Returns the empty vector if does not found data to read, otherwise returns the vector that
-/// contains the objects of type [`VESTING_INFO`].
+/// Returns an empty vector if it does not find data, otherwise returns a vector that
+/// contains objects of type [`VESTING_INFO`].
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **start_after** is an [`Option`] field of type [`Addr`]. Sets the index to start reading.
+/// * **start_after** is an [`Option`] field of type [`Addr`]. This is the index from which to start reading vesting schedules.
 ///
-/// * **limit** is an [`Option`] field of type [`u32`]. Sets the limit to reading.
+/// * **limit** is an [`Option`] field of type [`u32`]. This is the amount of vesting schedules to read.
 ///
-/// * **order_by** is an [`Option`] field of type [`OrderBy`].
+/// * **order_by** is an [`Option`] field of type [`OrderBy`]. This dictates whether results
+/// should be returned in an ascending or descending order.
 pub fn read_vesting_infos(
     deps: Deps,
     start_after: Option<Addr>,

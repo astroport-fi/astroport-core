@@ -9,7 +9,7 @@ use crate::utils::{
 };
 use astroport::asset::{
     addr_validate_to_lower, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo,
-    PairInfo, ULUNA_DENOM,
+    PairInfo,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
@@ -18,6 +18,7 @@ use astroport::maker::{
     QueryMsg,
 };
 use astroport::pair::QueryMsg as PairQueryMsg;
+use astroport_governance::astroport::asset::ULUNA_DENOM;
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Order, QueryRequest, Response, StdError, StdResult, SubMsg, Uint128, Uint64,

@@ -16,10 +16,4 @@ target/
 .cargo-ok
 /scripts/.env
 /scripts/node_modules/
-#/scripts/package-lock.json
-/artifacts/*.wasm
-/artifacts/checksums_intermediate.txt
-/artifacts/checksums.txt
-/artifacts/localterra.json
-/artifacts/localterra_data.json
-/artifacts/pisco-1.json
+/artifacts/
