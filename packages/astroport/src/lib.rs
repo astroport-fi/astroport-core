@@ -1,11 +1,14 @@
 pub mod asset;
 pub mod common;
+/// This module contains some useful extensions for the standard cosmwasm types.
+pub mod cosmwasm_ext;
 pub mod factory;
 pub mod generator;
 pub mod generator_proxy;
 pub mod maker;
 pub mod oracle;
 pub mod pair;
+pub mod pair_concentrated;
 pub mod pair_stable_bluna;
 pub mod pair_stable_owner;
 pub mod querier;

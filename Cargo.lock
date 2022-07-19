@@ -222,6 +222,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-pair-concentrated"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "astroport 2.0.0",
+ "astroport-factory",
+ "astroport-token",
+ "concentrated_swap_sim",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-multi-test",
+ "cw-storage-plus 0.13.4",
+ "cw-utils",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
+ "derivative 0.3.1",
+ "itertools 0.10.3",
+ "proptest",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-pair-stable"
 version = "1.0.0"
 dependencies = [
@@ -420,6 +445,14 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "concentrated_swap_sim"
+version = "0.1.0"
+source = "git+https://github.com/astroport-fi/astroport-sims.git?branch=feat/conc_liq_simulator#d1b0182856e5bcf6f292296c5b746d2d6d0dcbbd"
+dependencies = [
+ "pyo3 0.16.5",
+]
 
 [[package]]
 name = "const-oid"
@@ -1068,6 +1101,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "indoc"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05a0bd019339e5d968b37855180087b7b9d512c5046fbd244cf8c95687927d6e"
+
+[[package]]
 name = "indoc-impl"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1213,6 +1252,12 @@ checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
 dependencies = [
  "autocfg",
 ]
+
+[[package]]
+name = "once_cell"
+version = "1.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18a6dbe30758c9f83eb00cbea4ac95966305f5a7772f3f42ebfc7fc7eddbd8e1"
 
 [[package]]
 name = "opaque-debug"
@@ -1365,7 +1410,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf6bbbe8f70d179260b3728e5d04eb012f4f0c7988e58c11433dd689cecaa72e"
 dependencies = [
  "ctor",
- "indoc",
+ "indoc 0.3.6",
  "inventory",
  "libc",
  "parking_lot",
@@ -1375,10 +1420,69 @@ dependencies = [
 ]
 
 [[package]]
+name = "pyo3"
+version = "0.16.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e6302e85060011447471887705bb7838f14aba43fcb06957d823739a496b3dc"
+dependencies = [
+ "cfg-if",
+ "indoc 1.0.6",
+ "libc",
+ "parking_lot",
+ "pyo3-build-config",
+ "pyo3-ffi",
+ "pyo3-macros",
+ "unindent",
+]
+
+[[package]]
+name = "pyo3-build-config"
+version = "0.16.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5b65b546c35d8a3b1b2f0ddbac7c6a569d759f357f2b9df884f5d6b719152c8"
+dependencies = [
+ "once_cell",
+ "target-lexicon",
+]
+
+[[package]]
 name = "pyo3-derive-backend"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10ecd0eb6ed7b3d9965b4f4370b5b9e99e3e5e8742000e1c452c018f8c2a322f"
+dependencies = [
+ "proc-macro2",
+ "quote 1.0.18",
+ "syn 1.0.96",
+]
+
+[[package]]
+name = "pyo3-ffi"
+version = "0.16.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c275a07127c1aca33031a563e384ffdd485aee34ef131116fcd58e3430d1742b"
+dependencies = [
+ "libc",
+ "pyo3-build-config",
+]
+
+[[package]]
+name = "pyo3-macros"
+version = "0.16.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "284fc4485bfbcc9850a6d661d627783f18d19c2ab55880b021671c4ba83e90f7"
+dependencies = [
+ "proc-macro2",
+ "pyo3-macros-backend",
+ "quote 1.0.18",
+ "syn 1.0.96",
+]
+
+[[package]]
+name = "pyo3-macros-backend"
+version = "0.16.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53bda0f58f73f5c5429693c96ed57f7abdb38fdfc28ae06da4101a257adb7faf"
 dependencies = [
  "proc-macro2",
  "quote 1.0.18",
@@ -1655,7 +1759,7 @@ name = "sim"
 version = "0.1.0"
 source = "git+https://github.com/astroport-fi/astroport-sims.git?rev=9436fa0f5e1dec0d7eb8eb03fdb233b96ba5e428#9436fa0f5e1dec0d7eb8eb03fdb233b96ba5e428"
 dependencies = [
- "pyo3",
+ "pyo3 0.12.4",
 ]
 
 [[package]]
@@ -1736,6 +1840,12 @@ dependencies = [
  "quote 1.0.18",
  "unicode-ident",
 ]
+
+[[package]]
+name = "target-lexicon"
+version = "0.12.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c02424087780c9b71cc96799eaeddff35af2bc513278cda5c99fc1f5d026d3c1"
 
 [[package]]
 name = "tempfile"
