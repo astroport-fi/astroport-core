@@ -220,10 +220,8 @@ fn swap_different_precisions() {
     let user = Addr::unchecked("user");
     // 100 x FOO tokens
     let offer_asset = helper.assets[&test_coins[0]].with_balance(100_00000u128);
-    // // Checking direct swap simulation
-    // let sim_resp = helper
-    //     .simulate_swap(&offer_asset, Some(helper.assets[&test_coins[2]].clone()))
-    //     .unwrap();
+    // Checking direct swap simulation
+    let sim_resp = helper.simulate_swap(&offer_asset, None).unwrap();
     // // And reverse swap as well
     // let reverse_sim_resp = helper
     //     .simulate_reverse_swap(
@@ -237,7 +235,7 @@ fn swap_different_precisions() {
     helper.swap(&user, &offer_asset, None).unwrap();
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
     // 99.999010 x BAR tokens
-    // assert_eq!(99_949011, sim_resp.return_amount.u128());
+    assert_eq!(99_999496, sim_resp.return_amount.u128());
     assert_eq!(99_999496, helper.coin_balance(&test_coins[1], &user));
 }
 

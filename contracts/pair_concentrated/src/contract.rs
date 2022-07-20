@@ -852,9 +852,9 @@ pub fn swap(
         .pair_info
         .query_pools(&deps.querier, &env.contract.address)?;
 
-    let (offer_ind, _) = pools
+    let offer_ind = pools
         .iter()
-        .find_position(|pool| pool.info.eq(&offer_asset.info))
+        .position(|pool| pool.info.eq(&offer_asset.info))
         .ok_or(ContractError::InvalidAsset(offer_asset.info.to_string()))?;
     let ask_ind = 1 - offer_ind;
 
@@ -1042,18 +1042,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Pair {} => to_binary(&CONFIG.load(deps.storage)?.pair_info),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
         QueryMsg::Share { amount } => to_binary(&query_share(deps, amount)?),
-        QueryMsg::Simulation {
-            offer_asset,
-            ask_asset_info,
-        } => to_binary(
-            &query_simulation(deps, env, offer_asset, ask_asset_info)
+        QueryMsg::Simulation { offer_asset, .. } => to_binary(
+            &query_simulation(deps, env, offer_asset)
                 .map_err(|err| StdError::generic_err(format!("{err}")))?,
         ),
-        QueryMsg::ReverseSimulation {
-            offer_asset_info,
-            ask_asset,
-        } => to_binary(
-            &query_reverse_simulation(deps, env, ask_asset, offer_asset_info)
+        QueryMsg::ReverseSimulation { ask_asset, .. } => to_binary(
+            &query_reverse_simulation(deps, env, ask_asset)
                 .map_err(|err| StdError::generic_err(format!("{err}")))?,
         ),
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
@@ -1106,63 +1100,72 @@ pub fn query_simulation(
     deps: Deps,
     env: Env,
     offer_asset: Asset,
-    ask_asset_info: Option<AssetInfo>,
 ) -> Result<SimulationResponse, ContractError> {
-    // let config = CONFIG.load(deps.storage)?;
-    // let pools = config
-    //     .pair_info
-    //     .query_pools(&deps.querier, &config.pair_info.contract_addr)?
-    //     .into_iter()
-    //     .map(|pool| {
-    //         let token_precision = get_precision(deps.storage, &pool.info)?;
-    //         Ok(Asset {
-    //             amount: adjust_precision(pool.amount, token_precision, config.greatest_precision)?,
-    //             ..pool
-    //         })
-    //     })
-    //     .collect::<StdResult<Vec<_>>>()?;
-    //
-    // let (offer_pool, ask_pool) =
-    //     select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)?;
-    //
-    // if check_swap_parameters(offer_pool.amount, ask_pool.amount, offer_asset.amount).is_err() {
-    //     return Ok(SimulationResponse {
-    //         return_amount: Uint128::zero(),
-    //         spread_amount: Uint128::zero(),
-    //         commission_amount: Uint128::zero(),
-    //     });
-    // }
-    //
-    // let SwapResult {
-    //     return_amount,
-    //     spread_amount,
-    // } = compute_swap(
-    //     deps.storage,
-    //     &env,
-    //     &config,
-    //     &offer_asset,
-    //     &offer_pool,
-    //     &ask_pool,
-    //     &pools,
-    // )?;
-    //
-    // // Get fee info from factory
-    // let fee_info = query_fee_info(
-    //     &deps.querier,
-    //     &config.factory_addr,
-    //     config.pair_info.pair_type.clone(),
-    // )?;
-    //
-    // let commission_amount = fee_info.total_fee_rate.checked_mul_uint128(return_amount)?;
-    // let return_amount = return_amount.saturating_sub(commission_amount);
-    //
-    // Ok(SimulationResponse {
-    //     return_amount,
-    //     spread_amount,
-    //     commission_amount,
-    // })
+    let mut config = CONFIG.load(deps.storage)?;
 
-    todo!()
+    let mut pools = config
+        .pair_info
+        .query_pools(&deps.querier, &env.contract.address)?;
+
+    let offer_ind = pools
+        .iter()
+        .position(|pool| pool.info.eq(&offer_asset.info))
+        .ok_or(ContractError::InvalidAsset(offer_asset.info.to_string()))?;
+    let ask_ind = 1 - offer_ind;
+
+    check_swap_parameters(
+        pools[offer_ind].amount,
+        pools[ask_ind].amount,
+        offer_asset.amount,
+    )?;
+
+    // Converting according to token precisions and price_scale
+    let mut xp = pools
+        .iter()
+        .map(|pool| {
+            let precision = get_precision(deps.storage, &pool.info)?;
+            let adjusted = adjust_precision(pool.amount, precision, config.greatest_precision)?;
+            Ok(adjusted)
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    let precision = get_precision(deps.storage, &offer_asset.info)?;
+    let dx = adjust_precision(offer_asset.amount, precision, config.greatest_precision)?.into();
+    xp[offer_ind] += dx;
+    xp[1] *= config.pool_state.price_state.price_scale / PRECISION;
+
+    let mut return_amount = compute_swap(&env, &config, dx, offer_ind, ask_ind, &xp)?;
+
+    xp[ask_ind] -= return_amount;
+    return_amount -= Uint256::one(); // Reduce by 1 just for safety reasons.
+    let mut commission_amount = config.pool_params.fee(&xp) * return_amount / MULTIPLIER;
+    xp[ask_ind] += commission_amount;
+    let mut spread_amount = dx.saturating_sub(return_amount);
+    return_amount = return_amount.saturating_sub(commission_amount);
+
+    if ask_ind > 0 {
+        return_amount = return_amount
+            .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
+        commission_amount = commission_amount
+            .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
+        spread_amount = spread_amount
+            .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
+    }
+    // Resolving precisions
+    let ask_precision = get_precision(&*deps.storage, &pools[ask_ind].info)?;
+    let return_amount =
+        adjust_precision(return_amount, config.greatest_precision, ask_precision)?.try_into()?;
+    let commission_amount =
+        adjust_precision(commission_amount, config.greatest_precision, ask_precision)?
+            .try_into()?;
+    let spread_amount: Uint128 =
+        adjust_precision(spread_amount, config.greatest_precision, ask_precision)?.try_into()?;
+
+    Ok(SimulationResponse {
+        return_amount,
+        spread_amount,
+        commission_amount,
+    })
 }
 
 /// ## Description
@@ -1181,7 +1184,6 @@ pub fn query_reverse_simulation(
     deps: Deps,
     env: Env,
     ask_asset: Asset,
-    offer_asset_info: Option<AssetInfo>,
 ) -> Result<ReverseSimulationResponse, ContractError> {
     // let config = CONFIG.load(deps.storage)?;
     // let pools = config

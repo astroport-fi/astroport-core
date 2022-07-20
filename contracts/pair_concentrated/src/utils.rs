@@ -210,19 +210,17 @@ pub(crate) struct SwapResult {
 /// ## Description
 /// Returns the result of a swap in form of a [`SwapResult`] object. In case of error, returns [`ContractError`].
 /// ## Params
-/// * **storage** is an object of type [`Storage`].
-///
 /// * **env** is an object of type [`Env`].
 ///
 /// * **config** is an object of type [`Config`].
 ///
-/// * **offer_asset** is an object of type [`Asset`]. This is the asset that is being offered.
+/// * **dx** is an offer amount.
 ///
-/// * **offer_pool** is an object of type [`Uint128`]. This is the total amount of offer assets in the pool.
+/// * **offer_ind** is an index of offer pool.
 ///
-/// * **ask_pool** is an object of type [`Uint128`]. This is the total amount of ask assets in the pool.
+/// * **ask_ind** is an index of ask pool.
 ///
-/// * **pools** is an array of [`Asset`] type items. These are the assets available in the pool.
+/// * **xp** as a vector of [`Uint256`] which represents the amount in each pool.
 pub(crate) fn compute_swap(
     env: &Env,
     config: &Config,
