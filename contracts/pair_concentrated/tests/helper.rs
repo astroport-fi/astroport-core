@@ -11,7 +11,7 @@ use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, Pa
 use astroport::factory::{PairConfig, PairType};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, QueryMsg, ReverseSimulationResponse,
-    SimulationResponse, StablePoolParams,
+    SimulationResponse,
 };
 use astroport::pair_concentrated::ConcentratedPoolParams;
 use astroport::querier::NATIVE_TOKEN_PRECISION;

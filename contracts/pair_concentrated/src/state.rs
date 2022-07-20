@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Decimal, DepsMut, Env, StdError, StdResult, Storage, Uint128, Uint256};
+use cosmwasm_std::{Addr, Decimal, DepsMut, Env, StdResult, Storage, Uint128, Uint256};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -8,12 +8,12 @@ use astroport::cosmwasm_ext::AbsDiff;
 use astroport::pair_concentrated::{PromoteParams, UpdatePoolParams};
 
 use crate::constants::{
-    ADJUSTMENT_STEP_LIMITS, AMP_LIMITS, A_MULTIPLIER, A_MULTIPLIER_U128, EXTRA_PROFIT_LIMITS,
-    FEE_GAMMA_LIMITS, FEE_LIMITS, GAMMA_LIMITS, MAX_CHANGE, MA_HALF_TIME_LIMITS,
-    MIN_AMP_CHANGING_TIME, MULTIPLIER, MULTIPLIER_U128, N_COINS, PRECISION,
+    ADJUSTMENT_STEP_LIMITS, AMP_LIMITS, A_MULTIPLIER_U128, EXTRA_PROFIT_LIMITS, FEE_GAMMA_LIMITS,
+    FEE_LIMITS, GAMMA_LIMITS, MAX_CHANGE, MA_HALF_TIME_LIMITS, MIN_AMP_CHANGING_TIME, MULTIPLIER,
+    N_COINS,
 };
 use crate::error::ContractError;
-use crate::math::{geometric_mean, halfpow, newton_d, newton_y};
+use crate::math::newton_d;
 
 /// ## Description
 /// This structure stores the main concentrated pair parameters.
@@ -247,7 +247,7 @@ impl PoolState {
         if block_time < self.future_time {
             let total = Uint128::from(self.future_time - self.initial_time);
             let passed = Uint128::from(block_time - self.initial_time);
-            let left = Uint128::from(total - passed);
+            let left = total - passed;
 
             // A1 = A0 + (A1 - A0) * (block_time - t_init) / (t_end - t_init) -> simplified to:
             // A1 = ( A0 * (t_end - block_time) + A1 * (block_time - t_init) ) / (t_end - t_init)

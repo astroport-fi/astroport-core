@@ -1,11 +1,9 @@
-use cosmwasm_std::{Addr, StdError, Uint128};
-use itertools::Itertools;
+use cosmwasm_std::Addr;
 use sim::model::MUL_E18;
 
 use astroport::asset::AssetInfoExt;
 use astroport::pair_concentrated::ConcentratedPoolParams;
 use astroport_pair_concentrated::error::ContractError;
-use helper::AppExtension;
 
 use crate::helper::{Helper, TestCoin};
 

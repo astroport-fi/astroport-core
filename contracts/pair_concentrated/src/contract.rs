@@ -21,21 +21,17 @@ use astroport::asset::{
 use astroport::cosmwasm_ext::{AbsDiff, OneValue};
 use astroport::factory::PairType;
 use astroport::pair::{
-    migration_check, ConfigResponse, InstantiateMsg, StablePoolUpdateParams, DEFAULT_SLIPPAGE,
-    MAX_ALLOWED_SLIPPAGE,
+    migration_check, ConfigResponse, InstantiateMsg, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
 };
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
-    ReverseSimulationResponse, SimulationResponse, StablePoolConfig,
+    ReverseSimulationResponse, SimulationResponse,
 };
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, UpdatePoolParams,
 };
-use astroport::querier::{
-    query_factory_config, query_fee_info, query_supply, query_token_precision,
-};
+use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use astroport::DecimalCheckedOps;
 
 use crate::constants::{FEE_DENOMINATOR, MULTIPLIER, N_COINS, PRECISION};
 use crate::error::ContractError;
@@ -46,7 +42,6 @@ use crate::state::{
 use crate::utils::{
     accumulate_prices, adjust_precision, calc_provide_fee, check_asset_infos, check_assets,
     check_cw20_in_pool, compute_swap, get_share_in_assets, mint_liquidity_token_message,
-    select_pools, SwapResult,
 };
 
 /// Contract name that is used for migration.
@@ -538,13 +533,13 @@ pub fn provide_liquidity(
             price,
             new_d,
             &config.pool_params,
-            total_share.into(),
+            total_share,
         )?;
     } else {
         config.pool_state.price_state.d = new_d;
     }
 
-    let mut mint_amount: Uint128 =
+    let mint_amount: Uint128 =
         adjust_precision(mint_amount, config.greatest_precision, LP_TOKEN_PRECISION)?.try_into()?;
 
     if mint_amount.is_zero() {
@@ -718,7 +713,7 @@ fn imbalanced_withdraw(
         .cloned()
         .map(|asset| {
             // Get appropriate pool
-            let mut pool = pools
+            let pool = pools
                 .get(&asset.info)
                 .copied()
                 .ok_or_else(|| ContractError::InvalidAsset(asset.info.to_string()))?;
@@ -803,7 +798,7 @@ fn imbalanced_withdraw(
 
     update_price(
         &mut config.pool_state,
-        &env,
+        env,
         new_balances.clone(),
         price,
         after_fee_d,
@@ -848,14 +843,14 @@ pub fn swap(
     let mut config = CONFIG.load(deps.storage)?;
 
     // Offer pool balance already increased and this is good.
-    let mut pools = config
+    let pools = config
         .pair_info
         .query_pools(&deps.querier, &env.contract.address)?;
 
     let offer_ind = pools
         .iter()
         .position(|pool| pool.info.eq(&offer_asset.info))
-        .ok_or(ContractError::InvalidAsset(offer_asset.info.to_string()))?;
+        .ok_or_else(|| ContractError::InvalidAsset(offer_asset.info.to_string()))?;
     let ask_ind = 1 - offer_ind;
 
     check_swap_parameters(
@@ -876,7 +871,7 @@ pub fn swap(
     xp[1] *= config.pool_state.price_state.price_scale / PRECISION;
 
     let precision = get_precision(deps.storage, &offer_asset.info)?;
-    let mut dx = adjust_precision(offer_asset.amount, precision, config.greatest_precision)?.into();
+    let mut dx = adjust_precision(offer_asset.amount, precision, config.greatest_precision)?;
     if offer_ind == 0 {
         dx *= config.pool_state.price_state.price_scale / PRECISION;
     }
@@ -1101,16 +1096,16 @@ pub fn query_simulation(
     env: Env,
     offer_asset: Asset,
 ) -> Result<SimulationResponse, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
-    let mut pools = config
+    let pools = config
         .pair_info
         .query_pools(&deps.querier, &env.contract.address)?;
 
     let offer_ind = pools
         .iter()
         .position(|pool| pool.info.eq(&offer_asset.info))
-        .ok_or(ContractError::InvalidAsset(offer_asset.info.to_string()))?;
+        .ok_or_else(|| ContractError::InvalidAsset(offer_asset.info.to_string()))?;
     let ask_ind = 1 - offer_ind;
 
     if check_swap_parameters(
@@ -1134,7 +1129,7 @@ pub fn query_simulation(
         .collect::<StdResult<Vec<_>>>()?;
 
     let precision = get_precision(deps.storage, &offer_asset.info)?;
-    let dx = adjust_precision(offer_asset.amount, precision, config.greatest_precision)?.into();
+    let dx = adjust_precision(offer_asset.amount, precision, config.greatest_precision)?;
     xp[offer_ind] += dx;
     xp[1] *= config.pool_state.price_state.price_scale / PRECISION;
 
@@ -1186,16 +1181,16 @@ pub fn query_reverse_simulation(
     env: Env,
     ask_asset: Asset,
 ) -> Result<ReverseSimulationResponse, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
-    let mut pools = config
+    let pools = config
         .pair_info
         .query_pools(&deps.querier, &env.contract.address)?;
 
     let ask_ind = pools
         .iter()
         .position(|pool| pool.info.eq(&ask_asset.info))
-        .ok_or(ContractError::InvalidAsset(ask_asset.info.to_string()))?;
+        .ok_or_else(|| ContractError::InvalidAsset(ask_asset.info.to_string()))?;
     let offer_ind = 1 - ask_ind;
 
     // Check the swap parameters are valid
@@ -1220,7 +1215,7 @@ pub fn query_reverse_simulation(
         .collect::<StdResult<Vec<_>>>()?;
 
     let precision = get_precision(deps.storage, &ask_asset.info)?;
-    let mut dy = adjust_precision(ask_asset.amount, precision, config.greatest_precision)?.into();
+    let mut dy = adjust_precision(ask_asset.amount, precision, config.greatest_precision)?;
     if ask_ind == 0 {
         dy *= config.pool_state.price_state.price_scale / PRECISION;
     }
@@ -1419,21 +1414,20 @@ pub fn update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    let action;
-    match from_binary::<ConcentratedPoolUpdateParams>(&params)? {
+    let action = match from_binary::<ConcentratedPoolUpdateParams>(&params)? {
         ConcentratedPoolUpdateParams::Update(update_params) => {
             config.pool_params.update_params(update_params)?;
-            action = "update_params";
+            "update_params"
         }
         ConcentratedPoolUpdateParams::Promote(promote_params) => {
             config.pool_state.promote_params(&env, promote_params)?;
-            action = "promote_params";
+            "promote_params"
         }
         ConcentratedPoolUpdateParams::StopChangingAmpGamma {} => {
             config.pool_state.stop_promotion(&env);
-            action = "stop_changing_amp_gamma";
+            "stop_changing_amp_gamma"
         }
-    }
+    };
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default().add_attribute("action", action))
@@ -1448,7 +1442,7 @@ pub fn update_config(
 fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint256> {
     let config = CONFIG.load(deps.storage)?;
     // Offer pool balance already increased and this is good.
-    let mut pools = config
+    let pools = config
         .pair_info
         .query_pools(&deps.querier, &env.contract.address)?;
 

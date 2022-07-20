@@ -1,15 +1,11 @@
-use std::ops::{RangeInclusive, SubAssign};
+use cosmwasm_std::{Env, Isqrt, StdError, StdResult, Uint128, Uint256};
 
-use cosmwasm_std::{Env, Isqrt, StdError, StdResult, Uint128, Uint256, Uint64};
-use itertools::Itertools;
-
-use astroport::asset::{Asset, AssetInfo};
 use astroport::cosmwasm_ext::{AbsDiff, OneValue};
 
 use crate::constants::{
     A_MULTIPLIER, EXP_PRECISION, ITERATIONS, MULTIPLIER, N_COINS, PRECISION, UINT256_E14,
 };
-use crate::state::{AmpGamma, PoolParams, PoolState, PriceState};
+use crate::state::{PoolParams, PoolState};
 
 pub(crate) fn geometric_mean(values: &[Uint256]) -> Uint256 {
     let mul = values[0] * values[1];
@@ -170,7 +166,7 @@ pub(crate) fn update_price(
     pool_params: &PoolParams,
     total_lp: Uint256,
 ) -> StdResult<()> {
-    let mut price_state = pool_state.price_state.clone();
+    let mut price_state = pool_state.price_state;
     let block_time = env.block.time.seconds();
     if price_state.last_price_update < block_time {
         let arg = Uint256::from(block_time - price_state.last_price_update) * MULTIPLIER
@@ -182,7 +178,7 @@ pub(crate) fn update_price(
         price_state.last_price_update = block_time;
     }
 
-    let a_gamma = pool_state.get_amp_gamma(&env);
+    let a_gamma = pool_state.get_amp_gamma(env);
     let (ann, gamma) = (a_gamma.ann(), a_gamma.gamma());
     let d_unadjusted = if new_d.is_zero() {
         newton_d(ann, gamma, &init_xp)?
@@ -236,34 +232,32 @@ pub(crate) fn update_price(
         need_adjustment = true;
     }
 
-    if need_adjustment {
-        if norm > adjustment_step && !price_state.virtual_price.is_zero() {
-            let numerator = price_state.price_scale * (norm - adjustment_step)
-                + adjustment_step * price_state.price_oracle;
-            let price_scale_new = numerator / norm;
-            let xp = [
-                init_xp[0],
-                init_xp[1] * price_scale_new / price_state.price_scale,
-            ];
-            let d = newton_d(ann, gamma, &xp)?;
+    if need_adjustment && norm > adjustment_step && !price_state.virtual_price.is_zero() {
+        let numerator = price_state.price_scale * (norm - adjustment_step)
+            + adjustment_step * price_state.price_oracle;
+        let price_scale_new = numerator / norm;
+        let xp = [
+            init_xp[0],
+            init_xp[1] * price_scale_new / price_state.price_scale,
+        ];
+        let d = newton_d(ann, gamma, &xp)?;
 
-            let xp = [d / N_COINS, d * PRECISION / (N_COINS * price_scale_new)];
-            let old_virtual_price = MULTIPLIER * geometric_mean(&xp) / total_lp;
-            if old_virtual_price > MULTIPLIER
-                && Uint256::from(2u8) * old_virtual_price - MULTIPLIER > xcp_profit
-            {
-                price_state.price_scale = price_scale_new;
-                price_state.d = d;
-                price_state.virtual_price = old_virtual_price;
-            } else {
-                price_state.not_adjusted = false;
-                price_state.d = d_unadjusted;
-                price_state.virtual_price = virtual_price;
-            }
-
-            pool_state.price_state = price_state;
-            return Ok(());
+        let xp = [d / N_COINS, d * PRECISION / (N_COINS * price_scale_new)];
+        let old_virtual_price = MULTIPLIER * geometric_mean(&xp) / total_lp;
+        if old_virtual_price > MULTIPLIER
+            && Uint256::from(2u8) * old_virtual_price - MULTIPLIER > xcp_profit
+        {
+            price_state.price_scale = price_scale_new;
+            price_state.d = d;
+            price_state.virtual_price = old_virtual_price;
+        } else {
+            price_state.not_adjusted = false;
+            price_state.d = d_unadjusted;
+            price_state.virtual_price = virtual_price;
         }
+
+        pool_state.price_state = price_state;
+        return Ok(());
     }
 
     price_state.d = d_unadjusted;
@@ -282,6 +276,8 @@ mod tests {
     use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::Timestamp;
     use sim::model::{Caller, ConcentratedPairModel, A_MUL, MUL_E18};
+
+    use crate::state::{AmpGamma, PriceState};
 
     use super::*;
 

@@ -1,10 +1,10 @@
 use cosmwasm_std::{
     CheckedFromRatioError, CheckedMultiplyRatioError, ConversionOverflowError, OverflowError,
-    StdError, Uint128,
+    StdError,
 };
 use thiserror::Error;
 
-use crate::constants::{MAX_CHANGE, MIN_AMP_CHANGING_TIME};
+use crate::constants::MIN_AMP_CHANGING_TIME;
 
 /// ## Description
 /// This enum describes stableswap pair contract errors!

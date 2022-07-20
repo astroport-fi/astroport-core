@@ -1,21 +1,20 @@
 use std::cmp::Ordering;
 
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Deps, Env, QuerierWrapper, StdError,
-    StdResult, Storage, Uint128, Uint256, Uint64,
+    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Env, QuerierWrapper, StdResult,
+    Uint128, Uint256,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 
-use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
+use astroport::asset::{Asset, AssetInfo};
 use astroport::cosmwasm_ext::{AbsDiff, OneValue};
-use astroport::querier::{query_factory_config, query_fee_info};
-use astroport::DecimalCheckedOps;
+use astroport::querier::query_factory_config;
 
-use crate::constants::{MULTIPLIER, NOISE_FEE, N_COINS, PRECISION, TWAP_PRECISION};
+use crate::constants::{MULTIPLIER, NOISE_FEE, N_COINS, TWAP_PRECISION};
 use crate::error::ContractError;
-use crate::math::{newton_d, newton_y};
-use crate::state::{get_precision, Config, PoolParams};
+use crate::math::newton_y;
+use crate::state::{Config, PoolParams};
 
 /// ## Description
 /// Helper function to check if the given asset infos are valid.
@@ -56,25 +55,6 @@ pub(crate) fn check_cw20_in_pool(config: &Config, cw20_sender: &Addr) -> Result<
     }
 
     Err(ContractError::Unauthorized {})
-}
-
-/// ## Description
-/// Select offer and ask pools based on given offer info.
-/// Returns (offer_pool, ask_pool) in case of success.
-/// If it is impossible to define offer and ask pools, returns [`ContractError`].
-/// ## Params
-/// * **offer_asset_info** - asset info of the offer asset.
-///
-/// * **pools** - list of pools.
-pub(crate) fn select_pools(
-    offer_asset_info: &AssetInfo,
-    pools: &[Asset],
-) -> Result<(Asset, Asset), ContractError> {
-    let (offer_ind, _) = pools
-        .iter()
-        .find_position(|pool| pool.info.eq(offer_asset_info))
-        .ok_or(ContractError::InvalidAsset(offer_asset_info.to_string()))?;
-    Ok((pools[offer_ind].clone(), pools[1 - offer_ind].clone()))
 }
 
 /// ## Description
@@ -201,12 +181,6 @@ pub(crate) fn get_share_in_assets(
         .collect()
 }
 
-/// Structure for internal use which represents swap result.
-pub(crate) struct SwapResult {
-    pub return_amount: Uint128,
-    pub spread_amount: Uint128,
-}
-
 /// ## Description
 /// Returns the result of a swap in form of a [`SwapResult`] object. In case of error, returns [`ContractError`].
 /// ## Params
@@ -233,7 +207,7 @@ pub(crate) fn compute_swap(
 
     let mut old_xp = xp.clone();
     old_xp[offer_ind] -= dx;
-    let d = config.pool_state.get_last_d(&env, &old_xp)?;
+    let d = config.pool_state.get_last_d(env, &old_xp)?;
 
     let amp_gamma = config.pool_state.get_amp_gamma(env);
     let dy = xp[ask_ind] - newton_y(amp_gamma.ann(), amp_gamma.gamma(), &xp, d, ask_ind)?;
@@ -257,7 +231,7 @@ pub fn accumulate_prices(env: &Env, config: &mut Config) {
 
     let immut_config = config.clone();
     for (from, _, value) in config.cumulative_prices.iter_mut() {
-        let price = if &config.pair_info.asset_infos[0] == &*from {
+        let price = if config.pair_info.asset_infos[0] == *from {
             MULTIPLIER * MULTIPLIER / immut_config.pool_state.price_state.last_prices
         } else {
             immut_config.pool_state.price_state.last_prices
@@ -293,12 +267,14 @@ pub(crate) fn calc_provide_fee(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::state::{AmpGamma, PoolState, PriceState};
+    use cosmwasm_std::testing::mock_env;
+
     use astroport::asset::{native_asset_info, PairInfo};
     use astroport::factory::PairType;
-    use cosmwasm_std::testing::mock_env;
-    use cosmwasm_std::Timestamp;
+
+    use crate::state::{AmpGamma, PoolState, PriceState};
+
+    use super::*;
 
     #[test]
     fn test_accumulate_prices() {
