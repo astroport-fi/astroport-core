@@ -87,7 +87,10 @@ pub fn instantiate(
         return Err(ContractError::InitParamsNotFound {});
     }
 
-    let params: ConcentratedPoolParams = from_binary(&msg.init_params.unwrap())?;
+    let params: ConcentratedPoolParams = from_binary(
+        &msg.init_params
+            .ok_or(ContractError::InitParamsNotFound {})?,
+    )?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -1267,15 +1270,30 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
-    // let config = CONFIG.load(deps.storage)?;
-    // Ok(ConfigResponse {
-    //     block_time_last: config.block_time_last,
-    //     params: Some(to_binary(&StablePoolConfig {
-    //         amp: Decimal::from_ratio(compute_current_amp(&config, &env)?, AMP_PRECISION),
-    //     })?),
-    // })
-
-    todo!()
+    let config = CONFIG.load(deps.storage)?;
+    // TODO: which amp and gamma do we need to return? Initial, current or future?
+    let amp_gamma = config.pool_state.get_amp_gamma(&env);
+    Ok(ConfigResponse {
+        block_time_last: config.block_time_last,
+        params: Some(to_binary(&ConcentratedPoolParams {
+            amp: amp_gamma.amp.u128(),
+            gamma: amp_gamma.gamma.u128(),
+            mid_fee: Uint128::try_from(config.pool_params.mid_fee)
+                .unwrap()
+                .u128(),
+            out_fee: Uint128::try_from(config.pool_params.out_fee)
+                .unwrap()
+                .u128(),
+            fee_gamma: Uint128::try_from(config.pool_params.fee_gamma)
+                .unwrap()
+                .u128(),
+            allowed_extra_profit: Uint128::try_from(config.pool_params.allowed_extra_profit)
+                .unwrap()
+                .u128(),
+            adjustment_step: config.pool_params.adjustment_step.u128(),
+            ma_half_time: config.pool_params.ma_half_time,
+        })?),
+    })
 }
 
 /// ## Description
@@ -1409,23 +1427,22 @@ pub fn update_config(
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **env** is an object of type [`Env`].
-fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint128> {
-    // let config = CONFIG.load(deps.storage)?;
-    //
-    // let amp = compute_current_amp(&config, &env)?;
-    // let pools = config
-    //     .pair_info
-    //     .query_pools(&deps.querier, env.contract.address)?
-    //     .into_iter()
-    //     .map(|pool| {
-    //         let token_precision = query_token_precision(&deps.querier, &pool.info)?;
-    //         adjust_precision(pool.amount, token_precision, config.greatest_precision)
-    //     })
-    //     .collect::<StdResult<Vec<_>>>()?;
-    // let n_coins = config.pair_info.asset_infos.len() as u8;
-    // let leverage = amp.checked_mul(n_coins.into())?;
-    //
-    // compute_d(leverage, &pools).map_err(|_| StdError::generic_err("Failed to calculate the D"))
+fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint256> {
+    let config = CONFIG.load(deps.storage)?;
+    // Offer pool balance already increased and this is good.
+    let mut pools = config
+        .pair_info
+        .query_pools(&deps.querier, &env.contract.address)?;
 
-    todo!()
+    // Converting according to token precisions and price_scale
+    let xp = pools
+        .iter()
+        .map(|pool| {
+            let precision = get_precision(deps.storage, &pool.info)?;
+            let adjusted = adjust_precision(pool.amount, precision, config.greatest_precision)?;
+            Ok(adjusted)
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    config.pool_state.get_last_d(&env, &xp)
 }
