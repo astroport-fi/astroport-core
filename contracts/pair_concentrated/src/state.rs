@@ -8,8 +8,9 @@ use astroport::cosmwasm_ext::AbsDiff;
 use astroport::pair_concentrated::{PromoteParams, UpdatePoolParams};
 
 use crate::constants::{
-    AMP_LIMITS, A_MULTIPLIER, A_MULTIPLIER_U128, GAMMA_LIMITS, MAX_CHANGE, MIN_AMP_CHANGING_TIME,
-    MULTIPLIER, MULTIPLIER_U128, N_COINS, PRECISION,
+    ADJUSTMENT_STEP_LIMITS, AMP_LIMITS, A_MULTIPLIER, A_MULTIPLIER_U128, EXTRA_PROFIT_LIMITS,
+    FEE_GAMMA_LIMITS, FEE_LIMITS, GAMMA_LIMITS, MAX_CHANGE, MA_HALF_TIME_LIMITS,
+    MIN_AMP_CHANGING_TIME, MULTIPLIER, MULTIPLIER_U128, N_COINS, PRECISION,
 };
 use crate::error::ContractError;
 use crate::math::{geometric_mean, halfpow, newton_d, newton_y};
@@ -44,34 +45,70 @@ pub struct PoolParams {
 }
 
 impl PoolParams {
-    pub fn update_params(&mut self, update_params: UpdatePoolParams) -> StdResult<()> {
+    pub fn update_params(&mut self, update_params: UpdatePoolParams) -> Result<(), ContractError> {
         if let Some(mid_fee) = update_params.mid_fee {
-            // TODO: validation
+            if !FEE_LIMITS.contains(&mid_fee) {
+                return Err(ContractError::IncorrectPoolParam(
+                    "mid_fee".to_string(),
+                    *FEE_LIMITS.start(),
+                    *FEE_LIMITS.end(),
+                ));
+            }
             self.mid_fee = Uint256::from(mid_fee);
         }
 
         if let Some(out_fee) = update_params.out_fee {
-            // TODO: validation
+            if !FEE_LIMITS.contains(&out_fee) {
+                return Err(ContractError::IncorrectPoolParam(
+                    "out_fee".to_string(),
+                    *FEE_LIMITS.start(),
+                    *FEE_LIMITS.end(),
+                ));
+            }
             self.out_fee = Uint256::from(out_fee);
         }
 
         if let Some(fee_gamma) = update_params.fee_gamma {
-            // TODO: validation
+            if !FEE_GAMMA_LIMITS.contains(&fee_gamma) {
+                return Err(ContractError::IncorrectPoolParam(
+                    "fee_gamma".to_string(),
+                    *FEE_GAMMA_LIMITS.start(),
+                    *FEE_GAMMA_LIMITS.end(),
+                ));
+            }
             self.fee_gamma = Uint256::from(fee_gamma);
         }
 
         if let Some(allowed_extra_profit) = update_params.allowed_extra_profit {
-            // TODO: validation: 0 < allowed_extra_profit < 0.1
+            if !EXTRA_PROFIT_LIMITS.contains(&allowed_extra_profit) {
+                return Err(ContractError::IncorrectPoolParam(
+                    "allowed_extra_profit".to_string(),
+                    *EXTRA_PROFIT_LIMITS.start(),
+                    *EXTRA_PROFIT_LIMITS.end(),
+                ));
+            }
             self.allowed_extra_profit = allowed_extra_profit.into();
         }
 
         if let Some(adjustment_step) = update_params.adjustment_step {
-            // TODO: validation
-            self.adjustment_step = adjustment_step;
+            if !ADJUSTMENT_STEP_LIMITS.contains(&adjustment_step) {
+                return Err(ContractError::IncorrectPoolParam(
+                    "adjustment_step".to_string(),
+                    *ADJUSTMENT_STEP_LIMITS.start(),
+                    *ADJUSTMENT_STEP_LIMITS.end(),
+                ));
+            }
+            self.adjustment_step = adjustment_step.into();
         }
 
         if let Some(ma_half_time) = update_params.ma_half_time {
-            // TODO: validation
+            if !MA_HALF_TIME_LIMITS.contains(&ma_half_time) {
+                return Err(ContractError::IncorrectPoolParam(
+                    "ma_half_time".to_string(),
+                    *MA_HALF_TIME_LIMITS.start() as u128,
+                    *MA_HALF_TIME_LIMITS.end() as u128,
+                ));
+            }
             self.ma_half_time = ma_half_time;
         }
 
@@ -102,13 +139,15 @@ impl AmpGamma {
         if !AMP_LIMITS.contains(&amp) {
             return Err(ContractError::IncorrectPoolParam(
                 "amp".to_string(),
-                new_amp,
+                *AMP_LIMITS.start(),
+                *AMP_LIMITS.end(),
             ));
         }
         if !GAMMA_LIMITS.contains(&gamma) {
             return Err(ContractError::IncorrectPoolParam(
                 "gamma".to_string(),
-                gamma,
+                *GAMMA_LIMITS.start(),
+                *GAMMA_LIMITS.end(),
             ));
         }
 

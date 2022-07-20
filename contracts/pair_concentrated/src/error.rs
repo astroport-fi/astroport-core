@@ -37,8 +37,8 @@ pub enum ContractError {
     #[error("Native token balance mismatch between the argument and the transferred")]
     AssetMismatch {},
 
-    #[error("{0} coefficient must be greater than 0 and less than or equal to {1}")]
-    IncorrectPoolParam(String, u128),
+    #[error("{0} parameter must be greater than {1} and less than or equal to {2}")]
+    IncorrectPoolParam(String, u128, u128),
 
     #[error(
         "{0} error: The difference between the old and new amp or gamma values must not exceed {1} percent",

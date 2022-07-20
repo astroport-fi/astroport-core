@@ -20,11 +20,11 @@ fn provide_and_withdraw_no_fee() {
     let params = ConcentratedPoolParams {
         amp: 100,
         gamma: (0.000145 * MUL_E18 as f64) as u128,
-        mid_fee: 0,
-        out_fee: 0,
-        fee_gamma: 0,
-        allowed_extra_profit: Default::default(),
-        adjustment_step: Uint128::from((0.000146 * 1e18) as u128),
+        mid_fee: 250,
+        out_fee: 250,
+        fee_gamma: 1,
+        allowed_extra_profit: 0,
+        adjustment_step: (0.000146 * 1e18) as u128,
         ma_half_time: 600,
     };
 
@@ -64,7 +64,7 @@ fn provide_and_withdraw_no_fee() {
     ];
     helper.give_me_money(&assets, &user3);
     helper.provide_liquidity(&user3, &assets).unwrap();
-    assert_eq!(99_998937, helper.token_balance(&helper.lp_token, &user3));
+    assert_eq!(99_998936, helper.token_balance(&helper.lp_token, &user3));
 
     // The more provide makes pool imbalanced the more fees are charged
     let user4 = Addr::unchecked("user4");
@@ -74,7 +74,7 @@ fn provide_and_withdraw_no_fee() {
     ];
     helper.give_me_money(&assets, &user4);
     helper.provide_liquidity(&user4, &assets).unwrap();
-    assert_eq!(99_998485, helper.token_balance(&helper.lp_token, &user4));
+    assert_eq!(99_998483, helper.token_balance(&helper.lp_token, &user4));
 
     // Imbalanced provide which makes pool more balanced gives profit to the LP
     let user5 = Addr::unchecked("user5");
@@ -84,7 +84,7 @@ fn provide_and_withdraw_no_fee() {
     ];
     helper.give_me_money(&assets, &user5);
     helper.provide_liquidity(&user5, &assets).unwrap();
-    assert_eq!(99_999509, helper.token_balance(&helper.lp_token, &user5));
+    assert_eq!(99_999508, helper.token_balance(&helper.lp_token, &user5));
 
     helper
         .withdraw_liquidity(&user1, 100_000000, vec![])
@@ -107,7 +107,7 @@ fn provide_and_withdraw_no_fee() {
         )
         .unwrap();
 
-    assert_eq!(49_999062, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(49_999061, helper.token_balance(&helper.lp_token, &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user2));
     assert_eq!(100_000000, helper.coin_balance(&test_coins[1], &user2));
 
@@ -115,12 +115,12 @@ fn provide_and_withdraw_no_fee() {
     let err = helper
         .withdraw_liquidity(
             &user3,
-            99_998937,
+            99_998936,
             vec![helper.assets[&test_coins[1]].with_balance(201_000000u128)],
         )
         .unwrap_err();
     assert_eq!(
-        "Generic error: Not enough LP tokens. You need 100500251 LP tokens.",
+        "Generic error: Not enough LP tokens. You need 100500253 LP tokens.",
         err.root_cause().to_string()
     );
 
@@ -128,14 +128,14 @@ fn provide_and_withdraw_no_fee() {
     helper
         .withdraw_liquidity(
             &user3,
-            99_998937,
+            99_998936,
             vec![helper.assets[&test_coins[1]].with_balance(50_000000u128)],
         )
         .unwrap();
 
     // initial balance - spent amount; the rest goes back to the user3
     assert_eq!(
-        99_998937 - 25_000015,
+        99_998936 - 25_000015,
         helper.token_balance(&helper.lp_token, &user3)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user3));
@@ -154,11 +154,11 @@ fn provide_with_different_precision() {
     let params = ConcentratedPoolParams {
         amp: 100,
         gamma: (0.000145 * MUL_E18 as f64) as u128,
-        mid_fee: 0,
-        out_fee: 0,
-        fee_gamma: 0,
-        allowed_extra_profit: Default::default(),
-        adjustment_step: Uint128::from((0.000146 * 1e18) as u128),
+        mid_fee: 250,
+        out_fee: 250,
+        fee_gamma: 1,
+        allowed_extra_profit: 0,
+        adjustment_step: (0.000146 * 1e18) as u128,
         ma_half_time: 600,
     };
 
@@ -201,11 +201,11 @@ fn swap_different_precisions() {
     let params = ConcentratedPoolParams {
         amp: 100,
         gamma: (0.000145 * MUL_E18 as f64) as u128,
-        mid_fee: 0,
-        out_fee: 0,
-        fee_gamma: 0,
-        allowed_extra_profit: Default::default(),
-        adjustment_step: Uint128::from((0.000146 * 1e18) as u128),
+        mid_fee: 250,
+        out_fee: 250,
+        fee_gamma: 1,
+        allowed_extra_profit: 0,
+        adjustment_step: (0.000146 * 1e18) as u128,
         ma_half_time: 600,
     };
 
@@ -250,11 +250,11 @@ fn check_swaps() {
     let params = ConcentratedPoolParams {
         amp: 100,
         gamma: (0.000145 * MUL_E18 as f64) as u128,
-        mid_fee: 0,
-        out_fee: 0,
-        fee_gamma: 0,
-        allowed_extra_profit: Default::default(),
-        adjustment_step: Uint128::from((0.000146 * 1e18) as u128),
+        mid_fee: 250,
+        out_fee: 250,
+        fee_gamma: 1,
+        allowed_extra_profit: 0,
+        adjustment_step: (0.000146 * 1e18) as u128,
         ma_half_time: 600,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -287,11 +287,11 @@ fn check_wrong_initializations() {
     let mut params = ConcentratedPoolParams {
         amp: 100,
         gamma: (0.000145 * MUL_E18 as f64) as u128,
-        mid_fee: 0,
-        out_fee: 0,
-        fee_gamma: 0,
-        allowed_extra_profit: Default::default(),
-        adjustment_step: Uint128::from((0.000146 * 1e18) as u128),
+        mid_fee: 250,
+        out_fee: 250,
+        fee_gamma: 1,
+        allowed_extra_profit: 0,
+        adjustment_step: (0.000146 * 1e18) as u128,
         ma_half_time: 600,
     };
 
@@ -312,7 +312,7 @@ fn check_wrong_initializations() {
     .unwrap_err();
 
     assert_eq!(
-        ContractError::IncorrectPoolParam("amp".to_string(), 0u128),
+        ContractError::IncorrectPoolParam("amp".to_string(), 1000, 1000000000),
         err.downcast().unwrap(),
     );
 }
