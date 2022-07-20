@@ -222,14 +222,14 @@ fn swap_different_precisions() {
     let offer_asset = helper.assets[&test_coins[0]].with_balance(100_00000u128);
     // Checking direct swap simulation
     let sim_resp = helper.simulate_swap(&offer_asset, None).unwrap();
-    // // And reverse swap as well
-    // let reverse_sim_resp = helper
-    //     .simulate_reverse_swap(
-    //         &helper.assets[&test_coins[2]].with_balance(sim_resp.return_amount.u128()),
-    //         Some(helper.assets[&test_coins[0]].clone()),
-    //     )
-    //     .unwrap();
-    // assert_eq!(offer_asset.amount, reverse_sim_resp.offer_amount);
+    // And reverse swap as well
+    let reverse_sim_resp = helper
+        .simulate_reverse_swap(
+            &helper.assets[&test_coins[1]].with_balance(sim_resp.return_amount.u128()),
+            None,
+        )
+        .unwrap();
+    assert_eq!(offer_asset.amount, reverse_sim_resp.offer_amount);
 
     helper.give_me_money(&[offer_asset.clone()], &user);
     helper.swap(&user, &offer_asset, None).unwrap();

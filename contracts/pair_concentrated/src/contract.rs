@@ -39,7 +39,7 @@ use astroport::DecimalCheckedOps;
 
 use crate::constants::{FEE_DENOMINATOR, MULTIPLIER, N_COINS, PRECISION};
 use crate::error::ContractError;
-use crate::math::{geometric_mean, newton_d, update_price};
+use crate::math::{geometric_mean, newton_d, newton_y, update_price};
 use crate::state::{
     get_precision, store_precisions, AmpGamma, Config, PoolParams, PoolState, PriceState, CONFIG,
 };
@@ -1113,11 +1113,15 @@ pub fn query_simulation(
         .ok_or(ContractError::InvalidAsset(offer_asset.info.to_string()))?;
     let ask_ind = 1 - offer_ind;
 
-    check_swap_parameters(
+    if check_swap_parameters(
         pools[offer_ind].amount,
         pools[ask_ind].amount,
         offer_asset.amount,
-    )?;
+    )
+    .is_err()
+    {
+        return Ok(SimulationResponse::default());
+    };
 
     // Converting according to token precisions and price_scale
     let mut xp = pools
@@ -1177,76 +1181,88 @@ pub fn query_simulation(
 ///
 /// * **ask_asset** is an object of type [`Asset`]. This is the asset to swap to as well as the desired
 /// amount of ask assets to receive from the swap.
-///
-/// * **offer_asset_info** is an object of type [`Option<AssetInfo>`]. This is optional field which specifies the asset to swap from.
-/// May be omitted only in case the pool length is 2.
 pub fn query_reverse_simulation(
     deps: Deps,
     env: Env,
     ask_asset: Asset,
 ) -> Result<ReverseSimulationResponse, ContractError> {
-    // let config = CONFIG.load(deps.storage)?;
-    // let pools = config
-    //     .pair_info
-    //     .query_pools(&deps.querier, &config.pair_info.contract_addr)?
-    //     .into_iter()
-    //     .map(|pool| {
-    //         let token_precision = query_token_precision(&deps.querier, &pool.info)?;
-    //         Ok(Asset {
-    //             amount: adjust_precision(pool.amount, token_precision, config.greatest_precision)?,
-    //             ..pool
-    //         })
-    //     })
-    //     .collect::<StdResult<Vec<_>>>()?;
-    // let (offer_pool, ask_pool) =
-    //     select_pools(offer_asset_info.as_ref(), Some(&ask_asset.info), &pools)?;
-    //
-    // // Check the swap parameters are valid
-    // if check_swap_parameters(offer_pool.amount, ask_pool.amount, ask_asset.amount).is_err() {
-    //     return Ok(ReverseSimulationResponse {
-    //         offer_amount: Uint128::zero(),
-    //         spread_amount: Uint128::zero(),
-    //         commission_amount: Uint128::zero(),
-    //     });
-    // }
-    //
-    // // Get fee info from factory
-    // let fee_info = query_fee_info(
-    //     &deps.querier,
-    //     &config.factory_addr,
-    //     config.pair_info.pair_type.clone(),
-    // )?;
-    // let before_commission = (Decimal::one() - fee_info.total_fee_rate)
-    //     .inv()
-    //     .unwrap_or_else(Decimal::one)
-    //     .checked_mul_uint128(ask_asset.amount)?;
-    //
-    // let token_precision = get_precision(deps.storage, &ask_pool.info)?;
-    // let offer_amount = calc_y(
-    //     &ask_pool.info,
-    //     &offer_pool.info,
-    //     adjust_precision(
-    //         ask_pool.amount.checked_sub(before_commission)?,
-    //         token_precision,
-    //         config.greatest_precision,
-    //     )?,
-    //     &pools,
-    //     compute_current_amp(&config, &env)?,
-    // )?
-    // .checked_sub(offer_pool.amount)?;
-    //
-    // let token_precision = get_precision(deps.storage, &offer_pool.info)?;
-    // let offer_amount = adjust_precision(offer_amount, config.greatest_precision, token_precision)?;
-    //
-    // Ok(ReverseSimulationResponse {
-    //     offer_amount,
-    //     spread_amount: offer_amount.saturating_sub(before_commission),
-    //     commission_amount: fee_info
-    //         .total_fee_rate
-    //         .checked_mul_uint128(before_commission)?,
-    // })
+    let mut config = CONFIG.load(deps.storage)?;
 
-    todo!()
+    let mut pools = config
+        .pair_info
+        .query_pools(&deps.querier, &env.contract.address)?;
+
+    let ask_ind = pools
+        .iter()
+        .position(|pool| pool.info.eq(&ask_asset.info))
+        .ok_or(ContractError::InvalidAsset(ask_asset.info.to_string()))?;
+    let offer_ind = 1 - ask_ind;
+
+    // Check the swap parameters are valid
+    if check_swap_parameters(
+        pools[offer_ind].amount,
+        pools[ask_ind].amount,
+        ask_asset.amount,
+    )
+    .is_err()
+    {
+        return Ok(ReverseSimulationResponse::default());
+    }
+
+    // Converting according to token precisions and price_scale
+    let mut xp = pools
+        .iter()
+        .map(|pool| {
+            let precision = get_precision(deps.storage, &pool.info)?;
+            let adjusted = adjust_precision(pool.amount, precision, config.greatest_precision)?;
+            Ok(adjusted)
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    let precision = get_precision(deps.storage, &ask_asset.info)?;
+    let mut dy = adjust_precision(ask_asset.amount, precision, config.greatest_precision)?.into();
+    if ask_ind == 0 {
+        dy *= config.pool_state.price_state.price_scale / PRECISION;
+    }
+    xp[1] *= config.pool_state.price_state.price_scale / PRECISION;
+
+    let d = config.pool_state.get_last_d(&env, &xp)?;
+
+    let before_commission = MULTIPLIER / (MULTIPLIER - config.pool_params.fee(&xp)) * dy;
+    let mut commission_amount = before_commission - dy;
+    xp[ask_ind] -= before_commission;
+    let amp_gamma = config.pool_state.get_amp_gamma(&env);
+    let mut offer_amount =
+        newton_y(amp_gamma.ann(), amp_gamma.gamma(), &xp, d, offer_ind)? - xp[offer_ind];
+
+    let mut spread_amount = offer_amount.saturating_sub(dy);
+
+    if offer_ind > 0 {
+        offer_amount = offer_amount
+            .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
+        commission_amount = commission_amount
+            .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
+        spread_amount = spread_amount
+            .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
+    }
+    // Resolving precisions
+    let offer_precision = get_precision(deps.storage, &pools[offer_ind].info)?;
+    let offer_amount =
+        adjust_precision(offer_amount, config.greatest_precision, offer_precision)?.try_into()?;
+    let commission_amount = adjust_precision(
+        commission_amount,
+        config.greatest_precision,
+        offer_precision,
+    )?
+    .try_into()?;
+    let spread_amount: Uint128 =
+        adjust_precision(spread_amount, config.greatest_precision, offer_precision)?.try_into()?;
+
+    Ok(ReverseSimulationResponse {
+        offer_amount,
+        spread_amount,
+        commission_amount,
+    })
 }
 
 /// ## Description

@@ -118,7 +118,7 @@ pub struct ConfigResponse {
 }
 
 /// This structure holds the parameters that are returned from a swap simulation response
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct SimulationResponse {
     /// The amount of ask assets returned by the swap
     pub return_amount: Uint128,
@@ -129,7 +129,7 @@ pub struct SimulationResponse {
 }
 
 /// This structure holds the parameters that are returned from a reverse swap simulation response.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct ReverseSimulationResponse {
     /// The amount of offer assets returned by the reverse swap
     pub offer_amount: Uint128,
