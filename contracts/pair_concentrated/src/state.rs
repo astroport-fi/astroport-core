@@ -23,6 +23,8 @@ pub struct Config {
     pub pair_info: PairInfo,
     /// The factory contract address
     pub factory_addr: Addr,
+    /// The last timestamp when the pair contract updated the asset cumulative prices
+    pub block_time_last: u64,
     /// The greatest precision of assets in the pool
     pub greatest_precision: u8,
     /// The vector contains cumulative prices for each pair of assets in the pool

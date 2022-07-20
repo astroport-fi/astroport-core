@@ -17,6 +17,8 @@ pub const PRECISION: Uint256 = MULTIPLIER;
 pub const ITERATIONS: u8 = 32;
 /// Calculation precision for halfpow function
 pub const EXP_PRECISION: Uint256 = Uint256::from_u128(1e10 as u128);
+/// Decimal precision for TWAP results
+pub const TWAP_PRECISION: Uint256 = Uint256::from_u128(10e6 as u128);
 /// The minimum time interval for updating Amplifier or Gamma
 pub const MIN_AMP_CHANGING_TIME: u64 = 86400;
 /// The maximum allowed change of Amplifier or Gamma (in form of bps).

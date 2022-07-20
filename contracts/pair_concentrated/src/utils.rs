@@ -9,11 +9,10 @@ use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
 use astroport::cosmwasm_ext::{AbsDiff, OneValue};
-use astroport::pair::TWAP_PRECISION;
 use astroport::querier::{query_factory_config, query_fee_info};
 use astroport::DecimalCheckedOps;
 
-use crate::constants::{NOISE_FEE, N_COINS, PRECISION};
+use crate::constants::{MULTIPLIER, NOISE_FEE, N_COINS, PRECISION, TWAP_PRECISION};
 use crate::error::ContractError;
 use crate::math::{newton_d, newton_y};
 use crate::state::{get_precision, Config, PoolParams};
@@ -247,65 +246,36 @@ pub(crate) fn compute_swap(
 /// ## Description
 /// Accumulate token prices for the assets in the pool.
 /// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
 /// * **env** is an object of type [`Env`].
 ///
 /// * **config** is an object of type [`Config`].
-///
-/// * **pools** is an array of [`Asset`] type items. These are the assets available in the pool.
-pub fn accumulate_prices(
-    deps: Deps,
-    env: Env,
-    config: &mut Config,
-    pools: &[Asset],
-) -> Result<(), ContractError> {
-    // let block_time = env.block.time.seconds();
-    // if block_time <= config.block_time_last {
-    //     return Ok(());
-    // }
-    //
-    // let greater_precision = config.greatest_precision.max(TWAP_PRECISION);
-    //
-    // let time_elapsed = Uint128::from(block_time - config.block_time_last);
-    //
-    // let immut_config = config.clone();
-    // for (from, to, value) in config.cumulative_prices.iter_mut() {
-    //     let offer_asset = from.with_balance(adjust_precision(
-    //         Uint128::from(1u8),
-    //         0u8,
-    //         greater_precision,
-    //     )?);
-    //
-    //     let (offer_pool, ask_pool) = select_pools(Some(from), Some(to), pools)?;
-    //     let SwapResult { return_amount, .. } = compute_swap(
-    //         deps.storage,
-    //         &env,
-    //         &immut_config,
-    //         &offer_asset,
-    //         &offer_pool,
-    //         &ask_pool,
-    //         pools,
-    //     )?;
-    //
-    //     // Get fee info from factory
-    //     let fee_info = query_fee_info(
-    //         &deps.querier,
-    //         &config.factory_addr,
-    //         immut_config.pair_info.pair_type.clone(),
-    //     )?;
-    //
-    //     let commission_amount = fee_info.total_fee_rate.checked_mul_uint128(return_amount)?;
-    //     let return_amount = return_amount.saturating_sub(commission_amount);
-    //
-    //     *value = value.wrapping_add(time_elapsed.checked_mul(return_amount)?);
-    // }
-    //
-    // config.block_time_last = block_time;
-    //
-    // Ok(())
+pub fn accumulate_prices(env: &Env, config: &mut Config) {
+    let block_time = env.block.time.seconds();
+    if block_time <= config.block_time_last {
+        return;
+    }
 
-    todo!()
+    let time_elapsed = Uint128::from(block_time - config.block_time_last);
+
+    let immut_config = config.clone();
+    for (from, _, value) in config.cumulative_prices.iter_mut() {
+        let price = if &config.pair_info.asset_infos[0] == &*from {
+            MULTIPLIER * MULTIPLIER / immut_config.pool_state.price_state.last_prices
+        } else {
+            immut_config.pool_state.price_state.last_prices
+        };
+        // price max value = 1e24 which fits into Uint128 thus we use unwrap here
+        let price: Uint128 = price
+            .multiply_ratio(TWAP_PRECISION, MULTIPLIER)
+            .try_into()
+            .unwrap();
+        // time_elapsed * price does not need checked_mul.
+        // price max value = 1e24, u128 max value = 340282366920938463463374607431768211455
+        // overflow is possible if time_elapsed > 340282366920939 seconds ~ 10790283 years
+        *value = value.wrapping_add(time_elapsed * price);
+    }
+
+    config.block_time_last = block_time;
 }
 
 pub(crate) fn calc_provide_fee(
@@ -321,4 +291,78 @@ pub(crate) fn calc_provide_fee(
         .try_fold(Uint256::zero(), |acc, x| acc.checked_add(avg.diff(*x)))?;
 
     Ok(fee * s_diff / sum + NOISE_FEE)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::{AmpGamma, PoolState, PriceState};
+    use astroport::asset::{native_asset_info, PairInfo};
+    use astroport::factory::PairType;
+    use cosmwasm_std::testing::mock_env;
+    use cosmwasm_std::Timestamp;
+
+    #[test]
+    fn test_accumulate_prices() {
+        let mut env = mock_env();
+        let asset_infos = vec![
+            native_asset_info("test1".to_string()),
+            native_asset_info("test2".to_string()),
+        ];
+        let mut config = Config {
+            factory_addr: Addr::unchecked(""),
+            block_time_last: env.block.time.seconds(),
+            greatest_precision: 0,
+            cumulative_prices: vec![
+                (asset_infos[0].clone(), asset_infos[1].clone(), 0u8.into()),
+                (asset_infos[1].clone(), asset_infos[0].clone(), 0u8.into()),
+            ],
+            pair_info: PairInfo {
+                asset_infos,
+                contract_addr: Addr::unchecked(""),
+                liquidity_token: Addr::unchecked(""),
+                pair_type: PairType::Concentrated {},
+            },
+            pool_params: Default::default(),
+            pool_state: PoolState {
+                initial: AmpGamma {
+                    amp: Default::default(),
+                    gamma: Default::default(),
+                },
+                future: AmpGamma {
+                    amp: Default::default(),
+                    gamma: Default::default(),
+                },
+                future_time: 0,
+                initial_time: 0,
+                price_state: PriceState {
+                    price_oracle: Default::default(),
+                    last_prices: MULTIPLIER,
+                    price_scale: Default::default(),
+                    last_price_update: 0,
+                    xcp_profit: Default::default(),
+                    virtual_price: Default::default(),
+                    d: Default::default(),
+                    not_adjusted: false,
+                },
+            },
+        };
+
+        env.block.time = env.block.time.plus_seconds(5000);
+        accumulate_prices(&env, &mut config);
+        assert_eq!(config.cumulative_prices[0].2.u128(), 10_000_000 * 5000);
+        assert_eq!(config.cumulative_prices[1].2.u128(), 10_000_000 * 5000);
+
+        config.pool_state.price_state.last_prices = MULTIPLIER.multiply_ratio(1u8, 2u8);
+        env.block.time = env.block.time.plus_seconds(5000);
+        accumulate_prices(&env, &mut config);
+        assert_eq!(
+            config.cumulative_prices[0].2.u128(),
+            10_000_000 * 5000 + 2 * 10_000_000 * 5000
+        );
+        assert_eq!(
+            config.cumulative_prices[1].2.u128(),
+            10_000_000 * 5000 + 10_000_000 / 2 * 5000
+        );
+    }
 }

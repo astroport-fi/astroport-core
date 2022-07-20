@@ -141,6 +141,7 @@ pub fn instantiate(
             pair_type: PairType::Concentrated {},
         },
         factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr)?,
+        block_time_last: env.block.time.seconds(),
         greatest_precision,
         cumulative_prices,
         pool_params,
@@ -560,10 +561,7 @@ pub fn provide_liquidity(
         auto_stake.unwrap_or(false),
     )?);
 
-    // TODO: accumulate prices
-    // if accumulate_prices(deps.as_ref(), env, &mut config, &pools).is_ok() {
-    //     CONFIG.save(deps.storage, &config)?;
-    // }
+    accumulate_prices(&env, &mut config);
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -663,10 +661,7 @@ pub fn withdraw_liquidity(
         .into(),
     );
 
-    // TODO: update accumulate prices
-    // if accumulate_prices(deps.as_ref(), env, &mut config, &pools).is_ok() {
-    //     CONFIG.save(deps.storage, &config)?;
-    // }
+    accumulate_prices(&env, &mut config);
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -962,13 +957,9 @@ pub fn swap(
         }
     }
 
-    // Save all price related variables
-    CONFIG.save(deps.storage, &config)?;
+    accumulate_prices(&env, &mut config);
 
-    // TODO: update accumulate prices logic
-    // if accumulate_prices(deps.as_ref(), env, &mut config, &xp).is_ok() {
-    //     CONFIG.save(deps.storage, &config)?;
-    // }
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new()
         .add_messages(
@@ -1262,8 +1253,7 @@ pub fn query_reverse_simulation(
 pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
     let mut config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps.querier, &config)?;
-    accumulate_prices(deps, env, &mut config, &assets)
-        .map_err(|err| StdError::generic_err(format!("{err}")))?;
+    accumulate_prices(&env, &mut config);
 
     Ok(CumulativePricesResponse {
         assets,
