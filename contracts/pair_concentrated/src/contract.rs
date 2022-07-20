@@ -266,10 +266,10 @@ pub fn execute(
         } => provide_liquidity(deps, env, info, assets, auto_stake, receiver),
         ExecuteMsg::Swap {
             offer_asset,
-            ask_asset_info,
             belief_price,
             max_spread,
             to,
+            ..
         } => {
             offer_asset.info.check(deps.api)?;
             if !offer_asset.is_native_token() {
@@ -284,7 +284,6 @@ pub fn execute(
                 env,
                 info.sender,
                 offer_asset,
-                ask_asset_info,
                 belief_price,
                 max_spread,
                 to_addr,
@@ -313,10 +312,10 @@ pub fn receive_cw20(
 ) -> Result<Response, ContractError> {
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::Swap {
-            ask_asset_info,
             belief_price,
             max_spread,
             to,
+            ..
         } => {
             let config = CONFIG.load(deps.storage)?;
 
@@ -330,7 +329,6 @@ pub fn receive_cw20(
                 env,
                 sender,
                 token_asset(info.sender, cw20_msg.amount),
-                ask_asset_info,
                 belief_price,
                 max_spread,
                 to_addr,
@@ -549,7 +547,7 @@ pub fn provide_liquidity(
         return Err(ContractError::LiquidityAmountTooSmall {});
     }
 
-    // TODO: assert slippage
+    // TODO: assert slippage?
 
     // Mint LP token for the caller (or for the receiver if it was set)
     let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());
@@ -845,7 +843,6 @@ pub fn swap(
     env: Env,
     sender: Addr,
     offer_asset: Asset,
-    _ask_asset_info: Option<AssetInfo>,
     belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
     to: Option<Addr>,
@@ -857,14 +854,17 @@ pub fn swap(
         .pair_info
         .query_pools(&deps.querier, &env.contract.address)?;
 
-    // TODO: Check if the liquidity is non-zero
-    // check_swap_parameters(offer_pool.amount, ask_pool.amount, offer_asset.amount)?;
-
     let (offer_ind, _) = pools
         .iter()
         .find_position(|pool| pool.info.eq(&offer_asset.info))
         .ok_or(ContractError::InvalidAsset(offer_asset.info.to_string()))?;
     let ask_ind = 1 - offer_ind;
+
+    check_swap_parameters(
+        pools[offer_ind].amount.checked_sub(offer_asset.amount)?,
+        pools[ask_ind].amount,
+        offer_asset.amount,
+    )?;
 
     // Converting according to token precisions and price_scale
     let mut xp = pools
@@ -878,30 +878,25 @@ pub fn swap(
     xp[1] *= config.pool_state.price_state.price_scale / PRECISION;
 
     let precision = get_precision(deps.storage, &offer_asset.info)?;
-    let dx = adjust_precision(offer_asset.amount, precision, config.greatest_precision)?.into();
+    let mut dx = adjust_precision(offer_asset.amount, precision, config.greatest_precision)?.into();
+    if offer_ind == 0 {
+        dx *= config.pool_state.price_state.price_scale / PRECISION;
+    }
     let mut return_amount = compute_swap(&env, &config, dx, offer_ind, ask_ind, &xp)?;
 
     xp[ask_ind] -= return_amount;
     return_amount -= Uint256::one(); // Reduce by 1 just for safety reasons.
     let mut commission_amount = config.pool_params.fee(&xp) * return_amount / MULTIPLIER;
     xp[ask_ind] += commission_amount;
+    let mut spread_amount = dx.saturating_sub(return_amount);
     return_amount = return_amount.saturating_sub(commission_amount);
-
-    // TODO: Check spread
-    let spread_amount = Uint128::zero();
-    // // Check the max spread limit (if it was specified)
-    // assert_max_spread(
-    //     belief_price,
-    //     max_spread,
-    //     offer_asset.amount,
-    //     return_amount,
-    //     spread_amount + commission_amount,
-    // )?;
 
     if ask_ind > 0 {
         return_amount = return_amount
             .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
         commission_amount = commission_amount
+            .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
+        spread_amount = spread_amount
             .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
     }
     let new_price = if offer_ind == 0 {
@@ -929,13 +924,24 @@ pub fn swap(
     )?;
     let receiver = to.unwrap_or_else(|| sender.clone());
 
-    // Resolving precision for ask asset
-    let ask_precision = get_precision(&*deps.storage, &offer_asset.info)?;
+    // Resolving precisions
+    let ask_precision = get_precision(&*deps.storage, &pools[ask_ind].info)?;
     let return_amount =
         adjust_precision(return_amount, config.greatest_precision, ask_precision)?.try_into()?;
     let commission_amount =
         adjust_precision(commission_amount, config.greatest_precision, ask_precision)?
             .try_into()?;
+    let spread_amount: Uint128 =
+        adjust_precision(spread_amount, config.greatest_precision, ask_precision)?.try_into()?;
+
+    // Check the max spread limit (if it was specified)
+    assert_max_spread(
+        belief_price,
+        max_spread,
+        offer_asset.amount,
+        return_amount,
+        spread_amount + commission_amount,
+    )?;
 
     let mut messages = vec![Asset {
         info: pools[ask_ind].info.clone(),

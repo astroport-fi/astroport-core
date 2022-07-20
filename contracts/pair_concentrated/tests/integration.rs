@@ -238,7 +238,7 @@ fn swap_different_precisions() {
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
     // 99.999010 x BAR tokens
     // assert_eq!(99_949011, sim_resp.return_amount.u128());
-    assert_eq!(99_99949, helper.coin_balance(&test_coins[1], &user));
+    assert_eq!(99_999496, helper.coin_balance(&test_coins[1], &user));
 }
 
 #[test]
@@ -259,15 +259,28 @@ fn check_swaps() {
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
+    let user = Addr::unchecked("user");
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+
+    // Check swap does not work if pool is empty
+    let err = helper
+        .swap(
+            &user,
+            &offer_asset,
+            Some(helper.assets[&test_coins[1]].clone()),
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: One of the pools is empty"
+    );
+
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
         helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
     ];
     helper.provide_liquidity(&owner, &assets).unwrap();
-
-    let user = Addr::unchecked("user");
-    let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
-    helper.give_me_money(&[offer_asset.clone()], &user);
 
     helper
         .swap(
@@ -278,6 +291,20 @@ fn check_swaps() {
         .unwrap();
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
     assert_eq!(99_999496, helper.coin_balance(&test_coins[1], &user));
+
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(90_000_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    let err = helper
+        .swap(
+            &user,
+            &offer_asset,
+            Some(helper.assets[&test_coins[1]].clone()),
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::MaxSpreadAssertion {},
+        err.downcast().unwrap()
+    )
 }
 
 #[test]
