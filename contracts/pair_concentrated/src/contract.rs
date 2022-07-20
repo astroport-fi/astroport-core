@@ -495,7 +495,7 @@ pub fn provide_liquidity(
             new_d / N_COINS,
             new_d * PRECISION / (config.pool_state.price_state.price_scale * N_COINS),
         ];
-        geometric_mean(&tmp_xp)?
+        geometric_mean(&tmp_xp)
     };
 
     let deposits = assets_collection

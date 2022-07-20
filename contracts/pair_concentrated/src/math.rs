@@ -1,6 +1,6 @@
 use std::ops::{RangeInclusive, SubAssign};
 
-use cosmwasm_std::{Env, StdError, StdResult, Uint128, Uint256, Uint64};
+use cosmwasm_std::{Env, Isqrt, StdError, StdResult, Uint128, Uint256, Uint64};
 use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo};
@@ -11,24 +11,13 @@ use crate::constants::{
 };
 use crate::state::{AmpGamma, PoolParams, PoolState, PriceState};
 
-pub(crate) fn geometric_mean(values: &[Uint256]) -> StdResult<Uint256> {
-    let mut d = values[0].max(values[1]);
+pub(crate) fn geometric_mean(values: &[Uint256]) -> Uint256 {
     let mul = values[0] * values[1];
-
-    for _ in 0..ITERATIONS {
-        let d_prev = d;
-        d = (d + mul.checked_div(d)?) / N_COINS;
-        let diff = d.diff(d_prev);
-        if diff <= Uint256::one() || diff * MULTIPLIER < d {
-            return Ok(d);
-        }
-    }
-
-    Err(StdError::generic_err("geometric_mean is not converging"))
+    mul.isqrt()
 }
 
 pub(crate) fn newton_d(ann: Uint256, gamma: Uint256, pools: &[Uint256]) -> StdResult<Uint256> {
-    let mut d = N_COINS * geometric_mean(pools)?;
+    let mut d = N_COINS * geometric_mean(pools);
     let sum: Uint256 = pools.iter().sum();
     let init_g1k0 = gamma + MULTIPLIER;
 
@@ -219,7 +208,7 @@ pub(crate) fn update_price(
     let mut virtual_price = MULTIPLIER;
 
     if !price_state.virtual_price.is_zero() {
-        let xcp = geometric_mean(&xp)?;
+        let xcp = geometric_mean(&xp);
         virtual_price = MULTIPLIER * xcp / total_lp;
         xcp_profit = price_state.xcp_profit * virtual_price / price_state.virtual_price;
 
@@ -259,7 +248,7 @@ pub(crate) fn update_price(
             let d = newton_d(ann, gamma, &xp)?;
 
             let xp = [d / N_COINS, d * PRECISION / (N_COINS * price_scale_new)];
-            let old_virtual_price = MULTIPLIER * geometric_mean(&xp)? / total_lp;
+            let old_virtual_price = MULTIPLIER * geometric_mean(&xp) / total_lp;
             if old_virtual_price > MULTIPLIER
                 && Uint256::from(2u8) * old_virtual_price - MULTIPLIER > xcp_profit
             {
@@ -301,7 +290,7 @@ mod tests {
         let values = [1000u128 * MUL_E18, 5000u128 * MUL_E18];
 
         let uint256_values: Vec<Uint256> = values.iter().cloned().map(Uint256::from_u128).collect();
-        let result = geometric_mean(&uint256_values).unwrap();
+        let result = geometric_mean(&uint256_values);
         assert_eq!(result / MULTIPLIER, Uint256::from(2236u32));
 
         let model_result: u128 = Caller::new()
