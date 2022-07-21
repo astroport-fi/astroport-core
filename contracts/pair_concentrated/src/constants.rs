@@ -4,11 +4,11 @@ use std::ops::RangeInclusive;
 /// ## Internal constants
 pub const MULTIPLIER_U128: u128 = 1e18 as u128;
 pub const MULTIPLIER: Uint256 = Uint256::from_u128(MULTIPLIER_U128);
+pub const FEE_MULTIPLIER: Uint256 = Uint256::from_u128(1e10 as u128);
 pub const N_COINS: Uint256 = Uint256::from_u128(2u128);
 pub const A_MULTIPLIER_U128: u128 = 10_000u128;
 pub const A_MULTIPLIER: Uint256 = Uint256::from_u128(A_MULTIPLIER_U128);
 pub const UINT256_E14: Uint256 = Uint256::from_u128(1e14 as u128);
-pub const FEE_DENOMINATOR: Uint256 = Uint256::from_u128(1e10 as u128);
 
 /// ## Adjustable constants
 /// The precision to convert to

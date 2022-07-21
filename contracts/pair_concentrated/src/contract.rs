@@ -33,7 +33,7 @@ use astroport::pair_concentrated::{
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
-use crate::constants::{FEE_DENOMINATOR, MULTIPLIER, N_COINS, PRECISION};
+use crate::constants::{FEE_MULTIPLIER, MULTIPLIER, N_COINS, PRECISION};
 use crate::error::ContractError;
 use crate::math::{geometric_mean, newton_d, newton_y, update_price};
 use crate::state::{
@@ -501,7 +501,7 @@ fn provide_liquidity(
         .collect_vec();
     if !old_d.is_zero() {
         let provide_fee = calc_provide_fee(&config.pool_params, &deposits, &xp)? * mint_amount
-            / FEE_DENOMINATOR
+            / FEE_MULTIPLIER
             + Uint256::one();
         mint_amount -= provide_fee;
 
@@ -759,7 +759,7 @@ fn imbalanced_withdraw(
     for i in 0..n_coins as usize {
         let ideal_balance = withdraw_d.checked_multiply_ratio(old_balances[i], init_d)?;
         let diff = ideal_balance.diff(new_balances[i]);
-        new_balances[i] = new_balances[i].checked_sub(fee * diff / FEE_DENOMINATOR)?;
+        new_balances[i] = new_balances[i].checked_sub(fee * diff / FEE_MULTIPLIER)?;
     }
 
     let after_fee_d = newton_d(amp_gamma.ann(), amp_gamma.gamma(), &new_balances)?;
@@ -879,7 +879,7 @@ fn swap(
 
     xp[ask_ind] -= return_amount;
     return_amount -= Uint256::one(); // Reduce by 1 just for safety reasons.
-    let mut commission_amount = config.pool_params.fee(&xp) * return_amount / MULTIPLIER;
+    let mut commission_amount = config.pool_params.fee(&xp) * return_amount / FEE_MULTIPLIER;
     xp[ask_ind] += commission_amount;
     let mut spread_amount = dx.saturating_sub(return_amount);
     return_amount = return_amount.saturating_sub(commission_amount);
@@ -1137,7 +1137,7 @@ fn query_simulation(
 
     xp[ask_ind] -= return_amount;
     return_amount -= Uint256::one(); // Reduce by 1 just for safety reasons.
-    let mut commission_amount = config.pool_params.fee(&xp) * return_amount / MULTIPLIER;
+    let mut commission_amount = config.pool_params.fee(&xp) * return_amount / FEE_MULTIPLIER;
     xp[ask_ind] += commission_amount;
     let mut spread_amount = dx.saturating_sub(return_amount);
     return_amount = return_amount.saturating_sub(commission_amount);
@@ -1223,7 +1223,8 @@ fn query_reverse_simulation(
 
     let d = config.pool_state.get_last_d(&env, &xp)?;
 
-    let before_commission = MULTIPLIER / (MULTIPLIER - config.pool_params.fee(&xp)) * dy;
+    let before_commission =
+        FEE_MULTIPLIER / (FEE_MULTIPLIER - config.pool_params.fee(&xp)) * dy + Uint256::one();
     let mut commission_amount = before_commission - dy;
     xp[ask_ind] -= before_commission;
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
