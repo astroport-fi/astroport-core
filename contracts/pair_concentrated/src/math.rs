@@ -428,7 +428,7 @@ mod tests {
             0f64,
             0,
             params.adjustment_step.u128() as f64 / 1e18,
-            params.ma_half_time as u32,
+            params.ma_half_time,
         )
         .unwrap();
 

@@ -6,8 +6,8 @@ use std::vec;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, from_binary, to_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response, StdError,
-    StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, Uint256, WasmMsg,
+    Decimal256, Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
+    StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, Uint256, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -19,6 +19,7 @@ use astroport::asset::{
     token_asset, Asset, AssetInfo, PairInfo,
 };
 use astroport::cosmwasm_ext::{AbsDiff, OneValue};
+use astroport::decimal2decimal256;
 use astroport::factory::PairType;
 use astroport::pair::{
     migration_check, ConfigResponse, InstantiateMsg, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
@@ -917,6 +918,9 @@ fn swap(
     )?;
     let receiver = to.unwrap_or_else(|| sender.clone());
 
+    // Check the max spread limit (if it was specified)
+    assert_max_spread(belief_price, max_spread, dx, return_amount, spread_amount)?;
+
     // Resolving precisions
     let ask_precision = get_precision(&*deps.storage, &pools[ask_ind].info)?;
     let return_amount =
@@ -926,15 +930,6 @@ fn swap(
             .try_into()?;
     let spread_amount: Uint128 =
         adjust_precision(spread_amount, config.greatest_precision, ask_precision)?.try_into()?;
-
-    // Check the max spread limit (if it was specified)
-    assert_max_spread(
-        belief_price,
-        max_spread,
-        offer_asset.amount,
-        return_amount,
-        spread_amount + commission_amount,
-    )?;
 
     let mut messages = vec![Asset {
         info: pools[ask_ind].info.clone(),
@@ -1328,19 +1323,22 @@ fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
 fn assert_max_spread(
     belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
-    offer_amount: Uint128,
-    return_amount: Uint128,
-    spread_amount: Uint128,
+    offer_amount: Uint256,
+    return_amount: Uint256,
+    spread_amount: Uint256,
 ) -> Result<(), ContractError> {
-    let default_spread = Decimal::from_str(DEFAULT_SLIPPAGE)?;
-    let max_allowed_spread = Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?;
+    let default_spread = Decimal256::from_str(DEFAULT_SLIPPAGE)?;
+    let max_allowed_spread = Decimal256::from_str(MAX_ALLOWED_SLIPPAGE)?;
 
-    let max_spread = max_spread.unwrap_or(default_spread);
+    let max_spread = max_spread
+        .map(decimal2decimal256)
+        .transpose()?
+        .unwrap_or(default_spread);
     if max_spread.gt(&max_allowed_spread) {
         return Err(ContractError::AllowedSpreadAssertion {});
     }
 
-    if let Some(belief_price) = belief_price {
+    if let Some(belief_price) = belief_price.map(decimal2decimal256).transpose()? {
         let expected_return = offer_amount
             * belief_price.inv().ok_or_else(|| {
                 ContractError::Std(StdError::generic_err(
@@ -1351,11 +1349,11 @@ fn assert_max_spread(
         let spread_amount = expected_return.saturating_sub(return_amount);
 
         if return_amount < expected_return
-            && Decimal::from_ratio(spread_amount, expected_return) > max_spread
+            && Decimal256::from_ratio(spread_amount, expected_return) > max_spread
         {
             return Err(ContractError::MaxSpreadAssertion {});
         }
-    } else if Decimal::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
+    } else if Decimal256::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
         return Err(ContractError::MaxSpreadAssertion {});
     }
 

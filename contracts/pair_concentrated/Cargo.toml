@@ -39,7 +39,7 @@ itertools = "0.10"
 anyhow = "1.0"
 cosmwasm-schema = "1.0.0"
 terra-cosmwasm = { version = "2.2.0" }
-proptest = "1.0.0"
+proptest = "1"
 sim = { git = "https://github.com/astroport-fi/astroport-sims.git", branch = "feat/conc_liq_simulator", package = "concentrated_swap_sim" }
 astroport-token = {path = "../token"}
 cw-multi-test = "0.13"

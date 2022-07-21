@@ -449,7 +449,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "concentrated_swap_sim"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/astroport-sims.git?branch=feat/conc_liq_simulator#d1b0182856e5bcf6f292296c5b746d2d6d0dcbbd"
+source = "git+https://github.com/astroport-fi/astroport-sims.git?branch=feat/conc_liq_simulator#fe9d7ecbbd5b27d98d763217d1b559b7a8b9ac05"
 dependencies = [
  "pyo3 0.16.5",
 ]
