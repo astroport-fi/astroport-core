@@ -518,7 +518,7 @@ fn provide_liquidity(
                     xp_for_prices[1 - covered_share_ind].multiply_ratio(mint_amount, total_share);
                 let provide_fees = deposits[covered_share_ind]
                     - xp_for_prices[covered_share_ind].multiply_ratio(mint_amount, total_share);
-                price = uncovered_share / provide_fees;
+                price = uncovered_share * MULTIPLIER / provide_fees;
                 // Invert the price if the covered share is the first pool
                 if covered_share_ind == 0 {
                     price = MULTIPLIER * MULTIPLIER / price;

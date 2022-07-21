@@ -230,7 +230,7 @@ fn swap_different_precisions() {
     assert_eq!(offer_asset.amount, reverse_sim_resp.offer_amount);
 
     helper.give_me_money(&[offer_asset.clone()], &user);
-    helper.swap(&user, &offer_asset, None).unwrap();
+    helper.swap(&user, &offer_asset).unwrap();
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
     // 99.999010 x BAR tokens
     assert_eq!(99_999496, sim_resp.return_amount.u128());
@@ -260,13 +260,7 @@ fn check_swaps() {
     helper.give_me_money(&[offer_asset.clone()], &user);
 
     // Check swap does not work if pool is empty
-    let err = helper
-        .swap(
-            &user,
-            &offer_asset,
-            Some(helper.assets[&test_coins[1]].clone()),
-        )
-        .unwrap_err();
+    let err = helper.swap(&user, &offer_asset).unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
         "Generic error: One of the pools is empty"
@@ -278,25 +272,13 @@ fn check_swaps() {
     ];
     helper.provide_liquidity(&owner, &assets).unwrap();
 
-    helper
-        .swap(
-            &user,
-            &offer_asset,
-            Some(helper.assets[&test_coins[1]].clone()),
-        )
-        .unwrap();
+    helper.swap(&user, &offer_asset).unwrap();
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
     assert_eq!(99_999496, helper.coin_balance(&test_coins[1], &user));
 
     let offer_asset = helper.assets[&test_coins[0]].with_balance(90_000_000000u128);
     helper.give_me_money(&[offer_asset.clone()], &user);
-    let err = helper
-        .swap(
-            &user,
-            &offer_asset,
-            Some(helper.assets[&test_coins[1]].clone()),
-        )
-        .unwrap_err();
+    let err = helper.swap(&user, &offer_asset).unwrap_err();
     assert_eq!(
         ContractError::MaxSpreadAssertion {},
         err.downcast().unwrap()
@@ -340,23 +322,28 @@ fn check_wrong_initializations() {
     );
 }
 
-/*
 #[test]
 fn check_withdraw_charges_fees() {
     let owner = Addr::unchecked("owner");
 
-    let test_coins = vec![
-        TestCoin::native("uluna"),
-        TestCoin::cw20("USDC"),
-        TestCoin::cw20("USDD"),
-    ];
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), 100u64, None).unwrap();
+    let mut params = ConcentratedPoolParams {
+        amp: 100,
+        gamma: (0.000145 * MUL_E18 as f64) as u128,
+        mid_fee: 500000,
+        out_fee: 500000,
+        fee_gamma: 1,
+        allowed_extra_profit: 0,
+        adjustment_step: (0.000146 * 1e18) as u128,
+        ma_half_time: 600,
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
     let assets = vec![
-        helper.assets[&test_coins[0]].with_balance(100_000_000_000000u128),
-        helper.assets[&test_coins[1]].with_balance(100_000_000_000000u128),
-        helper.assets[&test_coins[2]].with_balance(100_000_000_000000u128),
+        helper.assets[&test_coins[0]].with_balance(1_000_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(1_000_000_000000u128),
     ];
     helper.provide_liquidity(&owner, &assets).unwrap();
 
@@ -365,15 +352,9 @@ fn check_withdraw_charges_fees() {
 
     // Usual swap for reference
     helper.give_me_money(&[offer_asset.clone()], &user1);
-    helper
-        .swap(
-            &user1,
-            &offer_asset,
-            Some(helper.assets[&test_coins[1]].clone()),
-        )
-        .unwrap();
+    helper.swap(&user1, &offer_asset).unwrap();
     let usual_swap_amount = helper.coin_balance(&test_coins[1], &user1);
-    assert_eq!(99_950000, usual_swap_amount);
+    assert_eq!(99_999950, usual_swap_amount);
 
     // Trying to swap LUNA -> USDC via provide/withdraw
     let user2 = Addr::unchecked("user2");
@@ -393,25 +374,23 @@ fn check_withdraw_charges_fees() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: Not enough LP tokens. You need 100025000 LP tokens."
+        "Generic error: Not enough LP tokens. You need 50002544 LP tokens."
     );
 
     helper
         .withdraw_liquidity(
             &user2,
             lp_tokens_amount,
-            vec![helper.assets[&test_coins[1]].with_balance(usual_swap_amount)],
+            vec![helper.assets[&test_coins[1]].with_balance(99_991350u128)],
         )
         .unwrap();
 
-    // A small residual of LP tokens is left
-    assert_eq!(16, helper.token_balance(&helper.lp_token, &user2));
-    assert_eq!(
-        usual_swap_amount,
-        helper.coin_balance(&test_coins[1], &user2)
-    );
+    assert_eq!(0, helper.token_balance(&helper.lp_token, &user2));
+    // With provide/withdraw user receives slightly less coins because of NOISE_FEE
+    assert!(helper.coin_balance(&test_coins[1], &user2) < usual_swap_amount);
 }
 
+/*
 #[test]
 fn check_5pool_prices() {
     let owner = Addr::unchecked("owner");

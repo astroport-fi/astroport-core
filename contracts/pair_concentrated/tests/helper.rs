@@ -219,19 +219,14 @@ impl Helper {
             .execute_contract(sender.clone(), self.lp_token.clone(), &msg, &[])
     }
 
-    pub fn swap(
-        &mut self,
-        sender: &Addr,
-        offer_asset: &Asset,
-        ask_asset_info: Option<AssetInfo>,
-    ) -> AnyResult<AppResponse> {
+    pub fn swap(&mut self, sender: &Addr, offer_asset: &Asset) -> AnyResult<AppResponse> {
         match &offer_asset.info {
             AssetInfo::Token { contract_addr } => {
                 let msg = Cw20ExecuteMsg::Send {
                     contract: self.pair_addr.to_string(),
                     amount: offer_asset.amount,
                     msg: to_binary(&Cw20HookMsg::Swap {
-                        ask_asset_info,
+                        ask_asset_info: None,
                         belief_price: None,
                         max_spread: None,
                         to: None,
@@ -252,7 +247,7 @@ impl Helper {
 
                 let msg = ExecuteMsg::Swap {
                     offer_asset: offer_asset.clone(),
-                    ask_asset_info,
+                    ask_asset_info: None,
                     belief_price: None,
                     max_spread: None,
                     to: None,
