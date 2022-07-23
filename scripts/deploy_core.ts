@@ -40,14 +40,14 @@ async function main() {
     await uploadAndInitMaker(terra, wallet)
 
     // // Set new owner for admin
-    // network = readArtifact(terra.config.chainID) // reload variables
-    // console.log('Propose owner for factory. Onwership has to be claimed within 7 days')
-    // await executeContract(terra, wallet, network.factoryAddress, {
-    //     "propose_new_owner": {
-    //         owner: network.multisigAddress,
-    //         expires_in: 604800 // 7 days
-    //     }
-    // })
+    network = readArtifact(terra.config.chainID) // reload variables
+    console.log('Propose owner for factory. Onwership has to be claimed within 7 days')
+    await executeContract(terra, wallet, network.factoryAddress, {
+        "propose_new_owner": {
+            owner: network.multisigAddress,
+            expires_in: 604800 // 7 days
+        }
+    })
 
 
     console.log('FINISH')
@@ -205,11 +205,11 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
         )
         // @ts-ignore
         network.makerAddress = resp.shift().shift()
-        console.log(`Address Maker Contract: ${network.makerAddress}`)
+        console.log(`Maker Contract Address: ${network.makerAddress}`)
         writeArtifact(network, terra.config.chainID)
 
         // Set maker address in factory
-        console.log('Set maker and proper owner address in factory')
+        console.log('Set the Maker and the proper owner address in the factory')
         await executeContract(terra, wallet, network.factoryAddress, {
             "update_config": {
                 fee_address: network.makerAddress

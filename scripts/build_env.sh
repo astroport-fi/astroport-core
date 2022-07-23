@@ -6,7 +6,7 @@ projectPath=$(cd "$(dirname "${0}")" && cd ../ && pwd)
 
 artifactPath="$projectPath/artifacts"
 if [ ! -d "$artifactPath" ]; then
-    npm run build-artifacts
+    npm run build-release
 fi
 
 terraLocalPath="${TERRA_LOCAL_PATH:-"$(dirname "$projectPath")/terra-local"}"
