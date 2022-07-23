@@ -49,18 +49,6 @@ async function main() {
 
     // 6. Swap native tokens
     await swapFromNative(router, network, astroport, cl.wallet.key.accAddress);
-    // 7. Provide LUNA-aUST liquidity
-    // const liquidity_amount = 100000;
-    // await provideLiquidity(network, astroport, cl.wallet.key.accAddress, network.poolAustLuna, [
-    //     new NativeAsset('uluna', liquidity_amount.toString()),
-    //     new TokenAsset('terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl', liquidity_amount.toString())
-    // ])
-
-    // // 8. Provide aUST-UST liquidity
-    // await provideLiquidity(network, astroport, cl.wallet.key.accAddress, network.poolLunaUst, [
-    //     new NativeAsset('uluna', liquidity_amount.toString()),
-    //     new NativeAsset('uusd', liquidity_amount.toString())
-    // ])
 }
 
 async function assertMinimumReceive(router: Router, accAddress: string) {
@@ -156,7 +144,7 @@ async function swapFromNative(router: Router, network: any, astroport: Astroport
     strictEqual(astro_balance_before_swap, astro_balance_after_swap + swapRate.amount.toNumber());
 }
 
-export async function provideLiquidity(network: any, astroport: Astroport, accAddress: string, poolAddress: string, assets: (NativeAsset|TokenAsset)[]) {
+async function provideLiquidity(network: any, astroport: Astroport, accAddress: string, poolAddress: string, assets: (NativeAsset|TokenAsset)[]) {
     const pool = astroport.pair(poolAddress);
     let pair_info = await pool.queryPair();
     console.log(util.inspect(pair_info, false, null, true));
