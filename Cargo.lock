@@ -17,6 +17,19 @@ checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
 [[package]]
 name = "astroport"
 version = "1.2.0"
+source = "git+https://github.com/astroport-fi/astroport-core?rev=779c0b548359ec9e5abd67a561c7c7bbaac333b6#779c0b548359ec9e5abd67a561c7c7bbaac333b6"
+dependencies = [
+ "cosmwasm-std 1.0.0",
+ "cw-storage-plus 0.13.4",
+ "cw20 0.13.4",
+ "schemars",
+ "serde",
+ "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "1.2.0"
 source = "git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8#973aab9419229cb221023066f96b18f2edf75ba8"
 dependencies = [
  "cosmwasm-std 0.16.7",
@@ -90,10 +103,25 @@ dependencies = [
 
 [[package]]
 name = "astroport-generator"
+version = "1.1.0"
+source = "git+https://github.com/astroport-fi/astroport-core?rev=779c0b548359ec9e5abd67a561c7c7bbaac333b6#779c0b548359ec9e5abd67a561c7c7bbaac333b6"
+dependencies = [
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core?rev=779c0b548359ec9e5abd67a561c7c7bbaac333b6)",
+ "cosmwasm-std 1.0.0",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-generator"
 version = "1.2.0"
 source = "git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8#973aab9419229cb221023066f96b18f2edf75ba8"
 dependencies = [
- "astroport 1.2.0",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8)",
  "cosmwasm-std 0.16.7",
  "cw-storage-plus 0.8.1",
  "cw2 0.8.1",
@@ -108,9 +136,11 @@ name = "astroport-generator"
 version = "2.0.0"
 dependencies = [
  "anyhow",
- "astroport 1.2.0",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core?rev=779c0b548359ec9e5abd67a561c7c7bbaac333b6)",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core?rev=973aab9419229cb221023066f96b18f2edf75ba8)",
  "astroport 2.0.0",
  "astroport-factory",
+ "astroport-generator 1.1.0",
  "astroport-generator 1.2.0",
  "astroport-generator-proxy-to-mirror",
  "astroport-governance",

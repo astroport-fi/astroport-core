@@ -56,3 +56,13 @@ rev = "973aab9419229cb221023066f96b18f2edf75ba8"
 git = "https://github.com/astroport-fi/astroport-core"
 package = "astroport"
 rev = "973aab9419229cb221023066f96b18f2edf75ba8"
+
+[dev-dependencies.astroport-generator_v110]
+git = "https://github.com/astroport-fi/astroport-core"
+package = "astroport-generator"
+rev = "779c0b548359ec9e5abd67a561c7c7bbaac333b6"
+
+[dev-dependencies.astroport-package-generator_v110]
+git = "https://github.com/astroport-fi/astroport-core"
+package = "astroport"
+rev = "779c0b548359ec9e5abd67a561c7c7bbaac333b6"

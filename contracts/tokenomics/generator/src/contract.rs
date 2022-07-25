@@ -2618,7 +2618,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                 let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 
                 let keys = POOL_INFO
-                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
+                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
                     .map(|v| {
                         let res = v?;
                         Ok(res)
