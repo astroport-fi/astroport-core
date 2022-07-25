@@ -125,10 +125,10 @@ pub(crate) fn halfpow(power: Uint256) -> StdResult<Uint256> {
         return Ok(Uint256::zero());
     }
 
-    let otherpow = power - intpow * MULTIPLIER;
+    let frac_pow = power - intpow * MULTIPLIER;
     let result = MULTIPLIER / Uint256::from(2u8).pow(intpow_u128.u128() as u32);
 
-    if otherpow.is_zero() {
+    if frac_pow.is_zero() {
         return Ok(result);
     }
 
@@ -139,10 +139,10 @@ pub(crate) fn halfpow(power: Uint256) -> StdResult<Uint256> {
     for i in 1..ITERATIONS {
         let k = Uint256::from(i as u128) * MULTIPLIER;
         let mut c = k - MULTIPLIER;
-        if otherpow > c {
+        if frac_pow > c {
             neg = !neg;
         }
-        c = otherpow.diff(c);
+        c = frac_pow.diff(c);
         term = term * c / Uint256::from(2u8) / k;
         if neg {
             s -= term;
@@ -274,7 +274,7 @@ pub(crate) fn update_price(
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::mock_env;
-    use cosmwasm_std::Timestamp;
+    use cosmwasm_std::{Decimal, Timestamp};
     use sim::model::{Caller, ConcentratedPairModel, A_MUL, MUL_E18};
 
     use crate::state::{AmpGamma, PriceState};
@@ -299,7 +299,7 @@ mod tests {
     #[test]
     fn check_halfpow() {
         let mul_float = MUL_E18 as f64;
-        let power = 1234.56789;
+        let power = 0.49833333333333333;
         let power_u256 = Uint256::from((power * mul_float) as u128);
 
         let real_result = 0.5f64.powf(power);

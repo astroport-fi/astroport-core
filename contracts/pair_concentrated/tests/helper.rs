@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coin, to_binary, Addr, Coin, Empty, StdResult, Uint128};
+use cosmwasm_std::{coin, from_slice, to_binary, Addr, Coin, Empty, StdError, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
@@ -16,6 +16,7 @@ use astroport::pair::{
 use astroport::pair_concentrated::ConcentratedPoolParams;
 use astroport::querier::NATIVE_TOKEN_PRECISION;
 use astroport_pair_concentrated::contract::{execute, instantiate, query, reply};
+use astroport_pair_concentrated::state::Config;
 
 const INIT_BALANCE: u128 = 1_000_000_000000;
 
@@ -359,6 +360,15 @@ impl Helper {
                 .send_tokens(self.owner.clone(), recipient.clone(), &funds)
                 .unwrap();
         }
+    }
+
+    pub fn query_config(&self) -> StdResult<Config> {
+        let binary = self
+            .app
+            .wrap()
+            .query_wasm_raw(&self.pair_addr, b"config")?
+            .ok_or_else(|| StdError::generic_err("Failed to find config in storage"))?;
+        from_slice(&binary)
     }
 }
 

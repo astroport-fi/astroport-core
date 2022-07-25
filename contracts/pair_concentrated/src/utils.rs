@@ -13,7 +13,7 @@ use astroport::querier::query_factory_config;
 
 use crate::constants::{MULTIPLIER, NOISE_FEE, N_COINS, TWAP_PRECISION};
 use crate::error::ContractError;
-use crate::math::newton_y;
+use crate::math::{newton_d, newton_y};
 use crate::state::{Config, PoolParams};
 
 /// ## Description
@@ -207,9 +207,11 @@ pub(crate) fn compute_swap(
 
     let mut old_xp = xp.clone();
     old_xp[offer_ind] -= dx;
-    let d = config.pool_state.get_last_d(env, &old_xp)?;
+    // TODO: cached D sometimes wrong
+    // let d = config.pool_state.get_last_d(env, &old_xp)?;
 
     let amp_gamma = config.pool_state.get_amp_gamma(env);
+    let d = newton_d(amp_gamma.ann(), amp_gamma.gamma(), &old_xp)?;
     let dy = xp[ask_ind] - newton_y(amp_gamma.ann(), amp_gamma.gamma(), &xp, d, ask_ind)?;
 
     Ok(dy)

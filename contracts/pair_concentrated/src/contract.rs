@@ -842,6 +842,7 @@ fn swap(
     to: Option<Addr>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
+    let offer_amount: Uint256 = offer_asset.amount.into();
 
     // Offer pool balance already increased and this is good.
     let pools = config
@@ -869,37 +870,35 @@ fn swap(
             Ok(adjusted)
         })
         .collect::<StdResult<Vec<_>>>()?;
-    xp[1] *= config.pool_state.price_state.price_scale / PRECISION;
+    let mut ask_pool = xp[ask_ind];
+    xp[1] = xp[1] * config.pool_state.price_state.price_scale / PRECISION;
 
     let precision = get_precision(deps.storage, &offer_asset.info)?;
     let mut dx = adjust_precision(offer_asset.amount, precision, config.greatest_precision)?;
-    if offer_ind == 0 {
+    if offer_ind > 0 {
         dx *= config.pool_state.price_state.price_scale / PRECISION;
     }
     let mut return_amount = compute_swap(&env, &config, dx, offer_ind, ask_ind, &xp)?;
 
     xp[ask_ind] -= return_amount;
     return_amount -= Uint256::one(); // Reduce by 1 just for safety reasons.
-    let mut commission_amount = config.pool_params.fee(&xp) * return_amount / FEE_MULTIPLIER;
-    xp[ask_ind] += commission_amount;
-    let mut spread_amount = dx.saturating_sub(return_amount);
-    return_amount = return_amount.saturating_sub(commission_amount);
-
     if ask_ind > 0 {
         return_amount = return_amount
             .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
-        commission_amount = commission_amount
-            .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
-        spread_amount = spread_amount
-            .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
     }
+    let mut commission_amount = config.pool_params.fee(&xp) * return_amount / FEE_MULTIPLIER;
+    return_amount -= commission_amount;
+    ask_pool -= return_amount;
+    let mut spread_amount = offer_amount.saturating_sub(return_amount);
+
     let new_price = if offer_ind == 0 {
-        Uint256::from(offer_asset.amount) * MULTIPLIER / return_amount
+        offer_amount * MULTIPLIER / return_amount
     } else {
-        return_amount * MULTIPLIER / Uint256::from(offer_asset.amount)
+        return_amount * MULTIPLIER / offer_amount
     };
 
     let total_lp = query_supply(&deps.querier, &config.pair_info.liquidity_token)?.into();
+    xp[ask_ind] = ask_pool;
     update_price(
         &mut config.pool_state,
         &env,
@@ -1446,7 +1445,7 @@ fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint256> {
         .query_pools(&deps.querier, &env.contract.address)?;
 
     // Converting according to token precisions and price_scale
-    let xp = pools
+    let mut xp = pools
         .iter()
         .map(|pool| {
             let precision = get_precision(deps.storage, &pool.info)?;
@@ -1454,6 +1453,7 @@ fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint256> {
             Ok(adjusted)
         })
         .collect::<StdResult<Vec<_>>>()?;
+    xp[1] *= config.pool_state.price_state.price_scale / PRECISION;
 
     config.pool_state.get_last_d(&env, &xp)
 }
