@@ -383,7 +383,7 @@ fn check_withdraw_charges_fees() {
         .withdraw_liquidity(
             &user2,
             lp_tokens_amount,
-            vec![helper.assets[&test_coins[1]].with_balance(99_991350u128)],
+            vec![helper.assets[&test_coins[1]].with_balance(99_991348u128)],
         )
         .unwrap();
 
