@@ -2557,9 +2557,9 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             "1.0.0" => {
                 let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 
-                let keys = POOL_INFO
+                let keys = migration::POOL_INFOV100
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .collect::<StdResult<Vec<_>>>()?;
+                    .collect::<Result<Vec<Addr>, StdError>>()?;
 
                 for key in keys {
                     let pool_info_v100 = migration::POOL_INFOV100
@@ -2617,28 +2617,11 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             "1.1.0" => {
                 let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 
-                let keys_110 = migration::POOL_INFOV110
+                let keys = migration::POOL_INFOV110
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-                    .map(|v| {
-                        let res = v?;
-                        Ok(res)
-                    })
                     .collect::<Result<Vec<Addr>, StdError>>()?;
 
-                // TODO: empty keys, try to debugging here
-                let keys = POOL_INFO
-                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-                    .map(|v| {
-                        let res = v?;
-                        Ok(res)
-                    })
-                    .collect::<Result<Vec<Addr>, StdError>>()?;
-
-                if !keys.is_empty() {
-                    return Err(ContractError::MigrationError {});
-                }
-
-                for key in keys_110 {
+                for key in keys {
                     let pool_info_v110 = migration::POOL_INFOV110
                         .load(deps.storage, &Addr::unchecked(key.clone()))?;
 
