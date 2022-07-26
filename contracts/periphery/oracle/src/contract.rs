@@ -191,7 +191,7 @@ fn consult(
     let one = Uint128::new(10_u128.pow(p.into()));
 
     average_prices
-        .iter_mut()
+        .iter()
         .map(|(asset, price_average)| {
             if price_average.is_zero() {
                 let price = query_prices(
