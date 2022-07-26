@@ -17,7 +17,7 @@ pub const TWAP_PRECISION: u8 = 6;
 /// This structure describes the parameters used for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// Information about the two assets in the pool
+    /// Information about assets in the pool
     pub asset_infos: Vec<AssetInfo>,
     /// The token contract code ID used for the tokens in the pool
     pub token_code_id: u64,
@@ -99,7 +99,7 @@ pub enum QueryMsg {
     QueryComputeD {},
 }
 
-/// This struct is used to return a query result with the total amount of LP tokens and the two assets in a specific pool.
+/// This struct is used to return a query result with the total amount of LP tokens and assets in a specific pool.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolResponse {
     /// The assets in the pool together with asset amounts
@@ -142,7 +142,7 @@ pub struct ReverseSimulationResponse {
 /// This structure is used to return a cumulative prices query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CumulativePricesResponse {
-    /// The two assets in the pool to query
+    /// The assets in the pool to query
     pub assets: Vec<Asset>,
     /// The total amount of LP tokens currently issued
     pub total_share: Uint128,

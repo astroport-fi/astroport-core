@@ -1,16 +1,14 @@
 use std::cmp::Ordering;
 
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Deps, Env, QuerierWrapper, StdResult,
-    Storage, Uint128, Uint64,
+    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Decimal256, Deps, Env, QuerierWrapper,
+    StdResult, Storage, Uint128, Uint64,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 
-use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
-use astroport::pair::TWAP_PRECISION;
-use astroport::querier::{query_factory_config, query_fee_info};
-use astroport::DecimalCheckedOps;
+use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
+use astroport::querier::query_factory_config;
 
 use crate::error::ContractError;
 use crate::math::calc_y;
@@ -70,8 +68,8 @@ pub(crate) fn check_cw20_in_pool(config: &Config, cw20_sender: &Addr) -> Result<
 pub(crate) fn select_pools(
     offer_asset_info: Option<&AssetInfo>,
     ask_asset_info: Option<&AssetInfo>,
-    pools: &[Asset],
-) -> Result<(Asset, Asset), ContractError> {
+    pools: &[DecimalAsset],
+) -> Result<(DecimalAsset, DecimalAsset), ContractError> {
     if pools.len() == 2 {
         match (offer_asset_info, ask_asset_info) {
             (Some(offer_asset_info), _) => {
@@ -281,41 +279,38 @@ pub(crate) struct SwapResult {
 ///
 /// * **offer_asset** is an object of type [`Asset`]. This is the asset that is being offered.
 ///
-/// * **offer_pool** is an object of type [`Uint128`]. This is the total amount of offer assets in the pool.
+/// * **offer_pool** is an object of type [`DecimalAsset`]. This is the pool of offered asset.
 ///
-/// * **ask_pool** is an object of type [`Uint128`]. This is the total amount of ask assets in the pool.
+/// * **ask_pool** is an object of type [`DecimalAsset`]. This is the asked asset.
 ///
-/// * **pools** is an array of [`Asset`] type items. These are the assets available in the pool.
+/// * **pools** is an array of [`DecimalAsset`] type items. These are the assets available in the pool.
 pub(crate) fn compute_swap(
     storage: &dyn Storage,
     env: &Env,
     config: &Config,
-    offer_asset: &Asset,
-    offer_pool: &Asset,
-    ask_pool: &Asset,
-    pools: &[Asset],
+    offer_asset: &DecimalAsset,
+    offer_pool: &DecimalAsset,
+    ask_pool: &DecimalAsset,
+    pools: &[DecimalAsset],
 ) -> Result<SwapResult, ContractError> {
-    let token_precision = get_precision(storage, &offer_asset.info)?;
-    let offer_amount = adjust_precision(
-        offer_asset.amount,
-        token_precision,
-        config.greatest_precision,
-    )?;
+    let token_precision = get_precision(storage, &ask_pool.info)?;
 
     let new_ask_pool = calc_y(
         &offer_asset.info,
         &ask_pool.info,
-        offer_pool.amount.checked_add(offer_amount)?,
+        offer_pool.amount + offer_asset.amount,
         pools,
         compute_current_amp(config, env)?,
+        token_precision,
     )?;
 
-    let token_precision = get_precision(storage, &ask_pool.info)?;
-    let new_ask_pool = adjust_precision(new_ask_pool, config.greatest_precision, token_precision)?;
-    let return_amount = ask_pool.amount.checked_sub(new_ask_pool)?;
+    let return_amount = ask_pool.amount.to_uint128_with_precision(token_precision)? - new_ask_pool;
+    let offer_asset_amount = offer_asset
+        .amount
+        .to_uint128_with_precision(token_precision)?;
 
     // We consider swap rate 1:1 in stable swap thus any difference is considered as spread.
-    let spread_amount = offer_asset.amount.saturating_sub(return_amount);
+    let spread_amount = offer_asset_amount.saturating_sub(return_amount);
 
     Ok(SwapResult {
         return_amount,
@@ -332,29 +327,26 @@ pub(crate) fn compute_swap(
 ///
 /// * **config** is an object of type [`Config`].
 ///
-/// * **pools** is an array of [`Asset`] type items. These are the assets available in the pool.
+/// * **pools** is an array of [`DecimalAsset`] type items. These are the assets available in the pool.
 pub fn accumulate_prices(
     deps: Deps,
     env: Env,
     config: &mut Config,
-    pools: &[Asset],
+    pools: &[DecimalAsset],
 ) -> Result<(), ContractError> {
     let block_time = env.block.time.seconds();
     if block_time <= config.block_time_last {
         return Ok(());
     }
 
-    let greater_precision = config.greatest_precision.max(TWAP_PRECISION);
-
     let time_elapsed = Uint128::from(block_time - config.block_time_last);
 
     let immut_config = config.clone();
     for (from, to, value) in config.cumulative_prices.iter_mut() {
-        let offer_asset = from.with_balance(adjust_precision(
-            Uint128::from(1u8),
-            0u8,
-            greater_precision,
-        )?);
+        let offer_asset = DecimalAsset {
+            info: from.clone(),
+            amount: Decimal256::one(),
+        };
 
         let (offer_pool, ask_pool) = select_pools(Some(from), Some(to), pools)?;
         let SwapResult { return_amount, .. } = compute_swap(
@@ -366,16 +358,6 @@ pub fn accumulate_prices(
             &ask_pool,
             pools,
         )?;
-
-        // Get fee info from factory
-        let fee_info = query_fee_info(
-            &deps.querier,
-            &config.factory_addr,
-            immut_config.pair_info.pair_type.clone(),
-        )?;
-
-        let commission_amount = fee_info.total_fee_rate.checked_mul_uint128(return_amount)?;
-        let return_amount = return_amount.saturating_sub(commission_amount);
 
         *value = value.wrapping_add(time_elapsed.checked_mul(return_amount)?);
     }

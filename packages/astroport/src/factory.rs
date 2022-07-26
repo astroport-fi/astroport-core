@@ -107,7 +107,7 @@ pub enum ExecuteMsg {
     CreatePair {
         /// The pair type (exposed in [`PairType`])
         pair_type: PairType,
-        /// The two assets to create the pool for
+        /// The assets to create the pool for
         asset_infos: Vec<AssetInfo>,
         /// Optional binary serialised parameters for custom pool types
         init_params: Option<Binary>,

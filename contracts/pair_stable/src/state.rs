@@ -39,7 +39,7 @@ pub(crate) fn store_precisions(deps: DepsMut, asset_infos: &[AssetInfo]) -> StdR
     let mut max = 0u8;
 
     for asset_info in asset_infos {
-        let precision = asset_info.query_token_precision(&deps.querier)?;
+        let precision = asset_info.decimals(&deps.querier)?;
         max = max.max(precision);
         PRECISIONS.save(deps.storage, asset_info.to_string(), &precision)?;
     }

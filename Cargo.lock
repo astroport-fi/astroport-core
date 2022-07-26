@@ -36,6 +36,7 @@ dependencies = [
  "cosmwasm-std 1.0.0",
  "cw-storage-plus 0.13.4",
  "cw20 0.13.4",
+ "itertools 0.10.3",
  "schemars",
  "serde",
  "uint",
@@ -242,7 +243,6 @@ dependencies = [
  "schemars",
  "serde",
  "sim",
- "terra-cosmwasm",
  "thiserror",
 ]
 

@@ -55,7 +55,7 @@ fn provide_and_withdraw_no_fee() {
     ];
     helper.give_me_money(&assets, &user3);
     helper.provide_liquidity(&user3, &assets).unwrap();
-    assert_eq!(299_875484, helper.token_balance(&helper.lp_token, &user3));
+    assert_eq!(299_629321, helper.token_balance(&helper.lp_token, &user3));
 
     // Providing last asset with explicit zero amount should give nearly the same result
     let user4 = Addr::unchecked("user4");
@@ -66,7 +66,7 @@ fn provide_and_withdraw_no_fee() {
     ];
     helper.give_me_money(&assets, &user4);
     helper.provide_liquidity(&user4, &assets).unwrap();
-    assert_eq!(299_682199, helper.token_balance(&helper.lp_token, &user4));
+    assert_eq!(299_056292, helper.token_balance(&helper.lp_token, &user4));
 
     helper
         .withdraw_liquidity(&user1, 300_000000, vec![])
@@ -74,9 +74,9 @@ fn provide_and_withdraw_no_fee() {
 
     assert_eq!(0, helper.token_balance(&helper.lp_token, &user1));
     // Previous imbalanced provides resulted in different share in assets
-    assert_eq!(150_055310, helper.coin_balance(&test_coins[0], &user1));
-    assert_eq!(100_036873, helper.coin_balance(&test_coins[1], &user1));
-    assert_eq!(50_018436, helper.coin_balance(&test_coins[2], &user1));
+    assert_eq!(150_164478, helper.coin_balance(&test_coins[0], &user1));
+    assert_eq!(100_109652, helper.coin_balance(&test_coins[1], &user1));
+    assert_eq!(50_054826, helper.coin_balance(&test_coins[2], &user1));
 
     // Checking imbalanced withdraw. Withdrawing only the first asset x 300 with the whole amount of LP tokens
     helper
@@ -88,7 +88,7 @@ fn provide_and_withdraw_no_fee() {
         .unwrap();
 
     // Previous imbalanced provides resulted in small LP balance residual
-    assert_eq!(208725, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(619388, helper.token_balance(&helper.lp_token, &user2));
     assert_eq!(300_000000, helper.coin_balance(&test_coins[0], &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[2], &user2));
@@ -102,7 +102,7 @@ fn provide_and_withdraw_no_fee() {
         )
         .unwrap_err();
     assert_eq!(
-        "Generic error: Not enough LP tokens. You need 100892384 LP tokens.",
+        "Generic error: Not enough LP tokens. You need 100679731 LP tokens.",
         err.root_cause().to_string()
     );
 
@@ -117,7 +117,7 @@ fn provide_and_withdraw_no_fee() {
 
     // initial balance - spent amount; 100 goes back to the user3
     assert_eq!(
-        299_875484 - 100_892384,
+        299_629321 - 100679731,
         helper.token_balance(&helper.lp_token, &user3)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user3));
@@ -379,7 +379,7 @@ fn check_withdraw_charges_fees() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: Not enough LP tokens. You need 100025000 LP tokens."
+        "Generic error: Not enough LP tokens. You need 100025002 LP tokens."
     );
 
     helper
@@ -391,7 +391,7 @@ fn check_withdraw_charges_fees() {
         .unwrap();
 
     // A small residual of LP tokens is left
-    assert_eq!(16, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(8, helper.token_balance(&helper.lp_token, &user2));
     assert_eq!(
         usual_swap_amount,
         helper.coin_balance(&test_coins[1], &user2)
