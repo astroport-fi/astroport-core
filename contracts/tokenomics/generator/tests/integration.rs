@@ -103,7 +103,7 @@ fn migrate_from_110_to_200_with_deposit() {
         instantiate_generator_wth_version(&mut app, &astro_token_instance, None, "1.1.0");
 
     for pair in pairs.clone() {
-        register_lp_tokens_in_generator_110(
+        register_lp_tokens_in_generator_v110(
             &mut app,
             &generator_instance,
             vec![PoolWithProxy {
@@ -3642,7 +3642,7 @@ fn instantiate_factory(
     .unwrap()
 }
 
-fn setup_generator_code(app: &mut App) -> u64 {
+fn setup_generator_v110_code(app: &mut App) -> u64 {
     let generator_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_generator_v110::contract::execute,
@@ -3817,7 +3817,7 @@ fn instantiate_generator_wth_version(
     );
 
     let generator_code_id = match generator_version {
-        _ => setup_generator_code(&mut app),
+        _ => setup_generator_v110_code(&mut app),
     };
 
     let init_msg = astroport_package_generator_v110::generator::InstantiateMsg {
@@ -3967,7 +3967,7 @@ fn instantiate_proxy(
 }
 */
 
-fn register_lp_tokens_in_generator_110(
+fn register_lp_tokens_in_generator_v110(
     app: &mut App,
     generator_instance: &Addr,
     pools_with_proxy: Vec<PoolWithProxy>,
