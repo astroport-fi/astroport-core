@@ -38,9 +38,8 @@ itertools = "0.10"
 [dev-dependencies]
 anyhow = "1.0"
 cosmwasm-schema = "1.0.0"
-terra-cosmwasm = { version = "2.2.0" }
 proptest = "1.0.0"
-sim = { git = "https://github.com/astroport-fi/astroport-sims.git", rev = "9436fa0f5e1dec0d7eb8eb03fdb233b96ba5e428", package = "sim" }
+sim = { git = "https://github.com/astroport-fi/astroport-sims.git", rev = "6869900d4db9061ff8f0c1bfd7c7560056f7e74f", package = "sim" }
 astroport-token = {path = "../token"}
 cw-multi-test = "0.13"
 astroport-factory = {path = "../factory"}

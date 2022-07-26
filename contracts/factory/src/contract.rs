@@ -307,7 +307,7 @@ pub fn execute_update_pair_config(
 ///
 /// * **pair_type** is an object of type [`PairType`]. This is the pair type of the newly created pair.
 ///
-/// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the assets for which we create a pair.
+/// * **asset_infos** is a vector with items of type [`AssetInfo`]. These are the assets for which we create a pair.
 ///
 /// * **init_params** is an [`Option`] type. These are packed params used for custom pair types that need extra data to be instantiated.
 pub fn execute_create_pair(
@@ -461,7 +461,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the asets for which we deregister the pair.
+/// * **asset_infos** is a vector with items of type [`AssetInfo`]. These are the assets for which we deregister the pair.
 ///
 /// ## Executor
 /// Only the owner can execute this.
@@ -481,6 +481,25 @@ pub fn deregister(
 
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     PAIRS.remove(deps.storage, &pair_key(&asset_infos));
+
+    for asset_info1 in &asset_infos {
+        for asset_info2 in &asset_infos {
+            if asset_info1 != asset_info2 {
+                ROUTE.update::<_, StdError>(
+                    deps.storage,
+                    (asset_info1.to_string(), asset_info2.to_string()),
+                    |pairs| {
+                        Ok(pairs
+                            .unwrap_or_default()
+                            .iter()
+                            .cloned()
+                            .filter(|pair| pair != &pair_addr)
+                            .collect::<Vec<_>>())
+                    },
+                )?;
+            }
+        }
+    }
 
     let mut response = Response::new();
     if let Some(generator) = config.generator_address {
@@ -586,18 +605,18 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
-/// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the assets traded in the pair.
+/// * **asset_infos** is a vector with items of type [`AssetInfo`]. These are the assets traded in the pair.
 pub fn query_pair(deps: Deps, asset_infos: Vec<AssetInfo>) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     query_pair_info(&deps.querier, &pair_addr)
 }
 
 /// ## Description
-/// Returns an array with pair data that contains items of type [`PairInfo`]. Querying starts at `start_after` and returns `limit` pairs.
+/// Returns a vector with pair data that contains items of type [`PairInfo`]. Querying starts at `start_after` and returns `limit` pairs.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
-/// * **start_after** is an [`Option`] field which accepts an array with two items of type [`AssetInfo`].
+/// * **start_after** is an [`Option`] field which accepts a vector with items of type [`AssetInfo`].
 /// This is the pair from which we start to query.
 ///
 /// * **limit** is a [`Option`] type. Sets the number of pairs to be retrieved.

@@ -1,6 +1,5 @@
 use cosmwasm_std::{Addr, Api, Deps, Order, StdResult};
 use cw_storage_plus::{Bound, Item, Map};
-use itertools;
 use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -46,7 +45,7 @@ pub const PAIRS: Map<&[u8], Addr> = Map::new("pair_info");
 /// ## Description
 /// Calculates a pair key from the specified parameters in the `asset_infos` variable.
 /// ## Params
-/// `asset_infos` is an array with two items of type [`AssetInfo`].
+/// `asset_infos` is an array with multiple items of type [`AssetInfo`].
 pub fn pair_key(asset_infos: &[AssetInfo]) -> Vec<u8> {
     asset_infos
         .iter()
@@ -109,7 +108,7 @@ pub fn read_pairs(
 /// ## Description
 /// Calculates the key of a pair from which to start reading data.
 /// ## Params
-/// `start_after` is an [`Option`] type that accepts two [`AssetInfo`] elements.
+/// `start_after` is an [`Option`] type that accepts [`AssetInfo`] elements.
 /// It is the token pair which we use to determine the start index for a range when returning data for multiple pairs
 fn calc_range_start(start_after: Option<Vec<AssetInfo>>) -> Option<Vec<u8>> {
     start_after.map(|ref asset| {

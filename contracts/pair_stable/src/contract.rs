@@ -6,8 +6,8 @@ use std::vec;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, from_binary, to_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response, StdError,
-    StdResult, SubMsg, Uint128, WasmMsg,
+    Decimal256, Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
+    StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -16,7 +16,7 @@ use protobuf::Message;
 
 use astroport::asset::{
     addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset,
-    AssetInfo, PairInfo,
+    AssetInfo, Decimal256Ext, DecimalAsset, PairInfo,
 };
 use astroport::factory::PairType;
 use astroport::pair::{
@@ -27,9 +27,7 @@ use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse, StablePoolConfig,
 };
-use astroport::querier::{
-    query_factory_config, query_fee_info, query_supply, query_token_precision,
-};
+use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport::DecimalCheckedOps;
 
@@ -326,7 +324,7 @@ pub fn receive_cw20(
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **assets** is an array with two objects of type [`Asset`]. These are the assets available in the pool.
+/// * **assets** is a vector with objects of type [`Asset`]. These are the assets available in the pool.
 ///
 /// * **auto_stake** is object of type [`Option<bool>`]. Determines whether the resulting LP tokens are automatically staked in
 /// the Generator contract to receive token incentives.
@@ -424,31 +422,37 @@ pub fn provide_liquidity(
                 *pool = pool.checked_sub(deposit.amount)?;
             }
         }
-
-        // Adjusting to the greatest precision
-        let coin_precision = get_precision(deps.storage, &deposit.info)?;
-        deposit.amount =
-            adjust_precision(deposit.amount, coin_precision, config.greatest_precision)?;
-        *pool = adjust_precision(*pool, coin_precision, config.greatest_precision)?;
     }
+
+    let assets_collection = assets_collection
+        .iter()
+        .cloned()
+        .map(|(asset, pool)| {
+            let coin_precision = get_precision(deps.storage, &asset.info)?;
+            Ok((
+                asset.to_decimal_asset(coin_precision)?,
+                Decimal256::with_precision(pool, coin_precision)?,
+            ))
+        })
+        .collect::<StdResult<Vec<(DecimalAsset, Decimal256)>>>()?;
 
     let n_coins = config.pair_info.asset_infos.len() as u8;
 
-    let amp = compute_current_amp(&config, &env)?.checked_mul(n_coins.into())?;
+    let amp = compute_current_amp(&config, &env)?;
 
     // Initial invariant (D)
     let old_balances = assets_collection
         .iter()
         .map(|(_, pool)| *pool)
         .collect_vec();
-    let init_d = compute_d(amp, &old_balances)?;
+    let init_d = compute_d(amp, &old_balances, config.greatest_precision)?;
 
     // Invariant (D) after deposit added
     let mut new_balances = assets_collection
         .iter()
-        .map(|(deposit, pool)| Ok(pool.checked_add(deposit.amount)?))
+        .map(|(deposit, pool)| Ok(pool + deposit.amount))
         .collect::<StdResult<Vec<_>>>()?;
-    let deposit_d = compute_d(amp, &new_balances)?;
+    let deposit_d = compute_d(amp, &new_balances, config.greatest_precision)?;
 
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
     let mint_amount = if total_share.is_zero() {
@@ -466,6 +470,8 @@ pub fn provide_liquidity(
             .total_fee_rate
             .checked_mul(Decimal::from_ratio(n_coins, 4 * (n_coins - 1)))?;
 
+        let fee = Decimal256::new(fee.atomics().into());
+
         for i in 0..n_coins as usize {
             let ideal_balance = deposit_d.checked_multiply_ratio(old_balances[i], init_d)?;
             let difference = if ideal_balance > new_balances[i] {
@@ -474,15 +480,16 @@ pub fn provide_liquidity(
                 new_balances[i] - ideal_balance
             };
             // Fee will be charged only during imbalanced provide i.e. if invariant D was changed
-            new_balances[i] = new_balances[i].checked_sub(fee.checked_mul_uint128(difference)?)?;
+            new_balances[i] -= fee.checked_mul(difference)?;
         }
 
-        let after_fee_d = compute_d(amp, &new_balances)?;
+        let after_fee_d = compute_d(amp, &new_balances, config.greatest_precision)?;
 
-        total_share.checked_multiply_ratio(after_fee_d - init_d, init_d)?
+        Decimal256::with_precision(total_share, config.greatest_precision)?
+            .checked_multiply_ratio(after_fee_d.saturating_sub(init_d), init_d)?
     };
 
-    let mint_amount = adjust_precision(mint_amount, config.greatest_precision, LP_TOKEN_PRECISION)?;
+    let mint_amount = mint_amount.to_uint128_with_precision(config.greatest_precision)?;
 
     if mint_amount.is_zero() {
         return Err(ContractError::LiquidityAmountTooSmall {});
@@ -501,8 +508,14 @@ pub fn provide_liquidity(
 
     let pools = pools
         .into_iter()
-        .map(|(info, amount)| Asset { info, amount })
-        .collect_vec();
+        .map(|(info, amount)| {
+            let precision = get_precision(deps.storage, &info)?;
+            Ok(DecimalAsset {
+                info,
+                amount: Decimal256::with_precision(amount, precision)?,
+            })
+        })
+        .collect::<StdResult<Vec<_>>>()?;
 
     if accumulate_prices(deps.as_ref(), env, &mut config, &pools).is_ok() {
         CONFIG.save(deps.storage, &config)?;
@@ -531,7 +544,7 @@ pub fn provide_liquidity(
 ///
 /// * **amount** is an object of type [`Uint128`]. This is the amount of provided LP tokens to withdraw liquidity with.
 ///
-/// * **assets** is an optional array of type [`Vec<Asset>`]. It specifies the assets amount to withdraw.
+/// * **assets** is a optional vector of type [`Vec<Asset>`]. It specifies the assets amount to withdraw.
 pub fn withdraw_liquidity(
     deps: DepsMut,
     env: Env,
@@ -592,6 +605,14 @@ pub fn withdraw_liquidity(
         .into(),
     );
 
+    let pools = pools
+        .iter()
+        .map(|pool| {
+            let precision = get_precision(deps.storage, &pool.info)?;
+            pool.to_decimal_asset(precision)
+        })
+        .collect::<StdResult<Vec<DecimalAsset>>>()?;
+
     if accumulate_prices(deps.as_ref(), env, &mut config, &pools).is_ok() {
         CONFIG.save(deps.storage, &config)?;
     }
@@ -641,50 +662,56 @@ fn imbalanced_withdraw(
         .iter()
         .cloned()
         .map(|asset| {
+            let precision = get_precision(deps.storage, &asset.info)?;
             // Get appropriate pool
-            let mut pool = pools
+            let pool = pools
                 .get(&asset.info)
                 .copied()
                 .ok_or_else(|| ContractError::InvalidAsset(asset.info.to_string()))?;
 
-            // Adjusting to the greatest precision
-            let coin_precision = get_precision(deps.storage, &asset.info)?;
-            pool = adjust_precision(pool, coin_precision, config.greatest_precision)?;
-
-            Ok((asset, pool))
+            Ok((
+                asset.to_decimal_asset(precision)?,
+                Decimal256::with_precision(pool, precision)?,
+            ))
         })
         .collect::<Result<Vec<_>, ContractError>>()?;
 
     // If some assets are omitted then add them explicitly with 0 withdraw amount
-    pools.into_iter().for_each(|(pool_info, pool_amount)| {
-        if !assets.iter().any(|asset| asset.info == pool_info) {
-            assets_collection.push((
-                Asset {
-                    amount: Uint128::zero(),
-                    info: pool_info,
-                },
-                pool_amount,
-            ));
-        }
-    });
+    pools
+        .into_iter()
+        .try_for_each(|(pool_info, pool_amount)| -> StdResult<()> {
+            if !assets.iter().any(|asset| asset.info == pool_info) {
+                let precision = get_precision(deps.storage, &pool_info)?;
+
+                assets_collection.push((
+                    DecimalAsset {
+                        amount: Decimal256::zero(),
+                        info: pool_info,
+                    },
+                    Decimal256::with_precision(pool_amount, precision)?,
+                ));
+            }
+            Ok(())
+        })?;
 
     let n_coins = config.pair_info.asset_infos.len() as u8;
 
-    let amp = compute_current_amp(config, env)?.checked_mul(n_coins.into())?;
+    let amp = compute_current_amp(config, env)?;
 
     // Initial invariant (D)
     let old_balances = assets_collection
         .iter()
         .map(|(_, pool)| *pool)
         .collect_vec();
-    let init_d = compute_d(amp, &old_balances)?;
+    let init_d = compute_d(amp, &old_balances, config.greatest_precision)?;
 
     // Invariant (D) after assets withdrawn
     let mut new_balances = assets_collection
         .iter()
-        .map(|(withdraw, pool)| Ok(pool.checked_sub(withdraw.amount)?))
-        .collect::<StdResult<Vec<_>>>()?;
-    let withdraw_d = compute_d(amp, &new_balances)?;
+        .cloned()
+        .map(|(withdraw, pool)| Ok(pool - withdraw.amount))
+        .collect::<StdResult<Vec<Decimal256>>>()?;
+    let withdraw_d = compute_d(amp, &new_balances, config.greatest_precision)?;
 
     // Get fee info from the factory
     let fee_info = query_fee_info(
@@ -698,22 +725,32 @@ fn imbalanced_withdraw(
         .total_fee_rate
         .checked_mul(Decimal::from_ratio(n_coins, 4 * (n_coins - 1)))?;
 
+    let fee = Decimal256::new(fee.atomics().into());
+
     for i in 0..n_coins as usize {
-        let ideal_balance = withdraw_d.checked_multiply_ratio(old_balances[i], init_d)?;
+        let ideal_balance = withdraw_d.checked_mul(
+            Decimal256::checked_from_ratio(old_balances[i].atomics(), init_d.atomics())
+                .map_err(|_| StdError::generic_err(""))?,
+        )?;
         let difference = if ideal_balance > new_balances[i] {
             ideal_balance - new_balances[i]
         } else {
             new_balances[i] - ideal_balance
         };
-        new_balances[i] = new_balances[i].checked_sub(fee.checked_mul_uint128(difference)?)?;
+        new_balances[i] -= fee.checked_mul(difference)?;
     }
 
-    let after_fee_d = compute_d(amp, &new_balances)?;
+    let after_fee_d = compute_d(amp, &new_balances, config.greatest_precision)?;
 
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
     // How many tokens do we need to burn to withdraw asked assets?
     let burn_amount = total_share
-        .checked_multiply_ratio(init_d - after_fee_d, init_d)?
+        .checked_multiply_ratio(
+            init_d
+                .to_uint128_with_precision(18u8)?
+                .checked_sub(after_fee_d.to_uint128_with_precision(18u8)?)?,
+            init_d.to_uint128_with_precision(18u8)?,
+        )?
         .checked_add(Uint128::from(1u8))?; // In case of rounding errors - make it unfavorable for the "attacker"
 
     let burn_amount = adjust_precision(burn_amount, config.greatest_precision, LP_TOKEN_PRECISION)?;
@@ -773,10 +810,10 @@ pub fn swap(
             if pool.info.equal(&offer_asset.info) {
                 pool.amount = pool.amount.checked_sub(offer_asset.amount)?;
             }
-            let token_precision = query_token_precision(&deps.querier, &pool.info)?;
-            Ok(Asset {
-                amount: adjust_precision(pool.amount, token_precision, config.greatest_precision)?,
-                ..pool
+            let token_precision = get_precision(deps.storage, &pool.info)?;
+            Ok(DecimalAsset {
+                info: pool.info,
+                amount: Decimal256::with_precision(pool.amount, token_precision)?,
             })
         })
         .collect::<StdResult<Vec<_>>>()?;
@@ -784,8 +821,19 @@ pub fn swap(
     let (offer_pool, ask_pool) =
         select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)?;
 
+    let offer_precision = get_precision(deps.storage, &offer_pool.info)?;
+
     // Check if the liquidity is non-zero
-    check_swap_parameters(offer_pool.amount, ask_pool.amount, offer_asset.amount)?;
+    check_swap_parameters(
+        pools
+            .iter()
+            .map(|pool| {
+                pool.amount
+                    .to_uint128_with_precision(get_precision(deps.storage, &pool.info)?)
+            })
+            .collect::<StdResult<Vec<Uint128>>>()?,
+        offer_asset.amount,
+    )?;
 
     let SwapResult {
         return_amount,
@@ -794,7 +842,7 @@ pub fn swap(
         deps.storage,
         &env,
         &config,
-        &offer_asset,
+        &offer_asset.to_decimal_asset(offer_precision)?,
         &offer_pool,
         &ask_pool,
         &pools,
@@ -922,17 +970,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Simulation {
             offer_asset,
             ask_asset_info,
-        } => to_binary(
-            &query_simulation(deps, env, offer_asset, ask_asset_info)
-                .map_err(|err| StdError::generic_err(format!("{err}")))?,
-        ),
+        } => to_binary(&query_simulation(deps, env, offer_asset, ask_asset_info)?),
         QueryMsg::ReverseSimulation {
             offer_asset_info,
             ask_asset,
-        } => to_binary(
-            &query_reverse_simulation(deps, env, ask_asset, offer_asset_info)
-                .map_err(|err| StdError::generic_err(format!("{err}")))?,
-        ),
+        } => to_binary(&query_reverse_simulation(
+            deps,
+            env,
+            ask_asset,
+            offer_asset_info,
+        )?),
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
         QueryMsg::QueryComputeD {} => to_binary(&query_compute_d(deps, env)?),
@@ -984,25 +1031,30 @@ pub fn query_simulation(
     env: Env,
     offer_asset: Asset,
     ask_asset_info: Option<AssetInfo>,
-) -> Result<SimulationResponse, ContractError> {
+) -> StdResult<SimulationResponse> {
     let config = CONFIG.load(deps.storage)?;
     let pools = config
         .pair_info
-        .query_pools(&deps.querier, &config.pair_info.contract_addr)?
-        .into_iter()
-        .map(|pool| {
-            let token_precision = get_precision(deps.storage, &pool.info)?;
-            Ok(Asset {
-                amount: adjust_precision(pool.amount, token_precision, config.greatest_precision)?,
-                ..pool
-            })
-        })
-        .collect::<StdResult<Vec<_>>>()?;
+        .query_pools_decimal(&deps.querier, &config.pair_info.contract_addr)?;
 
     let (offer_pool, ask_pool) =
-        select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)?;
+        select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)
+            .map_err(|err| StdError::generic_err(format!("{err}")))?;
 
-    if check_swap_parameters(offer_pool.amount, ask_pool.amount, offer_asset.amount).is_err() {
+    let offer_precision = get_precision(deps.storage, &offer_pool.info)?;
+
+    if check_swap_parameters(
+        pools
+            .iter()
+            .map(|pool| {
+                pool.amount
+                    .to_uint128_with_precision(get_precision(deps.storage, &pool.info)?)
+            })
+            .collect::<StdResult<Vec<Uint128>>>()?,
+        offer_asset.amount,
+    )
+    .is_err()
+    {
         return Ok(SimulationResponse {
             return_amount: Uint128::zero(),
             spread_amount: Uint128::zero(),
@@ -1017,11 +1069,12 @@ pub fn query_simulation(
         deps.storage,
         &env,
         &config,
-        &offer_asset,
+        &offer_asset.to_decimal_asset(offer_precision)?,
         &offer_pool,
         &ask_pool,
         &pools,
-    )?;
+    )
+    .map_err(|err| StdError::generic_err(format!("{err}")))?;
 
     // Get fee info from factory
     let fee_info = query_fee_info(
@@ -1057,25 +1110,31 @@ pub fn query_reverse_simulation(
     env: Env,
     ask_asset: Asset,
     offer_asset_info: Option<AssetInfo>,
-) -> Result<ReverseSimulationResponse, ContractError> {
+) -> StdResult<ReverseSimulationResponse> {
     let config = CONFIG.load(deps.storage)?;
     let pools = config
         .pair_info
-        .query_pools(&deps.querier, &config.pair_info.contract_addr)?
-        .into_iter()
-        .map(|pool| {
-            let token_precision = query_token_precision(&deps.querier, &pool.info)?;
-            Ok(Asset {
-                amount: adjust_precision(pool.amount, token_precision, config.greatest_precision)?,
-                ..pool
-            })
-        })
-        .collect::<StdResult<Vec<_>>>()?;
+        .query_pools_decimal(&deps.querier, &config.pair_info.contract_addr)?;
     let (offer_pool, ask_pool) =
-        select_pools(offer_asset_info.as_ref(), Some(&ask_asset.info), &pools)?;
+        select_pools(offer_asset_info.as_ref(), Some(&ask_asset.info), &pools)
+            .map_err(|err| StdError::generic_err(format!("{err}")))?;
+
+    let offer_precision = get_precision(deps.storage, &offer_pool.info)?;
+    let ask_precision = get_precision(deps.storage, &ask_asset.info)?;
 
     // Check the swap parameters are valid
-    if check_swap_parameters(offer_pool.amount, ask_pool.amount, ask_asset.amount).is_err() {
+    if check_swap_parameters(
+        pools
+            .iter()
+            .map(|pool| {
+                pool.amount
+                    .to_uint128_with_precision(get_precision(deps.storage, &pool.info)?)
+            })
+            .collect::<StdResult<Vec<Uint128>>>()?,
+        ask_asset.amount,
+    )
+    .is_err()
+    {
         return Ok(ReverseSimulationResponse {
             offer_amount: Uint128::zero(),
             spread_amount: Uint128::zero(),
@@ -1089,34 +1148,37 @@ pub fn query_reverse_simulation(
         &config.factory_addr,
         config.pair_info.pair_type.clone(),
     )?;
-    let before_commission = (Decimal::one() - fee_info.total_fee_rate)
-        .inv()
-        .unwrap_or_else(Decimal::one)
-        .checked_mul_uint128(ask_asset.amount)?;
+    let before_commission = Decimal256::with_precision(
+        (Decimal::one() - fee_info.total_fee_rate)
+            .inv()
+            .unwrap_or_else(Decimal::one)
+            .checked_mul_uint128(ask_asset.amount)?,
+        ask_precision as u32,
+    )?;
 
-    let token_precision = get_precision(deps.storage, &ask_pool.info)?;
     let offer_amount = calc_y(
         &ask_pool.info,
         &offer_pool.info,
-        adjust_precision(
-            ask_pool.amount.checked_sub(before_commission)?,
-            token_precision,
-            config.greatest_precision,
-        )?,
+        ask_pool.amount - before_commission,
         &pools,
         compute_current_amp(&config, &env)?,
-    )?
-    .checked_sub(offer_pool.amount)?;
+        config.greatest_precision,
+    )?;
 
-    let token_precision = get_precision(deps.storage, &offer_pool.info)?;
-    let offer_amount = adjust_precision(offer_amount, config.greatest_precision, token_precision)?;
+    let offer_amount = offer_amount.checked_sub(
+        offer_pool
+            .amount
+            .to_uint128_with_precision(config.greatest_precision)?,
+    )?;
+    let offer_amount = adjust_precision(offer_amount, config.greatest_precision, offer_precision)?;
 
     Ok(ReverseSimulationResponse {
         offer_amount,
-        spread_amount: offer_amount.saturating_sub(before_commission),
+        spread_amount: offer_amount
+            .saturating_sub(before_commission.to_uint128_with_precision(ask_precision)?),
         commission_amount: fee_info
             .total_fee_rate
-            .checked_mul_uint128(before_commission)?,
+            .checked_mul_uint128(before_commission.to_uint128_with_precision(ask_precision)?)?,
     })
 }
 
@@ -1129,7 +1191,16 @@ pub fn query_reverse_simulation(
 pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
     let mut config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps.querier, &config)?;
-    accumulate_prices(deps, env, &mut config, &assets)
+    let decimal_assets = assets
+        .iter()
+        .cloned()
+        .map(|asset| {
+            let precision = get_precision(deps.storage, &asset.info)?;
+            asset.to_decimal_asset(precision)
+        })
+        .collect::<StdResult<Vec<DecimalAsset>>>()?;
+
+    accumulate_prices(deps, env, &mut config, &decimal_assets)
         .map_err(|err| StdError::generic_err(format!("{err}")))?;
 
     Ok(CumulativePricesResponse {
@@ -1355,15 +1426,12 @@ fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint128> {
     let amp = compute_current_amp(&config, &env)?;
     let pools = config
         .pair_info
-        .query_pools(&deps.querier, env.contract.address)?
+        .query_pools_decimal(&deps.querier, env.contract.address)?
         .into_iter()
-        .map(|pool| {
-            let token_precision = query_token_precision(&deps.querier, &pool.info)?;
-            adjust_precision(pool.amount, token_precision, config.greatest_precision)
-        })
-        .collect::<StdResult<Vec<_>>>()?;
-    let n_coins = config.pair_info.asset_infos.len() as u8;
-    let leverage = amp.checked_mul(n_coins.into())?;
+        .map(|pool| pool.amount)
+        .collect::<Vec<_>>();
 
-    compute_d(leverage, &pools).map_err(|_| StdError::generic_err("Failed to calculate the D"))
+    compute_d(amp, &pools, config.greatest_precision)
+        .map_err(|_| StdError::generic_err("Failed to calculate the D"))?
+        .to_uint128_with_precision(config.greatest_precision)
 }
