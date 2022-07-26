@@ -2625,6 +2625,19 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     })
                     .collect::<Result<Vec<Addr>, StdError>>()?;
 
+                // TODO: empty keys, try to debugging here
+                let keys = POOL_INFO
+                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+                    .map(|v| {
+                        let res = v?;
+                        Ok(res)
+                    })
+                    .collect::<Result<Vec<Addr>, StdError>>()?;
+
+                if !keys.is_empty() {
+                    return Err(ContractError::MigrationError {});
+                }
+
                 for key in keys_110 {
                     let pool_info_v110 = migration::POOL_INFOV110
                         .load(deps.storage, &Addr::unchecked(key.clone()))?;
