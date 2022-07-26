@@ -2617,7 +2617,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             "1.1.0" => {
                 let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 
-                let keys = POOL_INFO
+                let keys_110 = migration::POOL_INFOV110
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
                     .map(|v| {
                         let res = v?;
@@ -2625,7 +2625,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     })
                     .collect::<Result<Vec<Addr>, StdError>>()?;
 
-                for key in keys {
+                for key in keys_110 {
                     let pool_info_v110 = migration::POOL_INFOV110
                         .load(deps.storage, &Addr::unchecked(key.clone()))?;
 

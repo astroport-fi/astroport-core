@@ -12,7 +12,7 @@ use astroport::{
         InstantiateMsg as GeneratorInstantiateMsg, PendingTokenResponse, PoolInfoResponse,
         QueryMsg as GeneratorQueryMsg,
     },
-    generator_proxy::InstantiateMsg as ProxyInstantiateMsg,
+    //generator_proxy::InstantiateMsg as ProxyInstantiateMsg,
     token::InstantiateMsg as TokenInstantiateMsg,
     vesting::{
         Cw20HookMsg as VestingHookMsg, InstantiateMsg as VestingInstantiateMsg, VestingAccount,
@@ -55,7 +55,6 @@ fn migrate_from_110_to_120_with_deposit() {
 
     let owner = Addr::unchecked(OWNER);
     let user1 = Addr::unchecked(USER1);
-    let user2 = Addr::unchecked(USER2);
     let token_code_id = store_token_code(&mut app);
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
@@ -67,50 +66,75 @@ fn migrate_from_110_to_120_with_deposit() {
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
+    let eur_token1 = instantiate_token(&mut app, cny_eur_token_code_id, "EURO", None);
+    let eur_token2 = instantiate_token(&mut app, cny_eur_token_code_id, "EURW", None);
+    let eur_token3 = instantiate_token(&mut app, cny_eur_token_code_id, "EURT", None);
+    let eur_token4 = instantiate_token(&mut app, cny_eur_token_code_id, "EURF", None);
+    let eur_token5 = instantiate_token(&mut app, cny_eur_token_code_id, "EURFr", None);
+    let eur_token6 = instantiate_token(&mut app, cny_eur_token_code_id, "EURT", None);
+    let eur_token7 = instantiate_token(&mut app, cny_eur_token_code_id, "EURY", None);
+    let eur_token8 = instantiate_token(&mut app, cny_eur_token_code_id, "EURU", None);
+    let eur_token9 = instantiate_token(&mut app, cny_eur_token_code_id, "EURI", None);
+    let eur_token10 = instantiate_token(&mut app, cny_eur_token_code_id, "EURPO", None);
     let cny_token = instantiate_token(&mut app, cny_eur_token_code_id, "CNY", None);
 
-    let (pair_cny_eur, lp_cny_eur) = create_pair(
-        &mut app,
-        &factory_instance,
-        None,
-        None,
-        [
-            AssetInfo::Token {
-                contract_addr: cny_token.clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: eur_token.clone(),
-            },
-        ],
-    );
+    let mut pairs: Vec<(Addr, Addr)> = vec![];
+    for eur_token in [
+        eur_token,
+        eur_token1,
+        eur_token2,
+        eur_token3,
+        eur_token4,
+        eur_token5,
+        eur_token6,
+        eur_token7,
+        eur_token8,
+        eur_token9,
+        eur_token10,
+    ] {
+        let (pair_cny_eur, lp_cny_eur) = create_pair(
+            &mut app,
+            &factory_instance,
+            None,
+            None,
+            [
+                AssetInfo::Token {
+                    contract_addr: cny_token.clone(),
+                },
+                AssetInfo::Token {
+                    contract_addr: eur_token.clone(),
+                },
+            ],
+        );
+        pairs.push((pair_cny_eur, lp_cny_eur));
+    }
 
-    let generator_instance = instantiate_generator_wth_version(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        "1.1.0",
-    );
+    let generator_instance =
+        instantiate_generator_wth_version(&mut app, &astro_token_instance, None, "1.1.0");
 
-    register_lp_tokens_in_generator_110(
-        &mut app,
-        &generator_instance,
-        vec![PoolWithProxy {
-            pool: (lp_cny_eur.to_string(), Uint128::from(50u32)),
-            proxy: None,
-        }],
-    );
+    for pair in pairs.clone() {
+        register_lp_tokens_in_generator_110(
+            &mut app,
+            &generator_instance,
+            vec![PoolWithProxy {
+                pool: (pair.1.to_string(), Uint128::from(50u32)),
+                proxy: None,
+            }],
+        );
+    }
 
-    let msg_cny_eur = QueryMsg::PoolInfo {
-        lp_token: lp_cny_eur.to_string(),
-    };
+    for pair in pairs.clone() {
+        let msg_cny_eur = QueryMsg::PoolInfo {
+            lp_token: pair.1.to_string(),
+        };
 
-    // Check if proxy reward is none
-    let reps: astroport_110::PoolInfoResponse = app
-        .wrap()
-        .query_wasm_smart(&generator_instance, &msg_cny_eur)
-        .unwrap();
-    assert_eq!(None, reps.reward_proxy);
+        // Check if proxy reward is none
+        let reps: astroport_110::PoolInfoResponse = app
+            .wrap()
+            .query_wasm_smart(&generator_instance, &msg_cny_eur)
+            .unwrap();
+        assert_eq!(None, reps.reward_proxy);
+    }
 
     let msg_cny_eur = astroport_110::QueryMsg::PoolLength {};
 
@@ -119,22 +143,23 @@ fn migrate_from_110_to_120_with_deposit() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(1, reps.length);
+    assert_eq!(11, reps.length);
 
-    // Mint and deposit LP tokens
-    for user in [USER1, USER2] {
-        mint_tokens(
-            &mut app,
-            pair_cny_eur.clone(),
-            &lp_cny_eur,
-            &Addr::unchecked(user),
-            10,
-        );
-        deposit_lp_tokens_to_generator(&mut app, &generator_instance, user, &[(&lp_cny_eur, 10)]);
+    for pair in pairs.clone() {
+        // Mint and deposit LP tokens
+        for user in [USER1, USER2] {
+            mint_tokens(
+                &mut app,
+                pair.0.clone(),
+                &pair.1,
+                &Addr::unchecked(user),
+                10,
+            );
+            deposit_lp_tokens_to_generator(&mut app, &generator_instance, user, &[(&pair.1, 10)]);
+        }
+        // With the proxy set up, the Generator contract doesn't have the deposited LP tokens
+        check_token_balance(&mut app, &pair.1, &generator_instance, 20);
     }
-
-    // With the proxy set up, the Generator contract doesn't have the deposited LP tokens
-    check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 20);
 
     app.update_block(|bi| next_block(bi));
 
@@ -166,27 +191,19 @@ fn migrate_from_110_to_120_with_deposit() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    //assert_eq!(2, reps.length);
+    assert_eq!(11, reps.length);
 
-    // register_lp_tokens_in_generator(
-    //     &mut app,
-    //     &generator_instance,
-    //     vec![
-    //         PoolWithProxy {
-    //             pool: (lp_cny_eur.to_string(), Uint128::from(50u32)),
-    //             proxy: None,
-    //         },
-    //         PoolWithProxy {
-    //             pool: (lp_eur_usd.to_string(), Uint128::from(50u32)),
-    //             proxy: None,
-    //         },
-    //     ],
-    // );
+    for pair in pairs.clone() {
+        // Mint tokens, so user can deposit
+        mint_tokens(&mut app, pair.0.clone(), &pair.1, &user1, 10);
 
-    // Mint tokens, so user can deposit
-    mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 10);
+        deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER1, &[(&pair.1, 10)]);
+    }
 
-    deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER1, &[(&lp_cny_eur, 10)]);
+    for pair in pairs.clone() {
+        // With the proxy set up, the Generator contract doesn't have the deposited LP tokens
+        check_token_balance(&mut app, &pair.1, &generator_instance, 30);
+    }
 }
 
 #[test]
@@ -3776,7 +3793,6 @@ fn instantiate_generator(
 
 fn instantiate_generator_wth_version(
     mut app: &mut App,
-    factory_instance: &Addr,
     astro_token_instance: &Addr,
     allowed_proxies: Option<Vec<String>>,
     generator_version: &str,
@@ -3814,7 +3830,6 @@ fn instantiate_generator_wth_version(
         1_000_000_000_000000,
     );
 
-    let whitelist_code_id = store_whitelist_code(&mut app);
     let generator_code_id = match generator_version {
         _ => setup_generator_code(&mut app),
     };
@@ -3868,13 +3883,14 @@ fn instantiate_generator_wth_version(
     generator_instance
 }
 
+/*
 fn instantiate_mirror_protocol(
     _app: &mut App,
     _token_code_id: u64,
     _asset_token: &Addr,
     _staking_token: &Addr,
 ) -> (Addr, Addr) {
-    /*let mirror_token_instance = instantiate_token(app, token_code_id, "MIR", None);
+    let mirror_token_instance = instantiate_token(app, token_code_id, "MIR", None);
 
     // Mirror staking
     let mirror_staking_contract = Box::new(ContractWrapper::new_with_empty(
@@ -3920,10 +3936,11 @@ fn instantiate_mirror_protocol(
     )
     .unwrap();
 
-    (mirror_token_instance, mirror_staking_instance)*/
+    (mirror_token_instance, mirror_staking_instance)
 
     (Addr::unchecked(""), Addr::unchecked(""))
 }
+
 
 fn store_proxy_code(app: &mut App) -> u64 {
     let generator_proxy_to_mirror_contract = Box::new(ContractWrapper::new_with_empty(
@@ -3962,6 +3979,7 @@ fn instantiate_proxy(
     )
     .unwrap()
 }
+*/
 
 fn register_lp_tokens_in_generator_110(
     app: &mut App,
