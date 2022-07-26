@@ -50,7 +50,7 @@ struct PoolWithProxy {
 }
 
 #[test]
-fn migrate_from_110_to_120_with_deposit() {
+fn migrate_from_110_to_200_with_deposit() {
     let mut app = mock_app();
 
     let owner = Addr::unchecked(OWNER);
@@ -65,33 +65,23 @@ fn migrate_from_110_to_120_with_deposit() {
         instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let cny_eur_token_code_id = store_token_code(&mut app);
-    let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
-    let eur_token1 = instantiate_token(&mut app, cny_eur_token_code_id, "EURO", None);
-    let eur_token2 = instantiate_token(&mut app, cny_eur_token_code_id, "EURW", None);
-    let eur_token3 = instantiate_token(&mut app, cny_eur_token_code_id, "EURT", None);
-    let eur_token4 = instantiate_token(&mut app, cny_eur_token_code_id, "EURF", None);
-    let eur_token5 = instantiate_token(&mut app, cny_eur_token_code_id, "EURFr", None);
-    let eur_token6 = instantiate_token(&mut app, cny_eur_token_code_id, "EURT", None);
-    let eur_token7 = instantiate_token(&mut app, cny_eur_token_code_id, "EURY", None);
-    let eur_token8 = instantiate_token(&mut app, cny_eur_token_code_id, "EURU", None);
-    let eur_token9 = instantiate_token(&mut app, cny_eur_token_code_id, "EURI", None);
-    let eur_token10 = instantiate_token(&mut app, cny_eur_token_code_id, "EURPO", None);
+
+    let mut tokens: Vec<Addr> = vec![];
+    for symbol in 'a'..'l' {
+        let token_name = String::from(symbol) + &*String::from("EUR");
+        tokens.push(instantiate_token(
+            &mut app,
+            cny_eur_token_code_id,
+            token_name.as_str(),
+            None,
+        ))
+    }
+
     let cny_token = instantiate_token(&mut app, cny_eur_token_code_id, "CNY", None);
+    assert_eq!(11, tokens.len());
 
     let mut pairs: Vec<(Addr, Addr)> = vec![];
-    for eur_token in [
-        eur_token,
-        eur_token1,
-        eur_token2,
-        eur_token3,
-        eur_token4,
-        eur_token5,
-        eur_token6,
-        eur_token7,
-        eur_token8,
-        eur_token9,
-        eur_token10,
-    ] {
+    for eur_token in tokens {
         let (pair_cny_eur, lp_cny_eur) = create_pair(
             &mut app,
             &factory_instance,
@@ -137,8 +127,6 @@ fn migrate_from_110_to_120_with_deposit() {
     }
 
     let msg_cny_eur = astroport_110::QueryMsg::PoolLength {};
-
-    // Check if proxy reward is none
     let reps: astroport_110::PoolLengthResponse = app
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
@@ -157,14 +145,13 @@ fn migrate_from_110_to_120_with_deposit() {
             );
             deposit_lp_tokens_to_generator(&mut app, &generator_instance, user, &[(&pair.1, 10)]);
         }
-        // With the proxy set up, the Generator contract doesn't have the deposited LP tokens
+
         check_token_balance(&mut app, &pair.1, &generator_instance, 20);
     }
 
     app.update_block(|bi| next_block(bi));
 
     let new_generator_code_id = setup_generator_code_200(&mut app);
-
     let whitelist_code_id = store_whitelist_code(&mut app);
 
     // Migrate generator contract 1.1.0 -> 2.0.0
@@ -184,12 +171,10 @@ fn migrate_from_110_to_120_with_deposit() {
     )
     .unwrap();
 
-    let msg_cny_eur = astroport_110::QueryMsg::PoolLength {};
-
-    // Check if proxy reward is none
+    // check size of pools after migration
     let reps: astroport_110::PoolLengthResponse = app
         .wrap()
-        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .query_wasm_smart(&generator_instance, &astroport_110::QueryMsg::PoolLength {})
         .unwrap();
     assert_eq!(11, reps.length);
 
@@ -197,11 +182,12 @@ fn migrate_from_110_to_120_with_deposit() {
         // Mint tokens, so user can deposit
         mint_tokens(&mut app, pair.0.clone(), &pair.1, &user1, 10);
 
+        // deposit lp after migration
         deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER1, &[(&pair.1, 10)]);
     }
 
     for pair in pairs.clone() {
-        // With the proxy set up, the Generator contract doesn't have the deposited LP tokens
+        // check balance 20 before migration and 10 after
         check_token_balance(&mut app, &pair.1, &generator_instance, 30);
     }
 }
