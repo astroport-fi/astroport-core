@@ -29,7 +29,7 @@ pub const CONFIGV100: Item<ConfigV100> = Item::new("config");
 
 /// This structure describes a pair's configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PairConfigV110 {
+pub struct PairConfigV100 {
     /// Pair contract code ID that's used to create new pairs of this type
     pub code_id: u64,
     /// The pair type (e.g XYK, stable)
@@ -43,21 +43,21 @@ pub struct PairConfigV110 {
     pub is_disabled: Option<bool>,
 }
 
-pub const PAIR_CONFIGSV110: Map<String, PairConfigV110> = Map::new("pair_configs");
+pub const PAIR_CONFIGS_V100: Map<String, PairConfigV100> = Map::new("pair_configs");
 
 pub fn migrate_pair_configs_to_v120(storage: &mut dyn Storage) -> Result<(), StdError> {
-    let keys = PAIR_CONFIGSV110
+    let keys = PAIR_CONFIGS_V100
         .keys(storage, None, None, cosmwasm_std::Order::Ascending {})
         .collect::<Result<Vec<String>, StdError>>()?;
 
     for key in keys {
-        let pair_configs_v110 = PAIR_CONFIGSV110.load(storage, key.clone())?;
+        let pair_configs_v100 = PAIR_CONFIGS_V100.load(storage, key.clone())?;
         let pair_config = PairConfig {
-            code_id: pair_configs_v110.code_id,
-            pair_type: pair_configs_v110.pair_type,
-            total_fee_bps: pair_configs_v110.total_fee_bps,
-            maker_fee_bps: pair_configs_v110.maker_fee_bps,
-            is_disabled: pair_configs_v110.is_disabled.unwrap_or(false),
+            code_id: pair_configs_v100.code_id,
+            pair_type: pair_configs_v100.pair_type,
+            total_fee_bps: pair_configs_v100.total_fee_bps,
+            maker_fee_bps: pair_configs_v100.maker_fee_bps,
+            is_disabled: pair_configs_v100.is_disabled.unwrap_or(false),
             is_generator_disabled: false,
         };
         PAIR_CONFIGS.save(storage, key, &pair_config)?;

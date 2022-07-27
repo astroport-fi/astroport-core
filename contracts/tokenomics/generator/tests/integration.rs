@@ -12,7 +12,7 @@ use astroport::{
         InstantiateMsg as GeneratorInstantiateMsg, PendingTokenResponse, PoolInfoResponse,
         QueryMsg as GeneratorQueryMsg,
     },
-    generator_proxy::InstantiateMsg as ProxyInstantiateMsg,
+    //generator_proxy::InstantiateMsg as ProxyInstantiateMsg,
     token::InstantiateMsg as TokenInstantiateMsg,
     vesting::{
         Cw20HookMsg as VestingHookMsg, InstantiateMsg as VestingInstantiateMsg, VestingAccount,
@@ -3495,6 +3495,7 @@ fn instantiate_factory(
     .unwrap()
 }
 
+/*
 fn setup_generator_code(app: &mut App) -> u64 {
     let generator_contract = Box::new(
         ContractWrapper::new_with_empty(
@@ -3508,6 +3509,7 @@ fn setup_generator_code(app: &mut App) -> u64 {
 
     app.store_code(generator_contract)
 }
+*/
 
 fn instantiate_generator(
     mut app: &mut App,
@@ -3615,7 +3617,7 @@ fn instantiate_generator(
 
     generator_instance
 }
-
+/*
 fn instantiate_generator_wth_version(
     mut app: &mut App,
     factory_instance: &Addr,
@@ -3809,6 +3811,7 @@ fn instantiate_proxy(
     )
     .unwrap()
 }
+*/
 
 fn register_lp_tokens_in_generator(
     app: &mut App,
