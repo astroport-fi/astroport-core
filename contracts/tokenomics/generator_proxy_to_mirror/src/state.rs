@@ -8,15 +8,15 @@ use cw_storage_plus::Item;
 /// This structure holds the main parameters for the of generator_proxy_to_mirror contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// The generator contract address
+    /// The Generator contract address
     pub generator_contract_addr: Addr,
-    /// The Astroport pair contract address
+    /// The target Astroport pair contract address
     pub pair_addr: Addr,
     /// The contract address for the Astroport MIR LP token
     pub lp_token_addr: Addr,
     /// The 3rd party reward contract address
     pub reward_contract_addr: Addr,
-    /// The reward token contract address
+    /// The 3rd party reward token
     pub reward_token_addr: Addr,
 }
 

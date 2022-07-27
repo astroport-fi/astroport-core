@@ -1,12 +1,14 @@
 # Astroport Generator Proxy Rewards Template
 
-The generator proxy contract allows an external staking contract to be connected to the Generator. It gives Generator stakers the ability to claim both ASTRO emissions as well as 3rd party tokens at the same time. This is referred to as "dual rewards" in Astroport.
+This generator proxy contract allows an external staking contract to be connected to the Generator. It gives Generator stakers the ability to claim both ASTRO emissions as well as 3rd party tokens at the same time. This is referred to as "dual rewards" in Astroport.
+
+## Be sure that all the template's TODOs get properly changed!
 
 ---
 
 ## InstantiateMsg
 
-Initialize the proxy contract.
+Initializes the proxy contract with required addresses (generator, LP token to stake etc).
 
 ```json
 {
@@ -46,7 +48,7 @@ Updates 3rd party token proxy rewards and withdraws rewards from the 3rd party s
 
 ### `send_rewards`
 
-Sends token rewards amount for given address.
+Sends accrued token rewards to a specific account.
 
 ```json
 {
@@ -72,7 +74,7 @@ Withdraws LP tokens alongside any outstanding token rewards and sends them to th
 
 ### `emergency_withdraw`
 
-Withdraws token rewards amount for given address.
+Unstake LP tokens without caring about accrued rewards.
 
 ```json
 {
@@ -85,8 +87,9 @@ Withdraws token rewards amount for given address.
 
 ### `callback`
 
-Handles the callbacks messages of the contract.
-In the current example used for transfer liquidity tokens after withdraw.
+Handles callback mesasges.
+
+One example is for transferring LP tokens after a withdrawal from the 3rd party staking contract.
 
 ```json
 {
@@ -97,6 +100,7 @@ In the current example used for transfer liquidity tokens after withdraw.
     }
   }
 }
+
 ```
 ## QueryMsg
 
@@ -104,7 +108,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `config`
 
-Returns the contract's configuration
+Returns the contract's configuration.
 
 ```json
 {
@@ -114,7 +118,7 @@ Returns the contract's configuration
 
 ### `deposit`
 
-Returns deposited/staked token amount.
+Returns the deposited/staked token amount for a specific account.
 
 ```json
 {
@@ -124,7 +128,7 @@ Returns deposited/staked token amount.
 
 ### `reward`
 
-Gives token proxy reward amount.
+Returns the total amount of 3rd party rewards.
 
 ```json
 {
@@ -134,7 +138,7 @@ Gives token proxy reward amount.
 
 ### `pending_token`
 
-Gives token proxy reward pending amount.
+Returns the total amount of pending rewards for all stakers.
 
 ```json
 {
@@ -144,7 +148,7 @@ Gives token proxy reward pending amount.
 
 ### `reward_info`
 
-Returns the reward token contract address
+Returns the reward (3rd party) token contract address.
 
 ```json
 {

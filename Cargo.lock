@@ -136,6 +136,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-generator-proxy-template"
+version = "0.0.0"
+dependencies = [
+ "astroport 2.0.0",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-generator-proxy-to-mirror"
 version = "1.0.0"
 dependencies = [
