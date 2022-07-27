@@ -277,6 +277,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-pair-bonded-template"
+version = "1.0.0"
+dependencies = [
+ "astroport 2.0.0",
+ "astroport-pair-bonded",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.13.4",
+ "cw20 0.13.4",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-pair-stable"
 version = "1.0.0"
 dependencies = [
