@@ -18,7 +18,6 @@ members = [
     "contracts/tokenomics/vesting",
     "contracts/tokenomics/xastro_token",
     "contracts/periphery/*",
-    "templates/pair_bonded_template"
 ]
 
 [profile.release]

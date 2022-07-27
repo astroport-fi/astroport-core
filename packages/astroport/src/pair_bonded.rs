@@ -50,8 +50,6 @@ pub enum ExecuteMsg {
     /// Callback to process post-swap operation
     AssertAndSend {
         offer_asset: Asset,
-        belief_price: Option<Decimal>,
-        max_spread: Option<Decimal>,
         /// Information about an asset stored in a [`AssetInfo`] struct
         ask_asset_info: AssetInfo,
         /// Receiver who should receive the funds

@@ -1,6 +1,6 @@
-# Astroport Pair Bonded Template
+# Astroport Pair Bonded Package
 
-Pair bonded template is an implementation of pair with bonded assets(e.g. ASTRO-xASTRO, MARS-xMARS, and other tokens that are correlated but have an increasing exchange rate compared to the other token).
+Pair bonded package gives a trait that allows implementation pairs with bonded assets(e.g. ASTRO-xASTRO, MARS-xMARS, and other tokens that are correlated but have an increasing exchange rate compared to the other token).
 Use [Pair ASTRO-xASTRO](/contracts/pair_astro_xastro/) as example of template implementation.
 
 ## InstantiateMsg
@@ -53,7 +53,7 @@ Liquidity withdrawing is not supported in the template by default.
 
 ### `swap`
 
-Swap operation is not implemented in the template by default. You should
+Swap operation is not implemented in the template by default. You should 
 
 ```json
   {

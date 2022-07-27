@@ -10,9 +10,9 @@ use astroport::pair::{ReverseSimulationResponse, SimulationResponse};
 use astroport::pair_bonded::{Config, ExecuteMsg};
 use astroport::querier::{query_supply, query_token_balance};
 use astroport::staking::Cw20HookMsg as StakingCw20HookMsg;
-use astroport_pair_bonded_template::base::PairBonded;
-use astroport_pair_bonded_template::error::ContractError;
-use astroport_pair_bonded_template::state::CONFIG;
+use astroport_pair_bonded::base::PairBonded;
+use astroport_pair_bonded::error::ContractError;
+use astroport_pair_bonded::state::CONFIG;
 use cw20::Cw20ExecuteMsg;
 use cw_storage_plus::Item;
 
@@ -40,8 +40,8 @@ impl<'a> PairBonded<'a> for Contract<'a> {
         _info: MessageInfo,
         sender: Addr,
         offer_asset: Asset,
-        belief_price: Option<Decimal>,
-        max_spread: Option<Decimal>,
+        _belief_price: Option<Decimal>,
+        _max_spread: Option<Decimal>,
         to: Option<Addr>,
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
@@ -114,8 +114,6 @@ impl<'a> PairBonded<'a> for Contract<'a> {
                 ask_asset_info: ask_pool.info,
                 sender,
                 receiver,
-                belief_price,
-                max_spread,
             })?,
         }));
 

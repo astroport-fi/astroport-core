@@ -6,16 +6,13 @@ use astroport::pair::{
     migration_check, ConfigResponse, CumulativePricesResponse, Cw20HookMsg, InstantiateMsg,
     PoolResponse, ReverseSimulationResponse, SimulationResponse,
 };
-use astroport::pair_bonded::{
-    Config, ExecuteMsg, QueryMsg, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
-};
+use astroport::pair_bonded::{Config, ExecuteMsg, QueryMsg};
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
     StdResult, Uint128,
 };
 use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
-use std::str::FromStr;
 
 pub trait PairBonded<'a> {
     /// Contract name that is used for migration.
@@ -130,8 +127,6 @@ pub trait PairBonded<'a> {
             } => self.execute_swap(deps, env, info, offer_asset, belief_price, max_spread, to),
             ExecuteMsg::AssertAndSend {
                 offer_asset,
-                belief_price,
-                max_spread,
                 ask_asset_info,
                 receiver,
                 sender,
@@ -143,8 +138,6 @@ pub trait PairBonded<'a> {
                 offer_asset,
                 ask_asset_info,
                 receiver,
-                belief_price,
-                max_spread,
             ),
         }
     }
@@ -453,8 +446,6 @@ pub trait PairBonded<'a> {
         offer_asset: Asset,
         ask_asset_info: AssetInfo,
         receiver: Addr,
-        belief_price: Option<Decimal>,
-        max_spread: Option<Decimal>,
     ) -> Result<Response, ContractError> {
         if env.contract.address != info.sender {
             // Only allowed to be sent by the contract itself
@@ -463,9 +454,6 @@ pub trait PairBonded<'a> {
 
         let offer_amount = offer_asset.amount;
         let return_amount = ask_asset_info.query_pool(&deps.querier, env.contract.address)?;
-
-        // Check the max spread limit (if it was specified)
-        self.assert_max_spread(belief_price, max_spread, offer_amount, return_amount)?;
 
         // Compute the tax for the receiving asset (if it is a native one)
         let return_asset = Asset {
@@ -488,47 +476,5 @@ pub trait PairBonded<'a> {
             .add_attribute("spread_amount", "0")
             .add_attribute("commission_amount", "0")
             .add_attribute("maker_fee_amount", "0"))
-    }
-
-    /// ## Description
-    /// Returns a [`ContractError`] on failure.
-    /// If `belief_price` and `max_spread` are both specified, we compute a new spread,
-    /// otherwise we just use the swap spread to check `max_spread`.
-    /// ## Params
-    /// * **belief_price** is an object of type [`Option<Decimal>`]. This is the belief price used in the swap.
-    ///
-    /// * **max_spread** is an object of type [`Option<Decimal>`]. This is the
-    /// max spread allowed so that the swap can be executed successfuly.
-    ///
-    /// * **offer_amount** is an object of type [`Uint128`]. This is the amount of assets to swap.
-    ///
-    /// * **return_amount** is an object of type [`Uint128`]. This is the amount of assets to receive from the swap.
-    fn assert_max_spread(
-        &self,
-        belief_price: Option<Decimal>,
-        max_spread: Option<Decimal>,
-        offer_amount: Uint128,
-        return_amount: Uint128,
-    ) -> Result<(), ContractError> {
-        let default_spread = Decimal::from_str(DEFAULT_SLIPPAGE)?;
-        let max_allowed_spread = Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?;
-
-        let max_spread = max_spread.unwrap_or(default_spread);
-        if max_spread.gt(&max_allowed_spread) {
-            return Err(ContractError::AllowedSpreadAssertion {});
-        }
-
-        if let Some(belief_price) = belief_price {
-            let expected_return = offer_amount * (Decimal::one() / belief_price);
-            let spread_amount = expected_return.saturating_sub(return_amount);
-
-            if return_amount < expected_return
-                && Decimal::from_ratio(spread_amount, expected_return) > max_spread
-            {
-                return Err(ContractError::MaxSpreadAssertion {});
-            }
-        }
-
-        Ok(())
     }
 }
