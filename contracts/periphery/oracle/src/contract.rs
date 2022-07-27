@@ -53,12 +53,16 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
     let prices = query_cumulative_prices(deps.querier, pair_info.contract_addr)?;
+    let average_prices = prices
+        .cumulative_prices
+        .iter()
+        .cloned()
+        .map(|(from, to, _)| (from, to, Decimal256::zero()))
+        .collect();
 
     let price = PriceCumulativeLast {
-        price0_cumulative_last: prices.price0_cumulative_last,
-        price1_cumulative_last: prices.price1_cumulative_last,
-        price_0_average: Decimal256::zero(),
-        price_1_average: Decimal256::zero(),
+        cumulative_prices: prices.cumulative_prices,
+        average_prices,
         block_timestamp_last: env.block.time.seconds(),
     };
     PRICE_LAST.save(deps.storage, &price)?;
@@ -110,29 +114,25 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         return Err(ContractError::WrongPeriod {});
     }
 
-    let price_0_average = Decimal256::from_ratio(
-        Uint256::from(
-            prices
-                .price0_cumulative_last
-                .wrapping_sub(price_last.price0_cumulative_last),
-        ),
-        time_elapsed,
-    );
-
-    let price_1_average = Decimal256::from_ratio(
-        Uint256::from(
-            prices
-                .price1_cumulative_last
-                .wrapping_sub(price_last.price1_cumulative_last),
-        ),
-        time_elapsed,
-    );
+    let mut average_prices = vec![];
+    for (asset1_last, asset2_last, price_last) in price_last.cumulative_prices.iter() {
+        for (asset1, asset2, price) in prices.cumulative_prices.iter() {
+            if asset1.equal(asset1_last) && asset2.equal(asset2_last) {
+                average_prices.push((
+                    asset1.clone(),
+                    asset2.clone(),
+                    Decimal256::from_ratio(
+                        Uint256::from(price.wrapping_sub(*price_last)),
+                        time_elapsed,
+                    ),
+                ));
+            }
+        }
+    }
 
     let prices = PriceCumulativeLast {
-        price0_cumulative_last: prices.price0_cumulative_last,
-        price1_cumulative_last: prices.price1_cumulative_last,
-        price_0_average,
-        price_1_average,
+        cumulative_prices: prices.cumulative_prices,
+        average_prices,
         block_timestamp_last: env.block.time.seconds(),
     };
     PRICE_LAST.save(deps.storage, &prices)?;
@@ -167,38 +167,56 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// * **token** is an object of type [`AssetInfo`]. This is the token for which we multiply its TWAP value by an amount.
 ///
 /// * **amount** is an object of type [`Uint128`]. This is the amount of tokens we multiply the TWAP by.
-fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, StdError> {
+fn consult(
+    deps: Deps,
+    token: AssetInfo,
+    amount: Uint128,
+) -> Result<Vec<(AssetInfo, Uint256)>, StdError> {
     let config = CONFIG.load(deps.storage)?;
     let price_last = PRICE_LAST.load(deps.storage)?;
 
-    let price_average = if config.asset_infos[0].equal(&token) {
-        price_last.price_0_average
-    } else if config.asset_infos[1].equal(&token) {
-        price_last.price_1_average
-    } else {
+    let mut average_prices = vec![];
+    for (from, to, value) in price_last.average_prices {
+        if from.equal(&token) {
+            average_prices.push((to, value));
+        }
+    }
+
+    if average_prices.is_empty() {
         return Err(StdError::generic_err("Invalid Token"));
-    };
+    }
 
-    Ok(if price_average.is_zero() {
-        // Get the token's precision
-        let p = query_token_precision(&deps.querier, &token)?;
-        let one = Uint128::new(10_u128.pow(p.into()));
+    // Get the token's precision
+    let p = query_token_precision(&deps.querier, &token)?;
+    let one = Uint128::new(10_u128.pow(p.into()));
 
-        let price = query_prices(
-            deps.querier,
-            config.pair.contract_addr,
-            Asset {
-                info: token,
-                amount: one,
-            },
-        )?
-        .return_amount;
-
-        Uint256::from(price).multiply_ratio(Uint256::from(amount), Uint256::from(one))
-    } else {
-        let price_precision = Uint256::from(10_u128.pow(TWAP_PRECISION.into()));
-        Uint256::from(amount) * price_average / price_precision
-    })
+    average_prices
+        .iter()
+        .map(|(asset, price_average)| {
+            if price_average.is_zero() {
+                let price = query_prices(
+                    deps.querier,
+                    config.pair.contract_addr.clone(),
+                    Asset {
+                        info: token.clone(),
+                        amount: one,
+                    },
+                    Some(asset.clone()),
+                )?
+                .return_amount;
+                Ok((
+                    asset.clone(),
+                    Uint256::from(price).multiply_ratio(Uint256::from(amount), Uint256::from(one)),
+                ))
+            } else {
+                let price_precision = Uint256::from(10_u128.pow(TWAP_PRECISION.into()));
+                Ok((
+                    asset.clone(),
+                    Uint256::from(amount) * *price_average / price_precision,
+                ))
+            }
+        })
+        .collect::<Result<Vec<(AssetInfo, Uint256)>, StdError>>()
 }
 
 /// ## Description
