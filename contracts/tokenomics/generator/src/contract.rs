@@ -2430,7 +2430,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     let pool_info_v100 = migration::POOL_INFOV100.load(deps.storage, &key)?;
 
                     if !pool_info_v100.alloc_point.is_zero() {
-                        active_pools.push((Addr::unchecked(&key), pool_info_v100.alloc_point));
+                        active_pools.push((key.clone(), pool_info_v100.alloc_point));
                     }
 
                     let mut accumulated_proxy_rewards_per_share = Default::default();
@@ -2471,7 +2471,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                         reward_global_index: pool_info_v100.accumulated_rewards_per_share,
                         total_virtual_supply: lp_balance,
                     };
-                    POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
+                    POOL_INFO.save(deps.storage, &key, &pool_info)?;
                 }
 
                 migration::migrate_configs_from_v100(&mut deps, active_pools, &msg)?;
@@ -2482,8 +2482,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     .collect::<Result<Vec<Addr>, StdError>>()?;
 
                 for key in keys {
-                    let pool_info_v120 =
-                        migration::POOL_INFOV120.load(deps.storage, &key.clone())?;
+                    let pool_info_v120 = migration::POOL_INFOV120.load(deps.storage, &key)?;
 
                     let mut accumulated_proxy_rewards_per_share = Default::default();
                     let mut orphan_proxy_rewards = Default::default();
@@ -2523,7 +2522,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                         reward_global_index: pool_info_v120.accumulated_rewards_per_share,
                         total_virtual_supply: lp_balance,
                     };
-                    POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
+                    POOL_INFO.save(deps.storage, &key, &pool_info)?;
                 }
                 migration::migrate_configs_from_v120(&mut deps, &msg)?;
             }
