@@ -97,7 +97,8 @@ fn simulate_case(case: Vec<(impl Into<String>, usize, u128, u64)>) {
         // Check price scale
         let contract_price: Uint128 = price_state.price_scale.try_into().unwrap();
         let model_prices: Vec<u128> = model.get_attr_curve("p").unwrap();
-        if contract_price.u128().abs_diff(model_prices[1]) > TEST_TOLERANCE {
+        let diff = contract_price.u128().abs_diff(model_prices[1]);
+        if diff > (model_prices[1] as f64 * PRICE_TOLERANCE) as u128 {
             assert_eq!(
                 contract_price.u128(),
                 model_prices[1],
@@ -165,15 +166,24 @@ fn simulate_case(case: Vec<(impl Into<String>, usize, u128, u64)>) {
 fn single_test() {
     // Test variables
     let case = [
-        ("aaaaaaaaaa", 1, 50000000, 1),
-        ("aaaaaaaaaa", 1, 50000000, 298),
-        ("aaaaaaaaaa", 1, 50000000, 461),
-        ("aaaaaaaaaa", 0, 50000000, 1),
-        ("aaaaaaaaaa", 0, 50000000, 297),
-        ("aaaaaaaaaa", 0, 50000000, 458),
-        ("aaaaaaaaaa", 0, 50000000, 459),
-        ("aaaaaaaaaa", 0, 50000000, 460),
-        ("aaaaaaaaaa", 0, 50000000, 1),
+        ("aaaaaaaaaa", 0, 17630191459, 99),
+        ("aaaaaaaaaa", 1, 260157521578, 1221),
+        ("aaaaaaaaaa", 1, 408195791677, 2658),
+        ("aaaaaaaaaa", 0, 835376909468, 3366),
+        ("aaaaaaaaaa", 0, 819511351617, 37),
+        ("aaaaaaaaaa", 0, 534952406988, 1302),
+        ("aaaaaaaaaa", 0, 556701363856, 626),
+        ("aaaaaaaaaa", 1, 321692167391, 2926),
+        ("aaaaaaaaaa", 1, 216156257807, 1368),
+        ("aaaaaaaaaa", 1, 745411045134, 2741),
+        ("aaaaaaaaaa", 1, 498639088469, 899),
+        ("aaclvvvklb", 0, 227669885173, 1547),
+        ("krkpedfggp", 0, 572450598769, 485),
+        ("gmsippaozw", 0, 573851713454, 916),
+        ("xxaihxkbim", 0, 242339288261, 1399),
+        ("cvjcnugmcq", 1, 433861606136, 702),
+        ("miykbdrknh", 0, 120078597340, 2548),
+        ("sfmatpkkfs", 0, 337416533887, 1420),
     ];
 
     simulate_case(case.to_vec());
@@ -182,10 +192,10 @@ fn single_test() {
 fn generate_cases() -> impl Strategy<Value = Vec<(String, usize, u128, u64)>> {
     prop::collection::vec(
         (
-            "[a-z]{10}",                     // user
-            0..=1usize,                      // offer_ind
-            50_000000..1_000_000_000000u128, // dy
-            1..3600u64,                      // shift_time
+            "[a-z]{10}",                    // user
+            0..=1usize,                     // offer_ind
+            1_000000..1_000_000_000000u128, // dy
+            0..3600u64,                     // shift_time
         ),
         0..MAX_EVENTS,
     )

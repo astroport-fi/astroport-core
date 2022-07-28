@@ -870,7 +870,6 @@ fn swap(
             Ok(adjusted)
         })
         .collect::<StdResult<Vec<_>>>()?;
-    let mut external_xp = xp.clone();
     xp[1] = xp[1] * config.pool_state.price_state.price_scale / PRECISION;
 
     let precision = get_precision(deps.storage, &offer_asset.info)?;
@@ -879,13 +878,15 @@ fn swap(
 
     xp[ask_ind] -= return_amount;
     // return_amount -= Uint256::one(); // Reduce by 1 just for safety reasons.
+    let mut commission_amount = config.pool_params.fee(&xp) * return_amount / FEE_MULTIPLIER;
+    xp[ask_ind] += commission_amount;
+    return_amount -= commission_amount;
     if ask_ind > 0 {
         return_amount = return_amount
             .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
+        commission_amount = commission_amount
+            .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
     }
-    let commission_amount = config.pool_params.fee(&xp) * return_amount / FEE_MULTIPLIER;
-    return_amount -= commission_amount;
-    external_xp[ask_ind] -= return_amount;
     let spread_amount = offer_amount.saturating_sub(return_amount);
 
     let new_price = if offer_ind == 0 {
@@ -898,7 +899,7 @@ fn swap(
     update_price(
         &mut config.pool_state,
         &env,
-        external_xp,
+        xp,
         new_price,
         Uint256::zero(),
         &config.pool_params,
