@@ -13,19 +13,20 @@ pub(crate) fn geometric_mean(values: &[Uint256]) -> Uint256 {
 }
 
 pub(crate) fn newton_d(ann: Uint256, gamma: Uint256, pools: &[Uint256]) -> StdResult<Uint256> {
-    let mut d = N_COINS * geometric_mean(pools);
-    let sum: Uint256 = pools.iter().sum();
+    let x = if pools[0] < pools[1] {
+        vec![pools[1], pools[0]]
+    } else {
+        pools.to_vec()
+    };
+
+    let mut d = N_COINS * geometric_mean(&x);
+    let sum: Uint256 = x.iter().sum();
     let init_g1k0 = gamma + MULTIPLIER;
 
     for _ in 0..ITERATIONS {
         let d_prev = d;
 
-        let k0 = pools
-            .iter()
-            .try_fold::<_, _, StdResult<_>>(MULTIPLIER, |acc, pool| {
-                acc.checked_multiply_ratio(*pool * N_COINS, d)
-                    .map_err(|_| StdError::generic_err("CheckedMultiplyRatioError"))
-            })?;
+        let k0 = MULTIPLIER * N_COINS * N_COINS * x[0] / d * x[1] / d;
 
         let g1k0 = init_g1k0.diff(k0) + Uint256::one();
 
@@ -82,7 +83,7 @@ pub(crate) fn newton_y(
         let k0 = (k0_i * y * N_COINS).checked_div(d)?;
         let s = pool_j + y;
 
-        let g1k0 = init_g1k0.diff(k0);
+        let g1k0 = init_g1k0.diff(k0) + Uint256::one();
 
         let mul1 = (MULTIPLIER * d / gamma * g1k0 / gamma * g1k0 * A_MULTIPLIER) / ann;
         let mul2 = (MULTIPLIER + Uint256::from(2u8) * MULTIPLIER * k0) / g1k0;
@@ -211,6 +212,7 @@ pub(crate) fn update_price(
         if virtual_price < price_state.virtual_price && pool_state.future_time == 0 {
             return Err(StdError::generic_err("Loss"));
         }
+        // TODO: why?
         if pool_state.future_time == 1 {
             pool_state.future_time = 0;
         }
@@ -274,7 +276,7 @@ pub(crate) fn update_price(
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::mock_env;
-    use cosmwasm_std::{Decimal, Timestamp};
+    use cosmwasm_std::Timestamp;
     use sim::model::{Caller, ConcentratedPairModel, A_MUL, MUL_E18};
 
     use crate::state::{AmpGamma, PriceState};
@@ -331,6 +333,29 @@ mod tests {
             newton_d(Uint256::from(amp * 4), Uint256::from(gamma), &uint256_pools).unwrap();
 
         assert_eq!(result / MULTIPLIER, Uint256::from(2_000_000u128));
+        let u128_result: Uint128 = result.try_into().unwrap();
+        assert_eq!(u128_result.u128(), model_result);
+    }
+
+    #[test]
+    fn check_compute_d_second() {
+        let amp = 100 * A_MUL;
+        let gamma = (0.000145 * MUL_E18 as f64) as u128;
+        let pools = vec![98181568049804, 101844718939576];
+        let prices = vec![MUL_E18, MUL_E18];
+        let uint256_pools: Vec<Uint256> = pools
+            .iter()
+            .zip(&prices)
+            .map(|(amount, price)| Uint256::from_u128(amount * (price / MUL_E18)))
+            .collect();
+
+        let model_result: u128 = Caller::new()
+            .call_func("solve_D_vyper", (amp * 4, gamma, pools))
+            .unwrap();
+
+        let result =
+            newton_d(Uint256::from(amp * 4), Uint256::from(gamma), &uint256_pools).unwrap();
+
         let u128_result: Uint128 = result.try_into().unwrap();
         assert_eq!(u128_result.u128(), model_result);
     }

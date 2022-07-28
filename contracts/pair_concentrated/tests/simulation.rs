@@ -1,5 +1,6 @@
 use astroport::asset::AssetInfoExt;
 use cosmwasm_std::{Addr, Uint128};
+use itertools::Itertools;
 use sim::model::{ConcentratedPairModel, A_MUL, MUL_E18};
 
 use astroport::pair_concentrated::ConcentratedPoolParams;
@@ -11,8 +12,9 @@ mod helper;
 use proptest::prelude::*;
 
 const MULTIPLIER_U128: u128 = 1e18 as u128;
-const TEST_TOLERANCE: u128 = 0;
+const TEST_TOLERANCE: u128 = 1;
 const MAX_EVENTS: usize = 100;
+const PRICE_TOLERANCE: f64 = 0.01;
 
 fn simulate_case(case: Vec<(impl Into<String>, usize, u128, u64)>) {
     let owner = Addr::unchecked("owner");
@@ -64,7 +66,11 @@ fn simulate_case(case: Vec<(impl Into<String>, usize, u128, u64)>) {
         let offer_asset = helper.assets[&test_coins[offer_ind]].with_balance(dy);
         let balance_before = helper.coin_balance(&test_coins[ask_ind], &user);
         helper.give_me_money(&[offer_asset.clone()], &user);
-        helper.swap(&user, &offer_asset).unwrap();
+        if helper.swap(&user, &offer_asset).is_err() {
+            println!("i: {i} offer_ind: {offer_ind} dy: {dy} - exceeds spread limit");
+            i += 1;
+            continue; // if swap fails because of spread then skip this case
+        };
         let swap_amount = helper.coin_balance(&test_coins[ask_ind], &user) - balance_before;
 
         // Baseline
@@ -85,7 +91,8 @@ fn simulate_case(case: Vec<(impl Into<String>, usize, u128, u64)>) {
 
         println!("contract: {swap_amount} model: {dx}");
 
-        let price_state = helper.query_config().unwrap().pool_state.price_state;
+        let config = helper.query_config().unwrap();
+        let price_state = config.pool_state.price_state;
 
         // Check price scale
         let contract_price: Uint128 = price_state.price_scale.try_into().unwrap();
@@ -103,7 +110,7 @@ fn simulate_case(case: Vec<(impl Into<String>, usize, u128, u64)>) {
         let contract_price: Uint128 = price_state.last_prices.try_into().unwrap();
         let model_prices: Vec<u128> = model.get_attr("last_price").unwrap();
         let diff = contract_price.u128().abs_diff(model_prices[1]);
-        if diff > TEST_TOLERANCE {
+        if diff > (model_prices[1] as f64 * PRICE_TOLERANCE) as u128 {
             assert_eq!(
                 contract_price.u128(),
                 model_prices[1],
@@ -116,7 +123,7 @@ fn simulate_case(case: Vec<(impl Into<String>, usize, u128, u64)>) {
         let contract_price: Uint128 = price_state.price_oracle.try_into().unwrap();
         let model_prices: Vec<u128> = model.get_attr("price_oracle").unwrap();
         let diff = contract_price.u128().abs_diff(model_prices[1]);
-        if diff > TEST_TOLERANCE {
+        if diff > (model_prices[1] as f64 * PRICE_TOLERANCE) as u128 {
             assert_eq!(
                 contract_price.u128(),
                 model_prices[1],
@@ -130,6 +137,23 @@ fn simulate_case(case: Vec<(impl Into<String>, usize, u128, u64)>) {
             assert_eq!(dx, swap_amount, "i: {i} offer: {offer_ind}  dy: {dy} model: {dx} contract: {swap_amount} shift: {shift_time} diff: {diff}");
         }
 
+        // Check pool balances
+        let contract: Vec<_> = config
+            .pair_info
+            .query_pools(&helper.app.wrap(), &helper.pair_addr)
+            .unwrap()
+            .into_iter()
+            .map(|p| p.amount.u128())
+            .collect();
+        let model: Vec<u128> = model.get_attr_curve("x").unwrap();
+        assert_eq!(
+            contract,
+            model,
+            "Balances mismatch: i: {i} contract: [{}], model: [{}]",
+            contract.iter().join(", "),
+            model.iter().join(", ")
+        );
+
         i += 1;
 
         // Shift time so EMA will update oracle prices
@@ -141,9 +165,15 @@ fn simulate_case(case: Vec<(impl Into<String>, usize, u128, u64)>) {
 fn single_test() {
     // Test variables
     let case = [
-        ("aaaaaaaaaa", 0, 1000000, 299),
-        ("aaaaaaaaaa", 0, 1000000, 460),
-        ("aaaaaaaaaa", 0, 1000000, 1),
+        ("aaaaaaaaaa", 1, 50000000, 1),
+        ("aaaaaaaaaa", 1, 50000000, 298),
+        ("aaaaaaaaaa", 1, 50000000, 461),
+        ("aaaaaaaaaa", 0, 50000000, 1),
+        ("aaaaaaaaaa", 0, 50000000, 297),
+        ("aaaaaaaaaa", 0, 50000000, 458),
+        ("aaaaaaaaaa", 0, 50000000, 459),
+        ("aaaaaaaaaa", 0, 50000000, 460),
+        ("aaaaaaaaaa", 0, 50000000, 1),
     ];
 
     simulate_case(case.to_vec());
@@ -152,10 +182,10 @@ fn single_test() {
 fn generate_cases() -> impl Strategy<Value = Vec<(String, usize, u128, u64)>> {
     prop::collection::vec(
         (
-            "[a-z]{10}",                    // user
-            0..=1usize,                     // offer_ind
-            1_000000..1_000_000_000000u128, // dy
-            1..3600u64,                     // shift_time
+            "[a-z]{10}",                     // user
+            0..=1usize,                      // offer_ind
+            50_000000..1_000_000_000000u128, // dy
+            1..3600u64,                      // shift_time
         ),
         0..MAX_EVENTS,
     )

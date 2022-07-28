@@ -870,26 +870,23 @@ fn swap(
             Ok(adjusted)
         })
         .collect::<StdResult<Vec<_>>>()?;
-    let mut ask_pool = xp[ask_ind];
+    let mut external_xp = xp.clone();
     xp[1] = xp[1] * config.pool_state.price_state.price_scale / PRECISION;
 
     let precision = get_precision(deps.storage, &offer_asset.info)?;
-    let mut dx = adjust_precision(offer_asset.amount, precision, config.greatest_precision)?;
-    if offer_ind > 0 {
-        dx *= config.pool_state.price_state.price_scale / PRECISION;
-    }
+    let dx = adjust_precision(offer_asset.amount, precision, config.greatest_precision)?;
     let mut return_amount = compute_swap(&env, &config, dx, offer_ind, ask_ind, &xp)?;
 
     xp[ask_ind] -= return_amount;
-    return_amount -= Uint256::one(); // Reduce by 1 just for safety reasons.
+    // return_amount -= Uint256::one(); // Reduce by 1 just for safety reasons.
     if ask_ind > 0 {
         return_amount = return_amount
             .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
     }
-    let mut commission_amount = config.pool_params.fee(&xp) * return_amount / FEE_MULTIPLIER;
+    let commission_amount = config.pool_params.fee(&xp) * return_amount / FEE_MULTIPLIER;
     return_amount -= commission_amount;
-    ask_pool -= return_amount;
-    let mut spread_amount = offer_amount.saturating_sub(return_amount);
+    external_xp[ask_ind] -= return_amount;
+    let spread_amount = offer_amount.saturating_sub(return_amount);
 
     let new_price = if offer_ind == 0 {
         offer_amount * MULTIPLIER / return_amount
@@ -898,11 +895,10 @@ fn swap(
     };
 
     let total_lp = query_supply(&deps.querier, &config.pair_info.liquidity_token)?.into();
-    xp[ask_ind] = ask_pool;
     update_price(
         &mut config.pool_state,
         &env,
-        xp.clone(),
+        external_xp,
         new_price,
         Uint256::zero(),
         &config.pool_params,
@@ -918,7 +914,13 @@ fn swap(
     let receiver = to.unwrap_or_else(|| sender.clone());
 
     // Check the max spread limit (if it was specified)
-    assert_max_spread(belief_price, max_spread, dx, return_amount, spread_amount)?;
+    assert_max_spread(
+        belief_price,
+        max_spread,
+        offer_amount,
+        return_amount,
+        spread_amount,
+    )?;
 
     // Resolving precisions
     let ask_precision = get_precision(&*deps.storage, &pools[ask_ind].info)?;
@@ -1125,7 +1127,7 @@ fn query_simulation(
     let precision = get_precision(deps.storage, &offer_asset.info)?;
     let dx = adjust_precision(offer_asset.amount, precision, config.greatest_precision)?;
     xp[offer_ind] += dx;
-    xp[1] *= config.pool_state.price_state.price_scale / PRECISION;
+    xp[1] = xp[1] * config.pool_state.price_state.price_scale / PRECISION;
 
     let mut return_amount = compute_swap(&env, &config, dx, offer_ind, ask_ind, &xp)?;
 
@@ -1211,9 +1213,9 @@ fn query_reverse_simulation(
     let precision = get_precision(deps.storage, &ask_asset.info)?;
     let mut dy = adjust_precision(ask_asset.amount, precision, config.greatest_precision)?;
     if ask_ind == 0 {
-        dy *= config.pool_state.price_state.price_scale / PRECISION;
+        dy = dy * config.pool_state.price_state.price_scale / PRECISION;
     }
-    xp[1] *= config.pool_state.price_state.price_scale / PRECISION;
+    xp[1] = xp[1] * config.pool_state.price_state.price_scale / PRECISION;
 
     let d = config.pool_state.get_last_d(&env, &xp)?;
 
@@ -1453,7 +1455,7 @@ fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint256> {
             Ok(adjusted)
         })
         .collect::<StdResult<Vec<_>>>()?;
-    xp[1] *= config.pool_state.price_state.price_scale / PRECISION;
+    xp[1] = xp[1] * config.pool_state.price_state.price_scale / PRECISION;
 
     config.pool_state.get_last_d(&env, &xp)
 }
