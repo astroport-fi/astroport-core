@@ -1,5 +1,5 @@
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
-use astroport::generator::{ExecuteMsg, QueryMsg, StakerResponse};
+use astroport::generator::{ExecuteMsg, MigrateMsg, QueryMsg, StakerResponse};
 use astroport_governance::utils::WEEK;
 
 use astroport::{
@@ -12,7 +12,7 @@ use astroport::{
         InstantiateMsg as GeneratorInstantiateMsg, PendingTokenResponse, PoolInfoResponse,
         QueryMsg as GeneratorQueryMsg,
     },
-    generator_proxy::InstantiateMsg as ProxyInstantiateMsg,
+    //generator_proxy::InstantiateMsg as ProxyInstantiateMsg,
     token::InstantiateMsg as TokenInstantiateMsg,
     vesting::{
         Cw20HookMsg as VestingHookMsg, InstantiateMsg as VestingInstantiateMsg, VestingAccount,
@@ -22,6 +22,7 @@ use astroport::{
 
 use astroport::pair::StablePoolParams;
 use astroport_generator::state::Config;
+use astroport_package_generator_v110::generator as astroport_110;
 use cosmwasm_std::{to_binary, Addr, Binary, StdResult, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{next_block, App, ContractWrapper, Executor};
@@ -46,6 +47,149 @@ const USER9: &str = "user9";
 struct PoolWithProxy {
     pool: (String, Uint128),
     proxy: Option<Addr>,
+}
+
+#[test]
+fn migrate_from_110_to_200_with_deposit() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked(OWNER);
+    let user1 = Addr::unchecked(USER1);
+    let token_code_id = store_token_code(&mut app);
+    let factory_code_id = store_factory_code(&mut app);
+    let pair_code_id = store_pair_code_id(&mut app);
+
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+
+    let cny_eur_token_code_id = store_token_code(&mut app);
+
+    let mut tokens: Vec<Addr> = vec![];
+    for symbol in 'a'..'l' {
+        let token_name = String::from(symbol) + &*String::from("EUR");
+        tokens.push(instantiate_token(
+            &mut app,
+            cny_eur_token_code_id,
+            token_name.as_str(),
+            None,
+        ))
+    }
+
+    let cny_token = instantiate_token(&mut app, cny_eur_token_code_id, "CNY", None);
+    assert_eq!(11, tokens.len());
+
+    let mut pairs: Vec<(Addr, Addr)> = vec![];
+    for eur_token in tokens {
+        let (pair_cny_eur, lp_cny_eur) = create_pair(
+            &mut app,
+            &factory_instance,
+            None,
+            None,
+            [
+                AssetInfo::Token {
+                    contract_addr: cny_token.clone(),
+                },
+                AssetInfo::Token {
+                    contract_addr: eur_token.clone(),
+                },
+            ],
+        );
+        pairs.push((pair_cny_eur, lp_cny_eur));
+    }
+
+    let generator_instance =
+        instantiate_generator_wth_version(&mut app, &astro_token_instance, None, "1.1.0");
+
+    for pair in pairs.clone() {
+        register_lp_tokens_in_generator_v110(
+            &mut app,
+            &generator_instance,
+            vec![PoolWithProxy {
+                pool: (pair.1.to_string(), Uint128::from(50u32)),
+                proxy: None,
+            }],
+        );
+    }
+
+    for pair in pairs.clone() {
+        let msg_cny_eur = QueryMsg::PoolInfo {
+            lp_token: pair.1.to_string(),
+        };
+
+        // Check if proxy reward is none
+        let reps: astroport_110::PoolInfoResponse = app
+            .wrap()
+            .query_wasm_smart(&generator_instance, &msg_cny_eur)
+            .unwrap();
+        assert_eq!(None, reps.reward_proxy);
+    }
+
+    let msg_cny_eur = astroport_110::QueryMsg::PoolLength {};
+    let reps: astroport_110::PoolLengthResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &msg_cny_eur)
+        .unwrap();
+    assert_eq!(11, reps.length);
+
+    for pair in pairs.clone() {
+        // Mint and deposit LP tokens
+        for user in [USER1, USER2] {
+            mint_tokens(
+                &mut app,
+                pair.0.clone(),
+                &pair.1,
+                &Addr::unchecked(user),
+                10,
+            );
+            deposit_lp_tokens_to_generator(&mut app, &generator_instance, user, &[(&pair.1, 10)]);
+        }
+
+        check_token_balance(&mut app, &pair.1, &generator_instance, 20);
+    }
+
+    app.update_block(|bi| next_block(bi));
+
+    let new_generator_code_id = setup_generator_code_200(&mut app);
+    let whitelist_code_id = store_whitelist_code(&mut app);
+
+    // Migrate generator contract 1.1.0 -> 2.0.0
+    app.migrate_contract(
+        owner.clone(),
+        generator_instance.clone(),
+        &MigrateMsg {
+            whitelist_code_id: Some(whitelist_code_id),
+            factory: Option::from(factory_instance.to_string()),
+            generator_controller: None,
+            blocked_list_tokens: None,
+            guardian: None,
+            voting_escrow: None,
+            generator_limit: None,
+        },
+        new_generator_code_id,
+    )
+    .unwrap();
+
+    // check size of pools after migration
+    let reps: astroport_110::PoolLengthResponse = app
+        .wrap()
+        .query_wasm_smart(&generator_instance, &astroport_110::QueryMsg::PoolLength {})
+        .unwrap();
+    assert_eq!(11, reps.length);
+
+    for pair in pairs.clone() {
+        // Mint tokens, so user can deposit
+        mint_tokens(&mut app, pair.0.clone(), &pair.1, &user1, 10);
+
+        // deposit lp after migration
+        deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER1, &[(&pair.1, 10)]);
+    }
+
+    for pair in pairs.clone() {
+        // check balance 20 before migration and 10 after
+        check_token_balance(&mut app, &pair.1, &generator_instance, 30);
+    }
 }
 
 #[test]
@@ -3498,7 +3642,21 @@ fn instantiate_factory(
     .unwrap()
 }
 
-fn setup_generator_code(app: &mut App) -> u64 {
+fn setup_generator_v110_code(app: &mut App) -> u64 {
+    let generator_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_generator_v110::contract::execute,
+            astroport_generator_v110::contract::instantiate,
+            astroport_generator_v110::contract::query,
+        )
+        .with_migrate_empty(astroport_generator_v110::contract::migrate)
+        .with_reply_empty(astroport_generator_v110::contract::reply),
+    );
+
+    app.store_code(generator_contract)
+}
+
+fn setup_generator_code_200(app: &mut App) -> u64 {
     let generator_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_generator::contract::execute,
@@ -3621,7 +3779,6 @@ fn instantiate_generator(
 
 fn instantiate_generator_wth_version(
     mut app: &mut App,
-    factory_instance: &Addr,
     astro_token_instance: &Addr,
     allowed_proxies: Option<Vec<String>>,
     generator_version: &str,
@@ -3659,23 +3816,17 @@ fn instantiate_generator_wth_version(
         1_000_000_000_000000,
     );
 
-    let whitelist_code_id = store_whitelist_code(&mut app);
     let generator_code_id = match generator_version {
-        _ => setup_generator_code(&mut app),
+        _ => setup_generator_v110_code(&mut app),
     };
 
-    let init_msg = GeneratorInstantiateMsg {
+    let init_msg = astroport_package_generator_v110::generator::InstantiateMsg {
         owner: owner.to_string(),
-        factory: factory_instance.to_string(),
-        guardian: None,
         allowed_reward_proxies: allowed_proxies.unwrap_or_default(),
         start_block: Uint64::from(app.block_info().height),
         astro_token: astro_token_instance.to_string(),
         tokens_per_block: Uint128::new(10_000000),
         vesting_contract: vesting_instance.to_string(),
-        generator_controller: Some(owner.to_string()),
-        whitelist_code_id,
-        voting_escrow: None,
     };
 
     let generator_instance = app
@@ -3718,13 +3869,14 @@ fn instantiate_generator_wth_version(
     generator_instance
 }
 
+/*
 fn instantiate_mirror_protocol(
     _app: &mut App,
     _token_code_id: u64,
     _asset_token: &Addr,
     _staking_token: &Addr,
 ) -> (Addr, Addr) {
-    /*let mirror_token_instance = instantiate_token(app, token_code_id, "MIR", None);
+    let mirror_token_instance = instantiate_token(app, token_code_id, "MIR", None);
 
     // Mirror staking
     let mirror_staking_contract = Box::new(ContractWrapper::new_with_empty(
@@ -3770,10 +3922,11 @@ fn instantiate_mirror_protocol(
     )
     .unwrap();
 
-    (mirror_token_instance, mirror_staking_instance)*/
+    (mirror_token_instance, mirror_staking_instance)
 
     (Addr::unchecked(""), Addr::unchecked(""))
 }
+
 
 fn store_proxy_code(app: &mut App) -> u64 {
     let generator_proxy_to_mirror_contract = Box::new(ContractWrapper::new_with_empty(
@@ -3811,6 +3964,28 @@ fn instantiate_proxy(
         None,
     )
     .unwrap()
+}
+*/
+
+fn register_lp_tokens_in_generator_v110(
+    app: &mut App,
+    generator_instance: &Addr,
+    pools_with_proxy: Vec<PoolWithProxy>,
+) {
+    for pool_with_proxy in &pools_with_proxy {
+        app.execute_contract(
+            Addr::unchecked(OWNER),
+            generator_instance.clone(),
+            &astroport_110::ExecuteMsg::Add {
+                lp_token: pool_with_proxy.pool.0.clone().to_string(),
+                alloc_point: Uint64::try_from(pool_with_proxy.pool.1).unwrap(),
+                has_asset_rewards: false,
+                reward_proxy: None,
+            },
+            &[],
+        )
+        .unwrap();
+    }
 }
 
 fn register_lp_tokens_in_generator(

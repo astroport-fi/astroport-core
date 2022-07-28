@@ -2557,16 +2557,15 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             "1.0.0" => {
                 let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 
-                let keys = POOL_INFO
+                let keys = migration::POOL_INFOV100
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
                     .collect::<StdResult<Vec<_>>>()?;
 
                 for key in keys {
-                    let pool_info_v100 = migration::POOL_INFOV100
-                        .load(deps.storage, &Addr::unchecked(key.clone()))?;
+                    let pool_info_v100 = migration::POOL_INFOV100.load(deps.storage, &key)?;
 
                     if !pool_info_v100.alloc_point.is_zero() {
-                        active_pools.push((Addr::unchecked(&key), pool_info_v100.alloc_point));
+                        active_pools.push((key.clone(), pool_info_v100.alloc_point));
                     }
 
                     let mut accumulated_proxy_rewards_per_share = Default::default();
@@ -2617,20 +2616,15 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             "1.1.0" => {
                 let mut active_pools: Vec<(Addr, Uint64)> = vec![];
 
-                let keys = POOL_INFO
-                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| {
-                        let res = v?;
-                        Ok(res)
-                    })
-                    .collect::<Result<Vec<Addr>, StdError>>()?;
+                let keys = migration::POOL_INFOV110
+                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+                    .collect::<StdResult<Vec<_>>>()?;
 
                 for key in keys {
-                    let pool_info_v110 = migration::POOL_INFOV110
-                        .load(deps.storage, &Addr::unchecked(key.clone()))?;
+                    let pool_info_v110 = migration::POOL_INFOV110.load(deps.storage, &key)?;
 
                     if !pool_info_v110.alloc_point.is_zero() {
-                        active_pools.push((Addr::unchecked(&key), pool_info_v110.alloc_point));
+                        active_pools.push((key.clone(), pool_info_v110.alloc_point));
                     }
 
                     let mut accumulated_proxy_rewards_per_share = Default::default();
@@ -2671,7 +2665,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                         reward_global_index: pool_info_v110.accumulated_rewards_per_share,
                         total_virtual_supply: lp_balance,
                     };
-                    POOL_INFO.save(deps.storage, &Addr::unchecked(key), &pool_info)?;
+                    POOL_INFO.save(deps.storage, &key, &pool_info)?;
                 }
 
                 migration::migrate_configs_to_v120(&mut deps, active_pools, &msg)?;
