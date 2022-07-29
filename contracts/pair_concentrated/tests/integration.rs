@@ -28,6 +28,10 @@ fn provide_and_withdraw_no_fee() {
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
+    // checking LP token price on an empty pool
+    let lp_price = helper.query_lp_price().unwrap();
+    assert_eq!(lp_price, 0);
+
     let user1 = Addr::unchecked("user1");
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
@@ -43,6 +47,10 @@ fn provide_and_withdraw_no_fee() {
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
+
+    // Check LP token price again
+    let lp_price = helper.query_lp_price().unwrap();
+    assert_eq!(lp_price, 2000_000000);
 
     // The user2 with the same assets should receive the same share minus NOISE_FEE - 1
     let user2 = Addr::unchecked("user2");
@@ -64,6 +72,10 @@ fn provide_and_withdraw_no_fee() {
     helper.provide_liquidity(&user3, &assets).unwrap();
     assert_eq!(99_998936, helper.token_balance(&helper.lp_token, &user3));
 
+    // Check that LP token price is growing up
+    let lp_price = helper.query_lp_price().unwrap();
+    assert_eq!(lp_price, 2001_998020);
+
     // The more provide makes pool imbalanced the more fees are charged
     let user4 = Addr::unchecked("user4");
     let assets = vec![
@@ -73,6 +85,9 @@ fn provide_and_withdraw_no_fee() {
     helper.give_me_money(&assets, &user4);
     helper.provide_liquidity(&user4, &assets).unwrap();
     assert_eq!(99_998483, helper.token_balance(&helper.lp_token, &user4));
+
+    let lp_price = helper.query_lp_price().unwrap();
+    assert_eq!(lp_price, 2001_996037);
 
     // Imbalanced provide which makes pool more balanced gives profit to the LP
     let user5 = Addr::unchecked("user5");
@@ -138,6 +153,9 @@ fn provide_and_withdraw_no_fee() {
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user3));
     assert_eq!(50_000000, helper.coin_balance(&test_coins[1], &user3));
+
+    let lp_price = helper.query_lp_price().unwrap();
+    assert_eq!(lp_price, 1999_501326);
 }
 
 #[test]
@@ -276,7 +294,7 @@ fn check_swaps() {
 
     helper.swap(&user, &offer_asset).unwrap();
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
-    assert_eq!(99_999494, helper.coin_balance(&test_coins[1], &user));
+    assert_eq!(99_999495, helper.coin_balance(&test_coins[1], &user));
 
     let offer_asset = helper.assets[&test_coins[0]].with_balance(90_000_000000u128);
     helper.give_me_money(&[offer_asset.clone()], &user);
@@ -330,7 +348,7 @@ fn check_withdraw_charges_fees() {
 
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
 
-    let mut params = ConcentratedPoolParams {
+    let params = ConcentratedPoolParams {
         amp: 100,
         gamma: (0.000145 * MUL_E18 as f64) as u128,
         mid_fee: 500000,
@@ -356,7 +374,7 @@ fn check_withdraw_charges_fees() {
     helper.give_me_money(&[offer_asset.clone()], &user1);
     helper.swap(&user1, &offer_asset).unwrap();
     let usual_swap_amount = helper.coin_balance(&test_coins[1], &user1);
-    assert_eq!(99_994951, usual_swap_amount);
+    assert_eq!(99_994952, usual_swap_amount);
 
     // Trying to swap LUNA -> USDC via provide/withdraw
     let user2 = Addr::unchecked("user2");
@@ -371,12 +389,12 @@ fn check_withdraw_charges_fees() {
         .withdraw_liquidity(
             &user2,
             lp_tokens_amount,
-            vec![helper.assets[&test_coins[1]].with_balance(100_000000u128)],
+            vec![helper.assets[&test_coins[1]].with_balance(usual_swap_amount)],
         )
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: Not enough LP tokens. You need 50002544 LP tokens."
+        "Generic error: Not enough LP tokens. You need 50000020 LP tokens."
     );
 
     helper

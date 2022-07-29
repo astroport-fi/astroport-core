@@ -6,7 +6,7 @@ use std::vec;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, from_binary, to_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
-    Decimal256, Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
+    Decimal256, Deps, DepsMut, Env, Fraction, Isqrt, MessageInfo, QuerierWrapper, Reply, Response,
     StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, Uint256, WasmMsg,
 };
 use cw2::set_contract_version;
@@ -25,18 +25,18 @@ use astroport::pair::{
     migration_check, ConfigResponse, InstantiateMsg, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
 };
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse,
     ReverseSimulationResponse, SimulationResponse,
 };
 use astroport::pair_concentrated::{
-    ConcentratedPoolParams, ConcentratedPoolUpdateParams, UpdatePoolParams,
+    ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg, UpdatePoolParams,
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use crate::constants::{FEE_MULTIPLIER, MULTIPLIER, N_COINS, PRECISION};
 use crate::error::ContractError;
-use crate::math::{geometric_mean, newton_d, newton_y, update_price};
+use crate::math::{geometric_mean, halfpow, newton_d, newton_y, update_price};
 use crate::state::{
     get_precision, store_precisions, AmpGamma, Config, PoolParams, PoolState, PriceState, CONFIG,
 };
@@ -126,7 +126,7 @@ pub fn instantiate(
             price_scale: MULTIPLIER,
             last_price_update: env.block.time.seconds(),
             xcp_profit: MULTIPLIER,
-            virtual_price: MULTIPLIER,
+            virtual_price: Uint256::zero(),
             d: Default::default(),
             not_adjusted: false,
         },
@@ -496,24 +496,25 @@ fn provide_liquidity(
         geometric_mean(&tmp_xp)
     };
 
-    let deposits = assets_collection
-        .iter()
-        .map(|(deposit, _)| *deposit)
-        .collect_vec();
+    let mut price = Uint256::zero();
+
     if !old_d.is_zero() {
+        let deposits = assets_collection
+            .iter()
+            .map(|(deposit, _)| *deposit)
+            .collect_vec();
+
         let provide_fee = calc_provide_fee(&config.pool_params, &deposits, &xp)? * mint_amount
             / FEE_MULTIPLIER
             + Uint256::one();
         mint_amount -= provide_fee;
 
-        let mut price = Uint256::zero();
-
         // TODO: not sure we need this check
         if mint_amount > Uint256::from_u128(1e5 as u128) {
             // TODO: I believe here we need to check that the deposits are imbalanced, not just one of them is zero.
             if deposits[0].is_zero() || deposits[1].is_zero() {
-                // How much the user spent to receive share in pool which he didn't deposit in
-                // share in X / provide fees denominated in Y
+                // How much the user spent to receive share in pool which he didn't deposit in?
+                // Share in X / provide fees denominated in Y
                 let covered_share_ind = if deposits[0].is_zero() { 1 } else { 0 };
                 let uncovered_share =
                     xp_for_prices[1 - covered_share_ind].multiply_ratio(mint_amount, total_share);
@@ -526,19 +527,19 @@ fn provide_liquidity(
                 }
             }
         }
-
-        update_price(
-            &mut config.pool_state,
-            &env,
-            xp,
-            price,
-            new_d,
-            &config.pool_params,
-            total_share,
-        )?;
     } else {
         config.pool_state.price_state.d = new_d;
     }
+
+    update_price(
+        &mut config.pool_state,
+        &env,
+        xp,
+        price,
+        new_d,
+        &config.pool_params,
+        total_share,
+    )?;
 
     let mint_amount: Uint128 =
         adjust_precision(mint_amount, config.greatest_precision, LP_TOKEN_PRECISION)?.try_into()?;
@@ -1045,6 +1046,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
         QueryMsg::QueryComputeD {} => to_binary(&query_compute_d(deps, env)?),
+        QueryMsg::LpPrice {} => to_binary(&query_lp_price(deps, env)?),
     }
 }
 
@@ -1442,7 +1444,7 @@ fn update_config(
 /// * **env** is an object of type [`Env`].
 fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint256> {
     let config = CONFIG.load(deps.storage)?;
-    // Offer pool balance already increased and this is good.
+
     let pools = config
         .pair_info
         .query_pools(&deps.querier, &env.contract.address)?;
@@ -1459,4 +1461,29 @@ fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint256> {
     xp[1] = xp[1] * config.pool_state.price_state.price_scale / PRECISION;
 
     config.pool_state.get_last_d(&env, &xp)
+}
+
+/// ## Description
+/// Compute the current LP token price.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+fn query_lp_price(deps: Deps, env: Env) -> StdResult<Uint256> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let price_state = config.pool_state.price_state;
+    let block_time = env.block.time.seconds();
+
+    let mut price_oracle = config.pool_state.price_state.price_oracle;
+    if price_state.last_price_update < block_time {
+        let arg = Uint256::from(block_time - price_state.last_price_update) * MULTIPLIER
+            / Uint256::from(config.pool_params.ma_half_time);
+        let alpha = halfpow(arg)?;
+        price_oracle = (price_state.last_prices * (MULTIPLIER - alpha)
+            + price_state.price_oracle * alpha)
+            / MULTIPLIER;
+    }
+
+    Ok(Uint256::from(2u8) * price_state.virtual_price * price_oracle.isqrt() / MULTIPLIER)
 }

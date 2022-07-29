@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coin, from_slice, to_binary, Addr, Coin, Empty, StdError, StdResult, Uint128};
+use cosmwasm_std::{
+    coin, from_slice, to_binary, Addr, Coin, Empty, StdError, StdResult, Uint128, Uint256,
+};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
@@ -10,10 +12,10 @@ use itertools::Itertools;
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, QueryMsg, ReverseSimulationResponse,
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, ReverseSimulationResponse,
     SimulationResponse,
 };
-use astroport::pair_concentrated::ConcentratedPoolParams;
+use astroport::pair_concentrated::{ConcentratedPoolParams, QueryMsg};
 use astroport::querier::NATIVE_TOKEN_PRECISION;
 use astroport_pair_concentrated::contract::{execute, instantiate, query, reply};
 use astroport_pair_concentrated::state::Config;
@@ -369,6 +371,14 @@ impl Helper {
             .query_wasm_raw(&self.pair_addr, b"config")?
             .ok_or_else(|| StdError::generic_err("Failed to find config in storage"))?;
         from_slice(&binary)
+    }
+
+    pub fn query_lp_price(&self) -> StdResult<u128> {
+        let price: Uint256 = self
+            .app
+            .wrap()
+            .query_wasm_smart(&self.pair_addr, &QueryMsg::LpPrice {})?;
+        Ok(Uint128::try_from(price)?.u128())
     }
 }
 

@@ -1,3 +1,5 @@
+use crate::asset::{Asset, AssetInfo};
+use cosmwasm_std::Uint128;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -42,4 +44,34 @@ pub enum ConcentratedPoolUpdateParams {
     Update(UpdatePoolParams),
     Promote(PromoteParams),
     StopChangingAmpGamma {},
+}
+
+/// This structure describes the query messages available in the contract.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryMsg {
+    /// Returns information about a pair in an object of type [`super::asset::PairInfo`].
+    Pair {},
+    /// Returns information about a pool in an object of type [`PoolResponse`].
+    Pool {},
+    /// Returns contract configuration settings in a custom [`ConfigResponse`] structure.
+    Config {},
+    /// Returns information about the share of the pool in a vector that contains objects of type [`Asset`].
+    Share { amount: Uint128 },
+    /// Returns information about a swap simulation in a [`SimulationResponse`] object.
+    Simulation {
+        offer_asset: Asset,
+        ask_asset_info: Option<AssetInfo>,
+    },
+    /// Returns information about cumulative prices in a [`CumulativePricesResponse`] object.
+    ReverseSimulation {
+        offer_asset_info: Option<AssetInfo>,
+        ask_asset: Asset,
+    },
+    /// Returns information about the cumulative prices in a [`CumulativePricesResponse`] object
+    CumulativePrices {},
+    /// Returns current D invariant in as a [`u128`] value
+    QueryComputeD {},
+    /// Query LP token price denominated in first asset
+    LpPrice {},
 }
