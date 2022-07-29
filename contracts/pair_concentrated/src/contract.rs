@@ -483,7 +483,7 @@ fn provide_liquidity(
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = newton_d(amp_gamma.ann(), amp_gamma.gamma(), &xp)?;
 
-    let total_share: Uint256 =
+    let mut total_share: Uint256 =
         query_supply(&deps.querier, &config.pair_info.liquidity_token)?.into();
 
     let mut mint_amount = if !old_d.is_zero() {
@@ -493,7 +493,8 @@ fn provide_liquidity(
             new_d / N_COINS,
             new_d * PRECISION / (config.pool_state.price_state.price_scale * N_COINS),
         ];
-        geometric_mean(&tmp_xp)
+        total_share = geometric_mean(&tmp_xp);
+        total_share
     };
 
     let mut price = Uint256::zero();

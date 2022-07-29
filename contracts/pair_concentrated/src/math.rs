@@ -209,7 +209,8 @@ pub(crate) fn update_price(
         virtual_price = MULTIPLIER * xcp / total_lp;
         xcp_profit = price_state.xcp_profit * virtual_price / price_state.virtual_price;
 
-        if virtual_price < price_state.virtual_price && pool_state.future_time == 0 {
+        // If virtual price dropped and no ramping happens then this swap makes loss
+        if virtual_price < price_state.virtual_price && block_time > pool_state.future_time {
             return Err(StdError::generic_err("Loss"));
         }
         // TODO: why?

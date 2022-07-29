@@ -16,7 +16,7 @@ pub const PRECISION: Uint256 = MULTIPLIER;
 /// The maximum number of calculation steps for numerical methods.
 pub const ITERATIONS: u8 = 64;
 /// Calculation precision for halfpow function
-pub const EXP_PRECISION: Uint256 = Uint256::from_u128(1 as u128);
+pub const EXP_PRECISION: Uint256 = Uint256::from_u128(1u128);
 /// Decimal precision for TWAP results
 pub const TWAP_PRECISION: Uint256 = Uint256::from_u128(10e6 as u128);
 /// The minimum time interval for updating Amplifier or Gamma
