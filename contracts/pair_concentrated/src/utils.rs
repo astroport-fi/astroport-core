@@ -210,7 +210,7 @@ pub(crate) fn compute_swap(
         dx = dx * config.pool_state.price_state.price_scale / PRECISION;
     }
     old_xp[offer_ind] -= dx;
-    // TODO: cached D sometimes wrong
+    // TODO: cached D may reduce gas fees but there is a slight numerical error, thus proptest simulation fails
     // let d = config.pool_state.get_last_d(env, &old_xp)?;
 
     let amp_gamma = config.pool_state.get_amp_gamma(env);
