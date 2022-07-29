@@ -530,6 +530,8 @@ fn provide_liquidity(
         }
     } else {
         config.pool_state.price_state.d = new_d;
+        // We know the price scale if this is the first provide
+        config.pool_state.price_state.price_scale = xp[0] * MULTIPLIER / xp[1];
     }
 
     update_price(
@@ -858,7 +860,7 @@ fn swap(
     let ask_ind = 1 - offer_ind;
 
     check_swap_parameters(
-        pools[offer_ind].amount.checked_sub(offer_asset.amount)?,
+        pools[offer_ind].amount.saturating_sub(offer_asset.amount),
         pools[ask_ind].amount,
         offer_asset.amount,
     )?;
@@ -875,7 +877,10 @@ fn swap(
     xp[1] = xp[1] * config.pool_state.price_state.price_scale / PRECISION;
 
     let precision = get_precision(deps.storage, &offer_asset.info)?;
-    let dx = adjust_precision(offer_asset.amount, precision, config.greatest_precision)?;
+    let mut dx = adjust_precision(offer_asset.amount, precision, config.greatest_precision)?;
+    if offer_ind > 0 {
+        dx = dx * config.pool_state.price_state.price_scale / PRECISION;
+    }
     let mut return_amount = compute_swap(&env, &config, dx, offer_ind, ask_ind, &xp)?;
 
     xp[ask_ind] -= return_amount;
@@ -883,13 +888,18 @@ fn swap(
     let mut commission_amount = config.pool_params.fee(&xp) * return_amount / FEE_MULTIPLIER;
     xp[ask_ind] += commission_amount;
     return_amount -= commission_amount;
+
+    let mut spread_amount = dx.saturating_sub(return_amount);
+    // Check the max spread limit (if it was specified)
+    assert_max_spread(belief_price, max_spread, dx, return_amount, spread_amount)?;
     if ask_ind > 0 {
         return_amount = return_amount
             .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
         commission_amount = commission_amount
             .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
+        spread_amount = spread_amount
+            .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
     }
-    let spread_amount = offer_amount.saturating_sub(return_amount);
 
     let new_price = if offer_ind == 0 {
         offer_amount * MULTIPLIER / return_amount
@@ -915,15 +925,6 @@ fn swap(
         config.pair_info.pair_type.clone(),
     )?;
     let receiver = to.unwrap_or_else(|| sender.clone());
-
-    // Check the max spread limit (if it was specified)
-    assert_max_spread(
-        belief_price,
-        max_spread,
-        offer_amount,
-        return_amount,
-        spread_amount,
-    )?;
 
     // Resolving precisions
     let ask_precision = get_precision(&*deps.storage, &pools[ask_ind].info)?;
@@ -1136,7 +1137,6 @@ fn query_simulation(
     let mut return_amount = compute_swap(&env, &config, dx, offer_ind, ask_ind, &xp)?;
 
     xp[ask_ind] -= return_amount;
-    return_amount -= Uint256::one(); // Reduce by 1 just for safety reasons.
     let mut commission_amount = config.pool_params.fee(&xp) * return_amount / FEE_MULTIPLIER;
     xp[ask_ind] += commission_amount;
     let mut spread_amount = dx.saturating_sub(return_amount);
@@ -1221,13 +1221,12 @@ fn query_reverse_simulation(
     }
     xp[1] = xp[1] * config.pool_state.price_state.price_scale / PRECISION;
 
-    let d = config.pool_state.get_last_d(&env, &xp)?;
+    let amp_gamma = config.pool_state.get_amp_gamma(&env);
+    let d = newton_d(amp_gamma.ann(), amp_gamma.gamma(), &xp)?;
 
-    let before_commission =
-        FEE_MULTIPLIER / (FEE_MULTIPLIER - config.pool_params.fee(&xp)) * dy + Uint256::one();
+    let before_commission = FEE_MULTIPLIER / (FEE_MULTIPLIER - config.pool_params.fee(&xp)) * dy;
     let mut commission_amount = before_commission - dy;
     xp[ask_ind] -= before_commission;
-    let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let mut offer_amount =
         newton_y(amp_gamma.ann(), amp_gamma.gamma(), &xp, d, offer_ind)? - xp[offer_ind];
 
@@ -1241,6 +1240,7 @@ fn query_reverse_simulation(
         spread_amount = spread_amount
             .checked_multiply_ratio(PRECISION, config.pool_state.price_state.price_scale)?;
     }
+
     // Resolving precisions
     let offer_precision = get_precision(deps.storage, &pools[offer_ind].info)?;
     let offer_amount =

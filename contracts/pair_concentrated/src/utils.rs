@@ -11,7 +11,7 @@ use astroport::asset::{Asset, AssetInfo};
 use astroport::cosmwasm_ext::{AbsDiff, OneValue};
 use astroport::querier::query_factory_config;
 
-use crate::constants::{MULTIPLIER, NOISE_FEE, N_COINS, PRECISION, TWAP_PRECISION};
+use crate::constants::{MULTIPLIER, NOISE_FEE, N_COINS, TWAP_PRECISION};
 use crate::error::ContractError;
 use crate::math::{newton_d, newton_y};
 use crate::state::{Config, PoolParams};
@@ -198,7 +198,7 @@ pub(crate) fn get_share_in_assets(
 pub(crate) fn compute_swap(
     env: &Env,
     config: &Config,
-    mut dx: Uint256,
+    dx: Uint256,
     offer_ind: usize,
     ask_ind: usize,
     xp: &[Uint256],
@@ -206,9 +206,6 @@ pub(crate) fn compute_swap(
     let xp = xp.to_vec();
 
     let mut old_xp = xp.clone();
-    if offer_ind > 0 {
-        dx = dx * config.pool_state.price_state.price_scale / PRECISION;
-    }
     old_xp[offer_ind] -= dx;
     // TODO: cached D may reduce gas fees but there is a slight numerical error, thus proptest simulation fails
     // let d = config.pool_state.get_last_d(env, &old_xp)?;
