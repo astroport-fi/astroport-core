@@ -7,7 +7,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, from_binary, to_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
     Decimal256, Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
-    StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    StdError, StdResult, SubMsg, Uint128, Uint256, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -728,10 +728,7 @@ fn imbalanced_withdraw(
     let fee = Decimal256::new(fee.atomics().into());
 
     for i in 0..n_coins as usize {
-        let ideal_balance = withdraw_d.checked_mul(
-            Decimal256::checked_from_ratio(old_balances[i].atomics(), init_d.atomics())
-                .map_err(|_| StdError::generic_err(""))?,
-        )?;
+        let ideal_balance = withdraw_d.checked_multiply_ratio(old_balances[i], init_d)?;
         let difference = if ideal_balance > new_balances[i] {
             ideal_balance - new_balances[i]
         } else {
@@ -742,18 +739,19 @@ fn imbalanced_withdraw(
 
     let after_fee_d = compute_d(amp, &new_balances, config.greatest_precision)?;
 
-    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+    let total_share = Uint256::from(query_supply(
+        &deps.querier,
+        &config.pair_info.liquidity_token,
+    )?);
     // How many tokens do we need to burn to withdraw asked assets?
     let burn_amount = total_share
         .checked_multiply_ratio(
-            init_d
-                .to_uint128_with_precision(18u8)?
-                .checked_sub(after_fee_d.to_uint128_with_precision(18u8)?)?,
-            init_d.to_uint128_with_precision(18u8)?,
+            init_d.atomics().checked_sub(after_fee_d.atomics())?,
+            init_d.atomics(),
         )?
-        .checked_add(Uint128::from(1u8))?; // In case of rounding errors - make it unfavorable for the "attacker"
+        .checked_add(Uint256::from(1u8))?; // In case of rounding errors - make it unfavorable for the "attacker"
 
-    let burn_amount = adjust_precision(burn_amount, config.greatest_precision, LP_TOKEN_PRECISION)?;
+    let burn_amount = burn_amount.try_into()?;
 
     if burn_amount > provided_amount {
         return Err(StdError::generic_err(format!(
@@ -1148,16 +1146,14 @@ pub fn query_reverse_simulation(
         &config.factory_addr,
         config.pair_info.pair_type.clone(),
     )?;
-    let before_commission = Decimal256::with_precision(
-        (Decimal::one() - fee_info.total_fee_rate)
-            .inv()
-            .unwrap_or_else(Decimal::one)
-            .checked_mul_uint128(ask_asset.amount)?,
-        ask_precision as u32,
-    )?;
+    let before_commission = (Decimal256::one()
+        - Decimal256::new(fee_info.total_fee_rate.atomics().into()))
+    .inv()
+    .unwrap_or_else(Decimal256::one)
+    .checked_mul(Decimal256::with_precision(ask_asset.amount, ask_precision)?)?;
 
-    let offer_amount = calc_y(
-        &ask_pool.info,
+    let new_offer_pool_amount = calc_y(
+        &ask_pool,
         &offer_pool.info,
         ask_pool.amount - before_commission,
         &pools,
@@ -1165,7 +1161,7 @@ pub fn query_reverse_simulation(
         config.greatest_precision,
     )?;
 
-    let offer_amount = offer_amount.checked_sub(
+    let offer_amount = new_offer_pool_amount.checked_sub(
         offer_pool
             .amount
             .to_uint128_with_precision(config.greatest_precision)?,
@@ -1175,7 +1171,7 @@ pub fn query_reverse_simulation(
     Ok(ReverseSimulationResponse {
         offer_amount,
         spread_amount: offer_amount
-            .saturating_sub(before_commission.to_uint128_with_precision(ask_precision)?),
+            .saturating_sub(before_commission.to_uint128_with_precision(offer_precision)?),
         commission_amount: fee_info
             .total_fee_rate
             .checked_mul_uint128(before_commission.to_uint128_with_precision(ask_precision)?)?,

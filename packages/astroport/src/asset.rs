@@ -537,14 +537,11 @@ impl Decimal256Ext for Decimal256 {
         numerator: Decimal256,
         denominator: Decimal256,
     ) -> StdResult<Decimal256> {
-        let numerator = numerator.atomics();
-        let denominator = denominator.atomics();
-
-        self.checked_mul(
-            Decimal256::checked_from_ratio(numerator, denominator)
-                .map_err(|_| StdError::generic_err("CheckedFromRatioError"))?,
-        )
-        .map_err(|_| StdError::generic_err("OverflowError"))
+        Ok(Decimal256::new(
+            self.atomics()
+                .checked_multiply_ratio(numerator.atomics(), denominator.atomics())
+                .map_err(|_| StdError::generic_err("CheckedMultiplyRatioError"))?,
+        ))
     }
 
     fn with_precision(

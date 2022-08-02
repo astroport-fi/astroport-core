@@ -314,7 +314,7 @@ fn provide_liquidity() {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(74_944_452_888_487_171_300u128),
+                    amount: Uint128::from(74_944_452_888_487_171_363u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -1266,7 +1266,7 @@ proptest! {
         let diff = (sim_result as i128 - result.return_amount.u128() as i128).abs();
 
         assert!(
-            diff <= 2,
+            diff <= 4,
             "result={}, sim_result={}, amp={}, amount_in={}, balance_in={}, balance_out={}, diff={}",
             result.return_amount,
             sim_result,

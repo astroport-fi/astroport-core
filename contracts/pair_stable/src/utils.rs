@@ -8,6 +8,7 @@ use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
+use astroport::pair::TWAP_PRECISION;
 use astroport::querier::query_factory_config;
 
 use crate::error::ContractError;
@@ -296,7 +297,7 @@ pub(crate) fn compute_swap(
     let token_precision = get_precision(storage, &ask_pool.info)?;
 
     let new_ask_pool = calc_y(
-        &offer_asset.info,
+        offer_asset,
         &ask_pool.info,
         offer_pool.amount + offer_asset.amount,
         pools,
@@ -359,7 +360,11 @@ pub fn accumulate_prices(
             pools,
         )?;
 
-        *value = value.wrapping_add(time_elapsed.checked_mul(return_amount)?);
+        *value = adjust_precision(
+            value.wrapping_add(time_elapsed.checked_mul(return_amount)?),
+            get_precision(deps.storage, &ask_pool.info)?,
+            TWAP_PRECISION,
+        )?;
     }
 
     config.block_time_last = block_time;

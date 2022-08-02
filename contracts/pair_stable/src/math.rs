@@ -80,16 +80,21 @@ pub(crate) fn compute_d(
 ///
 /// `x_1 = (x_1**2 + c) / (2*x_1 + b)`
 pub(crate) fn calc_y(
-    from: &AssetInfo,
+    from_asset: &DecimalAsset,
     to: &AssetInfo,
     new_amount: Decimal256,
     pools: &[DecimalAsset],
     amp: Uint64,
-    greatest_precision: u8,
+    target_precision: u8,
 ) -> StdResult<Uint128> {
-    if from.equal(to) {
+    if to.equal(&from_asset.info) {
         return Err(StdError::generic_err(
             "The offer asset and ask asset cannot be the same.",
+        ));
+    }
+    if from_asset.amount.eq(&new_amount) {
+        return Err(StdError::generic_err(
+            "Asset amount and new asset amount cannot be equal.",
         ));
     }
 
@@ -97,11 +102,11 @@ pub(crate) fn calc_y(
     let ann = Uint256::from(amp.checked_mul(n_coins)?.u64() / AMP_PRECISION);
     let mut sum = Decimal256::zero();
     let pool_values = pools.iter().map(|asset| asset.amount).collect_vec();
-    let d = compute_d(amp, &pool_values, greatest_precision)?
-        .to_uint256_with_precision(greatest_precision)?;
+    let d = compute_d(amp, &pool_values, target_precision)?
+        .to_uint256_with_precision(target_precision)?;
     let mut c = d;
     for pool in pools {
-        let pool_amount: Decimal256 = if pool.info.eq(from) {
+        let pool_amount: Decimal256 = if pool.info.eq(&from_asset.info) {
             new_amount
         } else if !pool.info.eq(to) {
             pool.amount
@@ -112,15 +117,14 @@ pub(crate) fn calc_y(
         c = c
             .checked_multiply_ratio(
                 d,
-                pool_amount.to_uint256_with_precision(greatest_precision)? * Uint256::from(n_coins),
+                pool_amount.to_uint256_with_precision(target_precision)? * Uint256::from(n_coins),
             )
             .map_err(|_| StdError::generic_err("CheckedMultiplyRatioError"))?;
     }
     let c = c * d / (ann * Uint256::from(n_coins));
-    let sum = sum.to_uint256_with_precision(greatest_precision)?;
+    let sum = sum.to_uint256_with_precision(target_precision)?;
     let b = sum + d / ann;
     let mut y = d;
-    let d = y;
     for _ in 0..ITERATIONS {
         let y_prev = y;
         y = (y * y + c) / (y + y + b - d);
@@ -193,7 +197,7 @@ mod tests {
         let offer_amount = Uint128::from(100_000000u128);
         let sim_y = model.sim_y(0, 1, pool1.u128() + offer_amount.u128());
         let y = calc_y(
-            &pools[0].info,
+            &pools[0].to_decimal_asset(NATIVE_TOKEN_PRECISION).unwrap(),
             &pools[1].info,
             Decimal256::with_precision(pools[0].amount + offer_amount, NATIVE_TOKEN_PRECISION)
                 .unwrap(),
