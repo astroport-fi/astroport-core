@@ -537,7 +537,7 @@ fn provide_liquidity(
                 price,
                 new_d,
                 &config.pool_params,
-                total_share,
+                total_share + mint_amount,
             )?;
         }
     } else {

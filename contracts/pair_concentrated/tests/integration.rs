@@ -66,6 +66,10 @@ fn provide_and_withdraw_no_fee() {
     helper.provide_liquidity(&user2, &assets).unwrap();
     assert_eq!(99_998999, helper.token_balance(&helper.lp_token, &user2));
 
+    // LP token price grows up because of noise fees
+    let lp_price = helper.query_lp_price().unwrap();
+    assert_eq!(lp_price, 2000_000020);
+
     // The user3 makes imbalanced provide thus he is charged with SPREAD fees (even there is no usual pool fees)
     let user3 = Addr::unchecked("user3");
     let assets = vec![
@@ -78,7 +82,7 @@ fn provide_and_withdraw_no_fee() {
 
     // Check that LP token price is growing up
     let lp_price = helper.query_lp_price().unwrap();
-    assert_eq!(lp_price, 2001_998020);
+    assert_eq!(lp_price, 2000_000039);
 
     // The more provide makes pool imbalanced the more fees are charged
     let user4 = Addr::unchecked("user4");
@@ -91,7 +95,7 @@ fn provide_and_withdraw_no_fee() {
     assert_eq!(99_998483, helper.token_balance(&helper.lp_token, &user4));
 
     let lp_price = helper.query_lp_price().unwrap();
-    assert_eq!(lp_price, 2001_996037);
+    assert_eq!(lp_price, 2000_000059);
 
     // Imbalanced provide which makes pool more balanced gives profit to the LP
     let user5 = Addr::unchecked("user5");
@@ -415,9 +419,7 @@ fn check_withdraw_charges_fees() {
     assert!(helper.coin_balance(&test_coins[1], &user2) < usual_swap_amount);
 }
 
-// TODO: virtual price eventually drops so the last swap fails. Need to figure out.
 #[test]
-// #[ignore]
 fn check_prices() {
     let owner = Addr::unchecked("owner");
 
