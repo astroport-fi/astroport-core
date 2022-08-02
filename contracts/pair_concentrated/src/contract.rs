@@ -489,6 +489,9 @@ fn provide_liquidity(
     let mut mint_amount = if !old_d.is_zero() {
         (total_share * new_d / old_d).saturating_sub(total_share)
     } else {
+        // We know the price scale if this is the first provide
+        config.pool_state.price_state.price_scale =
+            xp_for_prices[0] * MULTIPLIER / xp_for_prices[1];
         let tmp_xp = [
             new_d / N_COINS,
             new_d * PRECISION / (config.pool_state.price_state.price_scale * N_COINS),
@@ -496,8 +499,6 @@ fn provide_liquidity(
         total_share = geometric_mean(&tmp_xp);
         total_share
     };
-
-    let mut price = Uint256::zero();
 
     if !old_d.is_zero() {
         let deposits = assets_collection
@@ -512,6 +513,7 @@ fn provide_liquidity(
 
         // TODO: not sure we need this check
         if mint_amount > Uint256::from_u128(1e5 as u128) {
+            let mut price = Uint256::zero();
             // TODO: I believe here we need to check that the deposits are imbalanced, not just one of them is zero.
             if deposits[0].is_zero() || deposits[1].is_zero() {
                 // How much the user spent to receive share in pool which he didn't deposit in?
@@ -527,22 +529,22 @@ fn provide_liquidity(
                     price = MULTIPLIER * MULTIPLIER / price;
                 }
             }
+
+            update_price(
+                &mut config.pool_state,
+                &env,
+                xp,
+                price,
+                new_d,
+                &config.pool_params,
+                total_share,
+            )?;
         }
     } else {
         config.pool_state.price_state.d = new_d;
-        // We know the price scale if this is the first provide
-        config.pool_state.price_state.price_scale = xp[0] * MULTIPLIER / xp[1];
+        config.pool_state.price_state.virtual_price = MULTIPLIER;
+        config.pool_state.price_state.xcp_profit = MULTIPLIER;
     }
-
-    update_price(
-        &mut config.pool_state,
-        &env,
-        xp,
-        price,
-        new_d,
-        &config.pool_params,
-        total_share,
-    )?;
 
     let mint_amount: Uint128 =
         adjust_precision(mint_amount, config.greatest_precision, LP_TOKEN_PRECISION)?.try_into()?;

@@ -417,7 +417,7 @@ fn check_withdraw_charges_fees() {
 
 // TODO: virtual price eventually drops so the last swap fails. Need to figure out.
 #[test]
-#[ignore]
+// #[ignore]
 fn check_prices() {
     let owner = Addr::unchecked("owner");
 
@@ -426,8 +426,8 @@ fn check_prices() {
     let params = ConcentratedPoolParams {
         amp: 100,
         gamma: (0.000145 * MUL_E18 as f64) as u128,
-        mid_fee: 250,
-        out_fee: 250,
+        mid_fee: (0.0005 * 1e10) as u128,
+        out_fee: (0.0005 * 1e10) as u128,
         fee_gamma: 1,
         allowed_extra_profit: 0,
         adjustment_step: (0.000146 * 1e18) as u128,
