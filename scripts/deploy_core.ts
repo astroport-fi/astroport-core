@@ -147,7 +147,7 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
         console.log(`Address Factory Contract: ${network.factoryAddress}`)
         writeArtifact(network, terra.config.chainID)
 
-        // // Set new owner for admin
+        // Set new owner for factory
         console.log('Propose owner for factory. Onwership has to be claimed within 7 days')
         await executeContract(terra, wallet, network.factoryAddress, {
             "propose_new_owner": {
