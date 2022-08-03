@@ -1,0 +1,35 @@
+[package]
+name = "astroport-pair-bonded"
+version = "1.0.0"
+authors = ["Astroport"]
+edition = "2021"
+description = "The Astroport pair-bonded package"
+license = "MIT"
+
+exclude = [
+  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+  "contract.wasm",
+  "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+library = []
+
+[dependencies]
+astroport = { path = "../astroport", default-features = false }
+cw2 = { version = "0.13" }
+cw20 = { version = "0.13" }
+cosmwasm-std = { version = "1.0" }
+cw-storage-plus = {version = "0.13"}
+schemars = "0.8"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0" }
+
