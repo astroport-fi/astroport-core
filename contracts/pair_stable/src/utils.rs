@@ -360,11 +360,11 @@ pub fn accumulate_prices(
             pools,
         )?;
 
-        *value = adjust_precision(
-            value.wrapping_add(time_elapsed.checked_mul(return_amount)?),
+        *value = value.wrapping_add(time_elapsed.checked_mul(adjust_precision(
+            return_amount,
             get_precision(deps.storage, &ask_pool.info)?,
             TWAP_PRECISION,
-        )?;
+        )?)?);
     }
 
     config.block_time_last = block_time;
