@@ -46,8 +46,8 @@ pub(crate) fn compute_d(
             let d_p = pools
                 .iter()
                 .try_fold::<_, _, StdResult<_>>(d, |acc, pool| {
-                    let denominator = pool.atomics().checked_mul(n_coins.to_uint256())?;
-                    acc.checked_multiply_ratio(d, Decimal256::new(denominator))
+                    let denominator = pool.checked_mul(n_coins)?;
+                    acc.checked_multiply_ratio(d, denominator)
                 })?;
             let d_prev = d;
             d = (ann_sum_x + d_p * n_coins) * d
@@ -90,7 +90,11 @@ pub(crate) fn calc_y(
             "The offer asset and ask asset cannot be the same.",
         ));
     }
-
+    if from_asset.amount.eq(&new_amount) {
+        return Err(StdError::generic_err(
+            "Asset amount and new asset amount cannot be equal.",
+        ));
+    }
     let n_coins = Uint64::from(pools.len() as u8);
     let ann = Uint256::from(amp.checked_mul(n_coins)?.u64() / AMP_PRECISION);
     let mut sum = Decimal256::zero();
