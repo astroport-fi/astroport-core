@@ -11,7 +11,7 @@ docker run -v "$projectPath":/code \
   cosmwasm/workspace-optimizer:0.12.6
 
 
-maximum_size=600
+maximum_size=700
 
 for artifact in artifacts/*.wasm; do
   artifactsize=$(du -k "$artifact" | cut -f 1)

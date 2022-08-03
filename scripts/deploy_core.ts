@@ -12,6 +12,12 @@ import {LCDClient} from '@terra-money/terra.js';
 
 const ARTIFACTS_PATH = '../artifacts'
 
+const STAKING_LABEL = "Astroport Staking"
+const FACTORY_LABEL = "Astroport Factory"
+const ROUTER_LABEL = "Astroport Router"
+const MAKER_LABEL = "Astroport Maker"
+const WHITELIST_LABEL = "Astroport Treasury"
+
 async function main() {
     const { terra, wallet } = newClient()
     console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
@@ -19,13 +25,11 @@ async function main() {
     console.log('network:', network)
 
     if (!network.tokenAddress) {
-        console.log(`Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...`)
-        return
+        throw new Error("Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...")
     }
 
     if (!network.multisigAddress) {
-        console.log(`Set the proper owner multisig for the contracts`)
-        return
+        throw new Error("Set the proper owner multisig for the contracts")
     }
 
     await uploadAndInitTreasury(terra, wallet)
@@ -35,42 +39,7 @@ async function main() {
     await uploadAndInitRouter(terra, wallet)
     await uploadAndInitMaker(terra, wallet)
 
-    // Set new owner
-    network = readArtifact(terra.config.chainID) // reload variables
-    console.log('Propose a new owner for the factory. Onwership has to be claimed within 7 days')
-    await executeContract(terra, wallet, network.factoryAddress, {
-        "propose_new_owner": {
-            owner: network.multisigAddress,
-            expires_in: 604800 // 7 days
-        }
-    })
-
     console.log('FINISH')
-}
-
-async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
-    let network = readArtifact(terra.config.chainID)
-
-    if (!network.whitelistCodeID) {
-        console.log('Register Treasury Contract...')
-        network.whitelistCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_whitelist.wasm')!)
-    }
-
-    if (!network.whitelistAddress) {
-        console.log('Instantiate the Treasury...')
-        let resp = await instantiateContract(
-            terra,
-            wallet,
-            network.multisigAddress,
-            network.whitelistCodeID,
-            {
-                admins: [network.assemblyAddress],
-                mutable: true
-            });
-        network.whitelistAddress = resp.shift()
-        console.log(`Whitelist Contract Address: ${network.whitelistAddress}`)
-        writeArtifact(network, terra.config.chainID)
-    }
 }
 
 async function uploadPairContracts(terra: LCDClient, wallet: any) {
@@ -87,12 +56,6 @@ async function uploadPairContracts(terra: LCDClient, wallet: any) {
         network.pairStableCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_stable.wasm')!)
         writeArtifact(network, terra.config.chainID)
     }
-
-    if (!network.pairAnchorCodeID) {
-        console.log('Register Anchor Pair Contract...')
-        network.pairAnchorCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_pair_anchor.wasm')!)
-        writeArtifact(network, terra.config.chainID)
-    }
 }
 
 async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
@@ -105,7 +68,7 @@ async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
     }
 
     if (!network.stakingAddress) {
-        console.log('Deploy Staking...')
+        console.log('Deploying Staking...')
 
         let resp = await deployContract(
             terra,
@@ -116,11 +79,23 @@ async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
                 owner: network.multisigAddress,
                 token_code_id: network.xastroTokenCodeID,
                 deposit_token_addr:  network.tokenAddress,
-            }
+                marketing: {
+                    project: "Astroport",
+                    description: "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
+                    marketing: wallet.key.accAddress,
+                    logo: {
+                        url: "https://app.astroport.fi/tokens/xAstro.svg"
+                    }
+                }
+            },
+            STAKING_LABEL
         )
 
-        network.stakingAddress = resp.shift()
-        network.xastroAddress = resp.shift();
+        let addresses = resp.shift()
+        // @ts-ignore
+        network.stakingAddress = addresses.shift();
+        // @ts-ignore
+        network.xastroAddress = addresses.shift();
 
         console.log(`Staking Contract Address: ${network.stakingAddress}`)
         console.log(`xASTRO token Address: ${network.xastroAddress}`)
@@ -132,8 +107,8 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.factoryAddress) {
-        console.log('Deploy the Factory...')
-        console.log(`CodeId Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID} CodeId Anchor Pair Contract: ${network.pairAnchorCodeID}`)
+        console.log('Deploying Factory...')
+        console.log(`CodeId Pair Contract: ${network.pairCodeID} CodeId Stable Pair Contract: ${network.pairStableCodeID}`)
 
         let resp = await deployContract(
             terra,
@@ -158,25 +133,28 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                         maker_fee_bps: 5000, // 50% of stableswap fees go to the Maker
                         is_disabled: false,
                         is_generator_disabled: false
-                    },
-                    {
-                        code_id: network.pairAnchorCodeID,
-                        pair_type: { custom: "Anchor-XYK" },
-                        total_fee_bps: 0,
-                        maker_fee_bps: 0,
-                        is_disabled: false,
-                        is_generator_disabled: true
                     }
                 ],
                 token_code_id: network.tokenCodeID,
                 generator_address: undefined,
                 fee_address: undefined,
                 whitelist_code_id: network.whitelistCodeID
-            }
+            },
+            FACTORY_LABEL
         )
-        network.factoryAddress = resp.shift()
+        // @ts-ignore
+        network.factoryAddress = resp.shift().shift()
         console.log(`Address Factory Contract: ${network.factoryAddress}`)
         writeArtifact(network, terra.config.chainID)
+
+        // Set new owner for factory
+        console.log('Propose owner for factory. Onwership has to be claimed within 7 days')
+        await executeContract(terra, wallet, network.factoryAddress, {
+            "propose_new_owner": {
+                owner: network.multisigAddress,
+                expires_in: 604800 // 7 days
+            }
+        })
     }
 }
 
@@ -184,7 +162,7 @@ async function uploadAndInitRouter(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.routerAddress) {
-        console.log('Deploy the Router...')
+        console.log('Deploying Router...')
         let resp = await deployContract(
             terra,
             wallet,
@@ -193,9 +171,11 @@ async function uploadAndInitRouter(terra: LCDClient, wallet: any) {
             {
                 astroport_factory: network.factoryAddress,
             },
+            ROUTER_LABEL
         )
-        network.routerAddress = resp.shift()
-        console.log(`Router Contract Address: ${network.routerAddress}`)
+        // @ts-ignore
+        network.routerAddress = resp.shift().shift()
+        console.log(`Address Router Contract: ${network.routerAddress}`)
         writeArtifact(network, terra.config.chainID)
     }
 }
@@ -204,7 +184,7 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.makerAddress) {
-        console.log('Deploy the Maker...')
+        console.log('Deploying Maker...')
         let resp = await deployContract(
             terra,
             wallet,
@@ -215,9 +195,14 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
                 factory_contract: String(network.factoryAddress),
                 staking_contract: String(network.stakingAddress),
                 astro_token_contract: String(network.tokenAddress),
-            }
+                governance_contract: undefined,
+                governance_percent: undefined,
+                max_spread: "0.5"
+            },
+            MAKER_LABEL
         )
-        network.makerAddress = resp.shift()
+        // @ts-ignore
+        network.makerAddress = resp.shift().shift()
         console.log(`Maker Contract Address: ${network.makerAddress}`)
         writeArtifact(network, terra.config.chainID)
 
@@ -228,6 +213,34 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
                 fee_address: network.makerAddress
             }
         })
+    }
+}
+
+async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
+    let network = readArtifact(terra.config.chainID)
+
+    if (!network.whitelistCodeID) {
+        console.log('Register Treasury Contract...')
+        network.whitelistCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_whitelist.wasm')!)
+    }
+
+    if (!network.whitelistAddress) {
+        console.log('Instantiate the Treasury...')
+        let resp = await instantiateContract(
+            terra,
+            wallet,
+            network.multisigAddress,
+            network.whitelistCodeID,
+            {
+                admins: [network.multisigAddress],
+                mutable: true
+            },
+            WHITELIST_LABEL
+            );
+        // @ts-ignore
+        network.whitelistAddress = resp.shift().shift()
+        console.log(`Whitelist Contract Address: ${network.whitelistAddress}`)
+        writeArtifact(network, terra.config.chainID)
     }
 }
 

@@ -5,12 +5,14 @@ import {
     readArtifact,
     deployContract,
     executeContract,
-    toEncodedBinary, instantiateContract, checkParams
+    toEncodedBinary, queryContract,
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient} from '@terra-money/terra.js';
 
 const ARTIFACTS_PATH = '../artifacts'
+const VESTING_LABEL = "Astroport Vesting"
+const GENERATOR_LABEL = "Astroport Generator"
 
 async function main() {
     const { terra, wallet } = newClient()
@@ -19,17 +21,17 @@ async function main() {
     console.log('network:', network)
 
     if (!network.tokenAddress) {
-        console.log(`Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...`)
-        return
+        throw new Error("Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...")
     }
 
     if (!network.multisigAddress) {
-        console.log(`Set the proper owner multisig for the contracts`)
-        return
+        throw new Error("Set the proper owner multisig for the contracts")
     }
 
     await uploadAndInitVesting(terra, wallet)
     await uploadAndInitGenerator(terra, wallet)
+    // Set generator address in factory
+    await updateFactoryConfig(terra, wallet)
 
     // setup pools
     // await registerGenerator(terra, wallet, "terra17n5sunn88hpy965mzvt3079fqx3rttnplg779g", "28303")
@@ -42,7 +44,7 @@ async function main() {
     // await registerGenerator(terra, wallet, "terra1q8aycvr54jarwhqvlr54jr2zqttctnefw7x37q", "24528")
     // await registerGenerator(terra, wallet, "terra1jzutwpneltsys6t96vkdr2zrc6cg0ke4e6y3s0", "47169")
 
-    await setupVesting(terra, wallet, network)
+    // await setupVesting(terra, wallet, network)
 
     // Set new owner for generator
     // network = readArtifact(terra.config.chainID) // reload variables
@@ -55,13 +57,14 @@ async function main() {
     // })
 
     console.log('FINISH')
+
 }
 
 async function registerGenerator(terra: LCDClient, wallet: any, lp_token: string, alloc_point: string) {
     let network = readArtifact(terra.config.chainID)
 
      if (!network.generatorAddress) {
-        console.log(`Please deploy the generator contract`)
+        console.log(`Please deploy generator contract`)
         return
     }
 
@@ -76,7 +79,7 @@ async function uploadAndInitVesting(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.vestingAddress) {
-        console.log('Deploy Generator Vesting...')
+        console.log('Deploying Vesting...')
         let resp = await deployContract(
             terra,
             wallet,
@@ -86,8 +89,10 @@ async function uploadAndInitVesting(terra: LCDClient, wallet: any) {
                 owner: network.multisigAddress,
                 token_addr: network.tokenAddress,
             },
+            VESTING_LABEL
         )
-        network.vestingAddress = resp.shift()
+        // @ts-ignore
+        network.vestingAddress = resp.shift().shift()
         console.log(`Vesting Contract Address: ${network.vestingAddress}`)
         writeArtifact(network, terra.config.chainID)
     }
@@ -96,10 +101,8 @@ async function uploadAndInitVesting(terra: LCDClient, wallet: any) {
 async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
-    checkParams(network, ["factoryAddress", "vestingAddress", "assemblyAddress", "whitelistCodeID"])
-
     if (!network.generatorAddress) {
-        console.log('Deploy the Generator...')
+        console.log('Deploying Generator...')
 
         let resp = await deployContract(
             terra,
@@ -115,12 +118,12 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
                 vesting_contract: network.vestingAddress,
                 factory: network.factoryAddress,
                 whitelist_code_id: network.whitelistCodeID,
-                guardian: network.assemblyAddress
-
-            }
+            },
+            GENERATOR_LABEL
         )
 
-        network.generatorAddress = resp.shift()
+        // @ts-ignore
+        network.generatorAddress = resp.shift().shift()
         console.log(`Generator Contract Address: ${network.generatorAddress}`)
 
         writeArtifact(network, terra.config.chainID)
@@ -128,7 +131,7 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
 }
 
 async function setupVesting(terra: LCDClient, wallet: any, network: any) {
-    console.log('Setting Up Generator Vesting...')
+    console.log('Setting Vesting...')
 
     let msg = {
         register_vesting_accounts: {
@@ -152,7 +155,7 @@ async function setupVesting(terra: LCDClient, wallet: any, network: any) {
         }
     }
 
-    console.log('Register vesting targets:', JSON.stringify(msg))
+    console.log('Register vesting accounts:', JSON.stringify(msg))
 
     await executeContract(terra, wallet, network.tokenAddress, {
         "send": {
@@ -161,6 +164,17 @@ async function setupVesting(terra: LCDClient, wallet: any, network: any) {
             msg: toEncodedBinary(msg)
         }
     })
+}
+
+async function updateFactoryConfig(terra: LCDClient, wallet: any) {
+    let network = readArtifact(terra.config.chainID)
+    await executeContract(terra, wallet, network.factoryAddress, {
+        update_config: {
+            generator_address: network.generatorAddress,
+        }
+    })
+
+    console.log(await queryContract(terra, network.factoryAddress, { config: {} }))
 }
 
 main().catch(console.log)
