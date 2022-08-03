@@ -8,8 +8,9 @@ import {
     uploadContract
 } from './helpers.js'
 
+const CONTRACT_LABEL = "Astroport ASTRO"
 const CW20_BINARY_PATH = process.env.CW20_BINARY_PATH! || '../artifacts/astroport_token.wasm'
-const TOKEN_INITIAL_AMOUNT = process.env.TOKEN_INITIAL_AMOUNT! || String(1_000_000_000_000000)
+const TOKEN_INITIAL_AMOUNT = process.env.TOKEN_INITIAL_AMOUNT! || String(1_100_000_000_000000)
 
 // Main
 async function main() {
@@ -20,9 +21,8 @@ async function main() {
     // Upload contract code
     network.tokenCodeID = await uploadContract(terra, wallet, CW20_BINARY_PATH!)
     console.log(`Token codeId: ${network.tokenCodeID}`)
-    
     // Token info
-    const TOKEN_NAME = "Astro"
+    const TOKEN_NAME = "Astroport"
     const TOKEN_SYMBOL = "ASTRO"
     const TOKEN_DECIMALS = 6
 
@@ -35,12 +35,22 @@ async function main() {
                 address: wallet.key.accAddress,
                 amount: TOKEN_INITIAL_AMOUNT
             }
-        ]
+        ],
+        marketing: {
+            project: "Astroport",
+            description: "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
+            marketing: wallet.key.accAddress,
+            logo: {
+                url: "https://astroport.fi/astro_logo.svg"
+            }
+        }
     }
 
     // Instantiate Astro token contract
-    let resp = await instantiateContract(terra, wallet, network.multisigAddress, network.tokenCodeID, TOKEN_INFO)
-    network.tokenAddress = resp.shift()
+    let resp = await instantiateContract(terra, wallet, wallet.key.accAddress, network.tokenCodeID, TOKEN_INFO, CONTRACT_LABEL)
+
+    // @ts-ignore
+    network.tokenAddress = resp.shift().shift()
     console.log("astro:", network.tokenAddress)
     console.log(await queryContract(terra, network.tokenAddress, { token_info: {} }))
     console.log(await queryContract(terra, network.tokenAddress, { minter: {} }))
@@ -50,5 +60,6 @@ async function main() {
 
     writeArtifact(network, terra.config.chainID)
     console.log('FINISH')
+
 }
 main().catch(console.log)
