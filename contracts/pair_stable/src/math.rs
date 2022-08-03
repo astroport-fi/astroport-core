@@ -37,8 +37,8 @@ pub(crate) fn compute_d(
         Ok(Decimal256::zero())
     } else {
         let n_coins = pools.len() as u8;
-        let ann = Decimal256::from_integer(amp.checked_mul(n_coins.into())?.u64() / AMP_PRECISION);
-        let n_coins = Uint64::from(n_coins);
+        let ann = Decimal256::from_ratio(amp.checked_mul(n_coins.into())?.u64(), AMP_PRECISION);
+        let n_coins = Decimal256::from_integer(n_coins);
         let mut d = sum_x;
         let ann_sum_x = ann * sum_x;
         for _ in 0..ITERATIONS {
@@ -46,20 +46,18 @@ pub(crate) fn compute_d(
             let d_p = pools
                 .iter()
                 .try_fold::<_, _, StdResult<_>>(d, |acc, pool| {
-                    let denominator = pool.atomics().checked_mul(n_coins.into())?;
+                    let denominator = pool.atomics().checked_mul(n_coins.to_uint256())?;
                     acc.checked_multiply_ratio(d, Decimal256::new(denominator))
                 })?;
             let d_prev = d;
-            d = (ann_sum_x + d_p * Decimal256::from_integer(n_coins.u64())) * d
-                / ((ann - Decimal256::one()) * d
-                    + (Decimal256::from_integer(n_coins.u64()) + Decimal256::one()) * d_p);
+            d = (ann_sum_x + d_p * n_coins) * d
+                / ((ann - Decimal256::one()) * d + (n_coins + Decimal256::one()) * d_p);
             if d >= d_prev {
-                if d - d_prev <= Decimal256::with_precision(Uint64::from(1u8), greatest_precision)?
-                {
+                if d - d_prev <= Decimal256::with_precision(1u8, greatest_precision)? {
                     return Ok(d);
                 }
             } else if d < d_prev
-                && d_prev - d <= Decimal256::with_precision(Uint64::from(1u8), greatest_precision)?
+                && d_prev - d <= Decimal256::with_precision(1u8, greatest_precision)?
             {
                 return Ok(d);
             }
@@ -90,11 +88,6 @@ pub(crate) fn calc_y(
     if to.equal(&from_asset.info) {
         return Err(StdError::generic_err(
             "The offer asset and ask asset cannot be the same.",
-        ));
-    }
-    if from_asset.amount.eq(&new_amount) {
-        return Err(StdError::generic_err(
-            "Asset amount and new asset amount cannot be equal.",
         ));
     }
 
