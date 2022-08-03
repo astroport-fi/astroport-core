@@ -91,9 +91,7 @@ pub(crate) fn calc_y(
         ));
     }
     if from_asset.amount.eq(&new_amount) {
-        return Err(StdError::generic_err(
-            "Asset amount and new asset amount cannot be equal.",
-        ));
+        return Err(StdError::generic_err("The swap amount cannot be zero."));
     }
     let n_coins = Uint64::from(pools.len() as u8);
     let ann = Uint256::from(amp.checked_mul(n_coins)?.u64() / AMP_PRECISION);

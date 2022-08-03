@@ -128,7 +128,7 @@ impl<'a> PairBonded<'a> for Contract<'a> {
         offer_asset: Asset,
     ) -> StdResult<SimulationResponse> {
         let config: Config = CONFIG.load(deps.storage)?;
-        let pools: [AssetInfo; 2] = config.pair_info.asset_infos;
+        let pools = config.pair_info.asset_infos;
 
         if !offer_asset.info.equal(&pools[0]) && !offer_asset.info.equal(&pools[1]) {
             return Err(StdError::generic_err(
@@ -175,7 +175,7 @@ impl<'a> PairBonded<'a> for Contract<'a> {
         ask_asset: Asset,
     ) -> StdResult<ReverseSimulationResponse> {
         let config: Config = CONFIG.load(deps.storage)?;
-        let pools: [AssetInfo; 2] = config.pair_info.asset_infos;
+        let pools = config.pair_info.asset_infos;
 
         if !ask_asset.info.equal(&pools[0]) && !ask_asset.info.equal(&pools[1]) {
             return Err(StdError::generic_err(
