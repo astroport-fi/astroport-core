@@ -2,7 +2,7 @@ use cosmwasm_std::StdError;
 use thiserror::Error;
 
 /// ## Description
-/// This enum describes errors used in the generator_proxy_template contract.
+/// This enum describes errors for the generator_proxy_template contract!
 #[derive(Error, Debug)]
 pub enum ContractError {
     #[error("{0}")]

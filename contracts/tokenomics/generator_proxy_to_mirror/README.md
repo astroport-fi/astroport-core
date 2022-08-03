@@ -6,7 +6,7 @@ This generator proxy contract interacts with the MIR-UST staking contract. Stake
 
 ## InstantiateMsg
 
-Initializes the contract with required addresses (generator, LP token to stake etc).
+Initializes the proxy contract with required addresses (generator, LP token to stake etc).
 
 ```json
 {
@@ -36,7 +36,7 @@ CW20 receive msg.
 
 ### `update_rewards`
 
-Updates the amount of rewards that were already accrued.
+Updates 3rd party token proxy rewards and withdraws rewards from the 3rd party staking contract.
 
 ```json
 {
@@ -59,7 +59,7 @@ Sends accrued token rewards to a specific account.
 
 ### `withdraw`
 
-Withdraw token rewards for a specific address and then unstake a LP token amount.
+Withdraws LP tokens alongside any outstanding token rewards and sends them to the specified address.
 
 ```json
 {
