@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     /// The contract owner
-    pub owner: Addr,
+    pub owner: Option<Addr>,
     /// The pair information stored in a [`PairInfo`] struct
     pub pair_info: PairInfo,
     /// The factory contract address

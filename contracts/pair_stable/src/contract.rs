@@ -103,13 +103,8 @@ pub fn instantiate(
         }
     }
 
-    let factory_config = query_factory_config(
-        &deps.querier,
-        &addr_validate_to_lower(deps.api, &msg.factory_addr)?,
-    )?;
-
     let config = Config {
-        owner: factory_config.owner,
+        owner: None,
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
@@ -265,6 +260,7 @@ pub fn execute(
         }
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             let config = CONFIG.load(deps.storage)?;
+            let factory_config = query_factory_config(&deps.querier, config.factory_addr)?;
 
             propose_new_owner(
                 deps,
@@ -272,21 +268,27 @@ pub fn execute(
                 env,
                 owner,
                 expires_in,
-                config.owner,
+                config.owner.unwrap_or(factory_config.owner),
                 OWNERSHIP_PROPOSAL,
             )
             .map_err(|e| e.into())
         }
         ExecuteMsg::DropOwnershipProposal {} => {
             let config = CONFIG.load(deps.storage)?;
+            let factory_config = query_factory_config(&deps.querier, config.factory_addr)?;
 
-            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
-                .map_err(|e| e.into())
+            drop_ownership_proposal(
+                deps,
+                info,
+                config.owner.unwrap_or(factory_config.owner),
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(|e| e.into())
         }
         ExecuteMsg::ClaimOwnership {} => {
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
                 CONFIG.update::<_, StdError>(deps.storage, |mut config| {
-                    config.owner = new_owner;
+                    config.owner = Some(new_owner);
                     Ok(config)
                 })?;
 
@@ -1342,12 +1344,11 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
                 ];
                 let greatest_precision =
                     store_precisions(deps.branch(), &cfg_v100.pair_info.asset_infos)?;
-                let factory_config = query_factory_config(&deps.querier, &cfg_v100.factory_addr)?;
 
                 CONFIG.save(
                     deps.storage,
                     &Config {
-                        owner: factory_config.owner,
+                        owner: None,
                         pair_info: cfg_v100.pair_info,
                         factory_addr: cfg_v100.factory_addr,
                         block_time_last: cfg_v100.block_time_last,
@@ -1410,7 +1411,7 @@ pub fn update_config(
     let config = CONFIG.load(deps.storage)?;
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
-    if info.sender != factory_config.owner {
+    if Some(info.sender.clone()) != config.owner && info.sender != factory_config.owner {
         return Err(ContractError::Unauthorized {});
     }
 

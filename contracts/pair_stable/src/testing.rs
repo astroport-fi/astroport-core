@@ -1164,7 +1164,7 @@ fn test_accumulate_prices() {
 
         let env = mock_env_with_block_time(case.block_time);
         let mut config = Config {
-            owner: Addr::unchecked("addr0000"),
+            owner: None,
             pair_info: PairInfo {
                 asset_infos: vec![asset_x, asset_y],
                 contract_addr: Addr::unchecked(MOCK_CONTRACT_ADDR),
