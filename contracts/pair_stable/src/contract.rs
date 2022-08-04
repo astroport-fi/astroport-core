@@ -1332,13 +1332,13 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
 
                 let cumulative_prices = vec![
                     (
-                        cfg_v100.pair_info.asset_infos[1].clone(),
                         cfg_v100.pair_info.asset_infos[0].clone(),
+                        cfg_v100.pair_info.asset_infos[1].clone(),
                         cfg_v100.price0_cumulative_last,
                     ),
                     (
-                        cfg_v100.pair_info.asset_infos[0].clone(),
                         cfg_v100.pair_info.asset_infos[1].clone(),
+                        cfg_v100.pair_info.asset_infos[0].clone(),
                         cfg_v100.price1_cumulative_last,
                     ),
                 ];
@@ -1411,7 +1411,13 @@ pub fn update_config(
     let config = CONFIG.load(deps.storage)?;
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
-    if Some(info.sender.clone()) != config.owner && info.sender != factory_config.owner {
+    if info.sender
+        != if let Some(ref owner) = config.owner {
+            owner.to_owned()
+        } else {
+            factory_config.owner
+        }
+    {
         return Err(ContractError::Unauthorized {});
     }
 

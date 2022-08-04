@@ -240,25 +240,25 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
                 let cumulative_prices = vec![
                     (
-                        config.asset_infos[1].clone(),
                         config.asset_infos[0].clone(),
+                        config.asset_infos[1].clone(),
                         price_last_v100.price0_cumulative_last,
                     ),
                     (
-                        config.asset_infos[0].clone(),
                         config.asset_infos[1].clone(),
+                        config.asset_infos[0].clone(),
                         price_last_v100.price1_cumulative_last,
                     ),
                 ];
                 let average_prices = vec![
                     (
-                        config.asset_infos[1].clone(),
                         config.asset_infos[0].clone(),
+                        config.asset_infos[1].clone(),
                         price_last_v100.price_0_average,
                     ),
                     (
-                        config.asset_infos[0].clone(),
                         config.asset_infos[1].clone(),
+                        config.asset_infos[0].clone(),
                         price_last_v100.price_1_average,
                     ),
                 ];

@@ -20,7 +20,7 @@ use astroport::factory::{
     PairsResponse, QueryMsg, ROUTE,
 };
 
-use crate::migration::migrate_pair_configs_to_v120;
+use crate::migration::{migrate_pair_configs_to_v120, save_routes};
 use astroport::common::{
     claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
 };
@@ -659,7 +659,7 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
@@ -679,9 +679,14 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
 
                 CONFIG.save(deps.storage, &new_config)?;
 
-                migrate_pair_configs_to_v120(deps.storage)?
+                migrate_pair_configs_to_v120(deps.storage)?;
+                save_routes(deps.branch())?;
             }
-            "1.1.0" => migrate_pair_configs_to_v120(deps.storage)?,
+            "1.1.0" => {
+                migrate_pair_configs_to_v120(deps.storage)?;
+                save_routes(deps.branch())?;
+            }
+            "1.2.0" => save_routes(deps.branch())?,
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
