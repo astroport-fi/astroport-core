@@ -1,4 +1,5 @@
 use crate::error::ContractError;
+use crate::migration::PRICE_LAST_V100;
 use crate::querier::{query_cumulative_prices, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
@@ -9,7 +10,7 @@ use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal256, Deps, DepsMut, Env, MessageInfo, Response,
     StdError, StdResult, Uint128, Uint256,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-oracle";
@@ -228,6 +229,59 @@ fn consult(
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-oracle" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                let config = CONFIG.load(deps.storage)?;
+                let price_last_v100 = PRICE_LAST_V100.load(deps.storage)?;
+
+                let cumulative_prices = vec![
+                    (
+                        config.asset_infos[1].clone(),
+                        config.asset_infos[0].clone(),
+                        price_last_v100.price0_cumulative_last,
+                    ),
+                    (
+                        config.asset_infos[0].clone(),
+                        config.asset_infos[1].clone(),
+                        price_last_v100.price1_cumulative_last,
+                    ),
+                ];
+                let average_prices = vec![
+                    (
+                        config.asset_infos[1].clone(),
+                        config.asset_infos[0].clone(),
+                        price_last_v100.price_0_average,
+                    ),
+                    (
+                        config.asset_infos[0].clone(),
+                        config.asset_infos[1].clone(),
+                        price_last_v100.price_1_average,
+                    ),
+                ];
+
+                PRICE_LAST.save(
+                    deps.storage,
+                    &PriceCumulativeLast {
+                        cumulative_prices,
+                        average_prices,
+                        block_timestamp_last: price_last_v100.block_timestamp_last,
+                    },
+                )?;
+            }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

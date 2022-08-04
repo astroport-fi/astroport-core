@@ -185,7 +185,6 @@ pub fn execute(
     }
 
     match msg {
-        ExecuteMsg::UpdateConfig { .. } => Err(ContractError::NonSupported {}),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ProvideLiquidity {
             assets,
@@ -226,6 +225,7 @@ pub fn execute(
                 to_addr,
             )
         }
+        _ => Err(ContractError::NonSupported {}),
     }
 }
 

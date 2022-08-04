@@ -9,7 +9,7 @@ use cosmwasm_std::{
     Decimal256, Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
     StdError, StdResult, SubMsg, Uint128, Uint256, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use itertools::Itertools;
 use protobuf::Message;
@@ -18,6 +18,7 @@ use astroport::asset::{
     addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset,
     AssetInfo, Decimal256Ext, DecimalAsset, PairInfo,
 };
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::PairType;
 use astroport::pair::{
     migration_check, ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams,
@@ -35,8 +36,9 @@ use crate::error::ContractError;
 use crate::math::{
     calc_y, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME,
 };
+use crate::migration::CONFIG_V100;
 use crate::response::MsgInstantiateContractResponse;
-use crate::state::{get_precision, store_precisions, Config, CONFIG};
+use crate::state::{get_precision, store_precisions, Config, CONFIG, OWNERSHIP_PROPOSAL};
 use crate::utils::{
     accumulate_prices, adjust_precision, check_asset_infos, check_assets, check_cw20_in_pool,
     compute_current_amp, compute_swap, get_share_in_assets, mint_liquidity_token_message,
@@ -101,7 +103,13 @@ pub fn instantiate(
         }
     }
 
+    let factory_config = query_factory_config(
+        &deps.querier,
+        &addr_validate_to_lower(deps.api, &msg.factory_addr)?,
+    )?;
+
     let config = Config {
+        owner: factory_config.owner,
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
@@ -254,6 +262,37 @@ pub fn execute(
                 max_spread,
                 to_addr,
             )
+        }
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            let config = CONFIG.load(deps.storage)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                owner,
+                expires_in,
+                config.owner,
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(|e| e.into())
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config = CONFIG.load(deps.storage)?;
+
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
+                .map_err(|e| e.into())
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut config| {
+                    config.owner = new_owner;
+                    Ok(config)
+                })?;
+
+                Ok(())
+            })
+            .map_err(|e| e.into())
         }
     }
 }
@@ -1281,8 +1320,58 @@ pub fn assert_max_spread(
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-pair-stable" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                let cfg_v100 = CONFIG_V100.load(deps.storage)?;
+
+                let cumulative_prices = vec![
+                    (
+                        cfg_v100.pair_info.asset_infos[1].clone(),
+                        cfg_v100.pair_info.asset_infos[0].clone(),
+                        cfg_v100.price0_cumulative_last,
+                    ),
+                    (
+                        cfg_v100.pair_info.asset_infos[0].clone(),
+                        cfg_v100.pair_info.asset_infos[1].clone(),
+                        cfg_v100.price1_cumulative_last,
+                    ),
+                ];
+                let greatest_precision =
+                    store_precisions(deps.branch(), &cfg_v100.pair_info.asset_infos)?;
+                let factory_config = query_factory_config(&deps.querier, &cfg_v100.factory_addr)?;
+
+                CONFIG.save(
+                    deps.storage,
+                    &Config {
+                        owner: factory_config.owner,
+                        pair_info: cfg_v100.pair_info,
+                        factory_addr: cfg_v100.factory_addr,
+                        block_time_last: cfg_v100.block_time_last,
+                        init_amp: cfg_v100.next_amp,
+                        init_amp_time: cfg_v100.init_amp_time,
+                        next_amp: cfg_v100.next_amp,
+                        next_amp_time: cfg_v100.next_amp_time,
+                        greatest_precision,
+                        cumulative_prices,
+                    },
+                )?;
+            }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
 
 /// ## Description

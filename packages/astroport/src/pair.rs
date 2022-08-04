@@ -54,6 +54,18 @@ pub enum ExecuteMsg {
     },
     /// Update the pair configuration
     UpdateConfig { params: Binary },
+    /// ProposeNewOwner creates a proposal to change contract ownership.
+    /// The validity period for the proposal is set in the `expires_in` variable.
+    ProposeNewOwner {
+        /// Newly proposed contract owner
+        owner: String,
+        /// The date after which this proposal expires
+        expires_in: u64,
+    },
+    /// DropOwnershipProposal removes the existing offer to change contract ownership.
+    DropOwnershipProposal {},
+    /// Used to claim contract ownership.
+    ClaimOwnership {},
 }
 
 /// This structure describes a CW20 hook message.
