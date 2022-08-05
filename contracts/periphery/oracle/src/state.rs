@@ -15,14 +15,10 @@ pub const PRICE_LAST: Item<PriceCumulativeLast> = Item::new("price_last");
 /// This structure stores the latest cumulative and average token prices for the target pool
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PriceCumulativeLast {
-    /// The last cumulative price 0 asset in pool
-    pub price0_cumulative_last: Uint128,
-    /// The last cumulative price 1 asset in pool
-    pub price1_cumulative_last: Uint128,
-    /// The average price 0 asset in pool
-    pub price_0_average: Decimal256,
-    /// The average price 1 asset in pool
-    pub price_1_average: Decimal256,
+    /// The vector contains last cumulative prices for each pair of assets in the pool
+    pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
+    /// The vector contains average prices for each pair of assets in the pool
+    pub average_prices: Vec<(AssetInfo, AssetInfo, Decimal256)>,
     /// The last timestamp block in pool
     pub block_timestamp_last: u64,
 }

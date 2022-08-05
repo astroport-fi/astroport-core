@@ -21,6 +21,7 @@ use cosmwasm_std::{
     ReplyOn, Response, StdError, SubMsg, SubMsgResponse, SubMsgResult, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
+use itertools::Itertools;
 use protobuf::Message;
 
 fn store_liquidity_token(deps: DepsMut, msg_id: u64, contract_addr: String) {
@@ -64,7 +65,13 @@ fn proper_initialization() {
             },
         ],
         token_code_id: 10u64,
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     let sender = "addr0000";
@@ -148,7 +155,13 @@ fn provide_liquidity() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     let env = mock_env();
@@ -217,7 +230,7 @@ fn provide_liquidity() {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(299_906803112262055943u128),
+                    amount: Uint128::from(299_814_698_523_989_457_628u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -313,7 +326,7 @@ fn provide_liquidity() {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(74_953430155231432408u128),
+                    amount: Uint128::from(74_944_452_888_487_171_363u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -508,7 +521,13 @@ fn withdraw_liquidity() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     let env = mock_env();
@@ -629,7 +648,13 @@ fn try_native_to_token() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     let env = mock_env_with_block_time(100);
@@ -780,7 +805,13 @@ fn try_token_to_native() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     let env = mock_env_with_block_time(100);
@@ -995,7 +1026,13 @@ fn test_query_pool() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     let env = mock_env();
@@ -1060,7 +1097,13 @@ fn test_query_share() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     let env = mock_env();
@@ -1108,8 +1151,8 @@ fn test_accumulate_prices() {
             },
             Result {
                 block_time_last: 1000,
-                cumulative_price_x: 1005,
-                cumulative_price_y: 988,
+                cumulative_price_x: 1008,
+                cumulative_price_y: 991,
             },
         ),
         // Same block height, no changes
@@ -1139,8 +1182,8 @@ fn test_accumulate_prices() {
             },
             Result {
                 block_time_last: 1500,
-                cumulative_price_x: 1002,
-                cumulative_price_y: 2494,
+                cumulative_price_x: 1004,
+                cumulative_price_y: 2495,
             },
         ),
     ];
@@ -1163,6 +1206,7 @@ fn test_accumulate_prices() {
 
         let env = mock_env_with_block_time(case.block_time);
         let mut config = Config {
+            owner: None,
             pair_info: PairInfo {
                 asset_infos: vec![asset_x, asset_y],
                 contract_addr: Addr::unchecked(MOCK_CONTRACT_ADDR),
@@ -1178,6 +1222,13 @@ fn test_accumulate_prices() {
             greatest_precision: 6,
             cumulative_prices,
         };
+
+        let pools = pools
+            .iter()
+            .cloned()
+            .map(|pool| pool.to_decimal_asset(NATIVE_TOKEN_PRECISION).unwrap())
+            .collect_vec();
+
         accumulate_prices(deps.as_ref(), env.clone(), &mut config, &pools).unwrap();
 
         assert_eq!(config.block_time_last, result.block_time_last);
@@ -1204,6 +1255,7 @@ fn mock_env_with_block_time(time: u64) -> Env {
 
 use crate::utils::{accumulate_prices, compute_swap, select_pools};
 use astroport::factory::PairType;
+use astroport::querier::NATIVE_TOKEN_PRECISION;
 use proptest::prelude::*;
 use sim::StableSwapModel;
 
@@ -1224,7 +1276,7 @@ proptest! {
             factory_addr: String::from("factory"),
             asset_infos: vec![offer_asset.info.clone(), ask_asset.clone()],
             token_code_id: 10u64,
-            init_params: Some(to_binary(&StablePoolParams { amp }).unwrap()),
+            init_params: Some(to_binary(&StablePoolParams { amp, owner: None }).unwrap()),
         };
 
         let env = mock_env();
@@ -1235,7 +1287,7 @@ proptest! {
         let config = CONFIG.load(deps.as_ref().storage).unwrap();
         let pools = config
             .pair_info
-            .query_pools(&deps.as_ref().querier, &env.contract.address)
+            .query_pools_decimal(&deps.as_ref().querier, &env.contract.address)
             .unwrap();
         let (offer_pool, ask_pool) =
         select_pools(Some(&offer_asset.info), None, &pools).unwrap();
@@ -1244,7 +1296,7 @@ proptest! {
             deps.as_ref().storage,
             &env,
             &config,
-            &offer_asset,
+            &offer_asset.to_decimal_asset(offer_asset.info.decimals(&deps.as_ref().querier).unwrap()).unwrap(),
             &offer_pool,
             &ask_pool,
             &pools,
@@ -1257,7 +1309,7 @@ proptest! {
         let diff = (sim_result as i128 - result.return_amount.u128() as i128).abs();
 
         assert!(
-            diff <= 1,
+            diff <= 4,
             "result={}, sim_result={}, amp={}, amount_in={}, balance_in={}, balance_out={}, diff={}",
             result.return_amount,
             sim_result,

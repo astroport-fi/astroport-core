@@ -17,7 +17,7 @@ pub const TWAP_PRECISION: u8 = 6;
 /// This structure describes the parameters used for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// Information about the two assets in the pool
+    /// Information about assets in the pool
     pub asset_infos: Vec<AssetInfo>,
     /// The token contract code ID used for the tokens in the pool
     pub token_code_id: u64,
@@ -54,6 +54,18 @@ pub enum ExecuteMsg {
     },
     /// Update the pair configuration
     UpdateConfig { params: Binary },
+    /// ProposeNewOwner creates a proposal to change contract ownership.
+    /// The validity period for the proposal is set in the `expires_in` variable.
+    ProposeNewOwner {
+        /// Newly proposed contract owner
+        owner: String,
+        /// The date after which this proposal expires
+        expires_in: u64,
+    },
+    /// DropOwnershipProposal removes the existing offer to change contract ownership.
+    DropOwnershipProposal {},
+    /// Used to claim contract ownership.
+    ClaimOwnership {},
 }
 
 /// This structure describes a CW20 hook message.
@@ -99,7 +111,7 @@ pub enum QueryMsg {
     QueryComputeD {},
 }
 
-/// This struct is used to return a query result with the total amount of LP tokens and the two assets in a specific pool.
+/// This struct is used to return a query result with the total amount of LP tokens and assets in a specific pool.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolResponse {
     /// The assets in the pool together with asset amounts
@@ -115,6 +127,8 @@ pub struct ConfigResponse {
     pub block_time_last: u64,
     /// The pool's parameters
     pub params: Option<Binary>,
+    /// The contract owner
+    pub owner: Option<Addr>,
 }
 
 /// This structure holds the parameters that are returned from a swap simulation response
@@ -142,7 +156,7 @@ pub struct ReverseSimulationResponse {
 /// This structure is used to return a cumulative prices query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CumulativePricesResponse {
-    /// The two assets in the pool to query
+    /// The assets in the pool to query
     pub assets: Vec<Asset>,
     /// The total amount of LP tokens currently issued
     pub total_share: Uint128,
@@ -161,6 +175,8 @@ pub struct MigrateMsg {}
 pub struct StablePoolParams {
     /// The current stableswap pool amplification
     pub amp: u64,
+    /// The contract owner
+    pub owner: Option<String>,
 }
 
 /// This structure stores a stableswap pool's configuration.
@@ -212,8 +228,14 @@ mod tests {
         pub init_params: Option<Binary>,
     }
 
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct LegacyConfigResponse {
+        pub block_time_last: u64,
+        pub params: Option<Binary>,
+    }
+
     #[test]
-    fn test_compatability() {
+    fn test_init_msg_compatability() {
         let inst_msg = LegacyInstantiateMsg {
             asset_infos: [
                 native_asset_info("uusd".to_string()),
@@ -227,5 +249,21 @@ mod tests {
         let ser_msg = to_binary(&inst_msg).unwrap();
         // This .unwrap() is enough to make sure that [AssetInfo; 2] and Vec<AssetInfo> are compatible.
         let _: InstantiateMsg = from_binary(&ser_msg).unwrap();
+    }
+
+    #[test]
+    fn test_config_response_compatability() {
+        let ser_msg = to_binary(&LegacyConfigResponse {
+            block_time_last: 12,
+            params: Some(
+                to_binary(&StablePoolConfig {
+                    amp: Decimal::one(),
+                })
+                .unwrap(),
+            ),
+        })
+        .unwrap();
+
+        let _: ConfigResponse = from_binary(&ser_msg).unwrap();
     }
 }

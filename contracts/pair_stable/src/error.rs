@@ -76,6 +76,9 @@ pub enum ContractError {
         "Invalid number of assets. The Astroport supports at least 2 and at most 5 assets within a stable pool"
     )]
     InvalidNumberOfAssets {},
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {

@@ -13,4 +13,7 @@ pub enum ContractError {
 
     #[error("Period not elapsed")]
     WrongPeriod {},
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }

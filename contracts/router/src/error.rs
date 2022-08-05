@@ -22,6 +22,9 @@ pub enum ContractError {
 
     #[error("Native swap operations are not supported!")]
     NativeSwapNotSupported {},
+
+    #[error("An error occurred during migration")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {

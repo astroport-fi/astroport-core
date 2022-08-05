@@ -3131,7 +3131,13 @@ fn deactivate_pools_by_pair_types() {
         &mut app,
         &factory_instance,
         Some(PairType::Stable {}),
-        Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
         vec![
             AssetInfo::NativeToken {
                 denom: "cny".to_string(),

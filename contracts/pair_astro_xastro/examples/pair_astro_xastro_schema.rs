@@ -4,10 +4,11 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema_with_title, remove_schemas, schema_for};
 
 use astroport::asset::PairInfo;
-use astroport::pair_stable_owner::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
-    QueryMsg, ReverseSimulationResponse, SimulationResponse,
+use astroport::pair::{
+    CumulativePricesResponse, Cw20HookMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
+    SimulationResponse,
 };
+use astroport::pair_bonded::{Config, ExecuteMsg, QueryMsg};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -20,6 +21,7 @@ fn main() {
     export_schema_with_title(&schema_for!(Cw20HookMsg), &out_dir, "Cw20HookMsg");
     export_schema_with_title(&schema_for!(QueryMsg), &out_dir, "QueryMsg");
     export_schema_with_title(&schema_for!(PairInfo), &out_dir, "PairInfo");
+    export_schema_with_title(&schema_for!(Config), &out_dir, "Config");
     export_schema_with_title(&schema_for!(PoolResponse), &out_dir, "PoolResponse");
     export_schema_with_title(
         &schema_for!(ReverseSimulationResponse),
@@ -31,7 +33,6 @@ fn main() {
         &out_dir,
         "SimulationResponse",
     );
-    export_schema_with_title(&schema_for!(MigrateMsg), &out_dir, "MigrateMsg");
     export_schema_with_title(
         &schema_for!(CumulativePricesResponse),
         &out_dir,

@@ -6,7 +6,6 @@ members = [
     "contracts/pair",
     "contracts/pair_stable",
     "contracts/pair_concentrated",
-    # TODO: "contracts/pair_stable_owner",
     # TODO: do we need to support bluna in 3pool?
     # "contracts/pair_stable_bluna",
     "contracts/router",
@@ -19,7 +18,7 @@ members = [
     "contracts/tokenomics/staking",
     "contracts/tokenomics/vesting",
     "contracts/tokenomics/xastro_token",
-#    "contracts/periphery/*" TODO: support 3pool in oracle
+    "contracts/periphery/*",
 ]
 
 [profile.release]

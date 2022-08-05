@@ -1,4 +1,4 @@
-use astroport::asset::{Asset, PairInfo};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
 use astroport::factory::QueryMsg::Pair;
 use astroport::pair::CumulativePricesResponse;
@@ -41,8 +41,7 @@ impl TokenQuerier {
         pair: Addr,
         assets: Vec<Asset>,
         total: Uint128,
-        price0: Uint128,
-        price1: Uint128,
+        cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
     ) {
         self.pairs = HashMap::new();
         self.pairs.insert(
@@ -50,8 +49,7 @@ impl TokenQuerier {
             CumulativePricesResponse {
                 assets,
                 total_share: total,
-                price0_cumulative_last: price0,
-                price1_cumulative_last: price1,
+                cumulative_prices,
             },
         );
     }
@@ -122,9 +120,9 @@ impl WasmMockQuerier {
         pair: Addr,
         assert: Vec<Asset>,
         total: Uint128,
-        price1: Uint128,
-        price2: Uint128,
+        cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
     ) {
-        self.token_querier.set(pair, assert, total, price1, price2)
+        self.token_querier
+            .set(pair, assert, total, cumulative_prices)
     }
 }

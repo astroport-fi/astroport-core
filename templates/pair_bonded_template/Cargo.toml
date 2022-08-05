@@ -1,9 +1,9 @@
 [package]
-name = "astroport-pair-stable-owner"
+name = "astroport-pair-bonded-template"
 version = "1.0.0"
 authors = ["Astroport"]
 edition = "2021"
-description = "The Astroport stableswap pair contract implementation specifically designed for allowing pool admin changes."
+description = "The Astroport pair-bonded template."
 license = "MIT"
 
 exclude = [
@@ -21,23 +21,19 @@ crate-type = ["cdylib", "rlib"]
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
+library = []
 
 [dependencies]
 astroport = { path = "../../packages/astroport", default-features = false }
-cw2 = "0.13"
-cw20 = "0.13"
+astroport-pair-bonded = { path = "../../packages/pair_bonded" }
+cw2 = { version = "0.13" }
+cw20 = { version = "0.13" }
 cosmwasm-std = { version = "1.0" }
-cw-storage-plus = "0.13.0"
-schemars = "0.8.1"
+cw-storage-plus = {version = "0.13"}
+schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0.20" }
-protobuf = { version = "2", features = ["with-bytes"] }
-astroport-pair-stable = { path = "../pair_stable", features = ["library"] }
+thiserror = { version = "1.0" }
+
 
 [dev-dependencies]
-cosmwasm-schema = "1.0"
-proptest = "1.0.0"
-sim = { git = "https://github.com/astroport-fi/astroport-sims.git", rev = "d617510737ee2c529d3aaa7afbdac5ccb5a385c9", package = "sim" }
-astroport-token = {path = "../token"}
-cw-multi-test = "0.13"
-astroport-factory = {path = "../factory"}
+cosmwasm-schema = { version = "1.0" }

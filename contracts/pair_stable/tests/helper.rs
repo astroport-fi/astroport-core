@@ -168,7 +168,7 @@ impl Helper {
         let init_pair_msg = astroport::factory::ExecuteMsg::CreatePair {
             pair_type: PairType::Stable {},
             asset_infos: asset_infos.clone(),
-            init_params: Some(to_binary(&StablePoolParams { amp }).unwrap()),
+            init_params: Some(to_binary(&StablePoolParams { amp, owner: None }).unwrap()),
         };
 
         app.execute_contract(owner.clone(), factory.clone(), &init_pair_msg, &[])?;

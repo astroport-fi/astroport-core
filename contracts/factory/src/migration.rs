@@ -1,6 +1,7 @@
-use crate::state::PAIR_CONFIGS;
-use astroport::factory::{PairConfig, PairType};
-use cosmwasm_std::{Addr, StdError, Storage};
+use crate::querier::query_pair_info;
+use crate::state::{PAIRS, PAIR_CONFIGS};
+use astroport::factory::{PairConfig, PairType, ROUTE};
+use cosmwasm_std::{Addr, DepsMut, Order, StdError, StdResult, Storage};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -61,6 +62,36 @@ pub fn migrate_pair_configs_to_v120(storage: &mut dyn Storage) -> Result<(), Std
             is_generator_disabled: false,
         };
         PAIR_CONFIGS.save(storage, key, &pair_config)?;
+    }
+
+    Ok(())
+}
+
+/// Save pairs into routes
+pub fn save_routes(deps: DepsMut) -> Result<(), StdError> {
+    let pairs = PAIRS
+        .range(deps.storage, None, None, Order::Ascending)
+        .map(|pair| -> StdResult<Addr> { Ok(pair?.1) })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    for pair in pairs {
+        let pair_info = query_pair_info(&deps.querier, &pair)?;
+        ROUTE.save(
+            deps.storage,
+            (
+                pair_info.asset_infos[0].to_string(),
+                pair_info.asset_infos[1].to_string(),
+            ),
+            &vec![pair.clone()],
+        )?;
+        ROUTE.save(
+            deps.storage,
+            (
+                pair_info.asset_infos[1].to_string(),
+                pair_info.asset_infos[0].to_string(),
+            ),
+            &vec![pair.clone()],
+        )?;
     }
 
     Ok(())

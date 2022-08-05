@@ -1,5 +1,5 @@
 {
-  "name": "astroport-core-scripts",
+  "name": "scripts",
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
@@ -8,18 +8,20 @@
     "start": "npm run build-env && npm run build-app",
     "build-app": "bash build_app.sh",
     "build-env": "bash build_env.sh",
-    "build-release": "bash build_release.sh",
+    "build-artifacts": "bash build_release.sh",
     "migrate": "bash migrate.sh"
   },
   "dependencies": {
-    "@terra-money/terra.js": "^3.0.11",
+    "@terra-money/terra.js": "^3.1.5",
     "bignumber.js": "^9.0.1",
     "dotenv": "^8.2.0",
+    "isomorphic-fetch": "^3.0.0",
+    "slack-notify": "^2.0.2",
     "ts-custom-error": "^3.2.0"
   },
   "devDependencies": {
     "eslint": "^7.24.0",
-    "ts-node": "^10.7.0",
+    "ts-node": "^10.8.0",
     "typescript": "^4.3.5"
   }
 }
