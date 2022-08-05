@@ -252,6 +252,7 @@ pub fn accumulate_prices(env: &Env, config: &mut Config) {
     config.block_time_last = block_time;
 }
 
+/// Calculates current fee based on given parameters. The more provide is imbalanced the more fee is.
 pub(crate) fn calc_provide_fee(
     params: &PoolParams,
     provide_amounts: &[Uint256],

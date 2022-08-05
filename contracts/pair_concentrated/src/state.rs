@@ -35,18 +35,28 @@ pub struct Config {
     pub pool_state: PoolState,
 }
 
+/// This structure stores the pool parameters which may be adjusted via the `update_pool_params`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct PoolParams {
+    /// The minimum fee, charged when pool is fully balanced
     pub mid_fee: Uint256,
+    /// The maximum fee, charged when pool is fully imbalanced
     pub out_fee: Uint256,
+    /// Controls how quickly fees increase (from fee mid to fee out) with greater imbalance
     pub fee_gamma: Uint256,
-    // Decimal value with MULTIPLIER denominator, e.g. 100_000_000_000 = 0.0000001
+    /// Excess profit (over the 50% baseline) required to allow price re-pegging.
+    /// Decimal value with MULTIPLIER denominator, e.g. 100_000_000_000 = 0.0000001
     pub allowed_extra_profit: Uint256,
+    /// The minimum size of price scale adjustments
     pub adjustment_step: Uint128,
+    /// Controls the duration of the EMA internal price oracle
     pub ma_half_time: u64,
 }
 
 impl PoolParams {
+    /// Intended to update current pool parameters. Performs validation of the new parameters.
+    /// ## Arguments
+    /// * `update_params` - an object which contains new pool parameters. Any of the parameters may be omitted.
     pub fn update_params(&mut self, update_params: UpdatePoolParams) -> Result<(), ContractError> {
         if let Some(mid_fee) = update_params.mid_fee {
             if !FEE_LIMITS.contains(&mid_fee) {
@@ -129,6 +139,7 @@ impl PoolParams {
     }
 }
 
+/// Internal structure which stores Amp and Gamma.
 #[derive(Copy, Clone, Serialize, Deserialize, Debug, PartialEq, JsonSchema)]
 pub struct AmpGamma {
     pub amp: Uint128,
@@ -136,6 +147,7 @@ pub struct AmpGamma {
 }
 
 impl AmpGamma {
+    /// Validates the parameters and creates a new object of the [`AmpGamma`] structure.
     pub fn new(new_amp: u128, gamma: u128) -> Result<Self, ContractError> {
         let amp = new_amp * A_MULTIPLIER_U128;
         if !AMP_LIMITS.contains(&amp) {
@@ -159,37 +171,59 @@ impl AmpGamma {
         })
     }
 
+    /// Returns Amp * n_coins ^ n_coins.
     pub fn ann(&self) -> Uint256 {
         (self.amp * Uint128::from(4u8)).into()
     }
 
+    /// Converts Gamma from Uint128 to Uint256.
     pub fn gamma(&self) -> Uint256 {
         self.gamma.into()
     }
 }
 
+/// Internal structure which stores the price state.
+/// This structure cannot be updated via update_config.
 #[derive(Copy, Clone, Serialize, Deserialize, Debug, PartialEq, JsonSchema, Default)]
 pub struct PriceState {
+    /// Internal oracle price
     pub price_oracle: Uint256,
+    /// The last saved price
     pub last_prices: Uint256,
+    /// Current price scale between 1st and 2nd assets.
+    /// I.e. such C that x = C * y where x - 1st asset, y - 2nd asset.
     pub price_scale: Uint256,
+    /// Last timestamp when the price_oracle was updated.
     pub last_price_update: u64,
+    /// Pool's profit if it would become ideally balanced
     pub xcp_profit: Uint256,
+    /// The price of half an LP token if pool would become ideally balanced
     pub virtual_price: Uint256,
+    /// Cached D invariant
     pub d: Uint256,
+    /// Flag to control the price adjustment
     pub not_adjusted: bool,
 }
 
+/// Internal structure which stores the pool's state.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolState {
+    /// Initial Amp and Gamma
     pub initial: AmpGamma,
+    /// Future Amp and Gamma
     pub future: AmpGamma,
+    /// Timestamp when Amp and Gamma should become equal to self.future
     pub future_time: u64,
+    /// Timestamp when Amp and Gamma started being changed
     pub initial_time: u64,
+    /// Current price state
     pub price_state: PriceState,
 }
 
 impl PoolState {
+    /// Validates Amp and Gamma promotion parameters.
+    /// Saves current values in self.initial and setups self.future.
+    /// If amp and gamma are being changed then current values will be used as initial values.
     pub fn promote_params(
         &mut self,
         env: &Env,
@@ -237,11 +271,15 @@ impl PoolState {
         Ok(())
     }
 
+    /// Stops amp and gamma promotion. Saves current values in self.future.
     pub fn stop_promotion(&mut self, env: &Env) {
         self.future_time = env.block.time.seconds();
         self.future = self.get_amp_gamma(env);
     }
 
+    /// Calculates current amp and gamma.
+    /// This function handles upgrade as well as downgrade of parameters.
+    /// If block time > self.future_time then returns self.future parameters.
     pub fn get_amp_gamma(&self, env: &Env) -> AmpGamma {
         let block_time = env.block.time.seconds();
         if block_time < self.future_time {
@@ -251,7 +289,6 @@ impl PoolState {
 
             // A1 = A0 + (A1 - A0) * (block_time - t_init) / (t_end - t_init) -> simplified to:
             // A1 = ( A0 * (t_end - block_time) + A1 * (block_time - t_init) ) / (t_end - t_init)
-            // This formula handles upgrade as well as downgrade.
             let amp = (self.initial.amp * left + self.future.amp * passed) / total;
             let gamma = (self.initial.gamma * left + self.future.gamma * passed) / total;
 
@@ -264,6 +301,7 @@ impl PoolState {
         }
     }
 
+    /// Returns current cached D invariant if amp and gamma are stable. Otherwise calculates new D.
     pub fn get_last_d(&self, env: &Env, xp: &[Uint256]) -> StdResult<Uint256> {
         let block_time = env.block.time.seconds();
         if block_time >= self.future_time {
@@ -277,6 +315,7 @@ impl PoolState {
     }
 }
 
+/// Stores pool parameters and state.
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// Stores map of AssetInfo (as String) -> precision

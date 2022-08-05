@@ -7,11 +7,15 @@ use crate::constants::{
 };
 use crate::state::{PoolParams, PoolState};
 
+/// Calculates geometric mean of the given values.
+/// ## Params
+/// * **values** - array reference with two values.
 pub(crate) fn geometric_mean(values: &[Uint256]) -> Uint256 {
     let mul = values[0] * values[1];
     mul.isqrt()
 }
 
+/// Computes the stableswap invariant (D). `pools` array should have exactly two elements.
 pub(crate) fn newton_d(ann: Uint256, gamma: Uint256, pools: &[Uint256]) -> StdResult<Uint256> {
     let x = if pools[0] < pools[1] {
         vec![pools[1], pools[0]]
@@ -60,12 +64,19 @@ pub(crate) fn newton_d(ann: Uint256, gamma: Uint256, pools: &[Uint256]) -> StdRe
     Err(StdError::generic_err("newton_d is not converging"))
 }
 
+/// Calculating x[i] given other balances pools[0..1] and invariant D
+/// ## Params
+/// * ann = A * n^n * A_MULTIPLIER
+/// * gamma is gamma parameter
+/// * pools is array with two elements
+/// * d is invariant D
+/// * i is an index of pool which balance is unknown
 pub(crate) fn newton_y(
-    ann: Uint256, // A * n^n * A_MULTIPLIER
+    ann: Uint256,
     gamma: Uint256,
     pools: &[Uint256],
     d: Uint256,
-    i: usize, // an index of pool which balance is unknown
+    i: usize,
 ) -> StdResult<Uint256> {
     let pool_j = pools[1 - i]; // Other pool which balance is known
     let mut y = d * d / (pool_j * N_COINS * N_COINS);
@@ -119,6 +130,7 @@ pub(crate) fn newton_y(
     Err(StdError::generic_err("newton_y is not converging"))
 }
 
+/// Calculates 0.5^power.
 pub(crate) fn halfpow(power: Uint256) -> StdResult<Uint256> {
     let intpow = power / MULTIPLIER;
     let intpow_u128: Uint128 = intpow.try_into()?;
@@ -158,6 +170,8 @@ pub(crate) fn halfpow(power: Uint256) -> StdResult<Uint256> {
     Err(StdError::generic_err("halfpow is not converging"))
 }
 
+/// The function is responsible for repegging mechanism.
+/// It updates internal oracle price and adjusts price scale.
 pub(crate) fn update_price(
     pool_state: &mut PoolState,
     env: &Env,

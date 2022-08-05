@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::constants::MIN_AMP_CHANGING_TIME;
 
 /// ## Description
-/// This enum describes stableswap pair contract errors!
+/// This enum describes concentrated liquidity pair contract errors
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
@@ -19,10 +19,10 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Doubling assets in asset infos")]
+    #[error("Same asset info submitted twice")]
     DoublingAssets {},
 
-    #[error("Event of zero transfer")]
+    #[error("The amount specified is zero")]
     InvalidZeroAmount {},
 
     #[error("Insufficient amount of liquidity")]

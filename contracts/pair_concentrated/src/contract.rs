@@ -34,7 +34,7 @@ use astroport::pair_concentrated::{
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
-use crate::constants::{FEE_MULTIPLIER, MULTIPLIER, N_COINS, PRECISION};
+use crate::constants::{FEE_MULTIPLIER, MULTIPLIER, PRECISION};
 use crate::error::ContractError;
 use crate::math::{geometric_mean, halfpow, newton_d, newton_y, update_price};
 use crate::state::{
@@ -46,12 +46,12 @@ use crate::utils::{
 };
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = "astroport-pair-stable";
+const CONTRACT_NAME: &str = "astroport-pair-concentrated";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// A `reply` call code ID of sub-message.
 const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
-/// An LP token precision.
+/// An LP token's precision.
 const LP_TOKEN_PRECISION: u8 = 6;
 
 /// ## Description
@@ -77,10 +77,6 @@ pub fn instantiate(
 
     if msg.asset_infos.len() != 2 {
         return Err(StdError::generic_err("asset_infos must contain exactly two elements").into());
-    }
-
-    if msg.init_params.is_none() {
-        return Err(ContractError::InitParamsNotFound {});
     }
 
     let params: ConcentratedPoolParams = from_binary(
@@ -241,7 +237,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///             belief_price,
 ///             max_spread,
 ///             to,
-///         }** Performs an swap using the specified parameters.
+///         }** Performs a swap using the specified parameters.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -492,11 +488,7 @@ fn provide_liquidity(
         // We know the price scale if this is the first provide
         config.pool_state.price_state.price_scale =
             xp_for_prices[0] * MULTIPLIER / xp_for_prices[1];
-        let tmp_xp = [
-            new_d / N_COINS,
-            new_d * PRECISION / (config.pool_state.price_state.price_scale * N_COINS),
-        ];
-        total_share = geometric_mean(&tmp_xp);
+        total_share = geometric_mean(&xp);
         total_share
     };
 
@@ -511,7 +503,6 @@ fn provide_liquidity(
             + Uint256::one();
         mint_amount -= provide_fee;
 
-        // TODO: not sure we need this check
         if mint_amount > Uint256::from_u128(1e5 as u128) {
             let mut price = Uint256::zero();
             // TODO: I believe here we need to check that the deposits are imbalanced, not just one of them is zero.
@@ -771,10 +762,10 @@ fn imbalanced_withdraw(
 
     let after_fee_d = newton_d(amp_gamma.ann(), amp_gamma.gamma(), &new_balances)?;
 
-    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+    let total_share = total_lp.into();
     // How many tokens do we need to burn to withdraw asked assets?
     let diff_d = init_d - after_fee_d;
-    let burn_amount = Uint256::from(total_share)
+    let burn_amount = total_share
         .checked_multiply_ratio(diff_d, init_d)?
         .checked_add(Uint256::one())?; // In case of rounding errors - make it unfavorable for the "attacker"
 
@@ -810,7 +801,7 @@ fn imbalanced_withdraw(
         price,
         after_fee_d,
         &config.pool_params,
-        total_lp.into(),
+        total_share,
     )?;
 
     Ok(burn_amount.try_into()?)
@@ -886,7 +877,6 @@ fn swap(
     let mut return_amount = compute_swap(&env, &config, dx, offer_ind, ask_ind, &xp)?;
 
     xp[ask_ind] -= return_amount;
-    // return_amount -= Uint256::one(); // Reduce by 1 just for safety reasons.
     let mut commission_amount = config.pool_params.fee(&xp) * return_amount / FEE_MULTIPLIER;
     xp[ask_ind] += commission_amount;
     return_amount -= commission_amount;
@@ -1033,6 +1023,10 @@ fn calculate_maker_fee(
 /// pool using a [`CumulativePricesResponse`] object.
 ///
 /// * **QueryMsg::Config {}** Returns the configuration for the pair contract using a [`ConfigResponse`] object.
+///
+/// * **QueryMsg::QueryComputeD {}** Computes current D invariant. Returns it in form of [`Uint256`].
+///
+/// * **QueryMsg::QueryComputeD {}** Computes current LP token price. Returns it in form of [`Uint256`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -1093,7 +1087,7 @@ fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **offer_asset** is an object of type [`Asset`]. This is the asset to swap as well as an amount of the said asset.
+/// * **offer_asset** is an object of type [`Asset`]. This is the asset to swap as well as an amount of this asset.
 fn query_simulation(
     deps: Deps,
     env: Env,
@@ -1322,11 +1316,11 @@ fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
 /// * **max_spread** is an object of type [`Option<Decimal>`]. This is the
 /// max spread allowed so that the swap can be executed successfuly.
 ///
-/// * **offer_amount** is an object of type [`Uint128`]. This is the amount of assets to swap.
+/// * **offer_amount** is an object of type [`Uint256`]. This is the amount of assets to swap.
 ///
-/// * **return_amount** is an object of type [`Uint128`]. This is the amount of assets to receive from the swap.
+/// * **return_amount** is an object of type [`Uint256`]. This is the amount of assets to receive from the swap.
 ///
-/// * **spread_amount** is an object of type [`Uint128`]. This is the spread used in the swap.
+/// * **spread_amount** is an object of type [`Uint256`]. This is the spread used in the swap.
 fn assert_max_spread(
     belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
@@ -1406,7 +1400,7 @@ fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<(Vec<Asset>,
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **params** is an object of type [`Binary`]. These are the the new parameter values.
+/// * **params** is an object of type [`Binary`]. These are the new parameter values.
 fn update_config(
     deps: DepsMut,
     env: Env,
