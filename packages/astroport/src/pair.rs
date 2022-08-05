@@ -127,6 +127,8 @@ pub struct ConfigResponse {
     pub block_time_last: u64,
     /// The pool's parameters
     pub params: Option<Binary>,
+    /// The contract owner
+    pub owner: Option<Addr>,
 }
 
 /// This structure holds the parameters that are returned from a swap simulation response

@@ -1258,6 +1258,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
         params: Some(to_binary(&StablePoolConfig {
             amp: Decimal::from_ratio(compute_current_amp(&config, &env)?, AMP_PRECISION),
         })?),
+        owner: config.owner,
     })
 }
 

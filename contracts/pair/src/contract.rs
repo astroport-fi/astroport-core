@@ -1022,6 +1022,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
         params: None,
+        owner: None,
     })
 }
 

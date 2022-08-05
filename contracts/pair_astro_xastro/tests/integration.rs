@@ -684,6 +684,7 @@ fn test_queries() {
         ConfigResponse {
             block_time_last: 0u64,
             params: None,
+            owner: None
         }
     );
 

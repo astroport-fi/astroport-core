@@ -306,7 +306,8 @@ fn test_provide_and_withdraw_liquidity() {
         config,
         ConfigResponse {
             block_time_last: router.block_info().time.seconds(),
-            params: None
+            params: None,
+            owner: None
         }
     )
 }
