@@ -66,7 +66,7 @@ fn test_boost_checkpoints() {
         &helper_controller.factory,
         None,
         None,
-        [
+        vec![
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
             },
@@ -353,7 +353,7 @@ fn proper_deposit_and_withdraw() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
             },
@@ -368,7 +368,7 @@ fn proper_deposit_and_withdraw() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::Token {
                 contract_addr: eur_token.clone(),
             },
@@ -708,7 +708,7 @@ fn disabling_pool() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::Token {
                 contract_addr: eur_token.clone(),
             },
@@ -817,7 +817,7 @@ fn generator_without_reward_proxies() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
             },
@@ -832,7 +832,7 @@ fn generator_without_reward_proxies() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::Token {
                 contract_addr: eur_token.clone(),
             },
@@ -2297,7 +2297,7 @@ fn query_all_stakers() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
             },
@@ -2453,7 +2453,7 @@ fn query_pagination_stakers() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
             },
@@ -2607,7 +2607,7 @@ fn update_tokens_blocked_list() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
             },
@@ -2622,7 +2622,7 @@ fn update_tokens_blocked_list() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::Token {
                 contract_addr: cny_token.clone(),
             },
@@ -2637,7 +2637,7 @@ fn update_tokens_blocked_list() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::Token {
                 contract_addr: eur_token.clone(),
             },
@@ -2875,7 +2875,7 @@ fn setup_pools() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::NativeToken {
                 denom: "cny".to_string(),
             },
@@ -2890,7 +2890,7 @@ fn setup_pools() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::NativeToken {
                 denom: "cny".to_string(),
             },
@@ -2905,7 +2905,7 @@ fn setup_pools() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::NativeToken {
                 denom: "eur".to_string(),
             },
@@ -2939,7 +2939,7 @@ fn setup_pools() {
         Addr::unchecked(OWNER),
         factory_instance.clone(),
         &FactoryExecuteMsg::Deregister {
-            asset_infos: [
+            asset_infos: vec![
                 AssetInfo::NativeToken {
                     denom: "cny".to_string(),
                 },
@@ -3131,8 +3131,14 @@ fn deactivate_pools_by_pair_types() {
         &mut app,
         &factory_instance,
         Some(PairType::Stable {}),
-        Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
-        [
+        Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
+        vec![
             AssetInfo::NativeToken {
                 denom: "cny".to_string(),
             },
@@ -3147,7 +3153,7 @@ fn deactivate_pools_by_pair_types() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::NativeToken {
                 denom: "cny".to_string(),
             },
@@ -3162,7 +3168,7 @@ fn deactivate_pools_by_pair_types() {
         &factory_instance,
         None,
         None,
-        [
+        vec![
             AssetInfo::NativeToken {
                 denom: "eur".to_string(),
             },
@@ -3928,7 +3934,7 @@ fn create_pair(
     factory: &Addr,
     pair_type: Option<PairType>,
     init_param: Option<Binary>,
-    assets: [AssetInfo; 2],
+    assets: Vec<AssetInfo>,
 ) -> (Addr, Addr) {
     app.execute_contract(
         Addr::unchecked(OWNER),

@@ -1,4 +1,4 @@
-use astroport::asset::Asset;
+use astroport::asset::{Asset, AssetInfo};
 use astroport::pair::{CumulativePricesResponse, QueryMsg as PairQueryMsg, SimulationResponse};
 use cosmwasm_std::{QuerierWrapper, StdResult};
 
@@ -26,10 +26,14 @@ pub fn query_cumulative_prices(
 pub fn query_prices(
     querier: QuerierWrapper,
     pair_contract: impl Into<String>,
-    asset: Asset,
+    offer_asset: Asset,
+    ask_asset_info: Option<AssetInfo>,
 ) -> StdResult<SimulationResponse> {
     querier.query_wasm_smart(
         pair_contract,
-        &PairQueryMsg::Simulation { offer_asset: asset },
+        &PairQueryMsg::Simulation {
+            offer_asset,
+            ask_asset_info,
+        },
     )
 }

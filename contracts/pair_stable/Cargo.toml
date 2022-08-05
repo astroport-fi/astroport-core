@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-stable"
-version = "1.0.0"
+version = "2.0.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport stableswap pair contract implementation"
@@ -24,7 +24,6 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-integer-sqrt = "0.1.5"
 astroport = { path = "../../packages/astroport", default-features = false }
 cw2 = { version = "0.13" }
 cw20 = { version = "0.13" }
@@ -34,11 +33,14 @@ schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0" }
 protobuf = { version = "2", features = ["with-bytes"] }
+itertools = "0.10"
 
 [dev-dependencies]
-cosmwasm-schema = "1.0"
+anyhow = "1.0"
+cosmwasm-schema = "1.0.0"
 proptest = "1.0.0"
-sim = { git = "https://github.com/astroport-fi/astroport-sims.git", rev = "d617510737ee2c529d3aaa7afbdac5ccb5a385c9", package = "sim" }
+sim = { git = "https://github.com/astroport-fi/astroport-sims.git", rev = "6869900d4db9061ff8f0c1bfd7c7560056f7e74f", package = "sim" }
 astroport-token = {path = "../token"}
 cw-multi-test = "0.13"
 astroport-factory = {path = "../factory"}
+derivative = "0.3"

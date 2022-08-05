@@ -53,6 +53,10 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    if msg.asset_infos.len() != 2 {
+        return Err(StdError::generic_err("asset_infos must contain exactly two elements").into());
+    }
+
     msg.asset_infos[0].check(deps.api)?;
     msg.asset_infos[1].check(deps.api)?;
 
@@ -181,7 +185,6 @@ pub fn execute(
     }
 
     match msg {
-        ExecuteMsg::UpdateConfig { .. } => Err(ContractError::NonSupported {}),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ProvideLiquidity {
             assets,
@@ -202,6 +205,7 @@ pub fn execute(
             belief_price,
             max_spread,
             to,
+            ..
         } => {
             offer_asset.info.check(deps.api)?;
             if !offer_asset.is_native_token() {
@@ -221,6 +225,7 @@ pub fn execute(
                 to_addr,
             )
         }
+        _ => Err(ContractError::NonSupported {}),
     }
 }
 
@@ -247,6 +252,7 @@ pub fn receive_cw20(
             belief_price,
             max_spread,
             to,
+            ..
         }) => {
             // Only asset contract can execute this message
             let mut authorized = false;
@@ -281,7 +287,7 @@ pub fn receive_cw20(
                 to_addr,
             )
         }
-        Ok(Cw20HookMsg::WithdrawLiquidity {}) => {
+        Ok(Cw20HookMsg::WithdrawLiquidity { .. }) => {
             let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
             withdraw_liquidity(deps, env, info, sender, cw20_msg.amount)
         }
@@ -315,11 +321,14 @@ pub fn provide_liquidity(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    assets: [Asset; 2],
+    assets: Vec<Asset>,
     slippage_tolerance: Option<Decimal>,
     auto_stake: Option<bool>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
+    if assets.len() != 2 {
+        return Err(StdError::generic_err("asset_infos must contain exactly two elements").into());
+    }
     assets[0].info.check(deps.api)?;
     assets[1].info.check(deps.api)?;
 
@@ -560,11 +569,7 @@ pub fn withdraw_liquidity(
 /// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to compute a corresponding amount of assets for.
 ///
 /// * **total_share** is an object of type [`Uint128`]. This is the total amount of LP tokens currently minted.
-pub fn get_share_in_assets(
-    pools: &[Asset; 2],
-    amount: Uint128,
-    total_share: Uint128,
-) -> Vec<Asset> {
+pub fn get_share_in_assets(pools: &[Asset], amount: Uint128, total_share: Uint128) -> Vec<Asset> {
     let mut share_ratio = Decimal::zero();
     if !total_share.is_zero() {
         share_ratio = Decimal::from_ratio(amount, total_share);
@@ -819,26 +824,19 @@ pub fn calculate_maker_fee(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Pair {} => to_binary(&query_pair_info(deps)?),
+        QueryMsg::Pair {} => to_binary(&CONFIG.load(deps.storage)?.pair_info),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
         QueryMsg::Share { amount } => to_binary(&query_share(deps, amount)?),
-        QueryMsg::Simulation { offer_asset } => to_binary(&query_simulation(deps, offer_asset)?),
-        QueryMsg::ReverseSimulation { ask_asset } => {
+        QueryMsg::Simulation { offer_asset, .. } => {
+            to_binary(&query_simulation(deps, offer_asset)?)
+        }
+        QueryMsg::ReverseSimulation { ask_asset, .. } => {
             to_binary(&query_reverse_simulation(deps, ask_asset)?)
         }
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         _ => Err(StdError::generic_err("Query is not supported")),
     }
-}
-
-/// ## Description
-/// Returns information about the pair contract in an object of type [`PairInfo`].
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-pub fn query_pair_info(deps: Deps) -> StdResult<PairInfo> {
-    let config: Config = CONFIG.load(deps.storage)?;
-    Ok(config.pair_info)
 }
 
 /// ## Description
@@ -993,11 +991,23 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
         price1_cumulative_last = price1_cumulative_new;
     }
 
+    let cumulative_prices = vec![
+        (
+            assets[0].info.clone(),
+            assets[1].info.clone(),
+            price0_cumulative_last,
+        ),
+        (
+            assets[1].info.clone(),
+            assets[0].info.clone(),
+            price1_cumulative_last,
+        ),
+    ];
+
     let resp = CumulativePricesResponse {
         assets,
         total_share,
-        price0_cumulative_last,
-        price1_cumulative_last,
+        cumulative_prices,
     };
 
     Ok(resp)
@@ -1012,6 +1022,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
         params: None,
+        owner: None,
     })
 }
 
@@ -1032,7 +1043,7 @@ pub fn compute_swap(
     commission_rate: Decimal,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // offer => ask
-    check_swap_parameters(offer_pool, ask_pool, offer_amount)?;
+    check_swap_parameters(vec![offer_pool, ask_pool], offer_amount)?;
 
     let offer_pool: Uint256 = offer_pool.into();
     let ask_pool: Uint256 = ask_pool.into();
@@ -1076,7 +1087,7 @@ pub fn compute_offer_amount(
     commission_rate: Decimal,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
-    check_swap_parameters(offer_pool, ask_pool, ask_amount)?;
+    check_swap_parameters(vec![offer_pool, ask_pool], ask_amount)?;
 
     // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
     let cp = Uint256::from(offer_pool) * Uint256::from(ask_pool);
@@ -1160,7 +1171,7 @@ pub fn assert_max_spread(
 fn assert_slippage_tolerance(
     slippage_tolerance: Option<Decimal>,
     deposits: &[Uint128; 2],
-    pools: &[Asset; 2],
+    pools: &[Asset],
 ) -> Result<(), ContractError> {
     let default_slippage = Decimal::from_str(DEFAULT_SLIPPAGE)?;
     let max_allowed_slippage = Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?;
@@ -1206,7 +1217,7 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Respons
 /// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **config** is an object of type [`Config`].
-pub fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<([Asset; 2], Uint128)> {
+pub fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<(Vec<Asset>, Uint128)> {
     let pools = config
         .pair_info
         .query_pools(&querier, &config.pair_info.contract_addr)?;

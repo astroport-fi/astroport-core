@@ -1,4 +1,4 @@
-use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::asset::{native_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{
     ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
     QueryMsg as FactoryQueryMsg,
@@ -63,7 +63,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
     let pair_contract_code_id = store_pair_code(&mut router);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -258,7 +258,7 @@ fn test_provide_and_withdraw_liquidity() {
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         amount: Uint128::from(50u8),
-        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
     };
     // Try to send withdraw liquidity with FOO token
     let err = router
@@ -281,6 +281,7 @@ fn test_provide_and_withdraw_liquidity() {
                     },
                     amount: Uint128::from(10u8),
                 },
+                ask_asset_info: None,
                 belief_price: None,
                 max_spread: None,
                 to: None,
@@ -305,7 +306,8 @@ fn test_provide_and_withdraw_liquidity() {
         config,
         ConfigResponse {
             block_time_last: router.block_info().time.seconds(),
-            params: None
+            params: None,
+            owner: None
         }
     )
 }
@@ -317,7 +319,7 @@ fn provide_liquidity_msg(
     slippage_tolerance: Option<Decimal>,
 ) -> (ExecuteMsg, [Coin; 2]) {
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
@@ -462,7 +464,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .unwrap();
 
     let msg = FactoryExecuteMsg::CreatePair {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
@@ -478,7 +480,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .unwrap();
 
     let msg = FactoryQueryMsg::Pair {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
@@ -518,6 +520,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
     let swap_msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: Some(user.to_string()),
@@ -529,14 +532,13 @@ fn test_compatibility_of_tokens_with_different_precision() {
     let err = app
         .execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
         .unwrap_err();
-
     assert_eq!(
         "Generic error: One of the pools is empty",
         err.root_cause().to_string()
     );
 
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
@@ -660,8 +662,8 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     let cpr_new: CumulativePricesResponse =
         app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
 
-    let twap0 = cpr_new.price0_cumulative_last - cpr_old.price0_cumulative_last;
-    let twap1 = cpr_new.price1_cumulative_last - cpr_old.price1_cumulative_last;
+    let twap0 = cpr_new.cumulative_prices[0].2 - cpr_old.cumulative_prices[0].2;
+    let twap1 = cpr_new.cumulative_prices[1].2 - cpr_old.cumulative_prices[1].2;
 
     // Prices weren't changed for the last day, uusd amount in pool = 3000000_000000, uluna = 2000000_000000
     // In accumulators we don't have any precision so we rely on elapsed time so we don't need to consider it
@@ -691,7 +693,7 @@ fn create_pair_with_same_assets() {
     let pair_contract_code_id = store_pair_code(&mut router);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -719,4 +721,64 @@ fn create_pair_with_same_assets() {
         resp.root_cause().to_string(),
         "Doubling assets in asset infos"
     )
+}
+
+#[test]
+fn wrong_number_of_assets() {
+    let owner = Addr::unchecked("owner");
+    let mut router = mock_app(owner.clone(), vec![]);
+
+    let pair_contract_code_id = store_pair_code(&mut router);
+
+    let msg = InstantiateMsg {
+        asset_infos: vec![AssetInfo::NativeToken {
+            denom: "uusd".to_string(),
+        }],
+        token_code_id: 123,
+        factory_addr: String::from("factory"),
+        init_params: None,
+    };
+
+    let err = router
+        .instantiate_contract(
+            pair_contract_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("PAIR"),
+            None,
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: asset_infos must contain exactly two elements"
+    );
+
+    let msg = InstantiateMsg {
+        asset_infos: vec![
+            native_asset_info("uusd".to_string()),
+            native_asset_info("dust".to_string()),
+            native_asset_info("stone".to_string()),
+        ],
+        token_code_id: 123,
+        factory_addr: String::from("factory"),
+        init_params: None,
+    };
+
+    let err = router
+        .instantiate_contract(
+            pair_contract_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("PAIR"),
+            None,
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: asset_infos must contain exactly two elements"
+    );
 }

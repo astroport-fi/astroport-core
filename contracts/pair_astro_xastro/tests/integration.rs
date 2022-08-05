@@ -174,7 +174,7 @@ fn instantiate_astroport(mut router: &mut App, owner: &Addr) -> AstroportContrac
         instantiate_staking(router, owner.clone(), &token_instance);
 
     let msg = PairInstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_instance.clone(),
             },
@@ -254,7 +254,7 @@ fn test_pair_instantiation() {
         instantiate_staking(&mut router, owner.clone(), &token_instance);
 
     let msg = PairInstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_instance.clone(),
             },
@@ -284,7 +284,7 @@ fn test_pair_instantiation() {
     );
 
     let msg = PairInstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_instance.clone(),
             },
@@ -404,6 +404,7 @@ fn test_pair_swap() {
                 contract: contracts.pair_instance.clone().to_string(),
                 amount: Uint128::from(10_000u64),
                 msg: to_binary(&Cw20HookMsg::Swap {
+                    ask_asset_info: None,
                     belief_price: None,
                     max_spread: None,
                     to: None,
@@ -423,6 +424,7 @@ fn test_pair_swap() {
                 contract: contracts.pair_instance.clone().to_string(),
                 amount: Uint128::from(30_000u64),
                 msg: to_binary(&Cw20HookMsg::Swap {
+                    ask_asset_info: None,
                     belief_price: None,
                     max_spread: None,
                     to: None,
@@ -535,6 +537,7 @@ fn test_pair_swap() {
                 contract: contracts.pair_instance.clone().to_string(),
                 amount: Uint128::from(10_000u64),
                 msg: to_binary(&Cw20HookMsg::Swap {
+                    ask_asset_info: None,
                     belief_price: None,
                     max_spread: None,
                     to: None,
@@ -554,6 +557,7 @@ fn test_pair_swap() {
                 contract: contracts.pair_instance.clone().to_string(),
                 amount: Uint128::from(30_000u64),
                 msg: to_binary(&Cw20HookMsg::Swap {
+                    ask_asset_info: None,
                     belief_price: None,
                     max_spread: None,
                     to: None,
@@ -680,6 +684,7 @@ fn test_queries() {
         ConfigResponse {
             block_time_last: 0u64,
             params: None,
+            owner: None
         }
     );
 
@@ -690,7 +695,7 @@ fn test_queries() {
     assert_eq!(
         res,
         PairInfo {
-            asset_infos: [
+            asset_infos: vec![
                 AssetInfo::Token {
                     contract_addr: contracts.astro_instance.clone()
                 },

@@ -17,8 +17,8 @@ pub const TWAP_PRECISION: u8 = 6;
 /// This structure describes the parameters used for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// Information about the two assets in the pool
-    pub asset_infos: [AssetInfo; 2],
+    /// Information about assets in the pool
+    pub asset_infos: Vec<AssetInfo>,
     /// The token contract code ID used for the tokens in the pool
     pub token_code_id: u64,
     /// The factory contract address
@@ -36,7 +36,7 @@ pub enum ExecuteMsg {
     /// ProvideLiquidity allows someone to provide liquidity in the pool
     ProvideLiquidity {
         /// The assets available in the pool
-        assets: [Asset; 2],
+        assets: Vec<Asset>,
         /// The slippage tolerance that allows liquidity provision only if the price in the pool doesn't move too much
         slippage_tolerance: Option<Decimal>,
         /// Determines whether the LP tokens minted for the user is auto_staked in the Generator contract
@@ -47,12 +47,25 @@ pub enum ExecuteMsg {
     /// Swap performs a swap in the pool
     Swap {
         offer_asset: Asset,
+        ask_asset_info: Option<AssetInfo>,
         belief_price: Option<Decimal>,
         max_spread: Option<Decimal>,
         to: Option<String>,
     },
     /// Update the pair configuration
     UpdateConfig { params: Binary },
+    /// ProposeNewOwner creates a proposal to change contract ownership.
+    /// The validity period for the proposal is set in the `expires_in` variable.
+    ProposeNewOwner {
+        /// Newly proposed contract owner
+        owner: String,
+        /// The date after which this proposal expires
+        expires_in: u64,
+    },
+    /// DropOwnershipProposal removes the existing offer to change contract ownership.
+    DropOwnershipProposal {},
+    /// Used to claim contract ownership.
+    ClaimOwnership {},
 }
 
 /// This structure describes a CW20 hook message.
@@ -61,12 +74,13 @@ pub enum ExecuteMsg {
 pub enum Cw20HookMsg {
     /// Swap a given amount of asset
     Swap {
+        ask_asset_info: Option<AssetInfo>,
         belief_price: Option<Decimal>,
         max_spread: Option<Decimal>,
         to: Option<String>,
     },
     /// Withdraw liquidity from the pool
-    WithdrawLiquidity {},
+    WithdrawLiquidity { assets: Vec<Asset> },
 }
 
 /// This structure describes the query messages available in the contract.
@@ -82,20 +96,26 @@ pub enum QueryMsg {
     /// Returns information about the share of the pool in a vector that contains objects of type [`Asset`].
     Share { amount: Uint128 },
     /// Returns information about a swap simulation in a [`SimulationResponse`] object.
-    Simulation { offer_asset: Asset },
+    Simulation {
+        offer_asset: Asset,
+        ask_asset_info: Option<AssetInfo>,
+    },
     /// Returns information about cumulative prices in a [`CumulativePricesResponse`] object.
-    ReverseSimulation { ask_asset: Asset },
+    ReverseSimulation {
+        offer_asset_info: Option<AssetInfo>,
+        ask_asset: Asset,
+    },
     /// Returns information about the cumulative prices in a [`CumulativePricesResponse`] object
     CumulativePrices {},
     /// Returns current D invariant in as a [`u128`] value
     QueryComputeD {},
 }
 
-/// This struct is used to return a query result with the total amount of LP tokens and the two assets in a specific pool.
+/// This struct is used to return a query result with the total amount of LP tokens and assets in a specific pool.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolResponse {
     /// The assets in the pool together with asset amounts
-    pub assets: [Asset; 2],
+    pub assets: Vec<Asset>,
     /// The total amount of LP tokens currently issued
     pub total_share: Uint128,
 }
@@ -107,6 +127,8 @@ pub struct ConfigResponse {
     pub block_time_last: u64,
     /// The pool's parameters
     pub params: Option<Binary>,
+    /// The contract owner
+    pub owner: Option<Addr>,
 }
 
 /// This structure holds the parameters that are returned from a swap simulation response
@@ -134,14 +156,12 @@ pub struct ReverseSimulationResponse {
 /// This structure is used to return a cumulative prices query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CumulativePricesResponse {
-    /// The two assets in the pool to query
-    pub assets: [Asset; 2],
+    /// The assets in the pool to query
+    pub assets: Vec<Asset>,
     /// The total amount of LP tokens currently issued
     pub total_share: Uint128,
-    /// The last value for the token0 cumulative price
-    pub price0_cumulative_last: Uint128,
-    /// The last value for the token1 cumulative price
-    pub price1_cumulative_last: Uint128,
+    /// The vector contains cumulative prices for each pair of assets in the pool
+    pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
 }
 
 /// This structure describes a migration message.
@@ -155,6 +175,8 @@ pub struct MigrateMsg {}
 pub struct StablePoolParams {
     /// The current stableswap pool amplification
     pub amp: u64,
+    /// The contract owner
+    pub owner: Option<String>,
 }
 
 /// This structure stores a stableswap pool's configuration.
@@ -189,5 +211,59 @@ pub fn migration_check(
         Ok(res.contains(pair_addr))
     } else {
         Ok(false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::asset::native_asset_info;
+    use cosmwasm_std::{from_binary, to_binary};
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct LegacyInstantiateMsg {
+        pub asset_infos: [AssetInfo; 2],
+        pub token_code_id: u64,
+        pub factory_addr: String,
+        pub init_params: Option<Binary>,
+    }
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct LegacyConfigResponse {
+        pub block_time_last: u64,
+        pub params: Option<Binary>,
+    }
+
+    #[test]
+    fn test_init_msg_compatability() {
+        let inst_msg = LegacyInstantiateMsg {
+            asset_infos: [
+                native_asset_info("uusd".to_string()),
+                native_asset_info("uluna".to_string()),
+            ],
+            token_code_id: 0,
+            factory_addr: "factory".to_string(),
+            init_params: None,
+        };
+
+        let ser_msg = to_binary(&inst_msg).unwrap();
+        // This .unwrap() is enough to make sure that [AssetInfo; 2] and Vec<AssetInfo> are compatible.
+        let _: InstantiateMsg = from_binary(&ser_msg).unwrap();
+    }
+
+    #[test]
+    fn test_config_response_compatability() {
+        let ser_msg = to_binary(&LegacyConfigResponse {
+            block_time_last: 12,
+            params: Some(
+                to_binary(&StablePoolConfig {
+                    amp: Decimal::one(),
+                })
+                .unwrap(),
+            ),
+        })
+        .unwrap();
+
+        let _: ConfigResponse = from_binary(&ser_msg).unwrap();
     }
 }

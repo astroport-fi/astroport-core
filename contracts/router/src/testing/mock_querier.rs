@@ -137,7 +137,7 @@ impl WasmMockQuerier {
                     Some(v) => SystemResult::Ok(ContractResult::from(to_binary(&PairInfo {
                         contract_addr: Addr::unchecked(v),
                         liquidity_token: Addr::unchecked("liquidity"),
-                        asset_infos: [
+                        asset_infos: vec![
                             AssetInfo::NativeToken {
                                 denom: "uusd".to_string(),
                             },

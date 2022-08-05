@@ -63,11 +63,38 @@ fn store_factory_code(app: &mut App) -> u64 {
 
 fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
     let token_contract_code_id = store_token_code(&mut router);
-
     let pair_contract_code_id = store_pair_code(&mut router);
+    let factory_code_id = store_factory_code(&mut router);
+
+    let factory_init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![PairConfig {
+            code_id: pair_contract_code_id,
+            maker_fee_bps: 5000,
+            total_fee_bps: 5u16,
+            pair_type: PairType::Stable {},
+            is_disabled: false,
+            is_generator_disabled: false,
+        }],
+        token_code_id: token_contract_code_id,
+        generator_address: None,
+        owner: owner.to_string(),
+        whitelist_code_id: 234u64,
+    };
+
+    let factory_addr = router
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &factory_init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -76,7 +103,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
             },
         ],
         token_code_id: token_contract_code_id,
-        factory_addr: String::from("factory"),
+        factory_addr: factory_addr.to_string(),
         init_params: None,
     };
 
@@ -96,7 +123,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
     );
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -105,8 +132,14 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
             },
         ],
         token_code_id: token_contract_code_id,
-        factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        factory_addr: factory_addr.to_string(),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     let pair = router
@@ -124,8 +157,8 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         .wrap()
         .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
         .unwrap();
-    assert_eq!("contract0", res.contract_addr);
-    assert_eq!("contract1", res.liquidity_token);
+    assert_eq!("contract1", res.contract_addr);
+    assert_eq!("contract2", res.liquidity_token);
 
     pair
 }
@@ -223,13 +256,13 @@ fn test_provide_and_withdraw_liquidity() {
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 100u128.to_string())
+        attr("share", 400u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "alice"));
     assert_eq!(
         res.events[3].attributes[3],
-        attr("amount", 100u128.to_string())
+        attr("amount", 400u128.to_string())
     );
 
     // Provide liquidity for a custom receiver
@@ -253,11 +286,11 @@ fn test_provide_and_withdraw_liquidity() {
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 50u128.to_string())
+        attr("share", 200u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "bob"));
-    assert_eq!(res.events[3].attributes[3], attr("amount", 50.to_string()));
+    assert_eq!(res.events[3].attributes[3], attr("amount", 200.to_string()));
 }
 
 fn provide_liquidity_msg(
@@ -266,7 +299,7 @@ fn provide_liquidity_msg(
     receiver: Option<String>,
 ) -> (ExecuteMsg, [Coin; 2]) {
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
@@ -411,7 +444,7 @@ fn provide_lp_for_single_token() {
 
     let msg = FactoryExecuteMsg::CreatePair {
         pair_type: PairType::Stable {},
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
@@ -419,14 +452,20 @@ fn provide_lp_for_single_token() {
                 contract_addr: token_y_instance.clone(),
             },
         ],
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
         .unwrap();
 
     let msg = FactoryQueryMsg::Pair {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
@@ -464,6 +503,7 @@ fn provide_lp_for_single_token() {
     let swap_msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: None,
@@ -481,7 +521,7 @@ fn provide_lp_for_single_token() {
     );
 
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
@@ -509,7 +549,7 @@ fn provide_lp_for_single_token() {
     );
 
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
@@ -533,7 +573,7 @@ fn provide_lp_for_single_token() {
 
     // try to provide for single token and increase the ratio in the pool from 1 to 1.5
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
@@ -565,7 +605,7 @@ fn provide_lp_for_single_token() {
 
     // try to provide for single token and increase the ratio in the pool from 1 to 2.5
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
@@ -591,6 +631,7 @@ fn provide_lp_for_single_token() {
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: None,
@@ -606,6 +647,7 @@ fn provide_lp_for_single_token() {
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: None,
@@ -735,7 +777,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
     let msg = FactoryExecuteMsg::CreatePair {
         pair_type: PairType::Stable {},
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
@@ -743,14 +785,20 @@ fn test_compatibility_of_tokens_with_different_precision() {
                 contract_addr: token_y_instance.clone(),
             },
         ],
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
         .unwrap();
 
     let msg = FactoryQueryMsg::Pair {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
@@ -786,7 +834,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .unwrap();
 
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
@@ -812,13 +860,14 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .wrap()
         .query_wasm_smart(&pair_instance, &QueryMsg::QueryComputeD {})
         .unwrap();
-    assert_eq!(d, 9179141268560);
+    assert_eq!(d, 20000000000000);
 
     let user = Addr::unchecked("user");
 
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: Some(user.to_string()),
@@ -845,7 +894,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .wrap()
         .query_wasm_smart(&pair_instance, &QueryMsg::QueryComputeD {})
         .unwrap();
-    assert_eq!(d, 9179133716854);
+    assert_eq!(d, 19999999999999);
 }
 
 #[test]
@@ -930,13 +979,13 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     let cpr_new: CumulativePricesResponse =
         app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
 
-    let twap0 = cpr_new.price0_cumulative_last - cpr_old.price0_cumulative_last;
-    let twap1 = cpr_new.price1_cumulative_last - cpr_old.price1_cumulative_last;
+    let twap0 = cpr_new.cumulative_prices[0].2 - cpr_old.cumulative_prices[0].2;
+    let twap1 = cpr_new.cumulative_prices[1].2 - cpr_old.cumulative_prices[1].2;
 
     // Prices weren't changed for the last day, uusd amount in pool = 4000000_000000, uluna = 2000000_000000
     let price_precision = Uint128::from(10u128.pow(TWAP_PRECISION.into()));
     assert_eq!(twap0 / price_precision, Uint128::new(85684)); // 1.008356286 * ELAPSED_SECONDS (86400)
-    assert_eq!(twap1 / price_precision, Uint128::new(87121)); //   0.991712963 * ELAPSED_SECONDS
+    assert_eq!(twap1 / price_precision, Uint128::new(87121)); // 0.991712963 * ELAPSED_SECONDS
 }
 
 #[test]
@@ -960,7 +1009,7 @@ fn create_pair_with_same_assets() {
     let pair_contract_code_id = store_pair_code(&mut router);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -1033,7 +1082,7 @@ fn update_pair_config() {
         .unwrap();
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -1043,7 +1092,13 @@ fn update_pair_config() {
         ],
         token_code_id: token_contract_code_id,
         factory_addr: factory_instance.to_string(),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     let pair = router

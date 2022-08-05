@@ -1,5 +1,5 @@
 use crate::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
-use cosmwasm_std::{OverflowError, StdError};
+use cosmwasm_std::{CheckedMultiplyRatioError, ConversionOverflowError, OverflowError, StdError};
 use thiserror::Error;
 
 /// ## Description
@@ -8,6 +8,9 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("{0}")]
+    CheckedMultiplyRatioError(#[from] CheckedMultiplyRatioError),
 
     #[error("Unauthorized")]
     Unauthorized {},
@@ -59,10 +62,33 @@ pub enum ContractError {
 
     #[error("Pair is not migrated to the new admin!")]
     PairIsNotMigrated {},
+
+    #[error("The asset {0} does not belong to the pair")]
+    InvalidAsset(String),
+
+    #[error("Ask or offer asset is missed")]
+    VariableAssetMissed {},
+
+    #[error("Source and target assets are the same")]
+    SameAssets {},
+
+    #[error(
+        "Invalid number of assets. The Astroport supports at least 2 and at most 5 assets within a stable pool"
+    )]
+    InvalidNumberOfAssets {},
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {
     fn from(o: OverflowError) -> Self {
+        StdError::from(o).into()
+    }
+}
+
+impl From<ConversionOverflowError> for ContractError {
+    fn from(o: ConversionOverflowError) -> Self {
         StdError::from(o).into()
     }
 }

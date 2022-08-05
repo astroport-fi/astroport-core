@@ -1,6 +1,6 @@
 [package]
 name = "astroport-factory"
-version = "1.2.0"
+version = "1.3.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport factory contract - pair contract generator and directory"
@@ -31,6 +31,7 @@ schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0" }
 protobuf = { version = "2", features = ["with-bytes"] }
+itertools = "0.10"
 
 [dev-dependencies]
 cosmwasm-schema = "1.0"

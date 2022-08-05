@@ -1,4 +1,5 @@
 use crate::error::ContractError;
+use crate::migration::PRICE_LAST_V100;
 use crate::querier::{query_cumulative_prices, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
@@ -9,7 +10,7 @@ use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal256, Deps, DepsMut, Env, MessageInfo, Response,
     StdError, StdResult, Uint128, Uint256,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-oracle";
@@ -53,12 +54,16 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
     let prices = query_cumulative_prices(deps.querier, pair_info.contract_addr)?;
+    let average_prices = prices
+        .cumulative_prices
+        .iter()
+        .cloned()
+        .map(|(from, to, _)| (from, to, Decimal256::zero()))
+        .collect();
 
     let price = PriceCumulativeLast {
-        price0_cumulative_last: prices.price0_cumulative_last,
-        price1_cumulative_last: prices.price1_cumulative_last,
-        price_0_average: Decimal256::zero(),
-        price_1_average: Decimal256::zero(),
+        cumulative_prices: prices.cumulative_prices,
+        average_prices,
         block_timestamp_last: env.block.time.seconds(),
     };
     PRICE_LAST.save(deps.storage, &price)?;
@@ -110,29 +115,25 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         return Err(ContractError::WrongPeriod {});
     }
 
-    let price_0_average = Decimal256::from_ratio(
-        Uint256::from(
-            prices
-                .price0_cumulative_last
-                .wrapping_sub(price_last.price0_cumulative_last),
-        ),
-        time_elapsed,
-    );
-
-    let price_1_average = Decimal256::from_ratio(
-        Uint256::from(
-            prices
-                .price1_cumulative_last
-                .wrapping_sub(price_last.price1_cumulative_last),
-        ),
-        time_elapsed,
-    );
+    let mut average_prices = vec![];
+    for (asset1_last, asset2_last, price_last) in price_last.cumulative_prices.iter() {
+        for (asset1, asset2, price) in prices.cumulative_prices.iter() {
+            if asset1.equal(asset1_last) && asset2.equal(asset2_last) {
+                average_prices.push((
+                    asset1.clone(),
+                    asset2.clone(),
+                    Decimal256::from_ratio(
+                        Uint256::from(price.wrapping_sub(*price_last)),
+                        time_elapsed,
+                    ),
+                ));
+            }
+        }
+    }
 
     let prices = PriceCumulativeLast {
-        price0_cumulative_last: prices.price0_cumulative_last,
-        price1_cumulative_last: prices.price1_cumulative_last,
-        price_0_average,
-        price_1_average,
+        cumulative_prices: prices.cumulative_prices,
+        average_prices,
         block_timestamp_last: env.block.time.seconds(),
     };
     PRICE_LAST.save(deps.storage, &prices)?;
@@ -167,38 +168,56 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// * **token** is an object of type [`AssetInfo`]. This is the token for which we multiply its TWAP value by an amount.
 ///
 /// * **amount** is an object of type [`Uint128`]. This is the amount of tokens we multiply the TWAP by.
-fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, StdError> {
+fn consult(
+    deps: Deps,
+    token: AssetInfo,
+    amount: Uint128,
+) -> Result<Vec<(AssetInfo, Uint256)>, StdError> {
     let config = CONFIG.load(deps.storage)?;
     let price_last = PRICE_LAST.load(deps.storage)?;
 
-    let price_average = if config.asset_infos[0].equal(&token) {
-        price_last.price_0_average
-    } else if config.asset_infos[1].equal(&token) {
-        price_last.price_1_average
-    } else {
+    let mut average_prices = vec![];
+    for (from, to, value) in price_last.average_prices {
+        if from.equal(&token) {
+            average_prices.push((to, value));
+        }
+    }
+
+    if average_prices.is_empty() {
         return Err(StdError::generic_err("Invalid Token"));
-    };
+    }
 
-    Ok(if price_average.is_zero() {
-        // Get the token's precision
-        let p = query_token_precision(&deps.querier, &token)?;
-        let one = Uint128::new(10_u128.pow(p.into()));
+    // Get the token's precision
+    let p = query_token_precision(&deps.querier, &token)?;
+    let one = Uint128::new(10_u128.pow(p.into()));
 
-        let price = query_prices(
-            deps.querier,
-            config.pair.contract_addr,
-            Asset {
-                info: token,
-                amount: one,
-            },
-        )?
-        .return_amount;
-
-        Uint256::from(price).multiply_ratio(Uint256::from(amount), Uint256::from(one))
-    } else {
-        let price_precision = Uint256::from(10_u128.pow(TWAP_PRECISION.into()));
-        Uint256::from(amount) * price_average / price_precision
-    })
+    average_prices
+        .iter()
+        .map(|(asset, price_average)| {
+            if price_average.is_zero() {
+                let price = query_prices(
+                    deps.querier,
+                    config.pair.contract_addr.clone(),
+                    Asset {
+                        info: token.clone(),
+                        amount: one,
+                    },
+                    Some(asset.clone()),
+                )?
+                .return_amount;
+                Ok((
+                    asset.clone(),
+                    Uint256::from(price).multiply_ratio(Uint256::from(amount), Uint256::from(one)),
+                ))
+            } else {
+                let price_precision = Uint256::from(10_u128.pow(TWAP_PRECISION.into()));
+                Ok((
+                    asset.clone(),
+                    Uint256::from(amount) * *price_average / price_precision,
+                ))
+            }
+        })
+        .collect::<Result<Vec<(AssetInfo, Uint256)>, StdError>>()
 }
 
 /// ## Description
@@ -210,6 +229,59 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, Std
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-oracle" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                let config = CONFIG.load(deps.storage)?;
+                let price_last_v100 = PRICE_LAST_V100.load(deps.storage)?;
+
+                let cumulative_prices = vec![
+                    (
+                        config.asset_infos[0].clone(),
+                        config.asset_infos[1].clone(),
+                        price_last_v100.price0_cumulative_last,
+                    ),
+                    (
+                        config.asset_infos[1].clone(),
+                        config.asset_infos[0].clone(),
+                        price_last_v100.price1_cumulative_last,
+                    ),
+                ];
+                let average_prices = vec![
+                    (
+                        config.asset_infos[0].clone(),
+                        config.asset_infos[1].clone(),
+                        price_last_v100.price_0_average,
+                    ),
+                    (
+                        config.asset_infos[1].clone(),
+                        config.asset_infos[0].clone(),
+                        price_last_v100.price_1_average,
+                    ),
+                ];
+
+                PRICE_LAST.save(
+                    deps.storage,
+                    &PriceCumulativeLast {
+                        cumulative_prices,
+                        average_prices,
+                        block_timestamp_last: price_last_v100.block_timestamp_last,
+                    },
+                )?;
+            }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

@@ -13,7 +13,7 @@ use cosmwasm_std::{
 use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 
 // It's defined at https://github.com/terra-money/core/blob/d8e277626e74f9d6417dcd598574686882f0274c/types/assets/assets.go#L15
-const NATIVE_TOKEN_PRECISION: u8 = 6;
+pub const NATIVE_TOKEN_PRECISION: u8 = 6;
 
 /// Returns a native token's balance for a specific account.
 /// ## Params
@@ -175,12 +175,12 @@ pub fn query_fee_info(
 pub fn query_pair_info(
     querier: &QuerierWrapper,
     factory_contract: impl Into<String>,
-    asset_infos: &[AssetInfo; 2],
+    asset_infos: &[AssetInfo],
 ) -> StdResult<PairInfo> {
     querier.query_wasm_smart(
         factory_contract,
         &FactoryQueryMsg::Pair {
-            asset_infos: asset_infos.clone(),
+            asset_infos: asset_infos.to_vec(),
         },
     )
 }
@@ -197,7 +197,7 @@ pub fn query_pair_info(
 pub fn query_pairs_info(
     querier: &QuerierWrapper,
     factory_contract: impl Into<String>,
-    start_after: Option<[AssetInfo; 2]>,
+    start_after: Option<Vec<AssetInfo>>,
     limit: Option<u32>,
 ) -> StdResult<PairsResponse> {
     querier.query_wasm_smart(
@@ -222,6 +222,7 @@ pub fn simulate(
         pair_contract,
         &PairQueryMsg::Simulation {
             offer_asset: offer_asset.clone(),
+            ask_asset_info: None,
         },
     )
 }
@@ -241,6 +242,7 @@ pub fn reverse_simulate(
     querier.query_wasm_smart(
         pair_contract,
         &PairQueryMsg::ReverseSimulation {
+            offer_asset_info: None,
             ask_asset: ask_asset.clone(),
         },
     )

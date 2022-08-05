@@ -209,6 +209,7 @@ pub trait PairBonded<'a> {
                 belief_price,
                 max_spread,
                 to,
+                ..
             }) => {
                 // Only asset contract can execute this message
                 let mut authorized = false;
@@ -243,7 +244,7 @@ pub trait PairBonded<'a> {
                     to_addr,
                 )
             }
-            Ok(Cw20HookMsg::WithdrawLiquidity {}) => Err(ContractError::NotSupported {}),
+            Ok(Cw20HookMsg::WithdrawLiquidity { .. }) => Err(ContractError::NotSupported {}),
             Err(err) => Err(err.into()),
         }
     }
@@ -377,8 +378,7 @@ pub trait PairBonded<'a> {
         let resp = CumulativePricesResponse {
             assets,
             total_share,
-            price0_cumulative_last: Uint128::zero(),
-            price1_cumulative_last: Uint128::zero(),
+            cumulative_prices: vec![],
         };
 
         Ok(resp)
@@ -392,6 +392,7 @@ pub trait PairBonded<'a> {
         Ok(ConfigResponse {
             block_time_last: 0u64,
             params: None,
+            owner: None,
         })
     }
 
@@ -399,8 +400,8 @@ pub trait PairBonded<'a> {
     /// Returns the total amount of assets in the pool.
     /// ## Params
     /// * **config** is an object of type [`Config`].
-    fn pool_info(&self, config: &Config) -> StdResult<([Asset; 2], Uint128)> {
-        let pools: [Asset; 2] = [
+    fn pool_info(&self, config: &Config) -> StdResult<(Vec<Asset>, Uint128)> {
+        let pools = vec![
             Asset {
                 amount: Uint128::zero(),
                 info: config.pair_info.asset_infos[0].clone(),

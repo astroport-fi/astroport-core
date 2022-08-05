@@ -36,7 +36,7 @@ pub fn try_build_swap_msg(
     amount_in: Uint128,
 ) -> Result<SubMsg, ContractError> {
     let pool = get_pool(querier, &cfg.factory_contract, from, to)?;
-    let msg = build_swap_msg(querier, cfg.max_spread, &pool, from, amount_in)?;
+    let msg = build_swap_msg(querier, cfg.max_spread, &pool, from, Some(to), amount_in)?;
     Ok(msg)
 }
 
@@ -52,12 +52,15 @@ pub fn try_build_swap_msg(
 ///
 /// * **from** is an object of type [`AssetInfo`] which represents the asset we want to swap.
 ///
+/// * **to** is an object of type [`AssetInfo`] which represents the asset we want to swap to.
+///
 /// * **amount_in** is an object of type [`Uint128`]. This is the amount of tokens to swap.
 pub fn build_swap_msg(
     querier: &QuerierWrapper,
     max_spread: Decimal,
     pool: &PairInfo,
     from: &AssetInfo,
+    to: Option<&AssetInfo>,
     amount_in: Uint128,
 ) -> Result<SubMsg, ContractError> {
     if from.is_native_token() {
@@ -73,6 +76,7 @@ pub fn build_swap_msg(
             contract_addr: pool.contract_addr.to_string(),
             msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
                 offer_asset,
+                ask_asset_info: to.cloned(),
                 belief_price: None,
                 max_spread: Some(max_spread),
                 to: None,
@@ -86,6 +90,7 @@ pub fn build_swap_msg(
                 contract: pool.contract_addr.to_string(),
                 amount: amount_in,
                 msg: to_binary(&Cw20HookMsg::Swap {
+                    ask_asset_info: to.cloned(),
                     belief_price: None,
                     max_spread: Some(max_spread),
                     to: None,
@@ -203,6 +208,28 @@ pub fn get_pool(
     from: &AssetInfo,
     to: &AssetInfo,
 ) -> Result<PairInfo, ContractError> {
-    query_pair_info(querier, factory_contract, &[from.clone(), to.clone()])
-        .map_err(|_| ContractError::InvalidBridgeNoPool(from.to_string(), to.to_string()))
+    // We use raw query to save gas
+    let result = astroport::factory::ROUTE.query(
+        querier,
+        factory_contract.clone(),
+        (from.to_string(), to.to_string()),
+    );
+    match result {
+        Ok(Some(pairs)) if !pairs.is_empty() => {
+            // Selecting the pool with the least amount of assets
+            let pair_infos = pairs
+                .into_iter()
+                .map(|pair_contract| {
+                    querier.query_wasm_smart(&pair_contract, &astroport::pair::QueryMsg::Pair {})
+                })
+                .collect::<StdResult<Vec<PairInfo>>>()?;
+            let selected = pair_infos
+                .into_iter()
+                .min_by(|a, b| a.asset_infos.len().cmp(&b.asset_infos.len()))
+                .unwrap();
+            Ok(selected)
+        }
+        _ => query_pair_info(querier, factory_contract, &[from.clone(), to.clone()])
+            .map_err(|_| ContractError::InvalidBridgeNoPool(from.to_string(), to.to_string())),
+    }
 }

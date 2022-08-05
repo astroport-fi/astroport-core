@@ -1,20 +1,3 @@
-use crate::contract::reply;
-use crate::contract::{
-    accumulate_prices, assert_max_spread, compute_offer_amount, compute_swap, execute, instantiate,
-    query_pair_info, query_pool, query_reverse_simulation, query_share, query_simulation,
-};
-use crate::error::ContractError;
-use crate::mock_querier::mock_dependencies;
-use crate::response::MsgInstantiateContractResponse;
-use crate::state::Config;
-use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::PairType;
-
-use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
-    SimulationResponse, TWAP_PRECISION,
-};
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut, Env, Reply,
@@ -23,6 +6,25 @@ use cosmwasm_std::{
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use proptest::prelude::*;
 use protobuf::Message;
+
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::factory::PairType;
+use astroport::pair::{
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
+    SimulationResponse, TWAP_PRECISION,
+};
+use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+
+use crate::contract::compute_offer_amount;
+use crate::contract::reply;
+use crate::contract::{
+    accumulate_prices, assert_max_spread, compute_swap, execute, instantiate, query_pool,
+    query_reverse_simulation, query_share, query_simulation,
+};
+use crate::error::ContractError;
+use crate::mock_querier::mock_dependencies;
+use crate::response::MsgInstantiateContractResponse;
+use crate::state::{Config, CONFIG};
 
 fn store_liquidity_token(deps: DepsMut, msg_id: u64, contract_addr: String) {
     let data = MsgInstantiateContractResponse {
@@ -56,7 +58,7 @@ fn proper_initialization() {
 
     let msg = InstantiateMsg {
         factory_addr: String::from("factory"),
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -105,7 +107,7 @@ fn proper_initialization() {
     store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
     // It worked, let's query the state
-    let pair_info: PairInfo = query_pair_info(deps.as_ref()).unwrap();
+    let pair_info = CONFIG.load(deps.as_ref().storage).unwrap().pair_info;
     assert_eq!(Addr::unchecked("liquidity0000"), pair_info.liquidity_token);
     assert_eq!(
         pair_info.asset_infos,
@@ -139,7 +141,7 @@ fn provide_liquidity() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -162,7 +164,7 @@ fn provide_liquidity() {
 
     // Successfully provide liquidity for the existing pool
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -258,7 +260,7 @@ fn provide_liquidity() {
     ]);
 
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -330,7 +332,7 @@ fn provide_liquidity() {
 
     // Check wrong argument
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -394,7 +396,7 @@ fn provide_liquidity() {
 
     // Failed because the price is under slippage_tolerance
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -435,7 +437,7 @@ fn provide_liquidity() {
 
     // Failed because the price is under slippage_tolerance
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -476,7 +478,7 @@ fn provide_liquidity() {
 
     // Successfully provides liquidity
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -516,7 +518,7 @@ fn provide_liquidity() {
 
     // Successfully provides liquidity
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -546,7 +548,7 @@ fn provide_liquidity() {
     execute(deps.as_mut(), env, info, msg).unwrap();
 
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -575,7 +577,7 @@ fn provide_liquidity() {
     assert_eq!(err, ContractError::InvalidZeroAmount {});
 
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
@@ -623,7 +625,7 @@ fn withdraw_liquidity() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -648,7 +650,7 @@ fn withdraw_liquidity() {
     // Withdraw liquidity
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: String::from("addr0000"),
-        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
         amount: Uint128::new(100u128),
     });
 
@@ -745,7 +747,7 @@ fn try_native_to_token() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -774,6 +776,7 @@ fn try_native_to_token() {
             },
             amount: offer_amount,
         },
+        ask_asset_info: None,
         belief_price: None,
         max_spread: Some(Decimal::percent(50)),
         to: None,
@@ -953,7 +956,7 @@ fn try_token_to_native() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -982,6 +985,7 @@ fn try_token_to_native() {
             },
             amount: offer_amount,
         },
+        ask_asset_info: None,
         belief_price: None,
         max_spread: None,
         to: None,
@@ -996,6 +1000,7 @@ fn try_token_to_native() {
         sender: String::from("addr0000"),
         amount: offer_amount,
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: Some(Decimal::percent(50)),
             to: None,
@@ -1118,6 +1123,7 @@ fn try_token_to_native() {
         sender: String::from("addr0000"),
         amount: offer_amount,
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: None,
@@ -1200,7 +1206,7 @@ fn test_query_pool() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -1265,7 +1271,7 @@ fn test_query_share() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -1372,7 +1378,7 @@ fn test_accumulate_prices() {
             env,
             &Config {
                 pair_info: PairInfo {
-                    asset_infos: [
+                    asset_infos: vec![
                         AssetInfo::NativeToken {
                             denom: "uusd".to_string(),
                         },
