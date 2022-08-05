@@ -864,7 +864,7 @@ pub fn swap(
 
     // Check if the liquidity is non-zero
     check_swap_parameters(
-        pools
+        &pools
             .iter()
             .map(|pool| {
                 pool.amount
@@ -1083,7 +1083,7 @@ pub fn query_simulation(
     let offer_precision = get_precision(deps.storage, &offer_pool.info)?;
 
     if check_swap_parameters(
-        pools
+        &pools
             .iter()
             .map(|pool| {
                 pool.amount
@@ -1163,7 +1163,7 @@ pub fn query_reverse_simulation(
 
     // Check the swap parameters are valid
     if check_swap_parameters(
-        pools
+        &pools
             .iter()
             .map(|pool| {
                 pool.amount

@@ -18,6 +18,7 @@ use astroport::asset::{
     addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name,
     token_asset, Asset, AssetInfo, PairInfo,
 };
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{AbsDiff, OneValue};
 use astroport::decimal2decimal256;
 use astroport::factory::PairType;
@@ -39,6 +40,7 @@ use crate::error::ContractError;
 use crate::math::{geometric_mean, halfpow, newton_d, newton_y, update_price};
 use crate::state::{
     get_precision, store_precisions, AmpGamma, Config, PoolParams, PoolState, PriceState, CONFIG,
+    OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
     accumulate_prices, adjust_precision, calc_provide_fee, check_asset_infos, check_assets,
@@ -141,6 +143,7 @@ pub fn instantiate(
         cumulative_prices,
         pool_params,
         pool_state,
+        owner: addr_opt_validate(deps.api, &params.owner)?,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -284,6 +287,44 @@ pub fn execute(
                 max_spread,
                 to_addr,
             )
+        }
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            let config = CONFIG.load(deps.storage)?;
+            let factory_config = query_factory_config(&deps.querier, config.factory_addr)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                owner,
+                expires_in,
+                config.owner.unwrap_or(factory_config.owner),
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(Into::into)
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config = CONFIG.load(deps.storage)?;
+            let factory_config = query_factory_config(&deps.querier, config.factory_addr)?;
+
+            drop_ownership_proposal(
+                deps,
+                info,
+                config.owner.unwrap_or(factory_config.owner),
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(Into::into)
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut config| {
+                    config.owner = Some(new_owner);
+                    Ok(config)
+                })?;
+
+                Ok(())
+            })
+            .map_err(Into::into)
         }
     }
 }
@@ -853,8 +894,10 @@ fn swap(
     let ask_ind = 1 - offer_ind;
 
     check_swap_parameters(
-        pools[offer_ind].amount.saturating_sub(offer_asset.amount),
-        pools[ask_ind].amount,
+        &[
+            pools[offer_ind].amount.saturating_sub(offer_asset.amount),
+            pools[ask_ind].amount,
+        ],
         offer_asset.amount,
     )?;
 
@@ -1106,9 +1149,8 @@ fn query_simulation(
     let ask_ind = 1 - offer_ind;
 
     if check_swap_parameters(
-        pools[offer_ind].amount,
+        &[pools[offer_ind].amount, offer_asset.amount],
         pools[ask_ind].amount,
-        offer_asset.amount,
     )
     .is_err()
     {
@@ -1191,9 +1233,8 @@ fn query_reverse_simulation(
 
     // Check the swap parameters are valid
     if check_swap_parameters(
-        pools[offer_ind].amount,
+        &[pools[offer_ind].amount, ask_asset.amount],
         pools[ask_ind].amount,
-        ask_asset.amount,
     )
     .is_err()
     {
@@ -1302,7 +1343,9 @@ fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
                 .u128(),
             adjustment_step: config.pool_params.adjustment_step.u128(),
             ma_half_time: config.pool_params.ma_half_time,
+            owner: Some(config.owner.into()),
         })?),
+        owner: config.owner,
     })
 }
 
@@ -1410,7 +1453,7 @@ fn update_config(
     let mut config = CONFIG.load(deps.storage)?;
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
-    if info.sender != factory_config.owner {
+    if info.sender != factory_config.owner && Some(info.sender) != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 

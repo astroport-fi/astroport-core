@@ -323,6 +323,7 @@ mod tests {
                     not_adjusted: false,
                 },
             },
+            owner: None,
         };
 
         env.block.time = env.block.time.plus_seconds(5000);

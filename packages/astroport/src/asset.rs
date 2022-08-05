@@ -454,7 +454,7 @@ pub fn pair_info_by_pool(querier: &QuerierWrapper, pool: impl Into<String>) -> S
 /// * **pools** is a vector with objects of type [`Uint128`] representing an amount of tokens in pools.
 ///
 /// * **swap_amount** is a [`Uint128`] representing an amount to swap.
-pub fn check_swap_parameters(pools: Vec<Uint128>, swap_amount: Uint128) -> StdResult<()> {
+pub fn check_swap_parameters(pools: &[Uint128], swap_amount: Uint128) -> StdResult<()> {
     if pools.iter().any(|pool| pool.is_zero()) {
         return Err(StdError::generic_err("One of the pools is empty"));
     }

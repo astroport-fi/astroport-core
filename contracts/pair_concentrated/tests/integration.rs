@@ -28,6 +28,7 @@ fn provide_and_withdraw_no_fee() {
         allowed_extra_profit: 0,
         adjustment_step: (0.000146 * 1e18) as u128,
         ma_half_time: 600,
+        owner: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -184,6 +185,7 @@ fn provide_with_different_precision() {
         allowed_extra_profit: 0,
         adjustment_step: (0.000146 * 1e18) as u128,
         ma_half_time: 600,
+        owner: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -231,6 +233,7 @@ fn swap_different_precisions() {
         allowed_extra_profit: 0,
         adjustment_step: (0.000146 * 1e18) as u128,
         ma_half_time: 600,
+        owner: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -281,6 +284,7 @@ fn check_swaps() {
         allowed_extra_profit: 0,
         adjustment_step: (0.000146 * 1e18) as u128,
         ma_half_time: 600,
+        owner: None,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
@@ -327,6 +331,7 @@ fn check_wrong_initializations() {
         allowed_extra_profit: 0,
         adjustment_step: (0.000146 * 1e18) as u128,
         ma_half_time: 600,
+        owner: None,
     };
 
     let err = Helper::new(&owner, vec![TestCoin::native("uluna")], params.clone()).unwrap_err();
@@ -366,6 +371,7 @@ fn check_withdraw_charges_fees() {
         allowed_extra_profit: 0,
         adjustment_step: (0.000146 * 1e18) as u128,
         ma_half_time: 600,
+        owner: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -434,6 +440,7 @@ fn check_prices() {
         allowed_extra_profit: 0,
         adjustment_step: (0.000146 * 1e18) as u128,
         ma_half_time: 600,
+        owner: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();

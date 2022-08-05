@@ -1043,7 +1043,7 @@ pub fn compute_swap(
     commission_rate: Decimal,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // offer => ask
-    check_swap_parameters(vec![offer_pool, ask_pool], offer_amount)?;
+    check_swap_parameters(&[offer_pool, ask_pool], offer_amount)?;
 
     let offer_pool: Uint256 = offer_pool.into();
     let ask_pool: Uint256 = ask_pool.into();
@@ -1087,7 +1087,7 @@ pub fn compute_offer_amount(
     commission_rate: Decimal,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
-    check_swap_parameters(vec![offer_pool, ask_pool], ask_amount)?;
+    check_swap_parameters(&[offer_pool, ask_pool], ask_amount)?;
 
     // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
     let cp = Uint256::from(offer_pool) * Uint256::from(ask_pool);

@@ -16,6 +16,7 @@ pub struct ConcentratedPoolParams {
     pub allowed_extra_profit: u128,
     pub adjustment_step: u128,
     pub ma_half_time: u64,
+    pub owner: Option<String>,
 }
 
 /// This structure holds concentrated pool parameters which can be changed immediately.

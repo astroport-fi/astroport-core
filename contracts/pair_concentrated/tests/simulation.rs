@@ -30,6 +30,7 @@ fn simulate_case(case: Vec<(impl Into<String>, usize, u128, u64)>) {
         allowed_extra_profit: 0,
         adjustment_step: (0.000146 * 1e18) as u128,
         ma_half_time: 600,
+        owner: None,
     };
 
     let balances = vec![100_000_000_000000u128, 100_000_000_000000u128];
