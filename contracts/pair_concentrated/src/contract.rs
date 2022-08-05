@@ -1343,9 +1343,9 @@ fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
                 .u128(),
             adjustment_step: config.pool_params.adjustment_step.u128(),
             ma_half_time: config.pool_params.ma_half_time,
-            owner: Some(config.owner.into()),
+            owner: config.owner.map(Into::into),
         })?),
-        owner: config.owner,
+        owner: None,
     })
 }
 
