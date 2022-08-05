@@ -175,6 +175,8 @@ pub struct MigrateMsg {}
 pub struct StablePoolParams {
     /// The current stableswap pool amplification
     pub amp: u64,
+    /// The contract owner
+    pub owner: Option<String>,
 }
 
 /// This structure stores a stableswap pool's configuration.
@@ -226,8 +228,14 @@ mod tests {
         pub init_params: Option<Binary>,
     }
 
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct LegacyConfigResponse {
+        pub block_time_last: u64,
+        pub params: Option<Binary>,
+    }
+
     #[test]
-    fn test_compatability() {
+    fn test_init_msg_compatability() {
         let inst_msg = LegacyInstantiateMsg {
             asset_infos: [
                 native_asset_info("uusd".to_string()),
@@ -241,5 +249,21 @@ mod tests {
         let ser_msg = to_binary(&inst_msg).unwrap();
         // This .unwrap() is enough to make sure that [AssetInfo; 2] and Vec<AssetInfo> are compatible.
         let _: InstantiateMsg = from_binary(&ser_msg).unwrap();
+    }
+
+    #[test]
+    fn test_config_response_compatability() {
+        let ser_msg = to_binary(&LegacyConfigResponse {
+            block_time_last: 12,
+            params: Some(
+                to_binary(&StablePoolConfig {
+                    amp: Decimal::one(),
+                })
+                .unwrap(),
+            ),
+        })
+        .unwrap();
+
+        let _: ConfigResponse = from_binary(&ser_msg).unwrap();
     }
 }

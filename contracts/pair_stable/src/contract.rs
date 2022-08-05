@@ -104,7 +104,7 @@ pub fn instantiate(
     }
 
     let config = Config {
-        owner: None,
+        owner: addr_opt_validate(deps.api, &params.owner)?,
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),

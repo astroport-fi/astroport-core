@@ -133,7 +133,13 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         ],
         token_code_id: token_contract_code_id,
         factory_addr: factory_addr.to_string(),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     let pair = router
@@ -446,7 +452,13 @@ fn provide_lp_for_single_token() {
                 contract_addr: token_y_instance.clone(),
             },
         ],
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
@@ -773,7 +785,13 @@ fn test_compatibility_of_tokens_with_different_precision() {
                 contract_addr: token_y_instance.clone(),
             },
         ],
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
@@ -1074,7 +1092,13 @@ fn update_pair_config() {
         ],
         token_code_id: token_contract_code_id,
         factory_addr: factory_instance.to_string(),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
     };
 
     let pair = router

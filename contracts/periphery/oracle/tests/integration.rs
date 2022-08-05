@@ -371,7 +371,13 @@ fn create_pair_stable(
             &astroport::factory::ExecuteMsg::CreatePair {
                 pair_type: PairType::Stable {},
                 asset_infos: asset_infos.clone(),
-                init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+                init_params: Some(
+                    to_binary(&StablePoolParams {
+                        amp: 100,
+                        owner: None,
+                    })
+                    .unwrap(),
+                ),
             },
             &[],
         )
