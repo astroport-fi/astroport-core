@@ -1,6 +1,6 @@
 [package]
 name = "astroport-generator"
-version = "2.0.0"
+version = "2.1.0"
 authors = ["Astroport"]
 edition = "2021"
 
@@ -28,7 +28,7 @@ schemars = "0.8"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0" }
 astroport = { path = "../../../packages/astroport", default-features = false }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git" }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/escrow_delegation" }
 protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
@@ -45,6 +45,9 @@ astroport-whitelist = { path = "../../whitelist" }
 anyhow = "1"
 generator-controller = { git = "https://github.com/astroport-fi/astroport-governance.git" }
 voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance.git" }
+voting-escrow-delegation = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/escrow_delegation" }
+astroport-nft = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/escrow_delegation" }
+cw721-base = { version = "0.13", features = ["library"] }
 
 [dev-dependencies.astroport-generator_v120]
 git = "https://github.com/astroport-fi/astroport-core"
