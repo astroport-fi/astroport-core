@@ -366,7 +366,7 @@ pub struct Config {
     pub factory: Addr,
     /// Contract address which can only set active generators and their alloc points
     pub generator_controller: Option<Addr>,
-    /// The voting escrow delegation contract address
+    /// The voting escrow contract address
     pub voting_escrow: Option<Addr>,
     /// The voting escrow delegation contract address
     pub voting_escrow_delegation: Option<Addr>,
