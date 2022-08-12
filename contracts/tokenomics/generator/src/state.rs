@@ -6,7 +6,7 @@ use astroport::{
     generator::{PoolInfo, UserInfo, UserInfoV2},
     generator_proxy::QueryMsg as ProxyQueryMsg,
 };
-use astroport_governance::voting_escrow::get_total_voting_power;
+use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
 use astroport_governance::voting_escrow_delegation::get_adjusted_balance;
 use cosmwasm_std::{Addr, DepsMut, QuerierWrapper, StdResult, Storage, Uint128};
 
@@ -193,9 +193,11 @@ pub(crate) fn update_virtual_amount(
                 account.to_string(),
                 None,
             )?;
-
-            total_vp = get_total_voting_power(&querier, voting_escrow)?;
+        } else {
+            user_vp = get_voting_power(&querier, voting_escrow, account.to_string())?;
         }
+
+        total_vp = get_total_voting_power(&querier, voting_escrow)?;
     }
 
     let user_virtual_share = user_info.amount.multiply_ratio(4u128, 10u128);

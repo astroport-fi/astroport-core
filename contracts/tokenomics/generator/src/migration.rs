@@ -184,6 +184,11 @@ pub fn migrate_configs_from_v100(
         cfg.voting_escrow = Some(addr_validate_to_lower(deps.api, voting_escrow)?);
     }
 
+    if let Some(voting_escrow_delegation) = &msg.voting_escrow_delegation {
+        cfg.voting_escrow_delegation =
+            Some(addr_validate_to_lower(deps.api, voting_escrow_delegation)?);
+    }
+
     if let Some(generator_limit) = msg.generator_limit {
         cfg.checkpoint_generator_limit = Some(generator_limit);
     }
@@ -220,6 +225,11 @@ pub fn migrate_configs_from_v120(deps: &mut DepsMut, msg: &MigrateMsg) -> StdRes
 
     if let Some(generator_limit) = msg.generator_limit {
         cfg.checkpoint_generator_limit = Some(generator_limit);
+    }
+
+    if let Some(voting_escrow_delegation) = &msg.voting_escrow_delegation {
+        cfg.voting_escrow_delegation =
+            Some(addr_validate_to_lower(deps.api, voting_escrow_delegation)?);
     }
 
     CONFIG.save(deps.storage, &cfg)
