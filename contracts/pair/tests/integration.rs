@@ -206,6 +206,14 @@ fn provide_liquidity_without_drain_pool_for_token() {
     // Init pair
     let (pair_instance, token_x_instance) = instantiate_pair_with_token(&mut router, &owner);
 
+    // check total share
+    let res: PoolResponse = router
+        .wrap()
+        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pool {})
+        .unwrap();
+    assert_eq!(Uint128::new(0), res.total_share);
+
+    // check pools amount
     let res: PairInfo = router
         .wrap()
         .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pair {})
@@ -224,19 +232,6 @@ fn provide_liquidity_without_drain_pool_for_token() {
         ],
     );
 
-    // check total share
-    let res: PoolResponse = router
-        .wrap()
-        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pool {})
-        .unwrap();
-    assert_eq!(Uint128::new(0), res.total_share);
-
-    // check pools amount
-    let res: PairInfo = router
-        .wrap()
-        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pair {})
-        .unwrap();
-
     assert_eq!(
         Uint128::new(0),
         res.asset_infos[0]
@@ -250,20 +245,6 @@ fn provide_liquidity_without_drain_pool_for_token() {
             .query_pool(&router.wrap(), pair_instance.to_string())
             .unwrap()
     );
-
-    // try to mint some liquidity
-    let res = router
-        .execute_contract(
-            pair_instance.clone(),
-            liquidity_token.clone(),
-            &Cw20ExecuteMsg::Mint {
-                recipient: attacker_address.to_string(),
-                amount: Uint128::zero(),
-            },
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!("Invalid zero amount", res.root_cause().to_string());
 
     // mint token for attacker
     let msg = Cw20ExecuteMsg::Mint {
@@ -318,7 +299,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
         )
         .unwrap_err();
     assert_eq!(
-        "The minimum amount for a provide liquidity operation must be greater or equal to 1000",
+        "The initial LP share can not be less than 1000",
         err.root_cause().to_string()
     );
 
@@ -347,7 +328,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
         attr("amount", 2000.to_string())
     );
 
-    // attacker's transfer 50_000_000_000 to pair without provide liquidity
+    // attacker transfers 50_000_000_000 to pair without provide liquidity
     let msg = Cw20ExecuteMsg::Transfer {
         recipient: pair_instance.to_string(),
         amount: Uint128::new(50_000_000_000u128),

@@ -40,7 +40,7 @@ pub enum ContractError {
     PairIsNotMigrated {},
 
     #[error(
-        "The minimum amount for a provide liquidity operation must be greater or equal to {0}",
+        "The initial LP share can not be less than {0}",
         MINIMUM_LIQUIDITY_AMOUNT
     )]
     MinimumLiquidityAmountError {},
