@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::fmt;
 
 use crate::factory::PairType;
@@ -18,6 +19,8 @@ use itertools::Itertools;
 pub const UUSD_DENOM: &str = "uusd";
 /// LUNA token denomination
 pub const ULUNA_DENOM: &str = "uluna";
+/// Minimum amount of each asset for provide liquidity operation
+pub const MINIMUM_ASSET_AMOUNT: Uint128 = Uint128::new(1_000_000);
 
 /// ## Description
 /// This enum describes a Terra asset (native or CW20).
@@ -555,4 +558,28 @@ impl Decimal256Ext for Decimal256 {
     fn saturating_sub(self, other: Decimal256) -> Decimal256 {
         Decimal256::new(self.atomics().saturating_sub(other.atomics()))
     }
+}
+
+/// ## Description
+/// Returns a value using a newly specified precision.
+/// ## Params
+/// * **value** is an object of type [`Uint128`]. This is the value that will have its precision adjusted.
+///
+/// * **current_precision** is an object of type [`u8`]. This is the `value`'s current precision
+///
+/// * **new_precision** is an object of type [`u8`]. This is the new precision to use when returning the `value`.
+pub fn adjust_precision(
+    value: Uint128,
+    current_precision: u8,
+    new_precision: u8,
+) -> StdResult<Uint128> {
+    Ok(match current_precision.cmp(&new_precision) {
+        Ordering::Equal => value,
+        Ordering::Less => value.checked_mul(Uint128::new(
+            10_u128.pow((new_precision - current_precision) as u32),
+        ))?,
+        Ordering::Greater => value.checked_div(Uint128::new(
+            10_u128.pow((current_precision - new_precision) as u32),
+        ))?,
+    })
 }

@@ -9,8 +9,8 @@ use cosmwasm_std::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
-    addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset,
-    AssetInfo, PairInfo,
+    addr_opt_validate, addr_validate_to_lower, adjust_precision, check_swap_parameters,
+    format_lp_token_name, Asset, AssetInfo, PairInfo, MINIMUM_ASSET_AMOUNT,
 };
 use astroport::decimal2decimal256;
 use astroport::factory::PairType;
@@ -20,7 +20,9 @@ use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
     QueryMsg, ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
 };
-use astroport::querier::{query_factory_config, query_fee_info, query_supply};
+use astroport::querier::{
+    query_factory_config, query_fee_info, query_supply, query_token_precision,
+};
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -380,6 +382,20 @@ pub fn provide_liquidity(
 
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
     let share = if total_share.is_zero() {
+        let asset_0_precision = query_token_precision(&deps.querier, &pools[0].info)?;
+        let asset_1_precision = query_token_precision(&deps.querier, &pools[1].info)?;
+
+        let adjusted_asset_amount =
+            adjust_precision(MINIMUM_ASSET_AMOUNT, asset_0_precision, asset_1_precision)?;
+
+        if deposits[0].u128().lt(&adjusted_asset_amount.u128())
+            || deposits[1].u128().lt(&adjusted_asset_amount.u128())
+        {
+            return Err(ContractError::MinimumAssetAmountError(
+                adjusted_asset_amount,
+            ));
+        }
+
         // Initial share = collateral amount
         Uint128::new(
             (U256::from(deposits[0].u128()) * U256::from(deposits[1].u128()))

@@ -198,7 +198,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
             alice_address.clone(),
             &[Coin {
                 denom: "uluna".to_string(),
-                amount: Uint128::new(50_000_000_000u128),
+                amount: Uint128::new(500_000_000_000u128),
             }],
         )
         .unwrap();
@@ -278,7 +278,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
     // mint token for alice
     let msg = Cw20ExecuteMsg::Mint {
         recipient: alice_address.to_string(),
-        amount: Uint128::new(100_000_000_000u128),
+        amount: Uint128::new(500_000_000_000u128),
     };
 
     router
@@ -304,8 +304,29 @@ fn provide_liquidity_without_drain_pool_for_token() {
     // Provide liquidity from attacker
     let (msg, coins) = provide_liquidity_msg_with_token(
         &token_x_instance,
-        Uint128::new(1_000_000),
-        Uint128::new(1_000_000),
+        Uint128::new(000001u128),
+        Uint128::new(000001u128),
+        None,
+        None,
+    );
+    let err = router
+        .execute_contract(
+            attacker_address.clone(),
+            pair_instance.clone(),
+            &msg,
+            &coins,
+        )
+        .unwrap_err();
+    assert_eq!(
+        "The minimum amount of each asset for a provide liquidity operation must be greater or equal to 1000000",
+        err.root_cause().to_string()
+    );
+
+    // Provide liquidity from attacker
+    let (msg, coins) = provide_liquidity_msg_with_token(
+        &token_x_instance,
+        Uint128::new(1000000u128),
+        Uint128::new(1000000u128),
         None,
         None,
     );
@@ -317,7 +338,6 @@ fn provide_liquidity_without_drain_pool_for_token() {
             &coins,
         )
         .unwrap();
-
     assert_eq!(
         res.events[1].attributes[1],
         attr("action", "provide_liquidity")
@@ -361,6 +381,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
             &[],
         )
         .unwrap();
+
     router
         .send_tokens(
             attacker_address.clone(),
@@ -402,7 +423,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
     // set allowance for pair from alice
     let msg = Cw20ExecuteMsg::IncreaseAllowance {
         spender: pair_instance.to_string(),
-        amount: Uint128::new(50_000_000_000u128),
+        amount: Uint128::new(100_000_000_000u128),
         expires: None,
     };
 
@@ -433,7 +454,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 799984u128.to_string())
+        attr("share", 799984.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "transfer_from"));
     assert_eq!(res.events[3].attributes[2], attr("from", "alice"));
@@ -477,7 +498,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
             .unwrap()
     );
 
-    //check alice balance
+    // check alice balance
     let res: BalanceResponse = router
         .wrap()
         .query_wasm_smart(
@@ -489,7 +510,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
         .unwrap();
     assert_eq!(Uint128::new(799984), res.balance);
 
-    //check alice balance
+    //check attacker balance
     let res: BalanceResponse = router
         .wrap()
         .query_wasm_smart(
@@ -500,262 +521,28 @@ fn provide_liquidity_without_drain_pool_for_token() {
         )
         .unwrap();
     assert_eq!(Uint128::new(1000000), res.balance);
-}
 
-#[test]
-fn provide_liquidity_without_drain_pool_for_native() {
-    let owner = Addr::unchecked("owner");
-    let alice_address = Addr::unchecked("alice");
-    let attacker_address = Addr::unchecked("attacker");
-
-    let mut router = mock_app(
-        owner.clone(),
-        vec![
-            Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128::new(1_000_000_000_000_000u128),
-            },
-            Coin {
-                denom: "uluna".to_string(),
-                amount: Uint128::new(1_000_000_000_000_000u128),
-            },
-        ],
-    );
-
-    // Set attacker's balances
+    let msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        amount: Uint128::new(799984),
+        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
+    };
+    // Withdraw with LP token is successful for alice
     router
-        .send_tokens(
-            owner.clone(),
-            attacker_address.clone(),
-            &[
-                Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::new(100_000_000_000u128),
-                },
-                Coin {
-                    denom: "uluna".to_string(),
-                    amount: Uint128::new(100_000_000_000u128),
-                },
-            ],
-        )
+        .execute_contract(alice_address.clone(), liquidity_token.clone(), &msg, &[])
         .unwrap();
 
-    // Set Alice's balances
+    let msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        amount: Uint128::new(1000000),
+        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
+    };
+    // Withdraw with LP token is successful for attacker
     router
-        .send_tokens(
-            owner.clone(),
-            alice_address.clone(),
-            &[
-                Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::new(50_000_000_000u128),
-                },
-                Coin {
-                    denom: "uluna".to_string(),
-                    amount: Uint128::new(50_000_000_000u128),
-                },
-            ],
-        )
+        .execute_contract(attacker_address.clone(), liquidity_token.clone(), &msg, &[])
         .unwrap();
 
-    // Init pair
-    let pair_instance = instantiate_pair(&mut router, &owner);
-
-    let res: PairInfo = router
-        .wrap()
-        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pair {})
-        .unwrap();
-    let liquidity_token = res.liquidity_token;
-
-    assert_eq!(
-        res.asset_infos,
-        [
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::NativeToken {
-                denom: "uluna".to_string(),
-            },
-        ],
-    );
-
-    // check total share
-    let res: PoolResponse = router
-        .wrap()
-        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pool {})
-        .unwrap();
-    assert_eq!(Uint128::new(0), res.total_share);
-
-    // check pools amount
-    let res: PairInfo = router
-        .wrap()
-        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pair {})
-        .unwrap();
-
-    assert_eq!(
-        Uint128::new(0),
-        res.asset_infos[0]
-            .query_pool(&router.wrap(), pair_instance.to_string())
-            .unwrap()
-    );
-
-    assert_eq!(
-        Uint128::new(0),
-        res.asset_infos[1]
-            .query_pool(&router.wrap(), pair_instance.to_string())
-            .unwrap()
-    );
-
-    // try to mint some liquidity
-    let res = router
-        .execute_contract(
-            pair_instance.clone(),
-            liquidity_token.clone(),
-            &Cw20ExecuteMsg::Mint {
-                recipient: attacker_address.to_string(),
-                amount: Uint128::zero(),
-            },
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!("Invalid zero amount", res.root_cause().to_string());
-
-    // Provide liquidity from attacker
-    let (msg, coins) =
-        provide_liquidity_msg(Uint128::new(1_000_000), Uint128::new(1_000_000), None, None);
-    let res = router
-        .execute_contract(
-            attacker_address.clone(),
-            pair_instance.clone(),
-            &msg,
-            &coins,
-        )
-        .unwrap();
-
-    assert_eq!(
-        res.events[1].attributes[1],
-        attr("action", "provide_liquidity")
-    );
-    assert_eq!(res.events[1].attributes[3], attr("receiver", "attacker"),);
-    assert_eq!(
-        res.events[1].attributes[4],
-        attr("assets", "1000000uusd, 1000000uluna")
-    );
-    assert_eq!(
-        res.events[1].attributes[5],
-        attr("share", 1000000u128.to_string())
-    );
-    assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
-    assert_eq!(res.events[3].attributes[2], attr("to", "attacker"));
-    assert_eq!(
-        res.events[3].attributes[3],
-        attr("amount", 1000000.to_string())
-    );
-
-    // Set attacker's balances for assets without provide liquidity
-    router
-        .send_tokens(
-            attacker_address.clone(),
-            pair_instance.clone(),
-            &[
-                Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::new(50_000_000_000u128),
-                },
-                Coin {
-                    denom: "uluna".to_string(),
-                    amount: Uint128::new(50_000_000_000u128),
-                },
-            ],
-        )
-        .unwrap();
-
-    // check total share
-    let res: PoolResponse = router
-        .wrap()
-        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pool {})
-        .unwrap();
-    assert_eq!(Uint128::new(1_000_000), res.total_share);
-
-    // check pools amount
-    let res: PairInfo = router
-        .wrap()
-        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pair {})
-        .unwrap();
-
-    assert_eq!(
-        Uint128::new(50_001_000_000),
-        res.asset_infos[0]
-            .query_pool(&router.wrap(), pair_instance.to_string())
-            .unwrap()
-    );
-
-    assert_eq!(
-        Uint128::new(50_001_000_000),
-        res.asset_infos[1]
-            .query_pool(&router.wrap(), pair_instance.to_string())
-            .unwrap()
-    );
-
-    // Provide liquidity from alice
-    let (msg, coins) = provide_liquidity_msg(
-        Uint128::new(40_000_000_000),
-        Uint128::new(40_000_000_000),
-        None,
-        None,
-    );
-    let res = router
-        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
-        .unwrap();
-
-    assert_eq!(
-        res.events[1].attributes[1],
-        attr("action", "provide_liquidity")
-    );
-    assert_eq!(res.events[1].attributes[3], attr("receiver", "alice"),);
-    assert_eq!(
-        res.events[1].attributes[4],
-        attr("assets", "40000000000uusd, 40000000000uluna")
-    );
-    assert_eq!(
-        res.events[1].attributes[5],
-        attr("share", 799984u128.to_string())
-    );
-    assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
-    assert_eq!(res.events[3].attributes[2], attr("to", "alice"));
-    assert_eq!(
-        res.events[3].attributes[3],
-        attr("amount", 799984.to_string())
-    );
-
-    // check total share
-    let res: PoolResponse = router
-        .wrap()
-        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pool {})
-        .unwrap();
-    assert_eq!(Uint128::new(1_799_984), res.total_share);
-
-    // check pools amount
-    let res: PairInfo = router
-        .wrap()
-        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pair {})
-        .unwrap();
-
-    assert_eq!(
-        Uint128::new(90_001_000_000),
-        res.asset_infos[0]
-            .query_pool(&router.wrap(), pair_instance.to_string())
-            .unwrap()
-    );
-
-    assert_eq!(
-        Uint128::new(90_001_000_000),
-        res.asset_infos[1]
-            .query_pool(&router.wrap(), pair_instance.to_string())
-            .unwrap()
-    );
-
-    //check alice balance
+    // check alice balance
     let res: BalanceResponse = router
         .wrap()
         .query_wasm_smart(
@@ -765,9 +552,9 @@ fn provide_liquidity_without_drain_pool_for_native() {
             },
         )
         .unwrap();
-    assert_eq!(Uint128::new(799984), res.balance);
+    assert_eq!(Uint128::new(0), res.balance);
 
-    //check alice balance
+    //check attacker balance
     let res: BalanceResponse = router
         .wrap()
         .query_wasm_smart(
@@ -777,7 +564,7 @@ fn provide_liquidity_without_drain_pool_for_native() {
             },
         )
         .unwrap();
-    assert_eq!(Uint128::new(1000000), res.balance);
+    assert_eq!(Uint128::new(0), res.balance);
 }
 
 #[test]
@@ -810,15 +597,15 @@ fn test_provide_and_withdraw_liquidity() {
             &[
                 Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::new(233u128),
+                    amount: Uint128::new(233_000_000u128),
                 },
                 Coin {
                     denom: "uluna".to_string(),
-                    amount: Uint128::new(200u128),
+                    amount: Uint128::new(2_00_000_000u128),
                 },
                 Coin {
                     denom: "cny".to_string(),
-                    amount: Uint128::from(1000u16),
+                    amount: Uint128::from(100_000_000u128),
                 },
             ],
         )
@@ -854,18 +641,23 @@ fn test_provide_and_withdraw_liquidity() {
             &[
                 Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::new(100u128),
+                    amount: Uint128::new(100_000_000u128),
                 },
                 Coin {
                     denom: "uluna".to_string(),
-                    amount: Uint128::new(100u128),
+                    amount: Uint128::new(100_000_000u128),
                 },
             ],
         )
         .unwrap();
 
     // Provide liquidity
-    let (msg, coins) = provide_liquidity_msg(Uint128::new(100), Uint128::new(100), None, None);
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(100_000_000),
+        Uint128::new(100_000_000),
+        None,
+        None,
+    );
     let res = router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
@@ -877,15 +669,18 @@ fn test_provide_and_withdraw_liquidity() {
     assert_eq!(res.events[1].attributes[3], attr("receiver", "alice"),);
     assert_eq!(
         res.events[1].attributes[4],
-        attr("assets", "100uusd, 100uluna")
+        attr("assets", "100000000uusd, 100000000uluna")
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 100u128.to_string())
+        attr("share", 100000000u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "alice"));
-    assert_eq!(res.events[3].attributes[3], attr("amount", 100.to_string()));
+    assert_eq!(
+        res.events[3].attributes[3],
+        attr("amount", 100000000.to_string())
+    );
 
     // Provide liquidity for receiver
     let (msg, coins) = provide_liquidity_msg(

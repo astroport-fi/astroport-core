@@ -1,4 +1,4 @@
-use cosmwasm_std::{OverflowError, StdError};
+use cosmwasm_std::{OverflowError, StdError, Uint128};
 use thiserror::Error;
 
 /// ## Description
@@ -37,6 +37,9 @@ pub enum ContractError {
 
     #[error("Pair is not migrated to the new admin!")]
     PairIsNotMigrated {},
+
+    #[error("The minimum amount of each asset for a provide liquidity operation must be greater or equal to {0}")]
+    MinimumAssetAmountError(Uint128),
 }
 
 impl From<OverflowError> for ContractError {

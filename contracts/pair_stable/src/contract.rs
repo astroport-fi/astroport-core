@@ -15,8 +15,8 @@ use itertools::Itertools;
 use protobuf::Message;
 
 use astroport::asset::{
-    addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset,
-    AssetInfo, Decimal256Ext, DecimalAsset, PairInfo,
+    addr_opt_validate, addr_validate_to_lower, adjust_precision, check_swap_parameters,
+    format_lp_token_name, Asset, AssetInfo, Decimal256Ext, DecimalAsset, PairInfo,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::PairType;
@@ -40,9 +40,8 @@ use crate::migration::CONFIG_V100;
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{get_precision, store_precisions, Config, CONFIG, OWNERSHIP_PROPOSAL};
 use crate::utils::{
-    accumulate_prices, adjust_precision, check_asset_infos, check_assets, check_cw20_in_pool,
-    compute_current_amp, compute_swap, get_share_in_assets, mint_liquidity_token_message,
-    select_pools, SwapResult,
+    accumulate_prices, check_asset_infos, check_assets, check_cw20_in_pool, compute_current_amp,
+    compute_swap, get_share_in_assets, mint_liquidity_token_message, select_pools, SwapResult,
 };
 
 /// Contract name that is used for migration.
