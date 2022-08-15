@@ -575,11 +575,11 @@ pub fn execute_update_config(
 
     if let Some(voting_escrow_delegation) = voting_escrow_delegation {
         config.voting_escrow_delegation =
-            Option::from(addr_validate_to_lower(deps.api, &voting_escrow_delegation)?);
+            Some(addr_validate_to_lower(deps.api, &voting_escrow_delegation)?);
     }
 
     if let Some(voting_escrow) = voting_escrow {
-        config.voting_escrow = Option::from(addr_validate_to_lower(deps.api, &voting_escrow)?);
+        config.voting_escrow = Some(addr_validate_to_lower(deps.api, &voting_escrow)?);
     }
 
     CONFIG.save(deps.storage, &config)?;
