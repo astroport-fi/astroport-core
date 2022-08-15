@@ -198,7 +198,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
             alice_address.clone(),
             &[Coin {
                 denom: "uluna".to_string(),
-                amount: Uint128::new(500_000_000_000u128),
+                amount: Uint128::new(100_000_000_000u128),
             }],
         )
         .unwrap();
@@ -259,7 +259,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
     // mint token for alice
     let msg = Cw20ExecuteMsg::Mint {
         recipient: alice_address.to_string(),
-        amount: Uint128::new(500_000_000_000u128),
+        amount: Uint128::new(100_000_000_000u128),
     };
 
     router
@@ -493,7 +493,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
             },
         )
         .unwrap();
-    assert_eq!(Uint128::new(490_985_098_054), res.balance);
+    assert_eq!(Uint128::new(90_985_098_054), res.balance);
 
     //check attacker balance
     let res: BalanceResponse = router
@@ -506,6 +506,76 @@ fn provide_liquidity_without_drain_pool_for_token() {
         )
         .unwrap();
     assert_eq!(Uint128::new(100_012_628_462), res.balance);
+
+    // check pair's token_x balance
+    let res: BalanceResponse = router
+        .wrap()
+        .query_wasm_smart(
+            token_x_instance.to_string(),
+            &Cw20QueryMsg::Balance {
+                address: pair_instance.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::new(9002_273_484), res.balance);
+
+    // check alice's liquidity balance
+    let res: BalanceResponse = router
+        .wrap()
+        .query_wasm_smart(
+            liquidity_token.to_string(),
+            &Cw20QueryMsg::Balance {
+                address: alice_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::new(360), res.balance);
+
+    // check attacker's liquidity balance
+    let res: BalanceResponse = router
+        .wrap()
+        .query_wasm_smart(
+            liquidity_token.to_string(),
+            &Cw20QueryMsg::Balance {
+                address: attacker_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::new(0), res.balance);
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        amount: Uint128::new(360),
+        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
+    };
+    // Withdraw with LP token is successful for alice
+    router
+        .execute_contract(alice_address.clone(), liquidity_token.clone(), &msg, &[])
+        .unwrap();
+
+    // check alice's token_x balance
+    let res: BalanceResponse = router
+        .wrap()
+        .query_wasm_smart(
+            token_x_instance.to_string(),
+            &Cw20QueryMsg::Balance {
+                address: alice_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::new(99_987_371_538), res.balance);
+
+    // check alice's liquidity balance
+    let res: BalanceResponse = router
+        .wrap()
+        .query_wasm_smart(
+            liquidity_token.to_string(),
+            &Cw20QueryMsg::Balance {
+                address: alice_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::new(0), res.balance);
 }
 
 #[test]
