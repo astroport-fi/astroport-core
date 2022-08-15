@@ -325,8 +325,8 @@ fn provide_liquidity_without_drain_pool_for_token() {
     // Provide liquidity from attacker
     let (msg, coins) = provide_liquidity_msg_with_token(
         &token_x_instance,
-        Uint128::new(0001000u128),
-        Uint128::new(0001000u128),
+        Uint128::new(2000u128),
+        Uint128::new(2000u128),
         None,
         None,
     );
@@ -338,36 +338,16 @@ fn provide_liquidity_without_drain_pool_for_token() {
             &coins,
         )
         .unwrap();
-    assert_eq!(
-        res.events[1].attributes[1],
-        attr("action", "provide_liquidity")
-    );
-    assert_eq!(res.events[1].attributes[3], attr("receiver", "attacker"),);
-    assert_eq!(
-        res.events[1].attributes[4],
-        attr("assets", "1000contract0, 1000uluna")
-    );
-    assert_eq!(
-        res.events[1].attributes[5],
-        attr("share", 1000u128.to_string())
-    );
-    assert_eq!(res.events[3].attributes[1], attr("action", "transfer_from"));
-    assert_eq!(res.events[3].attributes[2], attr("from", "attacker"));
-    assert_eq!(res.events[3].attributes[3], attr("to", "contract1"));
 
-    assert_eq!(
-        res.events[3].attributes[5],
-        attr("amount", 1000.to_string())
-    );
+    // check mint amount for attacker
     assert_eq!(res.events[5].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[5].attributes[2], attr("to", "attacker"));
     assert_eq!(
         res.events[5].attributes[3],
-        attr("amount", 1000.to_string())
+        attr("amount", 2000.to_string())
     );
 
-    // Set attacker's balances for assets without provide liquidity
-    // set allowance for pair from attacker
+    // attacker's transfer 50_000_000_000 to pair without provide liquidity
     let msg = Cw20ExecuteMsg::Transfer {
         recipient: pair_instance.to_string(),
         amount: Uint128::new(50_000_000_000u128),
@@ -398,7 +378,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
         .wrap()
         .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pool {})
         .unwrap();
-    assert_eq!(Uint128::new(1_000), res.total_share);
+    assert_eq!(Uint128::new(2_000), res.total_share);
 
     // check pools amount
     let res: PairInfo = router
@@ -407,14 +387,14 @@ fn provide_liquidity_without_drain_pool_for_token() {
         .unwrap();
 
     assert_eq!(
-        Uint128::new(50_000_001_000),
+        Uint128::new(50_000_002_000),
         res.asset_infos[0]
             .query_pool(&router.wrap(), pair_instance.to_string())
             .unwrap()
     );
 
     assert_eq!(
-        Uint128::new(50_000_001_000),
+        Uint128::new(50_000_002_000),
         res.asset_infos[1]
             .query_pool(&router.wrap(), pair_instance.to_string())
             .unwrap()
@@ -434,8 +414,8 @@ fn provide_liquidity_without_drain_pool_for_token() {
     // Provide liquidity from alice
     let (msg, coins) = provide_liquidity_msg_with_token(
         &token_x_instance,
-        Uint128::new(40_000_000_000),
-        Uint128::new(40_000_000_000),
+        Uint128::new(49_000_000_000),
+        Uint128::new(49_000_000_000),
         None,
         None,
     );
@@ -443,34 +423,20 @@ fn provide_liquidity_without_drain_pool_for_token() {
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
 
-    assert_eq!(
-        res.events[1].attributes[1],
-        attr("action", "provide_liquidity")
-    );
-    assert_eq!(res.events[1].attributes[3], attr("receiver", "alice"),);
-    assert_eq!(
-        res.events[1].attributes[4],
-        attr("assets", "40000000000contract0, 40000000000uluna")
-    );
-    assert_eq!(res.events[1].attributes[5], attr("share", 799.to_string()));
-    assert_eq!(res.events[3].attributes[1], attr("action", "transfer_from"));
-    assert_eq!(res.events[3].attributes[2], attr("from", "alice"));
-    assert_eq!(res.events[3].attributes[3], attr("to", "contract1"));
-
-    assert_eq!(
-        res.events[3].attributes[5],
-        attr("amount", "40000000000".to_string())
-    );
+    // check mint amount for alice
     assert_eq!(res.events[5].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[5].attributes[2], attr("to", "alice"));
-    assert_eq!(res.events[5].attributes[3], attr("amount", 799.to_string()));
+    assert_eq!(
+        res.events[5].attributes[3],
+        attr("amount", 1959.to_string())
+    );
 
     // check total share
     let res: PoolResponse = router
         .wrap()
         .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pool {})
         .unwrap();
-    assert_eq!(Uint128::new(1_799), res.total_share);
+    assert_eq!(Uint128::new(3959), res.total_share);
 
     // check pools amount
     let res: PairInfo = router
@@ -479,14 +445,14 @@ fn provide_liquidity_without_drain_pool_for_token() {
         .unwrap();
 
     assert_eq!(
-        Uint128::new(90_000_001_000),
+        Uint128::new(99_000_002_000),
         res.asset_infos[0]
             .query_pool(&router.wrap(), pair_instance.to_string())
             .unwrap()
     );
 
     assert_eq!(
-        Uint128::new(90_000_001_000),
+        Uint128::new(99_000_002_000),
         res.asset_infos[1]
             .query_pool(&router.wrap(), pair_instance.to_string())
             .unwrap()
@@ -502,7 +468,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
             },
         )
         .unwrap();
-    assert_eq!(Uint128::new(799), res.balance);
+    assert_eq!(Uint128::new(1959), res.balance);
 
     //check attacker balance
     let res: BalanceResponse = router
@@ -514,11 +480,11 @@ fn provide_liquidity_without_drain_pool_for_token() {
             },
         )
         .unwrap();
-    assert_eq!(Uint128::new(1000), res.balance);
+    assert_eq!(Uint128::new(2000), res.balance);
 
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
-        amount: Uint128::new(799),
+        amount: Uint128::new(1599),
         msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
     };
     // Withdraw with LP token is successful for alice
@@ -528,7 +494,7 @@ fn provide_liquidity_without_drain_pool_for_token() {
 
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
-        amount: Uint128::new(1000),
+        amount: Uint128::new(2000),
         msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
     };
     // Withdraw with LP token is successful for attacker
@@ -540,25 +506,25 @@ fn provide_liquidity_without_drain_pool_for_token() {
     let res: BalanceResponse = router
         .wrap()
         .query_wasm_smart(
-            liquidity_token.to_string(),
+            token_x_instance.to_string(),
             &Cw20QueryMsg::Balance {
                 address: alice_address.to_string(),
             },
         )
         .unwrap();
-    assert_eq!(Uint128::new(0), res.balance);
+    assert_eq!(Uint128::new(490_985_098_054), res.balance);
 
     //check attacker balance
     let res: BalanceResponse = router
         .wrap()
         .query_wasm_smart(
-            liquidity_token.to_string(),
+            token_x_instance.to_string(),
             &Cw20QueryMsg::Balance {
                 address: attacker_address.to_string(),
             },
         )
         .unwrap();
-    assert_eq!(Uint128::new(0), res.balance);
+    assert_eq!(Uint128::new(100_012_628_462), res.balance);
 }
 
 #[test]
