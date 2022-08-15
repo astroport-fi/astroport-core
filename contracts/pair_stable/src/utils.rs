@@ -4,8 +4,9 @@ use cosmwasm_std::{
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
+use std::cmp::Ordering;
 
-use astroport::asset::{adjust_precision, Asset, AssetInfo, Decimal256Ext, DecimalAsset};
+use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
 use astroport::pair::TWAP_PRECISION;
 use astroport::querier::query_factory_config;
 
@@ -138,6 +139,30 @@ pub(crate) fn compute_current_amp(config: &Config, env: &Env) -> StdResult<Uint6
     } else {
         Ok(Uint64::from(config.next_amp))
     }
+}
+
+/// ## Description
+/// Returns a value using a newly specified precision.
+/// ## Params
+/// * **value** is an object of type [`Uint128`]. This is the value that will have its precision adjusted.
+///
+/// * **current_precision** is an object of type [`u8`]. This is the `value`'s current precision
+///
+/// * **new_precision** is an object of type [`u8`]. This is the new precision to use when returning the `value`.
+pub(crate) fn adjust_precision(
+    value: Uint128,
+    current_precision: u8,
+    new_precision: u8,
+) -> StdResult<Uint128> {
+    Ok(match current_precision.cmp(&new_precision) {
+        Ordering::Equal => value,
+        Ordering::Less => value.checked_mul(Uint128::new(
+            10_u128.pow((new_precision - current_precision) as u32),
+        ))?,
+        Ordering::Greater => value.checked_div(Uint128::new(
+            10_u128.pow((current_precision - new_precision) as u32),
+        ))?,
+    })
 }
 
 /// ## Description
