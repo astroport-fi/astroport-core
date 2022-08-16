@@ -1,3 +1,4 @@
+use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
 use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
@@ -37,6 +38,12 @@ pub enum ContractError {
 
     #[error("Generator address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
+
+    #[error(
+        "The initial LP share can not be less than {0}",
+        MINIMUM_LIQUIDITY_AMOUNT
+    )]
+    MinimumLiquidityAmountError {},
 }
 
 impl From<OverflowError> for ContractError {

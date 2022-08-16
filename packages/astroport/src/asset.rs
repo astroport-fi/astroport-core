@@ -11,6 +11,9 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 
+/// Minimum initial LP share
+pub const MINIMUM_LIQUIDITY_AMOUNT: Uint128 = Uint128::new(1_000);
+
 /// ## Description
 /// This enum describes a Terra asset (native or CW20).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
