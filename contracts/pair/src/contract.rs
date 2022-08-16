@@ -9,7 +9,10 @@ use cosmwasm_std::{
 };
 
 use crate::response::MsgInstantiateContractResponse;
-use astroport::asset::{addr_validate_to_lower, format_lp_token_name, Asset, AssetInfo, PairInfo};
+use astroport::asset::{
+    addr_validate_to_lower, format_lp_token_name, Asset, AssetInfo, PairInfo,
+    MINIMUM_LIQUIDITY_AMOUNT,
+};
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::{ConfigResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
@@ -374,11 +377,17 @@ pub fn provide_liquidity(
     let total_share = query_supply(&deps.querier, config.pair_info.liquidity_token.clone())?;
     let share = if total_share.is_zero() {
         // Initial share = collateral amount
-        Uint128::new(
+        let share = Uint128::new(
             (U256::from(deposits[0].u128()) * U256::from(deposits[1].u128()))
                 .integer_sqrt()
                 .as_u128(),
-        )
+        );
+
+        if share.lt(&MINIMUM_LIQUIDITY_AMOUNT) {
+            return Err(ContractError::MinimumLiquidityAmountError {});
+        }
+
+        share
     } else {
         // Assert slippage tolerance
         assert_slippage_tolerance(slippage_tolerance, &deposits, &pools)?;
