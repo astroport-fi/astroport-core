@@ -127,15 +127,15 @@ fn test_provide_and_withdraw_liquidity() {
             &[
                 Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::new(233u128),
+                    amount: Uint128::new(233_000_000u128),
                 },
                 Coin {
                     denom: "uluna".to_string(),
-                    amount: Uint128::new(200u128),
+                    amount: Uint128::new(2_00_000_000u128),
                 },
                 Coin {
                     denom: "cny".to_string(),
-                    amount: Uint128::from(1000u16),
+                    amount: Uint128::from(100_000_000u128),
                 },
             ],
         )
@@ -171,18 +171,23 @@ fn test_provide_and_withdraw_liquidity() {
             &[
                 Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::new(100u128),
+                    amount: Uint128::new(100_000_000u128),
                 },
                 Coin {
                     denom: "uluna".to_string(),
-                    amount: Uint128::new(100u128),
+                    amount: Uint128::new(100_000_000u128),
                 },
             ],
         )
         .unwrap();
 
     // Provide liquidity
-    let (msg, coins) = provide_liquidity_msg(Uint128::new(100), Uint128::new(100), None, None);
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(100_000_000),
+        Uint128::new(100_000_000),
+        None,
+        None,
+    );
     let res = router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
@@ -194,15 +199,18 @@ fn test_provide_and_withdraw_liquidity() {
     assert_eq!(res.events[1].attributes[3], attr("receiver", "alice"),);
     assert_eq!(
         res.events[1].attributes[4],
-        attr("assets", "100uusd, 100uluna")
+        attr("assets", "100000000uusd, 100000000uluna")
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 100u128.to_string())
+        attr("share", 100000000u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "alice"));
-    assert_eq!(res.events[3].attributes[3], attr("amount", 100.to_string()));
+    assert_eq!(
+        res.events[3].attributes[3],
+        attr("amount", 100000000.to_string())
+    );
 
     // Provide liquidity for receiver
     let (msg, coins) = provide_liquidity_msg(

@@ -18,6 +18,8 @@ use itertools::Itertools;
 pub const UUSD_DENOM: &str = "uusd";
 /// LUNA token denomination
 pub const ULUNA_DENOM: &str = "uluna";
+/// Minimum initial LP share
+pub const MINIMUM_LIQUIDITY_AMOUNT: Uint128 = Uint128::new(1_000);
 
 /// ## Description
 /// This enum describes a Terra asset (native or CW20).

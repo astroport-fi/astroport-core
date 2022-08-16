@@ -1,11 +1,10 @@
-use std::cmp::Ordering;
-
 use cosmwasm_std::{
     to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Decimal256, Deps, Env, QuerierWrapper,
     StdResult, Storage, Uint128, Uint64,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
+use std::cmp::Ordering;
 
 use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
 use astroport::pair::TWAP_PRECISION;
