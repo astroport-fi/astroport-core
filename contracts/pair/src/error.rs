@@ -44,6 +44,9 @@ pub enum ContractError {
         MINIMUM_LIQUIDITY_AMOUNT
     )]
     MinimumLiquidityAmountError {},
+
+    #[error("Failed to migrate the contract")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {
