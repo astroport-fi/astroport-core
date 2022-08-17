@@ -117,7 +117,7 @@ dependencies = [
  "astroport-factory",
  "astroport-generator 1.2.0",
  "astroport-generator-proxy-to-mirror",
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/escrow_delegation)",
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git)",
  "astroport-nft",
  "astroport-pair",
  "astroport-pair-stable",
@@ -175,19 +175,6 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.1.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/escrow_delegation#f31815a732f444e10ff4e9440a595798cc4c0c4c"
-dependencies = [
- "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
- "cosmwasm-std 1.0.0",
- "cw-storage-plus 0.13.4",
- "cw20 0.13.4",
- "schemars",
- "serde",
-]
-
-[[package]]
-name = "astroport-governance"
-version = "1.1.0"
 source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#74ecdedbe2256aee98c397098e4af5d3e70e5275"
 dependencies = [
  "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
@@ -236,9 +223,9 @@ dependencies = [
 [[package]]
 name = "astroport-nft"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/escrow_delegation#f31815a732f444e10ff4e9440a595798cc4c0c4c"
+source = "git+https://github.com/astroport-fi/astroport-governance.git#4e1fe67215eaffab3793d006af94ffddce79717a"
 dependencies = [
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/escrow_delegation)",
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git)",
  "cosmwasm-std 1.0.0",
  "cw2 0.13.4",
  "cw721",
@@ -2003,9 +1990,9 @@ dependencies = [
 [[package]]
 name = "voting-escrow-delegation"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/escrow_delegation#f31815a732f444e10ff4e9440a595798cc4c0c4c"
+source = "git+https://github.com/astroport-fi/astroport-governance.git#4e1fe67215eaffab3793d006af94ffddce79717a"
 dependencies = [
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/escrow_delegation)",
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git)",
  "cosmwasm-std 1.0.0",
  "cw-storage-plus 0.13.4",
  "cw-utils",

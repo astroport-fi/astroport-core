@@ -208,7 +208,7 @@ fn test_boost_checkpoints_with_delegation() {
         .create_delegation(
             &mut app,
             user1.as_str(),
-            Uint128::new(50),
+            5000,
             WEEK * 2,
             "token_1".to_string(),
             user2.to_string(),
@@ -323,7 +323,7 @@ fn test_boost_checkpoints_with_delegation() {
         .extend_delegation(
             &mut app,
             user1.as_str(),
-            Uint128::new(50),
+            5000,
             WEEK * 20,
             "token_1".to_string(),
         )
@@ -351,7 +351,7 @@ fn test_boost_checkpoints_with_delegation() {
         .extend_delegation(
             &mut app,
             user1.as_str(),
-            Uint128::new(50),
+            5000,
             WEEK * 5,
             "token_1".to_string(),
         )
