@@ -16,6 +16,8 @@ pub struct InstantiateMsg {
     pub factory: String,
     /// Address that can set active generators and their alloc points
     pub generator_controller: Option<String>,
+    /// The voting escrow delegation contract address
+    pub voting_escrow_delegation: Option<String>,
     /// The voting escrow contract address
     pub voting_escrow: Option<String>,
     /// Address of guardian
@@ -47,6 +49,8 @@ pub enum ExecuteMsg {
         generator_controller: Option<String>,
         /// The new generator guardian
         guardian: Option<String>,
+        /// The new voting escrow delegation contract address
+        voting_escrow_delegation: Option<String>,
         /// The new voting escrow contract address
         voting_escrow: Option<String>,
         /// The amount of generators
@@ -364,6 +368,8 @@ pub struct Config {
     pub generator_controller: Option<Addr>,
     /// The voting escrow contract address
     pub voting_escrow: Option<Addr>,
+    /// The voting escrow delegation contract address
+    pub voting_escrow_delegation: Option<Addr>,
     /// The ASTRO token address
     pub astro_token: Addr,
     /// Total amount of ASTRO rewards per block
@@ -401,6 +407,8 @@ pub struct MigrateMsg {
     pub whitelist_code_id: Option<u64>,
     /// The voting escrow contract
     pub voting_escrow: Option<String>,
+    /// The voting escrow delegation contract
+    pub voting_escrow_delegation: Option<String>,
     /// The limit of generators
     pub generator_limit: Option<u32>,
 }

@@ -1,3 +1,4 @@
+use crate::test_utils::delegation_helper::DelegationHelper;
 use crate::test_utils::escrow_helper::EscrowHelper;
 use crate::{mint_tokens, store_whitelist_code};
 use anyhow::Result as AnyResult;
@@ -17,12 +18,15 @@ pub struct ControllerHelper {
     pub controller: Addr,
     pub factory: Addr,
     pub escrow_helper: EscrowHelper,
+    pub delegation_helper: DelegationHelper,
     pub vesting: Addr,
 }
 
 impl ControllerHelper {
     pub fn init(router: &mut App, owner: &Addr) -> Self {
         let escrow_helper = EscrowHelper::init(router, owner.clone());
+        let delegation_helper =
+            DelegationHelper::init(router, owner.clone(), escrow_helper.escrow_instance.clone());
 
         let pair_contract = Box::new(
             ContractWrapper::new_with_empty(
@@ -105,6 +109,7 @@ impl ControllerHelper {
             owner: owner.to_string(),
             factory: factory.to_string(),
             generator_controller: None,
+            voting_escrow_delegation: Some(delegation_helper.delegation_instance.to_string()),
             voting_escrow: Some(escrow_helper.escrow_instance.to_string()),
             guardian: None,
             astro_token: escrow_helper.astro_token.to_string(),
@@ -194,6 +199,7 @@ impl ControllerHelper {
                     guardian: None,
                     voting_escrow: None,
                     checkpoint_generator_limit: None,
+                    voting_escrow_delegation: None,
                 },
                 &[],
             )
@@ -205,6 +211,7 @@ impl ControllerHelper {
             controller,
             factory,
             escrow_helper,
+            delegation_helper,
             vesting: vesting_instance,
         }
     }

@@ -77,6 +77,7 @@ pub fn instantiate(
 
     let generator_controller = addr_opt_validate(deps.api, &msg.generator_controller)?;
     let guardian = addr_opt_validate(deps.api, &msg.guardian)?;
+    let voting_escrow_delegation = addr_opt_validate(deps.api, &msg.voting_escrow_delegation)?;
     let voting_escrow = addr_opt_validate(deps.api, &msg.voting_escrow)?;
 
     let config = Config {
@@ -92,8 +93,9 @@ pub fn instantiate(
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
         active_pools: vec![],
         blocked_tokens_list: vec![],
-        voting_escrow,
         checkpoint_generator_limit: None,
+        voting_escrow_delegation,
+        voting_escrow,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -207,6 +209,7 @@ pub fn execute(
             vesting_contract,
             generator_controller,
             guardian,
+            voting_escrow_delegation,
             voting_escrow,
             checkpoint_generator_limit,
         } => execute_update_config(
@@ -215,6 +218,7 @@ pub fn execute(
             vesting_contract,
             generator_controller,
             guardian,
+            voting_escrow_delegation,
             voting_escrow,
             checkpoint_generator_limit,
         ),
@@ -349,7 +353,7 @@ fn checkpoint_user_boost(
     for generator in generators {
         let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
 
-        // calculates the emission boost  only for user who has LP in generator
+        // calculates the emission boost only for user who has LP in generator
         if USER_INFO.has(deps.storage, (&generator_addr, &recipient_addr)) {
             let user_info =
                 USER_INFO.compatible_load(deps.storage, (&generator_addr, &recipient_addr))?;
@@ -372,8 +376,8 @@ fn checkpoint_user_boost(
             // Update user's virtual amount
             update_virtual_amount(
                 deps.querier,
+                &config,
                 &env.contract.address,
-                &config.voting_escrow,
                 &mut pool,
                 &mut user_info,
                 &recipient_addr,
@@ -534,12 +538,14 @@ fn update_blocked_tokens_list(
 ///
 /// ##Executor
 /// Only the owner can execute this.
+#[allow(clippy::too_many_arguments)]
 pub fn execute_update_config(
     deps: DepsMut,
     info: MessageInfo,
     vesting_contract: Option<String>,
     generator_controller: Option<String>,
     guardian: Option<String>,
+    voting_escrow_delegation: Option<String>,
     voting_escrow: Option<String>,
     checkpoint_generator_limit: Option<u32>,
 ) -> Result<Response, ContractError> {
@@ -563,12 +569,17 @@ pub fn execute_update_config(
         config.guardian = Some(addr_validate_to_lower(deps.api, guardian.as_str())?);
     }
 
-    if let Some(voting_escrow) = voting_escrow {
-        config.voting_escrow = Some(addr_validate_to_lower(deps.api, voting_escrow.as_str())?);
-    }
-
     if let Some(generator_limit) = checkpoint_generator_limit {
         config.checkpoint_generator_limit = Some(generator_limit);
+    }
+
+    if let Some(voting_escrow_delegation) = voting_escrow_delegation {
+        config.voting_escrow_delegation =
+            Some(addr_validate_to_lower(deps.api, &voting_escrow_delegation)?);
+    }
+
+    if let Some(voting_escrow) = voting_escrow {
+        config.voting_escrow = Some(addr_validate_to_lower(deps.api, &voting_escrow)?);
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -982,8 +993,8 @@ pub fn claim_rewards(
         // Update user's virtual amount
         update_virtual_amount(
             deps.querier,
+            &cfg,
             &env.contract.address,
-            &cfg.voting_escrow,
             &mut pool,
             &mut user,
             &account,
@@ -1256,8 +1267,8 @@ pub fn deposit(
 
     update_virtual_amount(
         deps.querier,
+        &cfg,
         &env.contract.address,
-        &cfg.voting_escrow,
         &mut pool,
         &mut user,
         &beneficiary,
@@ -1350,8 +1361,8 @@ pub fn withdraw(
 
     update_virtual_amount(
         deps.querier,
+        &cfg,
         &env.contract.address,
-        &cfg.voting_escrow,
         &mut pool,
         &mut user,
         &account,
@@ -2525,6 +2536,9 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     POOL_INFO.save(deps.storage, &key, &pool_info)?;
                 }
                 migration::migrate_configs_from_v120(&mut deps, &msg)?;
+            }
+            "2.0.0" => {
+                migration::migrate_configs_from_v200(&mut deps, &msg)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },

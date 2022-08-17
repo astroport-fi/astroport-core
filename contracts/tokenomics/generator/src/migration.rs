@@ -96,11 +96,47 @@ pub struct ConfigV120 {
     pub guardian: Option<Addr>,
 }
 
+/// This structure stores the core parameters for the Generator contract.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ConfigV200 {
+    /// Address allowed to change contract parameters
+    pub owner: Addr,
+    /// The Factory address
+    pub factory: Addr,
+    /// Contract address which can only set active generators and their alloc points
+    pub generator_controller: Option<Addr>,
+    /// The voting escrow delegation contract address
+    pub voting_escrow: Option<Addr>,
+    /// The ASTRO token address
+    pub astro_token: Addr,
+    /// Total amount of ASTRO rewards per block
+    pub tokens_per_block: Uint128,
+    /// Total allocation points. Must be the sum of all allocation points in all active generators
+    pub total_alloc_point: Uint128,
+    /// The block number when the ASTRO distribution starts
+    pub start_block: Uint64,
+    /// The list of allowed proxy reward contracts
+    pub allowed_reward_proxies: Vec<Addr>,
+    /// The vesting contract from which rewards are distributed
+    pub vesting_contract: Addr,
+    /// The list of active pools with allocation points
+    pub active_pools: Vec<(Addr, Uint128)>,
+    /// The list of blocked tokens
+    pub blocked_tokens_list: Vec<AssetInfo>,
+    /// The guardian address which can add or remove tokens from blacklist
+    pub guardian: Option<Addr>,
+    /// The amount of generators
+    pub checkpoint_generator_limit: Option<u32>,
+}
+
 /// Stores the contract config(V1.1.0) at the given key
 pub const CONFIGV100: Item<ConfigV100> = Item::new("config");
 
 /// Stores the contract config(V1.2.0) at the given key
 pub const CONFIGV120: Item<ConfigV120> = Item::new("config");
+
+/// Stores the contract config(V2.0.0) at the given key
+pub const CONFIG_V200: Item<ConfigV200> = Item::new("config");
 
 /// Migrate config from V1.0.0
 pub fn migrate_configs_from_v100(
@@ -119,6 +155,7 @@ pub fn migrate_configs_from_v100(
         factory: addr_validate_to_lower(deps.api, &msg.factory.clone().unwrap())?,
         generator_controller: None,
         voting_escrow: None,
+        voting_escrow_delegation: None,
         astro_token: cfg_100.astro_token,
         tokens_per_block: cfg_100.tokens_per_block,
         total_alloc_point: cfg_100.total_alloc_point.into(),
@@ -147,6 +184,11 @@ pub fn migrate_configs_from_v100(
         cfg.voting_escrow = Some(addr_validate_to_lower(deps.api, voting_escrow)?);
     }
 
+    if let Some(voting_escrow_delegation) = &msg.voting_escrow_delegation {
+        cfg.voting_escrow_delegation =
+            Some(addr_validate_to_lower(deps.api, voting_escrow_delegation)?);
+    }
+
     if let Some(generator_limit) = msg.generator_limit {
         cfg.checkpoint_generator_limit = Some(generator_limit);
     }
@@ -164,6 +206,7 @@ pub fn migrate_configs_from_v120(deps: &mut DepsMut, msg: &MigrateMsg) -> StdRes
         factory: cfg_120.factory,
         generator_controller: cfg_120.generator_controller,
         voting_escrow: None,
+        voting_escrow_delegation: None,
         astro_token: cfg_120.astro_token,
         tokens_per_block: cfg_120.tokens_per_block,
         total_alloc_point: cfg_120.total_alloc_point,
@@ -182,6 +225,40 @@ pub fn migrate_configs_from_v120(deps: &mut DepsMut, msg: &MigrateMsg) -> StdRes
 
     if let Some(generator_limit) = msg.generator_limit {
         cfg.checkpoint_generator_limit = Some(generator_limit);
+    }
+
+    if let Some(voting_escrow_delegation) = &msg.voting_escrow_delegation {
+        cfg.voting_escrow_delegation =
+            Some(addr_validate_to_lower(deps.api, voting_escrow_delegation)?);
+    }
+
+    CONFIG.save(deps.storage, &cfg)
+}
+
+/// Migrate config from V2.0.0
+pub fn migrate_configs_from_v200(deps: &mut DepsMut, msg: &MigrateMsg) -> StdResult<()> {
+    let cfg_200 = CONFIG_V200.load(deps.storage)?;
+    let mut cfg = Config {
+        owner: cfg_200.owner,
+        factory: cfg_200.factory,
+        generator_controller: cfg_200.generator_controller,
+        voting_escrow: cfg_200.voting_escrow,
+        voting_escrow_delegation: None,
+        astro_token: cfg_200.astro_token,
+        tokens_per_block: cfg_200.tokens_per_block,
+        total_alloc_point: cfg_200.total_alloc_point,
+        start_block: cfg_200.start_block,
+        allowed_reward_proxies: cfg_200.allowed_reward_proxies,
+        vesting_contract: cfg_200.vesting_contract,
+        active_pools: cfg_200.active_pools,
+        blocked_tokens_list: cfg_200.blocked_tokens_list,
+        guardian: cfg_200.guardian,
+        checkpoint_generator_limit: cfg_200.checkpoint_generator_limit,
+    };
+
+    if let Some(voting_escrow_delegation) = &msg.voting_escrow_delegation {
+        cfg.voting_escrow_delegation =
+            Some(addr_validate_to_lower(deps.api, voting_escrow_delegation)?);
     }
 
     CONFIG.save(deps.storage, &cfg)

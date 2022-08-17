@@ -48,6 +48,404 @@ struct PoolWithProxy {
 }
 
 #[test]
+fn test_boost_checkpoints_with_delegation() {
+    let mut app = mock_app_helper();
+    let owner = Addr::unchecked("owner");
+    let helper_controller = ControllerHelper::init(&mut app, &owner);
+
+    let user1 = Addr::unchecked(USER1);
+    let user2 = Addr::unchecked(USER2);
+
+    let cny_eur_token_code_id = store_token_code(&mut app);
+
+    let cny_token = instantiate_token(&mut app, cny_eur_token_code_id, "CNY", None);
+    let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
+
+    let (pair_cny_eur, lp_cny_eur) = create_pair(
+        &mut app,
+        &helper_controller.factory,
+        None,
+        None,
+        vec![
+            AssetInfo::Token {
+                contract_addr: cny_token.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: eur_token.clone(),
+            },
+        ],
+    );
+
+    register_lp_tokens_in_generator(
+        &mut app,
+        &helper_controller.generator,
+        vec![PoolWithProxy {
+            pool: (lp_cny_eur.to_string(), Uint128::from(100u32)),
+            proxy: None,
+        }],
+    );
+
+    // Mint tokens, so user can deposit
+    mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 10);
+
+    // Create short lock user1
+    helper_controller
+        .escrow_helper
+        .mint_xastro(&mut app, USER1, 100);
+
+    helper_controller
+        .escrow_helper
+        .create_lock(&mut app, USER1, WEEK * 10, 100f32)
+        .unwrap();
+
+    deposit_lp_tokens_to_generator(
+        &mut app,
+        &helper_controller.generator,
+        USER1,
+        &[(&lp_cny_eur, 10)],
+    );
+
+    check_token_balance(&mut app, &lp_cny_eur, &helper_controller.generator, 10);
+
+    // check if virtual amount equal to 10
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user1,
+        10,
+    );
+
+    // Mint tokens, so user2 can deposit
+    mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user2, 10);
+
+    // Create short lock user2
+    helper_controller
+        .escrow_helper
+        .mint_xastro(&mut app, USER2, 100);
+
+    helper_controller
+        .escrow_helper
+        .create_lock(&mut app, USER2, WEEK * 10, 100f32)
+        .unwrap();
+
+    deposit_lp_tokens_to_generator(
+        &mut app,
+        &helper_controller.generator,
+        USER2,
+        &[(&lp_cny_eur, 10)],
+    );
+
+    check_token_balance(&mut app, &lp_cny_eur, &helper_controller.generator, 20);
+
+    // check if virtual amount equal to 10
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user2,
+        10,
+    );
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked(USER1),
+            helper_controller.generator.clone(),
+            &ExecuteMsg::CheckpointUserBoost {
+                generators: vec![lp_cny_eur.to_string(); 26],
+                user: Some(USER1.to_string()),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Maximum generator limit exceeded!",
+        err.root_cause().to_string()
+    );
+
+    app.execute_contract(
+        Addr::unchecked(USER1),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::CheckpointUserBoost {
+            generators: vec![lp_cny_eur.to_string()],
+            user: Some(USER1.to_string()),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // check user1's ASTRO balance
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user1,
+        0,
+    );
+
+    // check user2's ASTRO balance
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user2,
+        0,
+    );
+
+    // check user1's adjusted balance
+    let user1_ad_balance_before = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user1.as_str(), None)
+        .unwrap();
+
+    // check user2's adjusted balance
+    let user2_ad_balance_before = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user2.as_str(), None)
+        .unwrap();
+
+    // create delegation for user2
+    helper_controller
+        .delegation_helper
+        .create_delegation(
+            &mut app,
+            user1.as_str(),
+            5000,
+            WEEK * 2,
+            "token_1".to_string(),
+            user2.to_string(),
+        )
+        .unwrap();
+
+    // check user1's adjusted balance
+    let user1_ad_balance_after = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user1.as_str(), None)
+        .unwrap();
+
+    // check user1's delegated balance
+    let user1_delegated_balance = helper_controller
+        .delegation_helper
+        .delegated_balance(&mut app, user1.as_str(), None)
+        .unwrap();
+    assert_eq!(
+        user1_ad_balance_after,
+        user1_ad_balance_before - user1_delegated_balance
+    );
+
+    // check user2's adjusted balance
+    let user2_ad_balance_after = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user2.as_str(), None)
+        .unwrap();
+    assert_eq!(
+        user2_ad_balance_after,
+        user2_ad_balance_before + user1_delegated_balance
+    );
+
+    app.next_block(WEEK);
+
+    app.execute_contract(
+        Addr::unchecked(USER1),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::Withdraw {
+            lp_token: lp_cny_eur.to_string(),
+            amount: Uint128::new(5),
+        },
+        &[],
+    )
+    .unwrap();
+
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user1,
+        5,
+    );
+
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user2,
+        10,
+    );
+
+    // recalculate virtual amount for user2
+    app.execute_contract(
+        Addr::unchecked(USER2),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::CheckpointUserBoost {
+            generators: vec![lp_cny_eur.to_string()],
+            user: Some(USER2.to_string()),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // check virtual amount for user2
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user2,
+        9,
+    );
+
+    // check user1's ASTRO balance after withdraw
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user1,
+        5_000_000,
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        USER1,
+        (0, None),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        USER2,
+        (0, None),
+    );
+
+    app.next_block(WEEK);
+
+    // try to extend delegation for user2
+    let err = helper_controller
+        .delegation_helper
+        .extend_delegation(
+            &mut app,
+            user1.as_str(),
+            5000,
+            WEEK * 20,
+            "token_1".to_string(),
+        )
+        .unwrap_err();
+    assert_eq!(
+        "The delegation period must be at least a week and not more than a user lock period.",
+        err.root_cause().to_string()
+    );
+
+    // check user1's adjusted balance
+    let user1_balance_before_extend = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user1.as_str(), None)
+        .unwrap();
+
+    // check user2's adjusted balance
+    let user2_balance_before_extend = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user2.as_str(), None)
+        .unwrap();
+
+    // extend delegation for user2
+    helper_controller
+        .delegation_helper
+        .extend_delegation(
+            &mut app,
+            user1.as_str(),
+            5000,
+            WEEK * 5,
+            "token_1".to_string(),
+        )
+        .unwrap();
+
+    // check user1's adjusted balance
+    let user1_balance_after_extend = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user1.as_str(), None)
+        .unwrap();
+
+    // check user1's delegated balance
+    let user1_delegated_balance = helper_controller
+        .delegation_helper
+        .delegated_balance(&mut app, user1.as_str(), None)
+        .unwrap();
+    assert_eq!(
+        user1_balance_after_extend,
+        user1_balance_before_extend - user1_delegated_balance
+    );
+
+    // check user2's adjusted balance
+    let user2_balance_after_extend = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user2.as_str(), None)
+        .unwrap();
+
+    assert_eq!(
+        user2_balance_after_extend,
+        user2_balance_before_extend + user1_delegated_balance
+    );
+
+    app.execute_contract(
+        Addr::unchecked(USER2),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::Withdraw {
+            lp_token: lp_cny_eur.to_string(),
+            amount: Uint128::new(5),
+        },
+        &[],
+    )
+    .unwrap();
+
+    check_pending_rewards(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        USER2,
+        (0, None),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        USER1,
+        (3_571_428, None),
+    );
+
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user1,
+        5_000_000,
+    );
+
+    // check user2's ASTRO balance after withdraw and checkpoint
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user2,
+        11_428_571,
+    );
+
+    // check virtual amount for user2 after withdraw
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user2,
+        5,
+    );
+
+    // check virtual amount for user1
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user1,
+        5,
+    );
+}
+
+#[test]
 fn test_boost_checkpoints() {
     let mut app = mock_app_helper();
     let owner = Addr::unchecked("owner");
@@ -558,6 +956,7 @@ fn update_config() {
         vesting_contract: Some(new_vesting.to_string()),
         generator_controller: None,
         guardian: None,
+        voting_escrow_delegation: None,
         voting_escrow: None,
         checkpoint_generator_limit: None,
     };
@@ -3580,6 +3979,7 @@ fn instantiate_generator(
         tokens_per_block: Uint128::new(10_000000),
         vesting_contract: vesting_instance.to_string(),
         generator_controller,
+        voting_escrow_delegation: None,
         voting_escrow: None,
         whitelist_code_id,
     };

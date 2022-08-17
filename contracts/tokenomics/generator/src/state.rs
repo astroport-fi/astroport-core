@@ -7,7 +7,7 @@ use astroport::{
     generator_proxy::QueryMsg as ProxyQueryMsg,
 };
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
-
+use astroport_governance::voting_escrow_delegation::get_adjusted_balance;
 use cosmwasm_std::{Addr, DepsMut, QuerierWrapper, StdResult, Storage, Uint128};
 
 use astroport::generator::Config;
@@ -175,8 +175,8 @@ pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
 /// - W is the total amount of vxASTRO
 pub(crate) fn update_virtual_amount(
     querier: QuerierWrapper,
+    cfg: &Config,
     generator_addr: &Addr,
-    voting_escrow: &Option<Addr>,
     pool: &mut PoolInfo,
     user_info: &mut UserInfoV2,
     account: &Addr,
@@ -185,8 +185,18 @@ pub(crate) fn update_virtual_amount(
     let mut user_vp = Uint128::zero();
     let mut total_vp = Uint128::zero();
 
-    if let Some(voting_escrow) = &voting_escrow {
-        user_vp = get_voting_power(&querier, voting_escrow, account)?;
+    if let Some(voting_escrow) = &cfg.voting_escrow {
+        if let Some(voting_delegation) = &cfg.voting_escrow_delegation {
+            user_vp = get_adjusted_balance(
+                &querier,
+                voting_delegation.to_string(),
+                account.to_string(),
+                None,
+            )?;
+        } else {
+            user_vp = get_voting_power(&querier, voting_escrow, account.to_string())?;
+        }
+
         total_vp = get_total_voting_power(&querier, voting_escrow)?;
     }
 

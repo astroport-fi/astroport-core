@@ -1,6 +1,6 @@
 [package]
 name = "astroport-generator"
-version = "2.0.0"
+version = "2.1.0"
 authors = ["Astroport"]
 edition = "2021"
 
@@ -45,6 +45,9 @@ astroport-whitelist = { path = "../../whitelist" }
 anyhow = "1"
 generator-controller = { git = "https://github.com/astroport-fi/astroport-governance.git" }
 voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance.git" }
+voting-escrow-delegation = { git = "https://github.com/astroport-fi/astroport-governance.git" }
+astroport-nft = { git = "https://github.com/astroport-fi/astroport-governance.git" }
+cw721-base = { version = "0.13", features = ["library"] }
 
 [dev-dependencies.astroport-generator_v120]
 git = "https://github.com/astroport-fi/astroport-core"
