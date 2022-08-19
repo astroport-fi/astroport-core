@@ -244,4 +244,4 @@ async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
     }
 }
 
-main().catch(console.log)
+await main()
