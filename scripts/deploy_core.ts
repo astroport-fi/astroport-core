@@ -16,7 +16,7 @@ const STAKING_LABEL = "Astroport Staking"
 const FACTORY_LABEL = "Astroport Factory"
 const ROUTER_LABEL = "Astroport Router"
 const MAKER_LABEL = "Astroport Maker"
-const WHITELIST_LABEL = "Astroport Treasury"
+const TREASURE_LABEL = "Astroport Treasury"
 
 async function main() {
     const { terra, wallet } = newClient()
@@ -138,7 +138,7 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                 token_code_id: network.tokenCodeID,
                 generator_address: undefined,
                 fee_address: undefined,
-                whitelist_code_id: network.whitelistCodeID
+                whitelist_code_id: network.treasuryCodeID
             },
             FACTORY_LABEL
         )
@@ -219,27 +219,27 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
 async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
-    if (!network.whitelistCodeID) {
+    if (!network.treasuryCodeID) {
         console.log('Register Treasury Contract...')
-        network.whitelistCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_whitelist.wasm')!)
+        network.treasuryCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_whitelist.wasm')!)
     }
 
-    if (!network.whitelistAddress) {
+    if (!network.treasuryAddress) {
         console.log('Instantiate the Treasury...')
         let resp = await instantiateContract(
             terra,
             wallet,
             network.multisigAddress,
-            network.whitelistCodeID,
+            network.treasuryCodeID,
             {
                 admins: [network.multisigAddress],
                 mutable: true
             },
-            WHITELIST_LABEL
+            TREASURE_LABEL
             );
         // @ts-ignore
-        network.whitelistAddress = resp.shift().shift()
-        console.log(`Whitelist Contract Address: ${network.whitelistAddress}`)
+        network.treasuryAddress = resp.shift().shift()
+        console.log(`Treasure Contract Address: ${network.treasuryAddress}`)
         writeArtifact(network, terra.config.chainID)
     }
 }
