@@ -19,7 +19,10 @@ members = [
     "contracts/tokenomics/xastro_token",
     "contracts/periphery/*",
 ]
-
+exclude = [
+    "contracts/pair_stable_bluna",
+    "contracts/tokenomics/generator_proxy_to_mirror",
+]
 [profile.release]
 opt-level = "z"
 debug = false
