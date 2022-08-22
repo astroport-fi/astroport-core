@@ -9,6 +9,7 @@ import {
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient} from '@terra-money/terra.js';
+import {configDefault} from "./types.d/deploy_configs";
 
 const ARTIFACTS_PATH = '../artifacts'
 
@@ -218,6 +219,7 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
 
 async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
+    let deployConfig: Config = configDefault
 
     if (!network.whitelistCodeID) {
         console.log('Register Treasury Contract...')
