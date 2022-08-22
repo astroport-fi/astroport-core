@@ -63,6 +63,11 @@ ls -l astroport_token.wasm
 sha256sum astroport_token.wasm
 ```
 
+## Branches
+
+We use [main](tree/main) branch for new features development whereas [release/terra1](tree/release/terra1) and [release/terra2](tree/release/terra2) branches are for stable releases.
+You can find actual deployed code in release/* branches.
+
 ## Docs
 
 Docs can be generated using `cargo doc --no-deps`
