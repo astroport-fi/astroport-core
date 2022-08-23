@@ -177,4 +177,4 @@ async function updateFactoryConfig(terra: LCDClient, wallet: any) {
     console.log(await queryContract(terra, network.factoryAddress, { config: {} }))
 }
 
-main().catch(console.log)
+await main()

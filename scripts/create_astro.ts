@@ -62,4 +62,5 @@ async function main() {
     console.log('FINISH')
 
 }
-main().catch(console.log)
+
+await main()
