@@ -41,6 +41,6 @@ pub fn execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    cw1_query(deps, _env, msg)
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    cw1_query(deps, env, msg)
 }
