@@ -16,7 +16,7 @@ const STAKING_LABEL = "Astroport Staking"
 const FACTORY_LABEL = "Astroport Factory"
 const ROUTER_LABEL = "Astroport Router"
 const MAKER_LABEL = "Astroport Maker"
-const TREASURE_LABEL = "Astroport Treasury"
+const TREASURY_LABEL = "Astroport Treasury"
 
 async function main() {
     const { terra, wallet } = newClient()
@@ -138,7 +138,7 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
                 token_code_id: network.tokenCodeID,
                 generator_address: undefined,
                 fee_address: undefined,
-                whitelist_code_id: network.treasuryCodeID
+                whitelist_code_id: network.whitelistCodeID
             },
             FACTORY_LABEL
         )
@@ -219,9 +219,9 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
 async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
-    if (!network.treasuryCodeID) {
+    if (!network.whitelistCodeID) {
         console.log('Register Treasury Contract...')
-        network.treasuryCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_whitelist.wasm')!)
+        network.whitelistCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_whitelist.wasm')!)
     }
 
     if (!network.treasuryAddress) {
@@ -230,16 +230,16 @@ async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
             terra,
             wallet,
             network.multisigAddress,
-            network.treasuryCodeID,
+            network.whitelistCodeID,
             {
                 admins: [network.multisigAddress],
                 mutable: true
             },
-            TREASURE_LABEL
+            TREASURY_LABEL
             );
         // @ts-ignore
         network.treasuryAddress = resp.shift().shift()
-        console.log(`Treasure Contract Address: ${network.treasuryAddress}`)
+        console.log(`Treasury Contract Address: ${network.treasuryAddress}`)
         writeArtifact(network, terra.config.chainID)
     }
 }

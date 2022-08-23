@@ -117,7 +117,7 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
                 tokens_per_block: String(8403094),
                 vesting_contract: network.vestingAddress,
                 factory: network.factoryAddress,
-                whitelist_code_id: network.treasuryCodeID,
+                whitelist_code_id: network.whitelistCodeID,
             },
             GENERATOR_LABEL
         )
