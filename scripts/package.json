@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@terra-money/terra.js": "^3.1.5",
+    "ajv": "^8.11.0",
     "bignumber.js": "^9.0.1",
     "dotenv": "^8.2.0",
     "isomorphic-fetch": "^3.0.0",

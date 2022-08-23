@@ -1,3 +1,8 @@
+interface TreasureInitMsg {
+    admins: string[],
+    mutable: boolean
+}
+
 interface StakingInitMsg {
     config: {
         token_code_id: number
@@ -61,6 +66,7 @@ interface RegisterVestingAccounts {
 }
 
 interface Config {
+    treasureInitMsg: TreasureInitMsg,
     factoryInitMsg: FactoryInitMsg,
     stakingInitMsg: StakingInitMsg,
     generatorInitMsg: GeneratorInitMsg,

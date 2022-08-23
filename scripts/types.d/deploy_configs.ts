@@ -1,4 +1,14 @@
+import Ajv from "ajv";
+const ajv = new Ajv();
+const schema = {
+
+}
+
 export const configDefault: Config = {
+    treasureInitMsg: {
+        admins: [],
+        mutable: false
+    },
     stakingInitMsg: {
         config: {
             token_code_id: 0,
