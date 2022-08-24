@@ -6,20 +6,21 @@ members = [
     "contracts/pair",
     "contracts/pair_stable",
     "contracts/pair_astro_xastro",
-    #"contracts/pair_stable_bluna", TODO: update this when bluna migrated to cosmwasm 1.0.0
     "contracts/router",
     "contracts/token",
     "contracts/whitelist",
     "templates/*",
     "contracts/tokenomics/generator",
-    #"contracts/tokenomics/generator_proxy_to_mirror", TODO: update this when mirror migrated to cosmwasm 1.0.0
     "contracts/tokenomics/maker",
     "contracts/tokenomics/staking",
     "contracts/tokenomics/vesting",
     "contracts/tokenomics/xastro_token",
     "contracts/periphery/*",
 ]
-
+exclude = [
+    "contracts/pair_stable_bluna", # TODO: update this when bluna migrated to cosmwasm 1.0.0
+    "contracts/tokenomics/generator_proxy_to_mirror", # TODO: update this when mirror migrated to cosmwasm 1.0.0
+]
 [profile.release]
 opt-level = "z"
 debug = false

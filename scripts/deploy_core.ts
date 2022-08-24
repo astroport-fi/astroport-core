@@ -191,7 +191,7 @@ async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
         network.whitelistCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_whitelist.wasm')!)
     }
 
-    if (!network.whitelistAddress) {
+    if (!network.treasuryAddress) {
         console.log('Instantiate the Treasury...')
         let resp = await instantiateContract(
             terra,
@@ -203,8 +203,8 @@ async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
             );
 
         // @ts-ignore
-        network.whitelistAddress = resp.shift().shift()
-        console.log(`Whitelist Contract Address: ${network.whitelistAddress}`)
+        network.treasuryAddress = resp.shift().shift()
+        console.log(`Treasury Contract Address: ${network.treasuryAddress}`)
         writeArtifact(network, terra.config.chainID)
     }
 }
@@ -308,4 +308,4 @@ async function setupPools(terra: LCDClient, wallet: any) {
     }
 }
 
-main().catch(console.log)
+await main()
