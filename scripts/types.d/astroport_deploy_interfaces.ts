@@ -25,6 +25,15 @@ interface Staking {
     label: string
 }
 
+interface PairConfig {
+    code_id: number,
+    pair_type: { xyk: {} } | { stable: {}},
+    total_fee_bps: number,
+    maker_fee_bps: number
+    is_disabled: false,
+    is_generator_disabled: false
+}
+
 interface Factory {
     admin: string,
     initMsg: {
@@ -64,13 +73,42 @@ interface Maker {
     label: string
 }
 
+type VestingAccountSchedule = {
+    start_point: {
+        time: string,
+        amount: string
+    },
+    end_point?: {
+        time: string,
+        amount: string
+    }
+}
+
+interface VestingAccount {
+    address: string
+    schedules: VestingAccountSchedule[]
+}
+
 interface Vesting {
     admin: string,
     initMsg: {
         owner: string,
         token_addr: string,
     },
-    label: string
+    label: string,
+    registration: {
+        msg: {
+            register_vesting_accounts: {
+                vesting_accounts: VestingAccount[]
+            }
+        },
+        amount: string
+    }
+}
+
+type Pools = {
+    lp_token: string,
+    alloc_point: string
 }
 
 interface Generator {
@@ -85,43 +123,47 @@ interface Generator {
         factory: string,
         whitelist_code_id: number,
     },
-    label: string
-}
-
-interface PairConfig {
-    code_id: number,
-    pair_type: { xyk: {} } | { stable: {}},
-    total_fee_bps: number,
-    maker_fee_bps: number
-    is_disabled: false,
-    is_generator_disabled: false
-}
-
-type PointDate = string
-type Amount = string
-
-type VestingAccountSchedule = {
-    start_point: {
-        time: PointDate,
-        amount: Amount
-    },
-    end_point?: {
-        time: PointDate,
-        amount: Amount
+    label: string,
+    registration: {
+        pools: Pools[],
+        change_owner: boolean,
+        propose_new_owner: {
+            owner: string,
+            expires_in: string
+        }
     }
 }
 
-interface VestingAccount {
-    address: string
-    schedules: VestingAccountSchedule[]
+type NativeAsset = {
+    native_token: {
+        denom: string,
+    }
 }
 
-interface RegisterVestingAccountsType {
-    vesting_accounts: VestingAccount[]
+type TokenAsset = {
+    token: {
+        contract_addr: string
+    }
 }
 
-interface RegisterVestingAccounts {
-    register_vesting_accounts: RegisterVestingAccountsType
+interface Pair {
+    identifier: string,
+    assetInfos: NativeAsset | TokenAsset[],
+    pairType: { xyk: {} } | { stable: {} },
+    initParams?: any,
+    initOracle?: boolean,
+    initGenerator?: {
+        generatorProxy: {
+            rewardContractAddr: string,
+            rewardTokenAddr: string,
+            artifactName: string
+        },
+        generatorAllocPoint: string
+    }
+}
+
+interface CreatePairs {
+    pairs: Pair[]
 }
 
 interface Config {
@@ -132,5 +174,5 @@ interface Config {
     maker: Maker,
     vesting: Vesting,
     generator: Generator,
-    registerVestingAccounts?: RegisterVestingAccounts
+    createPairs: CreatePairs
 }

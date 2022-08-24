@@ -12,6 +12,7 @@ import {LCDClient} from '@terra-money/terra.js';
 import {deployConfigs} from "./types.d/deploy_configs.js";
 
 const ARTIFACTS_PATH = '../artifacts'
+const SECONDS_DIVIDER: number = 60 * 60 * 24 // min, hour, day
 
 async function main() {
     const { terra, wallet } = newClient()
@@ -36,6 +37,8 @@ async function main() {
 
     await uploadAndInitVesting(terra, wallet)
     await uploadAndInitGenerator(terra, wallet)
+    await setupPools(terra, wallet)
+    await setupVesting(terra, wallet)
     console.log('FINISH')
 }
 
@@ -265,79 +268,44 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
     }
 }
 
-async function registerGenerator(terra: LCDClient, wallet: any, lp_token: string, alloc_point: string) {
+async function setupVesting(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
-    if (!network.generatorAddress) {
-        console.log(`Please deploy generator contract`)
-        return
+    if (!network.vestingAddress) {
+        throw new Error("Please deploy the vesting contract")
     }
 
-    await executeContract(terra, wallet, network.generatorAddress, {
-        setup_pools: {
-            pools: [[lp_token, alloc_point]]
-        }
-    })
-}
-
-async function setupVesting(terra: LCDClient, wallet: any, network: any) {
-    console.log('Setting Vesting...')
-
-    let msg = {
-        register_vesting_accounts: {
-            vesting_accounts: [
-                {
-                    address: network.generatorAddress,
-                    schedules: [
-                        {
-                            start_point: {
-                                time: 1640865600,
-                                amount: String("100") // 1% on total supply at once
-                            },
-                            end_point: {
-                                time: 1672401600,
-                                amount: String("10000")
-                            }
-                        }
-                    ]
-                }
-            ]
-        }
-    }
-
-    console.log('Register vesting accounts:', JSON.stringify(msg))
-
+    console.log('Register vesting accounts:', JSON.stringify(deployConfigs.vesting.registration.msg))
     await executeContract(terra, wallet, network.tokenAddress, {
         "send": {
             contract: network.vestingAddress,
-            amount: String("10000"),
-            msg: toEncodedBinary(msg)
+            amount: deployConfigs.vesting.registration.amount,
+            msg: toEncodedBinary(deployConfigs.vesting.registration.msg)
         }
     })
 }
 
 async function setupPools(terra: LCDClient, wallet: any) {
-    // setup pools
-    // await registerGenerator(terra, wallet, "terra17n5sunn88hpy965mzvt3079fqx3rttnplg779g", "28303")
-    // await registerGenerator(terra, wallet, "terra1m24f7k4g66gnh9f7uncp32p722v0kyt3q4l3u5", "24528")
-    // await registerGenerator(terra, wallet, "terra1htw7hm40ch0hacm8qpgd24sus4h0tq3hsseatl", "47169")
+    let network = readArtifact(terra.config.chainID)
 
+    if (!network.generatorAddress) {
+        throw new Error("Please deploy the generator contract")
+    }
 
-    // TESTNET
-    // await registerGenerator(terra, wallet, "terra1cs66g290h4x0pf6scmwm8904yc75l3m7z0lzjr", "28303")
-    // await registerGenerator(terra, wallet, "terra1q8aycvr54jarwhqvlr54jr2zqttctnefw7x37q", "24528")
-    // await registerGenerator(terra, wallet, "terra1jzutwpneltsys6t96vkdr2zrc6cg0ke4e6y3s0", "47169")
-
-    // await setupVesting(terra, wallet, network)
+    await executeContract(terra, wallet, network.generatorAddress, {
+        setup_pools: {
+            pools: deployConfigs.generator.registration.pools
+        }
+    })
 
     // Set new owner for generator
-    // network = readArtifact(terra.config.chainID) // reload variables
-    // console.log('Propose owner for generator. Onwership has to be claimed within 7 days')
-    // await executeContract(terra, wallet, network.generatorAddress, {
-    //     "propose_new_owner": {
-    //         owner: network.multisigAddress,
-    //         expires_in: 604800 // 7 days
-    //     }
-    // })
+    if (deployConfigs.generator.registration.change_owner) {
+        console.log('Propose owner for generator. Ownership has to be claimed within %s days',
+            Number(deployConfigs.generator.registration.propose_new_owner.expires_in) / SECONDS_DIVIDER)
+        await executeContract(terra, wallet, network.generatorAddress, {
+            "propose_new_owner": deployConfigs.generator.registration.propose_new_owner
+        })
+    }
 }
+
 main().catch(console.log)
