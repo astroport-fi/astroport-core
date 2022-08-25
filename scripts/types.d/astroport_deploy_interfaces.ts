@@ -50,11 +50,11 @@ interface Staking {
 
 interface PairConfig {
     code_id: number,
-    pair_type: { xyk: {} } | { stable: {}},
+    pair_type: { xyk: {} } | { stable: {} },
     total_fee_bps: number,
-    maker_fee_bps: number
-    is_disabled: false,
-    is_generator_disabled: false
+    maker_fee_bps: number,
+    is_disabled: boolean,
+    is_generator_disabled: boolean
 }
 
 interface Factory {
@@ -68,9 +68,10 @@ interface Factory {
         whitelist_code_id: number
     },
     label: string,
+    change_owner: boolean,
     proposeNewOwner: {
         owner: string,
-        expires_in: string
+        expires_in: number
     }
 }
 
@@ -130,8 +131,7 @@ interface Vesting {
 }
 
 type Pools = {
-    lp_token: string,
-    alloc_point: string
+    pool: string[],
 }
 
 interface Generator {
@@ -148,12 +148,12 @@ interface Generator {
     },
     label: string,
     registration: {
-        pools: Pools[],
-        change_owner: boolean,
-        propose_new_owner: {
-            owner: string,
-            expires_in: string
-        }
+        pools: string[][],
+    },
+    change_owner: boolean,
+    propose_new_owner: {
+        owner: string,
+        expires_in: number
     }
 }
 
