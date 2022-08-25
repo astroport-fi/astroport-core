@@ -105,7 +105,7 @@ async function createPools(terra: LCDClient, wallet: any) {
                 pair: {}
             })
 
-            // save liquidity token
+            // write liquidity token
             network[pool_lp_token_key] = pool_info.liquidity_token
 
             console.log(`Pair successfully created! Address: ${network[pool_pair_key]}`)

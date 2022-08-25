@@ -34,7 +34,7 @@ async function main() {
     await uploadAndInitVesting(terra, wallet)
     await uploadAndInitGenerator(terra, wallet)
     // await setupPools(terra, wallet)
-    await setupVesting(terra, wallet)
+    await setupVestingAccounts(terra, wallet)
     console.log('FINISH')
 }
 
@@ -47,18 +47,11 @@ async function uploadAndInitToken(terra: LCDClient, wallet: any) {
     }
 
     if (!network.tokenAddress) {
-        if (!deployConfigs.token.admin){
-            deployConfigs.token.admin = wallet.key.accAddress
-        }
-
-        if (!deployConfigs.token.initMsg.marketing.marketing){
-            deployConfigs.token.initMsg.marketing.marketing = wallet.key.accAddress
-        }
+        deployConfigs.token.admin ||= wallet.key.accAddress
+        deployConfigs.token.initMsg.marketing.marketing ||= wallet.key.accAddress
 
         for (let i=0; i<deployConfigs.token.initMsg.initial_balances.length; i++) {
-            if (!deployConfigs.token.initMsg.initial_balances[i].address) {
-                deployConfigs.token.initMsg.initial_balances[i].address = wallet.key.accAddress
-            }
+            deployConfigs.token.initMsg.initial_balances[i].address ||= wallet.key.accAddress
         }
 
         console.log('Deploying Token...')
@@ -112,17 +105,9 @@ async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
     }
 
     if (!network.stakingAddress) {
-        if (!deployConfigs.staking.initMsg.deposit_token_addr) {
-            deployConfigs.staking.initMsg.deposit_token_addr = network.tokenAddress
-        }
-
-        if (!deployConfigs.staking.initMsg.token_code_id) {
-            deployConfigs.staking.initMsg.token_code_id = network.xastroTokenCodeID
-        }
-
-        if (!deployConfigs.staking.admin) {
-            deployConfigs.staking.admin = deployConfigs.multisig.address
-        }
+        deployConfigs.staking.initMsg.deposit_token_addr ||= network.tokenAddress
+        deployConfigs.staking.initMsg.token_code_id ||= network.xastroTokenCodeID
+        deployConfigs.staking.admin ||= deployConfigs.multisig.address
 
         console.log('Deploying Staking...')
         let resp = await deployContract(
@@ -156,30 +141,19 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
         for (let i=0; i<deployConfigs.factory.initMsg.pair_configs.length; i++) {
             if (!deployConfigs.factory.initMsg.pair_configs[i].code_id) {
                 if ( JSON.stringify(deployConfigs.factory.initMsg.pair_configs[i].pair_type) === JSON.stringify({ xyk: {}}) ) {
-                    deployConfigs.factory.initMsg.pair_configs[i].code_id = network.pairCodeID;
+                    deployConfigs.factory.initMsg.pair_configs[i].code_id ||= network.pairCodeID;
                 }
 
                 if (JSON.stringify(deployConfigs.factory.initMsg.pair_configs[i].pair_type) === JSON.stringify({ stable: {}}) ) {
-                    deployConfigs.factory.initMsg.pair_configs[i].code_id = network.pairStableCodeID;
+                    deployConfigs.factory.initMsg.pair_configs[i].code_id ||= network.pairStableCodeID;
                 }
             }
         }
 
-        if (!deployConfigs.factory.initMsg.token_code_id) {
-            deployConfigs.factory.initMsg.token_code_id = network.tokenCodeID;
-        }
-
-        if (!deployConfigs.factory.initMsg.whitelist_code_id) {
-            deployConfigs.factory.initMsg.whitelist_code_id = network.whitelistCodeID;
-        }
-
-        if (!deployConfigs.factory.initMsg.owner) {
-            deployConfigs.factory.initMsg.owner = wallet.key.accAddress;
-        }
-
-        if (!deployConfigs.factory.admin) {
-            deployConfigs.factory.admin = wallet.key.accAddress;
-        }
+        deployConfigs.factory.initMsg.token_code_id ||= network.tokenCodeID;
+        deployConfigs.factory.initMsg.whitelist_code_id ||= network.whitelistCodeID;
+        deployConfigs.factory.initMsg.owner ||= wallet.key.accAddress;
+        deployConfigs.factory.admin ||= wallet.key.accAddress;
 
         let resp = await deployContract(
             terra,
@@ -210,13 +184,8 @@ async function uploadAndInitRouter(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.routerAddress) {
-        if (!deployConfigs.router.initMsg.astroport_factory) {
-            deployConfigs.router.initMsg.astroport_factory = network.factoryAddress
-        }
-
-        if (!deployConfigs.router.admin) {
-            deployConfigs.router.admin = wallet.key.accAddress;
-        }
+        deployConfigs.router.initMsg.astroport_factory ||= network.factoryAddress
+        deployConfigs.router.admin ||= wallet.key.accAddress;
 
         console.log('Deploying Router...')
         let resp = await deployContract(
@@ -239,21 +208,10 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.makerAddress) {
-        if (!deployConfigs.maker.initMsg.factory_contract) {
-            deployConfigs.maker.initMsg.factory_contract = network.factoryAddress;
-        }
-
-        if (!deployConfigs.maker.initMsg.staking_contract) {
-            deployConfigs.maker.initMsg.staking_contract = network.stakingAddress;
-        }
-
-        if (!deployConfigs.maker.initMsg.astro_token_contract) {
-            deployConfigs.maker.initMsg.astro_token_contract = network.tokenAddress;
-        }
-
-        if (!deployConfigs.maker.admin) {
-            deployConfigs.maker.admin = wallet.key.accAddress;
-        }
+        deployConfigs.maker.initMsg.factory_contract ||= network.factoryAddress;
+        deployConfigs.maker.initMsg.staking_contract ||= network.stakingAddress;
+        deployConfigs.maker.initMsg.astro_token_contract ||= network.tokenAddress;
+        deployConfigs.maker.admin ||= wallet.key.accAddress;
 
         console.log('Deploying Maker...')
         let resp = await deployContract(
@@ -289,6 +247,8 @@ async function uploadAndInitTreasury(terra: LCDClient, wallet: any) {
     }
 
     if (!network.treasuryAddress) {
+        deployConfigs.treasury.admin ||= wallet.key.accAddress;
+
         console.log('Instantiate the Treasury...')
         let resp = await instantiateContract(
             terra,
@@ -310,17 +270,9 @@ async function uploadAndInitVesting(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.vestingAddress) {
-        if (!deployConfigs.vesting.initMsg.token_addr) {
-            deployConfigs.vesting.initMsg.token_addr = network.tokenAddress;
-        }
-
-        if (!deployConfigs.vesting.initMsg.owner) {
-            deployConfigs.vesting.initMsg.owner = wallet.key.accAddress;
-        }
-
-        if (!deployConfigs.vesting.admin) {
-            deployConfigs.vesting.admin = wallet.key.accAddress;
-        }
+        deployConfigs.vesting.initMsg.token_addr ||= network.tokenAddress;
+        deployConfigs.vesting.initMsg.owner ||= wallet.key.accAddress;
+        deployConfigs.vesting.admin ||= wallet.key.accAddress;
 
         console.log('Deploying Vesting...')
         let resp = await deployContract(
@@ -343,29 +295,12 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.generatorAddress) {
-        if (!deployConfigs.generator.initMsg.astro_token) {
-            deployConfigs.generator.initMsg.astro_token = network.tokenAddress;
-        }
-
-        if (!deployConfigs.generator.initMsg.vesting_contract) {
-            deployConfigs.generator.initMsg.vesting_contract = network.vestingAddress;
-        }
-
-        if (!deployConfigs.generator.initMsg.factory){
-            deployConfigs.generator.initMsg.factory = network.factoryAddress;
-        }
-
-        if (!deployConfigs.generator.initMsg.whitelist_code_id) {
-            deployConfigs.generator.initMsg.whitelist_code_id = network.whitelistCodeID;
-        }
-
-        if (!deployConfigs.generator.initMsg.owner) {
-            deployConfigs.generator.initMsg.owner = wallet.key.accAddress;
-        }
-
-        if (!deployConfigs.generator.admin) {
-            deployConfigs.generator.admin = wallet.key.accAddress;
-        }
+        deployConfigs.generator.initMsg.astro_token ||= network.tokenAddress;
+        deployConfigs.generator.initMsg.vesting_contract ||= network.vestingAddress;
+        deployConfigs.generator.initMsg.factory ||= network.factoryAddress;
+        deployConfigs.generator.initMsg.whitelist_code_id ||= network.whitelistCodeID;
+        deployConfigs.generator.initMsg.owner ||= wallet.key.accAddress;
+        deployConfigs.generator.admin ||= wallet.key.accAddress;
 
         console.log('Deploying Generator...')
         let resp = await deployContract(
@@ -394,7 +329,7 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
     }
 }
 
-async function setupVesting(terra: LCDClient, wallet: any) {
+async function setupVestingAccounts(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.vestingAddress) {
