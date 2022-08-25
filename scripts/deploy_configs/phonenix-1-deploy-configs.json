@@ -1,23 +1,23 @@
 {
   "multisig": {
-    "address": ""
+    "address": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw"
   },
   "token": {
-    "admin": "terra...",
+    "admin": null,
     "initMsg": {
       "name": "Astroport",
       "symbol": "ASTRO",
       "decimals": 6,
       "initial_balances": [
         {
-          "address": "terra...",
+          "address": null,
           "amount": "1100000000000000"
         }
       ],
       "marketing": {
         "project": "Astroport",
         "description": "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
-        "marketing": "terra...",
+        "marketing": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
         "logo": {
           "url": "https://astroport.fi/astro_logo.svg"
         }
@@ -26,23 +26,23 @@
     "label": "Astroport ASTRO"
   },
   "treasury": {
-    "admin": "terra...",
+    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
     "initMsg": {
-      "admins": ["terra...", "terra.."],
+      "admins": ["terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw"],
       "mutable": true
     },
     "label": "Astroport Treasury"
   },
   "staking": {
-    "admin": "terra...",
+    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
     "initMsg": {
-      "owner": "terra...",
-      "token_code_id": 145,
-      "deposit_token_addr": "terra...",
+      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+      "token_code_id": null,
+      "deposit_token_addr": null,
       "marketing": {
         "project": "Astroport",
         "description": "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
-        "marketing": "terra...",
+        "marketing": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
         "logo": {
           "url": "https://app.astroport.fi/tokens/xAstro.svg"
         }
@@ -51,12 +51,12 @@
     "label": "Astroport Staking"
   },
   "factory": {
-    "admin": "terra...",
+    "admin": null,
     "initMsg": {
-      "owner": "terra...",
+      "owner": null,
       "pair_configs": [
         {
-          "code_id": 1,
+          "code_id": null,
           "pair_type": { "xyk": {} },
           "total_fee_bps": 30,
           "maker_fee_bps": 3333,
@@ -64,7 +64,7 @@
           "is_generator_disabled": false
         },
         {
-          "code_id": 1,
+          "code_id": null,
           "pair_type": { "stable": {} },
           "total_fee_bps": 5,
           "maker_fee_bps": 5000,
@@ -72,42 +72,43 @@
           "is_generator_disabled": false
         }
       ],
-      "token_code_id": 2,
-      "fee_address": "terra...",
-      "generator_address": "terra...",
-      "whitelist_code_id": 1234
+      "token_code_id": null,
+      "fee_address": null,
+      "generator_address": null,
+      "whitelist_code_id": null
     },
     "label": "Astroport Factory",
+    "change_owner": false,
     "propose_new_owner": {
-      "owner": "terra...",
+      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
       "expires_in": 604800
     }
   },
   "router": {
-    "admin": "terra...",
+    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
     "initMsg": {
-      "astroport_factory": "terra.."
+      "astroport_factory": null
     },
     "label": "Astroport Router"
   },
   "maker": {
-    "admin": "terra...",
+    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
     "initMsg": {
-      "owner": "terra...",
-      "factory_contract": "terra...",
-      "staking_contract": "terra...",
-      "astro_token_contract": "terra...",
-      "governance_contract": "terra...",
-      "governance_percent": "terra...",
+      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+      "factory_contract": null,
+      "staking_contract": null,
+      "astro_token_contract": null,
+      "governance_contract": null,
+      "governance_percent": null,
       "max_spread": "0.5"
     },
     "label": "Astroport Maker"
   },
   "vesting": {
-    "admin": "terra...",
+    "admin": null,
     "initMsg": {
-      "owner": "terra...",
-      "token_addr": "terra..."
+      "owner": null,
+      "token_addr": null
     },
     "label": "Astroport Vesting",
     "registration": {
@@ -115,7 +116,7 @@
         "register_vesting_accounts": {
           "vesting_accounts": [
             {
-              "address": "terra...",
+              "address": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
               "schedules": [
                 {
                   "start_point": {
@@ -132,54 +133,36 @@
           ]
         }
       },
-      "amount": "1000000"
+      "amount": "10000"
     }
   },
   "generator": {
-    "admin": "terra...",
+    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
     "initMsg": {
-      "owner": "terra...",
-      "allowed_reward_proxies": ["terra...", "terra..."],
-      "astro_token": "terra...",
-      "start_block": "terra...",
-      "tokens_per_block": "terra...",
-      "vesting_contract": "terra...",
-      "factory": "terra...",
-      "whitelist_code_id": 123
+      "owner": null,
+      "allowed_reward_proxies": [],
+      "astro_token": null,
+      "start_block": "5918639",
+      "tokens_per_block": "8403094",
+      "vesting_contract": null,
+      "factory": null,
+      "whitelist_code_id": null
     },
     "label": "Astroport Generator",
     "registration":{
       "pools": [
-        {
-          "lp_token": "terra17n5sunn88hpy965mzvt3079fqx3rttnplg779g",
-          "alloc_point": "28303"
-        },
-        {
-          "lp_token": "terra1m24f7k4g66gnh9f7uncp32p722v0kyt3q4l3u5",
-          "alloc_point": "24528"
-        },
-        {
-          "lp_token": "terra1htw7hm40ch0hacm8qpgd24sus4h0tq3hsseatl",
-          "alloc_point": "47169"
-        },
-        {
-          "lp_token": "terra1cs66g290h4x0pf6scmwm8904yc75l3m7z0lzjr",
-          "alloc_point": "28303"
-        },
-        {
-          "lp_token": "terra1q8aycvr54jarwhqvlr54jr2zqttctnefw7x37q",
-          "alloc_point": "24528"
-        },
-        {
-          "lp_token": "terra1jzutwpneltsys6t96vkdr2zrc6cg0ke4e6y3s0",
-          "alloc_point": "47169"
-        }
-      ],
-      "change_owner": false,
-      "propose_new_owner": {
-        "owner": "terra...",
-        "expires_in": "604800"
-      }
+        ["terra17n5sunn88hpy965mzvt3079fqx3rttnplg779g", "28303"],
+        ["terra1m24f7k4g66gnh9f7uncp32p722v0kyt3q4l3u5", "24528"],
+        ["terra1htw7hm40ch0hacm8qpgd24sus4h0tq3hsseatl", "47169"],
+        ["terra1cs66g290h4x0pf6scmwm8904yc75l3m7z0lzjr", "28303"],
+        ["terra1q8aycvr54jarwhqvlr54jr2zqttctnefw7x37q", "24528"],
+        ["terra1jzutwpneltsys6t96vkdr2zrc6cg0ke4e6y3s0", "47169"]
+      ]
+    },
+    "change_owner": false,
+    "propose_new_owner": {
+      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+      "expires_in": 604800
     }
   },
   "create_pairs": {
@@ -220,7 +203,7 @@
           "stable": {}
         },
         "initParams": {
-          "amp": "1"
+          "amp": 1
         }
       },
       {
