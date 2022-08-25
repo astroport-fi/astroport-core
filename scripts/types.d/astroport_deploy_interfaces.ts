@@ -1,3 +1,33 @@
+interface Multisig {
+    address: string
+}
+
+type InitialBalance = {
+    address: string,
+    amount: string
+}
+
+type Marketing = {
+    project: string,
+    description: string,
+    marketing: string,
+    logo: {
+        url: string
+    }
+}
+
+interface Token {
+    admin: string,
+    initMsg: {
+        name: string,
+        symbol: string,
+        decimals: number,
+        initial_balances: InitialBalance[],
+        marketing: Marketing
+    },
+    label: string
+}
+
 interface Treasury {
     admin: string,
     initMsg: {
@@ -13,14 +43,7 @@ interface Staking {
         owner: string,
         token_code_id: number,
         deposit_token_addr: string,
-        marketing: {
-            project: string,
-            description: string,
-            marketing: string,
-            logo: {
-                url: string
-            }
-        }
+        marketing: Marketing
     },
     label: string
 }
@@ -167,6 +190,7 @@ interface CreatePairs {
 }
 
 interface Config {
+    token: Token,
     treasury: Treasury,
     staking: Staking,
     factory: Factory,
@@ -174,5 +198,6 @@ interface Config {
     maker: Maker,
     vesting: Vesting,
     generator: Generator,
-    createPairs: CreatePairs
+    createPairs: CreatePairs,
+    multisig: Multisig
 }

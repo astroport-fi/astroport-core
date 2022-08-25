@@ -10,6 +10,7 @@ import {
 import { join } from 'path'
 import {LCDClient} from '@terra-money/terra.js';
 import {deployConfigs} from "./types.d/deploy_configs.js";
+import {strictEqual} from "assert";
 
 const ARTIFACTS_PATH = '../artifacts'
 const SECONDS_DIVIDER: number = 60 * 60 * 24 // min, hour, day
@@ -20,12 +21,13 @@ async function main() {
     let network = readArtifact(terra.config.chainID)
     console.log('network:', network)
 
-    if (!network.tokenAddress) {
-        throw new Error("Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...")
+    if (!deployConfigs.multisig.address) {
+        throw new Error("Set the proper owner multisig for the contracts")
     }
 
-    if (!network.multisigAddress) {
-        throw new Error("Set the proper owner multisig for the contracts")
+    await uploadAndInitToken(terra, wallet)
+    if (!network.tokenAddress) {
+        throw new Error("Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...")
     }
 
     await uploadAndInitTreasury(terra, wallet)
@@ -40,6 +42,49 @@ async function main() {
     await setupPools(terra, wallet)
     await setupVesting(terra, wallet)
     console.log('FINISH')
+}
+
+async function uploadAndInitToken(terra: LCDClient, wallet: any) {
+    let network = readArtifact(terra.config.chainID)
+
+    if (!network.tokenAddress) {
+        if (!deployConfigs.token.admin){
+            deployConfigs.token.admin = wallet.key.accAddress
+        }
+
+        if (!deployConfigs.token.initMsg.marketing.marketing){
+            deployConfigs.token.initMsg.marketing.marketing = wallet.key.accAddress
+        }
+
+        for (let i=0; i<deployConfigs.token.initMsg.initial_balances.length; i++) {
+            if (!deployConfigs.token.initMsg.initial_balances[i].address) {
+                deployConfigs.token.initMsg.initial_balances[i].address = wallet.key.accAddress
+            }
+        }
+
+        console.log('Deploying Token...')
+        let resp = await deployContract(
+            terra,
+            wallet,
+            deployConfigs.token.admin,
+            join(ARTIFACTS_PATH, 'astroport_token.wasm'),
+            deployConfigs.token.initMsg,
+            deployConfigs.token.label,
+        )
+
+        // @ts-ignore
+        network.tokenAddress = resp.shift().shift()
+        console.log("astro:", network.tokenAddress)
+        console.log(await queryContract(terra, network.tokenAddress, { token_info: {} }))
+        console.log(await queryContract(terra, network.tokenAddress, { minter: {} }))
+
+        for (let i=0; i<deployConfigs.token.initMsg.initial_balances.length; i++) {
+            let balance = await queryContract(terra, network.tokenAddress, { balance: { address: deployConfigs.token.initMsg.initial_balances[i].address } })
+            strictEqual(balance.balance, deployConfigs.token.initMsg.initial_balances[i].amount)
+        }
+
+        writeArtifact(network, terra.config.chainID)
+    }
 }
 
 async function uploadPairContracts(terra: LCDClient, wallet: any) {

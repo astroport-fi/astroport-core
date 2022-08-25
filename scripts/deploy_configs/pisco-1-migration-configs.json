@@ -1,0 +1,9 @@
+{
+  "contracts": [
+    {
+      "address": "terra13q7ekd3phju3emd4u84wsylzx0x24tg88rr8qe",
+      "name": "astroport_maker.wasm",
+      "message": {}
+    }
+  ]
+}

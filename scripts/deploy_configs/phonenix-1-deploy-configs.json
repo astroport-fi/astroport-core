@@ -1,0 +1,390 @@
+{
+  "multisig": {
+    "address": ""
+  },
+  "token": {
+    "admin": "terra...",
+    "initMsg": {
+      "name": "Astroport",
+      "symbol": "ASTRO",
+      "decimals": 6,
+      "initial_balances": [
+        {
+          "address": "terra...",
+          "amount": "1100000000000000"
+        }
+      ],
+      "marketing": {
+        "project": "Astroport",
+        "description": "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
+        "marketing": "terra...",
+        "logo": {
+          "url": "https://astroport.fi/astro_logo.svg"
+        }
+      }
+    },
+    "label": "Astroport ASTRO"
+  },
+  "treasury": {
+    "admin": "terra...",
+    "initMsg": {
+      "admins": ["terra...", "terra.."],
+      "mutable": true
+    },
+    "label": "Astroport Treasury"
+  },
+  "staking": {
+    "admin": "terra...",
+    "initMsg": {
+      "owner": "terra...",
+      "token_code_id": 145,
+      "deposit_token_addr": "terra...",
+      "marketing": {
+        "project": "Astroport",
+        "description": "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
+        "marketing": "terra...",
+        "logo": {
+          "url": "https://app.astroport.fi/tokens/xAstro.svg"
+        }
+      }
+    },
+    "label": "Astroport Staking"
+  },
+  "factory": {
+    "admin": "terra...",
+    "initMsg": {
+      "owner": "terra...",
+      "pair_configs": [
+        {
+          "code_id": 1,
+          "pair_type": { "xyk": {} },
+          "total_fee_bps": 30,
+          "maker_fee_bps": 3333,
+          "is_disabled": false,
+          "is_generator_disabled": false
+        },
+        {
+          "code_id": 1,
+          "pair_type": { "stable": {} },
+          "total_fee_bps": 5,
+          "maker_fee_bps": 5000,
+          "is_disabled": false,
+          "is_generator_disabled": false
+        }
+      ],
+      "token_code_id": 2,
+      "fee_address": "terra...",
+      "generator_address": "terra...",
+      "whitelist_code_id": 1234
+    },
+    "label": "Astroport Factory",
+    "propose_new_owner": {
+      "owner": "terra...",
+      "expires_in": 604800
+    }
+  },
+  "router": {
+    "admin": "terra...",
+    "initMsg": {
+      "astroport_factory": "terra.."
+    },
+    "label": "Astroport Router"
+  },
+  "maker": {
+    "admin": "terra...",
+    "initMsg": {
+      "owner": "terra...",
+      "factory_contract": "terra...",
+      "staking_contract": "terra...",
+      "astro_token_contract": "terra...",
+      "governance_contract": "terra...",
+      "governance_percent": "terra...",
+      "max_spread": "0.5"
+    },
+    "label": "Astroport Maker"
+  },
+  "vesting": {
+    "admin": "terra...",
+    "initMsg": {
+      "owner": "terra...",
+      "token_addr": "terra..."
+    },
+    "label": "Astroport Vesting",
+    "registration": {
+      "msg": {
+        "register_vesting_accounts": {
+          "vesting_accounts": [
+            {
+              "address": "terra...",
+              "schedules": [
+                {
+                  "start_point": {
+                    "time": 1640865600,
+                    "amount": "100"
+                  },
+                  "end_point": {
+                    "time": 1672401600,
+                    "amount": "10000"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "amount": "1000000"
+    }
+  },
+  "generator": {
+    "admin": "terra...",
+    "initMsg": {
+      "owner": "terra...",
+      "allowed_reward_proxies": ["terra...", "terra..."],
+      "astro_token": "terra...",
+      "start_block": "terra...",
+      "tokens_per_block": "terra...",
+      "vesting_contract": "terra...",
+      "factory": "terra...",
+      "whitelist_code_id": 123
+    },
+    "label": "Astroport Generator",
+    "registration":{
+      "pools": [
+        {
+          "lp_token": "terra17n5sunn88hpy965mzvt3079fqx3rttnplg779g",
+          "alloc_point": "28303"
+        },
+        {
+          "lp_token": "terra1m24f7k4g66gnh9f7uncp32p722v0kyt3q4l3u5",
+          "alloc_point": "24528"
+        },
+        {
+          "lp_token": "terra1htw7hm40ch0hacm8qpgd24sus4h0tq3hsseatl",
+          "alloc_point": "47169"
+        },
+        {
+          "lp_token": "terra1cs66g290h4x0pf6scmwm8904yc75l3m7z0lzjr",
+          "alloc_point": "28303"
+        },
+        {
+          "lp_token": "terra1q8aycvr54jarwhqvlr54jr2zqttctnefw7x37q",
+          "alloc_point": "24528"
+        },
+        {
+          "lp_token": "terra1jzutwpneltsys6t96vkdr2zrc6cg0ke4e6y3s0",
+          "alloc_point": "47169"
+        }
+      ],
+      "change_owner": false,
+      "propose_new_owner": {
+        "owner": "terra...",
+        "expires_in": "604800"
+      }
+    }
+  },
+  "create_pairs": {
+    "pairs": [
+      {
+        "identifier": "AstroUst",
+        "assetInfos": [
+        {
+          "token": {
+            "contract_addr": "terra1nsuqsk6kh58ulczatwev87ttq2z6r3pusulg9r24mfj2fvtzd4uq3exn26"
+          }
+        },
+        {
+          "native_token": {
+            "denom": "uusd"
+          }
+        }
+      ],
+        "pairType": {
+          "xyk": {}
+        }
+      },
+      {
+        "identifier": "BlunaLuna",
+        "assetInfos": [
+          {
+            "token": {
+              "contract_addr": "terra1kc87mu460fwkqte29rquh4hc20m54fxwtsx7gp"
+            }
+          },
+          {
+            "native_token": {
+              "denom": "uluna"
+            }
+          }
+        ],
+        "pairType": {
+          "stable": {}
+        },
+        "initParams": {
+          "amp": "1"
+        }
+      },
+      {
+        "identifier": "UstLuna",
+        "assetInfos": [
+          {
+            "native_token": {
+              "denom": "uusd"
+            }
+          },
+          {
+            "native_token": {
+              "denom": "uluna"
+            }
+          }
+        ],
+        "pairType": {
+          "xyk": {}
+        }
+      },
+      {
+        "identifier": "AncUst",
+        "assetInfos": [
+          {
+            "token": {
+              "contract_addr": "terra14z56l0fp2lsf86zy3hty2z47ezkhnthtr9yq76"
+            }
+          },
+          {
+            "native_token": {
+              "denom": "uusd"
+            }
+          }
+        ],
+        "pairType": {
+          "xyk": {}
+        }
+      },
+      {
+        "identifier": "UstMir",
+        "assetInfos": [
+          {
+            "native_token": {
+              "denom": "uusd"
+            }
+          },
+          {
+            "token": {
+              "contract_addr": "terra15gwkyepfc6xgca5t5zefzwy42uts8l2m4g40k6"
+            }
+          }
+        ],
+        "pairType": {
+          "xyk": {}
+        }
+      },
+      {
+        "identifier": "MineUst",
+        "assetInfos": [
+          {
+            "token": {
+              "contract_addr": "terra1kcthelkax4j9x8d3ny6sdag0qmxxynl3qtcrpy"
+            }
+          },
+          {
+            "native_token": {
+              "denom": "uusd"
+            }
+          }
+        ],
+        "pairType": {
+          "xyk": {}
+        }
+      },
+      {
+        "identifier": "OrionUst",
+        "assetInfos": [
+          {
+            "token": {
+              "contract_addr": "terra1mddcdx0ujx89f38gu7zspk2r2ffdl5enyz2u03"
+            }
+          },
+          {
+            "native_token": {
+              "denom": "uusd"
+            }
+          }
+        ],
+        "pairType": {
+          "xyk": {}
+        }
+      },
+      {
+        "identifier": "SttUst",
+        "assetInfos": [
+          {
+            "token": {
+              "contract_addr": "terra13xujxcrc9dqft4p9a8ls0w3j0xnzm6y2uvve8n"
+            }
+          },
+          {
+            "native_token": {
+              "denom": "uusd"
+            }
+          }
+        ],
+        "pairType": {
+          "xyk": {}
+        }
+      },
+      {
+        "identifier": "VkrUst",
+        "assetInfos": [
+          {
+            "token": {
+              "contract_addr": "terra1dy9kmlm4anr92e42mrkjwzyvfqwz66un00rwr5"
+            }
+          },
+          {
+            "native_token": {
+              "denom": "uusd"
+            }
+          }
+        ],
+        "pairType": {
+          "xyk": {}
+        }
+      },
+      {
+        "identifier": "PsiUst",
+        "assetInfos": [
+          {
+            "token": {
+              "contract_addr": "terra12897djskt9rge8dtmm86w654g7kzckkd698608"
+            }
+          },
+          {
+            "native_token": {
+              "denom": "uusd"
+            }
+          }
+        ],
+        "pairType": {
+          "xyk": {}
+        }
+      },
+      {
+        "identifier": "ApolloUst",
+        "assetInfos": [
+          {
+            "token": {
+              "contract_addr": "terra100yeqvww74h4yaejj6h733thgcafdaukjtw397"
+            }
+          },
+          {
+            "native_token": {
+              "denom": "uusd"
+            }
+          }
+        ],
+        "pairType": {
+          "xyk": {}
+        }
+      }
+    ]
+  }
+}
