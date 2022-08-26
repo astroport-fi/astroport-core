@@ -362,9 +362,9 @@ async function setupPools(terra: LCDClient, wallet: any) {
     // Set new owner for generator
     if (deployConfigs.generator.change_owner) {
         console.log('Propose owner for generator. Ownership has to be claimed within %s days',
-            Number(deployConfigs.generator.propose_new_owner.expires_in) / SECONDS_DIVIDER)
+            Number(deployConfigs.generator.proposeNewOwner.expires_in) / SECONDS_DIVIDER)
         await executeContract(terra, wallet, network.generatorAddress, {
-            "propose_new_owner": deployConfigs.generator.propose_new_owner
+            "propose_new_owner": deployConfigs.generator.proposeNewOwner
         })
     }
 }

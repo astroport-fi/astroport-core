@@ -1,6 +1,6 @@
 import {readArtifact} from "../helpers.js";
 
-let chainConfigs = readArtifact(`${process.env.CHAIN_ID}-deploy-configs`, 'deploy_configs');
+let chainConfigs = readArtifact(`${process.env.CHAIN_ID}`, 'deploy_configs');
 
 export const deployConfigs: Config = {
     token: chainConfigs.token,

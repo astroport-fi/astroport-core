@@ -79,7 +79,7 @@
     },
     "label": "Astroport Factory",
     "change_owner": false,
-    "propose_new_owner": {
+    "proposeNewOwner": {
       "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
       "expires_in": 604800
     }
@@ -160,7 +160,7 @@
       ]
     },
     "change_owner": false,
-    "propose_new_owner": {
+    "proposeNewOwner": {
       "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
       "expires_in": 604800
     }

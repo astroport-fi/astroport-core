@@ -1,6 +1,6 @@
 {
   "multisig": {
-    "address": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw"
+    "address": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp"
   },
   "token": {
     "admin": null,
@@ -17,7 +17,7 @@
       "marketing": {
         "project": "Astroport",
         "description": "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
-        "marketing": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+        "marketing": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
         "logo": {
           "url": "https://astroport.fi/astro_logo.svg"
         }
@@ -26,23 +26,23 @@
     "label": "Astroport ASTRO"
   },
   "treasury": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
     "initMsg": {
-      "admins": ["terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw"],
+      "admins": ["terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp"],
       "mutable": true
     },
     "label": "Astroport Treasury"
   },
   "staking": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
     "initMsg": {
-      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+      "owner": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
       "token_code_id": null,
-      "deposit_token_addr": null,
+      "deposit_token_addr": "",
       "marketing": {
         "project": "Astroport",
         "description": "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
-        "marketing": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+        "marketing": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
         "logo": {
           "url": "https://app.astroport.fi/tokens/xAstro.svg"
         }
@@ -79,22 +79,22 @@
     },
     "label": "Astroport Factory",
     "change_owner": false,
-    "propose_new_owner": {
-      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "proposeNewOwner": {
+      "owner": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
       "expires_in": 604800
     }
   },
   "router": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
     "initMsg": {
       "astroport_factory": null
     },
     "label": "Astroport Router"
   },
   "maker": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
     "initMsg": {
-      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+      "owner": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
       "factory_contract": null,
       "staking_contract": null,
       "astro_token_contract": null,
@@ -116,7 +116,7 @@
         "register_vesting_accounts": {
           "vesting_accounts": [
             {
-              "address": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+              "address": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
               "schedules": [
                 {
                   "start_point": {
@@ -137,10 +137,10 @@
     }
   },
   "generator": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
     "initMsg": {
       "owner": null,
-      "allowed_reward_proxies": ["terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw"],
+      "allowed_reward_proxies": [],
       "astro_token": null,
       "start_block": "5918639",
       "tokens_per_block": "8403094",
@@ -160,8 +160,8 @@
       ]
     },
     "change_owner": false,
-    "propose_new_owner": {
-      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "proposeNewOwner": {
+      "owner": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
       "expires_in": 604800
     }
   },
@@ -172,7 +172,7 @@
         "assetInfos": [
         {
           "token": {
-            "contract_addr": "terra167dsqkh2alurx997wmycw9ydkyu54gyswe3ygmrs4lwume3vmwks8ruqnv"
+            "contract_addr": "terra1hnekfwjel5nw4vpvawcjlmnaqhhdpxjt6hh5qwpjpxy6ksl3x0wsazh30q"
           }
         },
         {
@@ -207,16 +207,16 @@
         }
       },
       {
-        "identifier": "AstroLuna",
+        "identifier": "BlunaLuna",
         "assetInfos": [
           {
             "token": {
-              "contract_addr": "terra167dsqkh2alurx997wmycw9ydkyu54gyswe3ygmrs4lwume3vmwks8ruqnv"
+              "contract_addr": "terra1hnekfwjel5nw4vpvawcjlmnaqhhdpxjt6hh5qwpjpxy6ksl3x0wsazh30q"
             }
           },
           {
             "native_token": {
-              "denom": "uusd"
+              "denom": "uluna"
             }
           }
         ],

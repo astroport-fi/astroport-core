@@ -130,10 +130,6 @@ interface Vesting {
     }
 }
 
-type Pools = {
-    pool: string[],
-}
-
 interface Generator {
     admin: string,
     initMsg: {
@@ -151,7 +147,7 @@ interface Generator {
         pools: string[][],
     },
     change_owner: boolean,
-    propose_new_owner: {
+    proposeNewOwner: {
         owner: string,
         expires_in: number
     }
