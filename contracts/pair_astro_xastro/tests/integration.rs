@@ -143,6 +143,7 @@ fn instantiate_staking(app: &mut App, owner: Addr, token_instance: &Addr) -> (Ad
         owner: owner.to_string(),
         token_code_id: xastro_code_id,
         deposit_token_addr: token_instance.to_string(),
+        marketing: None,
     };
 
     let staking_instance = app
