@@ -1,6 +1,6 @@
 {
-  "multisig": {
-    "address": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw"
+  "generalInfo": {
+    "multisig": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp"
   },
   "token": {
     "admin": null,
@@ -165,6 +165,25 @@
       "expires_in": 604800
     }
   },
+  "generatorProxy": {
+    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "initMsg": {
+      "generator_contract_addr": null,
+      "pair_addr": null,
+      "lp_token_addr": null,
+      "reward_contract_addr": null,
+      "reward_token_addr": null
+    },
+    "label": "Astroport Generator Proxy"
+  },
+  "oracle": {
+    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "initMsg": {
+      "factory_contract": null,
+      "asset_infos": []
+    },
+    "label": "Astroport Oracle"
+  },
   "create_pairs": {
     "pairs": [
       {
@@ -183,6 +202,10 @@
       ],
         "pairType": {
           "xyk": {}
+        },
+        "initOracle": false,
+        "initGenerator": {
+          "generatorAllocPoint": "24528"
         }
       },
       {
@@ -204,6 +227,10 @@
         },
         "initParams": {
           "amp": 1
+        },
+        "initOracle": false,
+        "initGenerator": {
+          "generatorAllocPoint": "24528"
         }
       },
       {
@@ -222,6 +249,10 @@
         ],
         "pairType": {
           "xyk": {}
+        },
+        "initOracle": false,
+        "initGenerator": {
+          "generatorAllocPoint": "24528"
         }
       },
       {
@@ -240,6 +271,10 @@
         ],
         "pairType": {
           "xyk": {}
+        },
+        "initOracle": false,
+        "initGenerator": {
+          "generatorAllocPoint": "24528"
         }
       },
       {
@@ -258,6 +293,10 @@
         ],
         "pairType": {
           "xyk": {}
+        },
+        "initOracle": false,
+        "initGenerator": {
+          "generatorAllocPoint": "24528"
         }
       },
       {
@@ -276,6 +315,10 @@
         ],
         "pairType": {
           "xyk": {}
+        },
+        "initOracle": false,
+        "initGenerator": {
+          "generatorAllocPoint": "24528"
         }
       },
       {
@@ -294,6 +337,10 @@
         ],
         "pairType": {
           "xyk": {}
+        },
+        "initOracle": false,
+        "initGenerator": {
+          "generatorAllocPoint": "24528"
         }
       },
       {
@@ -312,6 +359,10 @@
         ],
         "pairType": {
           "xyk": {}
+        },
+        "initOracle": false,
+        "initGenerator": {
+          "generatorAllocPoint": "24528"
         }
       },
       {
@@ -330,6 +381,10 @@
         ],
         "pairType": {
           "xyk": {}
+        },
+        "initOracle": false,
+        "initGenerator": {
+          "generatorAllocPoint": "24528"
         }
       },
       {
@@ -348,6 +403,10 @@
         ],
         "pairType": {
           "xyk": {}
+        },
+        "initOracle": false,
+        "initGenerator": {
+          "generatorAllocPoint": "24528"
         }
       },
       {
@@ -366,6 +425,10 @@
         ],
         "pairType": {
           "xyk": {}
+        },
+        "initOracle": false,
+        "initGenerator": {
+          "generatorAllocPoint": "24528"
         }
       }
     ]

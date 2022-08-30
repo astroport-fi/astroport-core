@@ -10,18 +10,23 @@ import {
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient} from "@terra-money/terra.js";
-import {deployConfigs} from "./types.d/deploy_configs.js";
+import {chainConfigs} from "./types.d/chain_configs.js";
 
 async function uploadAndInitOracle(terra: LCDClient, wallet: any, pair: Pair, network: any, pool_pair_key: string) {
     let pool_oracle_key = "oracle" + pair.identifier
 
     if (pair.initOracle && network[pool_pair_key] && !network[pool_oracle_key]) {
-        console.log(`Deploying oracle for ${pair.identifier}...`)
+        chainConfigs.oracle.admin ||= chainConfigs.generalInfo.multisig
 
-        let resp = await deployContract(terra, wallet, network.multisigAddress, join(ARTIFACTS_PATH, 'astroport_oracle.wasm'), {
-            factory_contract: network.factoryAddress,
-            asset_infos: pair.assetInfos
-        }, "Astroport Oracle")
+        console.log(`Deploying oracle for ${pair.identifier}...`)
+        let resp = await deployContract(
+            terra,
+            wallet,
+            chainConfigs.oracle.admin,
+            join(ARTIFACTS_PATH, 'astroport_oracle.wasm'), {
+                factory_contract: network.factoryAddress,
+                asset_infos: pair.assetInfos
+            }, chainConfigs.oracle.label)
 
         // @ts-ignore
         network[pool_oracle_key] = resp.shift().shift();
@@ -34,18 +39,24 @@ async function uploadAndInitOracle(terra: LCDClient, wallet: any, pair: Pair, ne
 async function uploadAndInitGeneratorProxy(terra: LCDClient, wallet: any, pair: Pair, network: any, pool_pair_key: string, pool_lp_token_key: string) {
     if (network[pool_pair_key] && network[pool_lp_token_key] && pair.initGenerator) {
         let pool_generator_proxy_key = "generatorProxy" + pair.identifier
-        network[pool_generator_proxy_key] = undefined
 
         if (pair.initGenerator.generatorProxy) {
+            chainConfigs.generatorProxy.admin ||= chainConfigs.generalInfo.multisig
+            chainConfigs.generatorProxy.initMsg.generator_contract_addr ||= network.generatorAddress
+            chainConfigs.generatorProxy.initMsg.pair_addr ||= network[pool_pair_key]
+            chainConfigs.generatorProxy.initMsg.lp_token_addr ||= network[pool_lp_token_key]
+            chainConfigs.generatorProxy.initMsg.reward_contract_addr ||= pair.initGenerator.generatorProxy.rewardContractAddr
+            chainConfigs.generatorProxy.initMsg.reward_token_addr ||= pair.initGenerator.generatorProxy.rewardTokenAddr
+
             // Deploy proxy contract
             console.log(`Deploying generator proxy for ${pair.identifier}...`)
-            let resp = await deployContract(terra, wallet, network.multisigAddress, join(ARTIFACTS_PATH, pair.initGenerator.generatorProxy.artifactName), {
-                generator_contract_addr: network.generatorAddress,
-                pair_addr: network[pool_pair_key],
-                lp_token_addr: network[pool_lp_token_key],
-                reward_contract_addr: pair.initGenerator.generatorProxy.rewardContractAddr,
-                reward_token_addr: pair.initGenerator.generatorProxy.rewardTokenAddr
-            }, "Astroport Generator Proxy")
+            let resp = await deployContract(
+                terra,
+                wallet,
+                chainConfigs.generatorProxy.admin,
+                join(ARTIFACTS_PATH, pair.initGenerator.generatorProxy.artifactName),
+                chainConfigs.generatorProxy.initMsg,
+                chainConfigs.generatorProxy.label)
 
             // @ts-ignore
             network[pool_generator_proxy_key] = resp.shift().shift();
@@ -65,20 +76,12 @@ async function uploadAndInitGeneratorProxy(terra: LCDClient, wallet: any, pair: 
             })
 
         }
-
-        // To add the pool to the generator we need to set all active pools
-        // console.log(`Adding ${pair.identifier} to generator...`)
-        // await executeContract(terra, wallet, network.generatorAddress, {
-        //     setup_pools: {
-        //         pools: [[network[pool_lp_token_key], String(pair.initGenerator.generatorAllocPoint)]]
-        //     }
-        // })
     }
 }
 
 async function createPools(terra: LCDClient, wallet: any) {
     const network = readArtifact(terra.config.chainID)
-    let pairs = deployConfigs.createPairs.pairs;
+    let pairs = chainConfigs.createPairs.pairs;
 
     for (let i = 0; i < pairs.length; i++) {
         let pair = pairs[i]
@@ -88,15 +91,16 @@ async function createPools(terra: LCDClient, wallet: any) {
         // Create pool
         if (!network[pool_pair_key]) {
             console.log(`Creating pool ${pair.identifier}...`)
-            if (pair.initParams) {
-                pair.initParams = toEncodedBinary(pair.initParams)
+            let initParams = pair.initParams;
+            if (initParams) {
+                initParams = toEncodedBinary(initParams)
             }
 
             let res = await executeContract(terra, wallet, network.factoryAddress, {
                 create_pair: {
                     pair_type: pair.pairType,
                     asset_infos: pair.assetInfos,
-                    init_params: pair.initParams
+                    init_params: initParams
                 }
             })
 
@@ -107,16 +111,20 @@ async function createPools(terra: LCDClient, wallet: any) {
 
             // write liquidity token
             network[pool_lp_token_key] = pool_info.liquidity_token
-
             console.log(`Pair successfully created! Address: ${network[pool_pair_key]}`)
             writeArtifact(network, terra.config.chainID)
+
+            if (pair.initGenerator) {
+                chainConfigs.generator.registration.pools.push([pool_info.liquidity_token, pair.initGenerator.generatorAllocPoint]);
+                writeArtifact(chainConfigs, terra.config.chainID, "chain_configs");
+            }
         }
 
         // Deploy oracle
-        // await uploadAndInitOracle(terra, wallet, pair, network, pool_pair_key)
+        await uploadAndInitOracle(terra, wallet, pair, network, pool_pair_key)
 
         // Initialize generator proxy
-        // await uploadAndInitGeneratorProxy(terra, wallet, pair, network, pool_pair_key, pool_lp_token_key)
+        await uploadAndInitGeneratorProxy(terra, wallet, pair, network, pool_pair_key, pool_lp_token_key)
     }
 }
 

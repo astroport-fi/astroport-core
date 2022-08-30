@@ -1,5 +1,5 @@
-interface Multisig {
-    address: string
+interface GeneralInfo {
+    multisig: string
 }
 
 type InitialBalance = {
@@ -153,6 +153,18 @@ interface Generator {
     }
 }
 
+interface GeneratorProxy {
+    admin: string,
+    initMsg: {
+        generator_contract_addr: string,
+        pair_addr: string,
+        lp_token_addr: string,
+        reward_contract_addr: string,
+        reward_token_addr: string
+    },
+    label: string
+}
+
 type NativeAsset = {
     native_token: {
         denom: string,
@@ -167,12 +179,12 @@ type TokenAsset = {
 
 interface Pair {
     identifier: string,
-    assetInfos: NativeAsset | TokenAsset[],
+    assetInfos: (NativeAsset | TokenAsset)[],
     pairType: { xyk: {} } | { stable: {} },
     initParams?: any,
     initOracle?: boolean,
     initGenerator?: {
-        generatorProxy: {
+        generatorProxy?: {
             rewardContractAddr: string,
             rewardTokenAddr: string,
             artifactName: string
@@ -185,6 +197,15 @@ interface CreatePairs {
     pairs: Pair[]
 }
 
+interface Oracle {
+    admin: string,
+    initMsg: {
+        factory_contract: string,
+        asset_infos: (NativeAsset | TokenAsset)[]
+    },
+    label: string
+}
+
 interface Config {
     token: Token,
     treasury: Treasury,
@@ -194,6 +215,8 @@ interface Config {
     maker: Maker,
     vesting: Vesting,
     generator: Generator,
+    generatorProxy: GeneratorProxy,
     createPairs: CreatePairs,
-    multisig: Multisig
+    oracle: Oracle,
+    generalInfo: GeneralInfo
 }
