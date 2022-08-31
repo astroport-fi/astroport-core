@@ -33,7 +33,6 @@ async function main() {
 
     await uploadAndInitVesting(terra, wallet)
     await uploadAndInitGenerator(terra, wallet)
-    await setupPools(terra, wallet)
     await setupVestingAccounts(terra, wallet)
     console.log('FINISH')
 }
@@ -325,6 +324,15 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
             }
         })
 
+        // Set new owner for generator
+        if (chainConfigs.generator.change_owner) {
+            console.log('Propose owner for generator. Ownership has to be claimed within %s days',
+                Number(chainConfigs.generator.proposeNewOwner.expires_in) / SECONDS_IN_DAY)
+            await executeContract(terra, wallet, network.generatorAddress, {
+                "propose_new_owner": chainConfigs.generator.proposeNewOwner
+            })
+        }
+
         console.log(await queryContract(terra, network.factoryAddress, { config: {} }))
     }
 }
@@ -344,30 +352,6 @@ async function setupVestingAccounts(terra: LCDClient, wallet: any) {
             msg: toEncodedBinary(chainConfigs.vesting.registration.msg)
         }
     })
-}
-
-async function setupPools(terra: LCDClient, wallet: any) {
-    let network = readArtifact(terra.config.chainID)
-
-    if (!network.generatorAddress) {
-        throw new Error("Please deploy the generator contract")
-    }
-
-    console.log("Setup pools for the generator...")
-    await executeContract(terra, wallet, network.generatorAddress, {
-        setup_pools: {
-            pools: chainConfigs.generator.registration.pools
-        }
-    })
-
-    // Set new owner for generator
-    if (chainConfigs.generator.change_owner) {
-        console.log('Propose owner for generator. Ownership has to be claimed within %s days',
-            Number(chainConfigs.generator.proposeNewOwner.expires_in) / SECONDS_IN_DAY)
-        await executeContract(terra, wallet, network.generatorAddress, {
-            "propose_new_owner": chainConfigs.generator.proposeNewOwner
-        })
-    }
 }
 
 await main()

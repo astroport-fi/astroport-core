@@ -143,9 +143,6 @@ interface Generator {
         whitelist_code_id: number,
     },
     label: string,
-    registration: {
-        pools: string[][],
-    },
     change_owner: boolean,
     proposeNewOwner: {
         owner: string,

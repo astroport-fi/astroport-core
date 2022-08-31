@@ -82,6 +82,7 @@ async function uploadAndInitGeneratorProxy(terra: LCDClient, wallet: any, pair: 
 async function createPools(terra: LCDClient, wallet: any) {
     const network = readArtifact(terra.config.chainID)
     let pairs = chainConfigs.createPairs.pairs;
+    let pools: string[][] = [];
 
     for (let i = 0; i < pairs.length; i++) {
         let pair = pairs[i]
@@ -115,8 +116,7 @@ async function createPools(terra: LCDClient, wallet: any) {
             writeArtifact(network, terra.config.chainID)
 
             if (pair.initGenerator) {
-                chainConfigs.generator.registration.pools.push([pool_info.liquidity_token, pair.initGenerator.generatorAllocPoint]);
-                writeArtifact(chainConfigs, terra.config.chainID, "chain_configs");
+                pools.push([pool_info.liquidity_token, pair.initGenerator.generatorAllocPoint])
             }
         }
 
@@ -124,7 +124,31 @@ async function createPools(terra: LCDClient, wallet: any) {
         await uploadAndInitOracle(terra, wallet, pair, network, pool_pair_key)
 
         // Initialize generator proxy
-        await uploadAndInitGeneratorProxy(terra, wallet, pair, network, pool_pair_key, pool_lp_token_key)
+        //await uploadAndInitGeneratorProxy(terra, wallet, pair, network, pool_pair_key, pool_lp_token_key)
+    }
+
+    await setupPools(terra, wallet, pools)
+}
+
+async function setupPools(terra: LCDClient, wallet: any, pools: string[][]) {
+    let network = readArtifact(terra.config.chainID)
+
+    if (!network.generatorAddress) {
+        throw new Error("Please deploy the generator contract")
+    }
+
+    if (pools.length > 0) {
+        let active_pool_length = await queryContract(terra, network.generatorAddress, { active_pool_length: {}})
+        if (active_pool_length == 0) {
+            console.log("Setup pools for the generator...")
+            await executeContract(terra, wallet, network.generatorAddress, {
+                setup_pools: {
+                    pools: pools
+                }
+            })
+        } else {
+            console.log("You are cannot setup new pools because the generator has %s active pools already.", active_pool_length)
+        }
     }
 }
 
