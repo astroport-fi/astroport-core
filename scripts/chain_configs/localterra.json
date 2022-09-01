@@ -155,22 +155,6 @@
       "whitelist_code_id": null
     },
     "label": "Astroport Generator",
-    "registration": {
-      "pools": [
-        [
-          "terra1w6tf9skah5rrqa0fz8au42cxzsnkpnljzy332gzje78pr4jfrhuqguyyut",
-          "24528"
-        ],
-        [
-          "terra1xvv8csujjceldu45qy73lhsr5h6snhqhsv7sk53r46nxd2l40jgq4rk5fy",
-          "24528"
-        ],
-        [
-          "terra12yz3zgud9595e5u9hsdukupy6gxqyd0zdjkwa5dxem240r60x8ws6ka8dn",
-          "24528"
-        ]
-      ]
-    },
     "change_owner": false,
     "proposeNewOwner": {
       "owner": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
