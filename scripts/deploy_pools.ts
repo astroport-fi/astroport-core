@@ -31,6 +31,7 @@ async function uploadAndInitOracle(terra: LCDClient, wallet: any, pair: Pair, ne
         // @ts-ignore
         network[pool_oracle_key] = resp.shift().shift();
         console.log(`Address of ${pair.identifier} oracle contract: ${network[pool_oracle_key]}`)
+        writeArtifact(network, terra.config.chainID)
     }
 }
 
@@ -59,6 +60,7 @@ async function uploadAndInitGeneratorProxy(terra: LCDClient, wallet: any, pair: 
             // @ts-ignore
             network[pool_generator_proxy_key] = resp.shift().shift();
             console.log(`Address of ${pair.identifier} generator proxy contract ${network[pool_generator_proxy_key]}`)
+            writeArtifact(network, terra.config.chainID)
 
             // Set generator proxy as allowed
             let config = await queryContract(terra, network.generatorAddress, {
@@ -110,6 +112,7 @@ async function createPools(terra: LCDClient, wallet: any) {
             // write liquidity token
             network[pool_lp_token_key] = pool_info.liquidity_token
             console.log(`Pair successfully created! Address: ${network[pool_pair_key]}`)
+            writeArtifact(network, terra.config.chainID)
 
             if (pair.initGenerator) {
                 pools.push([pool_info.liquidity_token, pair.initGenerator.generatorAllocPoint])
@@ -123,7 +126,6 @@ async function createPools(terra: LCDClient, wallet: any) {
         await uploadAndInitGeneratorProxy(terra, wallet, pair, network, pool_pair_key, pool_lp_token_key)
     }
 
-    writeArtifact(network, terra.config.chainID)
     await setupPools(terra, wallet, pools)
 }
 
