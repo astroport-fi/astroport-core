@@ -50,7 +50,7 @@ async function uploadAndInitToken(terra: LCDClient, wallet: any) {
         chainConfigs.token.initMsg.marketing.marketing ||= chainConfigs.generalInfo.multisig
 
         for (let i=0; i<chainConfigs.token.initMsg.initial_balances.length; i++) {
-            chainConfigs.token.initMsg.initial_balances[i].address ||= wallet.key.accAddress
+            chainConfigs.token.initMsg.initial_balances[i].address ||= chainConfigs.generalInfo.multisig
         }
 
         console.log('Deploying Token...')
