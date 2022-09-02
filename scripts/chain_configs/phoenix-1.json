@@ -17,7 +17,7 @@
       "marketing": {
         "project": "Astroport",
         "description": "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
-        "marketing": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+        "marketing": null,
         "logo": {
           "url": "https://astroport.fi/astro_logo.svg"
         }
@@ -26,7 +26,7 @@
     "label": "Astroport ASTRO"
   },
   "treasury": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "admins": ["terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw"],
       "mutable": true
@@ -34,15 +34,15 @@
     "label": "Astroport Treasury"
   },
   "staking": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
-      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+      "owner": null,
       "token_code_id": null,
       "deposit_token_addr": null,
       "marketing": {
         "project": "Astroport",
         "description": "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
-        "marketing": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+        "marketing": null,
         "logo": {
           "url": "https://app.astroport.fi/tokens/xAstro.svg"
         }
@@ -92,9 +92,9 @@
     "label": "Astroport Router"
   },
   "maker": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
-      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+      "owner": null,
       "factory_contract": null,
       "staking_contract": null,
       "astro_token_contract": null,
@@ -137,7 +137,7 @@
     }
   },
   "generator": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "owner": null,
       "allowed_reward_proxies": [],
@@ -156,7 +156,7 @@
     }
   },
   "generatorProxy": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "generator_contract_addr": null,
       "pair_addr": null,
@@ -167,7 +167,7 @@
     "label": "Astroport Generator Proxy"
   },
   "oracle": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "factory_contract": null,
       "asset_infos": []
@@ -246,99 +246,11 @@
         }
       },
       {
-        "identifier": "AncUst",
-        "assetInfos": [
-          {
-            "token": {
-              "contract_addr": "terra14z56l0fp2lsf86zy3hty2z47ezkhnthtr9yq76"
-            }
-          },
-          {
-            "native_token": {
-              "denom": "uusd"
-            }
-          }
-        ],
-        "pairType": {
-          "xyk": {}
-        },
-        "initOracle": false,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      },
-      {
-        "identifier": "UstMir",
-        "assetInfos": [
-          {
-            "native_token": {
-              "denom": "uusd"
-            }
-          },
-          {
-            "token": {
-              "contract_addr": "terra15gwkyepfc6xgca5t5zefzwy42uts8l2m4g40k6"
-            }
-          }
-        ],
-        "pairType": {
-          "xyk": {}
-        },
-        "initOracle": false,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      },
-      {
         "identifier": "MineUst",
         "assetInfos": [
           {
             "token": {
               "contract_addr": "terra1kcthelkax4j9x8d3ny6sdag0qmxxynl3qtcrpy"
-            }
-          },
-          {
-            "native_token": {
-              "denom": "uusd"
-            }
-          }
-        ],
-        "pairType": {
-          "xyk": {}
-        },
-        "initOracle": false,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      },
-      {
-        "identifier": "OrionUst",
-        "assetInfos": [
-          {
-            "token": {
-              "contract_addr": "terra1mddcdx0ujx89f38gu7zspk2r2ffdl5enyz2u03"
-            }
-          },
-          {
-            "native_token": {
-              "denom": "uusd"
-            }
-          }
-        ],
-        "pairType": {
-          "xyk": {}
-        },
-        "initOracle": false,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      },
-      {
-        "identifier": "SttUst",
-        "assetInfos": [
-          {
-            "token": {
-              "contract_addr": "terra13xujxcrc9dqft4p9a8ls0w3j0xnzm6y2uvve8n"
             }
           },
           {

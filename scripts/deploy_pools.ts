@@ -17,16 +17,17 @@ async function uploadAndInitOracle(terra: LCDClient, wallet: any, pair: Pair, ne
 
     if (pair.initOracle && network[pool_pair_key] && !network[pool_oracle_key]) {
         chainConfigs.oracle.admin ||= chainConfigs.generalInfo.multisig
+        chainConfigs.oracle.initMsg.factory_contract ||= network.factoryAddress
+        chainConfigs.oracle.initMsg.asset_infos ||= pair.assetInfos
 
         console.log(`Deploying oracle for ${pair.identifier}...`)
         let resp = await deployContract(
             terra,
             wallet,
             chainConfigs.oracle.admin,
-            join(ARTIFACTS_PATH, 'astroport_oracle.wasm'), {
-                factory_contract: network.factoryAddress,
-                asset_infos: pair.assetInfos
-            }, chainConfigs.oracle.label)
+            join(ARTIFACTS_PATH, 'astroport_oracle.wasm'),
+            chainConfigs.oracle.initMsg,
+            chainConfigs.oracle.label)
 
         // @ts-ignore
         network[pool_oracle_key] = resp.shift().shift();

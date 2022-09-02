@@ -47,7 +47,7 @@ async function uploadAndInitToken(terra: LCDClient, wallet: any) {
 
     if (!network.tokenAddress) {
         chainConfigs.token.admin ||= chainConfigs.generalInfo.multisig
-        chainConfigs.token.initMsg.marketing.marketing ||= wallet.key.accAddress
+        chainConfigs.token.initMsg.marketing.marketing ||= chainConfigs.generalInfo.multisig
 
         for (let i=0; i<chainConfigs.token.initMsg.initial_balances.length; i++) {
             chainConfigs.token.initMsg.initial_balances[i].address ||= wallet.key.accAddress
@@ -106,6 +106,8 @@ async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
     if (!network.stakingAddress) {
         chainConfigs.staking.initMsg.deposit_token_addr ||= network.tokenAddress
         chainConfigs.staking.initMsg.token_code_id ||= network.xastroTokenCodeID
+        chainConfigs.staking.initMsg.marketing.marketing ||= chainConfigs.generalInfo.multisig
+        chainConfigs.staking.initMsg.owner ||= chainConfigs.generalInfo.multisig
         chainConfigs.staking.admin ||= chainConfigs.generalInfo.multisig
 
         console.log('Deploying Staking...')
@@ -207,6 +209,7 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.makerAddress) {
+        chainConfigs.maker.initMsg.owner ||= chainConfigs.generalInfo.multisig;
         chainConfigs.maker.initMsg.factory_contract ||= network.factoryAddress;
         chainConfigs.maker.initMsg.staking_contract ||= network.stakingAddress;
         chainConfigs.maker.initMsg.astro_token_contract ||= network.tokenAddress;
@@ -270,7 +273,7 @@ async function uploadAndInitVesting(terra: LCDClient, wallet: any) {
 
     if (!network.vestingAddress) {
         chainConfigs.vesting.initMsg.token_addr ||= network.tokenAddress;
-        chainConfigs.vesting.initMsg.owner ||= wallet.key.accAddress;
+        chainConfigs.vesting.initMsg.owner ||= chainConfigs.generalInfo.multisig;
         chainConfigs.vesting.admin ||= chainConfigs.generalInfo.multisig;
 
         console.log('Deploying Vesting...')

@@ -17,7 +17,7 @@
       "marketing": {
         "project": "Astroport",
         "description": "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
-        "marketing": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+        "marketing": null,
         "logo": {
           "url": "https://astroport.fi/astro_logo.svg"
         }
@@ -26,7 +26,7 @@
     "label": "Astroport ASTRO"
   },
   "treasury": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "admins": ["terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw"],
       "mutable": true
@@ -34,15 +34,15 @@
     "label": "Astroport Treasury"
   },
   "staking": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
-      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+      "owner": null,
       "token_code_id": null,
       "deposit_token_addr": null,
       "marketing": {
         "project": "Astroport",
         "description": "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
-        "marketing": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+        "marketing": null,
         "logo": {
           "url": "https://app.astroport.fi/tokens/xAstro.svg"
         }
@@ -85,16 +85,16 @@
     }
   },
   "router": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "astroport_factory": null
     },
     "label": "Astroport Router"
   },
   "maker": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
-      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+      "owner": null,
       "factory_contract": null,
       "staking_contract": null,
       "astro_token_contract": null,
@@ -137,10 +137,10 @@
     }
   },
   "generator": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "owner": null,
-      "allowed_reward_proxies": ["terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw"],
+      "allowed_reward_proxies": [],
       "astro_token": null,
       "start_block": "5918639",
       "tokens_per_block": "8403094",
@@ -156,7 +156,7 @@
     }
   },
   "generatorProxy": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "generator_contract_addr": null,
       "pair_addr": null,
@@ -167,7 +167,7 @@
     "label": "Astroport Generator Proxy"
   },
   "oracle": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "factory_contract": null,
       "asset_infos": []
