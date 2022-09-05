@@ -1,3 +1,4 @@
+use crate::xastro_token::InstantiateMarketingInfo;
 use cosmwasm_std::Addr;
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -12,6 +13,8 @@ pub struct InstantiateMsg {
     pub token_code_id: u64,
     /// The ASTRO token contract address
     pub deposit_token_addr: String,
+    /// the marketing info of type [`InstantiateMarketingInfo`]
+    pub marketing: Option<InstantiateMarketingInfo>,
 }
 
 /// This structure describes the execute messages available in the contract.

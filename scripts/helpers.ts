@@ -40,9 +40,9 @@ export function getRemoteFile(file: any, url: any) {
     });
 }
 
-export function readArtifact(name: string = 'artifact') {
+export function readArtifact(name: string = 'artifact', from: string = ARTIFACTS_PATH) {
     try {
-        const data = readFileSync(path.join(ARTIFACTS_PATH, `${name}.json`), 'utf8')
+        const data = readFileSync(path.join(from, `${name}.json`), 'utf8')
         return JSON.parse(data)
     } catch (e) {
         return {}
@@ -69,8 +69,8 @@ export function newClient(): Client {
     return client
 }
 
-export function writeArtifact(data: object, name: string = 'artifact') {
-    writeFileSync(path.join(ARTIFACTS_PATH, `${name}.json`), JSON.stringify(data, null, 2))
+export function writeArtifact(data: object, name: string = 'artifact', to: string = ARTIFACTS_PATH) {
+    writeFileSync(path.join(to, `${name}.json`), JSON.stringify(data, null, 2))
 }
 
 // Tequila lcd is load balanced, so txs can't be sent too fast, otherwise account sequence queries

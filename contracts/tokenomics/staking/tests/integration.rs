@@ -59,6 +59,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
         owner: owner.to_string(),
         token_code_id: astro_token_code_id,
         deposit_token_addr: astro_token_instance.to_string(),
+        marketing: None,
     };
     let staking_instance = router
         .instantiate_contract(

@@ -4,7 +4,7 @@ import {
     readArtifact,
     queryContractInfo,
     queryCodeInfo,
-    queryContractRaw, toEncodedBinary, toDecodedBinary, strToEncodedBinary
+    queryContractRaw, toDecodedBinary, strToEncodedBinary
 } from "./helpers.js"
 
 async function main() {
