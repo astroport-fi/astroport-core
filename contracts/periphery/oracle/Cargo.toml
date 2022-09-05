@@ -37,3 +37,4 @@ astroport-pair = {path = "../../pair" }
 astroport-pair-stable = {path = "../../pair_stable" }
 cw-multi-test = "0.13"
 itertools = "0.10"
+anyhow = "1.0.62"
