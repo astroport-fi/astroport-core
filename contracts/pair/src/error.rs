@@ -38,7 +38,7 @@ pub enum ContractError {
     #[error("Pair is not migrated to the new admin!")]
     PairIsNotMigrated {},
 
-    #[error("Insufficient amount for the provide liquidity of the pool.")]
+    #[error("Insufficient amount of liquidity to initially provide")]
     MinimumLiquidityAmountError {},
 }
 
