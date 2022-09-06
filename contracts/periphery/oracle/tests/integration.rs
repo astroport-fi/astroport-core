@@ -859,7 +859,7 @@ fn consult2() {
     )
     .unwrap_err();
     assert_eq!(
-        "Insufficient amount for the provide liquidity of the pool.",
+        "Insufficient amount of liquidity to initially provide",
         err.root_cause().to_string()
     );
 
@@ -882,7 +882,7 @@ fn consult2() {
     )
     .unwrap_err();
     assert_eq!(
-        "Insufficient amount for the provide liquidity of the pool.",
+        "Insufficient amount of liquidity to initially provide",
         err.root_cause().to_string()
     );
 
