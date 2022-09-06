@@ -4,8 +4,8 @@ use std::convert::TryInto;
 
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Decimal256,
-    Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError,
-    StdResult, SubMsg, Uint128, Uint256, WasmMsg,
+    Deps, DepsMut, Env, Fraction, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult,
+    SubMsg, Uint128, Uint256, WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -386,10 +386,10 @@ pub fn provide_liquidity(
         .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
 
         messages.extend(mint_liquidity_token_message(
-            deps.querier,
+            deps.as_ref(),
             &config,
-            &env.contract.address,
-            &env.contract.address,
+            env.clone(),
+            env.contract.address.clone(),
             MINIMUM_LIQUIDITY_AMOUNT,
             false,
         )?);
@@ -398,10 +398,6 @@ pub fn provide_liquidity(
         if share.is_zero() {
             return Err(ContractError::MinimumLiquidityAmountError {});
         };
-
-        if share.lt(&MINIMUM_LIQUIDITY_AMOUNT) {
-            return Err(ContractError::MinimumLiquidityAmountError {});
-        }
 
         share
     } else {
@@ -420,16 +416,13 @@ pub fn provide_liquidity(
     };
 
     // Mint LP tokens for the sender or for the receiver (if set)
-    let receiver = addr_validate_to_lower(
-        deps.api,
-        receiver.unwrap_or_else(|| info.sender.to_string()).as_str(),
-    )?;
+    let receiver = receiver.unwrap_or_else(|| info.sender.to_string());
 
     messages.extend(mint_liquidity_token_message(
-        deps.querier,
+        deps.as_ref(),
         &config,
-        &env.contract.address,
-        &receiver,
+        env.clone(),
+        addr_validate_to_lower(deps.api, receiver.as_str())?,
         share,
         auto_stake,
     )?);
@@ -469,14 +462,14 @@ pub fn provide_liquidity(
 /// * **auto_stake** is the field of type [`bool`]. Determines whether the newly minted LP tokens will
 /// be automatically staked in the Generator on behalf of the recipient.
 fn mint_liquidity_token_message(
-    querier: QuerierWrapper,
+    deps: Deps,
     config: &Config,
-    contract_address: &Addr,
-    recipient: &Addr,
+    env: Env,
+    recipient: Addr,
     amount: Uint128,
     auto_stake: bool,
 ) -> Result<Vec<CosmosMsg>, ContractError> {
-    let lp_token = &config.pair_info.liquidity_token;
+    let lp_token = config.pair_info.liquidity_token.clone();
 
     // If no auto-stake - just mint to recipient
     if !auto_stake {
@@ -491,31 +484,32 @@ fn mint_liquidity_token_message(
     }
 
     // Mint for the pair contract and stake into the Generator contract
-    let generator = query_factory_config(&querier, config.clone().factory_addr)?.generator_address;
+    let generator =
+        query_factory_config(&deps.querier, config.clone().factory_addr)?.generator_address;
 
-    if let Some(generator) = generator {
-        Ok(vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: lp_token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: contract_address.to_string(),
-                    amount,
-                })?,
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: lp_token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: generator.to_string(),
-                    amount,
-                    msg: to_binary(&GeneratorHookMsg::DepositFor(recipient.clone()))?,
-                })?,
-                funds: vec![],
-            }),
-        ])
-    } else {
-        Err(ContractError::AutoStakeError {})
+    if generator.is_none() {
+        return Err(ContractError::AutoStakeError {});
     }
+
+    Ok(vec![
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: lp_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Mint {
+                recipient: env.contract.address.to_string(),
+                amount,
+            })?,
+            funds: vec![],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: lp_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: generator.unwrap().to_string(),
+                amount,
+                msg: to_binary(&GeneratorHookMsg::DepositFor(recipient))?,
+            })?,
+            funds: vec![],
+        }),
+    ])
 }
 
 /// ## Description
