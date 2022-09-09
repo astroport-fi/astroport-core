@@ -39,10 +39,7 @@ pub enum ContractError {
     #[error("Generator address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
 
-    #[error(
-        "The initial LP share can not be less than {0}",
-        MINIMUM_LIQUIDITY_AMOUNT
-    )]
+    #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
     MinimumLiquidityAmountError {},
 
     #[error("Failed to migrate the contract")]
