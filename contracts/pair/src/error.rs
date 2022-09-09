@@ -1,3 +1,4 @@
+use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
 use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
@@ -38,7 +39,7 @@ pub enum ContractError {
     #[error("Pair is not migrated to the new admin!")]
     PairIsNotMigrated {},
 
-    #[error("Insufficient amount of liquidity to initially provide")]
+    #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
     MinimumLiquidityAmountError {},
 }
 

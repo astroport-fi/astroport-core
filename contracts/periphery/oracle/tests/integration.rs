@@ -859,7 +859,7 @@ fn consult2() {
     )
     .unwrap_err();
     assert_eq!(
-        "Insufficient amount of liquidity to initially provide",
+        "Initial liquidity must be more than 1000",
         err.root_cause().to_string()
     );
 
@@ -882,7 +882,7 @@ fn consult2() {
     )
     .unwrap_err();
     assert_eq!(
-        "Insufficient amount of liquidity to initially provide",
+        "Initial liquidity must be more than 1000",
         err.root_cause().to_string()
     );
 
