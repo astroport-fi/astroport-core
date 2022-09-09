@@ -385,9 +385,21 @@ pub fn provide_liquidity(
             (U256::from(deposits[0].u128()) * U256::from(deposits[1].u128()))
                 .integer_sqrt()
                 .as_u128(),
-        );
+        )
+        .checked_sub(MINIMUM_LIQUIDITY_AMOUNT)
+        .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
 
-        if share.lt(&MINIMUM_LIQUIDITY_AMOUNT) {
+        messages.extend(mint_liquidity_token_message(
+            deps.querier,
+            &config,
+            &env.contract.address,
+            &env.contract.address,
+            MINIMUM_LIQUIDITY_AMOUNT,
+            false,
+        )?);
+
+        // share cannot become zero after minimum liquidity subtraction
+        if share.is_zero() {
             return Err(ContractError::MinimumLiquidityAmountError {});
         }
 

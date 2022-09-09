@@ -39,10 +39,7 @@ pub enum ContractError {
     #[error("Pair is not migrated to the new admin!")]
     PairIsNotMigrated {},
 
-    #[error(
-        "The initial LP share can not be less than {0}",
-        MINIMUM_LIQUIDITY_AMOUNT
-    )]
+    #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
     MinimumLiquidityAmountError {},
 }
 

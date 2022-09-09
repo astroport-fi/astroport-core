@@ -1,8 +1,9 @@
+use anyhow::Result;
 use cosmwasm_std::{
     attr, to_binary, Addr, BlockInfo, Coin, Decimal, QueryRequest, StdResult, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{App, ContractWrapper, Executor};
+use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
@@ -225,6 +226,58 @@ fn check_balance(router: &mut App, user: Addr, token: Addr, expected_amount: Uin
     assert_eq!(balance.balance, expected_amount);
 }
 
+fn provide_liquidity(
+    mut router: &mut App,
+    owner: Addr,
+    user: Addr,
+    pair_info: &PairInfo,
+    assets: Vec<Asset>,
+) -> Result<AppResponse> {
+    let mut funds = vec![];
+
+    for a in assets.clone() {
+        match a.info {
+            AssetInfo::Token { contract_addr } => {
+                allowance_token(
+                    &mut router,
+                    user.clone(),
+                    pair_info.contract_addr.clone(),
+                    contract_addr.clone(),
+                    a.amount.clone(),
+                );
+            }
+            AssetInfo::NativeToken { denom } => {
+                funds.push(Coin {
+                    denom,
+                    amount: a.amount,
+                });
+            }
+        }
+    }
+
+    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
+    for fund in funds.clone() {
+        // we cannot transfer empty coins amount
+        if !fund.amount.is_zero() {
+            router
+                .send_tokens(owner.clone(), user.clone(), &[fund])
+                .unwrap();
+        }
+    }
+
+    router.execute_contract(
+        user.clone(),
+        pair_info.contract_addr.clone(),
+        &astroport::pair::ExecuteMsg::ProvideLiquidity {
+            assets,
+            slippage_tolerance: None,
+            auto_stake: None,
+            receiver: None,
+        },
+        &funds,
+    )
+}
+
 fn create_pair(
     mut router: &mut App,
     owner: Addr,
@@ -287,52 +340,6 @@ fn create_pair(
             })
             .unwrap(),
         }))
-        .unwrap();
-
-    let mut funds = vec![];
-
-    for a in assets.clone() {
-        match a.info {
-            AssetInfo::Token { contract_addr } => {
-                allowance_token(
-                    &mut router,
-                    user.clone(),
-                    pair_info.contract_addr.clone(),
-                    contract_addr.clone(),
-                    a.amount.clone(),
-                );
-            }
-            AssetInfo::NativeToken { denom } => {
-                funds.push(Coin {
-                    denom,
-                    amount: a.amount,
-                });
-            }
-        }
-    }
-
-    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
-    for fund in funds.clone() {
-        // we cannot transfer empty coins amount
-        if !fund.amount.is_zero() {
-            router
-                .send_tokens(owner.clone(), user.clone(), &[fund])
-                .unwrap();
-        }
-    }
-
-    router
-        .execute_contract(
-            user.clone(),
-            pair_info.contract_addr.clone(),
-            &astroport::pair::ExecuteMsg::ProvideLiquidity {
-                assets,
-                slippage_tolerance: None,
-                auto_stake: None,
-                receiver: None,
-            },
-            &funds,
-        )
         .unwrap();
 
     pair_info
@@ -529,22 +536,34 @@ fn consult() {
             contract_addr: astro_token_instance.clone(),
         },
     ];
-    create_pair(
+
+    let assets = vec![
+        Asset {
+            info: asset_infos[0].clone(),
+            amount: Uint128::from(100_000_u128),
+        },
+        Asset {
+            info: asset_infos[1].clone(),
+            amount: Uint128::from(100_000_u128),
+        },
+    ];
+
+    let pair_info = create_pair(
         &mut router,
         owner.clone(),
         user.clone(),
         &factory_instance,
-        vec![
-            Asset {
-                info: asset_infos[0].clone(),
-                amount: Uint128::from(100_000_u128),
-            },
-            Asset {
-                info: asset_infos[1].clone(),
-                amount: Uint128::from(100_000_u128),
-            },
-        ],
+        assets.clone(),
     );
+    provide_liquidity(
+        &mut router,
+        owner.clone(),
+        user.clone(),
+        &pair_info,
+        assets.clone(),
+    )
+    .unwrap();
+
     router.update_block(next_day);
     let pair_info: PairInfo = router
         .wrap()
@@ -803,11 +822,53 @@ fn consult2() {
             contract_addr: astro_token_instance.clone(),
         },
     ];
-    create_pair(
+
+    let pair_info = create_pair(
         &mut router,
         owner.clone(),
         user.clone(),
         &factory_instance,
+        vec![
+            Asset {
+                info: asset_infos[0].clone(),
+                amount: Uint128::from(2000_u128),
+            },
+            Asset {
+                info: asset_infos[1].clone(),
+                amount: Uint128::from(2000_u128),
+            },
+        ],
+    );
+
+    // try to provide less then 1000
+    let err = provide_liquidity(
+        &mut router,
+        owner.clone(),
+        user.clone(),
+        &pair_info,
+        vec![
+            Asset {
+                info: asset_infos[0].clone(),
+                amount: Uint128::from(100_u128),
+            },
+            Asset {
+                info: asset_infos[1].clone(),
+                amount: Uint128::from(100_u128),
+            },
+        ],
+    )
+    .unwrap_err();
+    assert_eq!(
+        "Initial liquidity must be more than 1000",
+        err.root_cause().to_string()
+    );
+
+    // try to provide MINIMUM_LIQUIDITY_AMOUNT
+    let err = provide_liquidity(
+        &mut router,
+        owner.clone(),
+        user.clone(),
+        &pair_info,
         vec![
             Asset {
                 info: asset_infos[0].clone(),
@@ -818,18 +879,33 @@ fn consult2() {
                 amount: Uint128::from(1000_u128),
             },
         ],
+    )
+    .unwrap_err();
+    assert_eq!(
+        "Initial liquidity must be more than 1000",
+        err.root_cause().to_string()
     );
+
+    // try to provide more then MINIMUM_LIQUIDITY_AMOUNT
+    provide_liquidity(
+        &mut router,
+        owner.clone(),
+        user.clone(),
+        &pair_info,
+        vec![
+            Asset {
+                info: asset_infos[0].clone(),
+                amount: Uint128::from(2000_u128),
+            },
+            Asset {
+                info: asset_infos[1].clone(),
+                amount: Uint128::from(2000_u128),
+            },
+        ],
+    )
+    .unwrap();
+
     router.update_block(next_day);
-    let pair_info: PairInfo = router
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
-                asset_infos: asset_infos.clone(),
-            })
-            .unwrap(),
-        }))
-        .unwrap();
 
     change_provide_liquidity(
         &mut router,
@@ -906,12 +982,12 @@ fn consult2() {
         (
             astro_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(750u128),
+            Uint128::from(800u128),
         ),
         (
             usdc_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(1333u128),
+            Uint128::from(1250u128),
         ),
     ] {
         let msg = Consult {
@@ -959,12 +1035,12 @@ fn consult2() {
         (
             astro_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(822u128),
+            Uint128::from(854u128),
         ),
         (
             usdc_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(1216u128),
+            Uint128::from(1170u128),
         ),
     ] {
         let msg = Consult {
@@ -1020,7 +1096,8 @@ fn consult_zero_price() {
             contract_addr: astro_token_instance.clone(),
         },
     ];
-    create_pair(
+
+    let pair_info = create_pair(
         &mut router,
         owner.clone(),
         user.clone(),
@@ -1036,6 +1113,25 @@ fn consult_zero_price() {
             },
         ],
     );
+
+    provide_liquidity(
+        &mut router,
+        owner.clone(),
+        user.clone(),
+        &pair_info,
+        vec![
+            Asset {
+                info: asset_infos[0].clone(),
+                amount: Uint128::from(100_000_000_000u128),
+            },
+            Asset {
+                info: asset_infos[1].clone(),
+                amount: Uint128::from(100_000_000_000u128),
+            },
+        ],
+    )
+    .unwrap();
+
     router.update_block(next_day);
     let msg = InstantiateMsg {
         factory_contract: factory_instance.to_string(),
@@ -1124,7 +1220,7 @@ fn consult_zero_price() {
         },
     ];
 
-    create_pair(
+    let pair_info = create_pair(
         &mut router,
         owner.clone(),
         user.clone(),
@@ -1140,6 +1236,24 @@ fn consult_zero_price() {
             },
         ],
     );
+
+    provide_liquidity(
+        &mut router,
+        owner.clone(),
+        user.clone(),
+        &pair_info,
+        vec![
+            Asset {
+                info: asset_infos[0].clone(),
+                amount: Uint128::from(100u8),
+            },
+            Asset {
+                info: asset_infos[1].clone(),
+                amount: Uint128::from(100_000_000_000u128),
+            },
+        ],
+    )
+    .unwrap();
 
     let oracle_instance = router
         .instantiate_contract(

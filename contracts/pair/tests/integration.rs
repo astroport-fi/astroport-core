@@ -203,13 +203,19 @@ fn test_provide_and_withdraw_liquidity() {
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 100000000u128.to_string())
+        attr("share", 99999000u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
-    assert_eq!(res.events[3].attributes[2], attr("to", "alice"));
+    assert_eq!(res.events[3].attributes[2], attr("to", "contract0"));
     assert_eq!(
         res.events[3].attributes[3],
-        attr("amount", 100000000.to_string())
+        attr("amount", 1000.to_string())
+    );
+    assert_eq!(res.events[5].attributes[1], attr("action", "mint"));
+    assert_eq!(res.events[5].attributes[2], attr("to", "alice"));
+    assert_eq!(
+        res.events[5].attributes[3],
+        attr("amount", 99999000.to_string())
     );
 
     // Provide liquidity for receiver

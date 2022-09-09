@@ -231,6 +231,7 @@ dependencies = [
 name = "astroport-oracle"
 version = "2.0.0"
 dependencies = [
+ "anyhow",
  "astroport 2.0.0",
  "astroport-factory",
  "astroport-pair",
