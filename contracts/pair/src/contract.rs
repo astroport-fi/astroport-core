@@ -394,7 +394,7 @@ pub fn provide_liquidity(
             false,
         )?);
 
-        // share is cannot be zero after subtracted minimum liquidity amount
+        // share cannot become zero after minimum liquidity subtraction
         if share.is_zero() {
             return Err(ContractError::MinimumLiquidityAmountError {});
         };
