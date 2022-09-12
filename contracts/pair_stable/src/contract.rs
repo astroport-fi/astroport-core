@@ -12,7 +12,10 @@ use cosmwasm_std::{
 };
 
 use crate::response::MsgInstantiateContractResponse;
-use astroport::asset::{addr_validate_to_lower, format_lp_token_name, Asset, AssetInfo, PairInfo};
+use astroport::asset::{
+    addr_validate_to_lower, format_lp_token_name, Asset, AssetInfo, PairInfo,
+    MINIMUM_LIQUIDITY_AMOUNT,
+};
 use astroport::factory::PairType;
 
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
@@ -426,7 +429,7 @@ pub fn provide_liquidity(
         )?;
 
         // Initial share = collateral amount
-        adjust_precision(
+        let share = adjust_precision(
             Uint128::new(
                 (U256::from(deposit_amount_0.u128()) * U256::from(deposit_amount_1.u128()))
                     .integer_sqrt()
@@ -435,6 +438,24 @@ pub fn provide_liquidity(
             greater_precision,
             liquidity_token_precision,
         )?
+        .checked_sub(MINIMUM_LIQUIDITY_AMOUNT)
+        .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
+
+        // share cannot become zero after minimum liquidity subtraction
+        if share.is_zero() {
+            return Err(ContractError::MinimumLiquidityAmountError {});
+        };
+
+        messages.extend(mint_liquidity_token_message(
+            deps.as_ref(),
+            &config,
+            env.clone(),
+            env.contract.address.clone(),
+            MINIMUM_LIQUIDITY_AMOUNT,
+            false,
+        )?);
+
+        share
     } else {
         let leverage = compute_current_amp(&config, &env)?
             .checked_mul(u64::from(N_COINS))
