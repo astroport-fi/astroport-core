@@ -480,15 +480,17 @@ pub fn provide_liquidity(
             return Err(ContractError::LiquidityAmountTooSmall {});
         }
 
-        total_share.multiply_ratio(
+        let share = total_share.multiply_ratio(
             d_after_addition_liquidity - d_before_addition_liquidity,
             d_before_addition_liquidity,
-        )
-    };
+        );
 
-    if share.is_zero() {
-        return Err(ContractError::LiquidityAmountTooSmall {});
-    }
+        if share.is_zero() {
+            return Err(ContractError::LiquidityAmountTooSmall {});
+        }
+
+        share
+    };
 
     // Mint LP token for the caller (or for the receiver if it was set)
     let receiver = receiver.unwrap_or_else(|| info.sender.to_string());
