@@ -190,7 +190,9 @@ fn provide_liquidity() {
     );
     let res = execute(deps.as_mut(), env.clone().clone(), info, msg).unwrap();
     let transfer_from_msg = res.messages.get(0).expect("no message");
-    let mint_msg = res.messages.get(1).expect("no message");
+    let mint_min_liquidity_msg = res.messages.get(1).expect("no message");
+    let mint_receiver_msg = res.messages.get(2).expect("no message");
+
     assert_eq!(
         transfer_from_msg,
         &SubMsg {
@@ -210,14 +212,34 @@ fn provide_liquidity() {
             reply_on: ReplyOn::Never
         }
     );
+
     assert_eq!(
-        mint_msg,
+        mint_min_liquidity_msg,
+        &SubMsg {
+            msg: WasmMsg::Execute {
+                contract_addr: String::from("liquidity0000"),
+                msg: to_binary(&Cw20ExecuteMsg::Mint {
+                    recipient: String::from(MOCK_CONTRACT_ADDR),
+                    amount: Uint128::from(1000_u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        }
+    );
+
+    assert_eq!(
+        mint_receiver_msg,
         &SubMsg {
             msg: WasmMsg::Execute {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(100_000000000000000000u128),
+                    amount: Uint128::from(99_999999999999999000u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -1260,9 +1282,9 @@ use sim::StableSwapModel;
 proptest! {
     #[test]
     fn constant_product_swap_no_fee(
-        balance_in in 100..1_000_000_000_000_000_000u128,
-        balance_out in 100..1_000_000_000_000_000_000u128,
-        amount_in in 100..100_000_000_000u128,
+        balance_in in 1000..1_000_000_000_000_000_000u128,
+        balance_out in 1000..1_000_000_000_000_000_000u128,
+        amount_in in 1000..100_000_000_000u128,
         amp in 1..150u64
     ) {
         prop_assume!(amount_in < balance_in);
