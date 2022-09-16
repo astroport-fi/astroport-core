@@ -16,7 +16,7 @@ use protobuf::Message;
 
 use astroport::asset::{
     addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset,
-    AssetInfo, Decimal256Ext, DecimalAsset, PairInfo,
+    AssetInfo, Decimal256Ext, DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::PairType;
@@ -496,8 +496,27 @@ pub fn provide_liquidity(
     let deposit_d = compute_d(amp, &new_balances, config.greatest_precision)?;
 
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
-    let mint_amount = if total_share.is_zero() {
-        deposit_d
+    let share = if total_share.is_zero() {
+        let share = deposit_d
+            .to_uint128_with_precision(config.greatest_precision)?
+            .checked_sub(MINIMUM_LIQUIDITY_AMOUNT)
+            .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
+
+        messages.extend(mint_liquidity_token_message(
+            deps.querier,
+            &config,
+            &env.contract.address,
+            &env.contract.address,
+            MINIMUM_LIQUIDITY_AMOUNT,
+            false,
+        )?);
+
+        // share cannot become zero after minimum liquidity subtraction
+        if share.is_zero() {
+            return Err(ContractError::MinimumLiquidityAmountError {});
+        }
+
+        share
     } else {
         // Get fee info from the factory
         let fee_info = query_fee_info(
@@ -526,15 +545,16 @@ pub fn provide_liquidity(
 
         let after_fee_d = compute_d(amp, &new_balances, config.greatest_precision)?;
 
-        Decimal256::with_precision(total_share, config.greatest_precision)?
+        let share = Decimal256::with_precision(total_share, config.greatest_precision)?
             .checked_multiply_ratio(after_fee_d.saturating_sub(init_d), init_d)?
+            .to_uint128_with_precision(config.greatest_precision)?;
+
+        if share.is_zero() {
+            return Err(ContractError::LiquidityAmountTooSmall {});
+        }
+
+        share
     };
-
-    let mint_amount = mint_amount.to_uint128_with_precision(config.greatest_precision)?;
-
-    if mint_amount.is_zero() {
-        return Err(ContractError::LiquidityAmountTooSmall {});
-    }
 
     // Mint LP token for the caller (or for the receiver if it was set)
     let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());
@@ -543,7 +563,7 @@ pub fn provide_liquidity(
         &config,
         &env.contract.address,
         &receiver,
-        mint_amount,
+        share,
         auto_stake,
     )?);
 
@@ -567,7 +587,7 @@ pub fn provide_liquidity(
         attr("sender", info.sender),
         attr("receiver", receiver),
         attr("assets", assets.iter().join(", ")),
-        attr("share", mint_amount),
+        attr("share", share),
     ]))
 }
 

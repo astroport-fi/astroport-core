@@ -31,7 +31,7 @@ fn provide_and_withdraw_no_fee() {
 
     helper.provide_liquidity(&user1, &assets).unwrap();
 
-    assert_eq!(300_000000, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(299999000, helper.token_balance(&helper.lp_token, &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[2], &user1));
@@ -69,14 +69,14 @@ fn provide_and_withdraw_no_fee() {
     assert_eq!(299_056292, helper.token_balance(&helper.lp_token, &user4));
 
     helper
-        .withdraw_liquidity(&user1, 300_000000, vec![])
+        .withdraw_liquidity(&user1, 299999000, vec![])
         .unwrap();
 
     assert_eq!(0, helper.token_balance(&helper.lp_token, &user1));
     // Previous imbalanced provides resulted in different share in assets
-    assert_eq!(150_164478, helper.coin_balance(&test_coins[0], &user1));
-    assert_eq!(100_109652, helper.coin_balance(&test_coins[1], &user1));
-    assert_eq!(50_054826, helper.coin_balance(&test_coins[2], &user1));
+    assert_eq!(150163977, helper.coin_balance(&test_coins[0], &user1));
+    assert_eq!(100109318, helper.coin_balance(&test_coins[1], &user1));
+    assert_eq!(50054659, helper.coin_balance(&test_coins[2], &user1));
 
     // Checking imbalanced withdraw. Withdrawing only the first asset x 300 with the whole amount of LP tokens
     helper
@@ -88,7 +88,7 @@ fn provide_and_withdraw_no_fee() {
         .unwrap();
 
     // Previous imbalanced provides resulted in small LP balance residual
-    assert_eq!(619388, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(619390, helper.token_balance(&helper.lp_token, &user2));
     assert_eq!(300_000000, helper.coin_balance(&test_coins[0], &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[2], &user2));
@@ -148,21 +148,38 @@ fn provide_with_different_precision() {
         helper.give_me_money(&assets, &user);
 
         helper.provide_liquidity(&user, &assets).unwrap();
-
-        assert_eq!(300_000000, helper.token_balance(&helper.lp_token, &user));
-        assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
-        assert_eq!(0, helper.coin_balance(&test_coins[1], &user));
-        assert_eq!(0, helper.coin_balance(&test_coins[2], &user));
-
-        helper
-            .withdraw_liquidity(&user, 300_000000, vec![])
-            .unwrap();
-
-        assert_eq!(0, helper.token_balance(&helper.lp_token, &user));
-        assert_eq!(100_0000, helper.coin_balance(&test_coins[0], &user));
-        assert_eq!(100_00000, helper.coin_balance(&test_coins[1], &user));
-        assert_eq!(100_000000, helper.coin_balance(&test_coins[2], &user));
     }
+
+    let user1 = Addr::unchecked("user1");
+
+    assert_eq!(299999000, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
+    assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
+    assert_eq!(0, helper.coin_balance(&test_coins[2], &user1));
+
+    helper
+        .withdraw_liquidity(&user1, 299999000, vec![])
+        .unwrap();
+
+    assert_eq!(0, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(999996, helper.coin_balance(&test_coins[0], &user1));
+    assert_eq!(9999966, helper.coin_balance(&test_coins[1], &user1));
+    assert_eq!(99999666, helper.coin_balance(&test_coins[2], &user1));
+
+    let user2 = Addr::unchecked("user2");
+    assert_eq!(300000000, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(0, helper.coin_balance(&test_coins[0], &user2));
+    assert_eq!(0, helper.coin_balance(&test_coins[1], &user2));
+    assert_eq!(0, helper.coin_balance(&test_coins[2], &user2));
+
+    helper
+        .withdraw_liquidity(&user2, 300000000, vec![])
+        .unwrap();
+
+    assert_eq!(0, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(1000000, helper.coin_balance(&test_coins[0], &user2));
+    assert_eq!(10000000, helper.coin_balance(&test_coins[1], &user2));
+    assert_eq!(100000000, helper.coin_balance(&test_coins[2], &user2));
 }
 
 #[test]
