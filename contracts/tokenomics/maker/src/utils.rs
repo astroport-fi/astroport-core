@@ -38,7 +38,7 @@ pub fn try_build_swap_msg(
     to: &AssetInfo,
     amount_in: Uint128,
 ) -> Result<SubMsg, ContractError> {
-    let pool = get_pool(querier, &cfg.factory_contract, from, to, Some(amount_in))?;
+    let (pool, _) = get_pool(querier, &cfg.factory_contract, from, to, Some(amount_in))?;
     let msg = build_swap_msg(querier, cfg.max_spread, &pool, from, Some(to), amount_in)?;
     Ok(msg)
 }
@@ -170,7 +170,7 @@ pub fn validate_bridge(
     amount: Option<Uint128>,
 ) -> Result<PairInfo, ContractError> {
     // Check if the bridge pool exists
-    let bridge_pool = get_pool(
+    let (bridge_pool, ret_amount) = get_pool(
         &deps.querier,
         factory_contract,
         from_token,
@@ -184,7 +184,7 @@ pub fn validate_bridge(
         factory_contract,
         bridge_token,
         astro_token,
-        amount,
+        ret_amount,
     );
     if astro_pool.is_err() {
         if depth >= BRIDGES_MAX_DEPTH {
@@ -211,7 +211,8 @@ pub fn validate_bridge(
 }
 
 /// # Description
-/// This function checks that there a pool to swap between `from` and `to`.
+/// This function checks that there a pool to swap between `from` and `to`. In case of success
+/// returns [`PairInfo`] of selected pool and simulated return amount.
 ///
 /// # Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -229,7 +230,7 @@ pub fn get_pool(
     from: &AssetInfo,
     to: &AssetInfo,
     amount: Option<Uint128>,
-) -> Result<PairInfo, ContractError> {
+) -> Result<(PairInfo, Option<Uint128>), ContractError> {
     // We use raw query to save gas
     let result = astroport::factory::ROUTE.query(
         querier,
@@ -238,7 +239,7 @@ pub fn get_pool(
     );
     match result {
         Ok(Some(pairs)) if !pairs.is_empty() => {
-            let (best_pair, _) = pairs
+            let (best_pair, sim_res) = pairs
                 .into_iter()
                 .map(|pair_contract| {
                     let sim_res: SimulationResponse = querier.query_wasm_smart(
@@ -260,9 +261,17 @@ pub fn get_pool(
                 })
                 .unwrap();
 
-            Ok(querier.query_wasm_smart(&best_pair, &astroport::pair::QueryMsg::Pair {})?)
+            Ok((
+                querier.query_wasm_smart(&best_pair, &astroport::pair::QueryMsg::Pair {})?,
+                Some(sim_res.return_amount),
+            ))
         }
-        _ => query_pair_info(querier, factory_contract, &[from.clone(), to.clone()])
-            .map_err(|_| ContractError::InvalidBridgeNoPool(from.to_string(), to.to_string())),
+        _ => {
+            let old_pair_info =
+                query_pair_info(querier, factory_contract, &[from.clone(), to.clone()]).map_err(
+                    |_| ContractError::InvalidBridgeNoPool(from.to_string(), to.to_string()),
+                )?;
+            Ok((old_pair_info, None))
+        }
     }
 }
