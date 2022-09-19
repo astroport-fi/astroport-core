@@ -380,6 +380,7 @@ fn swap(
             &bridge_token,
             &astro,
             BRIDGES_INITIAL_DEPTH,
+            Some(amount_in),
         )?;
 
         let msg = build_swap_msg(
@@ -799,6 +800,7 @@ fn update_bridges(
                 &bridge,
                 &astro,
                 BRIDGES_INITIAL_DEPTH,
+                None,
             )?;
 
             BRIDGES.save(deps.storage, asset.to_string(), &bridge)?;

@@ -158,6 +158,8 @@ pub fn build_distribute_msg(
 /// * **astro_token** is an object of type [`AssetInfo`] which represents $ASTRO.
 ///
 /// * **depth** is a value of type [`Uint128`]. This is the current recursion depth of the validation.
+///
+/// * **amount** is an amount of from_token.
 pub fn validate_bridge(
     deps: Deps,
     factory_contract: &Addr,
@@ -165,6 +167,7 @@ pub fn validate_bridge(
     bridge_token: &AssetInfo,
     astro_token: &AssetInfo,
     depth: u64,
+    amount: Option<Uint128>,
 ) -> Result<PairInfo, ContractError> {
     // Check if the bridge pool exists
     let bridge_pool = get_pool(
@@ -172,7 +175,7 @@ pub fn validate_bridge(
         factory_contract,
         from_token,
         bridge_token,
-        None,
+        amount,
     )?;
 
     // Check if the bridge token - ASTRO pool exists
@@ -181,7 +184,7 @@ pub fn validate_bridge(
         factory_contract,
         bridge_token,
         astro_token,
-        None,
+        amount,
     );
     if astro_pool.is_err() {
         if depth >= BRIDGES_MAX_DEPTH {
@@ -200,6 +203,7 @@ pub fn validate_bridge(
             &next_bridge_token,
             astro_token,
             depth + 1,
+            amount,
         )?;
     }
 
