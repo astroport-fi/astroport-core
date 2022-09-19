@@ -190,11 +190,11 @@ fn test_provide_and_withdraw_liquidity() {
             &[
                 Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::new(233u128),
+                    amount: Uint128::new(233_000u128),
                 },
                 Coin {
                     denom: "uluna".to_string(),
-                    amount: Uint128::new(200u128),
+                    amount: Uint128::new(200_000u128),
                 },
             ],
         )
@@ -229,11 +229,11 @@ fn test_provide_and_withdraw_liquidity() {
             &[
                 Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::new(100u128),
+                    amount: Uint128::new(100_000u128),
                 },
                 Coin {
                     denom: "uluna".to_string(),
-                    amount: Uint128::new(100u128),
+                    amount: Uint128::new(100_000u128),
                 },
             ],
         )
@@ -256,13 +256,21 @@ fn test_provide_and_withdraw_liquidity() {
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 400u128.to_string())
+        attr("share", 199200u128.to_string())
     );
+
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
-    assert_eq!(res.events[3].attributes[2], attr("to", "alice"));
+    assert_eq!(res.events[3].attributes[2], attr("to", "contract1"));
     assert_eq!(
         res.events[3].attributes[3],
-        attr("amount", 400u128.to_string())
+        attr("amount", 1000.to_string())
+    );
+
+    assert_eq!(res.events[5].attributes[1], attr("action", "mint"));
+    assert_eq!(res.events[5].attributes[2], attr("to", "alice"));
+    assert_eq!(
+        res.events[5].attributes[3],
+        attr("amount", 199200u128.to_string())
     );
 
     // Provide liquidity for a custom receiver

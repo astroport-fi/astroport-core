@@ -1,4 +1,5 @@
 use crate::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
+use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
 use cosmwasm_std::{CheckedMultiplyRatioError, ConversionOverflowError, OverflowError, StdError};
 use thiserror::Error;
 
@@ -79,6 +80,9 @@ pub enum ContractError {
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
+
+    #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
+    MinimumLiquidityAmountError {},
 }
 
 impl From<OverflowError> for ContractError {

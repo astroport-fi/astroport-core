@@ -203,7 +203,9 @@ fn provide_liquidity() {
     );
     let res = execute(deps.as_mut(), env.clone().clone(), info, msg).unwrap();
     let transfer_from_msg = res.messages.get(0).expect("no message");
-    let mint_msg = res.messages.get(1).expect("no message");
+    let mint_min_liquidity_msg = res.messages.get(1).expect("no message");
+    let mint_receiver_msg = res.messages.get(2).expect("no message");
+
     assert_eq!(
         transfer_from_msg,
         &SubMsg {
@@ -223,14 +225,34 @@ fn provide_liquidity() {
             reply_on: ReplyOn::Never
         }
     );
+
     assert_eq!(
-        mint_msg,
+        mint_min_liquidity_msg,
+        &SubMsg {
+            msg: WasmMsg::Execute {
+                contract_addr: String::from("liquidity0000"),
+                msg: to_binary(&Cw20ExecuteMsg::Mint {
+                    recipient: String::from(MOCK_CONTRACT_ADDR),
+                    amount: Uint128::from(1000_u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into(),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        }
+    );
+
+    assert_eq!(
+        mint_receiver_msg,
         &SubMsg {
             msg: WasmMsg::Execute {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(299_814_698_523_989_457_628u128),
+                    amount: Uint128::from(299_814_698_523_989_456_628u128),
                 })
                 .unwrap(),
                 funds: vec![],
