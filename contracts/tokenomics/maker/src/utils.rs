@@ -203,7 +203,7 @@ pub fn validate_bridge(
             &next_bridge_token,
             astro_token,
             depth + 1,
-            amount,
+            ret_amount,
         )?;
     }
 
