@@ -445,7 +445,7 @@ fn check_5pool_prices() {
                     })
                     .collect::<Vec<_>>();
                 assert_eq!(price.len(), 1);
-                //assert!(!price[0].2.is_zero());
+                assert!(!price[0].2.is_zero());
             });
     };
 

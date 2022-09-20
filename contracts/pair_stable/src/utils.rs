@@ -8,7 +8,7 @@ use std::cmp::Ordering;
 
 use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
 use astroport::pair::TWAP_PRECISION;
-use astroport::querier::{query_factory_config, query_supply};
+use astroport::querier::query_factory_config;
 
 use crate::error::ContractError;
 use crate::math::calc_y;
@@ -339,35 +339,31 @@ pub fn accumulate_prices(
         return Ok(());
     }
 
-    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+    let time_elapsed = Uint128::from(block_time - config.block_time_last);
 
-    if !total_share.is_zero() {
-        let time_elapsed = Uint128::from(block_time - config.block_time_last);
+    let immut_config = config.clone();
+    for (from, to, value) in config.cumulative_prices.iter_mut() {
+        let offer_asset = DecimalAsset {
+            info: from.clone(),
+            amount: Decimal256::one(),
+        };
 
-        let immut_config = config.clone();
-        for (from, to, value) in config.cumulative_prices.iter_mut() {
-            let offer_asset = DecimalAsset {
-                info: from.clone(),
-                amount: Decimal256::one(),
-            };
+        let (offer_pool, ask_pool) = select_pools(Some(from), Some(to), pools)?;
+        let SwapResult { return_amount, .. } = compute_swap(
+            deps.storage,
+            &env,
+            &immut_config,
+            &offer_asset,
+            &offer_pool,
+            &ask_pool,
+            pools,
+        )?;
 
-            let (offer_pool, ask_pool) = select_pools(Some(from), Some(to), pools)?;
-            let SwapResult { return_amount, .. } = compute_swap(
-                deps.storage,
-                &env,
-                &immut_config,
-                &offer_asset,
-                &offer_pool,
-                &ask_pool,
-                pools,
-            )?;
-
-            *value = value.wrapping_add(time_elapsed.checked_mul(adjust_precision(
-                return_amount,
-                get_precision(deps.storage, &ask_pool.info)?,
-                TWAP_PRECISION,
-            )?)?);
-        }
+        *value = value.wrapping_add(time_elapsed.checked_mul(adjust_precision(
+            return_amount,
+            get_precision(deps.storage, &ask_pool.info)?,
+            TWAP_PRECISION,
+        )?)?);
     }
 
     config.block_time_last = block_time;

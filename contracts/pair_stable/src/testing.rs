@@ -1261,7 +1261,7 @@ fn test_accumulate_prices() {
         let (case, result) = test_case;
         let asset_x = native_asset_info("uusd".to_string());
         let asset_y = native_asset_info("uluna".to_string());
-        //let mut deps = mock_dependencies(&[]);
+
         store_precisions(deps.as_mut(), &[asset_x.clone(), asset_y.clone()]).unwrap();
 
         let cumulative_prices = vec![

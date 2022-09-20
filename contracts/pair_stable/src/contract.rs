@@ -1257,8 +1257,10 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
         })
         .collect::<StdResult<Vec<DecimalAsset>>>()?;
 
-    accumulate_prices(deps, env, &mut config, &decimal_assets)
-        .map_err(|err| StdError::generic_err(format!("{err}")))?;
+    if !total_share.is_zero() {
+        accumulate_prices(deps, env, &mut config, &decimal_assets)
+            .map_err(|err| StdError::generic_err(format!("{err}")))?;
+    }
 
     Ok(CumulativePricesResponse {
         assets,
