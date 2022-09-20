@@ -1144,6 +1144,53 @@ fn test_query_share() {
 
 #[test]
 fn test_accumulate_prices() {
+    let total_share_amount = Uint128::zero();
+    let asset_0_amount = Uint128::from(1000u128);
+    let asset_1_amount = Uint128::from(1000u128);
+    let mut deps = mock_dependencies(&[Coin {
+        denom: "uusd".to_string(),
+        amount: asset_0_amount,
+    }]);
+
+    deps.querier.with_token_balances(&[
+        (
+            &String::from("asset0000"),
+            &[(&String::from(MOCK_CONTRACT_ADDR), &asset_1_amount)],
+        ),
+        (
+            &String::from("liquidity0000"),
+            &[(&String::from(MOCK_CONTRACT_ADDR), &total_share_amount)],
+        ),
+    ]);
+
+    let msg = InstantiateMsg {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked("asset0000"),
+            },
+        ],
+        token_code_id: 10u64,
+        factory_addr: String::from("factory"),
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
+    };
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+    // We can just call .unwrap() to assert this was a success
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+
+    // Store the liquidity token
+    store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
+
     struct Case {
         block_time: u64,
         block_time_last: u64,
@@ -1214,7 +1261,7 @@ fn test_accumulate_prices() {
         let (case, result) = test_case;
         let asset_x = native_asset_info("uusd".to_string());
         let asset_y = native_asset_info("uluna".to_string());
-        let mut deps = mock_dependencies(&[]);
+        //let mut deps = mock_dependencies(&[]);
         store_precisions(deps.as_mut(), &[asset_x.clone(), asset_y.clone()]).unwrap();
 
         let cumulative_prices = vec![
@@ -1232,7 +1279,7 @@ fn test_accumulate_prices() {
             pair_info: PairInfo {
                 asset_infos: vec![asset_x, asset_y],
                 contract_addr: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                liquidity_token: Addr::unchecked("lp_token"),
+                liquidity_token: Addr::unchecked("liquidity0000"),
                 pair_type: PairType::Stable {},
             },
             factory_addr: Addr::unchecked("factory"),

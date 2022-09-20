@@ -8,7 +8,7 @@ use std::cmp::Ordering;
 
 use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
 use astroport::pair::TWAP_PRECISION;
-use astroport::querier::query_factory_config;
+use astroport::querier::{query_factory_config, query_supply};
 
 use crate::error::ContractError;
 use crate::math::calc_y;
@@ -336,6 +336,12 @@ pub fn accumulate_prices(
 ) -> Result<(), ContractError> {
     let block_time = env.block.time.seconds();
     if block_time <= config.block_time_last {
+        return Ok(());
+    }
+
+    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+    if !total_share.is_zero() {
+        config.block_time_last = block_time;
         return Ok(());
     }
 
