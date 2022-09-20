@@ -1144,7 +1144,7 @@ fn test_query_share() {
 
 #[test]
 fn test_accumulate_prices() {
-    let total_share_amount = Uint128::zero();
+    let total_share_amount = Uint128::from(500u128);
     let asset_0_amount = Uint128::from(1000u128);
     let asset_1_amount = Uint128::from(1000u128);
     let mut deps = mock_dependencies(&[Coin {
