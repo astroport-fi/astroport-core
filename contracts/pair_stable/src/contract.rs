@@ -1151,16 +1151,18 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
     let mut price0_cumulative_last = config.price0_cumulative_last;
     let mut price1_cumulative_last = config.price1_cumulative_last;
 
-    if let Some((price0_cumulative_new, price1_cumulative_new, _)) = accumulate_prices(
-        env,
-        &config,
-        assets[0].amount,
-        query_token_precision(&deps.querier, assets[0].info.clone())?,
-        assets[1].amount,
-        query_token_precision(&deps.querier, assets[1].info.clone())?,
-    )? {
-        price0_cumulative_last = price0_cumulative_new;
-        price1_cumulative_last = price1_cumulative_new;
+    if !total_share.is_zero() {
+        if let Some((price0_cumulative_new, price1_cumulative_new, _)) = accumulate_prices(
+            env,
+            &config,
+            assets[0].amount,
+            query_token_precision(&deps.querier, assets[0].info.clone())?,
+            assets[1].amount,
+            query_token_precision(&deps.querier, assets[1].info.clone())?,
+        )? {
+            price0_cumulative_last = price0_cumulative_new;
+            price1_cumulative_last = price1_cumulative_new;
+        }
     }
 
     let resp = CumulativePricesResponse {
