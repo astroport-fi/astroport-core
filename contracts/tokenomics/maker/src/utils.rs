@@ -3,7 +3,6 @@ use crate::state::{Config, BRIDGES};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::maker::ExecuteMsg;
 use astroport::pair::{Cw20HookMsg, SimulationResponse};
-use astroport::querier::query_pair_info;
 use cosmwasm_std::{
     to_binary, Addr, Decimal, Deps, Env, QuerierWrapper, StdResult, SubMsg, Uint128, WasmMsg,
 };
@@ -236,9 +235,9 @@ pub fn get_pool(
         querier,
         factory_contract.clone(),
         (from.to_string(), to.to_string()),
-    );
+    )?;
     match result {
-        Ok(Some(pairs)) if !pairs.is_empty() => {
+        Some(pairs) if !pairs.is_empty() => {
             let (best_pair, sim_res) = pairs
                 .into_iter()
                 .map(|pair_contract| {
@@ -266,12 +265,9 @@ pub fn get_pool(
                 Some(sim_res.return_amount),
             ))
         }
-        _ => {
-            let old_pair_info =
-                query_pair_info(querier, factory_contract, &[from.clone(), to.clone()]).map_err(
-                    |_| ContractError::InvalidBridgeNoPool(from.to_string(), to.to_string()),
-                )?;
-            Ok((old_pair_info, None))
-        }
+        _ => Err(ContractError::InvalidBridgeNoPool(
+            from.to_string(),
+            to.to_string(),
+        )),
     }
 }
