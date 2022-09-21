@@ -39,7 +39,6 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const INSTANTIATE_PAIR_REPLY_ID: u64 = 1;
 
 /// Creates a new contract with the specified parameters packed in the `msg` variable.
-/// Returns a [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if the contract was not created
 ///
 /// * **msg**  is message which contains the parameters used for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -271,8 +270,7 @@ pub fn execute_update_pair_config(
     Ok(Response::new().add_attribute("action", "update_pair_config"))
 }
 
-/// Creates a new pair of `pair_type` with the assets specified in `asset_infos`. Returns a [`ContractError`] on failure or
-/// returns the address of the pair contract if the transaction was successful.
+/// Creates a new pair of `pair_type` with the assets specified in `asset_infos`.
 ///
 /// * **pair_type** is the pair type of the newly created pair.
 ///
@@ -410,8 +408,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     ]))
 }
 
-/// Removes an existing pair from the factory. Returns an [`ContractError`] on failure or returns a [`Response`]
-/// with the specified attributes if the operation was successful.
+/// Removes an existing pair from the factory.
 ///
 /// * **asset_infos** is a vector with assets for which we deregister the pair.
 ///
