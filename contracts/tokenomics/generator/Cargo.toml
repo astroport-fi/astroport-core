@@ -25,15 +25,15 @@ cw2 = { version = "0.15" }
 cw20 = { version = "0.15" }
 cw-storage-plus = { version = "0.15" }
 schemars = "0.8"
-serde = { version = "1.0.125", default-features = false, features = ["derive"] }
+serde = "1.0"
 thiserror = { version = "1.0" }
-astroport = { path = "../../../packages/astroport", default-features = false }
+astroport = { path = "../../../packages/astroport"}
 astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git" }
 protobuf = { version = "2", features = ["with-bytes"] }
 cosmwasm-schema = { version = "1.1" }
 
 [dev-dependencies]
-cw-multi-test = "0.13"
+cw-multi-test = "0.15"
 astroport-token = {path = "../../token"}
 astroport-vesting = {path = "../vesting"}
 astroport-staking = {path = "../staking"}
@@ -42,12 +42,12 @@ astroport-factory = {path = "../../factory"}
 astroport-pair = {path = "../../pair"}
 astroport-pair-stable = {path = "../../pair_stable"}
 astroport-whitelist = { path = "../../whitelist" }
-anyhow = "1"
+anyhow = "1.0"
 generator-controller = { git = "https://github.com/astroport-fi/astroport-governance.git" }
 voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance.git" }
 voting-escrow-delegation = { git = "https://github.com/astroport-fi/astroport-governance.git" }
 astroport-nft = { git = "https://github.com/astroport-fi/astroport-governance.git" }
-cw721-base = { version = "0.13", features = ["library"] }
+cw721-base = { version = "0.15", features = ["library"] }
 
 [dev-dependencies.astroport-generator_v120]
 git = "https://github.com/astroport-fi/astroport-core"
