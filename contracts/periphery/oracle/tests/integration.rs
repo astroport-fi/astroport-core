@@ -1,9 +1,8 @@
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
     attr, to_binary, Addr, BlockInfo, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
+use cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
@@ -14,20 +13,9 @@ use astroport::oracle::QueryMsg::Consult;
 use astroport::oracle::{ExecuteMsg, InstantiateMsg};
 use astroport::pair::StablePoolParams;
 
+type TerraApp = App;
 fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+    BasicApp::default()
 }
 
 fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, u64) {
@@ -48,6 +36,7 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, u64
             minter: owner.to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     let astro_token_instance = router
@@ -157,6 +146,7 @@ fn instantiate_token(router: &mut TerraApp, owner: Addr, name: String, symbol: S
             minter: owner.to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     let token_instance = router
@@ -323,7 +313,15 @@ fn create_pair(
         }
     }
 
-    router.init_bank_balance(&user, funds.clone()).unwrap();
+    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
+    for fund in funds.clone() {
+        // we cannot transfer empty coins amount
+        if !fund.amount.is_zero() {
+            router
+                .send_tokens(owner.clone(), user.clone(), &[fund])
+                .unwrap();
+        }
+    }
 
     router
         .execute_contract(
@@ -428,7 +426,15 @@ fn create_pair_stable(
         }
     }
 
-    router.init_bank_balance(&user, funds.clone()).unwrap();
+    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
+    for fund in funds.clone() {
+        // we cannot transfer empty coins amount
+        if !fund.amount.is_zero() {
+            router
+                .send_tokens(owner.clone(), user.clone(), &[fund])
+                .unwrap();
+        }
+    }
 
     router
         .execute_contract(
@@ -606,7 +612,7 @@ fn consult() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(e.to_string(), "Period not elapsed",);
+    assert_eq!(e.root_cause().to_string(), "Period not elapsed",);
     router.update_block(next_day);
 
     // Change pair liquidity
@@ -737,7 +743,7 @@ fn consult_pair_stable() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(e.to_string(), "Period not elapsed",);
+    assert_eq!(e.root_cause().to_string(), "Period not elapsed",);
     router.update_block(next_day);
 
     // Change pair liquidity
@@ -813,11 +819,11 @@ fn consult2() {
         [
             Asset {
                 info: asset_infos[0].clone(),
-                amount: Uint128::from(1000_u128),
+                amount: Uint128::from(1000_000_u128),
             },
             Asset {
                 info: asset_infos[1].clone(),
-                amount: Uint128::from(1000_u128),
+                amount: Uint128::from(1000_000_u128),
             },
         ],
     );
@@ -868,7 +874,7 @@ fn consult2() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(e.to_string(), "Period not elapsed",);
+    assert_eq!(e.root_cause().to_string(), "Period not elapsed",);
     router.update_block(next_day);
     router
         .execute_contract(
@@ -908,12 +914,12 @@ fn consult2() {
         (
             astro_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(750u128),
+            Uint128::from(999u128),
         ),
         (
             usdc_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(1333u128),
+            Uint128::from(1000u128),
         ),
     ] {
         let msg = Consult {
@@ -961,12 +967,12 @@ fn consult2() {
         (
             astro_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(822u128),
+            Uint128::from(999u128),
         ),
         (
             usdc_token_instance.clone(),
             Uint128::from(1000u128),
-            Uint128::from(1216u128),
+            Uint128::from(1000u128),
         ),
     ] {
         let msg = Consult {
@@ -1050,7 +1056,7 @@ fn consult_zero_price() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(e.to_string(), "Period not elapsed",);
+    assert_eq!(e.root_cause().to_string(), "Period not elapsed",);
     router.update_block(next_day);
     router
         .execute_contract(
