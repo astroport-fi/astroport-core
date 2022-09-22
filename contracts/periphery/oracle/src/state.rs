@@ -5,13 +5,11 @@ use astroport::asset::{AssetInfo, PairInfo};
 use cosmwasm_std::{Addr, Decimal256, Uint128};
 use cw_storage_plus::Item;
 
-/// ## Description
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
 /// Stores the latest cumulative and average prices at the given key
 pub const PRICE_LAST: Item<PriceCumulativeLast> = Item::new("price_last");
 
-/// ## Description
 /// This structure stores the latest cumulative and average token prices for the target pool
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PriceCumulativeLast {
@@ -23,7 +21,6 @@ pub struct PriceCumulativeLast {
     pub block_timestamp_last: u64,
 }
 
-/// ## Description
 /// Global configuration for the contract
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
