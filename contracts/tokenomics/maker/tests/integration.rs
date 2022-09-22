@@ -2199,7 +2199,8 @@ fn collect_3pools() {
     // There are 2 routes to swap USDC -> LUNA: through (USDC, TEST, LUNA) or (USDC, LUNA)
     for t in vec![
         vec![
-            token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
+            // intentionally providing less usdc thus this pool will be selected to swap USDC -> LUNA
+            token_asset(usdc_token_instance.clone(), Uint128::from(80_000_u128)),
             token_asset(test_token.clone(), Uint128::from(100_000_u128)),
             native_asset(uluna_asset.clone(), Uint128::from(100_000_u128)),
         ],
@@ -2347,6 +2348,25 @@ fn collect_3pools() {
         &mut router,
         staking.clone(),
         astro_token_instance.clone(),
-        Uint128::new(60u128),
+        Uint128::new(62u128),
     );
+
+    // Check that USDC -> LUNA swap was not executed through pair (usdc, luna) but through (usdc, luna, test).
+    let pair_info: PairInfo = router
+        .wrap()
+        .query_wasm_smart(
+            &factory_instance,
+            &astroport::factory::QueryMsg::Pair {
+                asset_infos: vec![
+                    token_asset_info(usdc_token_instance),
+                    native_asset_info(uluna_asset),
+                ],
+            },
+        )
+        .unwrap();
+    let balances = pair_info
+        .query_pools(&router.wrap(), &pair_info.contract_addr)
+        .unwrap();
+    assert_eq!(balances[0].amount.u128(), 100_000);
+    assert_eq!(balances[1].amount.u128(), 100_000);
 }

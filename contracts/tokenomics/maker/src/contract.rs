@@ -308,8 +308,8 @@ fn swap_assets(
     let uluna = native_asset_info(ULUNA_DENOM.to_string());
 
     // Check the uusd - ASTRO pool and the uluna - uusd pool
-    get_pool(&deps.querier, &cfg.factory_contract, &uusd, &astro)?;
-    get_pool(&deps.querier, &cfg.factory_contract, &uluna, &uusd)?;
+    get_pool(&deps.querier, &cfg.factory_contract, &uusd, &astro, None)?;
+    get_pool(&deps.querier, &cfg.factory_contract, &uluna, &uusd, None)?;
 
     for a in assets {
         // Get balance
@@ -380,6 +380,7 @@ fn swap(
             &bridge_token,
             &astro,
             BRIDGES_INITIAL_DEPTH,
+            Some(amount_in),
         )?;
 
         let msg = build_swap_msg(
@@ -799,6 +800,7 @@ fn update_bridges(
                 &bridge,
                 &astro,
                 BRIDGES_INITIAL_DEPTH,
+                None,
             )?;
 
             BRIDGES.save(deps.storage, asset.to_string(), &bridge)?;
