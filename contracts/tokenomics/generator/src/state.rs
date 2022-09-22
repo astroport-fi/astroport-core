@@ -90,12 +90,6 @@ pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_pro
 pub const CHECKPOINT_GENERATORS_LIMIT: u32 = 24;
 
 /// Update user balance.
-/// ## Params
-/// * **user** is an object of type [`UserInfo`].
-///
-/// * **pool** is an object of type [`PoolInfo`].
-///
-/// * **amount** is an object of type [`Uint128`].
 pub fn update_user_balance(
     mut user: UserInfoV2,
     pool: &PoolInfo,
@@ -118,7 +112,6 @@ pub fn update_user_balance(
     Ok(user)
 }
 
-/// ### Description
 /// Returns the vector of reward amount per proxy taking into account the amount of debited rewards.
 pub fn accumulate_pool_proxy_rewards(
     pool: &PoolInfo,
@@ -147,7 +140,6 @@ pub fn accumulate_pool_proxy_rewards(
         .collect()
 }
 
-/// ### Description
 /// Saves map between a proxy and an asset info if it is not saved yet.
 pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
     if !PROXY_REWARD_ASSET.has(deps.storage, proxy_addr) {
@@ -163,7 +155,6 @@ pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
     Ok(())
 }
 
-/// ### Description
 /// Updates virtual amount for specified user and generator
 ///
 /// **b_u = min(0.4 * b_u + 0.6 * S * (w_i / W), b_u)**
