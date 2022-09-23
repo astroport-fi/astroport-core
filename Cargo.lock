@@ -25,6 +25,21 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.0.0"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#3f81c1b60d1d0533357159ff943768e158cc2403"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.13.4",
+ "cw20 0.15.0",
+ "itertools 0.10.3",
+ "schemars",
+ "serde",
+ "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "2.0.0"
 source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#484fa35aa521553d6d6c704961ba7e3e91cf5e58"
 dependencies = [
  "cosmwasm-std",
@@ -41,7 +56,7 @@ name = "astroport-escrow-fee-distributor"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#7c9931ec0dde5eaa272f20029d7818ec8647c134"
 dependencies = [
- "astroport-governance",
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
  "cosmwasm-std",
  "cw-storage-plus 0.13.4",
  "cw2 0.13.4",
@@ -72,6 +87,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-generator"
+version = "2.1.0"
+dependencies = [
+ "anyhow",
+ "astroport 2.0.0",
+ "astroport-factory",
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1)",
+ "astroport-nft",
+ "astroport-pair",
+ "astroport-pair-stable",
+ "astroport-staking",
+ "astroport-token",
+ "astroport-vesting",
+ "astroport-whitelist",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test 0.15.0",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.15.0",
+ "cw20 0.15.0",
+ "cw721-base",
+ "generator-controller",
+ "protobuf",
+ "schemars",
+ "serde",
+ "thiserror",
+ "voting-escrow",
+ "voting-escrow-delegation",
+]
+
+[[package]]
 name = "astroport-generator-proxy-template"
 version = "0.0.0"
 dependencies = [
@@ -84,6 +130,19 @@ dependencies = [
  "schemars",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "astroport-governance"
+version = "1.1.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#c4fa21f9ff67c4961b9ce071bceb3deef8311dcf"
+dependencies = [
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1)",
+ "cosmwasm-std",
+ "cw-storage-plus 0.13.4",
+ "cw20 0.15.0",
+ "schemars",
+ "serde",
 ]
 
 [[package]]
@@ -106,7 +165,7 @@ dependencies = [
  "astroport 2.0.0",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
- "astroport-governance",
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
  "astroport-pair",
  "astroport-pair-stable",
  "astroport-token",
@@ -119,6 +178,21 @@ dependencies = [
  "schemars",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "astroport-nft"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#c4fa21f9ff67c4961b9ce071bceb3deef8311dcf"
+dependencies = [
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw2 0.15.0",
+ "cw721",
+ "cw721-base",
+ "schemars",
+ "serde",
 ]
 
 [[package]]
@@ -743,6 +817,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw721"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20dfe04f86e5327956b559ffcc86d9a43167391f37402afd8bf40b0be16bee4d"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-utils 0.15.0",
+ "schemars",
+ "serde",
+]
+
+[[package]]
+name = "cw721-base"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62c3ee3b669fc2a8094301a73fd7be97a7454d4df2650c33599f737e8f254d24"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.0",
+ "cw-utils 0.15.0",
+ "cw2 0.15.0",
+ "cw721",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "der"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -889,6 +993,22 @@ name = "forward_ref"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8cbd1169bd7b4a0a20d92b9af7a7e0422888bd38a6f5ec29c1fd8c1558a272e"
+
+[[package]]
+name = "generator-controller"
+version = "1.1.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#c4fa21f9ff67c4961b9ce071bceb3deef8311dcf"
+dependencies = [
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1)",
+ "cosmwasm-std",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.15.0",
+ "cw20 0.15.0",
+ "itertools 0.10.3",
+ "schemars",
+ "serde",
+ "thiserror",
+]
 
 [[package]]
 name = "generic-array"
@@ -1676,6 +1796,41 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "voting-escrow"
+version = "1.3.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#c4fa21f9ff67c4961b9ce071bceb3deef8311dcf"
+dependencies = [
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.13.4",
+ "cw2 0.15.0",
+ "cw20 0.15.0",
+ "cw20-base",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "voting-escrow-delegation"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#c4fa21f9ff67c4961b9ce071bceb3deef8311dcf"
+dependencies = [
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.13.4",
+ "cw-utils 0.15.0",
+ "cw2 0.15.0",
+ "cw721",
+ "cw721-base",
+ "schemars",
+ "serde",
+ "thiserror",
+]
 
 [[package]]
 name = "wait-timeout"

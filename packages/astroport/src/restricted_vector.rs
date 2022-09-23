@@ -1,4 +1,3 @@
-use crate::DecimalCheckedOps;
 use cosmwasm_std::{Decimal, StdError, StdResult, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
