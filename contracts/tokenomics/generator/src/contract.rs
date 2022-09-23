@@ -2171,16 +2171,7 @@ pub fn get_alloc_point(pools: &[(Addr, Uint128)], lp_token: &Addr) -> Uint128 {
         .unwrap_or_else(Uint128::zero)
 }
 
-/// ## Description
 /// Creates pool if it is allowed in the factory.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **lp_token** is an object of type [`Addr`].
-///
-/// * **cfg** is an object of type [`Config`].
 pub fn create_pool(
     deps: DepsMut,
     env: &Env,

@@ -520,7 +520,6 @@ pub fn withdraw_liquidity(
     ]))
 }
 
-/// ## Description
 /// Returns the amount of pool assets that correspond to an amount of LP tokens.
 ///
 /// * **pools** is the array with assets in the pool.

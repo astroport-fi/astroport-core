@@ -14,7 +14,6 @@ use crate::error::ContractError;
 use crate::math::calc_y;
 use crate::state::{get_precision, Config};
 
-/// ## Description
 /// Helper function to check if the given asset infos are valid.
 pub(crate) fn check_asset_infos(
     api: &dyn Api,
@@ -30,18 +29,13 @@ pub(crate) fn check_asset_infos(
         .map_err(Into::into)
 }
 
-/// ## Description
 /// Helper function to check that the assets in a given array are valid.
 pub(crate) fn check_assets(api: &dyn Api, assets: &[Asset]) -> Result<(), ContractError> {
     let asset_infos = assets.iter().map(|asset| asset.info.clone()).collect_vec();
     check_asset_infos(api, &asset_infos)
 }
 
-/// ## Description
-/// Checks that cw20 token is part of the pool. Returns [`Ok(())`] in case of success,
-/// otherwise [`ContractError`].
-/// ## Params
-/// * **config** is an object of type [`Config`].
+/// Checks that cw20 token is part of the pool.
 ///
 /// * **cw20_sender** is cw20 token address which is being checked.
 pub(crate) fn check_cw20_in_pool(config: &Config, cw20_sender: &Addr) -> Result<(), ContractError> {
@@ -55,11 +49,10 @@ pub(crate) fn check_cw20_in_pool(config: &Config, cw20_sender: &Addr) -> Result<
     Err(ContractError::Unauthorized {})
 }
 
-/// ## Description
 /// Select offer and ask pools based on given offer and ask infos.
 /// This function works with pools with up to 5 assets. Returns (offer_pool, ask_pool) in case of success.
 /// If it is impossible to define offer and ask pools, returns [`ContractError`].
-/// ## Params
+///
 /// * **offer_asset_info** - asset info of the offer asset.
 ///
 /// * **ask_asset_info** - asset info of the ask asset.
@@ -110,12 +103,7 @@ pub(crate) fn select_pools(
     }
 }
 
-/// ## Description
 /// Compute the current pool amplification coefficient (AMP).
-/// ## Params
-/// * **config** is an object of type [`Config`].
-///
-/// * **env** is an object of type [`Env`].
 pub(crate) fn compute_current_amp(config: &Config, env: &Env) -> StdResult<Uint64> {
     let block_time = env.block.time.seconds();
     if block_time < config.next_amp_time {
@@ -141,14 +129,13 @@ pub(crate) fn compute_current_amp(config: &Config, env: &Env) -> StdResult<Uint6
     }
 }
 
-/// ## Description
 /// Returns a value using a newly specified precision.
-/// ## Params
-/// * **value** is an object of type [`Uint128`]. This is the value that will have its precision adjusted.
 ///
-/// * **current_precision** is an object of type [`u8`]. This is the `value`'s current precision
+/// * **value** value that will have its precision adjusted.
 ///
-/// * **new_precision** is an object of type [`u8`]. This is the new precision to use when returning the `value`.
+/// * **current_precision** `value`'s current precision
+///
+/// * **new_precision** new precision to use when returning the `value`.
 pub(crate) fn adjust_precision(
     value: Uint128,
     current_precision: u8,
@@ -165,21 +152,13 @@ pub(crate) fn adjust_precision(
     })
 }
 
-/// ## Description
 /// Mint LP tokens for a beneficiary and auto stake the tokens in the Generator contract (if auto staking is specified).
-/// # Params
-/// * **querier** is an object of type [`QuerierWrapper`].
 ///
-/// * **config** is an object of type [`Config`].
+/// * **recipient** LP token recipient.
 ///
-/// * **contract_address** is an object of type [`Addr`].
+/// * **amount** amount of LP tokens that will be minted for the recipient.
 ///
-/// * **recipient** is an object of type [`Addr`]. This is the LP token recipient.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens that will be minted for the recipient.
-///
-/// * **auto_stake** is the field of type [`bool`]. Determines whether the newly minted LP tokens will
-/// be automatically staked in the Generator on behalf of the recipient.
+/// * **auto_stake** whether the newly minted LP tokens will be automatically staked in the Generator on behalf of the recipient.
 pub(crate) fn mint_liquidity_token_message(
     querier: QuerierWrapper,
     config: &Config,
@@ -235,14 +214,13 @@ pub(crate) fn mint_liquidity_token_message(
     }
 }
 
-/// ## Description
 /// Return the amount of tokens that a specific amount of LP tokens would withdraw.
-/// ## Params
-/// * **pools** is an array of [`Asset`] type items. These are the assets available in the pool.
 ///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to calculate underlying amounts for.
+/// * **pools** array with assets available in the pool.
 ///
-/// * **total_share** is an object of type [`Uint128`]. This is the total amount of LP tokens currently issued by the pool.
+/// * **amount** amount of LP tokens to calculate underlying amounts for.
+///
+/// * **total_share** total amount of LP tokens currently issued by the pool.
 pub(crate) fn get_share_in_assets(
     pools: &[Asset],
     amount: Uint128,
@@ -268,22 +246,15 @@ pub(crate) struct SwapResult {
     pub spread_amount: Uint128,
 }
 
-/// ## Description
-/// Returns the result of a swap in form of a [`SwapResult`] object. In case of error, returns [`ContractError`].
-/// ## Params
-/// * **storage** is an object of type [`Storage`].
+/// Returns the result of a swap in form of a [`SwapResult`] object.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **offer_asset** asset that is being offered.
 ///
-/// * **config** is an object of type [`Config`].
+/// * **offer_pool** pool of offered asset.
 ///
-/// * **offer_asset** is an object of type [`Asset`]. This is the asset that is being offered.
+/// * **ask_pool** asked asset.
 ///
-/// * **offer_pool** is an object of type [`DecimalAsset`]. This is the pool of offered asset.
-///
-/// * **ask_pool** is an object of type [`DecimalAsset`]. This is the asked asset.
-///
-/// * **pools** is an array of [`DecimalAsset`] type items. These are the assets available in the pool.
+/// * **pools** array with assets available in the pool.
 pub(crate) fn compute_swap(
     storage: &dyn Storage,
     env: &Env,
@@ -318,16 +289,9 @@ pub(crate) fn compute_swap(
     })
 }
 
-/// ## Description
 /// Accumulate token prices for the assets in the pool.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **config** is an object of type [`Config`].
-///
-/// * **pools** is an array of [`DecimalAsset`] type items. These are the assets available in the pool.
+/// * **pools** array with assets available in the pool.
 pub fn accumulate_prices(
     deps: Deps,
     env: Env,
