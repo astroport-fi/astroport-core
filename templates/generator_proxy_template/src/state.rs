@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::Addr;
 use cw_storage_plus::Item;
 
-/// ## Description
 /// This structure holds the main parameters of the generator_proxy_template contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -20,6 +19,5 @@ pub struct Config {
     pub reward_token_addr: Addr,
 }
 
-/// ## Description
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
