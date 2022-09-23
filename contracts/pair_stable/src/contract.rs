@@ -578,7 +578,8 @@ pub fn provide_liquidity(
         })
         .collect::<StdResult<Vec<_>>>()?;
 
-    if accumulate_prices(deps.as_ref(), env, &mut config, &pools).is_ok() {
+    if !total_share.is_zero() {
+        accumulate_prices(deps.as_ref(), env, &mut config, &pools)?;
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -674,7 +675,8 @@ pub fn withdraw_liquidity(
         })
         .collect::<StdResult<Vec<DecimalAsset>>>()?;
 
-    if accumulate_prices(deps.as_ref(), env, &mut config, &pools).is_ok() {
+    if !total_share.is_zero() {
+        accumulate_prices(deps.as_ref(), env, &mut config, &pools)?;
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -944,7 +946,9 @@ pub fn swap(
         }
     }
 
-    if accumulate_prices(deps.as_ref(), env, &mut config, &pools).is_ok() {
+    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+    if !total_share.is_zero() {
+        accumulate_prices(deps.as_ref(), env, &mut config, &pools)?;
         CONFIG.save(deps.storage, &config)?;
     }
 
