@@ -197,10 +197,6 @@ pub enum StablePoolUpdateParams {
 
 /// This function makes raw query to the factory contract and
 /// checks whether the pair needs to update an owner or not.
-/// # Params
-/// * **querier** - is the object of type [`QuerierWrapper`].
-/// * **pair** - The pair address which we need to check.
-/// * **factory** - The factory address.
 pub fn migration_check(
     querier: QuerierWrapper,
     factory: &Addr,

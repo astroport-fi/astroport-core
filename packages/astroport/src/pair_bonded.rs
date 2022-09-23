@@ -11,7 +11,6 @@ pub const DEFAULT_SLIPPAGE: &str = "0.005";
 /// The maximum allowed swap slippage
 pub const MAX_ALLOWED_SLIPPAGE: &str = "0.5";
 
-/// ## Description
 /// This structure stores the main config parameters for a constant product pair contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {

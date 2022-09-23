@@ -15,16 +15,7 @@ pub struct OwnershipProposal {
     pub ttl: u64,
 }
 
-/// Creates a new request to change contract ownership. Returns an [`Err`] on failure or returns the [`Response`]
-/// with the specified attributes if the operation was successful.
-/// ## Executor
-/// Only the current contract owner can execute this.
-/// ## Params
-/// `deps` is the object of type [`DepsMut`].
-///
-/// `info` is the object of type [`MessageInfo`].
-///
-/// `env` is the object of type [`Env`].
+/// Creates a new request to change contract ownership.
 ///
 /// `new_owner` is the newly proposed owner.
 ///
@@ -32,7 +23,8 @@ pub struct OwnershipProposal {
 ///
 /// `owner` is the current owner.
 ///
-/// `proposal` is an object of type [`OwnershipProposal`].
+/// ## Executor
+/// Only the current contract owner can execute this.
 pub fn propose_new_owner(
     deps: DepsMut,
     info: MessageInfo,
@@ -75,18 +67,11 @@ pub fn propose_new_owner(
     ]))
 }
 
-/// Removes a request to change contract ownership. Returns an [`Err`] on failure or returns the [`Response`]
-/// with the specified attributes if the operation was successful.
-/// ## Executor
-/// Only the current owner can execute this.
-/// ## Params
-/// `deps` is the object of type [`DepsMut`].
-///
-/// `info` is the object of type [`MessageInfo`].
-///
+/// Removes a request to change contract ownership.
 /// `owner` is the current contract owner.
 ///
-/// `proposal` is the object of type [`OwnershipProposal`].
+/// ## Executor
+/// Only the current owner can execute this.
 pub fn drop_ownership_proposal(
     deps: DepsMut,
     info: MessageInfo,
@@ -103,20 +88,12 @@ pub fn drop_ownership_proposal(
     Ok(Response::new().add_attributes(vec![attr("action", "drop_ownership_proposal")]))
 }
 
-/// Claims ownership over the contract. Returns an [`Err`] on failure or returns the [`Response`]
-/// with the specified attributes if the operation was successful.
+/// Claims ownership over the contract.
+///
+/// `cb` is a callback function to process ownership transition.
+///
 /// ## Executor
 /// Only the newly proposed owner can execute this.
-/// ## Params
-/// `deps` is the object of type [`DepsMut`].
-///
-/// `info` is the object of type [`MessageInfo`].
-///
-/// `env` is the object of type [`Env`].
-///
-/// `proposal` is an object of type [`OwnershipProposal`].
-///
-/// `cb` is a callback function that takes in two parameters of type [`DepsMut`] and [`Addr`] respectively.
 pub fn claim_ownership(
     deps: DepsMut,
     info: MessageInfo,
@@ -124,7 +101,7 @@ pub fn claim_ownership(
     proposal: Item<OwnershipProposal>,
     cb: fn(DepsMut, Addr) -> StdResult<()>,
 ) -> StdResult<Response> {
-    let p: OwnershipProposal = proposal
+    let p = proposal
         .load(deps.storage)
         .map_err(|_| StdError::generic_err("Ownership proposal not found"))?;
 
@@ -148,7 +125,6 @@ pub fn claim_ownership(
     ]))
 }
 
-/// ## Description
 /// Bulk validation and conversion between [`String`] -> [`Addr`] for an array of addresses.
 /// If any address is invalid, the function returns [`StdError`].
 pub fn validate_addresses(api: &dyn Api, admins: &[String]) -> StdResult<Vec<Addr>> {
