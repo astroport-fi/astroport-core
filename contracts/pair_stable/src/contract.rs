@@ -578,8 +578,7 @@ pub fn provide_liquidity(
         })
         .collect::<StdResult<Vec<_>>>()?;
 
-    if !total_share.is_zero() {
-        accumulate_prices(deps.as_ref(), env, &mut config, &pools)?;
+    if accumulate_prices(deps.as_ref(), env, &mut config, &pools)? {
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -675,8 +674,7 @@ pub fn withdraw_liquidity(
         })
         .collect::<StdResult<Vec<DecimalAsset>>>()?;
 
-    if !total_share.is_zero() {
-        accumulate_prices(deps.as_ref(), env, &mut config, &pools)?;
+    if accumulate_prices(deps.as_ref(), env, &mut config, &pools)? {
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -946,9 +944,7 @@ pub fn swap(
         }
     }
 
-    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
-    if !total_share.is_zero() {
-        accumulate_prices(deps.as_ref(), env, &mut config, &pools)?;
+    if accumulate_prices(deps.as_ref(), env, &mut config, &pools)? {
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -1261,10 +1257,8 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
         })
         .collect::<StdResult<Vec<DecimalAsset>>>()?;
 
-    if !total_share.is_zero() {
-        accumulate_prices(deps, env, &mut config, &decimal_assets)
-            .map_err(|err| StdError::generic_err(format!("{err}")))?;
-    }
+    accumulate_prices(deps, env, &mut config, &decimal_assets)
+        .map_err(|err| StdError::generic_err(format!("{err}")))?;
 
     Ok(CumulativePricesResponse {
         assets,

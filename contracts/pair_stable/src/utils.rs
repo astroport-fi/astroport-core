@@ -333,13 +333,17 @@ pub fn accumulate_prices(
     env: Env,
     config: &mut Config,
     pools: &[DecimalAsset],
-) -> Result<(), ContractError> {
+) -> Result<bool, ContractError> {
     let block_time = env.block.time.seconds();
     if block_time <= config.block_time_last {
-        return Ok(());
+        return Ok(false);
     }
 
     let time_elapsed = Uint128::from(block_time - config.block_time_last);
+
+    if !pools.iter().all(|pool| !pool.amount.is_zero()) {
+        return Ok(false);
+    }
 
     let immut_config = config.clone();
     for (from, to, value) in config.cumulative_prices.iter_mut() {
@@ -368,5 +372,5 @@ pub fn accumulate_prices(
 
     config.block_time_last = block_time;
 
-    Ok(())
+    Ok(true)
 }
