@@ -132,11 +132,11 @@ pub fn build_distribute_msg(
 ///
 /// * **to_token** asset we want to swap to.
 ///
-/// * **to_token** is an object of type [`AssetInfo`] which represents the asset we want to swap to.
+/// * **to_token** asset we want to swap to.
 ///
-/// * **astro_token** is an object of type [`AssetInfo`] which represents $ASTRO.
+/// * **astro_token** represents $ASTRO.
 ///
-/// * **depth** is a value of type [`Uint128`]. This is the current recursion depth of the validation.
+/// * **depth** current recursion depth of the validation.
 ///
 /// * **amount** is an amount of from_token.
 pub fn validate_bridge(
@@ -189,15 +189,12 @@ pub fn validate_bridge(
     Ok(bridge_pool)
 }
 
-/// # Description
 /// This function checks that there a pool to swap between `from` and `to`. In case of success
 /// returns [`PairInfo`] of selected pool and simulated return amount.
 ///
 /// * **from** source asset.
 ///
-/// * **from** is an object of type [`AssetInfo`] which is the source asset.
-///
-/// * **to** is an object of type [`AssetInfo`] which is the destination asset.
+/// * **to** destination asset.
 ///
 /// * **amount** optional. The value is used in swap simulations to select the best pool.
 pub fn get_pool(
