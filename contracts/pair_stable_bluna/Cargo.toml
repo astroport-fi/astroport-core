@@ -30,7 +30,7 @@ cw20 = { version = "0.15" }
 cosmwasm-std = { version = "1.1" }
 cw-storage-plus = "0.15"
 schemars = "0.8"
-serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0" }
 protobuf = { version = "2", features = ["with-bytes"] }
 #anchor-basset = {git = "https://github.com/Anchor-Protocol/anchor-bAsset-contracts.git", tag = "v0.2.1", package = "basset"}
@@ -40,6 +40,6 @@ cosmwasm-schema = "1.1"
 proptest = "1.0.0"
 sim = { git = "https://github.com/astroport-fi/astroport-sims.git", rev = "d617510737ee2c529d3aaa7afbdac5ccb5a385c9", package = "sim" }
 astroport-token = {path = "../token"}
-cw-multi-test = "0.13"
+cw-multi-test = "0.15"
 astroport-factory = {path = "../factory"}
 astroport-whitelist = {path = "../whitelist"}

@@ -25,7 +25,7 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#80be9604a270e899af592d09770284e5566ed950"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#1e082ea596f5c85c6829d9dc99e85cf060939e17"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -76,7 +76,7 @@ dependencies = [
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.0",
+ "cw-multi-test",
  "cw-storage-plus 0.15.0",
  "cw2 0.15.0",
  "cw20 0.15.0",
@@ -104,7 +104,7 @@ dependencies = [
  "astroport-whitelist",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.0",
+ "cw-multi-test",
  "cw-storage-plus 0.15.0",
  "cw2 0.15.0",
  "cw20 0.15.0",
@@ -136,7 +136,7 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.1.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#31f64fe9d162ae5e01ce19fcba1462a5cd9b02f2"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#af1c555f0b881c65646d48ea93225803379443ac"
 dependencies = [
  "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1)",
  "cosmwasm-std",
@@ -172,7 +172,7 @@ dependencies = [
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.0",
+ "cw-multi-test",
  "cw-storage-plus 0.15.0",
  "cw2 0.15.0",
  "cw20 0.15.0",
@@ -184,7 +184,7 @@ dependencies = [
 [[package]]
 name = "astroport-nft"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#31f64fe9d162ae5e01ce19fcba1462a5cd9b02f2"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#af1c555f0b881c65646d48ea93225803379443ac"
 dependencies = [
  "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1)",
  "cosmwasm-schema",
@@ -208,7 +208,7 @@ dependencies = [
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.13.4",
+ "cw-multi-test",
  "cw-storage-plus 0.15.0",
  "cw2 0.15.0",
  "cw20 0.15.0",
@@ -227,7 +227,7 @@ dependencies = [
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.13.4",
+ "cw-multi-test",
  "cw-storage-plus 0.15.0",
  "cw2 0.15.0",
  "cw20 0.15.0",
@@ -251,7 +251,7 @@ dependencies = [
  "astroport-xastro-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.13.4",
+ "cw-multi-test",
  "cw-storage-plus 0.15.0",
  "cw2 0.15.0",
  "cw20 0.15.0",
@@ -300,7 +300,7 @@ dependencies = [
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.13.4",
+ "cw-multi-test",
  "cw-storage-plus 0.15.0",
  "cw2 0.15.0",
  "cw20 0.15.0",
@@ -338,7 +338,7 @@ dependencies = [
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.0",
+ "cw-multi-test",
  "cw-storage-plus 0.15.0",
  "cw2 0.15.0",
  "cw20 0.15.0",
@@ -371,7 +371,7 @@ dependencies = [
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.0",
+ "cw-multi-test",
  "cw-storage-plus 0.15.0",
  "cw2 0.15.0",
  "cw20 0.15.0",
@@ -401,7 +401,7 @@ dependencies = [
  "astroport 2.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.0",
+ "cw-multi-test",
  "cw-storage-plus 0.15.0",
  "cw2 0.15.0",
  "cw20 0.15.0",
@@ -631,25 +631,6 @@ dependencies = [
  "rand_core 0.5.1",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "cw-multi-test"
-version = "0.13.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3f9a8ab7c3c29ec93cb7a39ce4b14a05e053153b4a17ef7cf2246af1b7c087e"
-dependencies = [
- "anyhow",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 0.13.4",
- "cw-utils 0.13.4",
- "derivative 2.2.0",
- "itertools 0.10.5",
- "prost",
- "schemars",
- "serde",
- "thiserror",
 ]
 
 [[package]]
@@ -998,7 +979,7 @@ checksum = "c8cbd1169bd7b4a0a20d92b9af7a7e0422888bd38a6f5ec29c1fd8c1558a272e"
 [[package]]
 name = "generator-controller"
 version = "1.1.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#31f64fe9d162ae5e01ce19fcba1462a5cd9b02f2"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#af1c555f0b881c65646d48ea93225803379443ac"
 dependencies = [
  "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1)",
  "cosmwasm-std",
@@ -1284,9 +1265,9 @@ checksum = "dbf0c48bc1d91375ae5c3cd81e3722dff1abcf81a30960240640d223f59fe0e5"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.43"
+version = "1.0.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a2ca2c61bc9f3d74d2886294ab7b9853abd9c1ad903a3ac7815c58989bb7bab"
+checksum = "7bd7356a8122b6c4a24a82b278680c73357984ca2fc79a0f9fa6dea7dced7c58"
 dependencies = [
  "unicode-ident",
 ]
@@ -1336,9 +1317,9 @@ dependencies = [
 
 [[package]]
 name = "protobuf"
-version = "2.27.1"
+version = "2.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf7e6d18738ecd0902d30d1ad232c9125985a3422929b16c65517b38adc14f96"
+checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 dependencies = [
  "bytes",
 ]
@@ -1738,18 +1719,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.35"
+version = "1.0.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c53f98874615aea268107765aa1ed8f6116782501d18e53d08b471733bea6c85"
+checksum = "0a99cb8c4b9a8ef0e7907cd3b617cc8dc04d571c4e73c8ae403d80ac160bb122"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.35"
+version = "1.0.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8b463991b4eab2d801e724172285ec4195c650e8ec79b149e6c2a8e6dd3f783"
+checksum = "3a891860d3c8d66fec8e73ddb3765f90082374dbaaa833407b904a94f1a7eb43"
 dependencies = [
  "proc-macro2",
  "quote 1.0.21",
@@ -1801,7 +1782,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "voting-escrow"
 version = "1.3.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#31f64fe9d162ae5e01ce19fcba1462a5cd9b02f2"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#af1c555f0b881c65646d48ea93225803379443ac"
 dependencies = [
  "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1)",
  "cosmwasm-schema",
@@ -1818,7 +1799,7 @@ dependencies = [
 [[package]]
 name = "voting-escrow-delegation"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#31f64fe9d162ae5e01ce19fcba1462a5cd9b02f2"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1#af1c555f0b881c65646d48ea93225803379443ac"
 dependencies = [
  "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1)",
  "cosmwasm-schema",
