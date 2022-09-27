@@ -596,7 +596,7 @@ fn distribute(
     Ok((result, attributes))
 }
 
-/// Updates general contact parameters.
+/// Updates general contract parameters.
 ///
 /// * **factory_contract** address of the factory contract.
 ///

@@ -764,8 +764,7 @@ fn imbalanced_withdraw(
     Ok(burn_amount)
 }
 
-/// Performs an swap operation with the specified parameters. The trader must approve the
-/// pool contract to transfer offer assets from their wallet.
+/// Performs an swap operation with the specified parameters.
 ///
 /// * **sender** is the sender of the swap operation.
 ///
@@ -1068,6 +1067,9 @@ pub fn query_simulation(
 ///
 /// * **ask_asset** is the asset to swap to as well as the desired amount of ask
 /// assets to receive from the swap.
+///
+/// * **offer_asset_info** is optional field which specifies the asset to swap from.
+/// May be omitted only in case the pool length is 2.
 pub fn query_reverse_simulation(
     deps: Deps,
     env: Env,

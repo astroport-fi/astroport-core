@@ -132,8 +132,6 @@ pub fn build_distribute_msg(
 ///
 /// * **to_token** asset we want to swap to.
 ///
-/// * **to_token** asset we want to swap to.
-///
 /// * **astro_token** represents $ASTRO.
 ///
 /// * **depth** current recursion depth of the validation.

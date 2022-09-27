@@ -248,6 +248,9 @@ fn emergency_withdraw(
 }
 
 /// Handles callbacks described in [`CallbackMsg`].
+///
+/// ## Executor
+/// Callback functions can only be called by this contract.
 pub fn handle_callback(
     deps: DepsMut,
     env: Env,

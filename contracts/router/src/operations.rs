@@ -12,8 +12,7 @@ use crate::state::CONFIG;
 
 /// Execute a swap operation.
 ///
-/// * **operation** is an object of type [`SwapOperation`]. It's the swap operation to perform
-/// (offer/ask assets and the offer asset amount).
+/// * **operation** to perform (native or Astro swap with offer and ask asset information).
 ///
 /// * **to** address that receives the ask assets.
 pub fn execute_swap_operation(
