@@ -8,7 +8,7 @@ use crate::mock_querier::mock_dependencies;
 
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::Config;
-use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo, PairInfo};
 
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, SimulationResponse, StablePoolParams,
@@ -1156,7 +1156,6 @@ fn test_accumulate_prices() {
         block_time_last: u64,
         cumulative_price_x: u128,
         cumulative_price_y: u128,
-        is_some: bool,
     }
 
     let price_precision = 10u128.pow(TWAP_PRECISION.into());
@@ -1175,7 +1174,6 @@ fn test_accumulate_prices() {
                 block_time_last: 1000,
                 cumulative_price_x: 1008,
                 cumulative_price_y: 991,
-                is_some: true,
             },
         ),
         // Same block height, no changes
@@ -1192,7 +1190,6 @@ fn test_accumulate_prices() {
                 block_time_last: 1000,
                 cumulative_price_x: 1,
                 cumulative_price_y: 2,
-                is_some: false,
             },
         ),
         (
@@ -1208,60 +1205,57 @@ fn test_accumulate_prices() {
                 block_time_last: 1500,
                 cumulative_price_x: 1004,
                 cumulative_price_y: 2495,
-                is_some: true,
             },
         ),
     ];
 
     for test_case in test_cases {
         let (case, result) = test_case;
+        let asset_x = native_asset_info("uusd".to_string());
+        let asset_y = native_asset_info("uluna".to_string());
+        let deps = mock_dependencies(&[]);
+
+        let pools = vec![
+            native_asset(asset_x.to_string(), case.x_amount.into()),
+            native_asset(asset_y.to_string(), case.y_amount.into()),
+        ];
 
         let env = mock_env_with_block_time(case.block_time);
-        let config = accumulate_prices(
-            env.clone(),
-            &Config {
-                pair_info: PairInfo {
-                    asset_infos: [
-                        AssetInfo::NativeToken {
-                            denom: "uusd".to_string(),
-                        },
-                        AssetInfo::Token {
-                            contract_addr: Addr::unchecked("asset0000"),
-                        },
-                    ],
-                    contract_addr: Addr::unchecked("pair"),
-                    liquidity_token: Addr::unchecked("lp_token"),
-                    pair_type: PairType::Stable {},
-                },
-                factory_addr: Addr::unchecked("factory"),
-                block_time_last: case.block_time_last,
-                price0_cumulative_last: Uint128::new(case.last0),
-                price1_cumulative_last: Uint128::new(case.last1),
-                init_amp: 100 * AMP_PRECISION,
-                init_amp_time: env.block.time.seconds(),
-                next_amp: 100 * AMP_PRECISION,
-                next_amp_time: env.block.time.seconds(),
+        let mut config = Config {
+            pair_info: PairInfo {
+                asset_infos: [
+                    AssetInfo::NativeToken {
+                        denom: "uusd".to_string(),
+                    },
+                    AssetInfo::Token {
+                        contract_addr: Addr::unchecked("asset0000"),
+                    },
+                ],
+                contract_addr: Addr::unchecked("pair"),
+                liquidity_token: Addr::unchecked("lp_token"),
+                pair_type: PairType::Stable {},
             },
-            Uint128::new(case.x_amount),
-            6,
-            Uint128::new(case.y_amount),
-            6,
-        )
-        .unwrap();
+            factory_addr: Addr::unchecked("factory"),
+            block_time_last: case.block_time_last,
+            price0_cumulative_last: Uint128::new(case.last0),
+            price1_cumulative_last: Uint128::new(case.last1),
+            init_amp: 100 * AMP_PRECISION,
+            init_amp_time: env.block.time.seconds(),
+            next_amp: 100 * AMP_PRECISION,
+            next_amp_time: env.block.time.seconds(),
+        };
 
-        assert_eq!(result.is_some, config.is_some());
+        accumulate_prices(deps.as_ref(), env.clone(), &mut config, &pools).unwrap();
 
-        if let Some(config) = config {
-            assert_eq!(config.2, result.block_time_last);
-            assert_eq!(
-                config.0 / Uint128::from(price_precision),
-                Uint128::new(result.cumulative_price_x)
-            );
-            assert_eq!(
-                config.1 / Uint128::from(price_precision),
-                Uint128::new(result.cumulative_price_y)
-            );
-        }
+        assert_eq!(config.block_time_last, result.block_time_last);
+        assert_eq!(
+            config.price0_cumulative_last / Uint128::from(price_precision),
+            Uint128::new(result.cumulative_price_x)
+        );
+        assert_eq!(
+            config.price1_cumulative_last / Uint128::from(price_precision),
+            Uint128::new(result.cumulative_price_y)
+        );
     }
 }
 
