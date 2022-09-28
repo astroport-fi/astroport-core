@@ -499,8 +499,6 @@ pub trait Decimal256Ext {
         value: impl Into<Uint256>,
         precision: impl Into<u32>,
     ) -> StdResult<Decimal256>;
-
-    fn saturating_sub(self, other: Decimal256) -> Decimal256;
 }
 
 impl Decimal256Ext for Decimal256 {
@@ -551,9 +549,5 @@ impl Decimal256Ext for Decimal256 {
     ) -> StdResult<Decimal256> {
         Decimal256::from_atomics(value, precision.into())
             .map_err(|_| StdError::generic_err("Decimal256 range exceeded"))
-    }
-
-    fn saturating_sub(self, other: Decimal256) -> Decimal256 {
-        Decimal256::new(self.atomics().saturating_sub(other.atomics()))
     }
 }

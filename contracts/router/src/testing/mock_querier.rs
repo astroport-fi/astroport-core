@@ -155,14 +155,13 @@ impl WasmMockQuerier {
                     }),
                 }
             }
-            QueryMsg::Simulation {
-                offer_asset,
-                ask_asset_info,
-            } => SystemResult::Ok(ContractResult::from(to_binary(&SimulationResponse {
-                return_amount: offer_asset.amount,
-                commission_amount: Uint128::zero(),
-                spread_amount: Uint128::zero(),
-            }))),
+            QueryMsg::Simulation { offer_asset, .. } => {
+                SystemResult::Ok(ContractResult::from(to_binary(&SimulationResponse {
+                    return_amount: offer_asset.amount,
+                    commission_amount: Uint128::zero(),
+                    spread_amount: Uint128::zero(),
+                })))
+            }
         }
     }
 
