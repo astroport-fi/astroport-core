@@ -17,8 +17,6 @@ dependencies = [
  "cw-storage-plus",
  "cw20",
  "itertools",
- "schemars",
- "serde",
  "uint",
 ]
 
@@ -33,8 +31,6 @@ dependencies = [
  "cw2",
  "itertools",
  "protobuf",
- "schemars",
- "serde",
  "thiserror",
 ]
 
@@ -50,13 +46,12 @@ dependencies = [
  "cosmwasm-std",
  "cw-multi-test",
  "cw-storage-plus",
+ "cw1-whitelist",
  "cw2",
  "cw20",
  "integer-sqrt",
  "proptest",
  "protobuf",
- "schemars",
- "serde",
  "sim",
  "thiserror",
 ]
@@ -71,8 +66,6 @@ dependencies = [
  "cw2",
  "cw20",
  "cw20-base",
- "schemars",
- "serde",
  "snafu",
 ]
 
@@ -85,8 +78,6 @@ dependencies = [
  "cosmwasm-std",
  "cw1-whitelist",
  "cw2",
- "schemars",
- "serde",
  "thiserror",
 ]
 

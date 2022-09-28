@@ -1,5 +1,4 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::cw_serde;
 
 use astroport::common::OwnershipProposal;
 use astroport::vesting::{OrderBy, VestingInfo};
@@ -8,7 +7,7 @@ use cw_storage_plus::{Bound, Item, Map};
 
 /// ## Description
 /// This structure stores the main parameters for the generator vesting contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Config {
     /// Address that's allowed to change contract parameters
     pub owner: Addr,

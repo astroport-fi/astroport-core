@@ -1,8 +1,7 @@
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Api, Deps, Order, StdResult};
 use cw_storage_plus::{Bound, Item, Map};
 use itertools::Itertools;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 use crate::error::ContractError;
 use astroport::asset::AssetInfo;
@@ -11,7 +10,7 @@ use astroport::factory::PairConfig;
 
 /// ## Description
 /// This structure holds the main contract parameters.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Config {
     /// Address allowed to change contract parameters
     pub owner: Addr,
@@ -27,7 +26,7 @@ pub struct Config {
 
 /// ## Description
 /// This is an intermediate structure for storing a pair's key. It is used in a submessage response.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct TmpPairInfo {
     pub pair_key: Vec<u8>,
     pub asset_infos: Vec<AssetInfo>,

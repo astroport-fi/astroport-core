@@ -15,12 +15,12 @@ use astroport::pair::{
 };
 use astroport::pair_stable_bluna::{ExecuteMsg, StablePoolParams};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use astroport::whitelist::InstantiateMsg as WhitelistInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, Decimal256, DepsMut, Env,
     Reply, ReplyOn, StdError, SubMsg, SubMsgResponse, SubMsgResult, Timestamp, Uint128, WasmMsg,
 };
+use cw1_whitelist::msg::InstantiateMsg as WhitelistInstantiateMsg;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
 use std::str::FromStr;
@@ -59,7 +59,7 @@ fn proper_initialization() {
 
     let msg = InstantiateMsg {
         factory_addr: "factory".to_string(),
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -172,7 +172,7 @@ fn provide_liquidity() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -328,7 +328,7 @@ fn withdraw_liquidity() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -359,7 +359,7 @@ fn withdraw_liquidity() {
     // Withdraw liquidity
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: String::from("addr0000"),
-        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
         amount: Uint128::new(100u128),
     });
 
@@ -456,7 +456,7 @@ fn try_native_to_token() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -614,7 +614,7 @@ fn try_token_to_native() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -664,6 +664,7 @@ fn try_token_to_native() {
         sender: String::from("addr0000"),
         amount: offer_amount,
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: None,
@@ -792,6 +793,7 @@ fn try_token_to_native() {
         sender: String::from("addr0000"),
         amount: offer_amount,
         msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
             belief_price: None,
             max_spread: None,
             to: None,
@@ -865,7 +867,7 @@ fn test_query_pool() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -937,7 +939,7 @@ fn test_query_share() {
     ]);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -1051,7 +1053,7 @@ fn test_accumulate_prices() {
             env.clone(),
             &Config {
                 pair_info: PairInfo {
-                    asset_infos: [
+                    asset_infos: vec![
                         AssetInfo::NativeToken {
                             denom: "uusd".to_string(),
                         },

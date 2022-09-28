@@ -1,13 +1,12 @@
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::common::OwnershipProposal;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128};
 use cw_storage_plus::{Item, Map};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// ## Description
 /// This structure stores the main stableswap pair parameters.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Config {
     /// The contract owner
     pub owner: Option<Addr>,
