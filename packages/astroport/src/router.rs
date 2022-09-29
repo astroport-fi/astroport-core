@@ -1,5 +1,4 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
@@ -9,15 +8,14 @@ use crate::asset::AssetInfo;
 pub const MAX_SWAP_OPERATIONS: usize = 50;
 
 /// This structure holds the parameters used for creating a contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct InstantiateMsg {
     /// The astroport factory contract address
     pub astroport_factory: String,
 }
 
 /// This enum describes a swap operation.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum SwapOperation {
     /// Native swap
     NativeSwap {
@@ -47,8 +45,7 @@ impl SwapOperation {
 }
 
 /// This structure describes the execute messages available in the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum ExecuteMsg {
     /// Receive receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template
     Receive(Cw20ReceiveMsg),
@@ -77,8 +74,7 @@ pub enum ExecuteMsg {
     },
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum Cw20HookMsg {
     ExecuteSwapOperations {
         /// A vector of swap operations
@@ -93,12 +89,14 @@ pub enum Cw20HookMsg {
 }
 
 /// This structure describes the query messages available in the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     /// Config returns configuration parameters for the contract using a custom [`ConfigResponse`] structure
+    #[returns(ConfigResponse)]
     Config {},
     /// SimulateSwapOperations simulates multi-hop swap operations
+    #[returns(SimulateSwapOperationsResponse)]
     SimulateSwapOperations {
         /// The amount of tokens to swap
         offer_amount: Uint128,
@@ -108,14 +106,14 @@ pub enum QueryMsg {
 }
 
 /// This structure describes a custom struct to return a query response containing the base contract configuration.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigResponse {
     /// The Astroport factory contract address
     pub astroport_factory: String,
 }
 
 /// This structure describes a custom struct to return a query response containing the end amount of a swap simulation
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct SimulateSwapOperationsResponse {
     /// The amount of tokens received in a swap simulation
     pub amount: Uint128,
@@ -123,5 +121,5 @@ pub struct SimulateSwapOperationsResponse {
 
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct MigrateMsg {}

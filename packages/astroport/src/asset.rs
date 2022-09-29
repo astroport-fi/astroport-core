@@ -1,5 +1,4 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::cw_serde;
 use std::fmt;
 
 use crate::factory::PairType;
@@ -11,12 +10,15 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 
+pub const UUSD_DENOM: &str = "uusd";
+/// LUNA token denomination
+pub const ULUNA_DENOM: &str = "uluna";
 /// Minimum initial LP share
 pub const MINIMUM_LIQUIDITY_AMOUNT: Uint128 = Uint128::new(1_000);
 
 /// ## Description
 /// This enum describes a Terra asset (native or CW20).
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Asset {
     /// Information about an asset stored in a [`AssetInfo`] struct
     pub info: AssetInfo,
@@ -133,8 +135,7 @@ impl Asset {
 /// Token { contract_addr: Addr::unchecked("terra...") };
 /// NativeToken { denom: String::from("uluna") };
 /// ```
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum AssetInfo {
     /// Non-native Token
     Token { contract_addr: Addr },
@@ -239,7 +240,7 @@ impl AssetInfo {
 }
 
 /// This structure stores the main parameters for an Astroport pair
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct PairInfo {
     /// Asset information for the two assets in the pool
     pub asset_infos: [AssetInfo; 2],

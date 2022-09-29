@@ -7,6 +7,7 @@ use crate::utils::{
     build_distribute_msg, build_swap_msg, try_build_swap_msg, validate_bridge,
     BRIDGES_EXECUTION_MAX_DEPTH, BRIDGES_INITIAL_DEPTH,
 };
+use astroport::asset::ULUNA_DENOM;
 use astroport::asset::{
     addr_validate_to_lower, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo,
     PairInfo,
@@ -18,7 +19,6 @@ use astroport::maker::{
     QueryMsg,
 };
 use astroport::pair::QueryMsg as PairQueryMsg;
-use astroport_governance::astroport::asset::ULUNA_DENOM;
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Order, QueryRequest, Response, StdError, StdResult, SubMsg, Uint128, Uint64,

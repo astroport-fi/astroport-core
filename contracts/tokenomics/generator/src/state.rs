@@ -9,16 +9,15 @@ use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_pow
 
 use cosmwasm_std::{Addr, DepsMut, Env, StdResult, Storage, Uint128, Uint64};
 
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Decimal, Deps};
 use cw20::BalanceResponse;
 use cw_storage_plus::{Item, Map};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::collections::HashMap;
 
 /// This structure stores the core parameters for the Generator contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Config {
     /// Address allowed to change contract parameters
     pub owner: Addr,
@@ -50,7 +49,7 @@ pub struct Config {
     pub checkpoint_generator_limit: Option<u32>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub enum ExecuteOnReply {
     /// Updates reward and returns it to user.
     ClaimRewards {
@@ -264,8 +263,8 @@ pub(crate) fn update_virtual_amount(
     let mut total_vp = Uint128::zero();
 
     if let Some(voting_escrow) = &cfg.voting_escrow {
-        user_vp = get_voting_power(&deps.querier, voting_escrow, account)?;
-        total_vp = get_total_voting_power(&deps.querier, voting_escrow)?;
+        user_vp = get_voting_power(deps.querier, voting_escrow, account)?;
+        total_vp = get_total_voting_power(deps.querier, voting_escrow)?;
     }
 
     let user_virtual_share = user_info.amount.multiply_ratio(4u128, 10u128);

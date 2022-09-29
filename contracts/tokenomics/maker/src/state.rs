@@ -1,13 +1,12 @@
 use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// ## Description
 /// This structure stores the main paramters for the Maker contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Config {
     /// Address that's allowed to set contract parameters
     pub owner: Addr,

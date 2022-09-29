@@ -19,19 +19,9 @@ library = []
 test-utils = []
 
 [dependencies]
-cw-utils = "0.13.2"
-cw1 = "0.13.2"
-cw2 = "0.13.2"
-cosmwasm-std = "1.0"
-cw-storage-plus = "0.13.2"
-schemars = "0.8.1"
-serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0.23" }
+cw2 = "0.15"
+cw1-whitelist =  { version = "0.15", features = ["library"] }
+cosmwasm-std = "1.1"
+thiserror = { version = "1.0" }
 astroport = { path = "../../packages/astroport", default-features = false }
-
-[dev-dependencies]
-anyhow = "1"
-assert_matches = "1"
-cosmwasm-schema = { version = "1.0.0" }
-cw-multi-test = "0.13.2"
-derivative = "2"
+cosmwasm-schema = { version = "1.1" }
