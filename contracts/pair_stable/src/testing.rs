@@ -8,7 +8,7 @@ use crate::mock_querier::mock_dependencies;
 
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::Config;
-use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo, PairInfo};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
 
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, SimulationResponse, StablePoolParams,
@@ -1211,14 +1211,6 @@ fn test_accumulate_prices() {
 
     for test_case in test_cases {
         let (case, result) = test_case;
-        let asset_x = native_asset_info("uusd".to_string());
-        let asset_y = native_asset_info("uluna".to_string());
-        let deps = mock_dependencies(&[]);
-
-        let pools = vec![
-            native_asset(asset_x.to_string(), case.x_amount.into()),
-            native_asset(asset_y.to_string(), case.y_amount.into()),
-        ];
 
         let env = mock_env_with_block_time(case.block_time);
         let mut config = Config {
@@ -1245,7 +1237,15 @@ fn test_accumulate_prices() {
             next_amp_time: env.block.time.seconds(),
         };
 
-        accumulate_prices(deps.as_ref(), env.clone(), &mut config, &pools).unwrap();
+        accumulate_prices(
+            env.clone(),
+            &mut config,
+            Uint128::new(case.x_amount),
+            6,
+            Uint128::new(case.y_amount),
+            6,
+        )
+        .unwrap();
 
         assert_eq!(config.block_time_last, result.block_time_last);
         assert_eq!(

@@ -504,7 +504,14 @@ pub fn provide_liquidity(
     )?);
 
     // Accumulate prices assets in the pool
-    if accumulate_prices(deps.as_ref(), env, &mut config, &pools)? {
+    if accumulate_prices(
+        env,
+        &mut config,
+        pools[0].amount,
+        token_precision_0,
+        pools[1].amount,
+        token_precision_1,
+    )? {
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -612,7 +619,14 @@ pub fn withdraw_liquidity(
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
 
     // Accumulate prices for the assets in the pool
-    if accumulate_prices(deps.as_ref(), env, &mut config, &pools)? {
+    if accumulate_prices(
+        env,
+        &mut config,
+        pools[0].amount,
+        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        pools[1].amount,
+        query_token_precision(&deps.querier, pools[1].info.clone())?,
+    )? {
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -794,7 +808,14 @@ pub fn swap(
     }
 
     // Accumulate prices for the assets in the pool
-    if accumulate_prices(deps.as_ref(), env, &mut config, &pools)? {
+    if accumulate_prices(
+        env,
+        &mut config,
+        pools[0].amount,
+        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        pools[1].amount,
+        query_token_precision(&deps.querier, pools[1].info.clone())?,
+    )? {
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -834,24 +855,23 @@ pub fn swap(
 ///
 /// * **y_precision** is an object of type [`u8`]. This is the precision for the y token.
 pub fn accumulate_prices(
-    deps: Deps,
     env: Env,
     config: &mut Config,
-    pools: &[Asset],
+    x: Uint128,
+    x_precision: u8,
+    y: Uint128,
+    y_precision: u8,
 ) -> Result<bool, ContractError> {
     let block_time = env.block.time.seconds();
     if block_time <= config.block_time_last {
         return Ok(false);
     }
 
-    if pools.iter().all(|pool| !pool.amount.is_zero()) {
-        let x_precision = query_token_precision(&deps.querier, pools[0].info.clone())?;
-        let y_precision = query_token_precision(&deps.querier, pools[1].info.clone())?;
-
+    if !x.is_zero() && !y.is_zero() {
         // We have to shift block_time when any price is zero in order to not fill an accumulator with a null price for that period
         let greater_precision = x_precision.max(y_precision).max(TWAP_PRECISION);
-        let x = adjust_precision(pools[0].amount, x_precision, greater_precision)?;
-        let y = adjust_precision(pools[1].amount, y_precision, greater_precision)?;
+        let x = adjust_precision(x, x_precision, greater_precision)?;
+        let y = adjust_precision(y, y_precision, greater_precision)?;
 
         let time_elapsed = Uint128::from(block_time - config.block_time_last);
 
@@ -1121,8 +1141,15 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
     let mut config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps, config.clone())?;
 
-    accumulate_prices(deps, env, &mut config, &assets)
-        .map_err(|err| StdError::generic_err(format!("{err}")))?;
+    accumulate_prices(
+        env,
+        &mut config,
+        assets[0].amount,
+        query_token_precision(&deps.querier, assets[0].info.clone())?,
+        assets[1].amount,
+        query_token_precision(&deps.querier, assets[1].info.clone())?,
+    )
+    .map_err(|err| StdError::generic_err(format!("{err}")))?;
 
     let resp = CumulativePricesResponse {
         assets,
