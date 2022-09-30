@@ -24,7 +24,7 @@ cw20 = "0.15"
 cw20-base = { version = "0.15", features = ["library"] }
 cw-storage-plus = "0.15"
 cosmwasm-std = "1.1"
-snafu = { version = "0.6.3" }
+snafu = { version = "0.6" }
 cosmwasm-schema = "1.1"
 
 [dev-dependencies]

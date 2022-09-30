@@ -26,7 +26,7 @@ cw20 = { version = "0.15" }
 cw-storage-plus = "0.15"
 thiserror = { version = "1.0" }
 astroport = { path = "../../../packages/astroport", default-features = false }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "release/terra2" }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/migrate_to_cosmwasm_1_1_release/terra2" }
 protobuf = { version = "2", features = ["with-bytes"] }
 cosmwasm-schema = "1.1"
 cw1-whitelist =  { version = "0.15", features = ["library"] }
@@ -43,5 +43,5 @@ astroport-pair = {path = "../../pair"}
 astroport-pair-stable = {path = "../../pair_stable"}
 astroport-whitelist = { path = "../../whitelist" }
 anyhow = "1"
-generator-controller = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "release/terra2" }
-voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "release/terra2" }
+generator-controller = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/migrate_to_cosmwasm_1_1_release/terra2" }
+voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/migrate_to_cosmwasm_1_1_release/terra2" }
