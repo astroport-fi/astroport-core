@@ -333,40 +333,42 @@ pub fn accumulate_prices(
     env: Env,
     config: &mut Config,
     pools: &[DecimalAsset],
-) -> Result<(), ContractError> {
+) -> Result<bool, ContractError> {
     let block_time = env.block.time.seconds();
     if block_time <= config.block_time_last {
-        return Ok(());
+        return Ok(false);
     }
 
     let time_elapsed = Uint128::from(block_time - config.block_time_last);
 
-    let immut_config = config.clone();
-    for (from, to, value) in config.cumulative_prices.iter_mut() {
-        let offer_asset = DecimalAsset {
-            info: from.clone(),
-            amount: Decimal256::one(),
-        };
+    if pools.iter().all(|pool| !pool.amount.is_zero()) {
+        let immut_config = config.clone();
+        for (from, to, value) in config.cumulative_prices.iter_mut() {
+            let offer_asset = DecimalAsset {
+                info: from.clone(),
+                amount: Decimal256::one(),
+            };
 
-        let (offer_pool, ask_pool) = select_pools(Some(from), Some(to), pools)?;
-        let SwapResult { return_amount, .. } = compute_swap(
-            deps.storage,
-            &env,
-            &immut_config,
-            &offer_asset,
-            &offer_pool,
-            &ask_pool,
-            pools,
-        )?;
+            let (offer_pool, ask_pool) = select_pools(Some(from), Some(to), pools)?;
+            let SwapResult { return_amount, .. } = compute_swap(
+                deps.storage,
+                &env,
+                &immut_config,
+                &offer_asset,
+                &offer_pool,
+                &ask_pool,
+                pools,
+            )?;
 
-        *value = value.wrapping_add(time_elapsed.checked_mul(adjust_precision(
-            return_amount,
-            get_precision(deps.storage, &ask_pool.info)?,
-            TWAP_PRECISION,
-        )?)?);
+            *value = value.wrapping_add(time_elapsed.checked_mul(adjust_precision(
+                return_amount,
+                get_precision(deps.storage, &ask_pool.info)?,
+                TWAP_PRECISION,
+            )?)?);
+        }
     }
 
     config.block_time_last = block_time;
 
-    Ok(())
+    Ok(true)
 }
