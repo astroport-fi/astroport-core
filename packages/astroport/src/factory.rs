@@ -27,7 +27,7 @@ pub enum PairType {
     Custom(String),
 }
 
-// Return a raw encoded string representing the name of each pool type
+/// Returns a raw encoded string representing the name of each pool type
 impl Display for PairType {
     fn fmt(&self, fmt: &mut Formatter) -> Result {
         match self {
@@ -59,8 +59,6 @@ pub struct PairConfig {
 
 impl PairConfig {
     /// This method is used to check fee bps.
-    /// ## Params
-    /// `&self` is the type of the caller object.
     pub fn valid_fee_bps(&self) -> bool {
         self.total_fee_bps <= MAX_TOTAL_FEE_BPS && self.maker_fee_bps <= MAX_MAKER_FEE_BPS
     }

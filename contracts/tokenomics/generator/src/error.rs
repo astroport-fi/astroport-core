@@ -1,7 +1,7 @@
 use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
-/// This enum describes generator contract errors!
+/// This enum describes generator contract errors
 #[derive(Error, Debug)]
 pub enum ContractError {
     #[error("{0}")]

@@ -20,17 +20,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Time between two consecutive TWAP updates.
 pub const PERIOD: u64 = 86400;
 
-/// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns a [`Response`] with the specified attributes if the operation was successful,
-/// or a [`ContractError`] if the contract was not created.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -70,18 +60,9 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-/// ## Description
 /// Exposes all the execute functions available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **_info** is an object of type [`MessageInfo`].
-///
-/// * **msg** is an object of type [`ExecuteMsg`].
-///
-/// ## Queries
+/// ## Variants
 /// * **ExecuteMsg::Update {}** Updates the local TWAP values for the assets in the Astroport pool.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
@@ -95,14 +76,7 @@ pub fn execute(
     }
 }
 
-/// ## Description
 /// Updates the local TWAP values for the tokens in the target Astroport pool.
-/// Returns a default object of type [`Response`] if the operation was successful,
-/// otherwise returns a [`ContractError`].
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
 pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let price_last = PRICE_LAST.load(deps.storage)?;
@@ -140,14 +114,7 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
 
-/// ## Description
 /// Exposes all the queries available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
 /// * **QueryMsg::Consult { token, amount }** Validates assets and calculates a new average
@@ -159,15 +126,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// ## Description
-/// Multiplies a token amount by its latest TWAP value and returns the result as a [`Uint256`] if the operation was successful
-/// or returns [`StdError`] on failure.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Multiplies a token amount by its latest TWAP value.
+/// * **token** token for which we multiply its TWAP value by an amount.
 ///
-/// * **token** is an object of type [`AssetInfo`]. This is the token for which we multiply its TWAP value by an amount.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of tokens we multiply the TWAP by.
+/// * **amount** amount of tokens we multiply the TWAP by.
 fn consult(
     deps: Deps,
     token: AssetInfo,
@@ -220,14 +182,7 @@ fn consult(
         .collect::<Result<Vec<(AssetInfo, Uint256)>, StdError>>()
 }
 
-/// ## Description
-/// Used for contract migration. Returns the default object of type [`Response`].
-/// ## Params
-/// * **_deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_msg** is an object of type [`MigrateMsg`].
+/// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;

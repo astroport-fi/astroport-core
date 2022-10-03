@@ -31,17 +31,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Sets the default maximum spread (as a percentage) used when swapping fee tokens to ASTRO.
 const DEFAULT_MAX_SPREAD: u64 = 5; // 5%
 
-/// ## Description
 /// Creates a new contract with the specified parameters in [`InstantiateMsg`].
-/// Returns a default object of type [`Response`] if the operation was successful,
-/// or a [`ContractError`] if the contract was not created.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_info** is an object of type [`MessageInfo`].
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters used for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -91,18 +81,9 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-/// ## Description
 /// Exposes execute functions available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **_info** is an object of type [`MessageInfo`].
-///
-/// * **msg** is an object of type [`ExecuteMsg`].
-///
-/// ## Queries
+/// ## Variants
 /// * **ExecuteMsg::Collect { assets }** Swaps collected fee tokens to ASTRO
 /// and distributes the ASTRO between xASTRO and vxASTRO stakers.
 ///
@@ -216,16 +197,9 @@ pub fn execute(
     }
 }
 
-/// ## Description
 /// Swaps fee tokens to ASTRO and distribute the resulting ASTRO to xASTRO and vxASTRO stakers.
-/// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] object if the
-/// operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **assets** is a vector that contains objects of type [`AssetWithLimit`]. These are the fee tokens being swapped to ASTRO.
+/// * **assets** array with fee tokens being swapped to ASTRO.
 fn collect(
     deps: DepsMut,
     env: Env,
@@ -272,26 +246,19 @@ fn collect(
     Ok(response.add_attribute("action", "collect"))
 }
 
-/// ## Description
 /// This enum describes available token types that can be used as a SwapTarget.
 enum SwapTarget {
     Astro(SubMsg),
     Bridge { asset: AssetInfo, msg: SubMsg },
 }
 
-/// ## Description
-/// Swap all non ASTRO tokens to ASTRO. Returns a [`ContractError`] on failure, otherwise returns
-/// a [`Response`] object if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Swap all non ASTRO tokens to ASTRO.
 ///
-/// * **contract_addr** is an object of type [`Addr`] which is the maker contract address.
+/// * **contract_addr** maker contract address.
 ///
-/// * **cfg** is an object of type [`Config`]. This is the Maker contract configuration.
+/// * **assets** array with assets to swap to ASTRO.
 ///
-/// * **assets** is a vector that contains objects of type [`AssetWithLimit`]. These are the assets to swap to ASTRO.
-///
-/// * **with_validation** is a parameter of type [`u64`]. Determines whether the swap operation is validated or not.
+/// * **with_validation** whether the swap operation should be validated or not.
 fn swap_assets(
     deps: Deps,
     contract_addr: &Addr,
@@ -342,18 +309,11 @@ fn swap_assets(
     Ok((response, bridge_assets.into_values().collect()))
 }
 
-/// ## Description
 /// Checks if all required pools and bridges exists and performs a swap operation to ASTRO.
-/// Returns a [`ContractError`] on failure, otherwise returns a vector that contains objects
-/// of type [`SubMsg`] if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **cfg** is an object of type [`Config`]. This is the Maker contract configuration.
+/// * **from_token** token to swap to ASTRO.
 ///
-/// * **from_token** is an object of type [`AssetInfo`]. This is the token to swap to ASTRO.
-///
-/// * **amount_in** is an object of type [`Uint128`]. This is the amount of fee tokens to swap.
+/// * **amount_in** amount of tokens to swap.
 fn swap(
     deps: Deps,
     cfg: &Config,
@@ -422,18 +382,12 @@ fn swap(
     Err(ContractError::CannotSwap(from_token))
 }
 
-/// ## Description
-/// Performs a swap operation to ASTRO without additional checks. Returns a [`ContractError`] on failure,
-/// otherwise returns a vector that contains objects of type [`SubMsg`] if the operation
+/// Performs a swap operation to ASTRO without additional checks.
 /// was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **cfg** is an object of type [`Config`]. This is the Maker contract configuration.
+/// * **from_token** token to swap to ASTRO.
 ///
-/// * **from_token** is an object of type [`AssetInfo`]. This is the token to swap to ASTRO.
-///
-/// * **amount_in** is an object of type [`Uint128`]. This is the amount of tokens to swap.
+/// * **amount_in** amount of tokens to swap.
 fn swap_no_validate(
     deps: Deps,
     cfg: &Config,
@@ -472,20 +426,13 @@ fn swap_no_validate(
     Err(ContractError::CannotSwap(from_token))
 }
 
-/// ## Description
-/// Swaps collected fees using bridge assets. Returns a [`ContractError`] on failure.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Swaps collected fees using bridge assets.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **assets** array with fee tokens to swap as well as amount of tokens to swap.
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * **depth** maximum route length used to swap a fee token.
 ///
-/// * **assets** is a vector field of type [`AssetWithLimit`]. These are the fee tokens to swap as well as amounts of tokens to swap.
-///
-/// * **depth** is an object of type [`u64`]. This is the maximum route length used to swap a fee token.
-///
-/// ##Executor
+/// ## Executor
 /// Only the Maker contract itself can execute this.
 fn swap_bridge_assets(
     deps: DepsMut,
@@ -532,16 +479,9 @@ fn swap_bridge_assets(
         .add_attribute("action", "swap_bridge_assets"))
 }
 
-/// ## Description
-/// Distributes ASTRO rewards to x/vxASTRO holders. Returns a [`ContractError`] on failure.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Distributes ASTRO rewards to x/vxASTRO holders.
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// ##Executor
+/// ## Executor
 /// Only the Maker contract itself can execute this.
 fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     if info.sender != env.contract.address {
@@ -561,15 +501,7 @@ fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
 
 type DistributeMsgParts = (Vec<SubMsg>, Vec<Attribute>);
 
-/// ## Description
-/// Private function that performs the ASTRO token distribution to x/vxASTRO. Returns a [`ContractError`] on failure,
-/// otherwise returns a vector that contains the objects of type [`SubMsg`] if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **cfg** is an object of type [`Config`].
+/// Private function that performs the ASTRO token distribution to x/vxASTRO.
 fn distribute(
     deps: DepsMut,
     env: Env,
@@ -664,25 +596,19 @@ fn distribute(
     Ok((result, attributes))
 }
 
-/// ## Description
-/// Updates general contarct parameters. Returns a [`ContractError`] on failure or the [`Config`]
-/// data will be updated if the transaction is successful.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Updates general contract parameters.
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * **factory_contract** address of the factory contract.
 ///
-/// * **factory_contract** is an [`Option`] field of type [`String`]. This is the address of the factory contract.
+/// * **staking_contract** address of the xASTRO staking contract.
 ///
-/// * **staking_contract** is an [`Option`] field of type [`String`]. This is the address of the xASTRO staking contract.
+/// * **governance_contract** address of the vxASTRO fee distributor contract.
 ///
-/// * **governance_contract** is an [`Option`] field of type [`UpdateAddr`]. This is the address of the vxASTRO fee distributor contract.
+/// * **governance_percent** percentage of ASTRO that goes to the vxASTRO fee distributor.
 ///
-/// * **governance_percent** is an [`Option`] field of type [`Uint64`]. This is the percentage of ASTRO that goes to the vxASTRO fee distributor.
+/// * **max_spread** max spread used when swapping fee tokens to ASTRO.
 ///
-/// * **max_spread** is an [`Option`] field of type [`Decimal`]. Thisis the max spread used when swapping fee tokens to ASTRO.
-///
-/// ##Executor
+/// ## Executor
 /// Only the owner can execute this.
 fn update_config(
     deps: DepsMut,
@@ -747,19 +673,13 @@ fn update_config(
     Ok(Response::new().add_attributes(attributes))
 }
 
-/// ## Description
-/// Adds or removes bridge tokens used to swap fee tokens to ASTRO. Returns a [`ContractError`] on failure.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Adds or removes bridge tokens used to swap fee tokens to ASTRO.
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * **add** array of bridge tokens added to swap fee tokens with.
 ///
-/// * **add** is an [`Option`] field of type [`Vec<(AssetInfo, AssetInfo)>`]. This is a vector of bridge tokens added to swap fee tokens with.
+/// * **remove** array of bridge tokens removed from being used to swap certain fee tokens.
 ///
-/// * **remove** is an [`Option`] field of type [`Vec<AssetInfo>`]. This is a vector of bridge
-/// tokens removed from being used to swap certain fee tokens.
-///
-/// ##Executor
+/// ## Executor
 /// Only the owner can execute this.
 fn update_bridges(
     deps: DepsMut,
@@ -810,14 +730,7 @@ fn update_bridges(
     Ok(Response::default().add_attribute("action", "update_bridges"))
 }
 
-/// ## Description
 /// Exposes all the queries available in the contract.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
 /// * **QueryMsg::Config {}** Returns the Maker contract configuration using a [`ConfigResponse`] object.
@@ -836,10 +749,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// ## Description
 /// Returns information about the Maker configuration using a [`ConfigResponse`] object.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
@@ -855,14 +765,9 @@ fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
     })
 }
 
-/// ## Description
-/// Returns Maker's fee token balances for specific tokens using a [`ConfigResponse`] object.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// Returns Maker's fee token balances for specific tokens using a [`BalancesResponse`] object.
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **assets** is a vector that contains objects of type [`AssetInfo`]. These are the assets for which we query the Maker's balances.
+/// * **assets** array with assets for which we query the Maker's balances.
 fn query_get_balances(deps: Deps, env: Env, assets: Vec<AssetInfo>) -> StdResult<BalancesResponse> {
     let mut resp = BalancesResponse { balances: vec![] };
 
@@ -880,10 +785,7 @@ fn query_get_balances(deps: Deps, env: Env, assets: Vec<AssetInfo>) -> StdResult
     Ok(resp)
 }
 
-/// ## Description
 /// Returns bridge tokens used for swapping fee tokens to ASTRO.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 fn query_bridges(deps: Deps) -> StdResult<Vec<(String, String)>> {
     BRIDGES
         .range(deps.storage, None, None, Order::Ascending)
@@ -894,12 +796,9 @@ fn query_bridges(deps: Deps) -> StdResult<Vec<(String, String)>> {
         .collect()
 }
 
-/// ## Description
 /// Returns asset information for the specified pair.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **contract_addr** is an object of type [`Addr`]. This is an Astroport pair contract address.
+/// * **contract_addr** Astroport pair contract address.
 pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<Vec<AssetInfo>> {
     let res: PairInfo = deps
         .querier
@@ -908,14 +807,7 @@ pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<Vec<AssetInfo>> 
     Ok(res.asset_infos)
 }
 
-/// ## Description
-/// Used for contract migration. Returns a default object of type [`Response`].
-/// ## Params
-/// * **_deps** is an object of type [`Deps`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_msg** is an object of type [`MigrateMsg`].
+/// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;

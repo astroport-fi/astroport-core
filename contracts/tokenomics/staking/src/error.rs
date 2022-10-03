@@ -1,8 +1,7 @@
 use cosmwasm_std::{DivideByZeroError, OverflowError, StdError};
 use thiserror::Error;
 
-/// ## Description
-/// This enum describes staking contract errors!
+/// This enum describes staking contract errors
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]

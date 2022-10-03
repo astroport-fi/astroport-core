@@ -38,7 +38,7 @@ pub struct WasmMockQuerier {
 
 #[derive(Clone, Default)]
 pub struct TokenQuerier {
-    // This lets us iterate over all pairs that match the first string
+    /// This lets us iterate over all pairs that match the first string
     balances: HashMap<String, HashMap<String, Uint128>>,
 }
 
@@ -234,9 +234,4 @@ impl WasmMockQuerier {
     pub fn with_cw20_query_handler(&mut self) {
         self.handler = QueryHandler::Cw20;
     }
-    // pub fn with_balance(&mut self, balances: &[(&String, &[Coin])]) {
-    //     for (addr, balance) in balances {
-    //         self.base.update_balance(addr, balance.to_vec());
-    //     }
-    // }
 }

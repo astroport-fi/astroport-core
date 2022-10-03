@@ -17,19 +17,13 @@ pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 3;
 /// TODO: adjust according to token's precision?
 pub const SWAP_SIMULATION_AMOUNT: Uint128 = Uint128::new(1_000_000u128);
 
-/// # Description
 /// The function checks from<>to pool exists and creates swap message.
 ///
-/// # Params
-/// * **querier** is an object of type [`QuerierWrapper`].
+/// * **from** asset we want to swap.
 ///
-/// * **cfg** is an object of type [`Config`]. This is the contracts' configuration.
+/// * **to** asset we want to swap to.
 ///
-/// * **from** is an object of type [`AssetInfo`] which represents the asset we want to swap.
-///
-/// * **to** is an object of type [`AssetInfo`] which represents the asset we want to swap to.
-///
-/// * **amount_in** is an object of type [`Uint128`]. This is the amount of tokens to swap.
+/// * **amount_in** amount of tokens to swap.
 pub fn try_build_swap_msg(
     querier: &QuerierWrapper,
     cfg: &Config,
@@ -42,21 +36,17 @@ pub fn try_build_swap_msg(
     Ok(msg)
 }
 
-/// # Description
 /// This function creates swap message.
 ///
-/// # Params
-/// * **querier** is an object of type [`QuerierWrapper`].
+/// * **max_spread** max allowed spread.
 ///
-/// * **max_spread** is a value of type [`Decimal`]. This is max allowed spread.
+/// * **pool** pool's information.
 ///
-/// * **pool** is an object of type [`PairInfo`]. This is the pool's information.
+/// * **from**  asset we want to swap.
 ///
-/// * **from** is an object of type [`AssetInfo`] which represents the asset we want to swap.
+/// * **to** asset we want to swap to.
 ///
-/// * **to** is an object of type [`AssetInfo`] which represents the asset we want to swap to.
-///
-/// * **amount_in** is an object of type [`Uint128`]. This is the amount of tokens to swap.
+/// * **amount_in** amount of tokens to swap.
 pub fn build_swap_msg(
     querier: &QuerierWrapper,
     max_spread: Decimal,
@@ -103,17 +93,11 @@ pub fn build_swap_msg(
     }
 }
 
-/// # Description
 /// This function builds distribute messages. It swap all assets through bridges if needed.
 ///
-/// # Params
-/// * **env** is an object of type [`Env`].
+/// * **bridge_assets** array with assets we want to swap and then to distribute.
 ///
-/// * **bridge_assets** is an array of objects of type [`AssetInfo`].
-/// This is the assets we want to swap and then to distribute.
-///
-/// * **depth** is a value of type [`Uint128`]. This is the current depth of the swap.
-/// It is intended to prevent dead loops in recursive calls.
+/// * **depth** current depth of the swap. It is intended to prevent dead loops in recursive calls.
 pub fn build_distribute_msg(
     env: Env,
     bridge_assets: Vec<AssetInfo>,
@@ -141,22 +125,16 @@ pub fn build_distribute_msg(
     Ok(msg)
 }
 
-/// # Description
 /// This function checks that there is a direct pool to swap to $ASTRO.
 /// Otherwise it looks for an intermediate token to swap to $ASTRO.
 ///
-/// # Params
-/// * **deps** is an object of type [`Deps`].
+/// * **from_token** asset we want to swap.
 ///
-/// * **factory_contract** is a value of type [`Addr`]. This is the factory contract address.
+/// * **to_token** asset we want to swap to.
 ///
-/// * **from_token** is an object of type [`AssetInfo`] which represents the asset we want to swap.
+/// * **astro_token** represents $ASTRO.
 ///
-/// * **to_token** is an object of type [`AssetInfo`] which represents the asset we want to swap to.
-///
-/// * **astro_token** is an object of type [`AssetInfo`] which represents $ASTRO.
-///
-/// * **depth** is a value of type [`Uint128`]. This is the current recursion depth of the validation.
+/// * **depth** current recursion depth of the validation.
 ///
 /// * **amount** is an amount of from_token.
 pub fn validate_bridge(
@@ -209,18 +187,12 @@ pub fn validate_bridge(
     Ok(bridge_pool)
 }
 
-/// # Description
 /// This function checks that there a pool to swap between `from` and `to`. In case of success
 /// returns [`PairInfo`] of selected pool and simulated return amount.
 ///
-/// # Params
-/// * **querier** is an object of type [`QuerierWrapper`].
+/// * **from** source asset.
 ///
-/// * **factory_contract** is an object of type [`Addr`] which is the factory contract.
-///
-/// * **from** is an object of type [`AssetInfo`] which is the source asset.
-///
-/// * **to** is an object of type [`AssetInfo`] which is the destination asset.
+/// * **to** destination asset.
 ///
 /// * **amount** optional. The value is used in swap simulations to select the best pool.
 pub fn get_pool(

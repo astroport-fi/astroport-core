@@ -10,7 +10,6 @@ use cw20::Cw20ReceiveMsg;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// ## Description
     /// Receives a message of type [`Cw20ReceiveMsg`]
     Receive(Cw20ReceiveMsg),
     /// ProvideLiquidity allows an account to provide liquidity in a pool with bLUNA

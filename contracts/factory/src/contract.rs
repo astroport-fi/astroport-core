@@ -38,17 +38,9 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// A `reply` call code ID used in a sub-message.
 const INSTANTIATE_PAIR_REPLY_ID: u64 = 1;
 
-/// ## Description
 /// Creates a new contract with the specified parameters packed in the `msg` variable.
-/// Returns a [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if the contract was not created
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_info** is an object of type [`MessageInfo`].
-///
-/// * **msg**  is a message of type [`InstantiateMsg`] which contains the parameters used for creating the contract.
+/// * **msg**  is message which contains the parameters used for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -92,7 +84,6 @@ pub fn instantiate(
     Ok(Response::new())
 }
 
-/// ## Description
 /// Data structure used to update general contract parameters.
 pub struct UpdateConfig {
     /// This is the CW20 token contract code identifier
@@ -105,18 +96,10 @@ pub struct UpdateConfig {
     whitelist_code_id: Option<u64>,
 }
 
-/// ## Description
 /// Exposes all the execute functions available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
 /// * **msg** is an object of type [`ExecuteMsg`].
 ///
-/// ## Queries
+/// ## Variants
 /// * **ExecuteMsg::UpdateConfig {
 ///             token_code_id,
 ///             fee_address,
@@ -214,16 +197,11 @@ pub fn execute(
     }
 }
 
-/// ## Description
-/// Updates general contract settings. Returns a [`ContractError`] on failure.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **info** is an object of type [`MessageInfo`].
+/// Updates general contract settings.
 ///
 /// * **param** is an object of type [`UpdateConfig`] that contains the parameters to update.
 ///
-/// ##Executor
+/// ## Executor
 /// Only the owner can execute this.
 pub fn execute_update_config(
     deps: DepsMut,
@@ -260,12 +238,7 @@ pub fn execute_update_config(
     Ok(Response::new().add_attribute("action", "update_config"))
 }
 
-/// ## Description
-/// Updates a pair type's configuration. Returns [`ContractError`] on failure.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **info** is an object of type [`MessageInfo`]
+/// Updates a pair type's configuration.
 ///
 /// * **pair_config** is an object of type [`PairConfig`] that contains the pair type information to update.
 ///
@@ -297,19 +270,13 @@ pub fn execute_update_pair_config(
     Ok(Response::new().add_attribute("action", "update_pair_config"))
 }
 
-/// ## Description
-/// Creates a new pair of `pair_type` with the assets specified in `asset_infos`. Returns a [`ContractError`] on failure or
-/// returns the address of the pair contract if the transaction was successful.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Creates a new pair of `pair_type` with the assets specified in `asset_infos`.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **pair_type** is the pair type of the newly created pair.
 ///
-/// * **pair_type** is an object of type [`PairType`]. This is the pair type of the newly created pair.
+/// * **asset_infos** is a vector with assets for which we create a pair.
 ///
-/// * **asset_infos** is a vector with items of type [`AssetInfo`]. These are the assets for which we create a pair.
-///
-/// * **init_params** is an [`Option`] type. These are packed params used for custom pair types that need extra data to be instantiated.
+/// * **init_params** These are packed params used for custom pair types that need extra data to be instantiated.
 pub fn execute_create_pair(
     deps: DepsMut,
     env: Env,
@@ -371,14 +338,9 @@ pub fn execute_create_pair(
         ]))
 }
 
-/// ## Description
-/// Marks specified pairs as migrated to the new admin. Returns a [`ContractError`] on failure.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Marks specified pairs as migrated to the new admin.
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **pairs** is a vector of [`PairType`]. These are pairs that should be marked as transferred.
+/// * **pairs** is a vector of pairs which should be marked as transferred.
 fn execute_mark_pairs_as_migrated(
     deps: DepsMut,
     info: MessageInfo,
@@ -403,14 +365,7 @@ fn execute_mark_pairs_as_migrated(
     Ok(Response::new().add_attribute("action", "execute_mark_pairs_as_migrated"))
 }
 
-/// ## Description
 /// The entry point to the contract for processing replies from submessages.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let tmp = TMP_PAIR_INFO.load(deps.storage)?;
@@ -453,15 +408,9 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     ]))
 }
 
-/// ## Description
-/// Removes an existing pair from the factory. Returns an [`ContractError`] on failure or returns a [`Response`]
-/// with the specified attributes if the operation was successful.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Removes an existing pair from the factory.
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **asset_infos** is a vector with items of type [`AssetInfo`]. These are the assets for which we deregister the pair.
+/// * **asset_infos** is a vector with assets for which we deregister the pair.
 ///
 /// ## Executor
 /// Only the owner can execute this.
@@ -521,14 +470,7 @@ pub fn deregister(
     ]))
 }
 
-/// ## Description
 /// Exposes all the queries available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
 /// * **QueryMsg::Config {}** Returns general contract parameters using a custom [`ConfigResponse`] structure.
@@ -559,10 +501,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// ## Description
 /// Returns a vector that contains blacklisted pair types
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 pub fn query_blacklisted_pair_types(deps: Deps) -> StdResult<Vec<PairType>> {
     PAIR_CONFIGS
         .range(deps.storage, None, None, Order::Ascending)
@@ -579,10 +518,7 @@ pub fn query_blacklisted_pair_types(deps: Deps) -> StdResult<Vec<PairType>> {
         .collect()
 }
 
-/// ## Description
 /// Returns general contract parameters using a custom [`ConfigResponse`] structure.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
@@ -600,26 +536,18 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(resp)
 }
 
-/// ## Description
 /// Returns a pair's data using the assets in `asset_infos` as input (those being the assets that are traded in the pair).
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **asset_infos** is a vector with items of type [`AssetInfo`]. These are the assets traded in the pair.
+/// * **asset_infos** is a vector with assets traded in the pair.
 pub fn query_pair(deps: Deps, asset_infos: Vec<AssetInfo>) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     query_pair_info(&deps.querier, &pair_addr)
 }
 
-/// ## Description
 /// Returns a vector with pair data that contains items of type [`PairInfo`]. Querying starts at `start_after` and returns `limit` pairs.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// * **start_after** is a field which accepts a vector with items of type [`AssetInfo`].
+/// This is the pair from which we start a query.
 ///
-/// * **start_after** is an [`Option`] field which accepts a vector with items of type [`AssetInfo`].
-/// This is the pair from which we start to query.
-///
-/// * **limit** is a [`Option`] type. Sets the number of pairs to be retrieved.
+/// * **limit** sets the number of pairs to be retrieved.
 pub fn query_pairs(
     deps: Deps,
     start_after: Option<Vec<AssetInfo>>,
@@ -633,12 +561,8 @@ pub fn query_pairs(
     Ok(PairsResponse { pairs })
 }
 
-/// ## Description
 /// Returns the fee setup for a specific pair type using a [`FeeInfoResponse`] struct.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **pair_type** is a [`PairType`] struct that returns the fee information (total and maker fees) for a specific pair type.
+/// * **pair_type** is a struct that represents the fee information (total and maker fees) for a specific pair type.
 pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoResponse> {
     let config = CONFIG.load(deps.storage)?;
     let pair_config = PAIR_CONFIGS.load(deps.storage, pair_type.to_string())?;
@@ -650,14 +574,7 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
     })
 }
 
-/// ## Description
-/// Used for contract migration. Returns a default object of type [`Response`].
-/// ## Params
-/// * **_deps** is an object of type [`Deps`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_msg** is an object of type [`MigrateMsg`].
+/// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;

@@ -9,7 +9,6 @@ use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
 use astroport::factory::PairConfig;
 
-/// ## Description
 /// This structure holds the main contract parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -25,7 +24,6 @@ pub struct Config {
     pub whitelist_code_id: u64,
 }
 
-/// ## Description
 /// This is an intermediate structure for storing a pair's key. It is used in a submessage response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TmpPairInfo {
@@ -42,9 +40,8 @@ pub const CONFIG: Item<Config> = Item::new("config");
 /// Saves created pairs (from olders to latest)
 pub const PAIRS: Map<&[u8], Addr> = Map::new("pair_info");
 
-/// ## Description
 /// Calculates a pair key from the specified parameters in the `asset_infos` variable.
-/// ## Params
+///
 /// `asset_infos` is an array with multiple items of type [`AssetInfo`].
 pub fn pair_key(asset_infos: &[AssetInfo]) -> Vec<u8> {
     asset_infos
@@ -65,13 +62,12 @@ const MAX_LIMIT: u32 = 30;
 /// The default limit for reading pairs from [`PAIRS`]
 const DEFAULT_LIMIT: u32 = 10;
 
-/// ## Description
 /// Reads pairs from the [`PAIRS`] vector according to the `start_after` and `limit` variables.
 /// Otherwise, it returns the default number of pairs, starting from the oldest one.
-/// ## Params
-/// `start_after` is the pair from which the function starts to fetch results. It is an [`Option`].
 ///
-/// `limit` is the number of items to retrieve. It is an [`Option`].
+/// `start_after` is the pair from which the function starts to fetch results.
+///
+/// `limit` is the number of items to retrieve.
 pub fn read_pairs(
     deps: Deps,
     start_after: Option<Vec<AssetInfo>>,
@@ -105,9 +101,8 @@ pub fn read_pairs(
     }
 }
 
-/// ## Description
 /// Calculates the key of a pair from which to start reading data.
-/// ## Params
+///
 /// `start_after` is an [`Option`] type that accepts [`AssetInfo`] elements.
 /// It is the token pair which we use to determine the start index for a range when returning data for multiple pairs
 fn calc_range_start(start_after: Option<Vec<AssetInfo>>) -> Option<Vec<u8>> {

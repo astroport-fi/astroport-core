@@ -3,7 +3,6 @@ use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure stores the latest cumulative and average token prices for the target pool
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PriceCumulativeLastV100 {

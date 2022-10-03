@@ -10,19 +10,11 @@ use cw20::Cw20ExecuteMsg;
 use crate::error::ContractError;
 use crate::state::CONFIG;
 
-/// ## Description
-/// Execute a swap operation. Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the
-/// specified attributes if the operation was successful.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Execute a swap operation.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **operation** to perform (native or Astro swap with offer and ask asset information).
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **operation** is an object of type [`SwapOperation`]. It's the swap operation to perform (offer/ask assets and the offer asset amount).
-///
-/// * **to** is an object of type [`Option<String>`]. This is the address that receives the ask assets.
+/// * **to** address that receives the ask assets.
 pub fn execute_swap_operation(
     deps: DepsMut,
     env: Env,
@@ -75,21 +67,17 @@ pub fn execute_swap_operation(
     Ok(Response::new().add_message(message))
 }
 
-/// ## Description
 /// Creates a message of type [`CosmosMsg`] representing a swap operation.
-/// Returns a [`CosmosMsg<TerraMsgWrapper>`] with the specified attributes if the operation was successful.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **pair_contract** is an object of type [`String`]. This is the Astroport pair contract for which the swap operation is performed.
+/// * **pair_contract** Astroport pair contract for which the swap operation is performed.
 ///
-/// * **offer_asset** is an object of type [`Asset`]. This is the asset that is swapped. It also mentions the amount to swap.
+/// * **offer_asset** asset that is swapped. It also mentions the amount to swap.
 ///
-/// * **ask_asset_info** is an object of type [`AssetInfo`]. This is the asset that is swapped to.
+/// * **ask_asset_info** asset that is swapped to.
 ///
-/// * **max_spread** is an object of type [`Option<Decimal>`]. This is the max spread enforced for the swap.
+/// * **max_spread** max spread enforced for the swap.
 ///
-/// * **to** is an object of type [`Option<String>`]. This is the address that receives the ask assets.
+/// * **to** address that receives the ask assets.
 pub fn asset_into_swap_msg(
     deps: DepsMut,
     pair_contract: String,

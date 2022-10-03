@@ -85,20 +85,16 @@ pub struct VestingSchedulePoint {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// ## Description
     /// Returns the configuration for the contract using a [`ConfigResponse`] object.
     Config {},
-    /// ## Description
     /// Returns information about an address vesting tokens using a [`VestingAccountResponse`] object.
     VestingAccount { address: String },
-    /// ## Description
     /// Returns a list of addresses that are vesting tokens using a [`VestingAccountsResponse`] object.
     VestingAccounts {
         start_after: Option<String>,
         limit: Option<u32>,
         order_by: Option<OrderBy>,
     },
-    /// ## Description
     /// Returns the total unvested amount of tokens for a specific address.
     AvailableAmount { address: String },
     /// Timestamp returns the current timestamp
@@ -134,9 +130,7 @@ pub struct VestingAccountsResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OrderBy {
-    /// Ascending
     Asc,
-    /// Descending
     Desc,
 }
 

@@ -5,7 +5,6 @@ use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure stores the main paramters for the Maker contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -35,14 +34,11 @@ pub struct Config {
     pub pre_upgrade_astro_amount: Uint128,
 }
 
-/// ## Description
 /// Stores the contract configuration at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
 
-/// ## Description
 /// Stores the latest proposal to change contract ownership
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
-/// ## Description
 /// Stores bridge tokens used to swap fee tokens to ASTRO
 pub const BRIDGES: Map<String, AssetInfo> = Map::new("bridges");

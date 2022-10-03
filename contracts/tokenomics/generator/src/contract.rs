@@ -53,17 +53,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const INIT_REWARDS_HOLDER_ID: u64 = 1;
 
-/// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`] struct.
-/// Returns a default object of type [`Response`] if the operation was successful,
-/// or a [`ContractError`] if the contract was not created.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_info** is an object of type [`MessageInfo`].
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters used for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -106,18 +96,9 @@ pub fn instantiate(
     Ok(Response::default().add_submessage(init_reward_holder_msg))
 }
 
-/// ## Description
 /// Exposes execute functions available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **msg** is an object of type [`ExecuteMsg`].
-///
-/// ## Queries
+/// ## Variants
 /// * **ExecuteMsg::UpdateConfig {
 ///             vesting_contract,
 ///             generator_controller,
@@ -317,16 +298,11 @@ pub fn execute(
     }
 }
 
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise updates user virtual amount boost for specified generators and
-/// returns a [`Response`] with the specified attributes.
+/// Updates user virtual amount boost for specified generators.
 ///
-/// ## Params
-/// * **generators** is an object of type [`Addr`]. These are the addresses of the generators for
-/// which the amount will be recalculated.
+/// * **generators** addresses of the generators for which the amount will be recalculated.
 ///
-/// * **user** is an object of type [`Addr`]. This is an address for
-/// which the virtual amount will be recalculated.
+/// * **user** address for which the virtual amount will be recalculated.
 fn checkpoint_user_boost(
     deps: DepsMut,
     env: Env,
@@ -394,8 +370,7 @@ fn checkpoint_user_boost(
         .add_messages(send_rewards_msg))
 }
 
-/// ## Description
-/// Sets the allocation point to zero for each pool by the pair type
+/// Sets the allocation point to zero for each pool by the pair type.
 fn deactivate_pools(
     mut deps: DepsMut,
     env: Env,
@@ -449,7 +424,7 @@ fn deactivate_pools(
     Ok(Response::new().add_attribute("action", "deactivate_pools"))
 }
 
-/// Add or remove tokens to and from the blocked list. Returns a [`ContractError`] on failure.
+/// Add or remove tokens to and from the blocked list.
 fn update_blocked_tokens_list(
     mut deps: DepsMut,
     env: Env,
@@ -519,24 +494,15 @@ fn update_blocked_tokens_list(
     Ok(Response::new().add_attribute("action", "update_tokens_blockedlist"))
 }
 
-/// ## Description
-/// Sets a new Generator vesting contract address. Returns a [`ContractError`] on failure or the [`CONFIG`]
-/// data will be updated with the new vesting contract address.
+/// Sets a new Generator vesting contract address.
 ///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// * **vesting_contract** new vesting contract address.
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * **generator_controller** new generator controller contract address.
 ///
-/// * **vesting_contract** is an [`Option`] field object of type [`String`]. This is the new vesting contract address.
+/// * **guardian** new generator guardian address.
 ///
-/// * **generator_controller** is an [`Option`] field object of type [`String`].
-/// This is the new generator controller contract address.
-///
-/// /// * **guardian** is an [`Option`] field object of type [`String`].
-/// This is the new generator guardian address.
-///
-/// ##Executor
+/// ## Executor
 /// Only the owner can execute this.
 #[allow(clippy::too_many_arguments)]
 pub fn execute_update_config(
@@ -587,18 +553,12 @@ pub fn execute_update_config(
     Ok(Response::new().add_attribute("action", "update_config"))
 }
 
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise it creates a new generator and adds it to [`POOL_INFO`]
-/// (if it does not exist yet) and updates total allocation points (in [`Config`]).
-///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
+/// Creates a new generator and adds it to [`POOL_INFO`] (if it does not exist yet) and updates
+/// total allocation points (in [`Config`]).
 ///
 /// * **pools** is a vector of set that contains LP token address and allocation point.
 ///
-/// ##Executor
+/// ## Executor
 /// Can only be called by the owner or generator controller
 pub fn execute_setup_pools(
     mut deps: DepsMut,
@@ -678,18 +638,13 @@ pub fn execute_setup_pools(
     Ok(Response::new().add_attribute("action", "setup_pools"))
 }
 
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise updates the given generator's ASTRO allocation points and
-/// returns a [`Response`] with the specified attributes.
+/// Updates the given generator's ASTRO allocation points.
 ///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// * **lp_token** LP token whose generator allocation points we update.
 ///
-/// * **lp_token** is an object of type [`Addr`]. This is the LP token whose generator allocation points we update.
+/// * **has_asset_rewards** whether the generator receives dual rewards or not.
 ///
-/// * **has_asset_rewards** is the field of type [`bool`]. This flag indicates whether the generator receives dual rewards.
-///
-/// ##Executor
+/// ## Executor
 /// Can only be called by the owner.
 pub fn execute_update_pool(
     deps: DepsMut,
@@ -717,20 +672,12 @@ pub fn execute_update_pool(
     ]))
 }
 
-/// ## Description
 /// Updates the amount of accrued rewards for a specific generator (if specified in input parameters), otherwise updates rewards for
-/// all pools that are in [`POOL_INFO`]. Returns a [`ContractError`] on failure, otherwise returns a [`Response`] object with
-/// the specified attributes.
+/// all pools that are in [`POOL_INFO`].
 ///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// * **update_single_pool** whether a single generator should be updated and if yes, which one.
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **update_single_pool** is an [`Option`] field object of type [`Addr`]. This indicates whether a single generator
-/// should be updated and if yes, which one.
-///
-/// * **on_reply** is an object of type [`ExecuteOnReply`]. This is the action to be performed on reply.
+/// * **on_reply** action to be performed on reply.
 fn update_rewards_and_execute(
     deps: DepsMut,
     env: Env,
@@ -774,17 +721,13 @@ fn update_rewards_and_execute(
     }
 }
 
-/// ## Description
 /// Fetches accrued proxy rewards. Snapshots the old amount of rewards that are still unclaimed. Returns a [`ContractError`]
 /// on failure. Otherwise returns object of type [`Some(SubMsg)`] if there is pending tokens
 /// or returns [`None`] in opposite case.
 ///
-/// ## Params
-/// * **querier** is an object of type [`QuerierWrapper`].
+/// * **pool** generator associated with the `lp_token`.
 ///
-/// * **pool** is an object of type [`PoolInfo`]. This is the generator associated with the `lp_token`.
-///
-/// * **reward_proxy** is an object of type [`Addr`]. This is the address of the dual rewards proxy for the target LP/generator.
+/// * **reward_proxy** address of the dual rewards proxy for the target LP/generator.
 fn get_proxy_rewards(
     querier: QuerierWrapper,
     pool: &mut PoolInfo,
@@ -808,14 +751,7 @@ fn get_proxy_rewards(
     })
 }
 
-/// ## Description
 /// The entry point to the contract for processing replies from submessages.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **_msg** is an object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
@@ -839,13 +775,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     }
 }
 
-/// ## Description
-/// Processes callback. Returns a [`ContractError`]
-/// on failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
+/// Processes callback.
 fn handle_callback(
     deps: DepsMut,
     env: Env,
@@ -878,7 +808,6 @@ fn handle_callback(
     }
 }
 
-/// ## Description
 /// Sets the allocation points to zero for the generator associated with the specified LP token. Recalculates total allocation points.
 pub fn deactivate_pool(
     deps: DepsMut,
@@ -903,12 +832,9 @@ pub fn deactivate_pool(
 }
 
 /// Sets a new amount of ASTRO distributed per block among all active generators. Before that, we
-/// will need to update all pools in order to correctly account for accrued rewards. Returns a [`ContractError`] on failure,
-/// otherwise returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// will need to update all pools in order to correctly account for accrued rewards.
 ///
-/// * **amount** is the object of type [`Uint128`]. Sets a new count of tokens per block.
+/// * **amount** new count of tokens per block.
 fn set_tokens_per_block(
     mut deps: DepsMut,
     env: Env,
@@ -926,17 +852,9 @@ fn set_tokens_per_block(
     Ok(Response::new().add_attribute("action", "set_tokens_per_block"))
 }
 
-/// ## Description
-/// Updates the amount of accrued rewards for all generators. Returns a [`ContractError`] on failure, otherwise
-/// returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is the object of type [`DepsMut`].
+/// Updates the amount of accrued rewards for all generators.
 ///
-/// * **env** is the object of type [`Env`].
-///
-/// * **cfg** is the object of type [`Config`].
-///
-/// * **lp_tokens** is the list of type [`Addr`].
+/// * **lp_tokens** is the list of LP tokens which should be updated.
 pub fn mass_update_pools(
     deps: DepsMut,
     env: &Env,
@@ -952,17 +870,11 @@ pub fn mass_update_pools(
     Ok(())
 }
 
-/// ## Description
-/// Updates the amount of accrued rewards for a specific generator. Returns a [`ContractError`] on
-/// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Updates the amount of accrued rewards for a specific generator.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **lp_token** sets the liquidity pool to be updated and claimed.
 ///
-/// * **lp_token** is the object of type [`Addr`]. Sets the liquidity pool to be updated.
-///
-/// * **account** is the object of type [`Addr`].
+/// * **account** receiver address.
 pub fn claim_rewards(
     mut deps: DepsMut,
     env: Env,
@@ -1010,22 +922,12 @@ pub fn claim_rewards(
         .add_messages(send_rewards_msg))
 }
 
-/// ## Description
 /// Accrues the amount of rewards distributed for each staked LP token in a specific generator.
 /// Also update reward variables for the given generator.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is an object of type [`Env`].
+/// * **lp_token** LP token whose rewards per share we update.
 ///
-/// * **lp_token** is an object of type [`Addr`]. This is the LP token whose rewards per share we update.
-///
-/// * **pool** is an object of type [`PoolInfo`]. This is the generator associated with the `lp_token`
-///
-/// * **cfg** is an object of type [`Config`]. This is the contract config.
-///
-/// * **deposited** is an [`Option`] field object of type [`Uint128`]. This is the total amount of LP
-/// tokens deposited in the target generator.
+/// * **pool** generator associated with the `lp_token`.
 pub fn accumulate_rewards_per_share(
     querier: &QuerierWrapper,
     env: &Env,
@@ -1074,18 +976,8 @@ pub fn accumulate_rewards_per_share(
     Ok(())
 }
 
-/// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// If the template is not found in the received message, then a [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
+/// * **cw20_msg** CW20 message to process.
 fn receive_cw20(
     mut deps: DepsMut,
     env: Env,
@@ -1127,18 +1019,13 @@ fn receive_cw20(
     }
 }
 
-/// ## Description
 /// Distributes pending proxy rewards for a specific staker.
-/// Returns a [`ContractError`] on failure, otherwise returns a vector that
-/// contains objects of type [`SubMsg`].
-/// # Params
-/// * **cfg** is an object of type [`Config`].
 ///
-/// * **pool** is an object of type [`PoolInfo`]. This is the generator where the staker is staked.
+/// * **pool** generator where the a user was staked.
 ///
-/// * **user** is an object of type [`UserInfo`]. This is the staker for which we claim accrued proxy rewards.
+/// * **user** staker for which we claim accrued proxy rewards.
 ///
-/// * **to** is an object of type [`Addr`]. This is the address that will receive the proxy rewards.
+/// * **to** address that will receive the proxy rewards.
 pub fn send_pending_rewards(
     deps: Deps,
     cfg: &Config,
@@ -1204,19 +1091,13 @@ pub fn send_pending_rewards(
     Ok(messages)
 }
 
-/// ## Description
-/// Deposit LP tokens in a generator to receive token emissions. Returns a [`ContractError`] on
-/// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Deposit LP tokens in a generator to receive token emissions.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **lp_token** LP token to deposit.
 ///
-/// * **lp_token** is an object of type [`Addr`]. This is the LP token to deposit.
+/// * **beneficiary** address that will take ownership of the staked LP tokens.
 ///
-/// * **beneficiary** is an object of type [`Addr`]. This is the address that will take ownership of the staked LP tokens.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to deposit.
+/// * **amount** amount of LP tokens to deposit.
 pub fn deposit(
     deps: DepsMut,
     env: Env,
@@ -1286,19 +1167,13 @@ pub fn deposit(
         .add_attribute("amount", amount))
 }
 
-/// ## Description
-/// Withdraw LP tokens from a generator. Returns a [`ContractError`] on
-/// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Withdraw LP tokens from a generator.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **lp_token** LP token to withdraw.
 ///
-/// * **lp_token** is an object of type [`Addr`]. This is the LP token to withdraw.
+/// * **account** user whose LP tokens we withdraw.
 ///
-/// * **account** is an object of type [`Addr`]. This is the user whose LP tokens we withdraw.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to withdraw.
+/// * **amount** amount of LP tokens to withdraw.
 pub fn withdraw(
     deps: DepsMut,
     env: Env,
@@ -1385,7 +1260,6 @@ pub fn withdraw(
         .add_attribute("amount", amount))
 }
 
-/// ## Description
 /// Builds claim reward messages for a specific generator (if the messages are supported)
 pub fn build_claim_pools_asset_reward_messages(
     deps: Deps,
@@ -1424,16 +1298,9 @@ pub fn build_claim_pools_asset_reward_messages(
     })
 }
 
-/// ## Description
 /// Withdraw LP tokens without caring about rewards. TO BE USED IN EMERGENCY SITUATIONS ONLY.
-/// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the
-/// specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **lp_token** is an object of type [`String`]. This is the LP token to withdraw.
+/// * **lp_token** LP token to withdraw.
 pub fn emergency_withdraw(
     deps: DepsMut,
     info: MessageInfo,
@@ -1495,16 +1362,9 @@ pub fn emergency_withdraw(
         .add_attribute("amount", user.amount))
 }
 
-/// ## Description
-/// Sets the allowed reward proxies that can interact with the Generator contract. Returns a [`ContractError`] on
-/// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Sets the allowed reward proxies that can interact with the Generator contract.
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **proxies** is an array that contains objects of type [`String`].
-/// This is the full list of allowed proxies that can interact with the Generator.
+/// * **proxies** full list of allowed proxies that can interact with the Generator.
 fn set_allowed_reward_proxies(
     deps: DepsMut,
     info: MessageInfo,
@@ -1529,18 +1389,11 @@ fn set_allowed_reward_proxies(
     Ok(Response::new().add_attribute("action", "set_allowed_reward_proxies"))
 }
 
-/// ## Description
 /// Sends orphaned proxy rewards (which are left behind by emergency withdrawals) to another address.
-/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified
-/// attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * **recipient** recipient of the orphaned rewards.
 ///
-/// * **recipient** is an object of type [`String`]. This is the recipient of the orphaned rewards.
-///
-/// * **lp_token** is an object of type [`String`]. This is the LP token whose orphaned rewards we send out.
+/// * **lp_token** LP token whose orphaned rewards we send out.
 fn send_orphan_proxy_rewards(
     deps: DepsMut,
     info: MessageInfo,
@@ -1610,14 +1463,7 @@ fn send_orphan_proxy_rewards(
         .add_attribute("lp_token", lp_token.to_string()))
 }
 
-/// ## Description
 /// Return a message object that can help claim bLUNA rewards for an account.
-/// Returns an [`ContractError`] on failure, otherwise returns the object
-/// of type [`SubMsg`].
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
 fn init_proxy_rewards_holder(
     owner: &Addr,
     admin: &Addr,
@@ -1640,6 +1486,8 @@ fn init_proxy_rewards_holder(
     Ok(msg)
 }
 
+/// Entry point of proxy migration process. Updates rewards state and appends callback to process
+/// the next stage.
 fn migrate_proxy(
     deps: DepsMut,
     env: Env,
@@ -1682,6 +1530,8 @@ fn migrate_proxy(
     )
 }
 
+/// Updates proxy state. Stores necessary mappings for old rewards and sets empty state for proxy.
+/// Appends callback to stake LP tokens to the new proxy contract.
 fn migrate_proxy_callback(
     mut deps: DepsMut,
     env: Env,
@@ -1764,6 +1614,7 @@ fn migrate_proxy_callback(
     }
 }
 
+/// Stakes LP tokens into the new proxy contract.
 fn migrate_proxy_deposit_lp(
     deps: DepsMut,
     lp_addr: Addr,
@@ -1793,9 +1644,7 @@ fn migrate_proxy_deposit_lp(
     ]))
 }
 
-/// ## Description
-/// Sets the reward proxy contract for a specifi generator. Returns a [`ContractError`] on failure, otherwise
-/// returns a [`Response`] with the specified attributes if the operation was successful.
+/// Sets the reward proxy contract for a specific generator.
 fn move_to_proxy(
     mut deps: DepsMut,
     env: Env,
@@ -1863,7 +1712,7 @@ fn move_to_proxy(
         .add_attributes(vec![attr("action", "move_to_proxy"), attr("proxy", proxy)]))
 }
 
-/// Add or remove proxy contracts to and from the proxy contract whitelist. Returns a [`ContractError`] on failure.
+/// Add or remove proxy contracts to and from the proxy contract whitelist.
 fn update_allowed_proxies(
     deps: DepsMut,
     info: MessageInfo,
@@ -1913,14 +1762,7 @@ fn update_allowed_proxies(
     Ok(Response::default().add_attribute("action", "update_allowed_proxies"))
 }
 
-/// ## Description
 /// Exposes all the queries available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
 /// * **QueryMsg::PoolLength {}** Returns the amount of instantiated generators using a [`PoolLengthResponse`] object.
@@ -2004,7 +1846,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
     }
 }
 
-/// ## Description
 /// Return total virtual supply by pool
 pub fn total_virtual_supply(deps: Deps, generator: String) -> Result<Uint128, ContractError> {
     let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
@@ -2013,14 +1854,11 @@ pub fn total_virtual_supply(deps: Deps, generator: String) -> Result<Uint128, Co
     Ok(pool.total_virtual_supply)
 }
 
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise returns the amount of LP tokens a user staked in a specific generator.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// Returns the amount of LP tokens a user staked in a specific generator.
 ///
-/// * **lp_token** is an object of type [`String`]. This is the LP token for which we query the user's balance for.
+/// * **lp_token** LP token for which we query the user's balance for.
 ///
-/// * **user** is an object of type [`String`]. This is the user whose balance we query.
+/// * **user** user whose balance we query.
 pub fn query_deposit(deps: Deps, lp_token: String, user: String) -> Result<Uint128, ContractError> {
     let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
     let user = addr_validate_to_lower(deps.api, &user)?;
@@ -2031,14 +1869,11 @@ pub fn query_deposit(deps: Deps, lp_token: String, user: String) -> Result<Uint1
     Ok(user_info.amount)
 }
 
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise returns the user virtual amount in a specific generator.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// Returns the user virtual amount in a specific generator.
 ///
-/// * **lp_token** is an object of type [`String`]. This is the LP token for which we query the user's emission rewards for.
+/// * **lp_token** LP token for which we query the user's emission rewards for.
 ///
-/// * **user** is an object of type [`String`]. This is the user whose virtual amount we're query.
+/// * **user** user whose virtual amount we're query.
 pub fn query_virtual_amount(
     deps: Deps,
     lp_token: String,
@@ -2053,18 +1888,11 @@ pub fn query_virtual_amount(
     Ok(user_info.virtual_amount)
 }
 
-/// ## Description
-/// Calculates and returns the pending token rewards for a specific user. Returns a [`ContractError`] on failure, otherwise returns
-/// information in a [`PendingTokenResponse`] object.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// Calculates and returns the pending token rewards for a specific user.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **lp_token** LP token staked by the user whose pending rewards we calculate.
 ///
-/// * **lp_token** is an object of type [`String`]. This is the LP token staked by the user whose pending rewards we calculate.
-///
-/// * **user** is an object of type [`String`]. This is the user for which we fetch the amount of pending token rewards.
-// View function to see pending ASTRO on frontend.
+/// * **user** user for which we fetch the amount of pending token rewards.
 pub fn pending_token(
     deps: Deps,
     env: Env,
@@ -2141,13 +1969,10 @@ pub fn pending_token(
     })
 }
 
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise returns reward information for a specific generator
-/// using a [`RewardInfoResponse`] object.
+/// Returns reward information for a specific generator using a [`RewardInfoResponse`] object.
 /// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **lp_token** is an object of type [`String`]. This is the LP token whose generator we query for reward information.
+/// * **lp_token** LP token whose generator we query for reward information.
 fn query_reward_info(deps: Deps, lp_token: String) -> Result<RewardInfoResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -2169,12 +1994,10 @@ fn query_reward_info(deps: Deps, lp_token: String) -> Result<RewardInfoResponse,
     })
 }
 
-/// Returns a [`ContractError`] on failure, otherwise returns a vector of pairs (asset, amount),
-/// where 'asset' is an object of type [`AssetInfo`] and 'amount' is amount of orphaned proxy rewards for a specific generator.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// Returns a vector of pairs (asset, amount), where 'asset' is an object of type [`AssetInfo`]
+/// and 'amount' is amount of orphaned proxy rewards for a specific generator.
 ///
-/// * **lp_token** is an object of type [`String`]. This is the LP token whose generator we query for orphaned rewards.
+/// * **lp_token** LP token whose generator we query for orphaned rewards.
 fn query_orphan_proxy_rewards(
     deps: Deps,
     lp_token: String,
@@ -2198,15 +2021,9 @@ fn query_orphan_proxy_rewards(
     }
 }
 
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise returns a generator's
-/// configuration using a [`PoolInfoResponse`] object.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// Returns a generator's configuration using a [`PoolInfoResponse`] object.
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **lp_token** is an object of type [`String`]. This is the LP token whose generator we query.
+/// * **lp_token** LP token whose generator we query.
 fn query_pool_info(
     deps: Deps,
     env: Env,
@@ -2285,21 +2102,14 @@ fn query_pool_info(
     })
 }
 
-/// ## Description
-/// Returns a [`ContractError`] on failure, otherwise returns a list of stakers that currently
-/// have funds in a specific generator.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// Returns a list of stakers that currently have funds in a specific generator.
 ///
-/// * **lp_token** is an object of type [`String`]. This is the
-/// LP token whose generator we query for stakers.
+/// * **lp_token** LP token whose generator we query for stakers.
 ///
-/// * **start_after** is an object of type [`Option<String>`]. This is an optional field
-/// that specifies whether the function should return a list of stakers starting from a
+/// * **start_after** optional field that specifies whether the function should return a list of stakers starting from a
 /// specific address onward.
 ///
-/// * **limit** is an object of type [`Option<u32>`]. This is the max amount of staker
-/// addresses to return.
+/// * **limit** max amount of staker addresses to return.
 pub fn query_list_of_stakers(
     deps: Deps,
     lp_token: String,
@@ -2333,12 +2143,9 @@ pub fn query_list_of_stakers(
     Ok(active_stakers)
 }
 
-/// ## Description
 /// Calculates and returns the amount of accrued rewards since the last reward checkpoint for a specific generator.
-/// ## Params
-/// * **alloc_point** is the object of type [`Uint64`].
 ///
-/// * **cfg** is an object of type [`Config`]. This is the Generator contract configuration.
+/// * **alloc_point** allocation points for specific generator.
 pub fn calculate_rewards(n_blocks: u64, alloc_point: &Uint128, cfg: &Config) -> StdResult<Uint128> {
     let r = Uint128::from(n_blocks)
         .checked_mul(cfg.tokens_per_block)?
@@ -2349,12 +2156,9 @@ pub fn calculate_rewards(n_blocks: u64, alloc_point: &Uint128, cfg: &Config) -> 
     Ok(r)
 }
 
-/// ## Description
 /// Gets allocation point of the pool.
-/// ## Params
-/// * **pools** is a vector of set that contains LP token address and allocation point.
 ///
-/// * **lp_token** is an object of type [`Addr`].
+/// * **pools** is a vector of set that contains LP token address and allocation point.
 pub fn get_alloc_point(pools: &[(Addr, Uint128)], lp_token: &Addr) -> Uint128 {
     pools
         .iter()
@@ -2367,16 +2171,7 @@ pub fn get_alloc_point(pools: &[(Addr, Uint128)], lp_token: &Addr) -> Uint128 {
         .unwrap_or_else(Uint128::zero)
 }
 
-/// ## Description
 /// Creates pool if it is allowed in the factory.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **lp_token** is an object of type [`Addr`].
-///
-/// * **cfg** is an object of type [`Config`].
 pub fn create_pool(
     deps: DepsMut,
     env: &Env,
@@ -2416,14 +2211,7 @@ pub fn create_pool(
     Ok(())
 }
 
-/// ## Description
-/// Used for contract migration. Returns a default object of type [`Response`].
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`MigrateMsg`].
+/// Manages contract migration
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;

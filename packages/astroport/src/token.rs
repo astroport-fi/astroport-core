@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{StdError, StdResult, Uint128};
 use cw20::{Cw20Coin, Logo, MinterResponse};
 
-/// ## Description
 /// This structure describes the marketing info settings such as project, description, and token logo.
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
 pub struct InstantiateMarketingInfo {
@@ -19,7 +18,6 @@ pub struct InstantiateMarketingInfo {
 }
 
 /// This structure describes the parameters used for creating a token contract.
-/// TokenContract InstantiateMsg
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct InstantiateMsg {
     /// Token name
@@ -37,7 +35,6 @@ pub struct InstantiateMsg {
 }
 
 /// This structure describes a migration message.
-/// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct MigrateMsg {}
 
@@ -66,8 +63,6 @@ impl InstantiateMsg {
 }
 
 /// Checks the validity of the token name
-/// ## Params
-/// * **name** is an object of type [`str`]. It is the token name to check
 fn is_valid_name(name: &str) -> bool {
     let bytes = name.as_bytes();
     if bytes.len() < 3 || bytes.len() > 50 {
@@ -77,8 +72,6 @@ fn is_valid_name(name: &str) -> bool {
 }
 
 /// Checks the validity of the token symbol
-/// ## Params
-/// * **symbol** is an object of type [`str`]. It is the token symbol to check
 fn is_valid_symbol(symbol: &str) -> bool {
     let bytes = symbol.as_bytes();
     if bytes.len() < 3 || bytes.len() > 12 {
