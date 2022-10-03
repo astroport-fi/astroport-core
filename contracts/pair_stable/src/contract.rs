@@ -504,17 +504,14 @@ pub fn provide_liquidity(
     )?);
 
     // Accumulate prices assets in the pool
-    if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) = accumulate_prices(
+    if accumulate_prices(
         env,
-        &config,
+        &mut config,
         pools[0].amount,
         token_precision_0,
         pools[1].amount,
         token_precision_1,
     )? {
-        config.price0_cumulative_last = price0_cumulative_new;
-        config.price1_cumulative_last = price1_cumulative_new;
-        config.block_time_last = block_time;
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -622,17 +619,14 @@ pub fn withdraw_liquidity(
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
 
     // Accumulate prices for the assets in the pool
-    if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) = accumulate_prices(
+    if accumulate_prices(
         env,
-        &config,
+        &mut config,
         pools[0].amount,
         query_token_precision(&deps.querier, pools[0].info.clone())?,
         pools[1].amount,
         query_token_precision(&deps.querier, pools[1].info.clone())?,
     )? {
-        config.price0_cumulative_last = price0_cumulative_new;
-        config.price1_cumulative_last = price1_cumulative_new;
-        config.block_time_last = block_time;
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -814,17 +808,14 @@ pub fn swap(
     }
 
     // Accumulate prices for the assets in the pool
-    if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) = accumulate_prices(
+    if accumulate_prices(
         env,
-        &config,
+        &mut config,
         pools[0].amount,
         query_token_precision(&deps.querier, pools[0].info.clone())?,
         pools[1].amount,
         query_token_precision(&deps.querier, pools[1].info.clone())?,
     )? {
-        config.price0_cumulative_last = price0_cumulative_new;
-        config.price1_cumulative_last = price1_cumulative_new;
-        config.block_time_last = block_time;
         CONFIG.save(deps.storage, &config)?;
     }
 
@@ -865,58 +856,60 @@ pub fn swap(
 /// * **y_precision** is an object of type [`u8`]. This is the precision for the y token.
 pub fn accumulate_prices(
     env: Env,
-    config: &Config,
+    config: &mut Config,
     x: Uint128,
     x_precision: u8,
     y: Uint128,
     y_precision: u8,
-) -> StdResult<Option<(Uint128, Uint128, u64)>> {
+) -> Result<bool, ContractError> {
     let block_time = env.block.time.seconds();
     if block_time <= config.block_time_last {
-        return Ok(None);
+        return Ok(false);
     }
 
-    // We have to shift block_time when any price is zero in order to not fill an accumulator with a null price for that period
-    let greater_precision = x_precision.max(y_precision).max(TWAP_PRECISION);
-    let x = adjust_precision(x, x_precision, greater_precision)?;
-    let y = adjust_precision(y, y_precision, greater_precision)?;
-
-    let time_elapsed = Uint128::from(block_time - config.block_time_last);
-
-    let mut pcl0 = config.price0_cumulative_last;
-    let mut pcl1 = config.price1_cumulative_last;
-
     if !x.is_zero() && !y.is_zero() {
-        let current_amp = compute_current_amp(config, &env)?;
-        pcl0 = config.price0_cumulative_last.wrapping_add(adjust_precision(
-            time_elapsed.checked_mul(Uint128::new(
-                calc_ask_amount(
-                    x.u128(),
-                    y.u128(),
-                    adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
-                    current_amp,
-                )
-                .unwrap(),
-            ))?,
-            greater_precision,
-            TWAP_PRECISION,
-        )?);
-        pcl1 = config.price1_cumulative_last.wrapping_add(adjust_precision(
-            time_elapsed.checked_mul(Uint128::new(
-                calc_ask_amount(
-                    y.u128(),
-                    x.u128(),
-                    adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
-                    current_amp,
-                )
-                .unwrap(),
-            ))?,
-            greater_precision,
-            TWAP_PRECISION,
-        )?)
-    };
+        // We have to shift block_time when any price is zero in order to not fill an accumulator with a null price for that period
+        let greater_precision = x_precision.max(y_precision).max(TWAP_PRECISION);
+        let x = adjust_precision(x, x_precision, greater_precision)?;
+        let y = adjust_precision(y, y_precision, greater_precision)?;
 
-    Ok(Some((pcl0, pcl1, block_time)))
+        let time_elapsed = Uint128::from(block_time - config.block_time_last);
+
+        let current_amp = compute_current_amp(config, &env)?;
+        config.price0_cumulative_last =
+            config.price0_cumulative_last.wrapping_add(adjust_precision(
+                time_elapsed.checked_mul(Uint128::new(
+                    calc_ask_amount(
+                        x.u128(),
+                        y.u128(),
+                        adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
+                        current_amp,
+                    )
+                    .unwrap(),
+                ))?,
+                greater_precision,
+                TWAP_PRECISION,
+            )?);
+
+        config.price1_cumulative_last =
+            config.price1_cumulative_last.wrapping_add(adjust_precision(
+                time_elapsed.checked_mul(Uint128::new(
+                    calc_ask_amount(
+                        y.u128(),
+                        x.u128(),
+                        adjust_precision(Uint128::new(1), 0, greater_precision)?.u128(),
+                        current_amp,
+                    )
+                    .unwrap(),
+                ))?,
+                greater_precision,
+                TWAP_PRECISION,
+            )?)
+    }
+
+    config.block_time_last = block_time;
+
+    Ok(true)
 }
 
 /// ## Description
@@ -1145,29 +1138,24 @@ pub fn query_reverse_simulation(
 ///
 /// * **env** is an object of type [`Env`].
 pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
-    let config: Config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps, config.clone())?;
 
-    let mut price0_cumulative_last = config.price0_cumulative_last;
-    let mut price1_cumulative_last = config.price1_cumulative_last;
-
-    if let Some((price0_cumulative_new, price1_cumulative_new, _)) = accumulate_prices(
+    accumulate_prices(
         env,
-        &config,
+        &mut config,
         assets[0].amount,
         query_token_precision(&deps.querier, assets[0].info.clone())?,
         assets[1].amount,
         query_token_precision(&deps.querier, assets[1].info.clone())?,
-    )? {
-        price0_cumulative_last = price0_cumulative_new;
-        price1_cumulative_last = price1_cumulative_new;
-    }
+    )
+    .map_err(|err| StdError::generic_err(format!("{err}")))?;
 
     let resp = CumulativePricesResponse {
         assets,
         total_share,
-        price0_cumulative_last,
-        price1_cumulative_last,
+        price0_cumulative_last: config.price0_cumulative_last,
+        price1_cumulative_last: config.price1_cumulative_last,
     };
 
     Ok(resp)
