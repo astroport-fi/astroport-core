@@ -42,9 +42,6 @@ pub enum ContractError {
 
     #[error("Maximum generator limit exceeded!")]
     GeneratorsLimitExceeded {},
-
-    #[error("Whitelist contract address not found!")]
-    WhitelistNotFound {},
 }
 
 impl From<OverflowError> for ContractError {
