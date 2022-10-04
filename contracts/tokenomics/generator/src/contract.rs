@@ -67,7 +67,6 @@ pub fn instantiate(
     let guardian = addr_opt_validate(deps.api, &msg.guardian)?;
     let voting_escrow_delegation = addr_opt_validate(deps.api, &msg.voting_escrow_delegation)?;
     let voting_escrow = addr_opt_validate(deps.api, &msg.voting_escrow)?;
-    let whitelist_contract = addr_opt_validate(deps.api, &msg.whitelist_contract)?;
 
     let config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
@@ -84,7 +83,6 @@ pub fn instantiate(
         checkpoint_generator_limit: None,
         voting_escrow_delegation,
         voting_escrow,
-        whitelist_contract,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -1471,8 +1469,6 @@ fn migrate_proxy(
         return Err(ContractError::Unauthorized {});
     }
 
-    validate_proxy(deps.as_ref(), &cfg, &new_proxy)?;
-
     // Check the pool has reward proxy
     let pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
     if let Some(proxy) = &pool_info.reward_proxy {
@@ -1608,28 +1604,6 @@ fn migrate_proxy_deposit_lp(
     ]))
 }
 
-/// Checks if the proxy address is exists in the whitelist
-pub(crate) fn validate_proxy(
-    deps: Deps,
-    cfg: &Config,
-    proxy: &String,
-) -> Result<(), ContractError> {
-    if let Some(whitelist_contract) = &cfg.whitelist_contract {
-        let allowed_proxies: Vec<String> = deps.querier.query_wasm_smart(
-            &whitelist_contract.to_string(),
-            &astroport::whitelist::QueryMsg::AdminList::<Vec<String>> {},
-        )?;
-
-        if !allowed_proxies.contains(proxy) {
-            return Err(ContractError::RewardProxyNotAllowed {});
-        }
-    } else {
-        return Err(ContractError::WhitelistNotFound {});
-    }
-
-    Ok(())
-}
-
 /// Sets the reward proxy contract for a specific generator.
 fn move_to_proxy(
     mut deps: DepsMut,
@@ -1647,8 +1621,6 @@ fn move_to_proxy(
     if info.sender != cfg.owner {
         return Err(ContractError::Unauthorized {});
     }
-
-    validate_proxy(deps.as_ref(), &cfg, &proxy_addr.to_string())?;
 
     if !POOL_INFO.has(deps.storage, &lp_addr) {
         create_pool(deps.branch(), &env, &lp_addr, &cfg)?;
@@ -2263,7 +2235,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                 migration::migrate_configs_from_v200(&mut deps, &msg)?;
             }
             "2.1.0" => {
-                migration::migrate_configs_from_v_210(&mut deps, &msg)?;
+                migration::migrate_configs_from_v_210(&mut deps)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },

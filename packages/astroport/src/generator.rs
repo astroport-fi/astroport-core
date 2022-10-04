@@ -34,8 +34,6 @@ pub struct InstantiateMsg {
     pub vesting_contract: String,
     /// Whitelist code id
     pub whitelist_code_id: u64,
-    /// The Whitelist address
-    pub whitelist_contract: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -378,8 +376,6 @@ pub struct Config {
     pub guardian: Option<Addr>,
     /// The amount of generators
     pub checkpoint_generator_limit: Option<u32>,
-    /// The Whitelist address
-    pub whitelist_contract: Option<Addr>,
 }
 
 /// This structure describes a migration message.
@@ -401,8 +397,6 @@ pub struct MigrateMsg {
     pub voting_escrow_delegation: Option<String>,
     /// The limit of generators
     pub generator_limit: Option<u32>,
-    /// The Whitelist address
-    pub whitelist_contract: Option<String>,
 }
 
 /// This structure describes custom hooks for the CW20.

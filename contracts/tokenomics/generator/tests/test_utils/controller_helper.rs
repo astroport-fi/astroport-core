@@ -118,7 +118,6 @@ impl ControllerHelper {
             allowed_reward_proxies: vec![],
             vesting_contract: vesting_instance.to_string(),
             whitelist_code_id,
-            whitelist_contract: None,
         };
 
         let generator = router

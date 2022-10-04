@@ -3883,7 +3883,6 @@ fn instantiate_generator(
         voting_escrow_delegation: None,
         voting_escrow: None,
         whitelist_code_id,
-        whitelist_contract: None,
     };
 
     let generator_instance = app
