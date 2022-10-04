@@ -63,8 +63,6 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let allowed_reward_proxies = validate_addresses(deps.api, &msg.allowed_reward_proxies)?;
-
     let generator_controller = addr_opt_validate(deps.api, &msg.generator_controller)?;
     let guardian = addr_opt_validate(deps.api, &msg.guardian)?;
     let voting_escrow_delegation = addr_opt_validate(deps.api, &msg.voting_escrow_delegation)?;
@@ -79,7 +77,6 @@ pub fn instantiate(
         tokens_per_block: msg.tokens_per_block,
         total_alloc_point: Uint128::zero(),
         start_block: msg.start_block,
-        allowed_reward_proxies,
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
         active_pools: vec![],
         blocked_tokens_list: vec![],
@@ -183,9 +180,6 @@ pub fn execute(
             lp_token,
             new_proxy,
         } => migrate_proxy(deps, env, info, lp_token, new_proxy),
-        ExecuteMsg::UpdateAllowedProxies { add, remove } => {
-            update_allowed_proxies(deps, info, add, remove)
-        }
         ExecuteMsg::UpdateConfig {
             vesting_contract,
             generator_controller,
@@ -236,9 +230,6 @@ pub fn execute(
             )
         }
         ExecuteMsg::EmergencyWithdraw { lp_token } => emergency_withdraw(deps, info, lp_token),
-        ExecuteMsg::SetAllowedRewardProxies { proxies } => {
-            set_allowed_reward_proxies(deps, info, proxies)
-        }
         ExecuteMsg::SendOrphanProxyReward {
             recipient,
             lp_token,
@@ -1362,33 +1353,6 @@ pub fn emergency_withdraw(
         .add_attribute("amount", user.amount))
 }
 
-/// Sets the allowed reward proxies that can interact with the Generator contract.
-///
-/// * **proxies** full list of allowed proxies that can interact with the Generator.
-fn set_allowed_reward_proxies(
-    deps: DepsMut,
-    info: MessageInfo,
-    proxies: Vec<String>,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let mut allowed_reward_proxies: Vec<Addr> = vec![];
-    for proxy in proxies {
-        allowed_reward_proxies.push(addr_validate_to_lower(deps.api, &proxy)?);
-    }
-
-    CONFIG.update::<_, StdError>(deps.storage, |mut v| {
-        v.allowed_reward_proxies = allowed_reward_proxies;
-        Ok(v)
-    })?;
-
-    Ok(Response::new().add_attribute("action", "set_allowed_reward_proxies"))
-}
-
 /// Sends orphaned proxy rewards (which are left behind by emergency withdrawals) to another address.
 ///
 /// * **recipient** recipient of the orphaned rewards.
@@ -1505,9 +1469,10 @@ fn migrate_proxy(
         return Err(ContractError::Unauthorized {});
     }
 
-    if !cfg.allowed_reward_proxies.contains(&new_proxy_addr) {
-        return Err(ContractError::RewardProxyNotAllowed {});
-    }
+    // TODO:
+    // if !cfg.allowed_reward_proxies.contains(&new_proxy_addr) {
+    //     return Err(ContractError::RewardProxyNotAllowed {});
+    // }
 
     // Check the pool has reward proxy
     let pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
@@ -1662,9 +1627,10 @@ fn move_to_proxy(
         return Err(ContractError::Unauthorized {});
     }
 
-    if !cfg.allowed_reward_proxies.contains(&proxy_addr) {
-        return Err(ContractError::RewardProxyNotAllowed {});
-    }
+    // TODO:
+    // if !cfg.allowed_reward_proxies.contains(&proxy_addr) {
+    //     return Err(ContractError::RewardProxyNotAllowed {});
+    // }
 
     if !POOL_INFO.has(deps.storage, &lp_addr) {
         create_pool(deps.branch(), &env, &lp_addr, &cfg)?;
@@ -1710,56 +1676,6 @@ fn move_to_proxy(
     Ok(Response::new()
         .add_messages(messages)
         .add_attributes(vec![attr("action", "move_to_proxy"), attr("proxy", proxy)]))
-}
-
-/// Add or remove proxy contracts to and from the proxy contract whitelist.
-fn update_allowed_proxies(
-    deps: DepsMut,
-    info: MessageInfo,
-    add: Option<Vec<String>>,
-    remove: Option<Vec<String>>,
-) -> Result<Response, ContractError> {
-    if add.is_none() && remove.is_none() {
-        return Err(ContractError::Std(StdError::generic_err(
-            "Need to provide add or remove parameters",
-        )));
-    }
-
-    let mut cfg = CONFIG.load(deps.storage)?;
-
-    // Permission check
-    if info.sender != cfg.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    // Remove proxies
-    if let Some(remove_proxies) = remove {
-        for remove_proxy in remove_proxies {
-            let index = cfg
-                .allowed_reward_proxies
-                .iter()
-                .position(|x| *x.as_str() == remove_proxy.as_str().to_lowercase())
-                .ok_or_else(|| {
-                    StdError::generic_err(
-                        "Can't remove proxy contract. It is not found in allowed list.",
-                    )
-                })?;
-            cfg.allowed_reward_proxies.remove(index);
-        }
-    }
-
-    // Add new proxies
-    if let Some(add_proxies) = add {
-        for add_proxy in add_proxies {
-            let proxy_addr = addr_validate_to_lower(deps.api, &add_proxy)?;
-            if !cfg.allowed_reward_proxies.contains(&proxy_addr) {
-                cfg.allowed_reward_proxies.push(proxy_addr);
-            }
-        }
-    }
-
-    CONFIG.save(deps.storage, &cfg)?;
-    Ok(Response::default().add_attribute("action", "update_allowed_proxies"))
 }
 
 /// Exposes all the queries available in the contract.
@@ -2327,6 +2243,9 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             }
             "2.0.0" => {
                 migration::migrate_configs_from_v200(&mut deps, &msg)?;
+            }
+            "2.1.0" => {
+                migration::migrate_configs_from_v_210(&mut deps)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },

@@ -89,11 +89,6 @@ pub enum ExecuteMsg {
         /// The address of the LP token to withdraw
         lp_token: String,
     },
-    /// Allowed reward proxy contracts that can interact with the Generator
-    SetAllowedRewardProxies {
-        /// The full list of allowed proxy contracts
-        proxies: Vec<String>,
-    },
     /// Sends orphan proxy rewards (which were left behind after emergency withdrawals) to another address
     SendOrphanProxyReward {
         /// The transfer recipient
@@ -127,13 +122,6 @@ pub enum ExecuteMsg {
     /// ## Executor
     /// Only the newly proposed owner can execute this
     ClaimOwnership {},
-    /// Add or remove a proxy contract that can interact with the Generator
-    UpdateAllowedProxies {
-        /// Allowed proxy contract
-        add: Option<Vec<String>>,
-        /// Proxy contracts to remove
-        remove: Option<Vec<String>>,
-    },
     /// Sets a new proxy contract for a specific generator
     /// Sets a proxy for the pool
     /// ## Executor
@@ -378,8 +366,6 @@ pub struct Config {
     pub total_alloc_point: Uint128,
     /// The block number when the ASTRO distribution starts
     pub start_block: Uint64,
-    /// The list of allowed proxy reward contracts
-    pub allowed_reward_proxies: Vec<Addr>,
     /// The vesting contract from which rewards are distributed
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points
