@@ -201,6 +201,7 @@ pub fn migrate_configs_from_v100(
         guardian: None,
         blocked_tokens_list: vec![],
         checkpoint_generator_limit: None,
+        whitelist_contract: None,
     };
 
     if let Some(generator_controller) = &msg.generator_controller {
@@ -251,6 +252,7 @@ pub fn migrate_configs_from_v120(deps: &mut DepsMut, msg: &MigrateMsg) -> StdRes
         blocked_tokens_list: cfg_120.blocked_list_tokens, // renamed this field
         guardian: cfg_120.guardian,
         checkpoint_generator_limit: None,
+        whitelist_contract: None,
     };
 
     if let Some(voting_escrow) = &msg.voting_escrow {
@@ -287,6 +289,7 @@ pub fn migrate_configs_from_v200(deps: &mut DepsMut, msg: &MigrateMsg) -> StdRes
         blocked_tokens_list: cfg_200.blocked_tokens_list,
         guardian: cfg_200.guardian,
         checkpoint_generator_limit: cfg_200.checkpoint_generator_limit,
+        whitelist_contract: None,
     };
 
     if let Some(voting_escrow_delegation) = &msg.voting_escrow_delegation {
@@ -298,9 +301,9 @@ pub fn migrate_configs_from_v200(deps: &mut DepsMut, msg: &MigrateMsg) -> StdRes
 }
 
 /// Migrate config from V2.1.0
-pub fn migrate_configs_from_v_210(deps: &mut DepsMut) -> StdResult<()> {
+pub fn migrate_configs_from_v_210(deps: &mut DepsMut, msg: &MigrateMsg) -> StdResult<()> {
     let cfg_210 = CONFIG_V210.load(deps.storage)?;
-    let cfg = Config {
+    let mut cfg = Config {
         owner: cfg_210.owner,
         factory: cfg_210.factory,
         generator_controller: cfg_210.generator_controller,
@@ -315,7 +318,12 @@ pub fn migrate_configs_from_v_210(deps: &mut DepsMut) -> StdResult<()> {
         blocked_tokens_list: cfg_210.blocked_tokens_list,
         guardian: cfg_210.guardian,
         checkpoint_generator_limit: cfg_210.checkpoint_generator_limit,
+        whitelist_contract: None,
     };
+
+    if let Some(whitelist_contract) = &msg.whitelist_contract {
+        cfg.whitelist_contract = Some(addr_validate_to_lower(deps.api, whitelist_contract)?);
+    }
 
     CONFIG.save(deps.storage, &cfg)
 }
