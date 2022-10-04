@@ -457,9 +457,8 @@ fn check_5pool_prices() {
         helper.assets[&test_coins[4]].with_balance(100_000_000_000000u128),
     ];
     helper.provide_liquidity(&owner, &assets).unwrap();
-    check_prices(&helper);
-
     helper.app.next_block(1000);
+    check_prices(&helper);
 
     let user1 = Addr::unchecked("user1");
     let offer_asset = helper.assets[&test_coins[0]].with_balance(1000_000000u128);
@@ -472,9 +471,9 @@ fn check_5pool_prices() {
             Some(helper.assets[&test_coins[1]].clone()),
         )
         .unwrap();
-    check_prices(&helper);
 
     helper.app.next_block(86400);
+    check_prices(&helper);
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000000u128),
@@ -485,9 +484,8 @@ fn check_5pool_prices() {
 
     // Imbalanced provide
     helper.provide_liquidity(&user1, &assets).unwrap();
-    check_prices(&helper);
-
     helper.app.next_block(14 * 86400);
+    check_prices(&helper);
 
     let offer_asset = helper.assets[&test_coins[3]].with_balance(10_000_000000u128);
     helper.give_me_money(&[offer_asset.clone()], &user1);
@@ -498,5 +496,6 @@ fn check_5pool_prices() {
             Some(helper.assets[&test_coins[4]].clone()),
         )
         .unwrap();
+    helper.app.next_block(86400);
     check_prices(&helper);
 }

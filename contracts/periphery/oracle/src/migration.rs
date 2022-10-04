@@ -2,7 +2,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Decimal256, Uint128};
 use cw_storage_plus::Item;
 
-/// ## Description
 /// This structure stores the latest cumulative and average token prices for the target pool
 #[cw_serde]
 pub struct PriceCumulativeLastV100 {

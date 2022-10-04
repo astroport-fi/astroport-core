@@ -170,7 +170,7 @@
     "admin": null,
     "initMsg": {
       "factory_contract": null,
-      "asset_infos": []
+      "asset_infos": null
     },
     "label": "Astroport Oracle"
   },

@@ -10,19 +10,12 @@ pub const MAX_AMP_CHANGE: u64 = 10;
 pub const MIN_AMP_CHANGING_TIME: u64 = 86400;
 pub const AMP_PRECISION: u64 = 100;
 
-/// ## Description
 /// Computes the stableswap invariant (D).
 ///
 /// * **Equation**
 ///
 /// A * sum(x_i) * n**n + D = A * D * n**n + D**(n+1) / (n**n * prod(x_i))
 ///
-/// ## Params
-/// * **amp** is an object of type [`Uint64`].
-///
-/// * **pools** is a vector with values of type [`Decimal256`].
-///
-/// * **greatest_precision** object of type [`u8`].
 pub(crate) fn compute_d(
     amp: Uint64,
     pools: &[Decimal256],
@@ -67,7 +60,6 @@ pub(crate) fn compute_d(
     }
 }
 
-/// ## Description
 /// Computes the new balance of a `to` pool if one makes `from` pool = `new_amount`.
 ///
 /// Done by solving quadratic equation iteratively.

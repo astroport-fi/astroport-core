@@ -11,7 +11,6 @@ use cw20::Cw20ReceiveMsg;
 /// This structure describes the execute messages available in the contract.
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// ## Description
     /// Receives a message of type [`Cw20ReceiveMsg`]
     Receive(Cw20ReceiveMsg),
     /// ProvideLiquidity allows an account to provide liquidity in a pool with bLUNA

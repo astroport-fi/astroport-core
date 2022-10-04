@@ -3,8 +3,7 @@ use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
 use cosmwasm_std::{CheckedMultiplyRatioError, ConversionOverflowError, OverflowError, StdError};
 use thiserror::Error;
 
-/// ## Description
-/// This enum describes stableswap pair contract errors!
+/// This enum describes stableswap pair contract errors
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]

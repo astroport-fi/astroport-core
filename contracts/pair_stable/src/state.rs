@@ -4,7 +4,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128};
 use cw_storage_plus::{Item, Map};
 
-/// ## Description
 /// This structure stores the main stableswap pair parameters.
 #[cw_serde]
 pub struct Config {
@@ -38,7 +37,6 @@ const PRECISIONS: Map<String, u8> = Map::new("precisions");
 /// Stores the latest contract ownership transfer proposal
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
-/// ## Description
 /// Store all token precisions and return the greatest one.
 pub(crate) fn store_precisions(deps: DepsMut, asset_infos: &[AssetInfo]) -> StdResult<u8> {
     let mut max = 0u8;
@@ -52,7 +50,6 @@ pub(crate) fn store_precisions(deps: DepsMut, asset_infos: &[AssetInfo]) -> StdR
     Ok(max)
 }
 
-/// ## Description
 /// Loads precision of the given asset info.
 pub(crate) fn get_precision(storage: &dyn Storage, asset_info: &AssetInfo) -> StdResult<u8> {
     PRECISIONS.load(storage, asset_info.to_string())

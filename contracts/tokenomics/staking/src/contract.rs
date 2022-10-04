@@ -27,18 +27,7 @@ const TOKEN_SYMBOL: &str = "xASTRO";
 /// A `reply` call code ID used for sub-messages.
 const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 
-/// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns a [`Response`] with the specified attributes if the operation was successful,
-/// or a [`ContractError`] if the contract was not created.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **_info** is an object of type [`MessageInfo`].
-///
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -85,18 +74,9 @@ pub fn instantiate(
     Ok(Response::new().add_submessages(sub_msg))
 }
 
-/// ## Description
 /// Exposes execute functions available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **msg** is an object of type [`ExecuteMsg`].
-///
-/// ## Queries
+/// ## Variants
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
 /// it depending on the received template.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -111,14 +91,7 @@ pub fn execute(
     }
 }
 
-/// ## Description
-/// The entry point to the contract for processing replies from submessages. For now it only sets the xASTRO contract address.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`Reply`].
+/// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
@@ -141,18 +114,9 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     Ok(Response::new())
 }
 
-/// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// If the template is not found in the received message, then a [`ContractError`] is returned,
-/// otherwise returns a [`Response`] with the specified attributes if the operation was successful
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
+/// * **cw20_msg** CW20 message to process.
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -228,14 +192,7 @@ fn receive_cw20(
     }
 }
 
-/// ## Description
 /// Exposes all the queries available in the contract.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
 /// * **QueryMsg::Config {}** Returns the staking contract configuration using a [`ConfigResponse`] object.

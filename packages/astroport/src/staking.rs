@@ -45,7 +45,6 @@ pub struct ConfigResponse {
 }
 
 /// This structure describes a migration message.
-/// We currently take no arguments for migrations.
 #[cw_serde]
 pub struct MigrateMsg {}
 

@@ -83,15 +83,12 @@ pub struct VestingSchedulePoint {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    /// ## Description
     /// Returns the configuration for the contract using a [`ConfigResponse`] object.
     #[returns(ConfigResponse)]
     Config {},
-    /// ## Description
     /// Returns information about an address vesting tokens using a [`VestingAccountResponse`] object.
     #[returns(VestingAccountResponse)]
     VestingAccount { address: String },
-    /// ## Description
     /// Returns a list of addresses that are vesting tokens using a [`VestingAccountsResponse`] object.
     #[returns(VestingAccountsResponse)]
     VestingAccounts {
@@ -99,7 +96,6 @@ pub enum QueryMsg {
         limit: Option<u32>,
         order_by: Option<OrderBy>,
     },
-    /// ## Description
     /// Returns the total unvested amount of tokens for a specific address.
     #[returns(Uint128)]
     AvailableAmount { address: String },
@@ -136,9 +132,7 @@ pub struct VestingAccountsResponse {
 /// This enum describes the types of sorting that can be applied to some piece of data
 #[cw_serde]
 pub enum OrderBy {
-    /// Ascending
     Asc,
-    /// Descending
     Desc,
 }
 

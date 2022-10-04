@@ -20,18 +20,7 @@ pub trait PairBonded<'a> {
     /// Contract version that is used for migration.
     const CONTRACT_VERSION: &'a str = env!("CARGO_PKG_VERSION");
 
-    /// ## Description
     /// Creates a new contract with the specified parameters in [`InstantiateMsg`].
-    /// Returns a [`Response`] with the specified attributes if the operation was successful,
-    /// or a [`ContractError`] if the contract was not created.
-    /// ## Params
-    /// * **deps** is an object of type [`DepsMut`].
-    ///
-    /// * **env** is an object of type [`Env`].
-    ///
-    /// * **_info** is an object of type [`MessageInfo`].
-    ///
-    /// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters for creating the contract.
     fn instantiate(
         &self,
         deps: DepsMut,
@@ -63,18 +52,9 @@ pub trait PairBonded<'a> {
         Ok(Response::new())
     }
 
-    /// ## Description
     /// Exposes all the execute functions available in the contract.
-    /// ## Params
-    /// * **deps** is an object of type [`Deps`].
     ///
-    /// * **env** is an object of type [`Env`].
-    ///
-    /// * **info** is an object of type [`MessageInfo`].
-    ///
-    /// * **msg** is an object of type [`ExecuteMsg`].
-    ///
-    /// ## Queries
+    /// ## Variants
     /// * **ExecuteMsg::UpdateConfig { params: Binary }**  Not supported.
     ///
     /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
@@ -142,14 +122,7 @@ pub trait PairBonded<'a> {
         }
     }
 
-    /// ## Description
     /// Exposes all the queries available in the contract.
-    /// ## Params
-    /// * **deps** is an object of type [`Deps`].
-    ///
-    /// * **_env** is an object of type [`Env`].
-    ///
-    /// * **msg** is an object of type [`QueryMsg`].
     ///
     /// ## Queries
     /// * **QueryMsg::Pair {}** Returns information about the pair in an object of type [`PairInfo`].
@@ -185,18 +158,9 @@ pub trait PairBonded<'a> {
         }
     }
 
-    /// ## Description
     /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-    /// If no template is not found in the received message, then an [`ContractError`] is returned,
-    /// otherwise it returns a [`Response`] with the specified attributes if the operation was successful
-    /// ## Params
-    /// * **deps** is an object of type [`DepsMut`].
     ///
-    /// * **env** is an object of type [`Env`].
-    ///
-    /// * **info** is an object of type [`MessageInfo`].
-    ///
-    /// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 receive message to process.
+    /// * **cw20_msg** CW20 receive message to process.
     fn receive_cw20(
         &self,
         deps: DepsMut,
@@ -249,26 +213,19 @@ pub trait PairBonded<'a> {
         }
     }
 
-    /// ## Description
     /// Performs an swap operation with the specified parameters. The trader must approve the
     /// pool contract to transfer offer assets from their wallet.
-    /// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified attributes if the operation was successful.
-    /// ## Params
-    /// * **deps** is an object of type [`DepsMut`].
     ///
-    /// * **env** is an object of type [`Env`].
+    /// * **sender** sender of the swap operation.
     ///
-    /// * **info** is an object of type [`MessageInfo`].
+    /// * **offer_asset** proposed asset for swapping.
     ///
-    /// * **sender** is an object of type [`Addr`]. This is the sender of the swap operation.
+    /// * **belief_price** used to calculate the maximum swap spread.
     ///
-    /// * **offer_asset** is an object of type [`Asset`]. Proposed asset for swapping.
+    /// * **max_spread** sets the maximum spread of the swap operation.
     ///
-    /// * **belief_price** is an object of type [`Option<Decimal>`]. Used to calculate the maximum swap spread.
+    /// * **to** sets the recipient of the swap operation.
     ///
-    /// * **max_spread** is an object of type [`Option<Decimal>`]. Sets the maximum spread of the swap operation.
-    ///
-    /// * **to** is an object of type [`Option<Addr>`]. Sets the recipient of the swap operation.
     /// NOTE - the address that wants to swap should approve the pair contract to pull the offer token.
     #[allow(clippy::too_many_arguments)]
     fn execute_swap(
@@ -300,9 +257,8 @@ pub trait PairBonded<'a> {
         )
     }
 
-    /// ## Description
     /// Performs a swap with the specified parameters.
-    /// ### Should be implemented
+    /// ### Must be implemented
     #[allow(clippy::too_many_arguments)]
     fn swap(
         &self,
@@ -316,19 +272,13 @@ pub trait PairBonded<'a> {
         to: Option<Addr>,
     ) -> Result<Response, ContractError>;
 
-    /// ## Description
     /// Returns information about the pair contract in an object of type [`PairInfo`].
-    /// ## Params
-    /// * **deps** is an object of type [`Deps`].
     fn query_pair_info(&self, deps: Deps) -> StdResult<PairInfo> {
         let config = CONFIG.load(deps.storage)?;
         Ok(config.pair_info)
     }
 
-    /// ## Description
     /// Returns the amounts of assets in the pair contract in an object of type [`PoolResponse`].
-    /// ## Params
-    /// * **deps** is an object of type [`Deps`].
     fn query_pool(&self, deps: Deps) -> StdResult<PoolResponse> {
         let config = CONFIG.load(deps.storage)?;
         let (assets, total_share) = self.pool_info(&config)?;
@@ -341,9 +291,7 @@ pub trait PairBonded<'a> {
         Ok(resp)
     }
 
-    /// ## Description
     /// Returns information about a swap simulation in a [`SimulationResponse`] object.
-    /// ### Should be implemented
     fn query_simulation(
         &self,
         deps: Deps,
@@ -351,9 +299,8 @@ pub trait PairBonded<'a> {
         offer_asset: Asset,
     ) -> StdResult<SimulationResponse>;
 
-    /// ## Description
     /// Returns information about a reverse swap simulation in a [`ReverseSimulationResponse`] object.
-    /// ### Should be implemented
+    /// ### Must be implemented
     fn query_reverse_simulation(
         &self,
         deps: Deps,
@@ -361,12 +308,7 @@ pub trait PairBonded<'a> {
         ask_asset: Asset,
     ) -> StdResult<ReverseSimulationResponse>;
 
-    /// ## Description
     /// Returns information about cumulative prices for the assets in the pool using a [`CumulativePricesResponse`] object.
-    /// ## Params
-    /// * **deps** is an object of type [`Deps`].
-    ///
-    /// * **env** is an object of type [`Env`].
     fn query_cumulative_prices(
         &self,
         deps: Deps,
@@ -384,10 +326,7 @@ pub trait PairBonded<'a> {
         Ok(resp)
     }
 
-    /// ## Description
     /// Returns the pair contract configuration in a [`ConfigResponse`] object.
-    /// ## Params
-    /// * **deps** is an object of type [`Deps`].
     fn query_config(&self, _deps: Deps) -> StdResult<ConfigResponse> {
         Ok(ConfigResponse {
             block_time_last: 0u64,
@@ -396,10 +335,7 @@ pub trait PairBonded<'a> {
         })
     }
 
-    /// ## Description
     /// Returns the total amount of assets in the pool.
-    /// ## Params
-    /// * **config** is an object of type [`Config`].
     fn pool_info(&self, config: &Config) -> StdResult<(Vec<Asset>, Uint128)> {
         let pools = vec![
             Asset {
@@ -415,28 +351,20 @@ pub trait PairBonded<'a> {
         Ok((pools, Uint128::zero()))
     }
 
-    /// ## Description
     /// Performs an swap operation with the specified parameters. The trader must approve the
     /// pool contract to transfer offer assets from their wallet.
-    /// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified attributes if the operation was successful.
-    /// ## Params
-    /// * **deps** is an object of type [`DepsMut`].
     ///
-    /// * **env** is an object of type [`Env`].
+    /// * **sender** sender of the swap operation.
     ///
-    /// * **info** is an object of type [`MessageInfo`].
+    /// * **offer_asset** proposed asset for swapping.
     ///
-    /// * **sender** is an object of type [`Addr`]. This is the sender of the swap operation.
+    /// * **ask_asset_info** ask asset info.
     ///
-    /// * **offer_asset** is an object of type [`Asset`]. Proposed asset for swapping.
+    /// * **receiver** receiver of the swap operation.
     ///
-    /// * **ask_asset_info** is an object of type [`Addr`]. Ask asset info.
+    /// * **belief_price** used to calculate the maximum swap spread.
     ///
-    /// * **receiver** is an object of type [`Addr`]. This is the receiver of the swap operation.
-    ///
-    /// * **belief_price** is an object of type [`Option<Decimal>`]. Used to calculate the maximum swap spread.
-    ///
-    /// * **max_spread** is an object of type [`Option<Decimal>`]. Sets the maximum spread of the swap operation.
+    /// * **max_spread** sets the maximum spread of the swap operation.
     #[allow(clippy::too_many_arguments)]
     fn assert_receive_and_send(
         &self,
