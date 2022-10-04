@@ -874,8 +874,12 @@ fn set_tokens_per_block() {
     let factory_instance =
         instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
-    let generator_instance =
-        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
+    let generator_instance = instantiate_generator(
+        &mut app,
+        &factory_instance,
+        &astro_token_instance,
+        Some(OWNER.to_string()),
+    );
 
     let msg = QueryMsg::Config {};
     let res: Config = app
@@ -991,8 +995,12 @@ fn update_owner() {
     let factory_instance =
         instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
-    let generator_instance =
-        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
+    let generator_instance = instantiate_generator(
+        &mut app,
+        &factory_instance,
+        &astro_token_instance,
+        Some(OWNER.to_string()),
+    );
 
     let new_owner = String::from("new_owner");
 
@@ -2850,8 +2858,12 @@ fn update_tokens_blocked_list() {
     let factory_instance =
         instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
-    let generator_instance =
-        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
+    let generator_instance = instantiate_generator(
+        &mut app,
+        &factory_instance,
+        &astro_token_instance,
+        Some(OWNER.to_string()),
+    );
 
     let cny_token = instantiate_token(&mut app, token_code_id, "CNY", None);
     let eur_token = instantiate_token(&mut app, token_code_id, "EUR", None);
@@ -3100,8 +3112,12 @@ fn setup_pools() {
     let factory_instance =
         instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
-    let generator_instance =
-        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
+    let generator_instance = instantiate_generator(
+        &mut app,
+        &factory_instance,
+        &astro_token_instance,
+        Some(OWNER.to_string()),
+    );
 
     // add generator to factory
     let msg = FactoryExecuteMsg::UpdateConfig {
