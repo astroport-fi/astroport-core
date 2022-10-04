@@ -776,13 +776,8 @@ fn proper_deposit_and_withdraw() {
         ],
     );
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        None,
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     register_lp_tokens_in_generator(
         &mut app,
@@ -879,13 +874,8 @@ fn set_tokens_per_block() {
     let factory_instance =
         instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        Some(OWNER.to_string()),
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     let msg = QueryMsg::Config {};
     let res: Config = app
@@ -934,7 +924,6 @@ fn update_config() {
         &mut app,
         &factory_instance,
         &astro_token_instance,
-        None,
         Some(OWNER.to_string()),
     );
 
@@ -1002,13 +991,8 @@ fn update_owner() {
     let factory_instance =
         instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        Some(OWNER.to_string()),
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     let new_owner = String::from("new_owner");
 
@@ -1117,13 +1101,8 @@ fn disabling_pool() {
         ],
     );
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        None,
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     // Disable generator
     let msg = FactoryExecuteMsg::UpdatePairConfig {
@@ -1241,13 +1220,8 @@ fn generator_without_reward_proxies() {
         ],
     );
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        None,
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     register_lp_tokens_in_generator(
         &mut app,
@@ -1584,7 +1558,6 @@ fn generator_with_mirror_reward_proxy() {
         &mut app,
         &factory_instance,
         &astro_token_instance,
-        None,
         None,
     );
 
@@ -2098,7 +2071,6 @@ fn move_to_proxy() {
         &factory_instance,
         &astro_token_instance,
         None,
-        None,
     );
 
     register_lp_tokens_in_generator(
@@ -2274,7 +2246,6 @@ fn migrate_proxy() {
         &mut app,
         &factory_instance,
         &astro_token_instance,
-        None,
         "1.2.0",
     );
 
@@ -2610,13 +2581,8 @@ fn query_all_stakers() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        None,
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     register_lp_tokens_in_generator(
         &mut app,
@@ -2766,13 +2732,8 @@ fn query_pagination_stakers() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        None,
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     register_lp_tokens_in_generator(
         &mut app,
@@ -2889,13 +2850,8 @@ fn update_tokens_blocked_list() {
     let factory_instance =
         instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        Some(OWNER.to_string()),
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     let cny_token = instantiate_token(&mut app, token_code_id, "CNY", None);
     let eur_token = instantiate_token(&mut app, token_code_id, "EUR", None);
@@ -3144,13 +3100,8 @@ fn setup_pools() {
     let factory_instance =
         instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        Some(OWNER.to_string()),
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     // add generator to factory
     let msg = FactoryExecuteMsg::UpdateConfig {
@@ -3405,7 +3356,6 @@ fn deactivate_pools_by_pair_types() {
         &mut app,
         &factory_instance,
         &astro_token_instance,
-        None,
         Some(OWNER.to_string()),
     );
 
@@ -3821,7 +3771,6 @@ fn instantiate_generator(
     mut app: &mut App,
     factory_instance: &Addr,
     astro_token_instance: &Addr,
-    allowed_proxies: Option<Vec<String>>,
     generator_controller: Option<String>,
 ) -> Addr {
     // Vesting
@@ -3874,7 +3823,6 @@ fn instantiate_generator(
         owner: owner.to_string(),
         factory: factory_instance.to_string(),
         guardian: None,
-        allowed_reward_proxies: allowed_proxies.unwrap_or_default(),
         start_block: Uint64::from(app.block_info().height),
         astro_token: astro_token_instance.to_string(),
         tokens_per_block: Uint128::new(10_000000),
@@ -3929,7 +3877,6 @@ fn instantiate_generator_wth_version(
     mut app: &mut App,
     factory_instance: &Addr,
     astro_token_instance: &Addr,
-    allowed_proxies: Option<Vec<String>>,
     generator_version: &str,
 ) -> Addr {
     // Vesting
@@ -3974,7 +3921,6 @@ fn instantiate_generator_wth_version(
         owner: owner.to_string(),
         factory: factory_instance.to_string(),
         guardian: None,
-        allowed_reward_proxies: allowed_proxies.unwrap_or_default(),
         start_block: Uint64::from(app.block_info().height),
         astro_token: astro_token_instance.to_string(),
         tokens_per_block: Uint128::new(10_000000),

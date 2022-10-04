@@ -115,7 +115,6 @@ impl ControllerHelper {
             astro_token: escrow_helper.astro_token.to_string(),
             tokens_per_block: Uint128::new(10_000000),
             start_block: Uint64::from(router.block_info().height),
-            allowed_reward_proxies: vec![],
             vesting_contract: vesting_instance.to_string(),
             whitelist_code_id,
         };

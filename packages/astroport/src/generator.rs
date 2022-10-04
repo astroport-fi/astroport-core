@@ -28,8 +28,6 @@ pub struct InstantiateMsg {
     pub tokens_per_block: Uint128,
     /// Start block for distributing ASTRO
     pub start_block: Uint64,
-    /// Dual rewards proxy contracts allowed to interact with the generator
-    pub allowed_reward_proxies: Vec<String>,
     /// The ASTRO vesting contract that drips ASTRO rewards
     pub vesting_contract: String,
     /// Whitelist code id
