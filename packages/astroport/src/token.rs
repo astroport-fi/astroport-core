@@ -1,12 +1,11 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::cw_serde;
 
 use cosmwasm_std::{StdError, StdResult, Uint128};
 use cw20::{Cw20Coin, Logo, MinterResponse};
 
 /// ## Description
 /// This structure describes the marketing info settings such as project, description, and token logo.
-#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
+#[cw_serde]
 pub struct InstantiateMarketingInfo {
     /// The project name
     pub project: Option<String>,
@@ -20,7 +19,7 @@ pub struct InstantiateMarketingInfo {
 
 /// This structure describes the parameters used for creating a token contract.
 /// TokenContract InstantiateMsg
-#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+#[cw_serde]
 pub struct InstantiateMsg {
     /// Token name
     pub name: String,
@@ -38,7 +37,7 @@ pub struct InstantiateMsg {
 
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[cw_serde]
 pub struct MigrateMsg {}
 
 impl InstantiateMsg {

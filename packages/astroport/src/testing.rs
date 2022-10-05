@@ -5,7 +5,6 @@ use crate::querier::{
 };
 
 use crate::factory::PairType;
-use crate::DecimalCheckedOps;
 use cosmwasm_std::testing::MOCK_CONTRACT_ADDR;
 use cosmwasm_std::{to_binary, Addr, BankMsg, Coin, CosmosMsg, Decimal, Uint128, WasmMsg};
 use cw20::Cw20ExecuteMsg;

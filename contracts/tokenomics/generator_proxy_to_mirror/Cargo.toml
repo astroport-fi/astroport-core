@@ -20,15 +20,12 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = { version = "1.0" }
-cw-storage-plus = "0.13"
-schemars = "0.8"
-serde = { version = "1.0.125", default-features = false, features = ["derive"] }
+cosmwasm-std = { version = "1.1" }
+cw-storage-plus = "0.15"
 thiserror = { version = "1.0" }
-cw2 = "0.13"
-cw20 = "0.13"
+cw2 = "0.15"
+cw20 = "0.15"
 mirror-protocol = {version = "2.1.1"}
 astroport = { path = "../../../packages/astroport", default-features = false }
+cosmwasm-schema = { version = "1.1" }
 
-[dev-dependencies]
-cosmwasm-schema = { version = "1.0" }

@@ -20,49 +20,28 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = "1.0"
-cw2 = { version = "0.13.2" }
-cw20 = { version = "0.13.2" }
-cw-storage-plus = "0.13.2"
-schemars = "0.8.1"
-serde = { version = "1.0.125", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0.24" }
+cosmwasm-std = "1.1"
+cw2 = { version = "0.15" }
+cw20 = { version = "0.15" }
+cw-storage-plus = "0.15"
+thiserror = { version = "1.0" }
 astroport = { path = "../../../packages/astroport", default-features = false }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/migrate_to_cosmwasm_1_1_release/terra2" }
 protobuf = { version = "2", features = ["with-bytes"] }
+cosmwasm-schema = "1.1"
+cw1-whitelist =  { version = "0.15", features = ["library"] }
 
 [dev-dependencies]
-cosmwasm-schema = "1.0.0"
-cw-multi-test = "0.13.2"
+cw-multi-test = "0.15"
 astroport-token = {path = "../../token"}
 
 astroport-vesting = {path = "../vesting"}
 astroport-staking = {path = "../staking"}
-astroport-generator-proxy-to-mirror = {path = "../generator_proxy_to_mirror"}
+#astroport-generator-proxy-to-mirror = {path = "../generator_proxy_to_mirror"}
 astroport-factory = {path = "../../factory"}
 astroport-pair = {path = "../../pair"}
 astroport-pair-stable = {path = "../../pair_stable"}
 astroport-whitelist = { path = "../../whitelist" }
 anyhow = "1"
-generator-controller = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
-voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
-
-[dev-dependencies.astroport-generator_v120]
-git = "https://github.com/astroport-fi/astroport-core"
-package = "astroport-generator"
-rev = "973aab9419229cb221023066f96b18f2edf75ba8"
-
-[dev-dependencies.astroport-package-generator_v120]
-git = "https://github.com/astroport-fi/astroport-core"
-package = "astroport"
-rev = "973aab9419229cb221023066f96b18f2edf75ba8"
-
-[dev-dependencies.astroport-generator_v110]
-git = "https://github.com/astroport-fi/astroport-core"
-package = "astroport-generator"
-rev = "779c0b548359ec9e5abd67a561c7c7bbaac333b6"
-
-[dev-dependencies.astroport-package-generator_v110]
-git = "https://github.com/astroport-fi/astroport-core"
-package = "astroport"
-rev = "779c0b548359ec9e5abd67a561c7c7bbaac333b6"
+generator-controller = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/migrate_to_cosmwasm_1_1_release/terra2" }
+voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/migrate_to_cosmwasm_1_1_release/terra2" }

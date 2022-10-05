@@ -1,3 +1,4 @@
+use astroport::asset::ULUNA_DENOM;
 use astroport::asset::{
     native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
 };
@@ -6,7 +7,6 @@ use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use astroport_governance::astroport::asset::ULUNA_DENOM;
 use cosmwasm_std::{
     attr, coin, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
 };

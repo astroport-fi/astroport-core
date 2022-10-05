@@ -2,13 +2,12 @@ use crate::state::{Config, CONFIG};
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 
 use astroport::generator::MigrateMsg;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// This structure stores the parameters for a generator (in the upgraded version of the Generator contract).
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct PoolInfoV100 {
     /// This is the share of ASTRO rewards that this generator receives every block
     pub alloc_point: Uint64,
@@ -30,7 +29,7 @@ pub struct PoolInfoV100 {
 pub const POOL_INFOV100: Map<&Addr, PoolInfoV100> = Map::new("pool_info");
 
 /// This structure stores the parameters for a generator (in the upgraded version v1.1.0 of the Generator contract).
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct PoolInfoV110 {
     /// Allocation point is used to control reward distribution among the pools
     pub alloc_point: Uint64,
@@ -52,7 +51,7 @@ pub struct PoolInfoV110 {
 pub const POOL_INFOV110: Map<&Addr, PoolInfoV110> = Map::new("pool_info");
 
 /// This structure describes the main control config of generator.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV100 {
     /// Contract address that used for controls settings
     pub owner: Addr,
@@ -71,7 +70,7 @@ pub struct ConfigV100 {
 }
 
 /// This structure stores the core parameters for the Generator contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV120 {
     /// Address allowed to change contract parameters
     pub owner: Addr,
@@ -171,7 +170,7 @@ pub fn migrate_configs_to_v130(storage: &mut dyn Storage) -> StdResult<()> {
 }
 
 /// This structure describes the main control config of generator.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV130 {
     /// Address allowed to change contract parameters
     pub owner: Addr,

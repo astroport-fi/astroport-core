@@ -1,7 +1,6 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::{cw_serde, QueryResponses};
 
-use crate::asset::{Asset, AssetInfo};
+use crate::asset::{Asset, AssetInfo, PairInfo};
 
 use cosmwasm_std::{Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
@@ -15,7 +14,7 @@ pub const MAX_ALLOWED_SLIPPAGE: &str = "0.5";
 pub const TWAP_PRECISION: u8 = 6;
 
 /// This structure describes the parameters used for creating a contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct InstantiateMsg {
     /// Information about the two assets in the pool
     pub asset_infos: [AssetInfo; 2],
@@ -28,8 +27,7 @@ pub struct InstantiateMsg {
 }
 
 /// This structure describes the execute messages available in the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum ExecuteMsg {
     /// Receives a message of type [`Cw20ReceiveMsg`]
     Receive(Cw20ReceiveMsg),
@@ -56,8 +54,7 @@ pub enum ExecuteMsg {
 }
 
 /// This structure describes a CW20 hook message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum Cw20HookMsg {
     /// Swap a given amount of asset
     Swap {
@@ -70,27 +67,34 @@ pub enum Cw20HookMsg {
 }
 
 /// This structure describes the query messages available in the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     /// Returns information about a pair in an object of type [`super::asset::PairInfo`].
+    #[returns(PairInfo)]
     Pair {},
     /// Returns information about a pool in an object of type [`PoolResponse`].
+    #[returns(PoolResponse)]
     Pool {},
     /// Returns contract configuration settings in a custom [`ConfigResponse`] structure.
+    #[returns(ConfigResponse)]
     Config {},
     /// Returns information about the share of the pool in a vector that contains objects of type [`Asset`].
+    #[returns(Vec<Asset>)]
     Share { amount: Uint128 },
     /// Returns information about a swap simulation in a [`SimulationResponse`] object.
+    #[returns(SimulationResponse)]
     Simulation { offer_asset: Asset },
     /// Returns information about cumulative prices in a [`CumulativePricesResponse`] object.
+    #[returns(ReverseSimulationResponse)]
     ReverseSimulation { ask_asset: Asset },
     /// Returns information about the cumulative prices in a [`CumulativePricesResponse`] object
+    #[returns(CumulativePricesResponse)]
     CumulativePrices {},
 }
 
 /// This struct is used to return a query result with the total amount of LP tokens and the two assets in a specific pool.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct PoolResponse {
     /// The assets in the pool together with asset amounts
     pub assets: [Asset; 2],
@@ -99,7 +103,7 @@ pub struct PoolResponse {
 }
 
 /// This struct is used to return a query result with the general contract configuration.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigResponse {
     /// Last timestamp when the cumulative prices in the pool were updated
     pub block_time_last: u64,
@@ -108,7 +112,7 @@ pub struct ConfigResponse {
 }
 
 /// This structure holds the parameters that are returned from a swap simulation response
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct SimulationResponse {
     /// The amount of ask assets returned by the swap
     pub return_amount: Uint128,
@@ -119,7 +123,7 @@ pub struct SimulationResponse {
 }
 
 /// This structure holds the parameters that are returned from a reverse swap simulation response.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ReverseSimulationResponse {
     /// The amount of offer assets returned by the reverse swap
     pub offer_amount: Uint128,
@@ -130,7 +134,7 @@ pub struct ReverseSimulationResponse {
 }
 
 /// This structure is used to return a cumulative prices query response.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct CumulativePricesResponse {
     /// The two assets in the pool to query
     pub assets: [Asset; 2],
@@ -144,28 +148,25 @@ pub struct CumulativePricesResponse {
 
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct MigrateMsg {}
 
 /// This structure holds stableswap pool parameters.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub struct StablePoolParams {
     /// The current stableswap pool amplification
     pub amp: u64,
 }
 
 /// This structure stores a stableswap pool's configuration.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub struct StablePoolConfig {
     /// The stableswap pool amplification
     pub amp: Decimal,
 }
 
 /// This enum stores the options available to start and stop changing a stableswap pool's amplification.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum StablePoolUpdateParams {
     StartChangingAmp { next_amp: u64, next_amp_time: u64 },
     StopChangingAmp {},
