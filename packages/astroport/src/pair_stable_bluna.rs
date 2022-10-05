@@ -1,14 +1,15 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::{cw_serde, QueryResponses};
 
-use crate::asset::Asset;
-
+use crate::asset::{Asset, PairInfo};
+use crate::pair::{
+    ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
+    SimulationResponse,
+};
 use cosmwasm_std::{Addr, Binary, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 /// This structure describes the execute messages available in the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum ExecuteMsg {
     /// Receives a message of type [`Cw20ReceiveMsg`]
     Receive(Cw20ReceiveMsg),
@@ -57,30 +58,37 @@ pub enum ExecuteMsg {
 }
 
 /// This structure describes the query messages available in the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     /// Returns information about a pair in an object of type [`super::asset::PairInfo`].
+    #[returns(PairInfo)]
     Pair {},
     /// Returns information about a pool in an object of type [`super::pair::PoolResponse`].
+    #[returns(PoolResponse)]
     Pool {},
     /// Returns contract configuration settings in a custom [`super::pair::ConfigResponse`] structure.
+    #[returns(ConfigResponse)]
     Config {},
     /// Returns information about the share of the pool in a vector that contains objects of type [`Asset`].
+    #[returns(Vec<Asset>)]
     Share { amount: Uint128 },
     /// Returns information about a swap simulation in a [`super::pair::SimulationResponse`] object.
+    #[returns(SimulationResponse)]
     Simulation { offer_asset: Asset },
     /// Returns information about a reverse simulation in a [`super::pair::ReverseSimulationResponse`] object.
+    #[returns(ReverseSimulationResponse)]
     ReverseSimulation { ask_asset: Asset },
     /// Returns information about cumulative prices (used for TWAPs) in a [`super::pair::CumulativePricesResponse`] object.
+    #[returns(CumulativePricesResponse)]
     CumulativePrices {},
     /// Returns pending token rewards that can be claimed by a specific user using a [`Asset`] object.
+    #[returns(Asset)]
     PendingReward { user: String },
 }
 
 /// This struct is used to store bLUNA stableswap specific parameters.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub struct StablePoolParams {
     /// The current pool amplification
     pub amp: u64,
@@ -91,8 +99,7 @@ pub struct StablePoolParams {
 }
 
 /// This struct is used to store the stableswap pool configuration.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub struct StablePoolConfig {
     /// The current pool amplification
     pub amp: Decimal,
@@ -103,8 +110,7 @@ pub struct StablePoolConfig {
 }
 
 /// This enum stores the options available to update bLUNA stableswap pool parameters.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum StablePoolUpdateParams {
     StartChangingAmp { next_amp: u64, next_amp_time: u64 },
     StopChangingAmp {},
@@ -112,7 +118,7 @@ pub enum StablePoolUpdateParams {
 }
 
 /// This struct contains the parameters used to migrate the bLUNA-LUNA stableswap pool implementation.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct MigrateMsg {
     /// The bLUNA rewarder contract
     pub bluna_rewarder: Option<String>,

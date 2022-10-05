@@ -2,13 +2,12 @@ use crate::state::CONFIG;
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 
 use astroport::generator::{Config, MigrateMsg};
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// This structure stores the parameters for a generator (in the upgraded version of the Generator contract).
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct PoolInfoV100 {
     /// This is the share of ASTRO rewards that this generator receives every block
     pub alloc_point: Uint64,
@@ -29,7 +28,7 @@ pub struct PoolInfoV100 {
 /// Stores the contract config(V1.0.0) at the given key
 pub const POOL_INFOV100: Map<&Addr, PoolInfoV100> = Map::new("pool_info");
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct PoolInfoV120 {
     /// Accumulated amount of reward per share unit. Used for reward calculations
     pub last_reward_block: Uint64,
@@ -49,7 +48,7 @@ pub struct PoolInfoV120 {
 pub const POOL_INFOV120: Map<&Addr, PoolInfoV120> = Map::new("pool_info");
 
 /// This structure describes the main control config of generator.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV100 {
     /// Contract address that used for controls settings
     pub owner: Addr,
@@ -68,7 +67,7 @@ pub struct ConfigV100 {
 }
 
 /// This structure stores the core parameters for the Generator contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV120 {
     /// Address allowed to change contract parameters
     pub owner: Addr,
@@ -97,7 +96,7 @@ pub struct ConfigV120 {
 }
 
 /// This structure stores the core parameters for the Generator contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV200 {
     /// Address allowed to change contract parameters
     pub owner: Addr,

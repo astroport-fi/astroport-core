@@ -1,5 +1,5 @@
 use cosmwasm_std::{Addr, Env, Order, StdResult, Storage, Uint128};
-use cw_storage_plus::{Bound, IntKeyOld, Map, SnapshotMap, Strategy};
+use cw_storage_plus::{Bound, Map, SnapshotMap, Strategy};
 
 /// Contains snapshotted coins balances at every block.
 pub const BALANCES: SnapshotMap<&Addr, Uint128> = SnapshotMap::new(
@@ -9,10 +9,8 @@ pub const BALANCES: SnapshotMap<&Addr, Uint128> = SnapshotMap::new(
     Strategy::EveryBlock,
 );
 
-type U64Key = IntKeyOld<u64>;
-
 /// Contains the history of the xASTRO total supply.
-pub const TOTAL_SUPPLY_HISTORY: Map<U64Key, Uint128> = Map::new("total_supply_history");
+pub const TOTAL_SUPPLY_HISTORY: Map<u64, Uint128> = Map::new("total_supply_history");
 
 /// Snapshots the total token supply at current block.
 ///
@@ -22,13 +20,13 @@ pub fn capture_total_supply_history(
     env: &Env,
     total_supply: Uint128,
 ) -> StdResult<()> {
-    TOTAL_SUPPLY_HISTORY.save(storage, U64Key::new(env.block.height), &total_supply)
+    TOTAL_SUPPLY_HISTORY.save(storage, env.block.height, &total_supply)
 }
 
 /// Returns the total token supply at the given block.
 pub fn get_total_supply_at(storage: &dyn Storage, block: u64) -> StdResult<Uint128> {
     // Look for the last value recorded before the current block (if none then value is zero)
-    let end = Bound::inclusive(U64Key::new(block));
+    let end = Bound::inclusive(block);
     let last_value_up_to_block = TOTAL_SUPPLY_HISTORY
         .range(storage, None, Some(end), Order::Descending)
         .next();

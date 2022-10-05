@@ -32,7 +32,7 @@ use astroport::pair::{
 use astroport::pair_stable_bluna::{
     ExecuteMsg, MigrateMsg, QueryMsg, StablePoolConfig, StablePoolParams, StablePoolUpdateParams,
 };
-use astroport::whitelist::InstantiateMsg as WhitelistInstantiateMsg;
+use cw1_whitelist::msg::InstantiateMsg as WhitelistInstantiateMsg;
 
 use anchor_basset::reward::{AccruedRewardsResponse, QueryMsg as BAssetRewardQueryMsg};
 use astroport::querier::{
@@ -1239,6 +1239,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
             bluna_rewarder: config.bluna_rewarder,
             generator: config.generator,
         })?),
+        owner: None,
     })
 }
 
@@ -1957,7 +1958,7 @@ pub fn handle_reward(
     total_share: Uint128,
     receiver: Option<Addr>,
 ) -> Result<Response, ContractError> {
-    use astroport::whitelist::ExecuteMsg;
+    use cw1_whitelist::msg::ExecuteMsg;
 
     if info.sender != env.contract.address {
         return Err(ContractError::Unauthorized {});

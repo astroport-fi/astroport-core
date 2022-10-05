@@ -1,8 +1,8 @@
 use crate::asset::{AssetInfo, PairInfo};
+
+use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Binary};
 use cw_storage_plus::Map;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result};
 
 const MAX_TOTAL_FEE_BPS: u16 = 10_000;
@@ -16,8 +16,7 @@ const MAX_MAKER_FEE_BPS: u16 = 10_000;
 /// Stable {};
 /// Custom(String::from("Custom"));
 /// ```
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum PairType {
     /// XYK pair type
     Xyk {},
@@ -39,7 +38,7 @@ impl Display for PairType {
 }
 
 /// This structure stores a pair type's configuration.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct PairConfig {
     /// ID of contract which is allowed to create pairs of this type
     pub code_id: u64,
@@ -65,7 +64,7 @@ impl PairConfig {
 }
 
 /// This structure stores the basic settings for creating a new factory contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct InstantiateMsg {
     /// IDs of contracts that are allowed to instantiate pairs
     pub pair_configs: Vec<PairConfig>,
@@ -82,8 +81,7 @@ pub struct InstantiateMsg {
 }
 
 /// This structure describes the execute messages of the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum ExecuteMsg {
     /// UpdateConfig updates relevant code IDs
     UpdateConfig {
@@ -132,17 +130,20 @@ pub enum ExecuteMsg {
 }
 
 /// This structure describes the available query messages for the factory contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     /// Config returns contract settings specified in the custom [`ConfigResponse`] structure.
+    #[returns(ConfigResponse)]
     Config {},
     /// Pair returns information about a specific pair according to the specified assets.
+    #[returns(PairInfo)]
     Pair {
         /// The assets for which we return a pair
         asset_infos: Vec<AssetInfo>,
     },
     /// Pairs returns an array of pairs and their information according to the specified parameters in `start_after` and `limit` variables.
+    #[returns(PairsResponse)]
     Pairs {
         /// The pair item to start reading from. It is an [`Option`] type that accepts [`AssetInfo`] elements.
         start_after: Option<Vec<AssetInfo>>,
@@ -150,18 +151,21 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
     /// FeeInfo returns fee parameters for a specific pair. The response is returned using a [`FeeInfoResponse`] structure
+    #[returns(FeeInfoResponse)]
     FeeInfo {
         /// The pair type for which we return fee information. Pair type is a [`PairType`] struct
         pair_type: PairType,
     },
     /// Returns a vector that contains blacklisted pair types
+    #[returns(Vec<PairType>)]
     BlacklistedPairTypes {},
     /// Returns a vector that contains pair addresses that are not migrated
+    #[returns(Vec<Addr>)]
     PairsToMigrate {},
 }
 
 /// A custom struct for each query response that returns general contract settings/configs.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigResponse {
     /// Addres of owner that is allowed to change contract parameters
     pub owner: Addr,
@@ -178,20 +182,20 @@ pub struct ConfigResponse {
 }
 
 /// This structure stores the parameters used in a migration message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct MigrateMsg {
     pub params: Binary,
 }
 
 /// A custom struct for each query response that returns an array of objects of type [`PairInfo`].
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct PairsResponse {
     /// Arrays of structs containing information about multiple pairs
     pub pairs: Vec<PairInfo>,
 }
 
 /// A custom struct for each query response that returns an object of type [`FeeInfoResponse`].
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct FeeInfoResponse {
     /// Contract address to send governance fees to
     pub fee_address: Option<Addr>,
@@ -202,8 +206,7 @@ pub struct FeeInfoResponse {
 }
 
 /// This is an enum used for setting and removing a contract address.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum UpdateAddr {
     /// Sets a new contract address.
     Set(String),

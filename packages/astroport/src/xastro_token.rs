@@ -1,11 +1,13 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use cosmwasm_std::{StdError, StdResult, Uint128};
-use cw20::{Cw20Coin, Logo, MinterResponse};
+use cw20::{
+    AllAccountsResponse, AllAllowancesResponse, AllowanceResponse, BalanceResponse, Cw20Coin,
+    DownloadLogoResponse, Logo, MarketingInfoResponse, MinterResponse, TokenInfoResponse,
+};
 
 /// This structure describes the marketing info settings such as project, description, and token logo.
-#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
+#[cw_serde]
 pub struct InstantiateMarketingInfo {
     /// The project name
     pub project: Option<String>,
@@ -18,7 +20,7 @@ pub struct InstantiateMarketingInfo {
 }
 
 /// This structure describes the parameters used for creating a xASTRO token contract.
-#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+#[cw_serde]
 pub struct InstantiateMsg {
     /// Token name
     pub name: String,
@@ -35,41 +37,51 @@ pub struct InstantiateMsg {
 }
 
 /// This enum describes the query messages available in the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     /// Balance returns the current balance of a given address, 0 if unset.
+    #[returns(BalanceResponse)]
     Balance { address: String },
     /// BalanceAt returns balance of the given address at the given block, 0 if unset.
+    #[returns(BalanceResponse)]
     BalanceAt { address: String, block: u64 },
     /// TotalSupplyAt returns the total token supply at the given block.
+    #[returns(Uint128)]
     TotalSupplyAt { block: u64 },
     /// TokenInfo returns the contract's metadata - name, decimals, supply, etc.
+    #[returns(TokenInfoResponse)]
     TokenInfo {},
     /// Returns who can mint xASTRO and the hard cap on maximum tokens after minting.
+    #[returns(Option<MinterResponse>)]
     Minter {},
     /// Allowance returns an amount of tokens the spender can spend from the owner account, 0 if unset.
+    #[returns(AllowanceResponse)]
     Allowance { owner: String, spender: String },
     /// AllAllowances returns all the allowances this token holder has approved. Supports pagination.
+    #[returns(AllAllowancesResponse)]
     AllAllowances {
         owner: String,
         start_after: Option<String>,
         limit: Option<u32>,
     },
     /// AllAccounts returns all the accounts that have xASTRO balances. Supports pagination.
+    #[returns(AllAccountsResponse)]
     AllAccounts {
         start_after: Option<String>,
         limit: Option<u32>,
     },
     /// Returns marketing related contract metadata:
     /// - description, logo, project url, etc.
+    #[returns(MarketingInfoResponse)]
     MarketingInfo {},
     /// Downloads embeded logo data (if stored on chain). Errors if no logo data was stored for this contract.
+    #[returns(DownloadLogoResponse)]
     DownloadLogo {},
 }
 
 /// This structure describes a migration message.
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[cw_serde]
 pub struct MigrateMsg {}
 
 impl InstantiateMsg {

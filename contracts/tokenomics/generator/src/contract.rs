@@ -1075,7 +1075,7 @@ pub fn send_pending_rewards(
                     messages.push(WasmMsg::Execute {
                         contract_addr: proxy_rewards_holder.to_string(),
                         funds: vec![],
-                        msg: to_binary(&astroport::whitelist::ExecuteMsg::Execute {
+                        msg: to_binary(&cw1_whitelist::msg::ExecuteMsg::Execute {
                             msgs: vec![Asset {
                                 info: asset_info,
                                 amount: pending_proxy_rewards,
@@ -1436,7 +1436,7 @@ fn send_orphan_proxy_rewards(
                     SubMsg::new(WasmMsg::Execute {
                         contract_addr: proxy_rewards_holder.to_string(),
                         funds: vec![],
-                        msg: to_binary(&astroport::whitelist::ExecuteMsg::Execute {
+                        msg: to_binary(&cw1_whitelist::msg::ExecuteMsg::Execute {
                             msgs: vec![Asset {
                                 info: asset_info,
                                 amount: *amount,
@@ -1475,7 +1475,7 @@ fn init_proxy_rewards_holder(
             code_id: whitelist_code_id,
             funds: vec![],
             label: "Proxy rewards holder".to_string(),
-            msg: to_binary(&astroport::whitelist::InstantiateMsg {
+            msg: to_binary(&cw1_whitelist::msg::InstantiateMsg {
                 admins: vec![admin.to_string()],
                 mutable: false,
             })?,

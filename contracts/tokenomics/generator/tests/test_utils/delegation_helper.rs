@@ -8,7 +8,7 @@ use cw721_base::helpers::Cw721Contract;
 pub struct DelegationHelper {
     pub delegation_instance: Addr,
     pub nft_instance: Addr,
-    pub nft_helper: Cw721Contract,
+    pub nft_helper: Cw721Contract<Empty, Empty>,
 }
 
 impl DelegationHelper {
@@ -79,7 +79,11 @@ impl DelegationHelper {
             nft_id,
         );
 
-        let nft_helper = cw721_base::helpers::Cw721Contract(nft_addr.clone());
+        let nft_helper = cw721_base::helpers::Cw721Contract(
+            nft_addr.clone(),
+            Default::default(),
+            Default::default(),
+        );
 
         DelegationHelper {
             delegation_instance: delegation_addr,

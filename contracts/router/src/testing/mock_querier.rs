@@ -1,10 +1,9 @@
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Addr, Binary, Coin, ContractResult, Empty, OwnedDeps,
     Querier, QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
@@ -12,11 +11,15 @@ use astroport::factory::PairType;
 use astroport::pair::SimulationResponse;
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum QueryMsg {
-    Pair { asset_infos: [AssetInfo; 2] },
-    Simulation { offer_asset: Asset },
+    Pair {
+        asset_infos: [AssetInfo; 2],
+    },
+    Simulation {
+        offer_asset: Asset,
+        ask_asset_info: Option<AssetInfo>,
+    },
 }
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies.
@@ -107,8 +110,7 @@ impl Querier for WasmMockQuerier {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum MockQueryMsg {
     Price {},
 }
@@ -153,7 +155,7 @@ impl WasmMockQuerier {
                     }),
                 }
             }
-            QueryMsg::Simulation { offer_asset } => {
+            QueryMsg::Simulation { offer_asset, .. } => {
                 SystemResult::Ok(ContractResult::from(to_binary(&SimulationResponse {
                     return_amount: offer_asset.amount,
                     commission_amount: Uint128::zero(),
