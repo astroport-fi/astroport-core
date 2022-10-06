@@ -1,5 +1,7 @@
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, to_binary, Addr, Coin, ReplyOn, SubMsg, Uint128, WasmMsg};
+use cosmwasm_std::{
+    from_binary, to_binary, Addr, Coin, Decimal, ReplyOn, SubMsg, Uint128, WasmMsg,
+};
 
 use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError;
@@ -368,7 +370,7 @@ fn execute_swap_operation() {
                             amount: Uint128::new(1000000u128),
                         },
                         ask_asset_info: Some(native_asset_info("uusd".to_string())),
-                        belief_price: None,
+                        belief_price: Some(Decimal::MAX),
                         max_spread: None,
                         to: Some(String::from("addr0000")),
                     })

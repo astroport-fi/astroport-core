@@ -104,7 +104,7 @@ pub fn asset_into_swap_msg(
                         ..offer_asset
                     },
                     ask_asset_info: Some(ask_asset_info),
-                    belief_price: None,
+                    belief_price: Some(Decimal::MAX),
                     max_spread,
                     to,
                 })?,
@@ -118,7 +118,7 @@ pub fn asset_into_swap_msg(
                 amount: offer_asset.amount,
                 msg: to_binary(&astroport::pair::Cw20HookMsg::Swap {
                     ask_asset_info: Some(ask_asset_info),
-                    belief_price: None,
+                    belief_price: Some(Decimal::MAX),
                     max_spread,
                     to,
                 })?,
