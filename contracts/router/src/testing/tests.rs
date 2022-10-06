@@ -114,6 +114,7 @@ fn execute_swap_operations() {
                         },
                         to: None,
                         max_spread: None,
+                        single: true
                     })
                     .unwrap(),
                 }
@@ -137,6 +138,7 @@ fn execute_swap_operations() {
                         },
                         to: None,
                         max_spread: None,
+                        single: true
                     })
                     .unwrap(),
                 }
@@ -160,6 +162,7 @@ fn execute_swap_operations() {
                         },
                         to: Some(String::from("addr0000")),
                         max_spread: None,
+                        single: true
                     })
                     .unwrap(),
                 }
@@ -248,6 +251,7 @@ fn execute_swap_operations() {
                         },
                         to: None,
                         max_spread: None,
+                        single: true
                     })
                     .unwrap(),
                 }
@@ -271,6 +275,7 @@ fn execute_swap_operations() {
                         },
                         to: None,
                         max_spread: None,
+                        single: true
                     })
                     .unwrap(),
                 }
@@ -294,6 +299,7 @@ fn execute_swap_operations() {
                         },
                         to: Some(String::from("addr0002")),
                         max_spread: None,
+                        single: true
                     })
                     .unwrap(),
                 }
@@ -349,6 +355,7 @@ fn execute_swap_operation() {
         },
         to: Some(String::from("addr0000")),
         max_spread: None,
+        single: true,
     };
     let env = mock_env();
     let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
