@@ -116,8 +116,7 @@ pub fn asset_into_swap_msg(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: pair_contract,
                 amount: offer_asset.amount,
-                msg: to_binary(&PairExecuteMsg::Swap {
-                    offer_asset,
+                msg: to_binary(&astroport::pair::Cw20HookMsg::Swap {
                     ask_asset_info: Some(ask_asset_info),
                     belief_price: None,
                     max_spread,
