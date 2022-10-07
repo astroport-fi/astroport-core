@@ -293,6 +293,13 @@ pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
     api.addr_validate(addr)
 }
 
+/// Returns a lowercased, validated address upon success if present.
+pub fn addr_opt_validate(api: &dyn Api, addr: &Option<String>) -> StdResult<Option<Addr>> {
+    addr.as_ref()
+        .map(|addr| addr_validate_to_lower(api, addr))
+        .transpose()
+}
+
 const TOKEN_SYMBOL_MAX_LENGTH: usize = 4;
 
 /// Returns a formatted LP token name

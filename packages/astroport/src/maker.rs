@@ -8,12 +8,14 @@ use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
 pub struct InstantiateMsg {
     /// Address that's allowed to change contract parameters
     pub owner: String,
-    /// The ASTRO token contract address
-    pub astro_token_contract: String,
+    /// Default bridge asset (Terra1 - LUNC, Terra2 - LUNA, etc.)
+    pub default_bridge: Option<AssetInfo>,
+    /// The ASTRO token asset info
+    pub astro_token: AssetInfo,
     /// The factory contract address
     pub factory_contract: String,
-    /// The xASTRO staking contract address
-    pub staking_contract: String,
+    /// The xASTRO staking contract address. If None then governance_contract must be set with 100% fee.
+    pub staking_contract: Option<String>,
     /// The governance contract address (fee distributor for vxASTRO)
     pub governance_contract: Option<String>,
     /// The percentage of fees that go to governance_contract
@@ -40,6 +42,8 @@ pub enum ExecuteMsg {
         governance_contract: Option<UpdateAddr>,
         /// The percentage of fees that go to governance_contract
         governance_percent: Option<Uint64>,
+        /// Basic chain asset (Terra1 - LUNC, Terra2 - LUNA, etc.)
+        basic_asset: Option<AssetInfo>,
         /// The maximum spread used when swapping fee tokens to ASTRO
         max_spread: Option<Decimal>,
     },
@@ -86,12 +90,14 @@ pub enum QueryMsg {
 pub struct ConfigResponse {
     /// Address that is allowed to update contract parameters
     pub owner: Addr,
-    /// The ASTRO token contract address
-    pub astro_token_contract: Addr,
+    /// Default bridge (Terra1 - LUNC, Terra2 - LUNA, etc.)
+    pub default_bridge: Option<AssetInfo>,
+    /// The ASTRO token asset info
+    pub astro_token: AssetInfo,
     /// The factory contract address
     pub factory_contract: Addr,
     /// The xASTRO staking contract address
-    pub staking_contract: Addr,
+    pub staking_contract: Option<Addr>,
     /// The governance contract address (fee distributor for vxASTRO stakers)
     pub governance_contract: Option<Addr>,
     /// The percentage of fees that go to governance_contract
@@ -111,9 +117,10 @@ pub struct BalancesResponse {
 }
 
 /// This structure describes a migration message.
-/// We currently take no arguments for migrations.
 #[cw_serde]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub default_bridge: Option<AssetInfo>,
+}
 
 /// This struct holds parameters to help with swapping a specific amount of a fee token to ASTRO.
 #[cw_serde]
