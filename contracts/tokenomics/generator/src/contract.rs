@@ -43,7 +43,8 @@ use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
     accumulate_pool_proxy_rewards, update_proxy_asset, update_user_balance, update_virtual_amount,
     CompatibleLoader, CHECKPOINT_GENERATORS_LIMIT, CONFIG, DEFAULT_LIMIT, MAX_LIMIT,
-    OWNERSHIP_PROPOSAL, POOL_INFO, PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, USER_INFO,
+    OWNERSHIP_PROPOSAL, POOL_INFO, PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, REWARD_PROXIES_LIST,
+    USER_INFO,
 };
 
 /// Contract name that is used for migration.
@@ -1450,10 +1451,21 @@ fn init_proxy_rewards_holder(
     Ok(msg)
 }
 
+/// Adds a new proxy contract to the list
+fn update_reward_proxies(deps: DepsMut, proxy: &Addr) -> Result<(), ContractError> {
+    let mut all_proxies = REWARD_PROXIES_LIST.load(deps.storage)?;
+    if !all_proxies.contains(proxy) {
+        all_proxies.push(proxy.clone());
+        REWARD_PROXIES_LIST.save(deps.storage, &all_proxies)?;
+    }
+
+    Ok(())
+}
+
 /// Entry point of proxy migration process. Updates rewards state and appends callback to process
 /// the next stage.
 fn migrate_proxy(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     lp_token: String,
@@ -1468,6 +1480,8 @@ fn migrate_proxy(
     if info.sender != cfg.owner {
         return Err(ContractError::Unauthorized {});
     }
+
+    update_reward_proxies(deps.branch(), &new_proxy_addr)?;
 
     // Check the pool has reward proxy
     let pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
@@ -1622,6 +1636,8 @@ fn move_to_proxy(
         return Err(ContractError::Unauthorized {});
     }
 
+    update_reward_proxies(deps.branch(), &proxy_addr)?;
+
     if !POOL_INFO.has(deps.storage, &lp_addr) {
         create_pool(deps.branch(), &env, &lp_addr, &cfg)?;
     }
@@ -1749,6 +1765,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::BlockedTokensList {} => {
             Ok(to_binary(&CONFIG.load(deps.storage)?.blocked_tokens_list)?)
         }
+        QueryMsg::RewardProxiesList {} => Ok(to_binary(&REWARD_PROXIES_LIST.load(deps.storage)?)?),
     }
 }
 

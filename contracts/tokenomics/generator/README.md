@@ -447,3 +447,13 @@ Returns the total virtual supply of generator
   }
 }
 ```
+
+### `reward_proxies_list`
+
+Returns a list of reward proxy contract which have ever used
+
+```json
+{
+  "reward_proxies_list": {}
+}
+```

@@ -8,10 +8,9 @@ use astroport::{
 };
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
 use astroport_governance::voting_escrow_delegation::get_adjusted_balance;
-use cosmwasm_std::{Addr, DepsMut, QuerierWrapper, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Decimal, DepsMut, QuerierWrapper, StdResult, Storage, Uint128};
 
 use astroport::generator::Config;
-use cosmwasm_std::Decimal;
 use cw20::BalanceResponse;
 use cw_storage_plus::{Item, Map};
 
@@ -34,6 +33,8 @@ pub const OLD_USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
 pub const PROXY_REWARDS_HOLDER: Item<Addr> = Item::new("proxy_rewards_holder");
 /// The struct which maps previous proxy addresses to reward assets
 pub const PROXY_REWARD_ASSET: Map<&Addr, AssetInfo> = Map::new("proxy_reward_asset");
+/// Contains reward proxy contracts which have ever used
+pub const REWARD_PROXIES_LIST: Item<Vec<Addr>> = Item::new("reward_proxies_list");
 
 pub trait CompatibleLoader<K, R> {
     fn compatible_load(&self, store: &dyn Storage, key: K) -> StdResult<R>;

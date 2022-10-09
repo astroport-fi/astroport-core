@@ -246,6 +246,8 @@ pub enum QueryMsg {
     },
     /// Returns the blocked list of tokens
     BlockedTokensList {},
+    /// Returns a list of reward proxy contract which have ever used
+    RewardProxiesList {},
 }
 
 /// This structure holds the response returned when querying the amount of pending rewards that can be withdrawn from a 3rd party
