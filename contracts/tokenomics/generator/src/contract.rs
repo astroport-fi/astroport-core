@@ -25,7 +25,6 @@ use astroport::factory::PairType;
 use astroport::generator::{Config, ExecuteOnReply, PoolInfo};
 use astroport::generator::{StakerResponse, UserInfoV2};
 use astroport::querier::query_token_balance;
-use astroport::restricted_vector::RestrictedVector;
 use astroport::DecimalCheckedOps;
 use astroport::{
     factory::{ConfigResponse as FactoryConfigResponse, QueryMsg as FactoryQueryMsg},
@@ -2141,113 +2140,6 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
 
     match contract_version.contract.as_ref() {
         "astroport-generator" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                let mut active_pools: Vec<(Addr, Uint64)> = vec![];
-
-                let keys = migration::POOL_INFOV100
-                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .collect::<Result<Vec<Addr>, StdError>>()?;
-
-                for key in keys {
-                    let pool_info_v100 = migration::POOL_INFOV100.load(deps.storage, &key)?;
-
-                    if !pool_info_v100.alloc_point.is_zero() {
-                        active_pools.push((key.clone(), pool_info_v100.alloc_point));
-                    }
-
-                    let mut accumulated_proxy_rewards_per_share = Default::default();
-                    let mut orphan_proxy_rewards = Default::default();
-                    if let Some(proxy) = &pool_info_v100.reward_proxy {
-                        accumulated_proxy_rewards_per_share = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v100.accumulated_proxy_rewards_per_share,
-                        );
-                        orphan_proxy_rewards = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v100.orphan_proxy_rewards,
-                        );
-                        update_proxy_asset(deps.branch(), proxy)?;
-                    }
-
-                    let lp_balance = if let Some(proxy) = &pool_info_v100.reward_proxy {
-                        deps.querier
-                            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
-                    } else {
-                        let res: BalanceResponse = deps.querier.query_wasm_smart(
-                            &key,
-                            &Cw20QueryMsg::Balance {
-                                address: env.contract.address.to_string(),
-                            },
-                        )?;
-                        res.balance
-                    };
-
-                    let pool_info = PoolInfo {
-                        has_asset_rewards: false,
-                        accumulated_proxy_rewards_per_share,
-                        orphan_proxy_rewards,
-                        last_reward_block: pool_info_v100.last_reward_block,
-                        proxy_reward_balance_before_update: pool_info_v100
-                            .proxy_reward_balance_before_update,
-                        reward_proxy: pool_info_v100.reward_proxy,
-                        reward_global_index: pool_info_v100.accumulated_rewards_per_share,
-                        total_virtual_supply: lp_balance,
-                    };
-                    POOL_INFO.save(deps.storage, &key, &pool_info)?;
-                }
-
-                migration::migrate_configs_from_v100(&mut deps, active_pools, &msg)?;
-            }
-            "1.2.0" => {
-                let keys = migration::POOL_INFOV120
-                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .collect::<Result<Vec<Addr>, StdError>>()?;
-
-                for key in keys {
-                    let pool_info_v120 = migration::POOL_INFOV120.load(deps.storage, &key)?;
-
-                    let mut accumulated_proxy_rewards_per_share = Default::default();
-                    let mut orphan_proxy_rewards = Default::default();
-                    if let Some(proxy) = &pool_info_v120.reward_proxy {
-                        accumulated_proxy_rewards_per_share = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v120.accumulated_proxy_rewards_per_share,
-                        );
-                        orphan_proxy_rewards = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v120.orphan_proxy_rewards,
-                        );
-                        update_proxy_asset(deps.branch(), proxy)?;
-                    }
-
-                    let lp_balance = if let Some(proxy) = &pool_info_v120.reward_proxy {
-                        deps.querier
-                            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
-                    } else {
-                        let res: BalanceResponse = deps.querier.query_wasm_smart(
-                            &key,
-                            &Cw20QueryMsg::Balance {
-                                address: env.contract.address.to_string(),
-                            },
-                        )?;
-                        res.balance
-                    };
-
-                    let pool_info = PoolInfo {
-                        has_asset_rewards: pool_info_v120.has_asset_rewards,
-                        accumulated_proxy_rewards_per_share,
-                        orphan_proxy_rewards,
-                        last_reward_block: pool_info_v120.last_reward_block,
-                        proxy_reward_balance_before_update: pool_info_v120
-                            .proxy_reward_balance_before_update,
-                        reward_proxy: pool_info_v120.reward_proxy,
-                        reward_global_index: pool_info_v120.accumulated_rewards_per_share,
-                        total_virtual_supply: lp_balance,
-                    };
-                    POOL_INFO.save(deps.storage, &key, &pool_info)?;
-                }
-                migration::migrate_configs_from_v120(&mut deps, &msg)?;
-            }
             "2.0.0" => {
                 migration::migrate_configs_from_v200(&mut deps, &msg)?;
             }

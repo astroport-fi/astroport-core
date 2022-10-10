@@ -33,7 +33,7 @@ pub const OLD_USER_INFO: Map<(&Addr, &Addr), UserInfo> = Map::new("user_info");
 pub const PROXY_REWARDS_HOLDER: Item<Addr> = Item::new("proxy_rewards_holder");
 /// The struct which maps previous proxy addresses to reward assets
 pub const PROXY_REWARD_ASSET: Map<&Addr, AssetInfo> = Map::new("proxy_reward_asset");
-/// Contains reward proxy contracts which have ever used
+/// Contains reward proxy contracts which have been ever used
 pub const REWARD_PROXIES_LIST: Item<Vec<Addr>> = Item::new("reward_proxies_list");
 
 pub trait CompatibleLoader<K, R> {

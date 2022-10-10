@@ -1,6 +1,6 @@
 # Astroport Generator
 
-The Generator contract allocates token rewards (ASTRO) for various LP tokens and distributes them pro-rata to LP stakers. The Generator supports proxy staking via 3rd party contracts that offer a second reward besides ASTRO token emissions. Allowed reward proxies are managed via a whitelist.
+The Generator contract allocates token rewards (ASTRO) for various LP tokens and distributes them pro-rata to LP stakers. The Generator supports proxy staking via 3rd party contracts that offer a second reward besides ASTRO token emissions.
 
 ---
 
@@ -450,7 +450,7 @@ Returns the total virtual supply of generator
 
 ### `reward_proxies_list`
 
-Returns a list of reward proxy contract which have ever used
+Returns a list of reward proxy contracts which have been ever used
 
 ```json
 {

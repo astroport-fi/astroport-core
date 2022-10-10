@@ -256,7 +256,7 @@ pub enum QueryMsg {
     /// Returns the blocked list of tokens
     #[returns(Vec<AssetInfo>)]
     BlockedTokensList {},
-    /// Returns a list of reward proxy contract which have ever used
+    /// Returns a list of reward proxy contracts which have been ever used
     #[returns(Vec<Addr>)]
     RewardProxiesList {},
 }
