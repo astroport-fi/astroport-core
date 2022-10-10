@@ -1,20 +1,19 @@
 use crate::querier::query_pair_info;
 use crate::state::{PAIRS, PAIR_CONFIGS};
 use astroport::factory::{PairConfig, PairType, ROUTE};
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, Order, StdError, StdResult, Storage};
 use cw_storage_plus::{Item, Map};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// This structure describes a contract migration message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct MigrationMsgV100 {
     /// CW1 whitelist contract code ID used to store 3rd party staking rewards
     pub whitelist_code_id: u64,
 }
 
 /// This structure holds the main parameters for the factory contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV100 {
     /// Address allowed to change contract parameters
     pub owner: Addr,
@@ -29,7 +28,7 @@ pub struct ConfigV100 {
 pub const CONFIGV100: Item<ConfigV100> = Item::new("config");
 
 /// This structure describes a pair's configuration.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct PairConfigV100 {
     /// Pair contract code ID that's used to create new pairs of this type
     pub code_id: u64,

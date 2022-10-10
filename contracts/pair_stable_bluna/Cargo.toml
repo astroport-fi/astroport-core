@@ -25,21 +25,20 @@ backtraces = ["cosmwasm-std/backtraces"]
 [dependencies]
 integer-sqrt = "0.1.5"
 astroport = { path = "../../packages/astroport", default-features = false }
-cw2 = { version = "0.13" }
-cw20 = { version = "0.13" }
-cosmwasm-std = { version = "1.0" }
-cw-storage-plus = {version = "0.13"}
-schemars = "0.8.1"
-serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+cw2 = { version = "0.15" }
+cw20 = { version = "0.15" }
+cosmwasm-std = { version = "1.1" }
+cw1-whitelist =  { version = "0.15" }
+cw-storage-plus = "0.15"
 thiserror = { version = "1.0" }
 protobuf = { version = "2", features = ["with-bytes"] }
-anchor-basset = {git = "https://github.com/Anchor-Protocol/anchor-bAsset-contracts.git", tag = "v0.2.1", package = "basset"}
+#anchor-basset = {git = "https://github.com/Anchor-Protocol/anchor-bAsset-contracts.git", tag = "v0.2.1", package = "basset"}
+cosmwasm-schema = "1.1"
 
 [dev-dependencies]
 proptest = "1.0.0"
 sim = { git = "https://github.com/astroport-fi/astroport-sims.git", rev = "d617510737ee2c529d3aaa7afbdac5ccb5a385c9", package = "sim" }
-cosmwasm-schema = "1.0.0"
 astroport-token = {path = "../token"}
-cw-multi-test = "0.13"
+cw-multi-test = "0.15"
 astroport-factory = {path = "../factory"}
 astroport-whitelist = {path = "../whitelist"}

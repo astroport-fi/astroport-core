@@ -1,10 +1,9 @@
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Decimal256, Uint128};
 use cw_storage_plus::Item;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// This structure stores the latest cumulative and average token prices for the target pool
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct PriceCumulativeLastV100 {
     /// The last cumulative price 0 asset in pool
     pub price0_cumulative_last: Uint128,

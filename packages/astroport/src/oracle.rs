@@ -1,10 +1,9 @@
 use crate::asset::AssetInfo;
-use cosmwasm_std::Uint128;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Uint128, Uint256};
 
 /// This structure stores general parameters for the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct InstantiateMsg {
     /// The factory contract address
     pub factory_contract: String,
@@ -13,18 +12,18 @@ pub struct InstantiateMsg {
 }
 
 /// This structure describes the execute functions available in the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum ExecuteMsg {
     /// Update/accumulate prices
     Update {},
 }
 
 /// This structure describes the query messages available in the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     /// Calculates a new TWAP with updated precision
+    #[returns(Vec<(AssetInfo, Uint256)>)]
     Consult {
         /// The asset for which to compute a new TWAP value
         token: AssetInfo,
@@ -35,5 +34,5 @@ pub enum QueryMsg {
 
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct MigrateMsg {}

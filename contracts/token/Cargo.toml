@@ -19,13 +19,10 @@ library = []
 
 [dependencies]
 astroport = { path = "../../packages/astroport", default-features = false }
-cw2 = "0.13"
-cw20 = "0.13"
-cw20-base = { version = "0.13", features = ["library"] }
-cosmwasm-std = { version = "1.0" }
-schemars = "0.8"
-serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+cw2 = "0.15"
+cw20 = "0.15"
+cw20-base = { version = "0.15", features = ["library"] }
+cosmwasm-std = { version = "1.1" }
 snafu = { version = "0.6.3" }
+cosmwasm-schema = { version = "1.1" }
 
-[dev-dependencies]
-cosmwasm-schema = { version = "1.0" }

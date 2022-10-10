@@ -1,5 +1,4 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::cw_serde;
 
 use astroport::asset::{AssetInfo, PairInfo};
 use cosmwasm_std::{Addr, Decimal256, Uint128};
@@ -11,7 +10,7 @@ pub const CONFIG: Item<Config> = Item::new("config");
 pub const PRICE_LAST: Item<PriceCumulativeLast> = Item::new("price_last");
 
 /// This structure stores the latest cumulative and average token prices for the target pool
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct PriceCumulativeLast {
     /// The vector contains last cumulative prices for each pair of assets in the pool
     pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
@@ -22,7 +21,7 @@ pub struct PriceCumulativeLast {
 }
 
 /// Global configuration for the contract
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Config {
     /// The address that's allowed to change contract parameters
     pub owner: Addr,

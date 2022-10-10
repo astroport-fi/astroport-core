@@ -1,13 +1,12 @@
 use crate::asset::addr_validate_to_lower;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{attr, Addr, Api, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
 use cw_storage_plus::Item;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 const MAX_PROPOSAL_TTL: u64 = 1209600;
 
 /// This structure describes the parameters used for creating a request for a change of contract ownership.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct OwnershipProposal {
     /// The newly proposed contract owner
     pub owner: Addr,

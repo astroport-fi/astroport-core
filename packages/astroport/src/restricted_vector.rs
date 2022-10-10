@@ -1,13 +1,11 @@
-use crate::DecimalCheckedOps;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Decimal, StdError, StdResult, Uint128};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 /// Vec wrapper for internal use.
 /// Some business logic relies on an order of this vector, thus it is forbidden to sort it
 /// or remove elements. New values can be added using .update() ONLY.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct RestrictedVector<K, V>(Vec<(K, V)>);
 
 pub trait Increaseable
