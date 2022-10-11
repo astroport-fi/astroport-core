@@ -13,9 +13,7 @@ use protobuf::Message;
 use crate::error::ContractError;
 use crate::migration;
 
-use astroport::asset::{
-    addr_validate_to_lower, pair_info_by_pool, token_asset_info, Asset, AssetInfo, PairInfo,
-};
+use astroport::asset::{addr_validate_to_lower, pair_info_by_pool, Asset, AssetInfo, PairInfo};
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{PairConfig, PairType};
@@ -70,12 +68,19 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    let mut allowed_reward_proxies: Vec<Addr> = vec![];
+    for proxy in msg.allowed_reward_proxies {
+        allowed_reward_proxies.push(addr_validate_to_lower(deps.api, &proxy)?);
+    }
+
+    msg.astro_token.check(deps.api)?;
+
     let mut config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         factory: addr_validate_to_lower(deps.api, &msg.factory)?,
         generator_controller: None,
         guardian: None,
-        astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
+        astro_token: msg.astro_token,
         tokens_per_block: msg.tokens_per_block,
         total_alloc_point: Uint128::zero(),
         start_block: msg.start_block,
@@ -483,11 +488,10 @@ fn update_blocked_tokens_list(
     if let Some(asset_infos) = add {
         let active_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
         mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
-        let astro = token_asset_info(cfg.astro_token.clone());
 
         for asset_info in asset_infos {
             // ASTRO or Terra native assets (UST, LUNA etc) cannot be blacklisted
-            if asset_info.is_native_token() || asset_info.eq(&astro) {
+            if asset_info.is_native_token() || asset_info.eq(&cfg.astro_token) {
                 return Err(ContractError::AssetCannotBeBlocked {});
             }
 
@@ -2461,6 +2465,9 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
     match contract_version.contract.as_ref() {
         "astroport-generator" => match contract_version.version.as_ref() {
             "2.0.0" => {
+                migration::migrate_configs_from_v200(&mut deps)?;
+            }
+            "2.0.1" => {
                 migration::migrate_configs_from_v200(&mut deps)?;
             }
             _ => return Err(ContractError::MigrationError {}),

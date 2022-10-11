@@ -27,8 +27,8 @@ pub struct Config {
     pub generator_controller: Option<Addr>,
     /// The voting escrow contract address
     pub voting_escrow: Option<Addr>,
-    /// The ASTRO token address
-    pub astro_token: Addr,
+    /// [`AssetInfo`] of the ASTRO token
+    pub astro_token: AssetInfo,
     /// Total amount of ASTRO rewards per block
     pub tokens_per_block: Uint128,
     /// Total allocation points. Must be the sum of all allocation points in all active generators

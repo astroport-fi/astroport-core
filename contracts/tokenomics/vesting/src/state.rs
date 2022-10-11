@@ -1,5 +1,6 @@
 use cosmwasm_schema::cw_serde;
 
+use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
 use astroport::vesting::{OrderBy, VestingInfo};
 use cosmwasm_std::{Addr, Deps, StdResult};
@@ -11,8 +12,8 @@ use cw_storage_plus::{Bound, Item, Map};
 pub struct Config {
     /// Address that's allowed to change contract parameters
     pub owner: Addr,
-    /// The address of the ASTRO token
-    pub token_addr: Addr,
+    /// [`AssetInfo`] of the ASTRO token
+    pub vesting_token: AssetInfo,
 }
 
 /// ## Description

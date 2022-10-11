@@ -2991,7 +2991,7 @@ fn instantiate_generator(
 
     let init_msg = VestingInstantiateMsg {
         owner: owner.to_string(),
-        token_addr: astro_token_instance.to_string(),
+        vesting_token: token_asset_info(astro_token_instance.clone()),
     };
 
     let vesting_instance = app
@@ -3031,7 +3031,7 @@ fn instantiate_generator(
         factory: factory_instance.to_string(),
         guardian: None,
         start_block: Uint64::from(app.block_info().height),
-        astro_token: astro_token_instance.to_string(),
+        astro_token: token_asset_info(astro_token_instance.clone()),
         tokens_per_block: Uint128::new(10_000000),
         vesting_contract: vesting_instance.to_string(),
         generator_controller,

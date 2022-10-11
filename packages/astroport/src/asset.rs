@@ -377,3 +377,17 @@ pub fn pair_info_by_pool(deps: Deps, pool: Addr) -> StdResult<PairInfo> {
 
     Ok(pair_info)
 }
+
+/// Trait extension for AssetInfo to produce [`Asset`] objects from [`AssetInfo`].
+pub trait AssetInfoExt {
+    fn with_balance(&self, balance: impl Into<Uint128>) -> Asset;
+}
+
+impl AssetInfoExt for AssetInfo {
+    fn with_balance(&self, balance: impl Into<Uint128>) -> Asset {
+        Asset {
+            info: self.clone(),
+            amount: balance.into(),
+        }
+    }
+}

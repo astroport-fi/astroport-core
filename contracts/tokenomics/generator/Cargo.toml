@@ -1,6 +1,6 @@
 [package]
 name = "astroport-generator"
-version = "2.1.0"
+version = "2.1.1"
 authors = ["Astroport"]
 edition = "2021"
 
@@ -21,12 +21,12 @@ backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 cosmwasm-std = "1.1"
-cw2 = { version = "0.15" }
-cw20 = { version = "0.15" }
+cw2 = "0.15"
+cw20 = "0.15"
 cw-storage-plus = "0.15"
-thiserror = { version = "1.0" }
-astroport = { path = "../../../packages/astroport", default-features = false }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "fix/deployment_scripts_release" }
+thiserror =  "1.0"
+astroport = { path = "../../../packages/astroport" }
+astroport-governance = { git = "https://github.com/astroport-fi/hidden_astroport_governance.git", branch = "feat/migrate-release-terra2-to-cosmwasm1.1" }
 protobuf = { version = "2", features = ["with-bytes"] }
 cosmwasm-schema = "1.1"
 cw1-whitelist = { version = "0.15", features = ["library"] }
