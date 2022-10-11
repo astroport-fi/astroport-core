@@ -112,7 +112,7 @@ impl ControllerHelper {
             voting_escrow_delegation: Some(delegation_helper.delegation_instance.to_string()),
             voting_escrow: Some(escrow_helper.escrow_instance.to_string()),
             guardian: None,
-            astro_token: escrow_helper.astro_token.to_string(),
+            astro_token: token_asset_info(escrow_helper.astro_token.clone()),
             tokens_per_block: Uint128::new(10_000000),
             start_block: Uint64::from(router.block_info().height),
             vesting_contract: vesting_instance.to_string(),

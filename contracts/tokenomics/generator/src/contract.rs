@@ -14,8 +14,7 @@ use crate::error::ContractError;
 use crate::migration;
 
 use astroport::asset::{
-    addr_opt_validate, addr_validate_to_lower, pair_info_by_pool, token_asset_info, Asset,
-    AssetInfo, PairInfo,
+    addr_opt_validate, addr_validate_to_lower, pair_info_by_pool, Asset, AssetInfo, PairInfo,
 };
 
 use astroport::common::{
@@ -67,12 +66,14 @@ pub fn instantiate(
     let voting_escrow_delegation = addr_opt_validate(deps.api, &msg.voting_escrow_delegation)?;
     let voting_escrow = addr_opt_validate(deps.api, &msg.voting_escrow)?;
 
+    msg.astro_token.check(deps.api)?;
+
     let config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         factory: addr_validate_to_lower(deps.api, &msg.factory)?,
         generator_controller,
         guardian,
-        astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
+        astro_token: msg.astro_token,
         tokens_per_block: msg.tokens_per_block,
         total_alloc_point: Uint128::zero(),
         start_block: msg.start_block,
@@ -458,11 +459,10 @@ fn update_blocked_tokens_list(
     if let Some(asset_infos) = add {
         let active_pools: Vec<_> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
         mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
-        let astro = token_asset_info(cfg.astro_token.clone());
 
         for asset_info in asset_infos {
             // ASTRO or Terra native assets (UST, LUNA etc) cannot be blacklisted
-            if asset_info.is_native_token() || asset_info.eq(&astro) {
+            if asset_info.is_native_token() || asset_info.eq(&cfg.astro_token) {
                 return Err(ContractError::AssetCannotBeBlocked {});
             }
 
@@ -2142,6 +2142,9 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             }
             "2.1.0" => {
                 migration::migrate_configs_from_v_210(&mut deps)?;
+            }
+            "2.1.1" => {
+                migration::migrate_configs_from_v211(&mut deps)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },

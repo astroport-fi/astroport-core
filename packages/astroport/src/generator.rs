@@ -20,8 +20,8 @@ pub struct InstantiateMsg {
     pub voting_escrow: Option<String>,
     /// Address of guardian
     pub guardian: Option<String>,
-    /// ASTRO token contract address
-    pub astro_token: String,
+    /// [`AssetInfo`] of the ASTRO token
+    pub astro_token: AssetInfo,
     /// Amount of ASTRO distributed per block among all pairs
     pub tokens_per_block: Uint128,
     /// Start block for distributing ASTRO
@@ -323,8 +323,8 @@ pub struct UserInfoV2 {
 /// This structure holds the response returned when querying for the token addresses used to reward a specific generator
 #[cw_serde]
 pub struct RewardInfoResponse {
-    /// The address of the base reward token
-    pub base_reward_token: Addr,
+    /// [`AssetInfo`] of the base reward token
+    pub base_reward_token: AssetInfo,
     /// The address of the 3rd party reward token
     pub proxy_reward_token: Option<Addr>,
 }
@@ -371,8 +371,8 @@ pub struct Config {
     pub voting_escrow: Option<Addr>,
     /// The voting escrow delegation contract address
     pub voting_escrow_delegation: Option<Addr>,
-    /// The ASTRO token address
-    pub astro_token: Addr,
+    /// [`AssetInfo`] of the ASTRO token
+    pub astro_token: AssetInfo,
     /// Total amount of ASTRO rewards per block
     pub tokens_per_block: Uint128,
     /// Total allocation points. Must be the sum of all allocation points in all active generators
