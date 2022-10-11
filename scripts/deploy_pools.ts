@@ -62,19 +62,6 @@ async function uploadAndInitGeneratorProxy(terra: LCDClient, wallet: any, pair: 
             network[pool_generator_proxy_key] = resp.shift().shift();
             console.log(`Address of ${pair.identifier} generator proxy contract ${network[pool_generator_proxy_key]}`)
             writeArtifact(network, terra.config.chainID)
-
-            // Set generator proxy as allowed
-            let config = await queryContract(terra, network.generatorAddress, {
-                config: {}
-            })
-            let new_allowed_proxies: string[] = config.allowed_reward_proxies
-            new_allowed_proxies.push(network[pool_generator_proxy_key])
-            console.log(`Set the proxy as allowed in generator... Allowed proxies with new one: ${new_allowed_proxies}`)
-            await executeContract(terra, wallet, network.generatorAddress, {
-                set_allowed_reward_proxies: {
-                    proxies: new_allowed_proxies
-                }
-            })
         }
     }
 }

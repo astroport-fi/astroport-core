@@ -776,13 +776,8 @@ fn proper_deposit_and_withdraw() {
         ],
     );
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        None,
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     register_lp_tokens_in_generator(
         &mut app,
@@ -883,7 +878,6 @@ fn set_tokens_per_block() {
         &mut app,
         &factory_instance,
         &astro_token_instance,
-        None,
         Some(OWNER.to_string()),
     );
 
@@ -934,7 +928,6 @@ fn update_config() {
         &mut app,
         &factory_instance,
         &astro_token_instance,
-        None,
         Some(OWNER.to_string()),
     );
 
@@ -1006,7 +999,6 @@ fn update_owner() {
         &mut app,
         &factory_instance,
         &astro_token_instance,
-        None,
         Some(OWNER.to_string()),
     );
 
@@ -1117,13 +1109,8 @@ fn disabling_pool() {
         ],
     );
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        None,
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     // Disable generator
     let msg = FactoryExecuteMsg::UpdatePairConfig {
@@ -1241,13 +1228,8 @@ fn generator_without_reward_proxies() {
         ],
     );
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        None,
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     register_lp_tokens_in_generator(
         &mut app,
@@ -1584,7 +1566,6 @@ fn generator_with_mirror_reward_proxy() {
         &mut app,
         &factory_instance,
         &astro_token_instance,
-        None,
         None,
     );
 
@@ -2060,105 +2041,6 @@ fn generator_with_mirror_reward_proxy() {
 }*/
 
 #[test]
-fn update_allowed_proxies() {
-    let mut app = mock_app();
-
-    let owner = Addr::unchecked(OWNER);
-    let token_code_id = store_token_code(&mut app);
-    let factory_code_id = store_factory_code(&mut app);
-    let pair_code_id = store_pair_code_id(&mut app);
-    let allowed_proxies = Some(vec![
-        "proxy1".to_string(),
-        "proxy2".to_string(),
-        "proxy3".to_string(),
-        "proxy4".to_string(),
-    ]);
-    let astro_token_instance =
-        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
-
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        allowed_proxies,
-        Some(OWNER.to_string()),
-    );
-
-    let msg = ExecuteMsg::UpdateAllowedProxies {
-        add: None,
-        remove: None,
-    };
-
-    let err = app
-        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap_err();
-    assert_eq!(
-        "Generic error: Need to provide add or remove parameters",
-        err.root_cause().to_string()
-    );
-
-    let msg = ExecuteMsg::UpdateAllowedProxies {
-        add: Some(vec!["proxy5".to_string(), "proxy6".to_string()]),
-        remove: Some(vec!["PROXY1".to_string(), "proxy3".to_string()]),
-    };
-
-    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap();
-
-    // Check if proxies were added and removed
-    let reps: Config = app
-        .wrap()
-        .query_wasm_smart(&generator_instance, &QueryMsg::Config {})
-        .unwrap();
-
-    let allowed_reward_proxies: Vec<Addr> = vec![
-        Addr::unchecked("proxy2"),
-        Addr::unchecked("proxy4"),
-        Addr::unchecked("proxy5"),
-        Addr::unchecked("proxy6"),
-    ];
-    assert_eq!(allowed_reward_proxies, reps.allowed_reward_proxies);
-
-    // Check if proxies were removed already
-    let msg = ExecuteMsg::UpdateAllowedProxies {
-        add: None,
-        remove: Some(vec!["proxy1".to_string(), "proxy2".to_string()]),
-    };
-
-    let err = app
-        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap_err();
-    assert_eq!(
-        "Generic error: Can't remove proxy contract. It is not found in allowed list.",
-        err.root_cause().to_string()
-    );
-
-    // Only add proxies
-    let msg = ExecuteMsg::UpdateAllowedProxies {
-        add: Some(vec!["proxy1".to_string(), "proxy2".to_string()]),
-        remove: None,
-    };
-
-    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap();
-    let reps: Config = app
-        .wrap()
-        .query_wasm_smart(&generator_instance, &QueryMsg::Config {})
-        .unwrap();
-    let allowed_reward_proxies: Vec<Addr> = vec![
-        Addr::unchecked("proxy2"),
-        Addr::unchecked("proxy4"),
-        Addr::unchecked("proxy5"),
-        Addr::unchecked("proxy6"),
-        Addr::unchecked("proxy1"),
-    ];
-    assert_eq!(allowed_reward_proxies, reps.allowed_reward_proxies);
-}
-
-#[test]
 fn query_all_stakers() {
     let mut app = mock_app();
 
@@ -2196,13 +2078,8 @@ fn query_all_stakers() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        None,
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     register_lp_tokens_in_generator(
         &mut app,
@@ -2352,13 +2229,8 @@ fn query_pagination_stakers() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        None,
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     register_lp_tokens_in_generator(
         &mut app,
@@ -2479,7 +2351,6 @@ fn update_tokens_blocked_list() {
         &mut app,
         &factory_instance,
         &astro_token_instance,
-        None,
         Some(OWNER.to_string()),
     );
 
@@ -2734,7 +2605,6 @@ fn setup_pools() {
         &mut app,
         &factory_instance,
         &astro_token_instance,
-        None,
         Some(OWNER.to_string()),
     );
 
@@ -2991,7 +2861,6 @@ fn deactivate_pools_by_pair_types() {
         &mut app,
         &factory_instance,
         &astro_token_instance,
-        None,
         Some(OWNER.to_string()),
     );
 
@@ -3391,7 +3260,6 @@ fn instantiate_generator(
     mut app: &mut App,
     factory_instance: &Addr,
     astro_token_instance: &Addr,
-    allowed_proxies: Option<Vec<String>>,
     generator_controller: Option<String>,
 ) -> Addr {
     // Vesting
@@ -3444,7 +3312,6 @@ fn instantiate_generator(
         owner: owner.to_string(),
         factory: factory_instance.to_string(),
         guardian: None,
-        allowed_reward_proxies: allowed_proxies.unwrap_or_default(),
         start_block: Uint64::from(app.block_info().height),
         astro_token: astro_token_instance.to_string(),
         tokens_per_block: Uint128::new(10_000000),

@@ -3,97 +3,8 @@ use astroport::asset::{addr_validate_to_lower, AssetInfo};
 
 use astroport::generator::{Config, MigrateMsg};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Uint128, Uint64};
-use cw_storage_plus::{Item, Map};
-
-/// This structure stores the parameters for a generator (in the upgraded version of the Generator contract).
-#[cw_serde]
-pub struct PoolInfoV100 {
-    /// This is the share of ASTRO rewards that this generator receives every block
-    pub alloc_point: Uint64,
-    /// Accumulated amount of rewards per LP unit. Used for reward calculations
-    pub last_reward_block: Uint64,
-    /// This is the accrued amount of rewards up to the latest checkpoint
-    pub accumulated_rewards_per_share: Decimal,
-    /// The 3rd party proxy reward contract
-    pub reward_proxy: Option<Addr>,
-    /// This is the accrued amount of 3rd party rewards up to the latest checkpoint
-    pub accumulated_proxy_rewards_per_share: Decimal,
-    /// This is the balance of 3rd party proxy rewards that the proxy had before a reward snapshot
-    pub proxy_reward_balance_before_update: Uint128,
-    /// The orphaned proxy rewards which are left behind by emergency withdrawals
-    pub orphan_proxy_rewards: Uint128,
-}
-
-/// Stores the contract config(V1.0.0) at the given key
-pub const POOL_INFOV100: Map<&Addr, PoolInfoV100> = Map::new("pool_info");
-
-#[cw_serde]
-pub struct PoolInfoV120 {
-    /// Accumulated amount of reward per share unit. Used for reward calculations
-    pub last_reward_block: Uint64,
-    pub accumulated_rewards_per_share: Decimal,
-    /// the reward proxy contract
-    pub reward_proxy: Option<Addr>,
-    pub accumulated_proxy_rewards_per_share: Decimal,
-    /// for calculation of new proxy rewards
-    pub proxy_reward_balance_before_update: Uint128,
-    /// the orphan proxy rewards which are left by emergency withdrawals
-    pub orphan_proxy_rewards: Uint128,
-    /// The pool has assets giving additional rewards
-    pub has_asset_rewards: bool,
-}
-
-/// Stores the contract config(V1.2.0) at the given key
-pub const POOL_INFOV120: Map<&Addr, PoolInfoV120> = Map::new("pool_info");
-
-/// This structure describes the main control config of generator.
-#[cw_serde]
-pub struct ConfigV100 {
-    /// Contract address that used for controls settings
-    pub owner: Addr,
-    /// The ASTRO token address
-    pub astro_token: Addr,
-    /// Total amount of ASTRO rewards per block
-    pub tokens_per_block: Uint128,
-    /// The total allocation points. Must be the sum of all allocation points in all pools.
-    pub total_alloc_point: Uint64,
-    /// The block number when ASTRO mining starts.
-    pub start_block: Uint64,
-    /// The list of allowed reward proxy contracts
-    pub allowed_reward_proxies: Vec<Addr>,
-    /// The vesting contract from which rewards are distributed
-    pub vesting_contract: Addr,
-}
-
-/// This structure stores the core parameters for the Generator contract.
-#[cw_serde]
-pub struct ConfigV120 {
-    /// Address allowed to change contract parameters
-    pub owner: Addr,
-    /// The Factory address
-    pub factory: Addr,
-    /// Contract address which can only set active generators and their alloc points
-    pub generator_controller: Option<Addr>,
-    /// The ASTRO token address
-    pub astro_token: Addr,
-    /// Total amount of ASTRO rewards per block
-    pub tokens_per_block: Uint128,
-    /// Total allocation points. Must be the sum of all allocation points in all active generators
-    pub total_alloc_point: Uint128,
-    /// The block number when the ASTRO distribution starts
-    pub start_block: Uint64,
-    /// The list of allowed proxy reward contracts
-    pub allowed_reward_proxies: Vec<Addr>,
-    /// The vesting contract from which rewards are distributed
-    pub vesting_contract: Addr,
-    /// The list of active pools with allocation points
-    pub active_pools: Vec<(Addr, Uint128)>,
-    /// The blocked list of tokens
-    pub blocked_list_tokens: Vec<AssetInfo>,
-    /// The guardian address which can add or remove tokens from blacklist
-    pub guardian: Option<Addr>,
-}
+use cosmwasm_std::{Addr, DepsMut, StdResult, Uint128, Uint64};
+use cw_storage_plus::Item;
 
 /// This structure stores the core parameters for the Generator contract.
 #[cw_serde]
@@ -128,115 +39,51 @@ pub struct ConfigV200 {
     pub checkpoint_generator_limit: Option<u32>,
 }
 
-/// Stores the contract config(V1.1.0) at the given key
-pub const CONFIGV100: Item<ConfigV100> = Item::new("config");
-
-/// Stores the contract config(V1.2.0) at the given key
-pub const CONFIGV120: Item<ConfigV120> = Item::new("config");
+/// This structure stores the core parameters for the Generator contract.
+#[cw_serde]
+pub struct ConfigV210 {
+    /// Address allowed to change contract parameters
+    pub owner: Addr,
+    /// The Factory address
+    pub factory: Addr,
+    /// Contract address which can only set active generators and their alloc points
+    pub generator_controller: Option<Addr>,
+    /// The voting escrow contract address
+    pub voting_escrow: Option<Addr>,
+    /// The voting escrow delegation contract address
+    pub voting_escrow_delegation: Option<Addr>,
+    /// The ASTRO token address
+    pub astro_token: Addr,
+    /// Total amount of ASTRO rewards per block
+    pub tokens_per_block: Uint128,
+    /// Total allocation points. Must be the sum of all allocation points in all active generators
+    pub total_alloc_point: Uint128,
+    /// The block number when the ASTRO distribution starts
+    pub start_block: Uint64,
+    /// The list of allowed proxy reward contracts
+    pub allowed_reward_proxies: Vec<Addr>,
+    /// The vesting contract from which rewards are distributed
+    pub vesting_contract: Addr,
+    /// The list of active pools with allocation points
+    pub active_pools: Vec<(Addr, Uint128)>,
+    /// The list of blocked tokens
+    pub blocked_tokens_list: Vec<AssetInfo>,
+    /// The guardian address which can add or remove tokens from blacklist
+    pub guardian: Option<Addr>,
+    /// The amount of generators
+    pub checkpoint_generator_limit: Option<u32>,
+}
 
 /// Stores the contract config(V2.0.0) at the given key
 pub const CONFIG_V200: Item<ConfigV200> = Item::new("config");
 
-/// Migrate config from V1.0.0
-pub fn migrate_configs_from_v100(
-    deps: &mut DepsMut,
-    pools: Vec<(Addr, Uint64)>,
-    msg: &MigrateMsg,
-) -> Result<(), StdError> {
-    let cfg_100 = CONFIGV100.load(deps.storage)?;
-    let pools = pools
-        .into_iter()
-        .map(|(addr, apoints)| (addr, apoints.into()))
-        .collect();
-
-    let mut cfg = Config {
-        owner: cfg_100.owner,
-        factory: addr_validate_to_lower(deps.api, &msg.factory.clone().unwrap())?,
-        generator_controller: None,
-        voting_escrow: None,
-        voting_escrow_delegation: None,
-        astro_token: cfg_100.astro_token,
-        tokens_per_block: cfg_100.tokens_per_block,
-        total_alloc_point: cfg_100.total_alloc_point.into(),
-        start_block: cfg_100.start_block,
-        allowed_reward_proxies: cfg_100.allowed_reward_proxies,
-        vesting_contract: cfg_100.vesting_contract,
-        active_pools: pools,
-        guardian: None,
-        blocked_tokens_list: vec![],
-        checkpoint_generator_limit: None,
-    };
-
-    if let Some(generator_controller) = &msg.generator_controller {
-        cfg.generator_controller = Some(addr_validate_to_lower(deps.api, generator_controller)?);
-    }
-
-    if let Some(blocked_list_tokens) = &msg.blocked_list_tokens {
-        cfg.blocked_tokens_list = blocked_list_tokens.to_owned();
-    }
-
-    if let Some(guardian) = &msg.guardian {
-        cfg.guardian = Some(addr_validate_to_lower(deps.api, guardian)?);
-    }
-
-    if let Some(voting_escrow) = &msg.voting_escrow {
-        cfg.voting_escrow = Some(addr_validate_to_lower(deps.api, voting_escrow)?);
-    }
-
-    if let Some(voting_escrow_delegation) = &msg.voting_escrow_delegation {
-        cfg.voting_escrow_delegation =
-            Some(addr_validate_to_lower(deps.api, voting_escrow_delegation)?);
-    }
-
-    if let Some(generator_limit) = msg.generator_limit {
-        cfg.checkpoint_generator_limit = Some(generator_limit);
-    }
-
-    CONFIG.save(deps.storage, &cfg)?;
-
-    Ok(())
-}
-
-/// Migrate config from V1.2.0
-pub fn migrate_configs_from_v120(deps: &mut DepsMut, msg: &MigrateMsg) -> StdResult<()> {
-    let cfg_120 = CONFIGV120.load(deps.storage)?;
-    let mut cfg = Config {
-        owner: cfg_120.owner,
-        factory: cfg_120.factory,
-        generator_controller: cfg_120.generator_controller,
-        voting_escrow: None,
-        voting_escrow_delegation: None,
-        astro_token: cfg_120.astro_token,
-        tokens_per_block: cfg_120.tokens_per_block,
-        total_alloc_point: cfg_120.total_alloc_point,
-        start_block: cfg_120.start_block,
-        allowed_reward_proxies: cfg_120.allowed_reward_proxies,
-        vesting_contract: cfg_120.vesting_contract,
-        active_pools: cfg_120.active_pools,
-        blocked_tokens_list: cfg_120.blocked_list_tokens, // renamed this field
-        guardian: cfg_120.guardian,
-        checkpoint_generator_limit: None,
-    };
-
-    if let Some(voting_escrow) = &msg.voting_escrow {
-        cfg.voting_escrow = Some(addr_validate_to_lower(deps.api, voting_escrow)?);
-    }
-
-    if let Some(generator_limit) = msg.generator_limit {
-        cfg.checkpoint_generator_limit = Some(generator_limit);
-    }
-
-    if let Some(voting_escrow_delegation) = &msg.voting_escrow_delegation {
-        cfg.voting_escrow_delegation =
-            Some(addr_validate_to_lower(deps.api, voting_escrow_delegation)?);
-    }
-
-    CONFIG.save(deps.storage, &cfg)
-}
+/// Stores the contract config(V2.1.0) at the given key
+pub const CONFIG_V210: Item<ConfigV210> = Item::new("config");
 
 /// Migrate config from V2.0.0
 pub fn migrate_configs_from_v200(deps: &mut DepsMut, msg: &MigrateMsg) -> StdResult<()> {
     let cfg_200 = CONFIG_V200.load(deps.storage)?;
+
     let mut cfg = Config {
         owner: cfg_200.owner,
         factory: cfg_200.factory,
@@ -247,7 +94,6 @@ pub fn migrate_configs_from_v200(deps: &mut DepsMut, msg: &MigrateMsg) -> StdRes
         tokens_per_block: cfg_200.tokens_per_block,
         total_alloc_point: cfg_200.total_alloc_point,
         start_block: cfg_200.start_block,
-        allowed_reward_proxies: cfg_200.allowed_reward_proxies,
         vesting_contract: cfg_200.vesting_contract,
         active_pools: cfg_200.active_pools,
         blocked_tokens_list: cfg_200.blocked_tokens_list,
@@ -259,6 +105,30 @@ pub fn migrate_configs_from_v200(deps: &mut DepsMut, msg: &MigrateMsg) -> StdRes
         cfg.voting_escrow_delegation =
             Some(addr_validate_to_lower(deps.api, voting_escrow_delegation)?);
     }
+
+    CONFIG.save(deps.storage, &cfg)
+}
+
+/// Migrate config from V2.1.0
+pub fn migrate_configs_from_v_210(deps: &mut DepsMut) -> StdResult<()> {
+    let cfg_210 = CONFIG_V210.load(deps.storage)?;
+
+    let cfg = Config {
+        owner: cfg_210.owner,
+        factory: cfg_210.factory,
+        generator_controller: cfg_210.generator_controller,
+        voting_escrow: cfg_210.voting_escrow,
+        voting_escrow_delegation: cfg_210.voting_escrow_delegation,
+        astro_token: cfg_210.astro_token,
+        tokens_per_block: cfg_210.tokens_per_block,
+        total_alloc_point: cfg_210.total_alloc_point,
+        start_block: cfg_210.start_block,
+        vesting_contract: cfg_210.vesting_contract,
+        active_pools: cfg_210.active_pools,
+        blocked_tokens_list: cfg_210.blocked_tokens_list,
+        guardian: cfg_210.guardian,
+        checkpoint_generator_limit: cfg_210.checkpoint_generator_limit,
+    };
 
     CONFIG.save(deps.storage, &cfg)
 }

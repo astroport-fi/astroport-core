@@ -140,7 +140,6 @@
     "admin": null,
     "initMsg": {
       "owner": null,
-      "allowed_reward_proxies": [],
       "astro_token": null,
       "start_block": "5918639",
       "tokens_per_block": "8403094",

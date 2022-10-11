@@ -134,7 +134,6 @@ interface Generator {
     admin: string,
     initMsg: {
         owner: string,
-        allowed_reward_proxies: string[],
         astro_token: string,
         start_block: string,
         tokens_per_block: string,

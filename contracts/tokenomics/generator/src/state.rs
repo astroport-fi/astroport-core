@@ -8,10 +8,9 @@ use astroport::{
 };
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
 use astroport_governance::voting_escrow_delegation::get_adjusted_balance;
-use cosmwasm_std::{Addr, DepsMut, QuerierWrapper, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Decimal, DepsMut, QuerierWrapper, StdResult, Storage, Uint128};
 
 use astroport::generator::Config;
-use cosmwasm_std::Decimal;
 use cw20::BalanceResponse;
 use cw_storage_plus::{Item, Map};
 
