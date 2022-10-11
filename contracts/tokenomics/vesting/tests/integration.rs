@@ -1,3 +1,5 @@
+use astroport::asset::{native_asset_info, token_asset_info};
+use astroport::querier::query_balance;
 use astroport::vesting::{QueryMsg, VestingAccountResponse};
 use astroport::{
     token::InstantiateMsg as TokenInstantiateMsg,
@@ -6,22 +8,25 @@ use astroport::{
         VestingSchedulePoint,
     },
 };
+use astroport_vesting::error::ContractError;
 use astroport_vesting::state::Config;
-use cosmwasm_std::{to_binary, Addr, StdResult, Timestamp, Uint128};
+use cosmwasm_std::{coin, coins, to_binary, Addr, StdResult, Timestamp, Uint128};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, ContractWrapper, Executor};
+use cw_utils::PaymentError;
 
 const OWNER1: &str = "owner1";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
 const TOKEN_INITIAL_AMOUNT: u128 = 1_000_000_000_000000;
+const IBC_ASTRO: &str = "ibc/ASTRO_TOKEN";
 
 #[test]
 fn claim() {
     let user1 = Addr::unchecked(USER1);
     let owner = Addr::unchecked(OWNER1);
 
-    let mut app = mock_app();
+    let mut app = mock_app(&owner);
 
     let token_code_id = store_token_code(&mut app);
 
@@ -201,12 +206,171 @@ fn claim() {
 }
 
 #[test]
+fn claim_native() {
+    let user1 = Addr::unchecked(USER1);
+    let owner = Addr::unchecked(OWNER1);
+
+    let mut app = mock_app(&owner);
+
+    let token_code_id = store_token_code(&mut app);
+
+    let random_token_instance =
+        instantiate_token(&mut app, token_code_id, "RND", Some(1_000_000000));
+
+    mint_tokens(&mut app, &random_token_instance, &owner, 1_000_000000);
+
+    let vesting_instance = instantiate_vesting_remote_chain(&mut app);
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: vesting_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::RegisterVestingAccounts {
+            vesting_accounts: vec![VestingAccount {
+                address: user1.to_string(),
+                schedules: vec![VestingSchedule {
+                    start_point: VestingSchedulePoint {
+                        time: Timestamp::from_seconds(100).seconds(),
+                        amount: Uint128::zero(),
+                    },
+                    end_point: Some(VestingSchedulePoint {
+                        time: Timestamp::from_seconds(101).seconds(),
+                        amount: Uint128::new(200),
+                    }),
+                }],
+            }],
+        })
+        .unwrap(),
+        amount: Uint128::from(300u128),
+    };
+
+    let err = app
+        .execute_contract(owner.clone(), random_token_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    let msg = ExecuteMsg::RegisterVestingAccounts {
+        vesting_accounts: vec![VestingAccount {
+            address: user1.to_string(),
+            schedules: vec![
+                VestingSchedule {
+                    start_point: VestingSchedulePoint {
+                        time: Timestamp::from_seconds(100).seconds(),
+                        amount: Uint128::zero(),
+                    },
+                    end_point: Some(VestingSchedulePoint {
+                        time: Timestamp::from_seconds(101).seconds(),
+                        amount: Uint128::new(100),
+                    }),
+                },
+                VestingSchedule {
+                    start_point: VestingSchedulePoint {
+                        time: Timestamp::from_seconds(100).seconds(),
+                        amount: Uint128::zero(),
+                    },
+                    end_point: Some(VestingSchedulePoint {
+                        time: Timestamp::from_seconds(110).seconds(),
+                        amount: Uint128::new(100),
+                    }),
+                },
+                VestingSchedule {
+                    start_point: VestingSchedulePoint {
+                        time: Timestamp::from_seconds(100).seconds(),
+                        amount: Uint128::zero(),
+                    },
+                    end_point: Some(VestingSchedulePoint {
+                        time: Timestamp::from_seconds(200).seconds(),
+                        amount: Uint128::new(100),
+                    }),
+                },
+            ],
+        }],
+    };
+
+    app.execute_contract(
+        owner.clone(),
+        vesting_instance.clone(),
+        &msg,
+        &coins(300, IBC_ASTRO),
+    )
+    .unwrap();
+
+    let msg = QueryMsg::AvailableAmount {
+        address: user1.to_string(),
+    };
+
+    let user1_vesting_amount: Uint128 = app
+        .wrap()
+        .query_wasm_smart(vesting_instance.clone(), &msg)
+        .unwrap();
+    assert_eq!(user1_vesting_amount.clone(), Uint128::new(300u128));
+
+    // Check owner balance
+    let bal = query_balance(&app.wrap(), &owner, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, TOKEN_INITIAL_AMOUNT - 300u128);
+
+    // Check vesting balance
+    let bal = query_balance(&app.wrap(), &vesting_instance, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, 300u128);
+
+    let msg = ExecuteMsg::Claim {
+        recipient: None,
+        amount: None,
+    };
+    app.execute_contract(user1.clone(), vesting_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let vesting_res: VestingAccountResponse = app
+        .wrap()
+        .query_wasm_smart(
+            vesting_instance.clone(),
+            &QueryMsg::VestingAccount {
+                address: user1.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(vesting_res.info.released_amount, Uint128::from(300u128));
+
+    // Check vesting balance
+    let bal = query_balance(&app.wrap(), &vesting_instance, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, 0);
+
+    // Check user balance
+    let bal = query_balance(&app.wrap(), &user1, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, 300);
+
+    // Owner balance mustn't change after claim
+    let bal = query_balance(&app.wrap(), &owner, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, TOKEN_INITIAL_AMOUNT - 300u128);
+
+    let msg = QueryMsg::AvailableAmount {
+        address: user1.to_string(),
+    };
+
+    // Check user balance after claim
+    let user1_vesting_amount: Uint128 = app
+        .wrap()
+        .query_wasm_smart(vesting_instance.clone(), &msg)
+        .unwrap();
+
+    assert_eq!(user1_vesting_amount.clone(), Uint128::new(0u128));
+}
+
+#[test]
 fn register_vesting_accounts() {
     let user1 = Addr::unchecked(USER1);
     let user2 = Addr::unchecked(USER2);
     let owner = Addr::unchecked(OWNER1);
 
-    let mut app = mock_app();
+    let mut app = mock_app(&owner);
 
     let token_code_id = store_token_code(&mut app);
 
@@ -290,6 +454,33 @@ fn register_vesting_accounts() {
         .execute_contract(owner.clone(), noname_token_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(res.root_cause().to_string(), "Unauthorized");
+
+    // Checking that execute endpoint with native coin is unreachable if ASTRO is a cw20 token
+    let native_msg = ExecuteMsg::RegisterVestingAccounts {
+        vesting_accounts: vec![VestingAccount {
+            address: user1.to_string(),
+            schedules: vec![VestingSchedule {
+                start_point: VestingSchedulePoint {
+                    time: Timestamp::from_seconds(100).seconds(),
+                    amount: Uint128::zero(),
+                },
+                end_point: Some(VestingSchedulePoint {
+                    time: Timestamp::from_seconds(150).seconds(),
+                    amount: Uint128::new(100),
+                }),
+            }],
+        }],
+    };
+
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            vesting_instance.clone(),
+            &native_msg,
+            &coins(100u128, "random_coin"),
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
 
     let _res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
@@ -453,8 +644,250 @@ fn register_vesting_accounts() {
     );
 }
 
-fn mock_app() -> App {
-    App::default()
+#[test]
+fn register_vesting_accounts_native() {
+    let user1 = Addr::unchecked(USER1);
+    let user2 = Addr::unchecked(USER2);
+    let owner = Addr::unchecked(OWNER1);
+
+    let mut app = mock_app(&owner);
+
+    let token_code_id = store_token_code(&mut app);
+
+    let random_token_instance =
+        instantiate_token(&mut app, token_code_id, "RND", Some(1_000_000_000_000000));
+
+    mint_tokens(
+        &mut app,
+        &random_token_instance,
+        &owner,
+        TOKEN_INITIAL_AMOUNT,
+    );
+
+    let vesting_instance = instantiate_vesting_remote_chain(&mut app);
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: vesting_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::RegisterVestingAccounts {
+            vesting_accounts: vec![VestingAccount {
+                address: user1.to_string(),
+                schedules: vec![VestingSchedule {
+                    start_point: VestingSchedulePoint {
+                        time: Timestamp::from_seconds(100).seconds(),
+                        amount: Uint128::zero(),
+                    },
+                    end_point: Some(VestingSchedulePoint {
+                        time: Timestamp::from_seconds(150).seconds(),
+                        amount: Uint128::new(100),
+                    }),
+                }],
+            }],
+        })
+        .unwrap(),
+        amount: Uint128::from(100u128),
+    };
+
+    let err = app
+        .execute_contract(owner.clone(), random_token_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    // Checking that execute endpoint with random native coin is unreachable
+    let native_msg = ExecuteMsg::RegisterVestingAccounts {
+        vesting_accounts: vec![VestingAccount {
+            address: user1.to_string(),
+            schedules: vec![VestingSchedule {
+                start_point: VestingSchedulePoint {
+                    time: Timestamp::from_seconds(100).seconds(),
+                    amount: Uint128::zero(),
+                },
+                end_point: Some(VestingSchedulePoint {
+                    time: Timestamp::from_seconds(150).seconds(),
+                    amount: Uint128::new(100),
+                }),
+            }],
+        }],
+    };
+
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            vesting_instance.clone(),
+            &native_msg,
+            &coins(100u128, "random_coin"),
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::PaymentError(PaymentError::MissingDenom("ibc/ASTRO_TOKEN".to_string())),
+        err.downcast().unwrap()
+    );
+
+    app.execute_contract(
+        owner.clone(),
+        vesting_instance.clone(),
+        &native_msg,
+        &coins(100u128, IBC_ASTRO),
+    )
+    .unwrap();
+
+    let msg = QueryMsg::AvailableAmount {
+        address: user1.to_string(),
+    };
+
+    let user1_vesting_amount: Uint128 = app
+        .wrap()
+        .query_wasm_smart(&vesting_instance, &msg)
+        .unwrap();
+    assert_eq!(user1_vesting_amount.u128(), 100u128);
+
+    let bal = query_balance(&app.wrap(), &owner, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, TOKEN_INITIAL_AMOUNT - 100u128);
+
+    let bal = query_balance(&app.wrap(), &vesting_instance, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, 100);
+
+    // Let's check user1's final vesting amount after add schedule for a new one
+    let msg = ExecuteMsg::RegisterVestingAccounts {
+        vesting_accounts: vec![VestingAccount {
+            address: user2.to_string(),
+            schedules: vec![VestingSchedule {
+                start_point: VestingSchedulePoint {
+                    time: Timestamp::from_seconds(100).seconds(),
+                    amount: Uint128::zero(),
+                },
+                end_point: Some(VestingSchedulePoint {
+                    time: Timestamp::from_seconds(150).seconds(),
+                    amount: Uint128::new(200),
+                }),
+            }],
+        }],
+    };
+
+    app.execute_contract(
+        owner.clone(),
+        vesting_instance.clone(),
+        &msg,
+        &coins(200, IBC_ASTRO),
+    )
+    .unwrap();
+
+    let msg = QueryMsg::AvailableAmount {
+        address: user2.to_string(),
+    };
+
+    let user2_vesting_amount: Uint128 = app
+        .wrap()
+        .query_wasm_smart(vesting_instance.clone(), &msg)
+        .unwrap();
+
+    let bal = query_balance(&app.wrap(), &owner, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, TOKEN_INITIAL_AMOUNT - 300u128);
+    let bal = query_balance(&app.wrap(), &vesting_instance, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, 300u128);
+
+    // A new schedule has been added successfully and an old one hasn't changed.
+    // The new schedule doesn't have the same value as the old one.
+    assert_eq!(user2_vesting_amount, Uint128::new(200u128));
+    assert_eq!(user1_vesting_amount, Uint128::from(100u128));
+
+    // Add one more vesting schedule; final amount to vest must increase
+    let msg = ExecuteMsg::RegisterVestingAccounts {
+        vesting_accounts: vec![VestingAccount {
+            address: user1.to_string(),
+            schedules: vec![VestingSchedule {
+                start_point: VestingSchedulePoint {
+                    time: Timestamp::from_seconds(100).seconds(),
+                    amount: Uint128::zero(),
+                },
+                end_point: Some(VestingSchedulePoint {
+                    time: Timestamp::from_seconds(200).seconds(),
+                    amount: Uint128::new(10),
+                }),
+            }],
+        }],
+    };
+
+    app.execute_contract(
+        owner.clone(),
+        vesting_instance.clone(),
+        &msg,
+        &coins(10, IBC_ASTRO),
+    )
+    .unwrap();
+
+    let msg = QueryMsg::AvailableAmount {
+        address: user1.to_string(),
+    };
+
+    let vesting_res: Uint128 = app
+        .wrap()
+        .query_wasm_smart(vesting_instance.clone(), &msg)
+        .unwrap();
+    assert_eq!(vesting_res, Uint128::new(110u128));
+
+    let bal = query_balance(&app.wrap(), &owner, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, TOKEN_INITIAL_AMOUNT - 310u128);
+    let bal = query_balance(&app.wrap(), &vesting_instance, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, 310u128);
+
+    let msg = ExecuteMsg::Claim {
+        recipient: None,
+        amount: None,
+    };
+    let _res = app
+        .execute_contract(user1.clone(), vesting_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = QueryMsg::VestingAccount {
+        address: user1.to_string(),
+    };
+
+    let vesting_res: VestingAccountResponse = app
+        .wrap()
+        .query_wasm_smart(vesting_instance.clone(), &msg)
+        .unwrap();
+    assert_eq!(vesting_res.info.released_amount, Uint128::from(110u128));
+
+    let bal = query_balance(&app.wrap(), &vesting_instance, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, 200);
+    let bal = query_balance(&app.wrap(), &user1, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, 110u128);
+
+    let bal = query_balance(&app.wrap(), &owner, IBC_ASTRO)
+        .unwrap()
+        .u128();
+    assert_eq!(bal, TOKEN_INITIAL_AMOUNT - 310u128);
+}
+
+fn mock_app(owner: &Addr) -> App {
+    App::new(|app, _, storage| {
+        app.bank
+            .init_balance(
+                storage,
+                owner,
+                vec![
+                    coin(TOKEN_INITIAL_AMOUNT, IBC_ASTRO),
+                    coin(1_000_0000000u128, "random_coin"),
+                ],
+            )
+            .unwrap()
+    })
 }
 
 fn store_token_code(app: &mut App) -> u64 {
@@ -504,7 +937,7 @@ fn instantiate_vesting(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
 
     let init_msg = InstantiateMsg {
         owner: OWNER1.to_string(),
-        token_addr: astro_token_instance.to_string(),
+        vesting_token: token_asset_info(astro_token_instance.clone()),
     };
 
     let vesting_instance = app
@@ -522,7 +955,10 @@ fn instantiate_vesting(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
         .wrap()
         .query_wasm_smart(vesting_instance.clone(), &QueryMsg::Config {})
         .unwrap();
-    assert_eq!(astro_token_instance.to_string(), res.token_addr.to_string());
+    assert_eq!(
+        astro_token_instance.to_string(),
+        res.vesting_token.to_string()
+    );
 
     mint_tokens(
         &mut app,
@@ -539,6 +975,31 @@ fn instantiate_vesting(mut app: &mut App, astro_token_instance: &Addr) -> Addr {
     );
 
     vesting_instance
+}
+
+fn instantiate_vesting_remote_chain(app: &mut App) -> Addr {
+    let vesting_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_vesting::contract::execute,
+        astroport_vesting::contract::instantiate,
+        astroport_vesting::contract::query,
+    ));
+    let owner = Addr::unchecked(OWNER1);
+    let vesting_code_id = app.store_code(vesting_contract);
+
+    let init_msg = InstantiateMsg {
+        owner: OWNER1.to_string(),
+        vesting_token: native_asset_info(IBC_ASTRO.to_string()),
+    };
+
+    app.instantiate_contract(
+        vesting_code_id,
+        owner.clone(),
+        &init_msg,
+        &[],
+        "Vesting",
+        None,
+    )
+    .unwrap()
 }
 
 fn mint_tokens(app: &mut App, token: &Addr, recipient: &Addr, amount: u128) {

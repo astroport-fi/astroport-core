@@ -3395,7 +3395,7 @@ fn instantiate_generator(
 
     let init_msg = VestingInstantiateMsg {
         owner: owner.to_string(),
-        token_addr: astro_token_instance.to_string(),
+        vesting_token: token_asset_info(astro_token_instance.clone()),
     };
 
     let vesting_instance = app

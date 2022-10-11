@@ -2,7 +2,7 @@ use crate::test_utils::delegation_helper::DelegationHelper;
 use crate::test_utils::escrow_helper::EscrowHelper;
 use crate::{mint_tokens, store_whitelist_code};
 use anyhow::Result as AnyResult;
-use astroport::asset::{AssetInfo, PairInfo};
+use astroport::asset::{token_asset_info, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::vesting::{Cw20HookMsg as VestingHookMsg, VestingAccount};
 use astroport::vesting::{InstantiateMsg, VestingSchedule, VestingSchedulePoint};
@@ -88,7 +88,7 @@ impl ControllerHelper {
 
         let init_msg_vesting = InstantiateMsg {
             owner: owner.to_string(),
-            token_addr: escrow_helper.astro_token.to_string(),
+            vesting_token: token_asset_info(escrow_helper.astro_token.clone()),
         };
 
         let vesting_instance = router
