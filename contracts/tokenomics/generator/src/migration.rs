@@ -1,4 +1,4 @@
-use crate::state::{CONFIG, REWARD_PROXIES_LIST};
+use crate::state::CONFIG;
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 
 use astroport::generator::{Config, MigrateMsg};
@@ -84,8 +84,6 @@ pub const CONFIG_V210: Item<ConfigV210> = Item::new("config");
 pub fn migrate_configs_from_v200(deps: &mut DepsMut, msg: &MigrateMsg) -> StdResult<()> {
     let cfg_200 = CONFIG_V200.load(deps.storage)?;
 
-    REWARD_PROXIES_LIST.save(deps.storage, &cfg_200.allowed_reward_proxies)?;
-
     let mut cfg = Config {
         owner: cfg_200.owner,
         factory: cfg_200.factory,
@@ -114,8 +112,6 @@ pub fn migrate_configs_from_v200(deps: &mut DepsMut, msg: &MigrateMsg) -> StdRes
 /// Migrate config from V2.1.0
 pub fn migrate_configs_from_v_210(deps: &mut DepsMut) -> StdResult<()> {
     let cfg_210 = CONFIG_V210.load(deps.storage)?;
-
-    REWARD_PROXIES_LIST.save(deps.storage, &cfg_210.allowed_reward_proxies)?;
 
     let cfg = Config {
         owner: cfg_210.owner,
