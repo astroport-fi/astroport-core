@@ -1,18 +1,16 @@
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{from_binary, to_binary, Addr, Coin, ReplyOn, SubMsg, Uint128, WasmMsg};
-
-use crate::contract::{execute, instantiate, query};
-use crate::error::ContractError;
-use crate::testing::mock_querier::mock_dependencies;
-
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
-use astroport::asset::{Asset, AssetInfo};
-use astroport::pair::ExecuteMsg as PairExecuteMsg;
+use astroport::asset::AssetInfo;
 use astroport::router::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
     SimulateSwapOperationsResponse, SwapOperation, MAX_SWAP_OPERATIONS,
 };
+
+use crate::contract::{execute, instantiate, query};
+use crate::error::ContractError;
+use crate::testing::mock_querier::mock_dependencies;
 
 #[test]
 fn proper_initialization() {
@@ -112,6 +110,7 @@ fn execute_swap_operations() {
                         },
                         to: None,
                         max_spread: None,
+                        single: false
                     })
                     .unwrap(),
                 }
@@ -135,6 +134,7 @@ fn execute_swap_operations() {
                         },
                         to: None,
                         max_spread: None,
+                        single: false
                     })
                     .unwrap(),
                 }
@@ -158,6 +158,7 @@ fn execute_swap_operations() {
                         },
                         to: Some(String::from("addr0000")),
                         max_spread: None,
+                        single: false
                     })
                     .unwrap(),
                 }
@@ -246,6 +247,7 @@ fn execute_swap_operations() {
                         },
                         to: None,
                         max_spread: None,
+                        single: false
                     })
                     .unwrap(),
                 }
@@ -269,6 +271,7 @@ fn execute_swap_operations() {
                         },
                         to: None,
                         max_spread: None,
+                        single: false
                     })
                     .unwrap(),
                 }
@@ -292,6 +295,7 @@ fn execute_swap_operations() {
                         },
                         to: Some(String::from("addr0002")),
                         max_spread: None,
+                        single: false
                     })
                     .unwrap(),
                 }
@@ -347,6 +351,7 @@ fn execute_swap_operation() {
         },
         to: Some(String::from("addr0000")),
         max_spread: None,
+        single: true,
     };
     let env = mock_env();
     let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
@@ -360,13 +365,7 @@ fn execute_swap_operation() {
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: String::from("pair"),
                     amount: Uint128::new(1000000u128),
-                    msg: to_binary(&PairExecuteMsg::Swap {
-                        offer_asset: Asset {
-                            info: AssetInfo::Token {
-                                contract_addr: Addr::unchecked("asset"),
-                            },
-                            amount: Uint128::new(1000000u128),
-                        },
+                    msg: to_binary(&astroport::pair::Cw20HookMsg::Swap {
                         belief_price: None,
                         max_spread: None,
                         to: Some(String::from("addr0000")),

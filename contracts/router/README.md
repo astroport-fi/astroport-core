@@ -36,7 +36,8 @@ CW20 receive msg.
 
 ### `execute_swap_operation`
 
-Swaps one token to another. This message is for internal use.
+Swaps one token to another. _single_ defines whether this swap is single or part of a multi hop route. 
+This message is for internal use.
 
 ### Example
 
@@ -60,7 +61,8 @@ Swap UST => mABNB
         }
       },
      "to": "terra...",
-     "max_spread": "0.05"
+     "max_spread": "0.05",
+     "single": false
    }
 }
 ```
