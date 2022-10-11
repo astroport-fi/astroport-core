@@ -55,7 +55,7 @@ impl DelegationHelper {
 
         let res = router
             .wrap()
-            .query::<voting_escrow_delegation::state::Config>(&QueryRequest::Wasm(
+            .query::<astroport_governance::voting_escrow_delegation::Config>(&QueryRequest::Wasm(
                 WasmQuery::Smart {
                     contract_addr: delegation_addr.to_string(),
                     msg: to_binary(&escrow_delegation::QueryMsg::Config {}).unwrap(),

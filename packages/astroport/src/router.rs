@@ -63,6 +63,7 @@ pub enum ExecuteMsg {
         operation: SwapOperation,
         to: Option<String>,
         max_spread: Option<Decimal>,
+        single: bool,
     },
     /// Internal use
     /// AssertMinimumReceive checks that a receiver will get a minimum amount of tokens from a swap

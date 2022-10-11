@@ -15,6 +15,8 @@ use crate::state::CONFIG;
 /// * **operation** to perform (native or Astro swap with offer and ask asset information).
 ///
 /// * **to** address that receives the ask assets.
+///
+/// * **single** defines whether this swap is single or part of a multi hop route.
 pub fn execute_swap_operation(
     deps: DepsMut,
     env: Env,
@@ -22,6 +24,7 @@ pub fn execute_swap_operation(
     operation: SwapOperation,
     to: Option<String>,
     max_spread: Option<Decimal>,
+    single: bool,
 ) -> Result<Response, ContractError> {
     if env.contract.address != info.sender {
         return Err(ContractError::Unauthorized {});
@@ -59,6 +62,7 @@ pub fn execute_swap_operation(
                 ask_asset_info,
                 max_spread,
                 to,
+                single,
             )?
         }
         SwapOperation::NativeSwap { .. } => return Err(ContractError::NativeSwapNotSupported {}),
@@ -78,6 +82,8 @@ pub fn execute_swap_operation(
 /// * **max_spread** max spread enforced for the swap.
 ///
 /// * **to** address that receives the ask assets.
+///
+/// * **single** defines whether this swap is single or part of a multi hop route.
 pub fn asset_into_swap_msg(
     deps: DepsMut,
     pair_contract: String,
@@ -85,7 +91,11 @@ pub fn asset_into_swap_msg(
     ask_asset_info: AssetInfo,
     max_spread: Option<Decimal>,
     to: Option<String>,
+    single: bool,
 ) -> StdResult<CosmosMsg> {
+    // Disabling spread assertion if this swap is part of a multi hop route
+    let belief_price = if single { None } else { Some(Decimal::MAX) };
+
     match &offer_asset.info {
         AssetInfo::NativeToken { denom } => {
             // Deduct tax first
@@ -104,7 +114,7 @@ pub fn asset_into_swap_msg(
                         ..offer_asset
                     },
                     ask_asset_info: Some(ask_asset_info),
-                    belief_price: None,
+                    belief_price,
                     max_spread,
                     to,
                 })?,
@@ -116,10 +126,9 @@ pub fn asset_into_swap_msg(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: pair_contract,
                 amount: offer_asset.amount,
-                msg: to_binary(&PairExecuteMsg::Swap {
-                    offer_asset,
+                msg: to_binary(&astroport::pair::Cw20HookMsg::Swap {
                     ask_asset_info: Some(ask_asset_info),
-                    belief_price: None,
+                    belief_price,
                     max_spread,
                     to,
                 })?,
