@@ -1,6 +1,6 @@
 # Astroport Generator
 
-The Generator contract allocates token rewards (ASTRO) for various LP tokens and distributes them pro-rata to LP stakers. The Generator supports proxy staking via 3rd party contracts that offer a second reward besides ASTRO token emissions. Allowed reward proxies are managed via a whitelist.
+The Generator contract allocates token rewards (ASTRO) for various LP tokens and distributes them pro-rata to LP stakers. The Generator supports proxy staking via 3rd party contracts that offer a second reward besides ASTRO token emissions.
 
 ---
 
@@ -14,9 +14,6 @@ Initializes the contract with required addresses and contracts used for reward d
   "astro_token": "terra...",
   "tokens_per_block": "123",
   "start_block": "123",
-  "allowed_reward_proxies": [
-    "terra..."
-  ],
   "vesting_contract": "terra..."
 }
 ```
@@ -171,21 +168,6 @@ Unstakes LP tokens without caring about rewards. To be used only in emergencies 
 }
 ```
 
-### `set_allowed_reward_proxies`
-
-Updates the list of allowed 3rd party proxy contracts (that connect 3rd party staking contracts to the Generator for dual rewards).
-
-```json
-{
-  "set_allowed_reward_proxies": {
-    "proxies": [
-      "terra...",
-      "terra..."
-    ]
-  }
-}
-```
-
 ### `send_orphan_reward`
 
 Sends orphaned rewards (left behind by emergency withdraws) to another address. Only the contract owner can transfer orphan rewards.
@@ -253,19 +235,6 @@ Change the current dual rewards proxy for a specific LP token. Only the contract
   "move_to_proxy": {
     "lp_token": "terra...",
     "proxy": "terra..."
-  }
-}
-```
-
-### `update_allowed_proxies`
-
-Add or remove dual rewards proxy contracts that can interact with the Generator. Only the contract owner can execute this.
-
-```json
-{
-  "update_allowed_proxies": {
-    "add": ["terra...", "terra..."],
-    "remove": ["terra...", "terra...", "terra..."]
   }
 }
 ```
@@ -476,5 +445,15 @@ Returns the total virtual supply of generator
   "total_virtual_amount": {
     "lp_token": "terra..."
   }
+}
+```
+
+### `reward_proxies_list`
+
+Returns a list of reward proxy contracts which have been ever used
+
+```json
+{
+  "reward_proxies_list": {}
 }
 ```

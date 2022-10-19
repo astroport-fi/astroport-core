@@ -23,8 +23,6 @@ pub struct InstantiateMsg {
     pub tokens_per_block: Uint128,
     /// Start block for distributing ASTRO
     pub start_block: Uint64,
-    /// Dual rewards proxy contracts allowed to interact with the generator
-    pub allowed_reward_proxies: Vec<String>,
     /// The ASTRO vesting contract that drips ASTRO rewards
     pub vesting_contract: String,
     /// Whitelist code id
@@ -81,11 +79,6 @@ pub enum ExecuteMsg {
         /// The address of the LP token to withdraw
         lp_token: String,
     },
-    /// Allowed reward proxy contracts that can interact with the Generator
-    SetAllowedRewardProxies {
-        /// The full list of allowed proxy contracts
-        proxies: Vec<String>,
-    },
     /// Sends orphan proxy rewards (which were left behind after emergency withdrawals) to another address
     SendOrphanProxyReward {
         /// The transfer recipient
@@ -119,13 +112,6 @@ pub enum ExecuteMsg {
     /// ## Executor
     /// Only the newly proposed owner can execute this
     ClaimOwnership {},
-    /// Add or remove a proxy contract that can interact with the Generator
-    UpdateAllowedProxies {
-        /// Allowed proxy contract
-        add: Option<Vec<String>>,
-        /// Proxy contracts to remove
-        remove: Option<Vec<String>>,
-    },
     /// Sets a new proxy contract for a specific generator
     /// Sets a proxy for the pool
     /// ## Executor
@@ -207,6 +193,9 @@ pub enum QueryMsg {
     /// Returns the blocked list of tokens
     #[returns(Vec<AssetInfo>)]
     BlockedTokensList {},
+    /// Returns a list of reward proxy contracts which have been ever used
+    #[returns(Vec<Addr>)]
+    RewardProxiesList {},
 }
 
 /// This structure holds the response returned when querying the total length of the array that keeps track of instantiated generators
@@ -398,8 +387,6 @@ pub struct ConfigResponse {
     pub total_alloc_point: Uint128,
     /// Start block for ASTRO incentives
     pub start_block: Uint64,
-    /// List of 3rd party reward proxies allowed to interact with the Generator contract
-    pub allowed_reward_proxies: Vec<Addr>,
     /// The ASTRO vesting contract address
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points
