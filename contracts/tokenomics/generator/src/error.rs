@@ -2,7 +2,7 @@ use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
 /// This enum describes generator contract errors
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
@@ -42,6 +42,9 @@ pub enum ContractError {
 
     #[error("Maximum generator limit exceeded!")]
     GeneratorsLimitExceeded {},
+
+    #[error("You can not withdraw 0 LP tokens.")]
+    ZeroWithdraw {},
 }
 
 impl From<OverflowError> for ContractError {
