@@ -239,6 +239,9 @@ pub fn execute(
             )
         }
         ExecuteMsg::Withdraw { lp_token, amount } => {
+            if amount.is_zero() {
+                return Err(ContractError::ZeroWithdraw {});
+            }
             let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
             update_rewards_and_execute(
@@ -992,6 +995,17 @@ pub fn claim_rewards(
             &account,
         )?);
 
+        let mut reward_msg = build_claim_pools_asset_reward_messages(
+            deps.as_ref(),
+            &env,
+            lp_token,
+            &pool,
+            &account,
+            user.amount,
+            Uint128::zero(),
+        )?;
+        send_rewards_msg.append(&mut reward_msg);
+
         // Update user's amount
         let amount = user.amount;
         let mut user = update_user_balance(user, &pool, amount)?;
@@ -1322,33 +1336,30 @@ pub fn withdraw(
     accumulate_rewards_per_share(&deps.querier, &env, &lp_token, &mut pool, &cfg)?;
 
     // Send pending rewards to the user
-    let send_rewards_msg = send_pending_rewards(deps.as_ref(), &cfg, &pool, &user, &account)?;
+    let mut send_rewards_msgs = send_pending_rewards(deps.as_ref(), &cfg, &pool, &user, &account)?;
 
     // Instantiate the transfer call for the LP token
-    let transfer_msg = if !amount.is_zero() {
-        vec![match &pool.reward_proxy {
-            Some(proxy) => WasmMsg::Execute {
-                contract_addr: proxy.to_string(),
-                funds: vec![],
-                msg: to_binary(&ProxyExecuteMsg::Withdraw {
-                    account: account.to_string(),
-                    amount,
-                })?,
-            },
-            None => WasmMsg::Execute {
-                contract_addr: lp_token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: account.to_string(),
-                    amount,
-                })?,
-                funds: vec![],
-            },
-        }]
-    } else {
-        vec![]
+    let transfer_msg = match &pool.reward_proxy {
+        Some(proxy) => WasmMsg::Execute {
+            contract_addr: proxy.to_string(),
+            funds: vec![],
+            msg: to_binary(&ProxyExecuteMsg::Withdraw {
+                account: account.to_string(),
+                amount,
+            })?,
+        },
+        None => WasmMsg::Execute {
+            contract_addr: lp_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: account.to_string(),
+                amount,
+            })?,
+            funds: vec![],
+        },
     };
+    send_rewards_msgs.push(transfer_msg);
 
-    let reward_msg = build_claim_pools_asset_reward_messages(
+    send_rewards_msgs.append(&mut build_claim_pools_asset_reward_messages(
         deps.as_ref(),
         &env,
         &lp_token,
@@ -1356,7 +1367,7 @@ pub fn withdraw(
         &account,
         user.amount,
         Uint128::zero(),
-    )?;
+    )?);
 
     // Update user's balance
     let updated_amount = user.amount.checked_sub(amount)?;
@@ -1381,9 +1392,7 @@ pub fn withdraw(
     }
 
     Ok(Response::new()
-        .add_messages(send_rewards_msg)
-        .add_messages(transfer_msg)
-        .add_messages(reward_msg)
+        .add_messages(send_rewards_msgs)
         .add_attribute("action", "withdraw")
         .add_attribute("amount", amount))
 }
