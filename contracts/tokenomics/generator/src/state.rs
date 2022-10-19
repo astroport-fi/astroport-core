@@ -35,8 +35,6 @@ pub struct Config {
     pub total_alloc_point: Uint128,
     /// The block number when the ASTRO distribution starts
     pub start_block: Uint64,
-    /// The list of allowed proxy reward contracts
-    pub allowed_reward_proxies: Vec<Addr>,
     /// The vesting contract from which rewards are distributed
     pub vesting_contract: Addr,
     /// The list of active pools with allocation points

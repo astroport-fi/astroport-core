@@ -140,20 +140,6 @@ async function main() {
                 }, "Generator Proxy")
                 network[pool_generator_proxy_key] = resp.shift();
                 console.log(`Address of ${pool.identifier} generator proxy contract ${network[pool_generator_proxy_key]}`)
-
-                // Set generator proxy as allowed
-                let config = await queryContract(terra, network.generatorAddress, {
-                    config: {}
-                })
-                let new_allowed_proxies: Array<String> = config.allowed_reward_proxies
-                new_allowed_proxies.push(network[pool_generator_proxy_key] as String)
-                console.log(`Whitelist the proxy in the generator contract. The newly allowed proxy list is: ${new_allowed_proxies}`)
-                await executeContract(terra, wallet, network.generatorAddress, {
-                    set_allowed_reward_proxies: {
-                        proxies: new_allowed_proxies
-                    }
-                })
-
             }
 
             // Add pool to generator

@@ -115,7 +115,6 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
             join(ARTIFACTS_PATH, 'astroport_generator.wasm'),
             {
                 owner: network.multisigAddress,
-                allowed_reward_proxies: [],
                 astro_token: network.tokenAddress,
                 start_block: '106790', // 92390 + 144000
                 tokens_per_block: String(0),

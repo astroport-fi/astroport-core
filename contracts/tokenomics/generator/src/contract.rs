@@ -19,7 +19,7 @@ use astroport::asset::{
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{PairConfig, PairType};
-use astroport::generator::{PoolInfo, RestrictedVector};
+use astroport::generator::PoolInfo;
 use astroport::generator::{StakerResponse, UserInfoV2};
 use astroport::querier::query_token_balance;
 use astroport::DecimalCheckedOps;
@@ -70,11 +70,6 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let mut allowed_reward_proxies: Vec<Addr> = vec![];
-    for proxy in msg.allowed_reward_proxies {
-        allowed_reward_proxies.push(addr_validate_to_lower(deps.api, &proxy)?);
-    }
-
     let mut config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         factory: addr_validate_to_lower(deps.api, &msg.factory)?,
@@ -84,7 +79,6 @@ pub fn instantiate(
         tokens_per_block: msg.tokens_per_block,
         total_alloc_point: Uint128::zero(),
         start_block: msg.start_block,
-        allowed_reward_proxies,
         vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
         active_pools: vec![],
         blocked_tokens_list: vec![],
@@ -148,9 +142,6 @@ pub fn instantiate(
 /// * **ExecuteMsg::EmergencyWithdraw { lp_token }** Withdraw LP tokens without caring about reward claiming.
 /// TO BE USED IN EMERGENCY SITUATIONS ONLY.
 ///
-/// * **ExecuteMsg::SetAllowedRewardProxies { proxies }** Sets the list of allowed reward proxy contracts
-/// that can interact with the Generator contract.
-///
 /// * **ExecuteMsg::SendOrphanProxyReward {
 ///             recipient,
 ///             lp_token,
@@ -211,9 +202,6 @@ pub fn execute(
             lp_token,
             new_proxy,
         } => migrate_proxy(deps, env, info, lp_token, new_proxy),
-        ExecuteMsg::UpdateAllowedProxies { add, remove } => {
-            update_allowed_proxies(deps, info, add, remove)
-        }
         ExecuteMsg::UpdateConfig {
             vesting_contract,
             generator_controller,
@@ -265,9 +253,6 @@ pub fn execute(
             )
         }
         ExecuteMsg::EmergencyWithdraw { lp_token } => emergency_withdraw(deps, env, info, lp_token),
-        ExecuteMsg::SetAllowedRewardProxies { proxies } => {
-            set_allowed_reward_proxies(deps, info, proxies)
-        }
         ExecuteMsg::SendOrphanProxyReward {
             recipient,
             lp_token,
@@ -1526,40 +1511,6 @@ pub fn emergency_withdraw(
 }
 
 /// ## Description
-/// Sets the allowed reward proxies that can interact with the Generator contract. Returns a [`ContractError`] on
-/// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **proxies** is an array that contains objects of type [`String`].
-/// This is the full list of allowed proxies that can interact with the Generator.
-fn set_allowed_reward_proxies(
-    deps: DepsMut,
-    info: MessageInfo,
-    proxies: Vec<String>,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let mut allowed_reward_proxies: Vec<Addr> = vec![];
-    for proxy in proxies {
-        allowed_reward_proxies.push(addr_validate_to_lower(deps.api, &proxy)?);
-    }
-
-    CONFIG.update::<_, StdError>(deps.storage, |mut v| {
-        v.allowed_reward_proxies = allowed_reward_proxies;
-        Ok(v)
-    })?;
-
-    Ok(Response::new().add_attribute("action", "set_allowed_reward_proxies"))
-}
-
-/// ## Description
 /// Sends orphaned proxy rewards (which are left behind by emergency withdrawals) to another address.
 /// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified
 /// attributes if the operation was successful.
@@ -1687,10 +1638,6 @@ fn migrate_proxy(
     // Permission check
     if info.sender != cfg.owner {
         return Err(ContractError::Unauthorized {});
-    }
-
-    if !cfg.allowed_reward_proxies.contains(&new_proxy_addr) {
-        return Err(ContractError::RewardProxyNotAllowed {});
     }
 
     // Check the pool has reward proxy
@@ -1853,10 +1800,6 @@ fn move_to_proxy(
         return Err(ContractError::Unauthorized {});
     }
 
-    if !cfg.allowed_reward_proxies.contains(&proxy_addr) {
-        return Err(ContractError::RewardProxyNotAllowed {});
-    }
-
     if !POOL_INFO.has(deps.storage, &lp_addr) {
         let factory_cfg: FactoryConfigResponse = deps
             .querier
@@ -1905,56 +1848,6 @@ fn move_to_proxy(
     Ok(Response::new()
         .add_messages(messages)
         .add_attributes(vec![attr("action", "move_to_proxy"), attr("proxy", proxy)]))
-}
-
-/// Add or remove proxy contracts to and from the proxy contract whitelist. Returns a [`ContractError`] on failure.
-fn update_allowed_proxies(
-    deps: DepsMut,
-    info: MessageInfo,
-    add: Option<Vec<String>>,
-    remove: Option<Vec<String>>,
-) -> Result<Response, ContractError> {
-    if add.is_none() && remove.is_none() {
-        return Err(ContractError::Std(StdError::generic_err(
-            "Need to provide add or remove parameters",
-        )));
-    }
-
-    let mut cfg = CONFIG.load(deps.storage)?;
-
-    // Permission check
-    if info.sender != cfg.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    // Remove proxies
-    if let Some(remove_proxies) = remove {
-        for remove_proxy in remove_proxies {
-            let index = cfg
-                .allowed_reward_proxies
-                .iter()
-                .position(|x| *x.as_str() == remove_proxy.as_str().to_lowercase())
-                .ok_or_else(|| {
-                    StdError::generic_err(
-                        "Can't remove proxy contract. It is not found in allowed list.",
-                    )
-                })?;
-            cfg.allowed_reward_proxies.remove(index);
-        }
-    }
-
-    // Add new proxies
-    if let Some(add_proxies) = add {
-        for add_proxy in add_proxies {
-            let proxy_addr = addr_validate_to_lower(deps.api, &add_proxy)?;
-            if !cfg.allowed_reward_proxies.contains(&proxy_addr) {
-                cfg.allowed_reward_proxies.push(proxy_addr);
-            }
-        }
-    }
-
-    CONFIG.save(deps.storage, &cfg)?;
-    Ok(Response::default().add_attribute("action", "update_allowed_proxies"))
 }
 
 /// ## Description
@@ -2028,6 +1921,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             limit,
         )?)?),
         QueryMsg::BlockedTokensList {} => Ok(to_binary(&query_blocked_tokens_list(deps)?)?),
+        QueryMsg::RewardProxiesList {} => Ok(to_binary(
+            &PROXY_REWARD_ASSET
+                .keys(deps.storage, None, None, Order::Ascending)
+                .collect::<Result<Vec<Addr>, StdError>>()?,
+        )?),
     }
 }
 
@@ -2201,7 +2099,6 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     Ok(ConfigResponse {
-        allowed_reward_proxies: config.allowed_reward_proxies,
         astro_token: config.astro_token,
         owner: config.owner,
         factory: config.factory,
@@ -2554,123 +2451,8 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
 
     match contract_version.contract.as_ref() {
         "astroport-generator" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                let mut active_pools: Vec<(Addr, Uint64)> = vec![];
-
-                let keys = migration::POOL_INFOV100
-                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .collect::<StdResult<Vec<_>>>()?;
-
-                for key in keys {
-                    let pool_info_v100 = migration::POOL_INFOV100.load(deps.storage, &key)?;
-
-                    if !pool_info_v100.alloc_point.is_zero() {
-                        active_pools.push((key.clone(), pool_info_v100.alloc_point));
-                    }
-
-                    let mut accumulated_proxy_rewards_per_share = Default::default();
-                    let mut orphan_proxy_rewards = Default::default();
-                    if let Some(proxy) = &pool_info_v100.reward_proxy {
-                        accumulated_proxy_rewards_per_share = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v100.accumulated_proxy_rewards_per_share,
-                        );
-                        orphan_proxy_rewards = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v100.orphan_proxy_rewards,
-                        );
-                        update_proxy_asset(deps.branch(), proxy)?;
-                    }
-
-                    let lp_balance = if let Some(proxy) = &pool_info_v100.reward_proxy {
-                        deps.querier
-                            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
-                    } else {
-                        let res: BalanceResponse = deps.querier.query_wasm_smart(
-                            key.clone(),
-                            &cw20::Cw20QueryMsg::Balance {
-                                address: env.contract.address.to_string(),
-                            },
-                        )?;
-                        res.balance
-                    };
-
-                    let pool_info = PoolInfo {
-                        has_asset_rewards: false,
-                        accumulated_proxy_rewards_per_share,
-                        orphan_proxy_rewards,
-                        last_reward_block: pool_info_v100.last_reward_block,
-                        proxy_reward_balance_before_update: pool_info_v100
-                            .proxy_reward_balance_before_update,
-                        reward_proxy: pool_info_v100.reward_proxy,
-                        reward_global_index: pool_info_v100.accumulated_rewards_per_share,
-                        total_virtual_supply: lp_balance,
-                    };
-                    POOL_INFO.save(deps.storage, &key, &pool_info)?;
-                }
-
-                migration::migrate_configs_to_v120(&mut deps, active_pools, &msg)?;
-                migration::migrate_configs_to_v130(deps.storage)?;
-                migration::migrate_configs_to_v200(&mut deps, &msg)?
-            }
-            "1.1.0" => {
-                let mut active_pools: Vec<(Addr, Uint64)> = vec![];
-
-                let keys = migration::POOL_INFOV110
-                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-                    .collect::<StdResult<Vec<_>>>()?;
-
-                for key in keys {
-                    let pool_info_v110 = migration::POOL_INFOV110.load(deps.storage, &key)?;
-
-                    if !pool_info_v110.alloc_point.is_zero() {
-                        active_pools.push((key.clone(), pool_info_v110.alloc_point));
-                    }
-
-                    let mut accumulated_proxy_rewards_per_share = Default::default();
-                    let mut orphan_proxy_rewards = Default::default();
-                    if let Some(proxy) = &pool_info_v110.reward_proxy {
-                        accumulated_proxy_rewards_per_share = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v110.accumulated_proxy_rewards_per_share,
-                        );
-                        orphan_proxy_rewards = RestrictedVector::new(
-                            proxy.clone(),
-                            pool_info_v110.orphan_proxy_rewards,
-                        );
-                        update_proxy_asset(deps.branch(), proxy)?;
-                    }
-
-                    let lp_balance = if let Some(proxy) = &pool_info_v110.reward_proxy {
-                        deps.querier
-                            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
-                    } else {
-                        let res: BalanceResponse = deps.querier.query_wasm_smart(
-                            key.clone(),
-                            &cw20::Cw20QueryMsg::Balance {
-                                address: env.contract.address.to_string(),
-                            },
-                        )?;
-                        res.balance
-                    };
-
-                    let pool_info = PoolInfo {
-                        has_asset_rewards: pool_info_v110.has_asset_rewards,
-                        accumulated_proxy_rewards_per_share,
-                        orphan_proxy_rewards,
-                        last_reward_block: pool_info_v110.last_reward_block,
-                        proxy_reward_balance_before_update: pool_info_v110
-                            .proxy_reward_balance_before_update,
-                        reward_proxy: pool_info_v110.reward_proxy,
-                        reward_global_index: pool_info_v110.accumulated_rewards_per_share,
-                        total_virtual_supply: lp_balance,
-                    };
-                    POOL_INFO.save(deps.storage, &key, &pool_info)?;
-                }
-
-                migration::migrate_configs_to_v120(&mut deps, active_pools, &msg)?;
-                migration::migrate_configs_to_v130(deps.storage)?;
-                migration::migrate_configs_to_v200(&mut deps, &msg)?
+            "2.0.0" => {
+                migration::migrate_configs_from_v200(&mut deps)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },
