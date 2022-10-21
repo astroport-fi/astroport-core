@@ -21,6 +21,7 @@ use astroport::{
 };
 
 use astroport::pair::StablePoolParams;
+use astroport_generator::error::ContractError;
 use astroport_generator::state::Config;
 use cosmwasm_std::{to_binary, Addr, Binary, StdResult, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
@@ -441,6 +442,16 @@ fn proper_deposit_and_withdraw() {
 
     app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
+
+    let msg = GeneratorExecuteMsg::Withdraw {
+        lp_token: lp_eur_usd.to_string(),
+        amount: Uint128::zero(),
+    };
+
+    let err = app
+        .execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(ContractError::ZeroWithdraw {}, err.downcast().unwrap());
 
     let msg = GeneratorExecuteMsg::Withdraw {
         lp_token: lp_eur_usd.to_string(),
