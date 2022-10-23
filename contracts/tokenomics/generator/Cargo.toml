@@ -45,3 +45,4 @@ astroport-whitelist = { path = "../../whitelist" }
 anyhow = "1"
 generator-controller = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/migrate_to_cosmwasm_1_1_release/terra2" }
 voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "feat/migrate_to_cosmwasm_1_1_release/terra2" }
+generator-proxy-to-vkr = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "release/terra2" }

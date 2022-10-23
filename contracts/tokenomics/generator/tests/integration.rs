@@ -1123,9 +1123,7 @@ fn generator_without_reward_proxies() {
     check_token_balance(&mut app, &astro_token_instance, &user2, 5_000000);
 }
 
-// TODO: Mirror protocol does not support Terra2 and cosmwasm-1.0 respectively.
-// TODO: Once astroport finds proxy reward contract this test should be updated.
-/*#[test]
+#[test]
 fn generator_with_mirror_reward_proxy() {
     let mut app = mock_app();
 
@@ -1177,13 +1175,8 @@ fn generator_with_mirror_reward_proxy() {
         ],
     );
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-        None,
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     let (mirror_token_instance, mirror_staking_instance) =
         instantiate_mirror_protocol(&mut app, token_code_id, &pair_cny_eur, &lp_cny_eur);
@@ -1654,7 +1647,7 @@ fn generator_with_mirror_reward_proxy() {
         &proxy_to_mirror_instance,
         0_000000,
     );
-}*/
+}
 
 /*#[test]
 fn move_to_proxy() {
@@ -3484,23 +3477,22 @@ fn instantiate_generator(
     generator_instance
 }
 
-/*
-fn instantiate_mirror_protocol(
-    _app: &mut App,
-    _token_code_id: u64,
-    _asset_token: &Addr,
-    _staking_token: &Addr,
+fn instantiate_valkier_protocol(
+    app: &mut App,
+    token_code_id: u64,
+    asset_token: &Addr,
+    staking_token: &Addr,
 ) -> (Addr, Addr) {
-    let mirror_token_instance = instantiate_token(app, token_code_id, "MIR", None);
+    let mirror_token_instance = instantiate_token(app, token_code_id, "VAL", None);
 
-    // Mirror staking
-    let mirror_staking_contract = Box::new(ContractWrapper::new_with_empty(
-        mirror_staking::contract::execute,
-        mirror_staking::contract::instantiate,
-        mirror_staking::contract::query,
+    // Valkier staking
+    let valkier_staking_contract = Box::new(ContractWrapper::new_with_empty(
+        generator_proxy_to_vkr::contract::execute,
+        generator_proxy_to_vkr::contract::instantiate,
+        generator_proxy_to_vkr::contract::query,
     ));
 
-    let mirror_staking_code_id = app.store_code(mirror_staking_contract);
+    let valkier_staking_code_id = app.store_code(valkier_staking_contract);
 
     let init_msg = MirrorInstantiateMsg {
         base_denom: String::from("uusd"),
@@ -3537,12 +3529,10 @@ fn instantiate_mirror_protocol(
     )
     .unwrap();
 
-    (mirror_token_instance, mirror_staking_instance)
-
-    (Addr::unchecked(""), Addr::unchecked(""))
+    (mirror_token_instance, mirror_staking_instance)(Addr::unchecked(""), Addr::unchecked(""))
 }
 
-
+/*
 fn store_proxy_code(app: &mut App) -> u64 {
     let generator_proxy_to_mirror_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_generator_proxy_to_mirror::contract::execute,
