@@ -26,19 +26,6 @@ pub struct Asset {
 }
 ```
 
-### PairInfo
-
-It is used to represent response data coming from a [Pair-Info-Querier](#Pair-Info-Querier).
-
-```rust
-pub struct PairInfo {
-    pub asset_infos: [AssetInfo; 2],
-    pub contract_addr: Addr,
-    pub liquidity_token: Addr,
-    pub pair_type: PairType,
-}
-```
-
 ## Queriers
 
 ### Native Token Balance Querier
@@ -74,42 +61,4 @@ pub fn query_supply(
     querier: &QuerierWrapper,
     contract_addr: impl Into<String>,
 ) -> StdResult<Uint128>
-```
-
-### Pair Info Querier
-
-Accepts two tokens as input and returns a pair's information.
-
-```rust
-pub fn query_pair_info(
-    querier: &QuerierWrapper,
-    factory_contract: impl Into<String>,
-    asset_infos: &[AssetInfo; 2],
-) -> StdResult<PairInfo>
-```
-
-## Swap Pairs Simulating
-
-### Simulate
-
-Simulates a swap and returns the output amount, the spread and commission amounts.
-
-```rust
-pub fn simulate(
-    querier: &QuerierWrapper,
-    pair_contract: impl Into<String>,
-    offer_asset: &Asset,
-) -> StdResult<SimulationResponse>
-```
-
-### Reverse Simulate
-
-Simulates a reverse swap and returns an input amount, the spread and commission amounts.
-
-```rust
-pub fn reverse_simulate(
-    querier: &QuerierWrapper,
-    pair_contract: impl Into<String>,
-    offer_asset: &Asset,
-) -> StdResult<ReverseSimulationResponse>
 ```

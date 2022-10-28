@@ -1,13 +1,13 @@
-use astroport::asset::{native_asset_info, Asset, AssetInfo, PairInfo};
-use astroport::factory::{
-    ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
+use ap_factory::{
+    ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig,
     QueryMsg as FactoryQueryMsg,
 };
-use astroport::pair::{
-    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
-    TWAP_PRECISION,
+use ap_pair::{
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PairInfo,
+    PairType, QueryMsg, TWAP_PRECISION,
 };
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use ap_token::InstantiateMsg as TokenInstantiateMsg;
+use astroport::asset::{native_asset_info, Asset, AssetInfo};
 use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, ContractWrapper, Executor};
@@ -209,13 +209,13 @@ fn test_provide_and_withdraw_liquidity() {
     assert_eq!(res.events[3].attributes[2], attr("to", "contract0"));
     assert_eq!(
         res.events[3].attributes[3],
-        attr("amount", 1000.to_string())
+        attr("amount", 1000u128.to_string())
     );
     assert_eq!(res.events[5].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[5].attributes[2], attr("to", "alice"));
     assert_eq!(
         res.events[5].attributes[3],
-        attr("amount", 99999000.to_string())
+        attr("amount", 99999000u128.to_string())
     );
 
     // Provide liquidity for receiver
@@ -244,7 +244,10 @@ fn test_provide_and_withdraw_liquidity() {
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "bob"));
-    assert_eq!(res.events[3].attributes[3], attr("amount", 50.to_string()));
+    assert_eq!(
+        res.events[3].attributes[3],
+        attr("amount", 50u128.to_string())
+    );
 
     // Checking withdraw liquidity
     let token_contract_code_id = store_token_code(&mut router);
@@ -252,7 +255,7 @@ fn test_provide_and_withdraw_liquidity() {
         .instantiate_contract(
             token_contract_code_id,
             owner.clone(),
-            &astroport::token::InstantiateMsg {
+            &ap_token::InstantiateMsg {
                 name: "Foo token".to_string(),
                 symbol: "FOO".to_string(),
                 decimals: 6,

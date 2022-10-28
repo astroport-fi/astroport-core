@@ -13,36 +13,31 @@ use protobuf::Message;
 use crate::error::ContractError;
 use crate::migration;
 
+use ap_pair::{pair_info_by_lp_token, PairInfo, PairType};
 use astroport::asset::{
-    addr_opt_validate, addr_validate_to_lower, pair_info_by_pool, token_asset_info, Asset,
-    AssetInfo, PairInfo,
+    addr_opt_validate, addr_validate_to_lower, token_asset_info, Asset, AssetInfo,
 };
 
+use ap_factory::{ConfigResponse as FactoryConfigResponse, QueryMsg as FactoryQueryMsg};
+use ap_generator::{
+    Config, Cw20HookMsg, ExecuteMsg, ExecuteOnReply, InstantiateMsg, MigrateMsg,
+    PendingTokenResponse, PoolInfoResponse, QueryMsg, RewardInfoResponse, StakerResponse,
+};
+use ap_generator_proxy::{
+    Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
+};
+use ap_vesting::ExecuteMsg as VestingExecuteMsg;
 use astroport::common::{
     claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
 };
-use astroport::factory::PairType;
-use astroport::generator::{Config, ExecuteOnReply, PoolInfo};
-use astroport::generator::{StakerResponse, UserInfoV2};
 use astroport::querier::query_token_balance;
 use astroport::DecimalCheckedOps;
-use astroport::{
-    factory::{ConfigResponse as FactoryConfigResponse, QueryMsg as FactoryQueryMsg},
-    generator::{
-        Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PendingTokenResponse,
-        PoolInfoResponse, QueryMsg, RewardInfoResponse,
-    },
-    generator_proxy::{
-        Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
-    },
-    vesting::ExecuteMsg as VestingExecuteMsg,
-};
 
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
     accumulate_pool_proxy_rewards, update_proxy_asset, update_user_balance, update_virtual_amount,
-    CompatibleLoader, CHECKPOINT_GENERATORS_LIMIT, CONFIG, DEFAULT_LIMIT, MAX_LIMIT,
-    OWNERSHIP_PROPOSAL, POOL_INFO, PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, USER_INFO,
+    CompatibleLoader, PoolInfo, UserInfoV2, CHECKPOINT_GENERATORS_LIMIT, CONFIG, DEFAULT_LIMIT,
+    MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO, PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, USER_INFO,
 };
 
 /// Contract name that is used for migration.
@@ -403,7 +398,7 @@ fn deactivate_pools(
     // find active pools with blacklisted pair type
     for pool in &mut cfg.active_pools {
         if !pool.1.is_zero() {
-            let pair_info = pair_info_by_pool(&deps.querier, &pool.0)?;
+            let pair_info = pair_info_by_lp_token(&deps.querier, &pool.0)?;
             if pair_types.contains(&pair_info.pair_type) {
                 // recalculate total allocation point before resetting the allocation point of pool
                 cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
@@ -471,7 +466,7 @@ fn update_blocked_tokens_list(
 
                 // Find active pools with blacklisted tokens
                 for pool in &mut cfg.active_pools {
-                    let pair_info = pair_info_by_pool(&deps.querier, &pool.0)?;
+                    let pair_info = pair_info_by_lp_token(&deps.querier, &pool.0)?;
                     if pair_info.asset_infos.contains(&asset_info) {
                         // Recalculate total allocation points before resetting the pool allocation points
                         cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
@@ -577,7 +572,7 @@ pub fn execute_setup_pools(
 
     for (addr, alloc_point) in pools {
         let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
-        let pair_info = pair_info_by_pool(&deps.querier, &pool_addr)?;
+        let pair_info = pair_info_by_lp_token(&deps.querier, &pool_addr)?;
 
         // check if assets in the blocked list
         for asset in &pair_info.asset_infos {
@@ -1285,7 +1280,7 @@ pub fn build_claim_pools_asset_reward_messages(
             contract_addr: minter_response.minter,
             funds: vec![],
             msg: to_binary(
-                &astroport::pair_stable_bluna::ExecuteMsg::ClaimRewardByGenerator {
+                &ap_generator::asset_reward::ExecuteMsg::ClaimRewardByGenerator {
                     user: account.to_string(),
                     user_share: user_amount,
                     total_share,
@@ -2101,7 +2096,7 @@ pub fn create_pool(
         .querier
         .query_wasm_smart(&cfg.factory, &FactoryQueryMsg::Config {})?;
 
-    let pair_info = pair_info_by_pool(&deps.querier, lp_token)?;
+    let pair_info = pair_info_by_lp_token(&deps.querier, lp_token)?;
     let pair_config = factory_cfg
         .pair_configs
         .into_iter()

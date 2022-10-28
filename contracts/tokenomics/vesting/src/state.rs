@@ -1,7 +1,7 @@
 use cosmwasm_schema::cw_serde;
 
+use ap_vesting::{OrderBy, VestingInfo};
 use astroport::common::OwnershipProposal;
-use astroport::vesting::{OrderBy, VestingInfo};
 use cosmwasm_std::{Addr, Deps, StdResult};
 use cw_storage_plus::{Bound, Item, Map};
 

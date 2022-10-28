@@ -7,12 +7,12 @@ use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 use itertools::Itertools;
 
-use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
-use astroport::factory::{PairConfig, PairType};
-use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, QueryMsg, ReverseSimulationResponse,
-    SimulationResponse, StablePoolParams,
+use ap_factory::PairConfig;
+use ap_pair_stable::{
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, PairInfo, PairType, QueryMsg,
+    ReverseSimulationResponse, SimulationResponse, StablePoolParams,
 };
+use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo};
 use astroport::querier::NATIVE_TOKEN_PRECISION;
 use astroport_pair_stable::contract::{execute, instantiate, query, reply};
 
@@ -135,7 +135,7 @@ impl Helper {
         let pair_code_id = app.store_code(pair_contract());
         let factory_code_id = app.store_code(factory_contract());
 
-        let init_msg = astroport::factory::InstantiateMsg {
+        let init_msg = ap_factory::InstantiateMsg {
             fee_address: None,
             pair_configs: vec![PairConfig {
                 code_id: pair_code_id,
@@ -165,7 +165,7 @@ impl Helper {
             .into_iter()
             .map(|(_, asset_info)| asset_info)
             .collect_vec();
-        let init_pair_msg = astroport::factory::ExecuteMsg::CreatePair {
+        let init_pair_msg = ap_factory::ExecuteMsg::CreatePair {
             pair_type: PairType::Stable {},
             asset_infos: asset_infos.clone(),
             init_params: Some(to_binary(&StablePoolParams { amp, owner: None }).unwrap()),
@@ -173,10 +173,9 @@ impl Helper {
 
         app.execute_contract(owner.clone(), factory.clone(), &init_pair_msg, &[])?;
 
-        let resp: PairInfo = app.wrap().query_wasm_smart(
-            &factory,
-            &astroport::factory::QueryMsg::Pair { asset_infos },
-        )?;
+        let resp: PairInfo = app
+            .wrap()
+            .query_wasm_smart(&factory, &ap_factory::QueryMsg::Pair { asset_infos })?;
 
         Ok(Self {
             app,
@@ -310,7 +309,7 @@ impl Helper {
         app.instantiate_contract(
             token_code,
             owner.clone(),
-            &astroport::token::InstantiateMsg {
+            &ap_token::InstantiateMsg {
                 symbol: name.to_string(),
                 name,
                 decimals,

@@ -1,14 +1,14 @@
-use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::{
-    ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
+use ap_factory::{
+    ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig,
     QueryMsg as FactoryQueryMsg,
 };
-use astroport::pair::{
-    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
-    StablePoolConfig, StablePoolParams, StablePoolUpdateParams, TWAP_PRECISION,
+use ap_pair_stable::{
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PairInfo,
+    PairType, QueryMsg, StablePoolConfig, StablePoolParams, StablePoolUpdateParams, TWAP_PRECISION,
 };
+use astroport::asset::{Asset, AssetInfo};
 
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use ap_token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_pair_stable::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
 use cosmwasm_std::{
     attr, from_binary, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
@@ -1043,7 +1043,7 @@ fn create_pair_with_same_assets() {
 
     assert_eq!(
         resp.root_cause().to_string(),
-        "Doubling assets in asset infos"
+        "Generic error: Doubling assets in asset infos"
     )
 }
 

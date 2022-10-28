@@ -1,7 +1,8 @@
+use ap_factory::query_pair_info;
+use ap_pair::ExecuteMsg as PairExecuteMsg;
+use ap_router::SwapOperation;
 use astroport::asset::{Asset, AssetInfo};
-use astroport::pair::ExecuteMsg as PairExecuteMsg;
-use astroport::querier::{query_balance, query_pair_info, query_token_balance};
-use astroport::router::SwapOperation;
+use astroport::querier::{query_balance, query_token_balance};
 use cosmwasm_std::{
     to_binary, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdResult, WasmMsg,
 };
@@ -126,7 +127,7 @@ pub fn asset_into_swap_msg(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: pair_contract,
                 amount: offer_asset.amount,
-                msg: to_binary(&astroport::pair::Cw20HookMsg::Swap {
+                msg: to_binary(&ap_pair::Cw20HookMsg::Swap {
                     ask_asset_info: Some(ask_asset_info),
                     belief_price,
                     max_spread,

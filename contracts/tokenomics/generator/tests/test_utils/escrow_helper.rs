@@ -1,5 +1,6 @@
 use anyhow::Result;
-use astroport::{staking as xastro, token as astro};
+use ap_staking as xastro;
+use ap_token as astro;
 use astroport_governance::voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg, VotingPowerResponse,
 };

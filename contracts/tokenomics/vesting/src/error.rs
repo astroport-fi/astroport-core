@@ -18,6 +18,9 @@ pub enum ContractError {
 
     #[error("Vesting schedule amount error. The total amount should be equal to the CW20 receive amount.")]
     VestingScheduleAmountError {},
+
+    #[error("An error occurred during migration")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {

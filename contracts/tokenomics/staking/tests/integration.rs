@@ -1,5 +1,5 @@
-use astroport::staking::{ConfigResponse, Cw20HookMsg, InstantiateMsg as xInstatiateMsg, QueryMsg};
-use astroport::token::InstantiateMsg;
+use ap_staking::{ConfigResponse, Cw20HookMsg, InstantiateMsg as xInstatiateMsg, QueryMsg};
+use ap_token::InstantiateMsg;
 use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, ContractWrapper, Executor};

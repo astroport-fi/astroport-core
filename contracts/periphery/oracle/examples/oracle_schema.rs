@@ -1,4 +1,4 @@
-use astroport::oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use ap_oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cosmwasm_schema::write_api;
 
 fn main() {

@@ -6,16 +6,16 @@ use crate::utils::{
     build_distribute_msg, build_swap_msg, get_pool, try_build_swap_msg, validate_bridge,
     BRIDGES_EXECUTION_MAX_DEPTH, BRIDGES_INITIAL_DEPTH,
 };
+use ap_maker::{
+    AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg,
+    QueryMsg, UpdateAddr,
+};
+use ap_pair::PairInfo;
 use astroport::asset::{
     addr_opt_validate, addr_validate_to_lower, native_asset_info, token_asset, token_asset_info,
-    Asset, AssetInfo, PairInfo, ULUNA_DENOM, UUSD_DENOM,
+    Asset, AssetInfo, ULUNA_DENOM, UUSD_DENOM,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::factory::UpdateAddr;
-use astroport::maker::{
-    AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg,
-    QueryMsg,
-};
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Order, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
@@ -802,7 +802,7 @@ fn query_bridges(deps: Deps) -> StdResult<Vec<(String, String)>> {
 pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<Vec<AssetInfo>> {
     let res: PairInfo = deps
         .querier
-        .query_wasm_smart(contract_addr, &astroport::pair::QueryMsg::Pair {})?;
+        .query_wasm_smart(contract_addr, &ap_pair::QueryMsg::Pair {})?;
 
     Ok(res.asset_infos)
 }

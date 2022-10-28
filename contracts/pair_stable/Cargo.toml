@@ -1,10 +1,10 @@
 [package]
 name = "astroport-pair-stable"
-version = "2.0.0"
+version = "2.0.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport stableswap pair contract implementation"
-license = "MIT"
+license = "GPL-3.0-only"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -24,12 +24,16 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-astroport = { path = "../../packages/astroport", default-features = false }
-cw2 = { version = "0.15" }
-cw20 = { version = "0.15" }
-cosmwasm-std = { version = "1.1" }
+ap-pair-stable = { path = "../../packages/pair_stable" }
+ap-factory = { path = "../../packages/factory" }
+ap-token = { path = "../../packages/token" }
+ap-generator = { path = "../../packages/generator" }
+astroport = { path = "../../packages/astroport" }
+cw2 = "0.15"
+cw20 = "0.15"
+cosmwasm-std = "1.1"
 cw-storage-plus = "0.15"
-thiserror = { version = "1.0" }
+thiserror = "1.0"
 protobuf = { version = "2", features = ["with-bytes"] }
 itertools = "0.10"
 cosmwasm-schema = "1.1"
@@ -38,7 +42,9 @@ cosmwasm-schema = "1.1"
 anyhow = "1.0"
 proptest = "1.0.0"
 sim = { git = "https://github.com/astroport-fi/astroport-sims.git", rev = "6869900d4db9061ff8f0c1bfd7c7560056f7e74f", package = "sim" }
-astroport-token = {path = "../token"}
+astroport-token = { path = "../token" }
+ap-token = { path = "../../packages/token" }
 cw-multi-test = "0.15"
-astroport-factory = {path = "../factory"}
+astroport-factory = { path = "../factory" }
+ap-factory = { path = "../../packages/factory" }
 derivative = "0.3"

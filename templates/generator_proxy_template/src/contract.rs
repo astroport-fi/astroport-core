@@ -9,10 +9,10 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
-use astroport::asset::addr_validate_to_lower;
-use astroport::generator_proxy::{
+use ap_generator_proxy::{
     CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
+use astroport::asset::addr_validate_to_lower;
 use cw2::set_contract_version;
 
 /// Contract name that is used for migration.

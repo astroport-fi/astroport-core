@@ -325,7 +325,7 @@ fn check_wrong_initializations() {
 
     assert_eq!(
         err.root_cause().to_string(),
-        "Doubling assets in asset infos"
+        "Generic error: Doubling assets in asset infos"
     );
 
     // 5 assets in the pool is okay
@@ -441,7 +441,7 @@ fn check_5pool_prices() {
                     .cumulative_prices
                     .iter()
                     .filter(|(from, to, _)| {
-                        from.eq(&helper.assets[&from_coin]) && to.eq(&helper.assets[&to_coin])
+                        from.eq(&helper.assets[from_coin]) && to.eq(&helper.assets[to_coin])
                     })
                     .collect::<Vec<_>>();
                 assert_eq!(price.len(), 1);

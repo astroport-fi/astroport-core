@@ -1,6 +1,6 @@
 use crate::contract::{execute, instantiate, query_balance, query_balance_at};
 use crate::state::get_total_supply_at;
-use astroport::xastro_token::InstantiateMsg;
+use ap_xastro_token::InstantiateMsg;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     Addr, Binary, BlockInfo, ContractInfo, CosmosMsg, Deps, DepsMut, Env, StdError, SubMsg,

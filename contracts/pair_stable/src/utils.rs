@@ -1,39 +1,18 @@
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Decimal256, Deps, Env, QuerierWrapper,
+    to_binary, wasm_execute, Addr, CosmosMsg, Decimal, Decimal256, Deps, Env, QuerierWrapper,
     StdResult, Storage, Uint128, Uint64,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 use std::cmp::Ordering;
 
+use ap_factory::query_factory_config;
+use ap_pair_stable::TWAP_PRECISION;
 use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
-use astroport::pair::TWAP_PRECISION;
-use astroport::querier::query_factory_config;
 
 use crate::error::ContractError;
 use crate::math::calc_y;
 use crate::state::{get_precision, Config};
-
-/// Helper function to check if the given asset infos are valid.
-pub(crate) fn check_asset_infos(
-    api: &dyn Api,
-    asset_infos: &[AssetInfo],
-) -> Result<(), ContractError> {
-    if !asset_infos.iter().all_unique() {
-        return Err(ContractError::DoublingAssets {});
-    }
-
-    asset_infos
-        .iter()
-        .try_for_each(|asset_info| asset_info.check(api))
-        .map_err(Into::into)
-}
-
-/// Helper function to check that the assets in a given array are valid.
-pub(crate) fn check_assets(api: &dyn Api, assets: &[Asset]) -> Result<(), ContractError> {
-    let asset_infos = assets.iter().map(|asset| asset.info.clone()).collect_vec();
-    check_asset_infos(api, &asset_infos)
-}
 
 /// Checks that cw20 token is part of the pool.
 ///
@@ -201,9 +180,7 @@ pub(crate) fn mint_liquidity_token_message(
                 &Cw20ExecuteMsg::Send {
                     contract: generator.to_string(),
                     amount,
-                    msg: to_binary(&astroport::generator::Cw20HookMsg::DepositFor(
-                        recipient.clone(),
-                    ))?,
+                    msg: to_binary(&ap_generator::Cw20HookMsg::DepositFor(recipient.clone()))?,
                 },
                 vec![],
             )?

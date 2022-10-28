@@ -6,13 +6,13 @@ use cosmwasm_std::{
 use crate::state::{read_vesting_infos, Config, CONFIG, OWNERSHIP_PROPOSAL, VESTING_INFO};
 
 use crate::error::ContractError;
-use astroport::asset::{addr_opt_validate, addr_validate_to_lower};
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::vesting::{
+use ap_vesting::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg,
     VestingAccount, VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
 };
-use cw2::set_contract_version;
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower};
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 /// Contract name that is used for migration.
@@ -376,8 +376,23 @@ pub fn query_vesting_available_amount(deps: Deps, env: Env, address: String) -> 
     Ok(available_amount)
 }
 
-/// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-vesting" => match contract_version.version.as_ref() {
+            "1.0.0" => {}
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

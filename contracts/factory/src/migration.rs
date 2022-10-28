@@ -1,6 +1,7 @@
 use crate::querier::query_pair_info;
 use crate::state::{PAIRS, PAIR_CONFIGS};
-use astroport::factory::{PairConfig, PairType, ROUTE};
+use ap_factory::{PairConfig, ROUTE};
+use ap_pair::PairType;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, Order, StdError, StdResult, Storage};
 use cw_storage_plus::{Item, Map};

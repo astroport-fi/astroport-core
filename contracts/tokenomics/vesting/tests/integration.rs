@@ -1,10 +1,7 @@
-use astroport::vesting::{QueryMsg, VestingAccountResponse};
-use astroport::{
-    token::InstantiateMsg as TokenInstantiateMsg,
-    vesting::{
-        Cw20HookMsg, ExecuteMsg, InstantiateMsg, VestingAccount, VestingSchedule,
-        VestingSchedulePoint,
-    },
+use ap_token::InstantiateMsg as TokenInstantiateMsg;
+use ap_vesting::{
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount, VestingAccountResponse,
+    VestingSchedule, VestingSchedulePoint,
 };
 use astroport_vesting::state::Config;
 use cosmwasm_std::{to_binary, Addr, StdResult, Timestamp, Uint128};

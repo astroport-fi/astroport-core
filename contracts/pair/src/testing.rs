@@ -7,13 +7,13 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use proptest::prelude::*;
 use protobuf::Message;
 
-use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::PairType;
-use astroport::pair::{
+use ap_pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
     SimulationResponse, TWAP_PRECISION,
 };
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use ap_pair::{PairInfo, PairType};
+use ap_token::InstantiateMsg as TokenInstantiateMsg;
+use astroport::asset::{Asset, AssetInfo};
 
 use crate::contract::compute_offer_amount;
 use crate::contract::reply;

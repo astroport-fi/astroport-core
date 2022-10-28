@@ -8,21 +8,21 @@ use cosmwasm_std::{
 };
 
 use crate::response::MsgInstantiateContractResponse;
-use astroport::asset::{
-    addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset,
-    AssetInfo, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
+use ap_factory::{query_factory_config, query_fee_info};
+use ap_generator::Cw20HookMsg as GeneratorHookMsg;
+use ap_pair::{
+    check_swap_parameters, format_lp_token_name, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg,
+    InstantiateMsg, MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse,
+    SimulationResponse, MINIMUM_LIQUIDITY_AMOUNT, TWAP_PRECISION,
 };
-use astroport::decimal2decimal256;
-use astroport::factory::PairType;
-use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
-use astroport::pair::{migration_check, ConfigResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
-use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
-    QueryMsg, ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
+use ap_pair::{
+    migration_check, ConfigResponse, PairInfo, PairType, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
 };
-use astroport::querier::{query_factory_config, query_fee_info, query_supply};
-use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
-use cw2::set_contract_version;
+use ap_token::InstantiateMsg as TokenInstantiateMsg;
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower, Asset, AssetInfo};
+use astroport::querier::query_supply;
+use astroport::{decimal2decimal256, U256};
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
 use std::str::FromStr;
@@ -1111,8 +1111,24 @@ fn assert_slippage_tolerance(
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-pair" => match contract_version.version.as_ref() {
+            "1.0.0" => {}
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
 
 /// Returns the total amount of assets in the pool as well as the total amount of LP tokens currently minted.

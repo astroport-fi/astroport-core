@@ -1,7 +1,7 @@
 use crate::contract::{execute, instantiate};
 use crate::mock_querier::mock_dependencies;
+use ap_oracle::{ExecuteMsg, InstantiateMsg};
 use astroport::asset::{Asset, AssetInfo};
-use astroport::oracle::{ExecuteMsg, InstantiateMsg};
 use cosmwasm_std::testing::{mock_env, mock_info};
 use cosmwasm_std::{Addr, Decimal256, Uint128, Uint256};
 use std::ops::Mul;

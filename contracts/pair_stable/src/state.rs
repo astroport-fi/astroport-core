@@ -1,4 +1,5 @@
-use astroport::asset::{AssetInfo, PairInfo};
+use ap_pair_stable::PairInfo;
+use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128};

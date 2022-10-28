@@ -1,6 +1,7 @@
 use cosmwasm_schema::cw_serde;
 
-use astroport::asset::{AssetInfo, PairInfo};
+use ap_pair::PairInfo;
+use astroport::asset::AssetInfo;
 use cosmwasm_std::{Addr, Decimal256, Uint128};
 use cw_storage_plus::Item;
 

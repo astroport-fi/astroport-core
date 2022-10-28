@@ -8,24 +8,24 @@ use crate::migration;
 use crate::querier::query_pair_info;
 
 use crate::state::{
-    check_asset_infos, pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL,
-    PAIRS, PAIRS_TO_MIGRATE, PAIR_CONFIGS, TMP_PAIR_INFO,
+    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS, PAIRS_TO_MIGRATE,
+    PAIR_CONFIGS, TMP_PAIR_INFO,
 };
 
 use crate::response::MsgInstantiateContractResponse;
 
-use astroport::asset::{addr_opt_validate, addr_validate_to_lower, AssetInfo, PairInfo};
-use astroport::factory::{
-    ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
+use ap_factory::{
+    ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig,
     PairsResponse, QueryMsg, ROUTE,
 };
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower, check_asset_infos, AssetInfo};
 
 use crate::migration::{migrate_pair_configs_to_v120, save_routes};
+use ap_generator::ExecuteMsg::DeactivatePool;
+use ap_pair::{InstantiateMsg as PairInstantiateMsg, PairInfo, PairType};
 use astroport::common::{
     claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
 };
-use astroport::generator::ExecuteMsg::DeactivatePool;
-use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cw2::{get_contract_version, set_contract_version};
 use itertools::Itertools;
 use protobuf::Message;

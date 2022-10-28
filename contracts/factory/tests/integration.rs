@@ -2,13 +2,13 @@ mod factory_helper;
 
 use cosmwasm_std::{attr, Addr};
 
-use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::{
-    ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType, QueryMsg,
+use ap_factory::{
+    ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, QueryMsg,
 };
+use ap_pair::{ExecuteMsg as PairExecuteMsg, PairInfo, PairType};
+use astroport::asset::AssetInfo;
 
 use crate::factory_helper::{instantiate_token, FactoryHelper};
-use astroport::pair::ExecuteMsg as PairExecuteMsg;
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 fn mock_app() -> App {
@@ -146,7 +146,7 @@ fn test_create_pair() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Doubling assets in asset infos"
+        "Generic error: Doubling assets in asset infos"
     );
 
     let res = helper

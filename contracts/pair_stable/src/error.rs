@@ -1,5 +1,5 @@
 use crate::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
-use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
+use ap_pair_stable::MINIMUM_LIQUIDITY_AMOUNT;
 use cosmwasm_std::{CheckedMultiplyRatioError, ConversionOverflowError, OverflowError, StdError};
 use thiserror::Error;
 

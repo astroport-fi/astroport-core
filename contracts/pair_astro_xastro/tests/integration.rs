@@ -1,16 +1,15 @@
-use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::{InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType};
-use astroport::pair::{
-    ConfigResponse, Cw20HookMsg, InstantiateMsg as PairInstantiateMsg, ReverseSimulationResponse,
-    SimulationResponse,
+use ap_factory::{InstantiateMsg as FactoryInstantiateMsg, PairConfig};
+use ap_pair_astro_xastro::{
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg as PairInstantiateMsg, PairInfo,
+    PairType, QueryMsg, ReverseSimulationResponse, SimulationResponse,
 };
-use astroport::staking::{
+use ap_staking::{
     ConfigResponse as StakingConfigResponse, InstantiateMsg as StakingInstantiateMsg,
     QueryMsg as StakingQueryMsg,
 };
+use astroport::asset::{Asset, AssetInfo};
 
-use astroport::pair_bonded::{ExecuteMsg, QueryMsg};
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use ap_token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_pair_astro_xastro::state::Params;
 use cosmwasm_std::{to_binary, Addr, Coin, Uint128};
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};

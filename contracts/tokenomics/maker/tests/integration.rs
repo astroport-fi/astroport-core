@@ -1,13 +1,15 @@
-use astroport::asset::{
-    native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
-    ULUNA_DENOM, UUSD_DENOM,
-};
-use astroport::factory::{PairConfig, PairType, UpdateAddr};
-use astroport::maker::{
+use ap_factory::PairConfig;
+use ap_maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
+    UpdateAddr,
 };
-use astroport::pair::StablePoolParams;
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use ap_pair::{PairInfo, PairType};
+use ap_pair_stable::StablePoolParams;
+use ap_token::InstantiateMsg as TokenInstantiateMsg;
+use astroport::asset::{
+    native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, ULUNA_DENOM,
+    UUSD_DENOM,
+};
 use astroport_governance::utils::EPOCH_START;
 use cosmwasm_std::{
     attr, coin, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
@@ -117,7 +119,7 @@ fn instantiate_contracts(
     );
 
     let factory_code_id = router.store_code(factory_contract);
-    let msg = astroport::factory::InstantiateMsg {
+    let msg = ap_factory::InstantiateMsg {
         pair_configs: vec![PairConfig {
             code_id: pair_code_id,
             pair_type: pair_type.unwrap_or(PairType::Xyk {}),
@@ -325,7 +327,7 @@ fn create_pair(
         .execute_contract(
             owner.clone(),
             factory_instance.clone(),
-            &astroport::factory::ExecuteMsg::CreatePair {
+            &ap_factory::ExecuteMsg::CreatePair {
                 pair_type: pair_type.unwrap_or(PairType::Xyk {}),
                 asset_infos: asset_infos.clone(),
                 init_params: Some(
@@ -347,7 +349,7 @@ fn create_pair(
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+            msg: to_binary(&ap_factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
             .unwrap(),
@@ -392,7 +394,7 @@ fn create_pair(
         .execute_contract(
             user.clone(),
             pair_info.contract_addr.clone(),
-            &astroport::pair::ExecuteMsg::ProvideLiquidity {
+            &ap_pair::ExecuteMsg::ProvideLiquidity {
                 assets,
                 slippage_tolerance: None,
                 auto_stake: None,
@@ -2356,7 +2358,7 @@ fn collect_3pools() {
         .wrap()
         .query_wasm_smart(
             &factory_instance,
-            &astroport::factory::QueryMsg::Pair {
+            &ap_factory::QueryMsg::Pair {
                 asset_infos: vec![
                     token_asset_info(usdc_token_instance),
                     native_asset_info(uluna_asset),

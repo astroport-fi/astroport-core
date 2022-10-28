@@ -1,9 +1,9 @@
 mod factory_helper;
 
 use crate::factory_helper::{instantiate_token, mint, FactoryHelper};
+use ap_pair::PairType;
+use ap_router::{ExecuteMsg, InstantiateMsg, SwapOperation};
 use astroport::asset::token_asset_info;
-use astroport::factory::PairType;
-use astroport::router::{ExecuteMsg, InstantiateMsg, SwapOperation};
 use cosmwasm_std::{to_binary, Addr, Empty};
 use cw20::Cw20ExecuteMsg;
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};

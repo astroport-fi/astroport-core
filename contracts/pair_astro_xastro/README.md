@@ -6,7 +6,7 @@ This pool is implementation of pair bonded template. It allows to process ASTRO-
 
 ## InstantiateMsg
 
-Initializes a new stableswap pair.
+Initializes a new ASTRO-xASTRO pair.
 
 ```json
 {
@@ -38,7 +38,29 @@ Init params(should be base64 encoded)
 }
 ```
 
-## Implemented methods
+## ExecuteMsg
+
+### `receive`
+
+Allows to swap assets via 3rd party contract. Liquidity providing and withdrawing is not supported.
+
+```json
+{
+  "receive": {
+    "sender": "terra...",
+    "amount": "123",
+    "msg": "<base64_encoded_json_string>"
+  }
+}
+```
+
+### `provide_liquidity`
+
+Liquidity providing is not supported.
+
+### `withdraw_liquidity`
+
+Liquidity withdrawing is not supported.
 
 ### `swap`
 
@@ -61,7 +83,55 @@ Perform a swap via Astroport Staking contract.
     }
   }
 ```
+### `update_config`
 
+Update config is not supported.
+
+## QueryMsg
+
+All query messages are described below. A custom struct is defined for each query response.
+
+### `pair`
+
+Retrieve a pair's configuration (type, assets traded in it etc)
+
+```json
+{
+  "pair": {}
+}
+```
+
+### `pool`
+
+Returns the amount of tokens in the pool for.
+
+```json
+{
+  "pool": {}
+}
+```
+
+### `config`
+
+Get the pair contract configuration.
+
+```json
+{
+  "config": {}
+}
+```
+
+### `share`
+
+Return the amount of assets someone would get from the pool if they were to burn a specific amount of LP tokens.
+
+```json
+{
+  "share": {
+    "amount": "123"
+  }
+}
+```
 
 ### `simulation`
 
@@ -98,5 +168,14 @@ Reverse simulates a swap (specifies the ask instead of the offer) and returns th
       "amount": "1000000"
     }
   }
+}
+```
+### `cumulative_prices`
+
+Returns the cumulative prices for the assets in the pair.
+
+```json
+{
+  "cumulative_prices": {}
 }
 ```

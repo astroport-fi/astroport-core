@@ -14,22 +14,23 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use itertools::Itertools;
 use protobuf::Message;
 
+use ap_factory::{query_factory_config, query_fee_info};
+use ap_pair_stable::{
+    check_swap_parameters, format_lp_token_name, migration_check, ConfigResponse, InstantiateMsg,
+    PairInfo, PairType, StablePoolParams, StablePoolUpdateParams, DEFAULT_SLIPPAGE,
+    MAX_ALLOWED_SLIPPAGE,
+};
+use ap_pair_stable::{
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
+    ReverseSimulationResponse, SimulationResponse, StablePoolConfig, MINIMUM_LIQUIDITY_AMOUNT,
+};
+use ap_token::InstantiateMsg as TokenInstantiateMsg;
 use astroport::asset::{
-    addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset,
-    AssetInfo, Decimal256Ext, DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
+    addr_opt_validate, addr_validate_to_lower, check_asset_infos, check_assets, Asset, AssetInfo,
+    Decimal256Ext, DecimalAsset,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::factory::PairType;
-use astroport::pair::{
-    migration_check, ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams,
-    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
-};
-use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
-    ReverseSimulationResponse, SimulationResponse, StablePoolConfig,
-};
-use astroport::querier::{query_factory_config, query_fee_info, query_supply};
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport::querier::query_supply;
 use astroport::DecimalCheckedOps;
 
 use crate::error::ContractError;
@@ -40,9 +41,8 @@ use crate::migration::CONFIG_V100;
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{get_precision, store_precisions, Config, CONFIG, OWNERSHIP_PROPOSAL};
 use crate::utils::{
-    accumulate_prices, adjust_precision, check_asset_infos, check_assets, check_cw20_in_pool,
-    compute_current_amp, compute_swap, get_share_in_assets, mint_liquidity_token_message,
-    select_pools, SwapResult,
+    accumulate_prices, adjust_precision, check_cw20_in_pool, compute_current_amp, compute_swap,
+    get_share_in_assets, mint_liquidity_token_message, select_pools, SwapResult,
 };
 
 /// Contract name that is used for migration.

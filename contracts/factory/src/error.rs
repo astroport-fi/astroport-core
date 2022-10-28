@@ -28,9 +28,6 @@ pub enum ContractError {
     #[error("Pair config disabled")]
     PairConfigDisabled {},
 
-    #[error("Doubling assets in asset infos")]
-    DoublingAssets {},
-
     #[error("Contract can't be migrated!")]
     MigrationError {},
 }

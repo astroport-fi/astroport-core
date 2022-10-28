@@ -1,6 +1,7 @@
 use anyhow::Result as AnyResult;
-use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::{PairConfig, PairType, QueryMsg};
+use ap_factory::{PairConfig, QueryMsg};
+use ap_pair::{PairInfo, PairType};
+use astroport::asset::AssetInfo;
 use cosmwasm_std::{Addr, Binary};
 use cw20::MinterResponse;
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
@@ -22,7 +23,7 @@ impl FactoryHelper {
 
         let cw20_token_code_id = router.store_code(astro_token_contract);
 
-        let msg = astroport::token::InstantiateMsg {
+        let msg = ap_token::InstantiateMsg {
             name: String::from("Astro token"),
             symbol: String::from("ASTRO"),
             decimals: 6,
@@ -67,7 +68,7 @@ impl FactoryHelper {
 
         let factory_code_id = router.store_code(factory_contract);
 
-        let msg = astroport::factory::InstantiateMsg {
+        let msg = ap_factory::InstantiateMsg {
             pair_configs: vec![
                 PairConfig {
                     code_id: pair_code_id,
@@ -129,7 +130,7 @@ impl FactoryHelper {
             },
         ];
 
-        let msg = astroport::factory::ExecuteMsg::CreatePair {
+        let msg = ap_factory::ExecuteMsg::CreatePair {
             pair_type,
             asset_infos,
             init_params,
@@ -175,7 +176,7 @@ pub fn instantiate_token(
     token_name: &str,
     decimals: Option<u8>,
 ) -> Addr {
-    let init_msg = astroport::token::InstantiateMsg {
+    let init_msg = ap_token::InstantiateMsg {
         name: token_name.to_string(),
         symbol: token_name.to_string(),
         decimals: decimals.unwrap_or(6),

@@ -1,12 +1,13 @@
 use cosmwasm_schema::write_api;
 
-use astroport::token::InstantiateMsg;
-use cw20_base::msg::{ExecuteMsg, QueryMsg};
+use ap_token::{ExecuteMsg, InstantiateMsg, MigrateMsg};
+use cw20_base::msg::QueryMsg;
 
 fn main() {
     write_api! {
         instantiate: InstantiateMsg,
         query: QueryMsg,
-        execute: ExecuteMsg
+        execute: ExecuteMsg,
+        migrate: MigrateMsg
     }
 }

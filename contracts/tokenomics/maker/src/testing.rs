@@ -3,7 +3,7 @@ use cosmwasm_std::{from_binary, Addr, Decimal, Uint128, Uint64};
 
 use crate::contract::{execute, instantiate, query};
 use crate::state::{Config, CONFIG};
-use astroport::maker::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use ap_maker::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use std::str::FromStr;
 
 #[test]

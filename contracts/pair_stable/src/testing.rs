@@ -8,13 +8,13 @@ use crate::mock_querier::mock_dependencies;
 
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{store_precisions, Config, CONFIG};
-use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo, PairInfo};
+use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo};
 
-use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, SimulationResponse, StablePoolParams,
-    TWAP_PRECISION,
+use ap_pair_stable::{
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PairInfo, PoolResponse, SimulationResponse,
+    StablePoolParams, TWAP_PRECISION,
 };
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use ap_token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, coin, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut, Env, Reply,
@@ -1276,7 +1276,7 @@ fn mock_env_with_block_time(time: u64) -> Env {
 }
 
 use crate::utils::{accumulate_prices, compute_swap, select_pools};
-use astroport::factory::PairType;
+use ap_pair_stable::PairType;
 use astroport::querier::NATIVE_TOKEN_PRECISION;
 use proptest::prelude::*;
 use sim::StableSwapModel;

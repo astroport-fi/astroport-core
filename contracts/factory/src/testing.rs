@@ -10,14 +10,12 @@ use crate::{
     error::ContractError,
 };
 
-use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, PairType, PairsResponse, QueryMsg,
-};
+use ap_factory::{ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, PairsResponse, QueryMsg};
+use ap_pair::{InstantiateMsg as PairInstantiateMsg, PairInfo, PairType};
+use astroport::asset::AssetInfo;
 
 use crate::contract::reply;
 use crate::response::MsgInstantiateContractResponse;
-use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use protobuf::Message;
 

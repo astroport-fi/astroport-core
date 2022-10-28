@@ -1,12 +1,11 @@
 use crate::error::ContractError;
-use crate::state::CONFIG;
-use astroport::asset::{addr_opt_validate, addr_validate_to_lower, Asset, AssetInfo, PairInfo};
-use astroport::factory::PairType;
-use astroport::pair::{
-    migration_check, ConfigResponse, CumulativePricesResponse, Cw20HookMsg, InstantiateMsg,
-    PoolResponse, ReverseSimulationResponse, SimulationResponse,
+use crate::state::{Config, CONFIG};
+use ap_pair_astro_xastro::{
+    migration_check, ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg,
+    InstantiateMsg, PairInfo, PairType, PoolResponse, QueryMsg, ReverseSimulationResponse,
+    SimulationResponse,
 };
-use astroport::pair_bonded::{Config, ExecuteMsg, QueryMsg};
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower, Asset, AssetInfo};
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
     StdResult, Uint128,

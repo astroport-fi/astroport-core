@@ -11,8 +11,3 @@ pub struct Params {
     /// Astroport Staking contract address.
     pub staking_addr: Addr,
 }
-
-/// This structure describes a migration message.
-/// We currently take no arguments for migrations.
-#[cw_serde]
-pub struct MigrateMsg {}

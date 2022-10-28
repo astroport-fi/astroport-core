@@ -3,9 +3,9 @@ use cosmwasm_std::{Addr, Decimal, Deps, DepsMut, Env, MessageInfo, Response, Std
 
 use astroport::asset::Asset;
 
-use astroport::pair::{ReverseSimulationResponse, SimulationResponse};
-use astroport_pair_bonded::base::PairBonded;
-use astroport_pair_bonded::error::ContractError;
+use ap_pair_astro_xastro::{ReverseSimulationResponse, SimulationResponse};
+use ap_pair_bonded::base::PairBonded;
+use ap_pair_bonded::error::ContractError;
 use cw_storage_plus::Item;
 
 /// This structure stores contract params.

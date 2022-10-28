@@ -1,4 +1,4 @@
-use astroport::router::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use ap_router::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cosmwasm_schema::write_api;
 
 fn main() {

@@ -5,8 +5,8 @@ use cosmwasm_std::{
 };
 use std::collections::HashMap;
 
-use astroport::factory::FeeInfoResponse;
-use astroport::factory::QueryMsg::FeeInfo;
+use ap_factory::FeeInfoResponse;
+use ap_factory::QueryMsg::FeeInfo;
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies.

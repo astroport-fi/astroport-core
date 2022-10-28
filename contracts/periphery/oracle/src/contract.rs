@@ -2,10 +2,11 @@ use crate::error::ContractError;
 use crate::migration::PRICE_LAST_V100;
 use crate::querier::{query_cumulative_prices, query_prices};
 use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
+use ap_factory::query_pair_info;
+use ap_oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use ap_pair::TWAP_PRECISION;
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
-use astroport::oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
-use astroport::pair::TWAP_PRECISION;
-use astroport::querier::{query_pair_info, query_token_precision};
+use astroport::querier::query_token_precision;
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal256, Deps, DepsMut, Env, MessageInfo, Response,
     StdError, StdResult, Uint128, Uint256,

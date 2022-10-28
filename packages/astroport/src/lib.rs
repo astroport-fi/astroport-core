@@ -1,26 +1,7 @@
 pub mod asset;
 pub mod common;
-pub mod factory;
-pub mod generator;
-pub mod generator_proxy;
-pub mod maker;
-pub mod oracle;
-pub mod pair;
-pub mod pair_bonded;
-pub mod pair_stable_bluna;
 pub mod querier;
 pub mod restricted_vector;
-pub mod router;
-pub mod staking;
-pub mod token;
-pub mod vesting;
-pub mod xastro_token;
-
-#[cfg(test)]
-mod mock_querier;
-
-#[cfg(test)]
-mod testing;
 
 #[allow(clippy::all)]
 mod uints {

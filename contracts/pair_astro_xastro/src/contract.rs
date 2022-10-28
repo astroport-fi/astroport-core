@@ -4,15 +4,13 @@ use cosmwasm_std::{
     StdResult, Uint128, WasmMsg,
 };
 
+use ap_pair_astro_xastro::{ExecuteMsg, ReverseSimulationResponse, SimulationResponse};
+use ap_pair_bonded::base::PairBonded;
+use ap_pair_bonded::error::ContractError;
+use ap_pair_bonded::state::{Config, CONFIG};
+use ap_staking::Cw20HookMsg as StakingCw20HookMsg;
 use astroport::asset::{Asset, AssetInfo};
-
-use astroport::pair::{ReverseSimulationResponse, SimulationResponse};
-use astroport::pair_bonded::{Config, ExecuteMsg};
 use astroport::querier::{query_supply, query_token_balance};
-use astroport::staking::Cw20HookMsg as StakingCw20HookMsg;
-use astroport_pair_bonded::base::PairBonded;
-use astroport_pair_bonded::error::ContractError;
-use astroport_pair_bonded::state::CONFIG;
 use cw20::Cw20ExecuteMsg;
 use cw_storage_plus::Item;
 

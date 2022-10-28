@@ -6,14 +6,15 @@ use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 use itertools::Itertools;
 
-use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use ap_pair::{PairInfo, PairType};
+use ap_token::InstantiateMsg as TokenInstantiateMsg;
+use astroport::asset::{Asset, AssetInfo};
 
-use astroport::factory::{PairConfig, PairType};
+use ap_factory::PairConfig;
 
-use astroport::oracle::QueryMsg::Consult;
-use astroport::oracle::{ExecuteMsg, InstantiateMsg};
-use astroport::pair::StablePoolParams;
+use ap_oracle::QueryMsg::Consult;
+use ap_oracle::{ExecuteMsg, InstantiateMsg};
+use ap_pair_stable::StablePoolParams;
 
 fn mock_app(owner: Option<Addr>, coins: Option<Vec<Coin>>) -> App {
     if owner.is_some() && coins.is_some() {
@@ -93,7 +94,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
     );
 
     let factory_code_id = router.store_code(factory_contract);
-    let msg = astroport::factory::InstantiateMsg {
+    let msg = ap_factory::InstantiateMsg {
         pair_configs: vec![
             PairConfig {
                 code_id: pair_code_id,
@@ -268,7 +269,7 @@ fn provide_liquidity(
     router.execute_contract(
         user.clone(),
         pair_info.contract_addr.clone(),
-        &astroport::pair::ExecuteMsg::ProvideLiquidity {
+        &ap_pair::ExecuteMsg::ProvideLiquidity {
             assets,
             slippage_tolerance: None,
             auto_stake: None,
@@ -308,7 +309,7 @@ fn create_pair(
         .execute_contract(
             owner.clone(),
             factory_instance.clone(),
-            &astroport::factory::ExecuteMsg::CreatePair {
+            &ap_factory::ExecuteMsg::CreatePair {
                 pair_type: PairType::Xyk {},
                 asset_infos: asset_infos.clone(),
                 init_params: None,
@@ -335,7 +336,7 @@ fn create_pair(
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+            msg: to_binary(&ap_factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
             .unwrap(),
@@ -375,7 +376,7 @@ fn create_pair_stable(
         .execute_contract(
             owner.clone(),
             factory_instance.clone(),
-            &astroport::factory::ExecuteMsg::CreatePair {
+            &ap_factory::ExecuteMsg::CreatePair {
                 pair_type: PairType::Stable {},
                 asset_infos: asset_infos.clone(),
                 init_params: Some(
@@ -401,7 +402,7 @@ fn create_pair_stable(
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+            msg: to_binary(&ap_factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
             .unwrap(),
@@ -444,7 +445,7 @@ fn create_pair_stable(
         .execute_contract(
             user.clone(),
             pair_info.contract_addr.clone(),
-            &astroport::pair::ExecuteMsg::ProvideLiquidity {
+            &ap_pair::ExecuteMsg::ProvideLiquidity {
                 assets,
                 slippage_tolerance: None,
                 auto_stake: None,
@@ -497,7 +498,7 @@ fn change_provide_liquidity(
         .execute_contract(
             user,
             pair_contract,
-            &astroport::pair::ExecuteMsg::ProvideLiquidity {
+            &ap_pair::ExecuteMsg::ProvideLiquidity {
                 assets,
                 slippage_tolerance: Some(Decimal::percent(50)),
                 auto_stake: None,
@@ -569,7 +570,7 @@ fn consult() {
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+            msg: to_binary(&ap_factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
             .unwrap(),
@@ -700,7 +701,7 @@ fn consult_pair_stable() {
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+            msg: to_binary(&ap_factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
             .unwrap(),
@@ -1341,7 +1342,7 @@ fn consult_multiple_assets() {
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+            msg: to_binary(&ap_factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
             .unwrap(),

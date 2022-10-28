@@ -1,0 +1,21 @@
+[package]
+name = "ap-xastro-token"
+version = "1.0.1"
+authors = ["Astroport"]
+edition = "2021"
+description = "Definition and types for the xASTRO token interface"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cw20 = "0.15"
+cosmwasm-std = "1.1"
+cosmwasm-schema = "1.1"

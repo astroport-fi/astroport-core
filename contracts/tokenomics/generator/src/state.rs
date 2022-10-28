@@ -1,16 +1,14 @@
+use ap_generator::Config;
+use ap_generator_proxy::QueryMsg as ProxyQueryMsg;
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 use astroport::common::OwnershipProposal;
 use astroport::restricted_vector::RestrictedVector;
 use astroport::DecimalCheckedOps;
-use astroport::{
-    generator::{PoolInfo, UserInfo, UserInfoV2},
-    generator_proxy::QueryMsg as ProxyQueryMsg,
-};
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
 use astroport_governance::voting_escrow_delegation::get_adjusted_balance;
-use cosmwasm_std::{Addr, Decimal, DepsMut, QuerierWrapper, StdResult, Storage, Uint128};
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::{Addr, Decimal, DepsMut, QuerierWrapper, StdResult, Storage, Uint128, Uint64};
 
-use astroport::generator::Config;
 use cw20::BalanceResponse;
 use cw_storage_plus::{Item, Map};
 
@@ -18,10 +16,59 @@ use std::collections::HashMap;
 
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
+
+/// This structure describes the main information of pool
+#[cw_serde]
+pub struct PoolInfo {
+    /// Accumulated amount of reward per share unit. Used for reward calculations
+    pub last_reward_block: Uint64,
+    pub reward_global_index: Decimal,
+    /// the reward proxy contract
+    pub reward_proxy: Option<Addr>,
+    /// Accumulated reward indexes per reward proxy. Vector of pairs (reward_proxy, index).
+    pub accumulated_proxy_rewards_per_share: RestrictedVector<Addr, Decimal>,
+    /// for calculation of new proxy rewards
+    pub proxy_reward_balance_before_update: Uint128,
+    /// the orphan proxy rewards which are left by emergency withdrawals. Vector of pairs (reward_proxy, index).
+    pub orphan_proxy_rewards: RestrictedVector<Addr, Uint128>,
+    /// The pool has assets giving additional rewards
+    pub has_asset_rewards: bool,
+    /// Total virtual amount
+    pub total_virtual_supply: Uint128,
+}
+
 /// This is a map that contains information about all generators.
-///
 /// The first key is the address of a LP token, the second key is an object of type [`PoolInfo`].
 pub const POOL_INFO: Map<&Addr, PoolInfo> = Map::new("pool_info");
+
+/// This structure stores the outstanding amount of token rewards that a user accrued.
+/// Currently the contract works with UserInfoV2 structure, but this structure is kept for
+/// compatibility with the old version.
+#[cw_serde]
+#[derive(Default)]
+pub struct UserInfo {
+    /// The amount of LP tokens staked
+    pub amount: Uint128,
+    /// The amount of ASTRO rewards a user already received or is not eligible for; used for proper reward calculation
+    pub reward_debt: Uint128,
+    /// Proxy reward amount a user already received or is not eligible for; used for proper reward calculation
+    pub reward_debt_proxy: Uint128,
+}
+
+/// This structure stores the outstanding amount of token rewards that a user accrued.
+#[cw_serde]
+#[derive(Default)]
+pub struct UserInfoV2 {
+    /// The amount of LP tokens staked
+    pub amount: Uint128,
+    /// The amount of ASTRO rewards a user already received or is not eligible for; used for proper reward calculation
+    pub reward_user_index: Decimal,
+    /// Proxy reward amount a user already received per reward proxy; used for proper reward calculation
+    /// Vector of pairs (reward_proxy, reward debited).
+    pub reward_debt_proxy: RestrictedVector<Addr, Uint128>,
+    /// The amount of user boosted emissions
+    pub virtual_amount: Uint128,
+}
 
 /// This is a map that contains information about all stakers.
 ///
@@ -142,9 +189,9 @@ pub fn accumulate_pool_proxy_rewards(
 /// Saves map between a proxy and an asset info if it is not saved yet.
 pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
     if !PROXY_REWARD_ASSET.has(deps.storage, proxy_addr) {
-        let proxy_cfg: astroport::generator_proxy::ConfigResponse = deps
+        let proxy_cfg: ap_generator_proxy::ConfigResponse = deps
             .querier
-            .query_wasm_smart(proxy_addr, &astroport::generator_proxy::QueryMsg::Config {})?;
+            .query_wasm_smart(proxy_addr, &ap_generator_proxy::QueryMsg::Config {})?;
         let asset = AssetInfo::Token {
             contract_addr: addr_validate_to_lower(deps.api, &proxy_cfg.reward_token_addr)?,
         };

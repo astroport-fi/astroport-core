@@ -1,16 +1,16 @@
 use cosmwasm_std::{
     entry_point, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
-use cw20::{EmbeddedLogo, Logo, LogoInfo, MarketingInfoResponse};
-
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20_base::contract::{create_accounts, execute as cw20_execute, query as cw20_query};
-use cw20_base::msg::{ExecuteMsg, QueryMsg};
+use cw20_base::msg::QueryMsg;
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw20_base::ContractError;
 
+use ap_token::{
+    EmbeddedLogo, ExecuteMsg, InstantiateMsg, Logo, LogoInfo, MarketingInfoResponse, MigrateMsg,
+};
 use astroport::asset::{addr_opt_validate, addr_validate_to_lower};
-use astroport::token::{InstantiateMsg, MigrateMsg};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-token";
@@ -165,6 +165,23 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// Manages contract migration.
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::default())
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-token" => match contract_version.version.as_ref() {
+            "1.0.0" => {}
+            _ => return Err(StdError::generic_err("An error occurred during migration")),
+        },
+        _ => return Err(StdError::generic_err("An error occurred during migration")),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

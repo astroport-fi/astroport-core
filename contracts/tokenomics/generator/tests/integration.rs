@@ -1,26 +1,25 @@
-use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
-use astroport::generator::{ExecuteMsg, QueryMsg, StakerResponse};
+use ap_generator::{ExecuteMsg, QueryMsg, StakerResponse};
+use ap_pair::{PairInfo, PairType};
+use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo};
 use astroport_governance::utils::WEEK;
 
-use astroport::{
-    factory::{
-        ConfigResponse as FactoryConfigResponse, ExecuteMsg as FactoryExecuteMsg,
-        InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType, QueryMsg as FactoryQueryMsg,
-    },
-    generator::{
-        Config, Cw20HookMsg as GeneratorHookMsg, ExecuteMsg as GeneratorExecuteMsg,
-        InstantiateMsg as GeneratorInstantiateMsg, PendingTokenResponse, PoolInfoResponse,
-        QueryMsg as GeneratorQueryMsg,
-    },
-    //generator_proxy::InstantiateMsg as ProxyInstantiateMsg,
-    token::InstantiateMsg as TokenInstantiateMsg,
-    vesting::{
-        Cw20HookMsg as VestingHookMsg, InstantiateMsg as VestingInstantiateMsg, VestingAccount,
-        VestingSchedule, VestingSchedulePoint,
-    },
+use ap_factory::{
+    ConfigResponse as FactoryConfigResponse, ExecuteMsg as FactoryExecuteMsg,
+    InstantiateMsg as FactoryInstantiateMsg, PairConfig, QueryMsg as FactoryQueryMsg,
+};
+use ap_generator::{
+    Config, Cw20HookMsg as GeneratorHookMsg, ExecuteMsg as GeneratorExecuteMsg,
+    InstantiateMsg as GeneratorInstantiateMsg, PendingTokenResponse, PoolInfoResponse,
+    QueryMsg as GeneratorQueryMsg,
+};
+use ap_token::InstantiateMsg as TokenInstantiateMsg;
+
+use ap_vesting::{
+    Cw20HookMsg as VestingHookMsg, InstantiateMsg as VestingInstantiateMsg, VestingAccount,
+    VestingSchedule, VestingSchedulePoint,
 };
 
-use astroport::pair::StablePoolParams;
+use ap_pair_stable::StablePoolParams;
 use astroport_generator::error::ContractError;
 use cosmwasm_std::{to_binary, Addr, Binary, StdResult, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
@@ -1312,7 +1311,7 @@ fn generator_without_reward_proxies() {
             .unwrap_err()
             .root_cause()
             .to_string(),
-        "astroport::generator::UserInfo not found".to_string()
+        "astroport_generator::state::UserInfo not found".to_string()
     );
 
     app.update_block(|bi| next_block(bi));
@@ -1720,7 +1719,7 @@ fn generator_with_mirror_reward_proxy() {
         app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
             .unwrap_err()
             .to_string(),
-        "astroport::generator::UserInfo not found".to_string()
+        "ap_generator::UserInfo not found".to_string()
     );
 
     app.update_block(|bi| next_block(bi));

@@ -6,9 +6,9 @@ use cosmwasm_std::{
 };
 use std::collections::HashMap;
 
-use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::PairType;
-use astroport::pair::SimulationResponse;
+use ap_pair::SimulationResponse;
+use ap_pair::{PairInfo, PairType};
+use astroport::asset::{Asset, AssetInfo};
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 
 #[cw_serde]
