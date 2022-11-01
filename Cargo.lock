@@ -3,10 +3,30 @@
 version = 3
 
 [[package]]
+name = "ahash"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcb51a0695d8f838b1ee009b3fbf66bda078cd64590202a864a8f3e8c4315c47"
+dependencies = [
+ "getrandom",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
 name = "anyhow"
 version = "1.0.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "216261ddc8289130e551ddcd5ce8a064710c0d064a4d2895c67151c92b5443f6"
+
+[[package]]
+name = "ap-valkyrie"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts.git?branch=feat/update_to_cosmwasm_1.1#1a9c5c9c1feb541fb48458f97d396555ea1a0299"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+]
 
 [[package]]
 name = "astroport"
@@ -23,6 +43,18 @@ dependencies = [
 name = "astroport"
 version = "2.0.0"
 source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/miggrate-to-cosmwasm-1.1-release/terra2#329889cebdf81e437a40a6ad47968dceafbb00a4"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw20 0.15.1",
+ "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "2.0.0"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=release/terra2#09dc5793020e06835f7004082f798c67e4f016bd"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -87,7 +119,7 @@ dependencies = [
  "generator-proxy-to-vkr",
  "protobuf",
  "thiserror",
- "valkyrie 1.0.8-beta.1 (git+https://github.com/valkyrieprotocol/contracts.git?branch=feature/migrate_terra2)",
+ "valkyrie",
  "valkyrie-lp-staking",
  "valkyrie-vp",
  "voting-escrow",
@@ -757,16 +789,16 @@ dependencies = [
 
 [[package]]
 name = "ed25519-zebra"
-version = "3.0.0"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "403ef3e961ab98f0ba902771d29f842058578bb1ce7e3c59dad5a6a93e784c69"
+checksum = "7c24f403d068ad0b359e577a77f92392118be3f3c927538f2bb544a5ecd828c6"
 dependencies = [
  "curve25519-dalek",
+ "hashbrown",
  "hex",
  "rand_core 0.6.4",
  "serde",
  "sha2 0.9.9",
- "thiserror",
  "zeroize",
 ]
 
@@ -807,9 +839,9 @@ dependencies = [
 
 [[package]]
 name = "ff"
-version = "0.12.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df689201f395c6b90dfe87127685f8dbfc083a5e779e613575d8bd7314300c3e"
+checksum = "d013fc25338cc558c5c2cfbad646908fb23591e2404481826742b651c9af7160"
 dependencies = [
  "rand_core 0.6.4",
  "subtle",
@@ -844,16 +876,18 @@ dependencies = [
 
 [[package]]
 name = "generator-proxy-to-vkr"
-version = "1.0.0"
+version = "0.0.0"
+source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts.git?branch=feat/update_to_cosmwasm_1.1#1a9c5c9c1feb541fb48458f97d396555ea1a0299"
 dependencies = [
- "astroport 2.0.0",
+ "ap-valkyrie",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=release/terra2)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
  "thiserror",
- "valkyrie 1.0.8-beta.1 (git+https://github.com/valkyrieprotocol/contracts.git?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54)",
+ "valkyrie",
 ]
 
 [[package]]
@@ -868,24 +902,13 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.1.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fc3cb4d91f53b50155bdcfd23f6a4c39ae1969c2ae85982b135750cccaf5fce"
-dependencies = [
- "cfg-if",
- "libc",
- "wasi 0.9.0+wasi-snapshot-preview1",
-]
-
-[[package]]
-name = "getrandom"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c05aeb6a22b8f62540c194aac980f2115af067bfe15a0734d7277a768d396b31"
 dependencies = [
  "cfg-if",
  "libc",
- "wasi 0.11.0+wasi-snapshot-preview1",
+ "wasi",
 ]
 
 [[package]]
@@ -908,6 +931,15 @@ dependencies = [
  "ff",
  "rand_core 0.6.4",
  "subtle",
+]
+
+[[package]]
+name = "hashbrown"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+dependencies = [
+ "ahash",
 ]
 
 [[package]]
@@ -1023,9 +1055,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.135"
+version = "0.2.137"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68783febc7782c6c5cb401fbda4de5a9898be1762314da0bb2c10ced61f18b0c"
+checksum = "fc7fcc620a3bff7cdd7a365be3376c97191aeaccc2a603e600951e452615bf89"
 
 [[package]]
 name = "lock_api"
@@ -1045,6 +1077,12 @@ checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
 dependencies = [
  "autocfg",
 ]
+
+[[package]]
+name = "once_cell"
+version = "1.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86f0b0d4bf799edbc74508c1e8bf170ff5f41238e5f8225603ca7caaae2b7860"
 
 [[package]]
 name = "opaque-debug"
@@ -1264,9 +1302,6 @@ name = "rand_core"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90bde5296fc891b0cef12a6d03ddccc162ce7b2aff54160af9338f8d40df6d19"
-dependencies = [
- "getrandom 0.1.16",
-]
 
 [[package]]
 name = "rand_core"
@@ -1274,7 +1309,7 @@ version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
- "getrandom 0.2.8",
+ "getrandom",
 ]
 
 [[package]]
@@ -1622,21 +1657,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "valkyrie"
-version = "1.0.8-beta.1"
-source = "git+https://github.com/valkyrieprotocol/contracts.git?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
-dependencies = [
- "bigint",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 0.11.1",
- "cw20 0.11.1",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "valkyrie-lp-staking"
 version = "1.0.8-beta.1"
 source = "git+https://github.com/valkyrieprotocol/contracts.git?branch=feature/migrate_terra2#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
@@ -1646,7 +1666,7 @@ dependencies = [
  "cw20 0.11.1",
  "schemars",
  "serde",
- "valkyrie 1.0.8-beta.1 (git+https://github.com/valkyrieprotocol/contracts.git?branch=feature/migrate_terra2)",
+ "valkyrie",
 ]
 
 [[package]]
@@ -1693,12 +1713,6 @@ checksum = "9f200f5b12eb75f8c1ed65abd4b2db8a6e1b138a20de009dacee265a2498f3f6"
 dependencies = [
  "libc",
 ]
-
-[[package]]
-name = "wasi"
-version = "0.9.0+wasi-snapshot-preview1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
 
 [[package]]
 name = "wasi"
