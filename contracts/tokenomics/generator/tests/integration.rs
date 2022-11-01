@@ -25,7 +25,7 @@ use astroport_generator::state::Config;
 use cosmwasm_std::{to_binary, Addr, Binary, StdResult, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{next_block, App, ContractWrapper, Executor};
-use valkyrie::lp_staking::execute_msgs::InstantiateMsg as ValkirieInstantiateMsg;
+use valkyrie::lp_staking::execute_msgs::InstantiateMsg as ValkyrieInstantiateMsg;
 
 use crate::test_utils::controller_helper::ControllerHelper;
 use crate::test_utils::{mock_app as mock_app_helper, AppExtension};
@@ -1142,6 +1142,7 @@ fn generator_with_vkr_reward_proxy() {
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
+    let usd_token = instantiate_token(&mut app, cny_eur_token_code_id, "USD", None);
     let cny_token = instantiate_token(&mut app, cny_eur_token_code_id, "CNY", None);
 
     let (pair_cny_eur, lp_cny_eur) = create_pair(
@@ -1155,6 +1156,21 @@ fn generator_with_vkr_reward_proxy() {
             },
             AssetInfo::Token {
                 contract_addr: eur_token.clone(),
+            },
+        ],
+    );
+
+    let (pair_eur_usd, lp_eur_usd) = create_pair(
+        &mut app,
+        &factory_instance,
+        None,
+        None,
+        [
+            AssetInfo::Token {
+                contract_addr: eur_token.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: usd_token.clone(),
             },
         ],
     );
@@ -1178,7 +1194,10 @@ fn generator_with_vkr_reward_proxy() {
     );
 
     let msg = GeneratorExecuteMsg::SetupPools {
-        pools: vec![(lp_cny_eur.to_string(), Uint128::from(50u64))],
+        pools: vec![
+            (lp_cny_eur.to_string(), Uint128::from(50u64)),
+            (lp_eur_usd.to_string(), Uint128::from(50u64)),
+        ],
     };
 
     app.execute_contract(
@@ -1204,6 +1223,7 @@ fn generator_with_vkr_reward_proxy() {
 
     // Mint tokens, so user can deposit
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 9);
+    mint_tokens(&mut app, pair_eur_usd.clone(), &lp_eur_usd, &user1, 10);
 
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
@@ -1221,12 +1241,20 @@ fn generator_with_vkr_reward_proxy() {
 
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 1);
 
-    deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER1, &[(&lp_cny_eur, 10)]);
+    deposit_lp_tokens_to_generator(
+        &mut app,
+        &generator_instance,
+        USER1,
+        &[(&lp_cny_eur, 10), (&lp_eur_usd, 10)],
+    );
 
     // With the proxy, the Generator contract doesn't have the deposited LP tokens
     check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 0);
     // The LP tokens are in the 3rd party contract now
     check_token_balance(&mut app, &lp_cny_eur, &vkr_staking_instance, 10);
+
+    check_token_balance(&mut app, &lp_eur_usd, &generator_instance, 10);
+    check_token_balance(&mut app, &lp_eur_usd, &vkr_staking_instance, 0);
 
     check_pending_rewards(
         &mut app,
@@ -1235,6 +1263,7 @@ fn generator_with_vkr_reward_proxy() {
         USER1,
         (0, Some(vec![0])),
     );
+    check_pending_rewards(&mut app, &generator_instance, &lp_eur_usd, USER1, (0, None));
 
     // User can't withdraw if they didn't deposit previously
     let msg = GeneratorExecuteMsg::Withdraw {
@@ -1264,6 +1293,15 @@ fn generator_with_vkr_reward_proxy() {
 
     app.update_block(|bi| next_block(bi));
 
+    // TODO:
+    // let msg = Cw20ExecuteMsg::Send {
+    //     contract: mirror_staking_instance.to_string(),
+    //     msg: to_binary(&MirrorStakingHookMsg::DepositReward {
+    //         rewards: vec![(pair_cny_eur.to_string(), Uint128::new(50_000000))],
+    //     })
+    //         .unwrap(),
+    //     amount: Uint128::new(50_000000),
+    // };
     let msg = Cw20ExecuteMsg::Send {
         contract: vkr_staking_instance.to_string(),
         msg: to_binary(&valkyrie::lp_staking::execute_msgs::Cw20HookMsg::Bond {}).unwrap(),
@@ -1272,12 +1310,12 @@ fn generator_with_vkr_reward_proxy() {
 
     mint_tokens(
         &mut app,
-        pair_cny_eur.clone(),
-        &lp_cny_eur,
+        owner.clone(),
+        &vkr_token_instance,
         &owner,
         50_000000,
     );
-    app.execute_contract(owner.clone(), lp_cny_eur.clone(), &msg, &[])
+    app.execute_contract(owner.clone(), vkr_token_instance.clone(), &msg, &[])
         .unwrap();
 
     // 10 per block deposited equally between 2 pools with the same alloc_points
@@ -1286,27 +1324,55 @@ fn generator_with_vkr_reward_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER1,
-        (10_000000, Some(vec![0])),
+        (5_000000, Some(vec![50_000000])),
+    );
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_eur_usd,
+        USER1,
+        (5_000000, None),
     );
 
     // User 2
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user2, 10);
+    mint_tokens(&mut app, pair_eur_usd.clone(), &lp_eur_usd, &user2, 10);
 
-    deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER2, &[(&lp_cny_eur, 10)]);
+    deposit_lp_tokens_to_generator(
+        &mut app,
+        &generator_instance,
+        USER2,
+        &[(&lp_cny_eur, 10), (&lp_eur_usd, 10)],
+    );
 
     check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 0);
-    check_token_balance(&mut app, &lp_cny_eur, &vkr_staking_instance, 50_000_020);
+    check_token_balance(&mut app, &lp_cny_eur, &vkr_staking_instance, 20);
+
+    check_token_balance(&mut app, &lp_eur_usd, &generator_instance, 20);
+    check_token_balance(&mut app, &lp_eur_usd, &vkr_staking_instance, 0);
 
     // 10 tokens distributed to depositors since the last deposit
     // 5 distrubuted to proxy contract sicne the last deposit
-    check_token_balance(&mut app, &lp_cny_eur, &proxy_to_vkr_instance, 0);
+    check_token_balance(
+        &mut app,
+        &vkr_token_instance,
+        &proxy_to_vkr_instance,
+        50_000000,
+    );
 
     check_pending_rewards(
         &mut app,
         &generator_instance,
         &lp_cny_eur,
         USER1,
-        (10_000000, Some(vec![0])),
+        (5_000000, Some(vec![50_000000])),
+    );
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_eur_usd,
+        USER1,
+        (5_000000, None),
     );
 
     // New deposits can't receive already calculated rewards
@@ -1317,9 +1383,14 @@ fn generator_with_vkr_reward_proxy() {
         USER2,
         (0, Some(vec![0])),
     );
+    check_pending_rewards(&mut app, &generator_instance, &lp_eur_usd, USER2, (0, None));
+
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {
-        pools: vec![(lp_cny_eur.to_string(), Uint128::new(60))],
+        pools: vec![
+            (lp_cny_eur.to_string(), Uint128::new(60)),
+            (lp_eur_usd.to_string(), Uint128::new(40)),
+        ],
     };
 
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
@@ -1327,6 +1398,15 @@ fn generator_with_vkr_reward_proxy() {
 
     app.update_block(|bi| next_block(bi));
 
+    // TODO:
+    // let msg = Cw20ExecuteMsg::Send {
+    //     contract: mirror_staking_instance.to_string(),
+    //     msg: to_binary(&MirrorStakingHookMsg::DepositReward {
+    //         rewards: vec![(pair_cny_eur.to_string(), Uint128::new(60_000000))],
+    //     })
+    //         .unwrap(),
+    //     amount: Uint128::new(60_000000),
+    // };
     let msg = Cw20ExecuteMsg::Send {
         contract: vkr_staking_instance.to_string(),
         msg: to_binary(&valkyrie::lp_staking::execute_msgs::Cw20HookMsg::Bond {}).unwrap(),
@@ -1335,12 +1415,12 @@ fn generator_with_vkr_reward_proxy() {
 
     mint_tokens(
         &mut app,
-        pair_cny_eur.clone(),
-        &lp_cny_eur,
+        owner.clone(),
+        &vkr_token_instance,
         &owner,
         60_000000,
     );
-    app.execute_contract(owner.clone(), lp_cny_eur.clone(), &msg, &[])
+    app.execute_contract(owner.clone(), vkr_token_instance.clone(), &msg, &[])
         .unwrap();
 
     // 60 to cny_eur, 40 to eur_usd. Each is divided between two users
@@ -1349,7 +1429,14 @@ fn generator_with_vkr_reward_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER1,
-        (15_000000, Some(vec![0])),
+        (8_000000, Some(vec![80_000000])),
+    );
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_eur_usd,
+        USER1,
+        (7_000000, None),
     );
 
     check_pending_rewards(
@@ -1357,7 +1444,14 @@ fn generator_with_vkr_reward_proxy() {
         &generator_instance,
         &lp_cny_eur,
         USER2,
-        (5_000000, Some(vec![0])),
+        (3_000000, Some(vec![30_000000])),
+    );
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_eur_usd,
+        USER2,
+        (2_000000, None),
     );
 
     // User1 emergency withdraws and loses already distributed rewards (5).
@@ -1375,17 +1469,31 @@ fn generator_with_vkr_reward_proxy() {
         USER1,
         (0_000000, Some(vec![0])),
     );
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_eur_usd,
+        USER1,
+        (7_000000, None),
+    );
 
     check_pending_rewards(
         &mut app,
         &generator_instance,
         &lp_cny_eur,
         USER2,
-        (5_000000, Some(vec![0])),
+        (3_000000, Some(vec![60_000000])),
+    );
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_eur_usd,
+        USER2,
+        (2_000000, None),
     );
 
     // Balance of the end contract should be decreased
-    check_token_balance(&mut app, &lp_cny_eur, &vkr_staking_instance, 110000010);
+    check_token_balance(&mut app, &lp_cny_eur, &vkr_staking_instance, 10);
 
     // User1 can't withdraw after emergency withdrawal
     let msg = GeneratorExecuteMsg::Withdraw {
@@ -1400,7 +1508,12 @@ fn generator_with_vkr_reward_proxy() {
         "Insufficient balance in contract to process claim".to_string(),
     );
 
-    check_token_balance(&mut app, &vkr_token_instance, &proxy_to_vkr_instance, 0);
+    check_token_balance(
+        &mut app,
+        &vkr_token_instance,
+        &proxy_to_vkr_instance,
+        50_000000,
+    );
     check_token_balance(&mut app, &vkr_token_instance, &owner, 0);
 
     // Check if there are orphaned proxy rewards
@@ -1411,7 +1524,7 @@ fn generator_with_vkr_reward_proxy() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
-    assert_eq!(orphan_rewards[0].1, Uint128::new(0));
+    assert_eq!(orphan_rewards[0].1, Uint128::new(50_000000));
 
     // Owner sends orphaned proxy rewards
     let msg = GeneratorExecuteMsg::SendOrphanProxyReward {
@@ -1423,7 +1536,7 @@ fn generator_with_vkr_reward_proxy() {
         .unwrap();
 
     check_token_balance(&mut app, &vkr_token_instance, &proxy_to_vkr_instance, 0);
-    check_token_balance(&mut app, &vkr_token_instance, &owner, 0);
+    check_token_balance(&mut app, &vkr_token_instance, &owner, 50_000000);
 
     // Owner can't send proxy rewards for distribution to users
     let msg = GeneratorExecuteMsg::SendOrphanProxyReward {
@@ -1448,14 +1561,14 @@ fn generator_with_vkr_reward_proxy() {
         .unwrap();
 
     check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 0);
-    check_token_balance(&mut app, &lp_cny_eur, &vkr_staking_instance, 110000000);
+    check_token_balance(&mut app, &lp_cny_eur, &vkr_staking_instance, 0);
     check_token_balance(&mut app, &lp_cny_eur, &user1, 10);
     check_token_balance(&mut app, &lp_cny_eur, &user2, 10);
 
     check_token_balance(&mut app, &astro_token_instance, &user1, 0);
     check_token_balance(&mut app, &vkr_token_instance, &user1, 0);
-    check_token_balance(&mut app, &astro_token_instance, &user2, 5_000000);
-    check_token_balance(&mut app, &vkr_token_instance, &user2, 0);
+    check_token_balance(&mut app, &astro_token_instance, &user2, 3_000000);
+    check_token_balance(&mut app, &vkr_token_instance, &user2, 60_000000);
     // 7 + 2 ASTRO were distributed (for other pools). 5 tokens were orphaned by the emergency withdrawal, 6 were transfered to User2
     check_token_balance(
         &mut app,
@@ -1464,13 +1577,49 @@ fn generator_with_vkr_reward_proxy() {
         0_000000,
     );
 
-    check_token_balance(&mut app, &astro_token_instance, &user1, 0);
+    // User1 withdraws and gets rewards
+    let msg = GeneratorExecuteMsg::Withdraw {
+        lp_token: lp_eur_usd.to_string(),
+        amount: Uint128::new(5),
+    };
+    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    check_token_balance(&mut app, &lp_eur_usd, &generator_instance, 15);
+    check_token_balance(&mut app, &lp_eur_usd, &user1, 5);
+
+    check_token_balance(&mut app, &astro_token_instance, &user1, 7_000000);
     check_token_balance(&mut app, &vkr_token_instance, &user1, 0_000000);
 
-    check_token_balance(&mut app, &astro_token_instance, &user1, 0);
+    // User1 withdraws and gets rewards
+    let msg = GeneratorExecuteMsg::Withdraw {
+        lp_token: lp_eur_usd.to_string(),
+        amount: Uint128::new(5),
+    };
+    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    check_token_balance(&mut app, &lp_eur_usd, &generator_instance, 10);
+    check_token_balance(&mut app, &lp_eur_usd, &user1, 10);
+    check_token_balance(&mut app, &astro_token_instance, &user1, 7_000000);
+    check_token_balance(&mut app, &vkr_token_instance, &user1, 0_000000);
+
+    // User2 withdraws and gets rewards
+    let msg = GeneratorExecuteMsg::Withdraw {
+        lp_token: lp_eur_usd.to_string(),
+        amount: Uint128::new(10),
+    };
+    app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    check_token_balance(&mut app, &lp_eur_usd, &generator_instance, 0);
+    check_token_balance(&mut app, &lp_eur_usd, &user1, 10);
+    check_token_balance(&mut app, &lp_eur_usd, &user2, 10);
+
+    check_token_balance(&mut app, &astro_token_instance, &user1, 7_000000);
     check_token_balance(&mut app, &vkr_token_instance, &user1, 0_000000);
     check_token_balance(&mut app, &astro_token_instance, &user2, 5_000000);
-    check_token_balance(&mut app, &vkr_token_instance, &user2, 0);
+    check_token_balance(&mut app, &vkr_token_instance, &user2, 60_000000);
     check_token_balance(
         &mut app,
         &vkr_token_instance,
@@ -3315,7 +3464,7 @@ fn instantiate_valkyrie_protocol(
 ) -> (Addr, Addr) {
     let valkyrie_token_instance = instantiate_token(app, token_code_id, "VAL", None);
 
-    // Valkier staking
+    // Valkyrie staking
     let valkyrie_staking_contract = Box::new(ContractWrapper::new_with_empty(
         valkyrie_lp_staking::entrypoints::execute,
         valkyrie_lp_staking::entrypoints::instantiate,
@@ -3324,7 +3473,7 @@ fn instantiate_valkyrie_protocol(
 
     let valkyrie_staking_code_id = app.store_code(valkyrie_staking_contract);
 
-    let init_msg = ValkirieInstantiateMsg {
+    let init_msg = ValkyrieInstantiateMsg {
         token: valkyrie_token_instance.to_string(),
         pair: pair.to_string(),
         lp_token: lp_token.to_string(),
