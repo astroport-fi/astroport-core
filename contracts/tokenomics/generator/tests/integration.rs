@@ -1701,7 +1701,6 @@ fn move_to_proxy() {
             },
         ],
     );
-    assert_eq!(Addr::unchecked("contract5"), lp_cny_eur);
 
     let generator_instance =
         instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
@@ -1786,14 +1785,14 @@ fn move_to_proxy() {
         .wrap()
         .query_wasm_smart(&proxy_to_vkr_instance, &QueryMsg::Config {})
         .unwrap();
-    assert_eq!("contract5".to_string(), reps.lp_token_addr);
+    assert_eq!("contract6".to_string(), reps.lp_token_addr);
 
     check_pending_rewards(
         &mut app,
         &generator_instance,
         &lp_cny_eur,
         USER1,
-        (10_000000, Some(vec![0])),
+        (10_000000, Some(vec![5_000_000])),
     );
 
     check_token_balance(&mut app, &lp_cny_eur, &generator_instance, 0);
