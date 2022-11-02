@@ -1,5 +1,5 @@
 use anyhow::Result;
-use astroport_governance::voting_escrow_delegation as escrow_delegation;
+use ap_voting_escrow_delegation as escrow_delegation;
 use cosmwasm_std::{to_binary, Addr, Empty, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 
@@ -14,11 +14,11 @@ pub struct DelegationHelper {
 impl DelegationHelper {
     pub fn contract_escrow_delegation_template() -> Box<dyn Contract<Empty>> {
         let contract = ContractWrapper::new_with_empty(
-            voting_escrow_delegation::contract::execute,
-            voting_escrow_delegation::contract::instantiate,
-            voting_escrow_delegation::contract::query,
+            astroport_voting_escrow_delegation::contract::execute,
+            astroport_voting_escrow_delegation::contract::instantiate,
+            astroport_voting_escrow_delegation::contract::query,
         )
-        .with_reply_empty(voting_escrow_delegation::contract::reply);
+        .with_reply_empty(astroport_voting_escrow_delegation::contract::reply);
         Box::new(contract)
     }
 
@@ -55,12 +55,10 @@ impl DelegationHelper {
 
         let res = router
             .wrap()
-            .query::<astroport_governance::voting_escrow_delegation::Config>(&QueryRequest::Wasm(
-                WasmQuery::Smart {
-                    contract_addr: delegation_addr.to_string(),
-                    msg: to_binary(&escrow_delegation::QueryMsg::Config {}).unwrap(),
-                },
-            ))
+            .query::<ap_voting_escrow_delegation::Config>(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: delegation_addr.to_string(),
+                msg: to_binary(&escrow_delegation::QueryMsg::Config {}).unwrap(),
+            }))
             .unwrap();
 
         (delegation_addr, res.nft_addr)

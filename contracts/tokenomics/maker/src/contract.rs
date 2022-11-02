@@ -16,10 +16,13 @@ use astroport::asset::{
     Asset, AssetInfo, ULUNA_DENOM, UUSD_DENOM,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Order, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    attr, to_binary, Addr, Attribute, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Order, Response, StdError, StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
+
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ExecuteMsg;
 use std::collections::{HashMap, HashSet};

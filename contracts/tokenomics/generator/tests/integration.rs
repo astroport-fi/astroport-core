@@ -1,7 +1,7 @@
 use ap_generator::{ExecuteMsg, QueryMsg, StakerResponse};
 use ap_pair::{PairInfo, PairType};
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo};
-use astroport_governance::utils::WEEK;
+use astroport_governance::WEEK;
 
 use ap_factory::{
     ConfigResponse as FactoryConfigResponse, ExecuteMsg as FactoryExecuteMsg,

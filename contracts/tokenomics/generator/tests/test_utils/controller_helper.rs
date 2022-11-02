@@ -3,12 +3,12 @@ use crate::test_utils::escrow_helper::EscrowHelper;
 use crate::{mint_tokens, store_whitelist_code};
 use anyhow::Result as AnyResult;
 use ap_factory::PairConfig;
+use ap_generator_controller::{ExecuteMsg, QueryMsg};
+use ap_generator_controller::{UserInfoResponse, VotedPoolInfoResponse};
 use ap_pair::{PairInfo, PairType};
 use ap_vesting::{Cw20HookMsg as VestingHookMsg, VestingAccount};
 use ap_vesting::{InstantiateMsg, VestingSchedule, VestingSchedulePoint};
 use astroport::asset::AssetInfo;
-use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
-use astroport_governance::generator_controller::{UserInfoResponse, VotedPoolInfoResponse};
 use cosmwasm_std::{to_binary, Addr, StdResult, Uint128, Uint64};
 use cw20::Cw20ExecuteMsg;
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
@@ -132,13 +132,13 @@ impl ControllerHelper {
             .unwrap();
 
         let controller_contract = Box::new(ContractWrapper::new_with_empty(
-            generator_controller::contract::execute,
-            generator_controller::contract::instantiate,
-            generator_controller::contract::query,
+            astroport_generator_controller::contract::execute,
+            astroport_generator_controller::contract::instantiate,
+            astroport_generator_controller::contract::query,
         ));
 
         let controller_code_id = router.store_code(controller_contract);
-        let init_msg = astroport_governance::generator_controller::InstantiateMsg {
+        let init_msg = ap_generator_controller::InstantiateMsg {
             owner: owner.to_string(),
             escrow_addr: escrow_helper.escrow_instance.to_string(),
             generator_addr: generator.to_string(),

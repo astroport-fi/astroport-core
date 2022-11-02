@@ -1,10 +1,12 @@
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps,
-    DepsMut, Env, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult,
-    SubMsg, Uint128, Uint256, WasmMsg,
+    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps, DepsMut, Env,
+    MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
+    Uint256, WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;

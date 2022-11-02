@@ -10,7 +10,7 @@ use astroport::asset::{
     native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, ULUNA_DENOM,
     UUSD_DENOM,
 };
-use astroport_governance::utils::EPOCH_START;
+use astroport_governance::EPOCH_START;
 use cosmwasm_std::{
     attr, coin, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
 };
@@ -154,7 +154,7 @@ fn instantiate_contracts(
 
     let escrow_fee_distributor_code_id = router.store_code(escrow_fee_distributor_contract);
 
-    let init_msg = astroport_governance::escrow_fee_distributor::InstantiateMsg {
+    let init_msg = ap_escrow_fee_distributor::InstantiateMsg {
         owner: owner.to_string(),
         astro_token: astro_token_instance.to_string(),
         voting_escrow_addr: "voting".to_string(),

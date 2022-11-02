@@ -7,10 +7,13 @@ use ap_oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use ap_pair::TWAP_PRECISION;
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
 use astroport::querier::query_token_precision;
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Decimal256, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, Uint128, Uint256,
+    to_binary, Binary, Decimal256, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    Uint128, Uint256,
 };
+
 use cw2::{get_contract_version, set_contract_version};
 
 /// Contract name that is used for migration.

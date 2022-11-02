@@ -1,11 +1,11 @@
 use ap_generator::Config;
 use ap_generator_proxy::QueryMsg as ProxyQueryMsg;
+use ap_voting_escrow::{get_total_voting_power, get_voting_power};
+use ap_voting_escrow_delegation::get_adjusted_balance;
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
 use astroport::common::OwnershipProposal;
 use astroport::restricted_vector::RestrictedVector;
 use astroport::DecimalCheckedOps;
-use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
-use astroport_governance::voting_escrow_delegation::get_adjusted_balance;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, DepsMut, QuerierWrapper, StdResult, Storage, Uint128, Uint64};
 

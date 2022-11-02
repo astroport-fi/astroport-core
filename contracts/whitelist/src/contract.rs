@@ -1,6 +1,6 @@
-use cosmwasm_std::{
-    entry_point, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdError, StdResult,
-};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdError, StdResult};
 
 use ap_whitelist::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use astroport::common::validate_addresses;

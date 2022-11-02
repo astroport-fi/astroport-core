@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ap_staking as xastro;
 use ap_token as astro;
-use astroport_governance::voting_escrow::{
+use ap_voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg, VotingPowerResponse,
 };
 use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Uint128, WasmQuery};
@@ -89,9 +89,9 @@ impl EscrowHelper {
             .unwrap();
 
         let voting_contract = Box::new(ContractWrapper::new_with_empty(
-            voting_escrow::contract::execute,
-            voting_escrow::contract::instantiate,
-            voting_escrow::contract::query,
+            astroport_voting_escrow::contract::execute,
+            astroport_voting_escrow::contract::instantiate,
+            astroport_voting_escrow::contract::query,
         ));
 
         let voting_code_id = router.store_code(voting_contract);

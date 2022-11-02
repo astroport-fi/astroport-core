@@ -7,9 +7,9 @@ use crate::state::MigrateMsg;
 use ap_pair_astro_xastro::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use ap_pair_bonded::base::PairBonded;
 use ap_pair_bonded::error::ContractError;
-use cosmwasm_std::{
-    entry_point, from_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
-};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{from_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 /// Creates a new contract with the specified parameters in [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]

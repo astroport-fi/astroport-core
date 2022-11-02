@@ -5,9 +5,10 @@ pub mod state;
 
 use ap_pair_astro_xastro::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use ap_pair_bonded::{base::PairBonded, error::ContractError};
-use cosmwasm_std::{
-    entry_point, from_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
-};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{from_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+
 use cw2::{get_contract_version, set_contract_version};
 
 /// Creates a new contract with the specified parameters in [`InstantiateMsg`].
