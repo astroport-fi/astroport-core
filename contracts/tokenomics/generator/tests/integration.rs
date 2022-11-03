@@ -1521,7 +1521,7 @@ fn generator_without_reward_proxies() {
     check_token_balance(&mut app, &astro_token_instance, &user2, 5_000000);
 }
 
-/*#[test]
+#[test]
 fn generator_with_mirror_reward_proxy() {
     let mut app = mock_app();
 
@@ -1573,12 +1573,8 @@ fn generator_with_mirror_reward_proxy() {
         ],
     );
 
-    let generator_instance = instantiate_generator(
-        &mut app,
-        &factory_instance,
-        &astro_token_instance,
-        None,
-    );
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
 
     let (mirror_token_instance, mirror_staking_instance) =
         instantiate_mirror_protocol(&mut app, token_code_id, &pair_cny_eur, &lp_cny_eur);
@@ -2049,7 +2045,7 @@ fn generator_with_mirror_reward_proxy() {
         &proxy_to_mirror_instance,
         0_000000,
     );
-}*/
+}
 
 #[test]
 fn query_all_stakers() {
