@@ -109,7 +109,7 @@ pub struct UpdateConfig {
 ///         }** Updates general contract parameters.
 ///
 /// * **ExecuteMsg::UpdatePairConfig { config }** Updates a pair type
-/// * configuration or creates a new pair type if a [`Custom`] name is used (which hasn't been used before).
+/// * configuration or creates a new pair type if a [`PairType::Custom`] name is used (which hasn't been used before).
 ///
 /// * **ExecuteMsg::CreatePair {
 ///             pair_type,

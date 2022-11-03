@@ -1677,14 +1677,14 @@ fn move_to_proxy(
 /// Exposes all the queries available in the contract.
 ///
 /// ## Queries
-/// * **QueryMsg::PoolLength {}** Returns the amount of instantiated generators using a [`PoolLengthResponse`] object.
+/// * **QueryMsg::PoolLength {}** Returns the amount of instantiated generators using a [`usize`].
 ///
 /// * **QueryMsg::Deposit { lp_token, user }** Returns the amount of LP tokens staked by a user in a specific generator.
 ///
 /// * **QueryMsg::PendingToken { lp_token, user }** Returns the amount of pending rewards a user earned using
 /// a [`PendingTokenResponse`] object.
 ///
-/// * **QueryMsg::Config {}** Returns the Generator contract configuration using a [`ConfigResponse`] object.
+/// * **QueryMsg::Config {}** Returns the Generator contract configuration using a [`Config`] object.
 ///
 /// * **QueryMsg::RewardInfo { lp_token }** Returns reward information about a specific generator
 /// using a [`RewardInfoResponse`] object.

@@ -1,4 +1,5 @@
-use cosmwasm_schema::cw_serde;
+use astroport::asset::Asset;
+use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
 
 // These enumerations are temporary placed here until any pair with its asset rewards is implemented,
@@ -30,7 +31,9 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     /// Returns pending token rewards that can be claimed by a specific user using a [`Asset`] object.
+    #[returns(Asset)]
     PendingReward { user: String },
 }
