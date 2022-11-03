@@ -22,7 +22,7 @@ checksum = "216261ddc8289130e551ddcd5ce8a064710c0d064a4d2895c67151c92b5443f6"
 [[package]]
 name = "ap-valkyrie"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts.git?branch=release/terra2#91b554237248ee532c55a5d19367e103e35573c3"
+source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts.git?branch=main#4185fd480c3a8763e1594217fe2e60b977b3615b"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -142,8 +142,6 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
- "schemars",
- "serde",
  "thiserror",
 ]
 
@@ -273,8 +271,6 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
- "schemars",
- "serde",
  "thiserror",
 ]
 
@@ -1005,7 +1001,7 @@ dependencies = [
 [[package]]
 name = "generator-proxy-to-vkr"
 version = "0.0.0"
-source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts.git?branch=release/terra2#91b554237248ee532c55a5d19367e103e35573c3"
+source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts.git?branch=main#4185fd480c3a8763e1594217fe2e60b977b3615b"
 dependencies = [
  "ap-valkyrie",
  "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=release/terra2)",
