@@ -1332,29 +1332,15 @@ fn generator_with_vkr_reward_proxy() {
         (5_000000, None),
     );
 
-    app.execute_contract(
-        user1.clone(),
-        proxy_to_vkr_instance.clone(),
-        &ProxyExecuteMsg::UpdateRewards {},
-        &[],
-    )
-    .unwrap();
-
-    // check pending rewards after update rewards
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_val_eur,
-        USER1,
-        (5_000000, Some(vec![0])),
-    );
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_eur_usd,
-        USER1,
-        (5_000000, None),
-    );
+    let err = app
+        .execute_contract(
+            user1.clone(),
+            proxy_to_vkr_instance.clone(),
+            &ProxyExecuteMsg::UpdateRewards {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!("Unauthorized", err.root_cause().to_string());
 
     // User 2
     mint_tokens(&mut app, pair_val_eur.clone(), &lp_val_eur, &user2, 10);
@@ -1377,25 +1363,12 @@ fn generator_with_vkr_reward_proxy() {
     // 5 distrubuted to proxy contract sicne the last deposit
     check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 50_000_000);
 
-    // Check if proxy reward exists
-    let reps: valkyrie::lp_staking::query_msgs::StakerInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &vkr_staking_instance,
-            &valkyrie::lp_staking::query_msgs::QueryMsg::StakerInfo {
-                staker: proxy_to_vkr_instance.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(Uint128::new(0), reps.pending_reward);
-    assert_eq!(Uint128::new(20), reps.bond_amount);
-
     check_pending_rewards(
         &mut app,
         &generator_instance,
         &lp_val_eur,
         USER1,
-        (5_000000, Some(vec![0])),
+        (5_000000, Some(vec![50_000000])),
     );
     check_pending_rewards(
         &mut app,
@@ -1447,31 +1420,7 @@ fn generator_with_vkr_reward_proxy() {
         &generator_instance,
         &lp_val_eur,
         USER1,
-        (8_000000, Some(vec![30_000_000])),
-    );
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_eur_usd,
-        USER1,
-        (7_000000, None),
-    );
-
-    app.execute_contract(
-        user1.clone(),
-        proxy_to_vkr_instance.clone(),
-        &ProxyExecuteMsg::UpdateRewards {},
-        &[],
-    )
-    .unwrap();
-
-    // check pending rewards after update rewards
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_val_eur,
-        USER1,
-        (8_000000, Some(vec![0])),
+        (8_000000, Some(vec![80_000_000])),
     );
     check_pending_rewards(
         &mut app,
@@ -1491,7 +1440,7 @@ fn generator_with_vkr_reward_proxy() {
             },
         )
         .unwrap();
-    assert_eq!(Uint128::new(0), reps.pending_reward);
+    assert_eq!(Uint128::new(60000000), reps.pending_reward);
     assert_eq!(Uint128::new(20), reps.bond_amount);
 
     check_pending_rewards(
@@ -1499,7 +1448,7 @@ fn generator_with_vkr_reward_proxy() {
         &generator_instance,
         &lp_val_eur,
         USER2,
-        (3_000000, Some(vec![0])),
+        (3_000000, Some(vec![30000000])),
     );
     check_pending_rewards(
         &mut app,
@@ -1537,7 +1486,7 @@ fn generator_with_vkr_reward_proxy() {
         &generator_instance,
         &lp_val_eur,
         USER2,
-        (3_000000, Some(vec![0])),
+        (3_000000, Some(vec![60000000])),
     );
     check_pending_rewards(
         &mut app,
@@ -1563,7 +1512,7 @@ fn generator_with_vkr_reward_proxy() {
         "Insufficient balance in contract to process claim".to_string(),
     );
 
-    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 110_000_000);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 50000000);
     check_token_balance(&mut app, &val_token, &owner, 0);
 
     // Check if there are orphaned proxy rewards
@@ -1574,7 +1523,7 @@ fn generator_with_vkr_reward_proxy() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg)
         .unwrap();
-    assert_eq!(orphan_rewards[0].1, Uint128::new(0));
+    assert_eq!(orphan_rewards[0].1, Uint128::new(50000000));
 
     // Owner sends orphaned proxy rewards
     let msg = GeneratorExecuteMsg::SendOrphanProxyReward {
@@ -1585,8 +1534,8 @@ fn generator_with_vkr_reward_proxy() {
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
 
-    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 110_000_000);
-    check_token_balance(&mut app, &val_token, &owner, 0);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 0);
+    check_token_balance(&mut app, &val_token, &owner, 50000000);
 
     // Owner can't send proxy rewards for distribution to users
     let msg = GeneratorExecuteMsg::SendOrphanProxyReward {
@@ -1618,9 +1567,9 @@ fn generator_with_vkr_reward_proxy() {
     check_token_balance(&mut app, &astro_token_instance, &user1, 0);
     check_token_balance(&mut app, &val_token, &user1, 0);
     check_token_balance(&mut app, &astro_token_instance, &user2, 3_000000);
-    check_token_balance(&mut app, &val_token, &user2, 0);
+    check_token_balance(&mut app, &val_token, &user2, 60000000);
 
-    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 110_000_000);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 0);
 
     // User1 withdraws and gets rewards
     let msg = GeneratorExecuteMsg::Withdraw {
@@ -1634,7 +1583,7 @@ fn generator_with_vkr_reward_proxy() {
     check_token_balance(&mut app, &lp_eur_usd, &user1, 5);
 
     check_token_balance(&mut app, &astro_token_instance, &user1, 7_000000);
-    check_token_balance(&mut app, &val_token, &user1, 0_000000);
+    check_token_balance(&mut app, &val_token, &user1, 0);
 
     // User1 withdraws and gets rewards
     let msg = GeneratorExecuteMsg::Withdraw {
@@ -1647,7 +1596,7 @@ fn generator_with_vkr_reward_proxy() {
     check_token_balance(&mut app, &lp_eur_usd, &generator_instance, 10);
     check_token_balance(&mut app, &lp_eur_usd, &user1, 10);
     check_token_balance(&mut app, &astro_token_instance, &user1, 7_000000);
-    check_token_balance(&mut app, &val_token, &user1, 0_000000);
+    check_token_balance(&mut app, &val_token, &user1, 0);
 
     // User2 withdraws and gets rewards
     let msg = GeneratorExecuteMsg::Withdraw {
@@ -1664,10 +1613,10 @@ fn generator_with_vkr_reward_proxy() {
     check_token_balance(&mut app, &astro_token_instance, &user1, 7_000000);
     check_token_balance(&mut app, &val_token, &user1, 0_000000);
     check_token_balance(&mut app, &astro_token_instance, &user2, 5_000000);
-    check_token_balance(&mut app, &val_token, &user2, 0);
+    check_token_balance(&mut app, &val_token, &user2, 60000000);
 
     // Proxies val_token balance
-    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 110_000_000);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 0);
 }
 
 #[test]
