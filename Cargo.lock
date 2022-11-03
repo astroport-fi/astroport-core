@@ -22,7 +22,7 @@ checksum = "216261ddc8289130e551ddcd5ce8a064710c0d064a4d2895c67151c92b5443f6"
 [[package]]
 name = "ap-valkyrie"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts.git?branch=feat/update_to_cosmwasm_1.1#1a9c5c9c1feb541fb48458f97d396555ea1a0299"
+source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts.git?branch=feat/update_to_cosmwasm_1.1#47547b80e033dc867c23f7f51db8fc4d4d55293f"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -877,7 +877,7 @@ dependencies = [
 [[package]]
 name = "generator-proxy-to-vkr"
 version = "0.0.0"
-source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts.git?branch=feat/update_to_cosmwasm_1.1#1a9c5c9c1feb541fb48458f97d396555ea1a0299"
+source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts.git?branch=feat/update_to_cosmwasm_1.1#47547b80e033dc867c23f7f51db8fc4d4d55293f"
 dependencies = [
  "ap-valkyrie",
  "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=release/terra2)",
@@ -1644,7 +1644,7 @@ checksum = "58ee9362deb4a96cef4d437d1ad49cffc9b9e92d202b6995674e928ce684f112"
 [[package]]
 name = "valkyrie"
 version = "1.0.8-beta.1"
-source = "git+https://github.com/valkyrieprotocol/contracts.git?branch=feature/migrate_terra2#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
+source = "git+https://github.com/valkyrieprotocol/contracts.git?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
 dependencies = [
  "bigint",
  "cosmwasm-std",
@@ -1659,7 +1659,7 @@ dependencies = [
 [[package]]
 name = "valkyrie-lp-staking"
 version = "1.0.8-beta.1"
-source = "git+https://github.com/valkyrieprotocol/contracts.git?branch=feature/migrate_terra2#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
+source = "git+https://github.com/valkyrieprotocol/contracts.git?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.11.1",
@@ -1672,7 +1672,7 @@ dependencies = [
 [[package]]
 name = "valkyrie-vp"
 version = "1.0.8-beta.1"
-source = "git+https://github.com/valkyrieprotocol/contracts.git?branch=feature/migrate_terra2#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
+source = "git+https://github.com/valkyrieprotocol/contracts.git?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.11.1",
