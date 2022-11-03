@@ -1294,19 +1294,14 @@ fn generator_with_vkr_reward_proxy() {
 
     app.update_block(|bi| next_block(bi));
 
-    mint_tokens(&mut app, owner.clone(), &val_token, &user1, 50_000_000);
-
-    // Send tokens directly on vkr staking contract from user1
-    app.execute_contract(
-        user1.clone(),
-        val_token.clone(),
-        &Cw20ExecuteMsg::Transfer {
-            recipient: vkr_staking_instance.to_string(),
-            amount: Uint128::new(50_000_000),
-        },
-        &[],
-    )
-    .unwrap();
+    // Mint tokens on staking for distributing
+    mint_tokens(
+        &mut app,
+        owner.clone(),
+        &val_token,
+        &vkr_staking_instance,
+        200_000_000,
+    );
 
     // Check if proxy reward exists
     let reps: valkyrie::lp_staking::query_msgs::StakerInfoResponse = app
@@ -1433,20 +1428,6 @@ fn generator_with_vkr_reward_proxy() {
 
     app.update_block(|bi| next_block(bi));
 
-    mint_tokens(&mut app, owner.clone(), &val_token, &user1, 60_000_000);
-
-    // Send tokens directly on vkr staking contract from user1
-    app.execute_contract(
-        user1.clone(),
-        val_token.clone(),
-        &Cw20ExecuteMsg::Transfer {
-            recipient: vkr_staking_instance.to_string(),
-            amount: Uint128::new(60_000_000),
-        },
-        &[],
-    )
-    .unwrap();
-
     // Check if proxy reward exists
     let reps: valkyrie::lp_staking::query_msgs::StakerInfoResponse = app
         .wrap()
@@ -1512,22 +1493,6 @@ fn generator_with_vkr_reward_proxy() {
         .unwrap();
     assert_eq!(Uint128::new(0), reps.pending_reward);
     assert_eq!(Uint128::new(20), reps.bond_amount);
-
-    // 60 to cny_eur, 40 to eur_usd. Each is divided between two users
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_val_eur,
-        USER1,
-        (8_000000, Some(vec![0])),
-    );
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_eur_usd,
-        USER1,
-        (7_000000, None),
-    );
 
     check_pending_rewards(
         &mut app,
@@ -1654,7 +1619,7 @@ fn generator_with_vkr_reward_proxy() {
     check_token_balance(&mut app, &val_token, &user1, 0);
     check_token_balance(&mut app, &astro_token_instance, &user2, 3_000000);
     check_token_balance(&mut app, &val_token, &user2, 0);
-    // 7 + 2 ASTRO were distributed (for other pools). 5 tokens were orphaned by the emergency withdrawal, 6 were transfered to User2
+
     check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 110_000_000);
 
     // User1 withdraws and gets rewards
@@ -1700,20 +1665,9 @@ fn generator_with_vkr_reward_proxy() {
     check_token_balance(&mut app, &val_token, &user1, 0_000000);
     check_token_balance(&mut app, &astro_token_instance, &user2, 5_000000);
     check_token_balance(&mut app, &val_token, &user2, 0);
-    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 110_000_000);
 
-    // Check if proxy reward exists
-    let reps: valkyrie::lp_staking::query_msgs::StakerInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &vkr_staking_instance,
-            &valkyrie::lp_staking::query_msgs::QueryMsg::StakerInfo {
-                staker: proxy_to_vkr_instance.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(Uint128::new(0), reps.pending_reward);
-    assert_eq!(Uint128::new(0), reps.bond_amount);
+    // Proxies val_token balance
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 110_000_000);
 }
 
 #[test]
