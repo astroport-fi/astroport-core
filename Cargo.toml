@@ -14,9 +14,6 @@ members = [
     "contracts/tokenomics/xastro_token",
     "contracts/periphery/oracle"
 ]
-exclude = [
-    "contracts/tokenomics/generator_proxy_to_mirror", # TODO: update this when mirror migrated to cosmwasm 1.0.0
-]
 
 [profile.release]
 opt-level = 3
