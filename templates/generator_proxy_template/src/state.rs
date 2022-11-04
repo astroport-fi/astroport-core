@@ -1,11 +1,10 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::cw_serde;
 
 use cosmwasm_std::Addr;
 use cw_storage_plus::Item;
 
 /// This structure holds the main parameters of the generator_proxy_template contract.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[cw_serde]
 pub struct Config {
     /// The Generator contract address
     pub generator_contract_addr: Addr,
