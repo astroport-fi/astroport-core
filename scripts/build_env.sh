@@ -18,4 +18,4 @@ docker-compose --project-directory "$terraLocalPath" rm --force --stop && docker
 
 rm -fr "$projectPath/artifacts/localterra.json"
 
-sleep 5 # waite startup terra local
+sleep 5 # wait terra local to startup
