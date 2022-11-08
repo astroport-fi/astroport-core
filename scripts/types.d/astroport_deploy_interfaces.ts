@@ -180,11 +180,6 @@ interface Pair {
     initParams?: any,
     initOracle?: boolean,
     initGenerator?: {
-        generatorProxy?: {
-            rewardContractAddr: string,
-            rewardTokenAddr: string,
-            artifactName: string
-        },
         generatorAllocPoint: string
     }
 }
