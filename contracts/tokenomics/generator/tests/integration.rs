@@ -1707,17 +1707,56 @@ fn generator_update_proxy_balance_failed() {
         reps.proxy_reward_balance_before_update
     );
 
-    // Let's try deactivate pool and we'll got an error
-    let msg = GeneratorExecuteMsg::DeactivatePool {
-        lp_token: lp_val_eur.to_string(),
-    };
+    // Let's try checkpoint user boost
     app.execute_contract(
-        factory_instance.clone(),
+        user1.clone(),
         generator_instance.clone(),
-        &msg,
+        &GeneratorExecuteMsg::CheckpointUserBoost {
+            generators: vec![lp_val_eur.to_string()],
+            user: None,
+        },
         &[],
     )
     .unwrap();
+
+    // User1 withdraws and gets rewards
+    let msg = GeneratorExecuteMsg::Withdraw {
+        lp_token: lp_val_eur.to_string(),
+        amount: Uint128::new(2),
+    };
+    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Compare rewards on proxy and generator
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &generator_instance,
+            &QueryMsg::PoolInfo {
+                lp_token: lp_val_eur.to_string(),
+            },
+        )
+        .unwrap();
+
+    // Proxies val_token balance is 0
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 0);
+
+    // Generator proxy reward balance before update is 0
+    assert_eq!(Uint128::new(0), reps.proxy_reward_balance_before_update);
+
+    // Let's try deactivate pool
+    app.execute_contract(
+        factory_instance.clone(),
+        generator_instance.clone(),
+        &GeneratorExecuteMsg::DeactivatePool {
+            lp_token: lp_val_eur.to_string(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // check staking balance
+    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 13);
 }
 
 #[test]
