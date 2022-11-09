@@ -9,6 +9,8 @@ npm start
 
 ### Deploy on `testnet`
 
+Set multisig address in corresponding config or create new one in chain_configs
+
 Build contract:
 ```shell
 npm run build-artifacts
@@ -17,10 +19,8 @@ npm run build-artifacts
 Create `.env`:
 ```shell
 WALLET="mnemonic"
-LCD_CLIENT_URL=https://bombay-lcd.terra.dev
-CHAIN_ID=bombay-12
-
-TOKEN_INITIAL_AMOUNT="1_100_000_000_000000"
+LCD_CLIENT_URL=https://pisco-lcd.terra.dev
+CHAIN_ID=pisco-1
 ```
 
 Deploy contracts:

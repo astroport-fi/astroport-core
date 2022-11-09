@@ -21,7 +21,7 @@ import {
 import path from 'path'
 import { CustomError } from 'ts-custom-error'
 
-import {APIParams} from "@terra-money/terra.js/dist/client/lcd/APIRequester";
+import { APIParams } from "@terra-money/terra.js/dist/client/lcd/APIRequester";
 import fs from "fs";
 import https from "https";
 
@@ -101,7 +101,7 @@ export class TransactionError extends CustomError {
 }
 
 export async function createTransaction(wallet: Wallet, msg: Msg) {
-    return await wallet.createAndSignTx({ msgs: [msg]})
+    return await wallet.createAndSignTx({ msgs: [msg] })
 }
 
 export async function broadcastTransaction(terra: LCDClient, signedTx: Tx) {
@@ -129,7 +129,7 @@ export async function uploadContract(terra: LCDClient, wallet: Wallet, filepath:
 export async function instantiateContract(terra: LCDClient, wallet: Wallet, admin_address: string | undefined, codeId: number, msg: object, label: string) {
     const instantiateMsg = new MsgInstantiateContract(wallet.key.accAddress, admin_address, codeId, msg, undefined, label);
     let result = await performTransaction(terra, wallet, instantiateMsg)
-    return result.logs[0].events.filter(el => el.type == 'instantiate').map(x => x.attributes.filter(element => element.key == '_contract_address' ).map(x => x.value));
+    return result.logs[0].events.filter(el => el.type == 'instantiate').map(x => x.attributes.filter(element => element.key == '_contract_address').map(x => x.value));
 }
 
 export async function executeContract(terra: LCDClient, wallet: Wallet, contractAddress: string, msg: object, coins?: Coins.Input) {
@@ -169,10 +169,10 @@ export function recover(terra: LCDClient, mnemonic: string) {
 }
 
 export async function update_contract_admin(
-  terra: LCDClient,
-  wallet: Wallet,
-  contract_address: string,
-  admin_address: string
+    terra: LCDClient,
+    wallet: Wallet,
+    contract_address: string,
+    admin_address: string
 ) {
     let msg = new MsgUpdateContractAdmin(
         wallet.key.accAddress,
@@ -290,10 +290,10 @@ export class NativeSwap {
 }
 
 export class AstroSwap {
-    offer_asset_info: TokenAsset|NativeAsset;
-    ask_asset_info: TokenAsset|NativeAsset;
+    offer_asset_info: TokenAsset | NativeAsset;
+    ask_asset_info: TokenAsset | NativeAsset;
 
-    constructor(offer_asset_info: TokenAsset|NativeAsset, ask_asset_info: TokenAsset|NativeAsset) {
+    constructor(offer_asset_info: TokenAsset | NativeAsset, ask_asset_info: TokenAsset | NativeAsset) {
         this.offer_asset_info = offer_asset_info
         this.ask_asset_info = ask_asset_info
     }
@@ -308,7 +308,7 @@ export class AstroSwap {
     }
 }
 
-export function checkParams(network:any, required_params: any) {
+export function checkParams(network: any, required_params: any) {
     for (const k in required_params) {
         if (!network[required_params[k]]) {
             throw "Set required param: " + required_params[k]

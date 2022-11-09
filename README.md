@@ -36,15 +36,26 @@ Tokenomics related smart contracts are hosted on ../contracts/tokenomics.
 
 ## Building Contracts
 
-You will need Rust 1.58.1+ with wasm32-unknown-unknown target installed.
+You will need Rust 1.64.0+ with wasm32-unknown-unknown target installed.
 
-You can run unit tests for each contract directory via:
+### You can compile each contract:
+Go to contract directory and run 
+    
+```
+cargo wasm
+cp ../../target/wasm32-unknown-unknown/release/astroport_token.wasm .
+ls -l astroport_token.wasm
+sha256sum astroport_token.wasm
+```
+
+### You can run tests for all contracts
+Run the following from the repository root
 
 ```
 cargo test
 ```
 
-#### For a production-ready (compressed) build:
+### For a production-ready (compressed) build:
 Run the following from the repository root
 
 ```
@@ -53,20 +64,9 @@ Run the following from the repository root
 
 The optimized contracts are generated in the artifacts/ directory.
 
-#### You can compile each contract:
-Go to contract directory and run 
-    
-```
-RUSTFLAGS='-C link-arg=-s' cargo wasm
-cp ../../target/wasm32-unknown-unknown/release/astroport_token.wasm .
-ls -l astroport_token.wasm
-sha256sum astroport_token.wasm
-```
-
 ## Branches
 
-We use [main](https://github.com/astroport-fi/astroport-core/tree/main) branch for new features development whereas [release/terra1](https://github.com/astroport-fi/astroport-core/tree/release/terra1) and [release/terra2](https://github.com/astroport-fi/astroport-core/tree/release/terra2) branches are for stable releases.
-You can find actual deployed code in release/* branches.
+We use [main](https://github.com/astroport-fi/astroport-core/tree/main) branch for new feature development and [release](https://github.com/astroport-fi/astroport-core/tree/release) one for collecting features which are ready for deployment. You can find the version and commit for actually deployed contracts [here](https://github.com/astroport-fi/astroport-changelog).
 
 ## Docs
 
