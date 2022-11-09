@@ -21,11 +21,28 @@ import {
 import path from 'path'
 import { CustomError } from 'ts-custom-error'
 
+import { APIParams } from "@terra-money/terra.js/dist/client/lcd/APIRequester";
+import fs from "fs";
+import https from "https";
+
 export const ARTIFACTS_PATH = '../artifacts'
 
-export function readArtifact(name: string = 'artifact') {
+export function getRemoteFile(file: any, url: any) {
+    let localFile = fs.createWriteStream(path.join(ARTIFACTS_PATH, `${file}.json`));
+
+    https.get(url, (res) => {
+        res.pipe(localFile);
+        res.on("finish", () => {
+            file.close();
+        })
+    }).on('error', (e) => {
+        console.error(e);
+    });
+}
+
+export function readArtifact(name: string = 'artifact', from: string = ARTIFACTS_PATH) {
     try {
-        const data = readFileSync(path.join(ARTIFACTS_PATH, `${name}.json`), 'utf8')
+        const data = readFileSync(path.join(from, `${name}.json`), 'utf8')
         return JSON.parse(data)
     } catch (e) {
         return {}
@@ -52,8 +69,8 @@ export function newClient(): Client {
     return client
 }
 
-export function writeArtifact(data: object, name: string = 'artifact') {
-    writeFileSync(path.join(ARTIFACTS_PATH, `${name}.json`), JSON.stringify(data, null, 2))
+export function writeArtifact(data: object, name: string = 'artifact', to: string = ARTIFACTS_PATH) {
+    writeFileSync(path.join(to, `${name}.json`), JSON.stringify(data, null, 2))
 }
 
 // Tequila lcd is load balanced, so txs can't be sent too fast, otherwise account sequence queries
@@ -76,7 +93,7 @@ export async function sleep(timeout: number) {
 export class TransactionError extends CustomError {
     public constructor(
         public code: string | number,
-        public codespace: string | undefined,
+        public txhash: string | undefined,
         public rawLog: string,
     ) {
         super("transaction failed")
@@ -84,7 +101,7 @@ export class TransactionError extends CustomError {
 }
 
 export async function createTransaction(wallet: Wallet, msg: Msg) {
-    return await wallet.createAndSignTx({ msgs: [msg]})
+    return await wallet.createAndSignTx({ msgs: [msg] })
 }
 
 export async function broadcastTransaction(terra: LCDClient, signedTx: Tx) {
@@ -112,7 +129,7 @@ export async function uploadContract(terra: LCDClient, wallet: Wallet, filepath:
 export async function instantiateContract(terra: LCDClient, wallet: Wallet, admin_address: string | undefined, codeId: number, msg: object, label: string) {
     const instantiateMsg = new MsgInstantiateContract(wallet.key.accAddress, admin_address, codeId, msg, undefined, label);
     let result = await performTransaction(terra, wallet, instantiateMsg)
-    return result.logs[0].events.filter(el => el.type == 'instantiate').map(x => x.attributes.filter(element => element.key == '_contract_address' ).map(x => x.value));
+    return result.logs[0].events.filter(el => el.type == 'instantiate').map(x => x.attributes.filter(element => element.key == '_contract_address').map(x => x.value));
 }
 
 export async function executeContract(terra: LCDClient, wallet: Wallet, contractAddress: string, msg: object, coins?: Coins.Input) {
@@ -122,6 +139,18 @@ export async function executeContract(terra: LCDClient, wallet: Wallet, contract
 
 export async function queryContract(terra: LCDClient, contractAddress: string, query: object): Promise<any> {
     return await terra.wasm.contractQuery(contractAddress, query)
+}
+
+export async function queryContractInfo(terra: LCDClient, contractAddress: string): Promise<any> {
+    return await terra.wasm.contractInfo(contractAddress)
+}
+
+export async function queryCodeInfo(terra: LCDClient, codeID: number): Promise<any> {
+    return await terra.wasm.codeInfo(codeID)
+}
+
+export async function queryContractRaw(terra: LCDClient, end_point: string, params?: APIParams): Promise<any> {
+    return await terra.apiRequester.getRaw(end_point, params)
 }
 
 export async function deployContract(terra: LCDClient, wallet: Wallet, admin_address: string, filepath: string, initMsg: object, label: string) {
@@ -140,10 +169,10 @@ export function recover(terra: LCDClient, mnemonic: string) {
 }
 
 export async function update_contract_admin(
-  terra: LCDClient,
-  wallet: Wallet,
-  contract_address: string,
-  admin_address: string
+    terra: LCDClient,
+    wallet: Wallet,
+    contract_address: string,
+    admin_address: string
 ) {
     let msg = new MsgUpdateContractAdmin(
         wallet.key.accAddress,
@@ -165,6 +194,14 @@ export function initialize(terra: LCDClient) {
 
 export function toEncodedBinary(object: any) {
     return Buffer.from(JSON.stringify(object)).toString('base64');
+}
+
+export function strToEncodedBinary(data: string) {
+    return Buffer.from(data).toString('base64');
+}
+
+export function toDecodedBinary(data: string) {
+    return Buffer.from(data, 'base64')
 }
 
 export class NativeAsset {
@@ -253,10 +290,10 @@ export class NativeSwap {
 }
 
 export class AstroSwap {
-    offer_asset_info: TokenAsset|NativeAsset;
-    ask_asset_info: TokenAsset|NativeAsset;
+    offer_asset_info: TokenAsset | NativeAsset;
+    ask_asset_info: TokenAsset | NativeAsset;
 
-    constructor(offer_asset_info: TokenAsset|NativeAsset, ask_asset_info: TokenAsset|NativeAsset) {
+    constructor(offer_asset_info: TokenAsset | NativeAsset, ask_asset_info: TokenAsset | NativeAsset) {
         this.offer_asset_info = offer_asset_info
         this.ask_asset_info = ask_asset_info
     }
@@ -267,6 +304,14 @@ export class AstroSwap {
                 "offer_asset_info": this.offer_asset_info.getInfo(),
                 "ask_asset_info": this.ask_asset_info.getInfo(),
             }
+        }
+    }
+}
+
+export function checkParams(network: any, required_params: any) {
+    for (const k in required_params) {
+        if (!network[required_params[k]]) {
+            throw "Set required param: " + required_params[k]
         }
     }
 }

@@ -132,7 +132,7 @@ impl Asset {
 /// ```
 /// # use cosmwasm_std::Addr;
 /// # use astroport::asset::AssetInfo::{NativeToken, Token};
-/// Token { contract_addr: Addr::unchecked("terra...") };
+/// Token { contract_addr: Addr::unchecked("stake...") };
 /// NativeToken { denom: String::from("uluna") };
 /// ```
 #[cw_serde]
