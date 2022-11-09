@@ -53,6 +53,19 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.0.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/migrate-to-cosmwasm-1.1#6b1e81e5c1fef31425475f6d52b80a87f8952fc0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw20 0.15.1",
+ "itertools 0.10.5",
+ "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "2.0.0"
 source = "git+https://github.com/astroport-fi/astroport-core.git?branch=release/terra2#09dc5793020e06835f7004082f798c67e4f016bd"
 dependencies = [
  "cosmwasm-schema",
@@ -123,12 +136,12 @@ dependencies = [
 
 [[package]]
 name = "astroport-generator"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "anyhow",
  "astroport 2.0.0",
  "astroport-factory",
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=feat/migrate-to-cosmwasm-1.1)",
  "astroport-nft",
  "astroport-pair",
  "astroport-pair-stable",
@@ -166,6 +179,18 @@ dependencies = [
  "cw2 0.15.1",
  "cw20 0.15.1",
  "thiserror",
+]
+
+[[package]]
+name = "astroport-governance"
+version = "1.1.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=feat/migrate-to-cosmwasm-1.1#eb8b913aa6b34b0bd5d1e06493625ad64d9c51cf"
+dependencies = [
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/migrate-to-cosmwasm-1.1)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw20 0.15.1",
 ]
 
 [[package]]
@@ -216,9 +241,9 @@ dependencies = [
 [[package]]
 name = "astroport-nft"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#df5360c0019d05822b120aa2c5685ccc78f4a71b"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=feat/migrate-to-cosmwasm-1.1#eb8b913aa6b34b0bd5d1e06493625ad64d9c51cf"
 dependencies = [
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=feat/migrate-to-cosmwasm-1.1)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2 0.15.1",
@@ -1023,9 +1048,9 @@ checksum = "c8cbd1169bd7b4a0a20d92b9af7a7e0422888bd38a6f5ec29c1fd8c1558a272e"
 [[package]]
 name = "generator-controller"
 version = "1.1.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#df5360c0019d05822b120aa2c5685ccc78f4a71b"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=feat/migrate-to-cosmwasm-1.1#eb8b913aa6b34b0bd5d1e06493625ad64d9c51cf"
 dependencies = [
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=feat/migrate-to-cosmwasm-1.1)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -1885,9 +1910,9 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "voting-escrow"
 version = "1.3.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#df5360c0019d05822b120aa2c5685ccc78f4a71b"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=feat/migrate-to-cosmwasm-1.1#eb8b913aa6b34b0bd5d1e06493625ad64d9c51cf"
 dependencies = [
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=feat/migrate-to-cosmwasm-1.1)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -1900,9 +1925,9 @@ dependencies = [
 [[package]]
 name = "voting-escrow-delegation"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#df5360c0019d05822b120aa2c5685ccc78f4a71b"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=feat/migrate-to-cosmwasm-1.1#eb8b913aa6b34b0bd5d1e06493625ad64d9c51cf"
 dependencies = [
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=feat/migrate-to-cosmwasm-1.1)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
