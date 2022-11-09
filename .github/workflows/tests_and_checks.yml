@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - release/terra2
+      - release
 
 env:
   CARGO_TERM_COLOR: always
