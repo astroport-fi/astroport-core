@@ -1817,7 +1817,7 @@ fn move_to_proxy(
         create_pool(deps.branch(), &env, &lp_addr, &cfg, &factory_cfg)?;
     }
 
-    let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr.clone())?;
+    let mut pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
     if pool_info.reward_proxy.is_some() {
         return Err(ContractError::PoolAlreadyHasRewardProxyContract {});
     }
