@@ -1,7 +1,6 @@
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdResult, Uint128, Uint64};
 use cw_storage_plus::Item;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 use astroport::asset::token_asset_info;
 use astroport::maker::MigrateMsg;
@@ -9,7 +8,7 @@ use astroport::maker::MigrateMsg;
 use crate::state::{Config, CONFIG};
 
 pub(crate) fn migrate_to_v120(deps: DepsMut, msg: MigrateMsg) -> StdResult<()> {
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    #[cw_serde]
     struct OldConfig {
         pub owner: Addr,
         pub factory_contract: Addr,

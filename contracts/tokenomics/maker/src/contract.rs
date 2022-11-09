@@ -550,7 +550,7 @@ fn distribute(
                 }),
                 AssetInfo::NativeToken { denom } => CosmosMsg::Wasm(wasm_execute(
                     governance_contract,
-                    &astro_ibc::satellite::ExecuteMsg::TransferAstro {},
+                    &astro_satellite_package::ExecuteMsg::TransferAstro {},
                     coins(amount.u128(), denom),
                 )?),
             };
