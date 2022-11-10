@@ -83,7 +83,7 @@ pub fn migrate_configs_from_v200(deps: &mut DepsMut) -> Result<(), StdError> {
         factory: cfg_200.factory,
         generator_controller: cfg_200.generator_controller,
         voting_escrow: cfg_200.voting_escrow,
-        astro_token: token_asset_info(cfg_200.astro_token),,
+        astro_token: token_asset_info(cfg_200.astro_token),
         tokens_per_block: cfg_200.tokens_per_block,
         total_alloc_point: cfg_200.total_alloc_point,
         start_block: cfg_200.start_block,
