@@ -1,6 +1,6 @@
 {
   "generalInfo": {
-    "multisig": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp"
+    "multisig": "terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v"
   },
   "token": {
     "admin": null,
@@ -29,7 +29,7 @@
     "admin": null,
     "initMsg": {
       "admins": [
-        "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp"
+        null
       ],
       "mutable": true
     },
@@ -86,7 +86,7 @@
     "label": "Astroport Factory",
     "change_owner": false,
     "proposeNewOwner": {
-      "owner": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
+      "owner": null,
       "expires_in": 604800
     }
   },
@@ -122,7 +122,7 @@
         "register_vesting_accounts": {
           "vesting_accounts": [
             {
-              "address": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
+              "address": null,
               "schedules": [
                 {
                   "start_point": {
@@ -156,7 +156,7 @@
     "label": "Astroport Generator",
     "change_owner": false,
     "proposeNewOwner": {
-      "owner": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
+      "owner": null,
       "expires_in": 604800
     }
   },
@@ -180,79 +180,6 @@
     "label": "Astroport Oracle"
   },
   "createPairs": {
-    "pairs": [
-      {
-        "identifier": "BlunaLuna",
-        "assetInfos": [
-          {
-            "token": {
-              "contract_addr": "terra1v43939l7xgn37ys8uzck843erf0h6jh7cs4nssfz2fdwrd0lxresx3hsp9"
-            }
-          },
-          {
-            "native_token": {
-              "denom": "uluna"
-            }
-          }
-        ],
-        "pairType": {
-          "stable": {}
-        },
-        "initParams": {
-          "amp": 100
-        },
-        "initOracle": false,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      },
-      {
-        "identifier": "AstroUst",
-        "assetInfos": [
-          {
-            "token": {
-              "contract_addr": "terra1v43939l7xgn37ys8uzck843erf0h6jh7cs4nssfz2fdwrd0lxresx3hsp9"
-            }
-          },
-          {
-            "native_token": {
-              "denom": "uusd"
-            }
-          }
-        ],
-        "pairType": {
-          "xyk": {}
-        },
-        "initOracle": true,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      },
-      {
-        "identifier": "LunaUst",
-        "assetInfos": [
-          {
-            "native_token": {
-              "denom": "uluna"
-            }
-          },
-          {
-            "native_token": {
-              "denom": "uusd"
-            }
-          }
-        ],
-        "pairType": {
-          "stable": {}
-        },
-        "initParams": {
-          "amp": 100
-        },
-        "initOracle": false,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      }
-    ]
+    "pairs": []
   }
 }

@@ -1,6 +1,6 @@
 {
   "generalInfo": {
-    "multisig": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp"
+    "multisig": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw"
   },
   "token": {
     "admin": null,
@@ -28,7 +28,9 @@
   "treasury": {
     "admin": null,
     "initMsg": {
-      "admins": ["terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw"],
+      "admins": [
+        "terra1k9j8rcyk87v5jvfla2m9wp200azegjz0eshl7n2pwv852a7ssceqsnn7pq"
+      ],
       "mutable": true
     },
     "label": "Astroport Treasury"
@@ -57,7 +59,9 @@
       "pair_configs": [
         {
           "code_id": null,
-          "pair_type": { "xyk": {} },
+          "pair_type": {
+            "xyk": {}
+          },
           "total_fee_bps": 30,
           "maker_fee_bps": 3333,
           "is_disabled": false,
@@ -65,7 +69,9 @@
         },
         {
           "code_id": null,
-          "pair_type": { "stable": {} },
+          "pair_type": {
+            "stable": {}
+          },
           "total_fee_bps": 5,
           "maker_fee_bps": 5000,
           "is_disabled": false,
@@ -80,12 +86,12 @@
     "label": "Astroport Factory",
     "change_owner": false,
     "proposeNewOwner": {
-      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+      "owner": null,
       "expires_in": 604800
     }
   },
   "router": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "astroport_factory": null
     },
@@ -116,7 +122,7 @@
         "register_vesting_accounts": {
           "vesting_accounts": [
             {
-              "address": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+              "address": null,
               "schedules": [
                 {
                   "start_point": {
@@ -150,7 +156,7 @@
     "label": "Astroport Generator",
     "change_owner": false,
     "proposeNewOwner": {
-      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+      "owner": null,
       "expires_in": 604800
     }
   },
@@ -174,164 +180,6 @@
     "label": "Astroport Oracle"
   },
   "create_pairs": {
-    "pairs": [
-      {
-        "identifier": "AstroUst",
-        "assetInfos": [
-        {
-          "token": {
-            "contract_addr": "terra1nsuqsk6kh58ulczatwev87ttq2z6r3pusulg9r24mfj2fvtzd4uq3exn26"
-          }
-        },
-        {
-          "native_token": {
-            "denom": "uusd"
-          }
-        }
-      ],
-        "pairType": {
-          "xyk": {}
-        },
-        "initOracle": false,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      },
-      {
-        "identifier": "BlunaLuna",
-        "assetInfos": [
-          {
-            "token": {
-              "contract_addr": "terra1kc87mu460fwkqte29rquh4hc20m54fxwtsx7gp"
-            }
-          },
-          {
-            "native_token": {
-              "denom": "uluna"
-            }
-          }
-        ],
-        "pairType": {
-          "stable": {}
-        },
-        "initParams": {
-          "amp": 1
-        },
-        "initOracle": false,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      },
-      {
-        "identifier": "UstLuna",
-        "assetInfos": [
-          {
-            "native_token": {
-              "denom": "uusd"
-            }
-          },
-          {
-            "native_token": {
-              "denom": "uluna"
-            }
-          }
-        ],
-        "pairType": {
-          "xyk": {}
-        },
-        "initOracle": false,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      },
-      {
-        "identifier": "MineUst",
-        "assetInfos": [
-          {
-            "token": {
-              "contract_addr": "terra1kcthelkax4j9x8d3ny6sdag0qmxxynl3qtcrpy"
-            }
-          },
-          {
-            "native_token": {
-              "denom": "uusd"
-            }
-          }
-        ],
-        "pairType": {
-          "xyk": {}
-        },
-        "initOracle": false,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      },
-      {
-        "identifier": "VkrUst",
-        "assetInfos": [
-          {
-            "token": {
-              "contract_addr": "terra1dy9kmlm4anr92e42mrkjwzyvfqwz66un00rwr5"
-            }
-          },
-          {
-            "native_token": {
-              "denom": "uusd"
-            }
-          }
-        ],
-        "pairType": {
-          "xyk": {}
-        },
-        "initOracle": false,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      },
-      {
-        "identifier": "PsiUst",
-        "assetInfos": [
-          {
-            "token": {
-              "contract_addr": "terra12897djskt9rge8dtmm86w654g7kzckkd698608"
-            }
-          },
-          {
-            "native_token": {
-              "denom": "uusd"
-            }
-          }
-        ],
-        "pairType": {
-          "xyk": {}
-        },
-        "initOracle": false,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      },
-      {
-        "identifier": "ApolloUst",
-        "assetInfos": [
-          {
-            "token": {
-              "contract_addr": "terra100yeqvww74h4yaejj6h733thgcafdaukjtw397"
-            }
-          },
-          {
-            "native_token": {
-              "denom": "uusd"
-            }
-          }
-        ],
-        "pairType": {
-          "xyk": {}
-        },
-        "initOracle": false,
-        "initGenerator": {
-          "generatorAllocPoint": "24528"
-        }
-      }
-    ]
+    "pairs": []
   }
 }
