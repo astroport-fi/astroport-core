@@ -213,7 +213,11 @@ async function uploadAndInitMaker(terra: LCDClient, wallet: any) {
         chainConfigs.maker.initMsg.owner ||= chainConfigs.generalInfo.multisig;
         chainConfigs.maker.initMsg.factory_contract ||= network.factoryAddress;
         chainConfigs.maker.initMsg.staking_contract ||= network.stakingAddress;
-        chainConfigs.maker.initMsg.astro_token_contract ||= network.tokenAddress;
+        chainConfigs.maker.initMsg.astro_token ||= {
+            token: {
+                contract_addr: network.tokenAddress
+            }
+        };
         chainConfigs.maker.admin ||= chainConfigs.generalInfo.multisig;
 
         console.log('Deploying Maker...')
@@ -275,7 +279,7 @@ async function uploadAndInitVesting(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.vestingAddress) {
-        chainConfigs.vesting.initMsg.token_addr ||= network.tokenAddress;
+        chainConfigs.vesting.initMsg.vesting_token ||= { token: { contract_addr: network.tokenAddress } };
         chainConfigs.vesting.initMsg.owner ||= chainConfigs.generalInfo.multisig;
         chainConfigs.vesting.admin ||= chainConfigs.generalInfo.multisig;
 
@@ -300,7 +304,7 @@ async function uploadAndInitGenerator(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.generatorAddress) {
-        chainConfigs.generator.initMsg.astro_token ||= network.tokenAddress;
+        chainConfigs.generator.initMsg.astro_token ||= { token: { contract_addr: network.tokenAddress } };
         chainConfigs.generator.initMsg.vesting_contract ||= network.vestingAddress;
         chainConfigs.generator.initMsg.factory ||= network.factoryAddress;
         chainConfigs.generator.initMsg.whitelist_code_id ||= network.whitelistCodeID;
