@@ -103,7 +103,7 @@
       "owner": null,
       "factory_contract": null,
       "staking_contract": null,
-      "astro_token_contract": null,
+      "astro_token": null,
       "governance_contract": null,
       "governance_percent": null,
       "max_spread": "0.5"
@@ -114,7 +114,7 @@
     "admin": null,
     "initMsg": {
       "owner": null,
-      "token_addr": null
+      "vesting_token": null
     },
     "label": "Astroport Vesting",
     "registration": {
