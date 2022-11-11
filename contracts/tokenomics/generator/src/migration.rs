@@ -1,5 +1,5 @@
 use crate::state::{Config, CONFIG};
-use astroport::asset::{addr_validate_to_lower, token_asset_info, AssetInfo};
+use astroport::asset::{token_asset_info, AssetInfo};
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, StdError, StdResult, Uint128, Uint64};

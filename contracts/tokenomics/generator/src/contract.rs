@@ -68,11 +68,6 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let mut allowed_reward_proxies: Vec<Addr> = vec![];
-    for proxy in msg.allowed_reward_proxies {
-        allowed_reward_proxies.push(addr_validate_to_lower(deps.api, &proxy)?);
-    }
-
     msg.astro_token.check(deps.api)?;
 
     let mut config = Config {
@@ -2467,8 +2462,8 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             "2.0.0" => {
                 migration::migrate_configs_from_v200(&mut deps)?;
             }
-            "2.0.1" => {
-                migration::migrate_configs_from_v200(&mut deps)?;
+            "2.1.0" => {
+                migration::migrate_configs_from_v210(&mut deps)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },
