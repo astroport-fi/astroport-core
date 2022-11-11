@@ -12,7 +12,7 @@ use ap_generator::{
     InstantiateMsg as GeneratorInstantiateMsg, PendingTokenResponse, PoolInfoResponse,
     QueryMsg as GeneratorQueryMsg,
 };
-use ap_generator_proxy::{ExecuteMsg as ProxyExecuteMsg, InstantiateMsg as ProxyInstantiateMsg},
+use ap_generator_proxy::{ExecuteMsg as ProxyExecuteMsg, InstantiateMsg as ProxyInstantiateMsg};
 use ap_token::InstantiateMsg as TokenInstantiateMsg;
 
 use ap_vesting::{
@@ -1687,7 +1687,7 @@ fn generator_with_vkr_reward_proxy() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "astroport::generator::UserInfo not found".to_string()
+        "astroport_generator::state::UserInfo not found".to_string()
     );
 
     app.update_block(|bi| next_block(bi));
