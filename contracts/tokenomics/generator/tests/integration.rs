@@ -1679,13 +1679,17 @@ fn generator_update_proxy_balance_failed() {
     // check staking balance
     check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 20);
 
-    // User2 withdraws and gets rewards
-    let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_val_eur.to_string(),
-        amount: Uint128::new(5),
+    // Let's try claim rewards for user1
+    let msg = GeneratorExecuteMsg::ClaimRewards {
+        lp_tokens: vec![lp_val_eur.to_string()],
     };
-    app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
+    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
+
+    // Check user1, user2 and proxy balances
+    check_token_balance(&mut app, &val_token, &user1, 80_000_000);
+    check_token_balance(&mut app, &val_token, &user2, 0);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 30_000_000);
 
     // Compare rewards on proxy and generator
     let reps: PoolInfoResponse = app
@@ -1697,9 +1701,6 @@ fn generator_update_proxy_balance_failed() {
             },
         )
         .unwrap();
-
-    // Proxies val_token balance is 80_000_000
-    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 80_000_000);
 
     // Generator proxy reward balance before update is 110_000_000
     assert_eq!(
@@ -1719,14 +1720,6 @@ fn generator_update_proxy_balance_failed() {
     )
     .unwrap();
 
-    // User1 withdraws and gets rewards
-    let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_val_eur.to_string(),
-        amount: Uint128::new(2),
-    };
-    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap();
-
     // Compare rewards on proxy and generator
     let reps: PoolInfoResponse = app
         .wrap()
@@ -1738,11 +1731,26 @@ fn generator_update_proxy_balance_failed() {
         )
         .unwrap();
 
-    // Proxies val_token balance is 0
-    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 0);
+    // Proxies val_token balance is 30_000_000
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 30_000_000);
 
-    // Generator proxy reward balance before update is 0
-    assert_eq!(Uint128::new(0), reps.proxy_reward_balance_before_update);
+    // Generator proxy reward balance before update is 30_000_000
+    assert_eq!(
+        Uint128::new(30_000_000),
+        reps.proxy_reward_balance_before_update
+    );
+
+    // Let's try claim rewards for user2
+    let msg = GeneratorExecuteMsg::ClaimRewards {
+        lp_tokens: vec![lp_val_eur.to_string()],
+    };
+    app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Check user1, user2 and proxy balances
+    check_token_balance(&mut app, &val_token, &user1, 80_000_000);
+    check_token_balance(&mut app, &val_token, &user2, 30_000_000);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 0);
 
     // Let's try deactivate pool
     app.execute_contract(
@@ -1756,7 +1764,7 @@ fn generator_update_proxy_balance_failed() {
     .unwrap();
 
     // check staking balance
-    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 13);
+    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 20);
 }
 
 #[test]

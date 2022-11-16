@@ -297,7 +297,7 @@ pub fn execute(
 ///
 /// * **user** address for which the virtual amount will be recalculated.
 fn checkpoint_user_boost(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
     generators: Vec<String>,
@@ -328,7 +328,6 @@ fn checkpoint_user_boost(
                 USER_INFO.compatible_load(deps.storage, (&generator_addr, &recipient_addr))?;
 
             let mut pool = POOL_INFO.load(deps.storage, &generator_addr)?;
-            update_proxy_rewards_balance(deps.branch(), &mut pool, &generator_addr)?;
 
             accumulate_rewards_per_share(&deps.querier, &env, &generator_addr, &mut pool, &config)?;
 
@@ -851,7 +850,7 @@ fn set_tokens_per_block(
 ///
 /// * **lp_tokens** is the list of LP tokens which should be updated.
 pub fn mass_update_pools(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: &Env,
     cfg: &Config,
     lp_tokens: &[Addr],
@@ -859,33 +858,8 @@ pub fn mass_update_pools(
     for lp_token in lp_tokens {
         let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
 
-        update_proxy_rewards_balance(deps.branch(), &mut pool, lp_token)?;
         accumulate_rewards_per_share(&deps.querier, env, lp_token, &mut pool, cfg)?;
         POOL_INFO.save(deps.storage, lp_token, &pool)?;
-    }
-
-    Ok(())
-}
-
-/// Updates the amount of proxy reward balance for specified generator.
-///
-/// * **pool** generator associated with the `lp_token`.
-///
-/// * **lp_token** is the LP token which should be updated.
-pub fn update_proxy_rewards_balance(
-    deps: DepsMut,
-    pool: &mut PoolInfo,
-    lp_token: &Addr,
-) -> Result<(), ContractError> {
-    if let Some(proxy) = &pool.reward_proxy {
-        let reward_amount: Uint128 = deps
-            .querier
-            .query_wasm_smart(proxy.to_string(), &ProxyQueryMsg::Reward {})?;
-
-        if pool.proxy_reward_balance_before_update != reward_amount {
-            pool.proxy_reward_balance_before_update = reward_amount;
-            POOL_INFO.save(deps.storage, lp_token, pool)?;
-        }
     }
 
     Ok(())
@@ -975,8 +949,11 @@ pub fn accumulate_rewards_per_share(
             let reward_amount: Uint128 =
                 querier.query_wasm_smart(proxy, &ProxyQueryMsg::Reward {})?;
 
-            let token_rewards =
-                reward_amount.checked_sub(pool.proxy_reward_balance_before_update)?;
+            let token_rewards = if reward_amount < pool.proxy_reward_balance_before_update {
+                Uint128::zero()
+            } else {
+                reward_amount.checked_sub(pool.proxy_reward_balance_before_update)?
+            };
 
             let share = Decimal::from_ratio(token_rewards, proxy_lp_supply);
             pool.accumulated_proxy_rewards_per_share
