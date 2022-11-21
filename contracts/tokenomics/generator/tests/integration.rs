@@ -1679,12 +1679,35 @@ fn generator_update_proxy_balance_failed() {
     // check staking balance
     check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 20);
 
-    // Let's try claim rewards for user1
-    let msg = GeneratorExecuteMsg::ClaimRewards {
-        lp_tokens: vec![lp_val_eur.to_string()],
+    // Check user1, user2 and proxy balances
+    check_token_balance(&mut app, &val_token, &user1, 0);
+    check_token_balance(&mut app, &val_token, &user2, 0);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 50_000_000);
+
+    // Let's try withdraw for user1
+    let msg = GeneratorExecuteMsg::Withdraw {
+        lp_token: lp_val_eur.to_string(),
+        amount: Uint128::new(5),
     };
     app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
+
+    // check pending rewards for user1 after withdraw
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER1,
+        (0, Some(vec![0])),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER2,
+        (5_000_000, Some(vec![30_000_000])),
+    );
 
     // Check user1, user2 and proxy balances
     check_token_balance(&mut app, &val_token, &user1, 80_000_000);
@@ -1763,8 +1786,51 @@ fn generator_update_proxy_balance_failed() {
     )
     .unwrap();
 
+    app.update_block(|bi| next_block(bi));
+
+    // Let's try claim rewards for user1
+    let msg = GeneratorExecuteMsg::ClaimRewards {
+        lp_tokens: vec![lp_val_eur.to_string()],
+    };
+    app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Let's try checkpoint user boost
+    app.execute_contract(
+        factory_instance.clone(),
+        generator_instance.clone(),
+        &GeneratorExecuteMsg::CheckpointUserBoost {
+            generators: vec![lp_val_eur.to_string()],
+            user: None,
+        },
+        &[],
+    )
+    .unwrap();
+
+    // check pending rewards for user1 after withdraw
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER1,
+        (0, Some(vec![0])),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER2,
+        (0, Some(vec![0])),
+    );
+
     // check staking balance
-    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 20);
+    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 15);
+
+    // Check user1, user2 and proxy balances
+    check_token_balance(&mut app, &val_token, &user1, 80_000_000);
+    check_token_balance(&mut app, &val_token, &user2, 30_000_000);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 0);
 }
 
 #[test]
