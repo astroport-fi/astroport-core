@@ -1,6 +1,6 @@
 # Astroport Token
 
-This is the contract implementation for the ASTRO token.
+This is the contract implementation for the ASTRO token. Its interface can be found [here](../../packages/token/README.md)
 
 ---
 

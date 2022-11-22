@@ -1,6 +1,6 @@
 # Astroport xASTRO Token
 
-This is the Astroport xASTRO token implementation.
+This is the Astroport xASTRO token implementation. Its interface can be found [here](../../../packages/xastro_token/README.md)
 
 ---
 

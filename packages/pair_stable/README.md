@@ -1,12 +1,12 @@
-# Astroport: Pair Interface
+# Astroport: StableSwap Pair Interface
 
-This is a collection of types and queriers which are commonly used with Astroport pair contracts.
+This is a collection of types and queriers which are commonly used with Astroport stableswap pair contracts.
 
 ---
 
 ## InstantiateMsg
 
-Initializes a new x*y=k pair.
+Initializes a new stableswap pair.
 
 ```json
 {
@@ -30,9 +30,11 @@ Initializes a new x*y=k pair.
 
 ## ExecuteMsg
 
+## ExecuteMsg
+
 ### `receive`
 
-Withdraws liquidity or assets that were swapped to (ask assets in a swap operation).
+Withdraws liquidity or assets that were swapped to (ask assets from a swap operation).
 
 ```json
 {
@@ -109,6 +111,36 @@ __NOTE__: you should increase your token allowance for the pool before providing
   }
 ```
 
+3. Provides the liquidity with a single token. We can do this only for the non-empty pool.
+
+  ```json
+  {
+    "provide_liquidity": {
+      "assets": [
+        {
+          "info": {
+            "token": {
+              "contract_addr": "terra..."
+            }
+          },
+          "amount": "1000000"
+        },
+        {
+          "info": {
+            "token": {
+              "contract_addr": "terra..."
+            }
+          },
+          "amount": "0"
+        }
+      ],
+      "slippage_tolerance": "0",
+      "auto_stake": false,
+      "receiver": "terra..."
+    }
+  }
+```
+
 ### `withdraw_liquidity`
 
 Burn LP tokens and withdraw liquidity from a pool. This call must be sent to a LP token contract associated with the pool from which you want to withdraw liquidity from.
@@ -123,7 +155,7 @@ Burn LP tokens and withdraw liquidity from a pool. This call must be sent to a L
 
 Perform a swap. `offer_asset` is your source asset and `to` is the address that will receive the ask assets. All fields are optional except `offer_asset`.
 
-NOTE: You should increase token allowance before swap.
+NOTE: You should increase your token allowance for the pool before the swap.
 
 ```json
   {
@@ -145,12 +177,12 @@ NOTE: You should increase token allowance before swap.
 
 ### `update_config`
 
-The contract configuration cannot be updated.
+Update the pair's configuration.
 
 ```json
   {
     "update_config": {
-      "params": "<base64_encoded_json_string>"
+      "params": "<base64_encoded_json_string>: binary serialised parameters for stable pool types; example: {'amp': 100} "
     }
   }
 ```
@@ -161,7 +193,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `pair`
 
-Retrieve a pair's configuration (type, assets traded in it etc)
+Retrieve a pair's configuration (type, assets traded in it etc).
 
 ```json
 {
@@ -249,47 +281,12 @@ Returns the cumulative prices for the assets in the pair.
 }
 ```
 
-## Data Types
+### `query_compute_d`
 
-### PairInfo
+Returns current D value for the pool.
 
-This structure stores the main parameters for an Astroport pair.
-
-```rust
-pub struct PairInfo {
-    pub asset_infos: [AssetInfo; 2],
-    pub contract_addr: Addr,
-    pub liquidity_token: Addr,
-    pub pair_type: PairType,
+```json
+{
+  "query_compute_d": {}
 }
-```
-
-## Queriers
-
-## Swap Pairs Simulating
-
-### Simulate
-
-Simulates a swap and returns the output amount, the spread and commission amounts.
-
-```rust
-pub fn simulate(
-    querier: &QuerierWrapper,
-    pair_contract: impl Into<String>,
-    offer_asset: &Asset,
-    ask_asset_info: Option<AssetInfo>,
-) -> StdResult<SimulationResponse>
-```
-
-### Reverse Simulate
-
-Simulates a reverse swap and returns an input amount, the spread and commission amounts.
-
-```rust
-pub fn reverse_simulate(
-    querier: &QuerierWrapper,
-    pair_contract: impl Into<String>,
-    ask_asset: &Asset,
-    offer_asset_info: Option<AssetInfo>,
-) -> StdResult<ReverseSimulationResponse>
 ```
