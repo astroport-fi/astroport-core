@@ -22,6 +22,8 @@ pub enum PairType {
     Xyk {},
     /// Stable pair type
     Stable {},
+    /// Concentrated liquidity pair type
+    Concentrated {},
     /// Custom pair type
     Custom(String),
 }
@@ -32,6 +34,7 @@ impl Display for PairType {
         match self {
             PairType::Xyk {} => fmt.write_str("xyk"),
             PairType::Stable {} => fmt.write_str("stable"),
+            PairType::Concentrated {} => fmt.write_str("concentrated"),
             PairType::Custom(pair_type) => fmt.write_str(format!("custom-{}", pair_type).as_str()),
         }
     }

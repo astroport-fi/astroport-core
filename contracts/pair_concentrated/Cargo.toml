@@ -1,0 +1,42 @@
+[package]
+name = "astroport-pair-concentrated"
+version = "1.0.0"
+authors = ["Astroport"]
+edition = "2021"
+description = "The Astroport concentrated liquidity pair"
+license = "MIT"
+
+exclude = [
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+astroport = { path = "../../packages/astroport", default-features = false }
+cw2 = "0.15"
+cw20 = "0.15"
+cosmwasm-std = "1.1"
+cw-storage-plus = "0.15"
+thiserror = "1.0"
+cosmwasm-schema = "1.1"
+itertools = "0.10"
+cw-utils = "0.15"
+
+[dev-dependencies]
+astroport-token = { path = "../token" }
+cw-multi-test = "0.15"
+astroport-factory = { path = "../factory" }
+proptest = "1.0"
+anyhow = "1.0"
+derivative = "2.2"
