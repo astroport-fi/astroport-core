@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::error::Error;
+use std::fmt::Display;
 use std::str::FromStr;
 
 use cosmwasm_std::{
@@ -382,10 +383,12 @@ impl Helper {
         from_slice(&binary)
     }
 
-    pub fn query_lp_price(&self) -> StdResult<Decimal256> {
-        self.app
+    pub fn query_lp_price(&self) -> StdResult<f64> {
+        let res: Decimal256 = self
+            .app
             .wrap()
-            .query_wasm_smart(&self.pair_addr, &QueryMsg::LpPrice {})
+            .query_wasm_smart(&self.pair_addr, &QueryMsg::LpPrice {})?;
+        Ok(dec_to_f64(res))
     }
 }
 
@@ -487,4 +490,8 @@ where
     T::Err: Error,
 {
     T::from_str(&val.to_string()).unwrap()
+}
+
+pub fn dec_to_f64(val: impl Display) -> f64 {
+    f64::from_str(&val.to_string()).unwrap()
 }

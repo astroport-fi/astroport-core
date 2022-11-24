@@ -29,7 +29,7 @@ fn provide_and_withdraw() {
 
     // checking LP token price on an empty pool
     let lp_price = helper.query_lp_price().unwrap();
-    assert!(lp_price.is_zero());
+    assert_eq!(lp_price, 0.0);
 
     let user1 = Addr::unchecked("user1");
     let assets = vec![
@@ -44,9 +44,9 @@ fn provide_and_withdraw() {
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
 
-    // Check LP token price again
+    // Check virtual LP token price grows
     // let lp_price = helper.query_lp_price().unwrap();
-    // assert_eq!(lp_price, 2000_000000);
+    // assert_eq!(lp_price, ?);
 
     // The user2 with the same assets should receive the same share
     // (except MINIMUM_LIQUIDITY_AMOUNT bc of 1st provide)
@@ -64,7 +64,7 @@ fn provide_and_withdraw() {
 
     // LP token price grows up because of noise fees
     // let lp_price = helper.query_lp_price().unwrap();
-    // assert_eq!(lp_price, 2000_000020);
+    // assert_eq!(lp_price, ?);
 
     // user1 withdraws one 10th
     helper
@@ -188,7 +188,6 @@ fn check_swaps_with_price_update() {
         helper.give_me_money(&[offer_asset.clone()], &user1);
         helper.swap(&user1, &offer_asset, Some(half)).unwrap();
         let new_vlp_price = helper.query_lp_price().unwrap();
-        println!("prev {prev_vlp_price} new {new_vlp_price}");
         assert!(
             new_vlp_price > prev_vlp_price,
             "new_vlp_price < prev_vlp_price"
@@ -202,7 +201,6 @@ fn check_swaps_with_price_update() {
         helper.give_me_money(&[offer_asset.clone()], &user1);
         helper.swap(&user1, &offer_asset, Some(half)).unwrap();
         let new_vlp_price = helper.query_lp_price().unwrap();
-        println!("prev {prev_vlp_price} new {new_vlp_price}");
         assert!(
             new_vlp_price > prev_vlp_price,
             "new_vlp_price < prev_vlp_price"
