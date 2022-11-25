@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Decimal};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 
 use astroport::asset::{AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::pair_concentrated::ConcentratedPoolParams;
@@ -152,6 +152,66 @@ fn provide_with_different_precision() {
             "Withdrawn amount of coin1 assert failed for {user}"
         );
     }
+}
+
+#[test]
+fn swap_different_precisions() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![
+        TestCoin::cw20precise("FOO", 5),
+        TestCoin::cw20precise("BAR", 6),
+    ];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        initial_price_scale: Decimal::one(),
+        ma_half_time: 600,
+        owner: None,
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_00000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    let user = Addr::unchecked("user");
+    // 100 x FOO tokens
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(100_00000u128);
+
+    // Checking direct swap simulation
+    let sim_resp = helper.simulate_swap(&offer_asset, None).unwrap();
+    // And reverse swap as well
+    let reverse_sim_resp = helper
+        .simulate_reverse_swap(
+            &helper.assets[&test_coins[1]].with_balance(sim_resp.return_amount.u128()),
+            None,
+        )
+        .unwrap();
+    assert_eq!(
+        offer_asset.amount,
+        reverse_sim_resp.offer_amount + Uint128::one() // slight error appears due to dynamic fee rate
+    );
+
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, None).unwrap();
+
+    assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
+    // 99_737929 x BAR tokens
+    assert_eq!(99_737929, sim_resp.return_amount.u128());
+    assert_eq!(
+        sim_resp.return_amount.u128(),
+        helper.coin_balance(&test_coins[1], &user)
+    );
 }
 
 #[test]

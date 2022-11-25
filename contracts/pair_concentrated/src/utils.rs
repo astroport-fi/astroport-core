@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Decimal256, Fraction, QuerierWrapper,
-    StdError, StdResult, Uint128,
+    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Decimal256, Env, Fraction,
+    QuerierWrapper, StdError, StdResult, Uint128,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
@@ -10,6 +10,7 @@ use astroport::querier::{query_factory_config, query_supply};
 
 use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
 use crate::error::ContractError;
+use crate::math::{calc_d, calc_y};
 use crate::state::Config;
 
 /// Helper function to check if the given asset infos are valid.
@@ -229,4 +230,83 @@ pub(crate) fn before_swap_check(pools: &[DecimalAsset], offer_amount: Decimal256
     }
 
     Ok(())
+}
+
+/// Calculate swap result.
+pub fn compute_swap(
+    xs: &[Decimal256],
+    offer_amount: Decimal256,
+    ask_ind: usize,
+    config: &Config,
+    env: &Env,
+) -> StdResult<(Decimal256, Decimal256, Decimal256)> {
+    let offer_ind = 1 - ask_ind;
+
+    let mut ixs = xs.to_vec();
+    ixs[offer_ind] += offer_amount;
+    ixs[1] *= config.pool_state.price_state.price_scale;
+
+    let amp_gamma = config.pool_state.get_amp_gamma(env);
+    let d = calc_d(xs, &amp_gamma)?;
+    let new_y = calc_y(&ixs, d, &amp_gamma, ask_ind)?;
+    let mut dy = ixs[ask_ind] - new_y;
+    ixs[ask_ind] = new_y;
+
+    let fee_rate = config.pool_params.fee(&ixs);
+
+    if ask_ind == 1 {
+        dy /= config.pool_state.price_state.price_scale;
+    }
+
+    let fee = fee_rate * dy;
+    dy -= fee;
+
+    let spread_fee = offer_amount * xs[ask_ind] / xs[offer_ind] - dy;
+
+    Ok((dy, spread_fee, fee))
+}
+
+/// Returns an amount of offer assets for a specified amount of ask assets.
+pub fn compute_offer_amount(
+    xs: &[Decimal256],
+    mut want_amount: Decimal256,
+    ask_ind: usize,
+    config: &Config,
+    env: &Env,
+) -> StdResult<(Decimal256, Decimal256, Decimal256)> {
+    let offer_ind = 1 - ask_ind;
+
+    if ask_ind == 1 {
+        want_amount *= config.pool_state.price_state.price_scale
+    }
+
+    let mut ixs = xs.to_vec();
+    ixs[1] *= config.pool_state.price_state.price_scale;
+
+    let amp_gamma = config.pool_state.get_amp_gamma(env);
+    let d = calc_d(xs, &amp_gamma)?;
+
+    // forecasting fee: as internal exchange rate should be nearly equal to 1
+    // we consider that want_amount = offer_amount
+    let mut ixs_for_fees = ixs.clone();
+    ixs_for_fees[ask_ind] += want_amount;
+    ixs_for_fees[offer_ind] -= want_amount;
+    let fee_rate = config.pool_params.fee(&ixs_for_fees);
+
+    let before_fee = want_amount * (Decimal256::one() - fee_rate).inv().unwrap();
+    let fee = before_fee - want_amount;
+
+    ixs[ask_ind] -= before_fee;
+
+    let new_y = calc_y(&ixs, d, &amp_gamma, offer_ind)?;
+    let mut dy = new_y - ixs[offer_ind];
+
+    ixs[offer_ind] = new_y;
+
+    if offer_ind == 1 {
+        dy /= config.pool_state.price_state.price_scale;
+    }
+    let spread_fee = dy * xs[ask_ind] / xs[offer_ind] - want_amount;
+
+    Ok((dy, spread_fee, fee))
 }

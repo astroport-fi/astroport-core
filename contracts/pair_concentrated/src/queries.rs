@@ -1,18 +1,21 @@
 use crate::contract::LP_TOKEN_PRECISION;
-use crate::state::{Config, CONFIG};
-use crate::utils::{get_share_in_assets, pool_info};
-use astroport::asset::{check_swap_parameters, Asset};
-use astroport::cosmwasm_ext::IntegerToDecimal;
+use crate::error::ContractError;
+use crate::state::{get_precision, Config, CONFIG};
+use crate::utils::{
+    before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets, pool_info,
+};
+use astroport::asset::Asset;
+use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
     SimulationResponse,
 };
 use astroport::pair_concentrated::QueryMsg;
-use astroport::querier::{query_fee_info, query_supply};
+use astroport::querier::query_supply;
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Decimal, Decimal256, Deps, Env, StdError, StdResult, Uint128,
-    Uint256,
+    entry_point, to_binary, Binary, Decimal256, Deps, Env, StdError, StdResult, Uint128,
 };
+use itertools::Itertools;
 
 /// Exposes all the queries available in the contract.
 ///
@@ -40,12 +43,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Pair {} => to_binary(&CONFIG.load(deps.storage)?.pair_info),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
         QueryMsg::Share { amount } => to_binary(&query_share(deps, amount)?),
-        QueryMsg::Simulation { offer_asset, .. } => {
-            to_binary(&query_simulation(deps, offer_asset)?)
-        }
-        QueryMsg::ReverseSimulation { ask_asset, .. } => {
-            to_binary(&query_reverse_simulation(deps, ask_asset)?)
-        }
+        QueryMsg::Simulation { offer_asset, .. } => to_binary(
+            &query_simulation(deps, env, offer_asset)
+                .map_err(|err| StdError::generic_err(format!("{err}")))?,
+        ),
+        QueryMsg::ReverseSimulation { ask_asset, .. } => to_binary(
+            &query_reverse_simulation(deps, env, ask_asset)
+                .map_err(|err| StdError::generic_err(format!("{err}")))?,
+        ),
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::LpPrice {} => to_binary(&query_lp_price(deps)?),
@@ -79,97 +84,75 @@ fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
     Ok(refund_assets)
 }
 
-/// Returns information about a swap simulation in a [`SimulationResponse`] object.
-///
-/// * **offer_asset** is the asset to swap as well as an amount of the said asset.
-pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationResponse> {
+/// Returns information about a swap simulation.
+pub fn query_simulation(
+    deps: Deps,
+    env: Env,
+    offer_asset: Asset,
+) -> Result<SimulationResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let offer_asset_prec = get_precision(deps.storage, &offer_asset.info)?;
+    let offer_asset_dec = offer_asset.to_decimal_asset(offer_asset_prec)?;
 
     let pools = config
         .pair_info
-        .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
+        .query_pools(&deps.querier, &env.contract.address)?
+        .into_iter()
+        .map(|asset| asset.to_decimal_asset(get_precision(deps.storage, &asset.info)?))
+        .collect::<StdResult<Vec<_>>>()?;
 
-    let offer_pool: Asset;
-    let ask_pool: Asset;
-    if offer_asset.info.equal(&pools[0].info) {
-        offer_pool = pools[0].clone();
-        ask_pool = pools[1].clone();
-    } else if offer_asset.info.equal(&pools[1].info) {
-        offer_pool = pools[1].clone();
-        ask_pool = pools[0].clone();
-    } else {
-        return Err(StdError::generic_err(
-            "Given offer asset does not belong in the pair",
-        ));
-    }
+    let (offer_ind, _) = pools
+        .iter()
+        .find_position(|asset| asset.info == offer_asset.info)
+        .ok_or_else(|| ContractError::InvalidAsset(offer_asset_dec.info.to_string()))?;
+    let ask_ind = 1 - offer_ind;
+    let ask_asset_prec = get_precision(deps.storage, &pools[ask_ind].info)?;
 
-    // Get fee info from the factory contract
-    let fee_info = query_fee_info(
-        &deps.querier,
-        config.factory_addr,
-        config.pair_info.pair_type,
-    )?;
+    before_swap_check(&pools, offer_asset_dec.amount)?;
 
-    let (return_amount, spread_amount, commission_amount) = compute_swap(
-        offer_pool.amount,
-        ask_pool.amount,
-        offer_asset.amount,
-        fee_info.total_fee_rate,
-    )?;
+    let xs = pools.iter().map(|asset| asset.amount).collect_vec();
+    let (return_amount, spread_amount, commission_amount) =
+        compute_swap(&xs, offer_asset_dec.amount, ask_ind, &config, &env)?;
 
     Ok(SimulationResponse {
-        return_amount,
-        spread_amount,
-        commission_amount,
+        return_amount: return_amount.to_uint(ask_asset_prec)?,
+        spread_amount: spread_amount.to_uint(ask_asset_prec)?,
+        commission_amount: commission_amount.to_uint(ask_asset_prec)?,
     })
 }
 
-/// Returns information about a reverse swap simulation in a [`ReverseSimulationResponse`] object.
-///
-/// * **ask_asset** is the asset to swap to as well as the desired amount of ask
-/// assets to receive from the swap.
+/// Returns information about a reverse swap simulation.
 pub fn query_reverse_simulation(
     deps: Deps,
+    env: Env,
     ask_asset: Asset,
-) -> StdResult<ReverseSimulationResponse> {
+) -> Result<ReverseSimulationResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let ask_asset_prec = get_precision(deps.storage, &ask_asset.info)?;
+    let ask_asset_dec = ask_asset.to_decimal_asset(ask_asset_prec)?;
 
     let pools = config
         .pair_info
-        .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
+        .query_pools(&deps.querier, &env.contract.address)?
+        .into_iter()
+        .map(|asset| asset.to_decimal_asset(get_precision(deps.storage, &asset.info)?))
+        .collect::<StdResult<Vec<_>>>()?;
 
-    let offer_pool: Asset;
-    let ask_pool: Asset;
-    if ask_asset.info.equal(&pools[0].info) {
-        ask_pool = pools[0].clone();
-        offer_pool = pools[1].clone();
-    } else if ask_asset.info.equal(&pools[1].info) {
-        ask_pool = pools[1].clone();
-        offer_pool = pools[0].clone();
-    } else {
-        return Err(StdError::generic_err(
-            "Given ask asset doesn't belong to pairs",
-        ));
-    }
+    let (ask_ind, _) = pools
+        .iter()
+        .find_position(|asset| asset.info == ask_asset.info)
+        .ok_or_else(|| ContractError::InvalidAsset(ask_asset.info.to_string()))?;
+    let offer_ind = 1 - ask_ind;
+    let offer_asset_prec = get_precision(deps.storage, &pools[offer_ind].info)?;
 
-    // Get fee info from factory
-    let fee_info = query_fee_info(
-        &deps.querier,
-        config.factory_addr,
-        config.pair_info.pair_type,
-    )?;
-
-    let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
-        offer_pool.amount,
-        ask_pool.amount,
-        ask_asset.amount,
-        fee_info.total_fee_rate,
-    )?;
+    let xs = pools.iter().map(|asset| asset.amount).collect_vec();
+    let (offer_amount, spread_amount, commission_amount) =
+        compute_offer_amount(&xs, ask_asset_dec.amount, ask_ind, &config, &env)?;
 
     Ok(ReverseSimulationResponse {
-        offer_amount,
-        spread_amount,
-        commission_amount,
+        offer_amount: offer_amount.to_uint(offer_asset_prec)?,
+        spread_amount: spread_amount.to_uint(offer_asset_prec)?,
+        commission_amount: commission_amount.to_uint(offer_asset_prec)?,
     })
 }
 
@@ -199,91 +182,4 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         params: None,
         owner: None,
     })
-}
-
-/// Returns the result of a swap.
-///
-/// * **offer_pool** total amount of offer assets in the pool.
-///
-/// * **ask_pool** total amount of ask assets in the pool.
-///
-/// * **offer_amount** amount of offer assets to swap.
-///
-/// * **commission_rate** total amount of fees charged for the swap.
-pub fn compute_swap(
-    offer_pool: Uint128,
-    ask_pool: Uint128,
-    offer_amount: Uint128,
-    commission_rate: Decimal,
-) -> StdResult<(Uint128, Uint128, Uint128)> {
-    // offer => ask
-    check_swap_parameters(vec![offer_pool, ask_pool], offer_amount)?;
-
-    let offer_pool: Uint256 = offer_pool.into();
-    let ask_pool: Uint256 = ask_pool.into();
-    let offer_amount: Uint256 = offer_amount.into();
-    let commission_rate = Decimal256::from(commission_rate);
-
-    // ask_amount = (ask_pool - cp / (offer_pool + offer_amount))
-    let cp: Uint256 = offer_pool * ask_pool;
-    let return_amount: Uint256 = (Decimal256::from_ratio(ask_pool, 1u8)
-        - Decimal256::from_ratio(cp, offer_pool + offer_amount))
-        * Uint256::from(1u8);
-
-    // Calculate spread & commission
-    let spread_amount: Uint256 =
-        (offer_amount * Decimal256::from_ratio(ask_pool, offer_pool)) - return_amount;
-    let commission_amount: Uint256 = return_amount * commission_rate;
-
-    // The commision (minus the part that goes to the Maker contract) will be absorbed by the pool
-    let return_amount: Uint256 = return_amount - commission_amount;
-    Ok((
-        return_amount.try_into()?,
-        spread_amount.try_into()?,
-        commission_amount.try_into()?,
-    ))
-}
-
-/// Returns an amount of offer assets for a specified amount of ask assets.
-///
-/// * **offer_pool** total amount of offer assets in the pool.
-///
-/// * **ask_pool** total amount of ask assets in the pool.
-///
-/// * **ask_amount** amount of ask assets to swap to.
-///
-/// * **commission_rate** total amount of fees charged for the swap.
-pub fn compute_offer_amount(
-    offer_pool: Uint128,
-    ask_pool: Uint128,
-    ask_amount: Uint128,
-    commission_rate: Decimal,
-) -> StdResult<(Uint128, Uint128, Uint128)> {
-    // ask => offer
-    check_swap_parameters(vec![offer_pool, ask_pool], ask_amount)?;
-
-    let commission_rate = Decimal256::from(commission_rate);
-
-    // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
-    let cp = Uint256::from(offer_pool) * Uint256::from(ask_pool);
-    let one_minus_commission = Decimal256::one() - commission_rate;
-    let inv_one_minus_commission = Decimal256::one() / one_minus_commission;
-
-    let offer_amount: Uint128 = cp
-        .multiply_ratio(
-            Uint256::from(1u8),
-            Uint256::from(
-                ask_pool.checked_sub(
-                    (Uint256::from(ask_amount) * inv_one_minus_commission).try_into()?,
-                )?,
-            ),
-        )
-        .checked_sub(offer_pool.into())?
-        .try_into()?;
-
-    let before_commission_deduction = Uint256::from(ask_amount) * inv_one_minus_commission;
-    let spread_amount = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool))
-        .saturating_sub(before_commission_deduction.try_into()?);
-    let commission_amount = before_commission_deduction * commission_rate;
-    Ok((offer_amount, spread_amount, commission_amount.try_into()?))
 }
