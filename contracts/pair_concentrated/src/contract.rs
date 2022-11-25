@@ -401,8 +401,7 @@ pub fn provide_liquidity(
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
     let auto_stake = auto_stake.unwrap_or(false);
-    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
-        .to_decimal256(LP_TOKEN_PRECISION)?;
+    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
 
     let mint_amount = if total_share.is_zero() {
         let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
@@ -417,7 +416,7 @@ pub fn provide_liquidity(
             &env.contract.address,
             &env.contract.address,
             MINIMUM_LIQUIDITY_AMOUNT,
-            auto_stake,
+            false,
         )?);
 
         // share cannot become zero after minimum liquidity subtraction
@@ -433,6 +432,7 @@ pub fn provide_liquidity(
         let mut old_xp = pools.iter().map(|a| a.amount).collect_vec();
         old_xp[1] *= config.pool_state.price_state.price_scale;
         let old_d = calc_d(&old_xp, &amp_gamma)?;
+        let total_share = total_share.to_decimal256(LP_TOKEN_PRECISION)?;
 
         (total_share * new_d / old_d)
             .saturating_sub(total_share)

@@ -6,6 +6,9 @@ use astroport::cosmwasm_ext::AbsDiff;
 use crate::consts::{HALFPOW_TOL, MAX_ITER, N, N_POW2, TOL};
 use crate::math::signed_decimal::SignedDecimal256;
 
+/// Internal constant to increase calculations accuracy. (100.0)
+const PADDING: Decimal256 = Decimal256::raw(100000000000000000000);
+
 pub fn geometric_mean(x: &[Decimal256]) -> Decimal256 {
     (x[0] * x[1]).sqrt()
 }
@@ -37,15 +40,17 @@ pub(crate) fn df_dd(
 
     let k0 = mul * N_POW2 / d.pow(2);
 
-    let gamma_one_k0 = gamma + Decimal256::one() - k0; // gamma + 1 - K0
+    let gamma_one_k0 = SignedDecimal256::from(gamma + Decimal256::one()) - k0; // gamma + 1 - K0
     let gamma_one_k0_pow2 = gamma_one_k0.pow(2); // (gamma + 1 - K0)^2
 
     let k = a_gamma_pow_2 * k0 / gamma_one_k0_pow2;
 
-    let k_d_denom = d.pow(3) * gamma_one_k0_pow2 * gamma_one_k0;
+    let k_d_denom = PADDING * d.pow(3) * gamma_one_k0_pow2 * gamma_one_k0;
     let k_d = -mul * N.pow(3) * a_gamma_pow_2 * (gamma + Decimal256::one() + k0);
 
-    (k_d * d / k_d_denom + k) * (x[0] + x[1]) - (k_d * d / k_d_denom + N * k) * d - (d / N)
+    (k_d * d * PADDING / k_d_denom + k) * (x[0] + x[1])
+        - (k_d * d * PADDING / k_d_denom + N * k) * d
+        - (d / N)
 }
 
 pub(crate) fn newton_d(

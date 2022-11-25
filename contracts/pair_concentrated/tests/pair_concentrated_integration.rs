@@ -1,8 +1,10 @@
-use crate::helper::{f64_to_dec, AppExtension, Helper, TestCoin};
+use cosmwasm_std::{Addr, Decimal};
+
 use astroport::asset::{AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::pair_concentrated::ConcentratedPoolParams;
 use astroport_pair_concentrated::error::ContractError;
-use cosmwasm_std::{Addr, Decimal};
+
+use crate::helper::{f64_to_dec, AppExtension, Helper, TestCoin};
 
 mod helper;
 
@@ -90,6 +92,66 @@ fn provide_and_withdraw() {
     );
     assert_eq!(50000000000, helper.coin_balance(&test_coins[0], &user2));
     assert_eq!(25000000000, helper.coin_balance(&test_coins[1], &user2));
+}
+
+#[test]
+fn provide_with_different_precision() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![
+        TestCoin::cw20precise("FOO", 5),
+        TestCoin::cw20precise("BAR", 6),
+    ];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        initial_price_scale: Decimal::one(),
+        ma_half_time: 600,
+        owner: None,
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_00000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000000u128),
+    ];
+
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    for user_name in ["user1", "user2", "user3"] {
+        let user = Addr::unchecked(user_name);
+
+        helper.give_me_money(&assets, &user);
+
+        helper.provide_liquidity(&user, &assets).unwrap();
+
+        assert_eq!(100_000000, helper.token_balance(&helper.lp_token, &user));
+        assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
+        assert_eq!(0, helper.coin_balance(&test_coins[1], &user));
+
+        helper
+            .withdraw_liquidity(&user, 100_000000, vec![])
+            .unwrap();
+
+        assert_eq!(0, helper.token_balance(&helper.lp_token, &user));
+        assert_eq!(
+            100_00000,
+            helper.coin_balance(&test_coins[0], &user),
+            "Withdrawn amount of coin0 assert failed for {user}"
+        );
+        assert_eq!(
+            100_000000,
+            helper.coin_balance(&test_coins[1], &user),
+            "Withdrawn amount of coin1 assert failed for {user}"
+        );
+    }
 }
 
 #[test]
