@@ -239,7 +239,7 @@ mod tests {
         assert_values(der, der_f64);
 
         let dx_f64 = crate::math::math_f64::df_dx(d_f64, &[x1, x2], a_f64, gamma_f64, 0);
-        let dx = df_dx(d.into(), &x, a, gamma, 0);
+        let dx = df_dx(d, &x, a, gamma, 0);
         assert_values(dx, dx_f64);
     }
 

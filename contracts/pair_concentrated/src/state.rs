@@ -529,7 +529,7 @@ mod test {
         let result = params.fee(&xp);
         assert_eq!(dec_to_f64(result), 0.2735420730476899);
 
-        let xp = vec![f64_to_dec256(100_000f64), f64_to_dec256(1000_000f64)];
+        let xp = vec![f64_to_dec256(100_000f64), f64_to_dec256(1_000_000_f64)];
         let result = params.fee(&xp);
         assert_eq!(dec_to_f64(result), out_fee);
     }
@@ -552,7 +552,7 @@ mod test {
         xs[1] *= price_scale;
         println!("Before swap (internal): {} {}", xs[0], xs[1]);
 
-        let cur_d = calc_d(&xs, &amp_gamma).unwrap();
+        let cur_d = calc_d(&xs, amp_gamma).unwrap();
 
         let total_lp = get_xcp(cur_d, price_scale);
 
@@ -563,7 +563,7 @@ mod test {
         }
 
         xs[offer_ind] += offer_amount_internal;
-        let mut ask_amount = xs[ask_ind] - calc_y(&xs, cur_d, &amp_gamma, ask_ind).unwrap();
+        let mut ask_amount = xs[ask_ind] - calc_y(&xs, cur_d, amp_gamma, ask_ind).unwrap();
         xs[ask_ind] -= ask_amount;
         let fee = ask_amount * pool_params.fee(&xs);
         println!("fee {fee} ({}%)", pool_params.fee(&xs));
@@ -580,13 +580,12 @@ mod test {
         );
 
         // external repr
-        let new_price;
-        if ask_ind == 1 {
+        let new_price = if ask_ind == 1 {
             ask_amount /= price_scale;
-            new_price = offer_amount / ask_amount;
+            offer_amount / ask_amount
         } else {
-            new_price = ask_amount / offer_amount;
-        }
+            ask_amount / offer_amount
+        };
 
         println!(
             "Swap {} x[{}] for {} x[{}] by {new_price} price",
@@ -596,8 +595,8 @@ mod test {
         ext_xs[offer_ind] += offer_amount;
         ext_xs[ask_ind] -= ask_amount;
 
-        let ext_d = calc_d(&ext_xs, &amp_gamma).unwrap();
-        let cur_d = calc_d(&xs, &amp_gamma).unwrap();
+        let ext_d = calc_d(ext_xs, amp_gamma).unwrap();
+        let cur_d = calc_d(&xs, amp_gamma).unwrap();
 
         println!("Internal: d {cur_d}",);
         println!("External: d {ext_d}",);

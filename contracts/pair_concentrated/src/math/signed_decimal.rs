@@ -3,7 +3,7 @@ use cosmwasm_std::{Decimal256, StdError};
 use std::fmt::{Display, Formatter};
 use std::ops;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SignedDecimal256 {
     val: Decimal256,
     /// false - positive, true - negative
@@ -121,6 +121,7 @@ impl ops::Sub for SignedDecimal256 {
 impl ops::Sub<Decimal256> for SignedDecimal256 {
     type Output = SignedDecimal256;
 
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn sub(self, rhs: Decimal256) -> Self::Output {
         self + Self {
             val: rhs,

@@ -51,7 +51,7 @@ pub fn newton_y(xs: &[f64], a: f64, gamma: f64, d: f64, j: usize) -> f64 {
         diff = (xi - xi_1).abs();
         println!("{i}, {xi}, {xi_1}");
         xi_1 = xi;
-        i = i + 1;
+        i += 1;
     }
 
     xi
@@ -68,7 +68,7 @@ pub fn newton_d(x: &[f64], a: f64, gamma: f64) -> f64 {
     while diff > TOL && i < MAX_ITER {
         di = di_1 - f(di_1, x, a, gamma) / df_dd(di_1, x, a, gamma);
         diff = (di - di_1).abs();
-        println!("{i}, {di}, {}", f(di, &x, a, gamma));
+        println!("{i}, {di}, {}", f(di, x, a, gamma));
         di_1 = di;
         i += 1;
     }

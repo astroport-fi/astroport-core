@@ -12,7 +12,7 @@ mod signed_decimal;
 pub use math_decimal::half_float_pow;
 
 pub fn calc_d(xs: &[Decimal256], amp_gamma: &AmpGamma) -> StdResult<Decimal256> {
-    newton_d(&xs, amp_gamma.amp.into(), amp_gamma.gamma.into())
+    newton_d(xs, amp_gamma.amp.into(), amp_gamma.gamma.into())
 }
 
 pub fn calc_y(
