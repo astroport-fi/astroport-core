@@ -212,6 +212,8 @@ impl ops::Neg for SignedDecimal256 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::TWO;
+    use cosmwasm_std::StdResult;
     use std::str::FromStr;
 
     #[test]
@@ -265,10 +267,37 @@ mod tests {
         let res: Decimal256 = (b + a).try_into().unwrap();
         assert_eq!(res, Decimal256::zero());
 
-        assert_eq!(b / a, SignedDecimal256::new(Decimal256::one(), true));
+        let minus_two = SignedDecimal256::new(TWO, true);
+        let res: StdResult<Decimal256> = minus_two.try_into();
         assert_eq!(
-            a - b,
-            SignedDecimal256::from(Decimal256::from_str("2").unwrap())
+            res.unwrap_err().to_string(),
+            "Generic error: Unable to convert negative value, -2"
+        );
+
+        assert_eq!(b / a, SignedDecimal256::new(Decimal256::one(), true));
+        assert_eq!(a - b, SignedDecimal256::from(TWO));
+        assert_eq!(b - a, minus_two);
+        assert_eq!(SignedDecimal256::from(a).diff(b), TWO)
+    }
+
+    #[test]
+    fn test_pow() {
+        let a = SignedDecimal256::from(Decimal256::zero());
+        let two = SignedDecimal256::from(TWO);
+        let minus_two = -two;
+
+        assert_eq!(a.pow(10), SignedDecimal256::from(Decimal256::zero()));
+        assert_eq!(
+            two.pow(3),
+            SignedDecimal256::from(Decimal256::from_str("8").unwrap())
+        );
+        assert_eq!(
+            minus_two.pow(2),
+            SignedDecimal256::from(Decimal256::from_str("4").unwrap())
+        );
+        assert_eq!(
+            minus_two.pow(3),
+            SignedDecimal256::new(Decimal256::from_str("8").unwrap(), true)
         );
     }
 }
