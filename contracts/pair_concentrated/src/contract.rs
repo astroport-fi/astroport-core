@@ -27,11 +27,12 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use crate::error::ContractError;
 use crate::math::{calc_d, get_xcp};
 use crate::state::{
-    get_precision, store_precisions, AmpGamma, Config, PoolParams, PoolState, PriceState, CONFIG,
+    store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, CONFIG,
 };
 use crate::utils::{
     assert_max_spread, before_swap_check, calculate_maker_fee, check_asset_infos, check_assets,
     check_cw20_in_pool, compute_swap, get_share_in_assets, mint_liquidity_token_message, pool_info,
+    query_pools,
 };
 
 /// Contract name that is used for migration.
@@ -347,25 +348,13 @@ pub fn provide_liquidity(
         .iter()
         .try_for_each(|asset| asset.assert_sent_native_token_balance(&info))?;
 
-    let mut pools = config
-        .pair_info
-        .query_pools(&deps.querier, &env.contract.address)?
-        .into_iter()
-        .map(|asset| asset.to_decimal_asset(get_precision(deps.storage, &asset.info)?))
-        .collect::<StdResult<Vec<_>>>()?;
+    let precisions = Precisions::new(deps.storage)?;
+
+    let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
+
     let deposits = [
-        assets
-            .iter()
-            .find(|a| a.info.equal(&pools[0].info))
-            .map(|a| Decimal256::with_precision(a.amount, get_precision(deps.storage, &a.info)?))
-            .transpose()?
-            .ok_or_else(|| ContractError::InvalidAsset(pools[0].info.to_string()))?,
-        assets
-            .iter()
-            .find(|a| a.info.equal(&pools[1].info))
-            .map(|a| Decimal256::with_precision(a.amount, get_precision(deps.storage, &a.info)?))
-            .transpose()?
-            .ok_or_else(|| ContractError::InvalidAsset(pools[1].info.to_string()))?,
+        Decimal256::with_precision(assets[0].amount, precisions.get_precision(&assets[0].info)?)?,
+        Decimal256::with_precision(assets[1].amount, precisions.get_precision(&assets[1].info)?)?,
     ];
 
     if deposits[0].is_zero() || deposits[1].is_zero() {
@@ -381,7 +370,7 @@ pub fn provide_liquidity(
                 &Cw20ExecuteMsg::TransferFrom {
                     owner: info.sender.to_string(),
                     recipient: env.contract.address.to_string(),
-                    amount: deposits[i].to_uint(get_precision(deps.storage, &assets[i].info)?)?,
+                    amount: deposits[i].to_uint(precisions.get_precision(&assets[i].info)?)?,
                 },
                 vec![],
             )?));
@@ -561,23 +550,19 @@ fn swap(
     max_spread: Option<Decimal>,
     to: Option<Addr>,
 ) -> Result<Response, ContractError> {
-    let offer_asset_prec = get_precision(deps.storage, &offer_asset.info)?;
+    let precisions = Precisions::new(deps.storage)?;
+    let offer_asset_prec = precisions.get_precision(&offer_asset.info)?;
     let offer_asset_dec = offer_asset.to_decimal_asset(offer_asset_prec)?;
     let mut config = CONFIG.load(deps.storage)?;
 
-    let mut pools = config
-        .pair_info
-        .query_pools(&deps.querier, &env.contract.address)?
-        .into_iter()
-        .map(|asset| asset.to_decimal_asset(get_precision(deps.storage, &asset.info)?))
-        .collect::<StdResult<Vec<_>>>()?;
+    let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
     let (offer_ind, _) = pools
         .iter()
         .find_position(|asset| asset.info == offer_asset_dec.info)
         .ok_or_else(|| ContractError::InvalidAsset(offer_asset_dec.info.to_string()))?;
     let ask_ind = 1 - offer_ind;
-    let ask_asset_prec = get_precision(deps.storage, &pools[ask_ind].info)?;
+    let ask_asset_prec = precisions.get_precision(&pools[ask_ind].info)?;
 
     pools[offer_ind].amount -= offer_asset_dec.amount;
 

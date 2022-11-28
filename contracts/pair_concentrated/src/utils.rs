@@ -11,7 +11,7 @@ use astroport::querier::{query_factory_config, query_supply};
 use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
 use crate::error::ContractError;
 use crate::math::{calc_d, calc_y};
-use crate::state::Config;
+use crate::state::{Config, Precisions};
 
 /// Helper function to check if the given asset infos are valid.
 pub(crate) fn check_asset_infos(
@@ -219,6 +219,24 @@ pub(crate) fn pool_info(
     let total_share = query_supply(&querier, &config.pair_info.liquidity_token)?;
 
     Ok((pools, total_share))
+}
+
+pub(crate) fn query_pools(
+    querier: QuerierWrapper,
+    addr: &Addr,
+    config: &Config,
+    precisions: &Precisions,
+) -> Result<Vec<DecimalAsset>, ContractError> {
+    config
+        .pair_info
+        .query_pools(&querier, addr)?
+        .into_iter()
+        .map(|asset| {
+            asset
+                .to_decimal_asset(precisions.get_precision(&asset.info)?)
+                .map_err(Into::into)
+        })
+        .collect()
 }
 
 pub(crate) fn before_swap_check(pools: &[DecimalAsset], offer_amount: Decimal256) -> StdResult<()> {

@@ -1,8 +1,9 @@
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
-use crate::state::{get_precision, Config, CONFIG};
+use crate::state::{Config, Precisions, CONFIG};
 use crate::utils::{
     before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets, pool_info,
+    query_pools,
 };
 use astroport::asset::Asset;
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
@@ -91,22 +92,18 @@ pub fn query_simulation(
     offer_asset: Asset,
 ) -> Result<SimulationResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let offer_asset_prec = get_precision(deps.storage, &offer_asset.info)?;
+    let precisions = Precisions::new(deps.storage)?;
+    let offer_asset_prec = precisions.get_precision(&offer_asset.info)?;
     let offer_asset_dec = offer_asset.to_decimal_asset(offer_asset_prec)?;
 
-    let pools = config
-        .pair_info
-        .query_pools(&deps.querier, &env.contract.address)?
-        .into_iter()
-        .map(|asset| asset.to_decimal_asset(get_precision(deps.storage, &asset.info)?))
-        .collect::<StdResult<Vec<_>>>()?;
+    let pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
     let (offer_ind, _) = pools
         .iter()
         .find_position(|asset| asset.info == offer_asset.info)
         .ok_or_else(|| ContractError::InvalidAsset(offer_asset_dec.info.to_string()))?;
     let ask_ind = 1 - offer_ind;
-    let ask_asset_prec = get_precision(deps.storage, &pools[ask_ind].info)?;
+    let ask_asset_prec = precisions.get_precision(&pools[ask_ind].info)?;
 
     before_swap_check(&pools, offer_asset_dec.amount)?;
 
@@ -127,22 +124,18 @@ pub fn query_reverse_simulation(
     ask_asset: Asset,
 ) -> Result<ReverseSimulationResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let ask_asset_prec = get_precision(deps.storage, &ask_asset.info)?;
+    let precisions = Precisions::new(deps.storage)?;
+    let ask_asset_prec = precisions.get_precision(&ask_asset.info)?;
     let ask_asset_dec = ask_asset.to_decimal_asset(ask_asset_prec)?;
 
-    let pools = config
-        .pair_info
-        .query_pools(&deps.querier, &env.contract.address)?
-        .into_iter()
-        .map(|asset| asset.to_decimal_asset(get_precision(deps.storage, &asset.info)?))
-        .collect::<StdResult<Vec<_>>>()?;
+    let pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
     let (ask_ind, _) = pools
         .iter()
         .find_position(|asset| asset.info == ask_asset.info)
         .ok_or_else(|| ContractError::InvalidAsset(ask_asset.info.to_string()))?;
     let offer_ind = 1 - ask_ind;
-    let offer_asset_prec = get_precision(deps.storage, &pools[offer_ind].info)?;
+    let offer_asset_prec = precisions.get_precision(&pools[offer_ind].info)?;
 
     let xs = pools.iter().map(|asset| asset.amount).collect_vec();
     let (offer_amount, spread_amount, commission_amount) =

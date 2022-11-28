@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    Addr, Decimal, Decimal256, DepsMut, Env, StdError, StdResult, Storage, Uint128, Uint256,
+    Addr, Decimal, Decimal256, DepsMut, Env, Order, StdError, StdResult, Storage, Uint128, Uint256,
 };
 use cw_storage_plus::{Item, Map};
 
@@ -391,10 +391,29 @@ pub(crate) fn store_precisions(deps: DepsMut, asset_infos: &[AssetInfo]) -> StdR
     Ok(())
 }
 
-/// ## Description
-/// Loads precision of the given asset info.
-pub(crate) fn get_precision(storage: &dyn Storage, asset_info: &AssetInfo) -> StdResult<u8> {
-    PRECISIONS.load(storage, asset_info.to_string())
+pub(crate) struct Precisions(Vec<(String, u8)>);
+
+impl Precisions {
+    pub(crate) fn new(storage: &dyn Storage) -> StdResult<Self> {
+        let items = PRECISIONS
+            .range(storage, None, None, Order::Ascending)
+            .collect::<StdResult<Vec<_>>>()?;
+
+        Ok(Self(items))
+    }
+
+    pub(crate) fn get_precision(&self, asset_info: &AssetInfo) -> Result<u8, ContractError> {
+        self.0
+            .iter()
+            .find_map(|(info, prec)| {
+                if info == &asset_info.to_string() {
+                    Some(*prec)
+                } else {
+                    None
+                }
+            })
+            .ok_or(ContractError::InvalidAsset(asset_info.to_string()))
+    }
 }
 
 /// Stores pool parameters and state.
