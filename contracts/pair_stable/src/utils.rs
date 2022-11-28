@@ -311,7 +311,6 @@ pub fn accumulate_prices(
             let offer_asset = DecimalAsset {
                 info: from.clone(),
                 amount: Decimal256::one(),
-                precision: get_precision(deps.storage, from)?,
             };
 
             let (offer_pool, ask_pool) = select_pools(Some(from), Some(to), pools)?;
