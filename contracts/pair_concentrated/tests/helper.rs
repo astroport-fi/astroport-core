@@ -262,7 +262,7 @@ impl Helper {
                     offer_asset: offer_asset.clone(),
                     ask_asset_info: None,
                     belief_price: None,
-                    max_spread: None,
+                    max_spread,
                     to: None,
                 };
 

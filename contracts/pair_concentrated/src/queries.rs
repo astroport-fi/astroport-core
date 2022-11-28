@@ -111,13 +111,12 @@ pub fn query_simulation(
     before_swap_check(&pools, offer_asset_dec.amount)?;
 
     let xs = pools.iter().map(|asset| asset.amount).collect_vec();
-    let (return_amount, spread_amount, commission_amount) =
-        compute_swap(&xs, offer_asset_dec.amount, ask_ind, &config, &env)?;
+    let swap_result = compute_swap(&xs, offer_asset_dec.amount, ask_ind, &config, &env)?;
 
     Ok(SimulationResponse {
-        return_amount: return_amount.to_uint(ask_asset_prec)?,
-        spread_amount: spread_amount.to_uint(ask_asset_prec)?,
-        commission_amount: commission_amount.to_uint(ask_asset_prec)?,
+        return_amount: swap_result.dy.to_uint(ask_asset_prec)?,
+        spread_amount: swap_result.spread_fee.to_uint(ask_asset_prec)?,
+        commission_amount: swap_result.fee.to_uint(ask_asset_prec)?,
     })
 }
 

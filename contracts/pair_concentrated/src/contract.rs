@@ -25,13 +25,13 @@ use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use crate::error::ContractError;
-use crate::math::{calc_d, calc_y, get_xcp};
+use crate::math::{calc_d, get_xcp};
 use crate::state::{
     get_precision, store_precisions, AmpGamma, Config, PoolParams, PoolState, PriceState, CONFIG,
 };
 use crate::utils::{
     assert_max_spread, before_swap_check, calculate_maker_fee, check_asset_infos, check_assets,
-    check_cw20_in_pool, get_share_in_assets, mint_liquidity_token_message, pool_info,
+    check_cw20_in_pool, compute_swap, get_share_in_assets, mint_liquidity_token_message, pool_info,
 };
 
 /// Contract name that is used for migration.
@@ -583,34 +583,30 @@ fn swap(
 
     before_swap_check(&pools, offer_asset_dec.amount)?;
 
-    let mut xs = pools.iter().map(|asset| asset.amount).collect_vec();
-    let amp_gamma = config.pool_state.get_amp_gamma(&env);
+    let xs = pools.iter().map(|asset| asset.amount).collect_vec();
 
-    let d = calc_d(&xs, &amp_gamma)?;
-    xs[offer_ind] += offer_asset_dec.amount;
-    let mut ask_amount = xs[ask_ind] - calc_y(&xs, d, &amp_gamma, ask_ind)?;
+    let swap_result = compute_swap(&xs, offer_asset_dec.amount, ask_ind, &config, &env)?;
 
-    let spread_amount_dec = offer_asset_dec.amount.saturating_sub(ask_amount);
     assert_max_spread(
         belief_price,
         max_spread,
         offer_asset_dec.amount,
-        ask_amount,
-        spread_amount_dec,
+        swap_result.dy,
+        swap_result.spread_fee,
     )?;
-    let spread_amount = spread_amount_dec.to_uint(ask_asset_prec)?;
-
-    xs[ask_ind] -= ask_amount;
-    let fee_amount = config.pool_params.fee(&xs) * ask_amount;
-    xs[ask_ind] += fee_amount;
-    ask_amount -= fee_amount;
+    let spread_amount = swap_result.spread_fee.to_uint(ask_asset_prec)?;
 
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
     let last_price = config.pool_state.price_state.price_scale * xs[0] / xs[1];
-    config
-        .pool_state
-        .update_price(&config.pool_params, &env, total_share, d, &xs, last_price)?;
+    config.pool_state.update_price(
+        &config.pool_params,
+        &env,
+        total_share,
+        swap_result.d,
+        &xs,
+        last_price,
+    )?;
 
     // TODO: Accumulate prices for the assets in the pool
 
@@ -622,14 +618,14 @@ fn swap(
     )?;
     let receiver = to.unwrap_or_else(|| sender.clone());
 
-    let return_amount = ask_amount.to_uint(ask_asset_prec)?;
+    let return_amount = swap_result.dy.to_uint(ask_asset_prec)?;
     let mut messages = vec![Asset {
         info: pools[ask_ind].info.clone(),
         amount: return_amount,
     }
     .into_msg(&deps.querier, &receiver)?];
 
-    let commission_amount = fee_amount.to_uint(ask_asset_prec)?;
+    let commission_amount = swap_result.fee.to_uint(ask_asset_prec)?;
     let mut maker_fee_amount = Uint128::zero();
     if let Some(fee_address) = fee_info.fee_address {
         if let Some(fee) = calculate_maker_fee(

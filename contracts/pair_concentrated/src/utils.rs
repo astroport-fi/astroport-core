@@ -232,6 +232,13 @@ pub(crate) fn before_swap_check(pools: &[DecimalAsset], offer_amount: Decimal256
     Ok(())
 }
 
+pub struct SwapResult {
+    pub dy: Decimal256,
+    pub spread_fee: Decimal256,
+    pub fee: Decimal256,
+    pub d: Decimal256,
+}
+
 /// Calculate swap result.
 pub fn compute_swap(
     xs: &[Decimal256],
@@ -239,7 +246,7 @@ pub fn compute_swap(
     ask_ind: usize,
     config: &Config,
     env: &Env,
-) -> StdResult<(Decimal256, Decimal256, Decimal256)> {
+) -> StdResult<SwapResult> {
     let offer_ind = 1 - ask_ind;
 
     let mut ixs = xs.to_vec();
@@ -263,7 +270,12 @@ pub fn compute_swap(
 
     let spread_fee = offer_amount * xs[ask_ind] / xs[offer_ind] - dy;
 
-    Ok((dy, spread_fee, fee))
+    Ok(SwapResult {
+        dy,
+        spread_fee,
+        fee,
+        d,
+    })
 }
 
 /// Returns an amount of offer assets for a specified amount of ask assets.
