@@ -529,6 +529,7 @@ pub fn provide_liquidity(
             Ok(DecimalAsset {
                 info,
                 amount: Decimal256::with_precision(amount, precision)?,
+                precision,
             })
         })
         .collect::<StdResult<Vec<_>>>()?;
@@ -687,6 +688,7 @@ fn imbalanced_withdraw(
                     DecimalAsset {
                         amount: Decimal256::zero(),
                         info: pool_info,
+                        precision,
                     },
                     Decimal256::with_precision(pool_amount, precision)?,
                 ));
@@ -804,6 +806,7 @@ pub fn swap(
             Ok(DecimalAsset {
                 info: pool.info,
                 amount: Decimal256::with_precision(pool.amount, token_precision)?,
+                precision: token_precision,
             })
         })
         .collect::<StdResult<Vec<_>>>()?;

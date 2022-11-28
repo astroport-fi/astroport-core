@@ -34,6 +34,7 @@ pub struct Asset {
 pub struct DecimalAsset {
     pub info: AssetInfo,
     pub amount: Decimal256,
+    pub precision: u8,
 }
 
 impl fmt::Display for Asset {
@@ -116,10 +117,11 @@ impl Asset {
         }
     }
 
-    pub fn to_decimal_asset(&self, precision: impl Into<u32>) -> StdResult<DecimalAsset> {
+    pub fn to_decimal_asset(&self, precision: impl Into<u8> + Copy) -> StdResult<DecimalAsset> {
         Ok(DecimalAsset {
             info: self.info.clone(),
             amount: Decimal256::with_precision(self.amount, precision.into())?,
+            precision: precision.into(),
         })
     }
 }
@@ -282,13 +284,15 @@ impl PairInfo {
         self.asset_infos
             .iter()
             .map(|asset_info| {
+                let precision: u8 = asset_info.decimals(querier)?.into();
                 Ok(DecimalAsset {
                     info: asset_info.clone(),
                     amount: Decimal256::from_atomics(
                         asset_info.query_pool(querier, &contract_addr)?,
-                        asset_info.decimals(querier)?.into(),
+                        precision.into(),
                     )
                     .map_err(|_| StdError::generic_err("Decimal256RangeExceeded"))?,
+                    precision,
                 })
             })
             .collect()
