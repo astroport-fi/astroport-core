@@ -328,6 +328,7 @@ fn checkpoint_user_boost(
                 USER_INFO.compatible_load(deps.storage, (&generator_addr, &recipient_addr))?;
 
             let mut pool = POOL_INFO.load(deps.storage, &generator_addr)?;
+
             accumulate_rewards_per_share(&deps.querier, &env, &generator_addr, &mut pool, &config)?;
 
             send_rewards_msg.append(&mut send_pending_rewards(
@@ -856,6 +857,7 @@ pub fn mass_update_pools(
 ) -> Result<(), ContractError> {
     for lp_token in lp_tokens {
         let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
+
         accumulate_rewards_per_share(&deps.querier, env, lp_token, &mut pool, cfg)?;
         POOL_INFO.save(deps.storage, lp_token, &pool)?;
     }
@@ -948,7 +950,7 @@ pub fn accumulate_rewards_per_share(
                 querier.query_wasm_smart(proxy, &ProxyQueryMsg::Reward {})?;
 
             let token_rewards =
-                reward_amount.checked_sub(pool.proxy_reward_balance_before_update)?;
+                reward_amount.saturating_sub(pool.proxy_reward_balance_before_update);
 
             let share = Decimal::from_ratio(token_rewards, proxy_lp_supply);
             pool.accumulated_proxy_rewards_per_share
