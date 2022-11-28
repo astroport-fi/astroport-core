@@ -1,6 +1,7 @@
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
-use crate::state::{Config, Precisions, CONFIG};
+use crate::math::calc_d;
+use crate::state::{AmpGamma, Precisions, CONFIG};
 use crate::utils::{
     before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets, pool_info,
     query_pools,
@@ -11,7 +12,7 @@ use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
     SimulationResponse,
 };
-use astroport::pair_concentrated::QueryMsg;
+use astroport::pair_concentrated::{AmpGammaResponse, QueryMsg};
 use astroport::querier::query_supply;
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal256, Deps, Env, StdError, StdResult, Uint128,
@@ -55,7 +56,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::LpPrice {} => to_binary(&query_lp_price(deps)?),
-        QueryMsg::QueryComputeD {} => todo!("Query compute d"),
+        QueryMsg::ComputeD {} => to_binary(&query_compute_d(deps, env)?),
+        QueryMsg::AmpGamma {} => to_binary(&query_amp_gamma(deps, env)?),
     }
 }
 
@@ -168,10 +170,42 @@ pub fn query_lp_price(deps: Deps) -> StdResult<Decimal256> {
 
 /// Returns the pair contract configuration in a [`ConfigResponse`] object.
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
-    let config: Config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
         params: None,
         owner: None,
     })
+}
+
+pub fn query_amp_gamma(deps: Deps, env: Env) -> StdResult<AmpGammaResponse> {
+    let config = CONFIG.load(deps.storage)?;
+    let AmpGamma { amp, gamma } = config.pool_state.get_amp_gamma(&env);
+
+    Ok(AmpGammaResponse {
+        amp,
+        gamma,
+        future_time: config.pool_state.future_time,
+    })
+}
+
+/// ## Description
+/// Compute the current pool D value.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+pub fn query_compute_d(deps: Deps, env: Env) -> StdResult<Decimal256> {
+    let config = CONFIG.load(deps.storage)?;
+    let precisions = Precisions::new(deps.storage)?;
+
+    let mut xs = query_pools(deps.querier, &env.contract.address, &config, &precisions)
+        .map_err(|e| StdError::generic_err(e.to_string()))?
+        .into_iter()
+        .map(|a| a.amount)
+        .collect_vec();
+    xs[1] *= config.pool_state.price_state.price_scale;
+
+    let amp_gamma = config.pool_state.get_amp_gamma(&env);
+    calc_d(&xs, &amp_gamma)
 }

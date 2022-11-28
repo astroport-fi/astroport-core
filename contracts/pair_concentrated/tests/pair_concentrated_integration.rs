@@ -1,12 +1,101 @@
 use cosmwasm_std::{Addr, Decimal, Uint128};
 
-use astroport::asset::{AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
-use astroport::pair_concentrated::ConcentratedPoolParams;
+use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::pair_concentrated::{
+    ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, UpdatePoolParams,
+};
+use astroport_pair_concentrated::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use astroport_pair_concentrated::error::ContractError;
 
-use crate::helper::{f64_to_dec, AppExtension, Helper, TestCoin};
+use crate::helper::{dec_to_f64, f64_to_dec, AppExtension, Helper, TestCoin};
 
 mod helper;
+
+#[test]
+fn check_wrong_initialization() {
+    let owner = Addr::unchecked("owner");
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        initial_price_scale: Decimal::from_ratio(2u8, 1u8),
+        ma_half_time: 600,
+        owner: None,
+    };
+
+    let err = Helper::new(&owner, vec![TestCoin::native("uluna")], params.clone()).unwrap_err();
+
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: asset_infos must contain exactly two elements",
+    );
+
+    let mut wrong_params = params.clone();
+    wrong_params.amp = Decimal::zero();
+
+    let err = Helper::new(
+        &owner,
+        vec![TestCoin::native("uluna"), TestCoin::cw20("ASTRO")],
+        wrong_params,
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        ContractError::IncorrectPoolParam(
+            "amp".to_string(),
+            AMP_MIN.to_string(),
+            AMP_MAX.to_string()
+        ),
+        err.downcast().unwrap(),
+    );
+
+    let mut wrong_params = params.clone();
+    wrong_params.ma_half_time = MA_HALF_TIME_LIMITS.end() + 1;
+
+    let err = Helper::new(
+        &owner,
+        vec![TestCoin::native("uluna"), TestCoin::cw20("ASTRO")],
+        wrong_params,
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        ContractError::IncorrectPoolParam(
+            "ma_half_time".to_string(),
+            MA_HALF_TIME_LIMITS.start().to_string(),
+            MA_HALF_TIME_LIMITS.end().to_string()
+        ),
+        err.downcast().unwrap(),
+    );
+
+    let mut wrong_params = params.clone();
+    wrong_params.initial_price_scale = Decimal::zero();
+
+    let err = Helper::new(
+        &owner,
+        vec![TestCoin::native("uluna"), TestCoin::cw20("ASTRO")],
+        wrong_params,
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Initial price scale can not be zero",
+    );
+
+    // check instantiation with valid params
+    Helper::new(
+        &owner,
+        vec![TestCoin::native("uluna"), TestCoin::cw20("ASTRO")],
+        params,
+    )
+    .unwrap();
+}
 
 #[test]
 fn provide_and_withdraw() {
@@ -34,11 +123,36 @@ fn provide_and_withdraw() {
     assert_eq!(lp_price, 0.0);
 
     let user1 = Addr::unchecked("user1");
+
+    // Try to provide with additional wrong asset
+    let wrong_assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
+        native_asset_info("random_coin".to_string()).with_balance(100u8),
+    ];
+    helper.give_me_money(&wrong_assets, &user1);
+    let err = helper.provide_liquidity(&user1, &wrong_assets).unwrap_err();
+    assert_eq!(
+        ContractError::InvalidNumberOfAssets(2usize),
+        err.downcast().unwrap()
+    );
+
+    // Try to provide with zero amount
+    let err = helper
+        .provide_liquidity(
+            &user1,
+            &[
+                helper.assets[&test_coins[0]].with_balance(0u8),
+                helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
+            ],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidZeroAmount {}, err.downcast().unwrap());
+
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
         helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
     ];
-    helper.give_me_money(&assets, &user1);
 
     helper.provide_liquidity(&user1, &assets).unwrap();
 
@@ -245,11 +359,24 @@ fn check_swaps_simple() {
         "Generic error: One of the pools is empty"
     );
 
+    // Try to swap a wrong asset
+    let wrong_coin = native_asset_info("random_coin".to_string());
+    let wrong_asset = wrong_coin.with_balance(100_000000u128);
+    helper.give_me_money(&[wrong_asset.clone()], &user);
+    let err = helper.swap(&user, &wrong_asset, None).unwrap_err();
+    assert_eq!(
+        ContractError::InvalidAsset(wrong_coin.to_string()),
+        err.downcast().unwrap()
+    );
+
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
         helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
     ];
     helper.provide_liquidity(&owner, &assets).unwrap();
+
+    let d = helper.query_d().unwrap();
+    assert_eq!(dec_to_f64(d), 200000f64);
 
     helper.swap(&user, &offer_asset, None).unwrap();
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
@@ -269,6 +396,9 @@ fn check_swaps_simple() {
     helper.swap(&user2, &offer_asset, None).unwrap();
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user2));
     assert_eq!(99_741244, helper.coin_balance(&test_coins[0], &user2));
+
+    let d = helper.query_d().unwrap();
+    assert_eq!(dec_to_f64(d), 200000.520827);
 }
 
 #[test]
@@ -330,4 +460,101 @@ fn check_swaps_with_price_update() {
         prev_vlp_price = new_vlp_price;
         helper.app.next_block(1000);
     }
+}
+
+#[test]
+fn check_amp_gamma_change() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.0001),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        initial_price_scale: Decimal::one(),
+        ma_half_time: 600,
+        owner: None,
+    };
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let random_user = Addr::unchecked("random");
+    let action = ConcentratedPoolUpdateParams::Update(UpdatePoolParams {
+        mid_fee: Some(f64_to_dec(0.002)),
+        out_fee: None,
+        fee_gamma: None,
+        repeg_profit_threshold: None,
+        min_price_scale_delta: None,
+        ma_half_time: None,
+    });
+
+    let err = helper.update_config(&random_user, &action).unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    helper.update_config(&owner, &action).unwrap();
+
+    helper.app.next_block(86400);
+
+    let future_time = helper.app.block_info().time.seconds() + 100_000;
+    let target_amp = 44f64;
+    let target_gamma = 0.00009;
+    let action = ConcentratedPoolUpdateParams::Promote(PromoteParams {
+        next_amp: f64_to_dec(target_amp),
+        next_gamma: f64_to_dec(target_gamma),
+        future_time,
+    });
+    helper.update_config(&owner, &action).unwrap();
+
+    let amp_gamma = helper.query_amp_gamma().unwrap();
+    assert_eq!(dec_to_f64(amp_gamma.amp), 40f64);
+    assert_eq!(dec_to_f64(amp_gamma.gamma), 0.0001);
+    assert_eq!(amp_gamma.future_time, future_time);
+
+    helper.app.next_block(50_000);
+
+    let amp_gamma = helper.query_amp_gamma().unwrap();
+    assert_eq!(dec_to_f64(amp_gamma.amp), 42f64);
+    assert_eq!(dec_to_f64(amp_gamma.gamma), 0.000095);
+    assert_eq!(amp_gamma.future_time, future_time);
+
+    helper.app.next_block(50_000);
+
+    let amp_gamma = helper.query_amp_gamma().unwrap();
+    assert_eq!(dec_to_f64(amp_gamma.amp), target_amp);
+    assert_eq!(dec_to_f64(amp_gamma.gamma), target_gamma);
+    assert_eq!(amp_gamma.future_time, future_time);
+
+    // change values back
+    let future_time = helper.app.block_info().time.seconds() + 100_000;
+    let action = ConcentratedPoolUpdateParams::Promote(PromoteParams {
+        next_amp: f64_to_dec(40f64),
+        next_gamma: f64_to_dec(0.000099),
+        future_time,
+    });
+    helper.update_config(&owner, &action).unwrap();
+
+    helper.app.next_block(50_000);
+
+    let amp_gamma = helper.query_amp_gamma().unwrap();
+    assert_eq!(dec_to_f64(amp_gamma.amp), 42f64);
+    assert_eq!(dec_to_f64(amp_gamma.gamma), 0.0000945);
+    assert_eq!(amp_gamma.future_time, future_time);
+
+    // stop changing amp and gamma thus fixing current values
+    let action = ConcentratedPoolUpdateParams::StopChangingAmpGamma {};
+    helper.update_config(&owner, &action).unwrap();
+    let amp_gamma = helper.query_amp_gamma().unwrap();
+    let last_change_time = helper.app.block_info().time.seconds();
+    assert_eq!(amp_gamma.future_time, last_change_time);
+
+    helper.app.next_block(50_000);
+
+    let amp_gamma = helper.query_amp_gamma().unwrap();
+    assert_eq!(dec_to_f64(amp_gamma.amp), 42f64);
+    assert_eq!(dec_to_f64(amp_gamma.gamma), 0.0000945);
+    assert_eq!(amp_gamma.future_time, last_change_time);
 }

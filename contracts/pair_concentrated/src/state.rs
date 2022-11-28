@@ -65,8 +65,8 @@ where
     } else {
         Err(ContractError::IncorrectPoolParam(
             name.to_string(),
-            max.to_string(),
             min.to_string(),
+            max.to_string(),
         ))
     }
 }
@@ -255,8 +255,8 @@ impl PoolState {
 
     /// Stops amp and gamma promotion. Saves current values in self.future.
     pub fn stop_promotion(&mut self, env: &Env) {
-        self.future_time = env.block.time.seconds();
         self.future = self.get_amp_gamma(env);
+        self.future_time = env.block.time.seconds();
     }
 
     /// Calculates current amp and gamma.

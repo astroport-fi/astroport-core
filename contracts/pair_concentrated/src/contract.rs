@@ -352,6 +352,7 @@ pub fn provide_liquidity(
 
     let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
+    // TODO: fix this in case imbalanced provide is allowed
     let deposits = [
         Decimal256::with_precision(assets[0].amount, precisions.get_precision(&assets[0].info)?)?,
         Decimal256::with_precision(assets[1].amount, precisions.get_precision(&assets[1].info)?)?,

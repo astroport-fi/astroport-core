@@ -18,7 +18,9 @@ use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, ReverseSimulationResponse,
     SimulationResponse,
 };
-use astroport::pair_concentrated::{ConcentratedPoolParams, QueryMsg};
+use astroport::pair_concentrated::{
+    AmpGammaResponse, ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
+};
 use astroport::querier::NATIVE_TOKEN_PRECISION;
 use astroport_pair_concentrated::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated::queries::query;
@@ -64,7 +66,7 @@ impl TestCoin {
 }
 
 pub fn init_native_coins(test_coins: &[TestCoin]) -> Vec<Coin> {
-    test_coins
+    let mut test_coins: Vec<Coin> = test_coins
         .iter()
         .filter_map(|test_coin| match test_coin {
             TestCoin::Native(name) => {
@@ -73,7 +75,10 @@ pub fn init_native_coins(test_coins: &[TestCoin]) -> Vec<Coin> {
             }
             _ => None,
         })
-        .collect()
+        .collect();
+    test_coins.push(coin(INIT_BALANCE, "random_coin"));
+
+    test_coins
 }
 
 fn token_contract() -> Box<dyn Contract<Empty>> {
@@ -389,6 +394,33 @@ impl Helper {
             .wrap()
             .query_wasm_smart(&self.pair_addr, &QueryMsg::LpPrice {})?;
         Ok(dec_to_f64(res))
+    }
+
+    pub fn update_config(
+        &mut self,
+        user: &Addr,
+        action: &ConcentratedPoolUpdateParams,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.pair_addr.clone(),
+            &ExecuteMsg::UpdateConfig {
+                params: to_binary(action).unwrap(),
+            },
+            &[],
+        )
+    }
+
+    pub fn query_amp_gamma(&self) -> StdResult<AmpGammaResponse> {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.pair_addr, &QueryMsg::AmpGamma {})
+    }
+
+    pub fn query_d(&self) -> StdResult<Decimal256> {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.pair_addr, &QueryMsg::ComputeD {})
     }
 }
 
