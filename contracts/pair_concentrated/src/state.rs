@@ -412,7 +412,7 @@ impl Precisions {
                     None
                 }
             })
-            .ok_or(ContractError::InvalidAsset(asset_info.to_string()))
+            .ok_or_else(|| ContractError::InvalidAsset(asset_info.to_string()))
     }
 }
 
