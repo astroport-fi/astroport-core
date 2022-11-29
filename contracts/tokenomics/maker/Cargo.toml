@@ -26,7 +26,7 @@ cw2 = { version = "0.15" }
 cw20 = { version = "0.15" }
 cw-storage-plus = { version = "0.15" }
 astroport = { path = "../../../packages/astroport", default-features = false }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "fix/deployment_scripts_release" }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "release" }
 thiserror = { version = "1.0" }
 cosmwasm-schema = { version = "1.1" }
 
@@ -35,4 +35,4 @@ astroport-token = { path = "../../token" }
 astroport-factory = { path = "../../factory" }
 astroport-pair = { path = "../../pair" }
 cw-multi-test = "0.15"
-astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "fix/deployment_scripts_release" }
+astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "release" }
