@@ -1,4 +1,6 @@
 use cosmwasm_std::{Addr, Decimal, Uint128};
+use cw_multi_test::next_block;
+use itertools::Itertools;
 
 use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::pair_concentrated::{
@@ -436,26 +438,26 @@ fn check_swaps_with_price_update() {
     let offer_asset = helper.assets[&test_coins[1]].with_balance(10_000_000000u128);
     let mut prev_vlp_price = helper.query_lp_price().unwrap();
 
-    for _ in 0..3 {
+    for i in 0..3 {
         helper.give_me_money(&[offer_asset.clone()], &user1);
         helper.swap(&user1, &offer_asset, Some(half)).unwrap();
         let new_vlp_price = helper.query_lp_price().unwrap();
         assert!(
-            new_vlp_price > prev_vlp_price,
-            "new_vlp_price < prev_vlp_price"
+            new_vlp_price >= prev_vlp_price,
+            "{i}: new_vlp_price <= prev_vlp_price ({new_vlp_price} <= {prev_vlp_price})",
         );
         prev_vlp_price = new_vlp_price;
         helper.app.next_block(1000);
     }
 
     let offer_asset = helper.assets[&test_coins[0]].with_balance(10_000_000000u128);
-    for _ in 0..3 {
+    for i in 0..3 {
         helper.give_me_money(&[offer_asset.clone()], &user1);
         helper.swap(&user1, &offer_asset, Some(half)).unwrap();
         let new_vlp_price = helper.query_lp_price().unwrap();
         assert!(
-            new_vlp_price > prev_vlp_price,
-            "new_vlp_price < prev_vlp_price"
+            new_vlp_price >= prev_vlp_price,
+            "{i}: new_vlp_price <= prev_vlp_price ({new_vlp_price} <= {prev_vlp_price})",
         );
         prev_vlp_price = new_vlp_price;
         helper.app.next_block(1000);
@@ -557,4 +559,81 @@ fn check_amp_gamma_change() {
     assert_eq!(dec_to_f64(amp_gamma.amp), 42f64);
     assert_eq!(dec_to_f64(amp_gamma.gamma), 0.0000945);
     assert_eq!(amp_gamma.future_time, last_change_time);
+}
+
+#[test]
+fn check_prices() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("USDX")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        initial_price_scale: Decimal::one(),
+        ma_half_time: 600,
+        owner: None,
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+    helper.app.update_block(next_block);
+
+    let check_prices = |helper: &Helper| {
+        let prices = helper.query_prices().unwrap();
+
+        test_coins
+            .iter()
+            .cartesian_product(test_coins.iter())
+            .filter(|(a, b)| a != b)
+            .for_each(|(from_coin, to_coin)| {
+                let price = prices
+                    .cumulative_prices
+                    .iter()
+                    .filter(|(from, to, _)| {
+                        from.eq(&helper.assets[&from_coin]) && to.eq(&helper.assets[&to_coin])
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(price.len(), 1);
+                assert!(!price[0].2.is_zero());
+            });
+    };
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000_000000u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+    check_prices(&helper);
+
+    helper.app.next_block(1000);
+
+    let user1 = Addr::unchecked("user1");
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(1000_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user1);
+
+    helper.swap(&user1, &offer_asset, None).unwrap();
+    check_prices(&helper);
+
+    helper.app.next_block(86400);
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000000u128),
+    ];
+    helper.give_me_money(&assets, &user1);
+
+    helper.provide_liquidity(&user1, &assets).unwrap();
+    check_prices(&helper);
+
+    helper.app.next_block(14 * 86400);
+
+    let offer_asset = helper.assets[&test_coins[1]].with_balance(10_000_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user1);
+    helper.swap(&user1, &offer_asset, None).unwrap();
+    check_prices(&helper);
 }

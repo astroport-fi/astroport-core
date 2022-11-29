@@ -3,8 +3,8 @@ use crate::error::ContractError;
 use crate::math::calc_d;
 use crate::state::{AmpGamma, Precisions, CONFIG};
 use crate::utils::{
-    before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets, pool_info,
-    query_pools,
+    accumulate_prices, before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets,
+    pool_info, query_pools,
 };
 use astroport::asset::Asset;
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
@@ -151,8 +151,16 @@ pub fn query_reverse_simulation(
 }
 
 /// Returns information about cumulative prices for the assets in the pool using a [`CumulativePricesResponse`] object.
-pub fn query_cumulative_prices(_deps: Deps, _env: Env) -> StdResult<CumulativePricesResponse> {
-    todo!("query_cumulative_prices")
+fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
+    let mut config = CONFIG.load(deps.storage)?;
+    let (assets, total_share) = pool_info(deps.querier, &config)?;
+    accumulate_prices(&env, &mut config);
+
+    Ok(CumulativePricesResponse {
+        assets,
+        total_share,
+        cumulative_prices: config.cumulative_prices,
+    })
 }
 
 pub fn query_lp_price(deps: Deps) -> StdResult<Decimal256> {

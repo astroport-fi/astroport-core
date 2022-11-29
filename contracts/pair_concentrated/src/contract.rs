@@ -30,9 +30,9 @@ use crate::state::{
     store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, CONFIG,
 };
 use crate::utils::{
-    assert_max_spread, before_swap_check, calculate_maker_fee, check_asset_infos, check_assets,
-    check_cw20_in_pool, compute_swap, get_share_in_assets, mint_liquidity_token_message, pool_info,
-    query_pools,
+    accumulate_prices, assert_max_spread, before_swap_check, calculate_maker_fee,
+    check_asset_infos, check_assets, check_cw20_in_pool, compute_swap, get_share_in_assets,
+    mint_liquidity_token_message, pool_info, query_pools,
 };
 
 /// Contract name that is used for migration.
@@ -98,7 +98,7 @@ pub fn instantiate(
         initial_time: 0,
         price_state: PriceState {
             oracle_price: params.initial_price_scale.into(),
-            last_price: Decimal256::zero(),
+            last_price: params.initial_price_scale.into(),
             price_scale: params.initial_price_scale.into(),
             last_price_update: env.block.time.seconds(),
             xcp_profit: Decimal256::zero(),
@@ -451,7 +451,8 @@ pub fn provide_liquidity(
         auto_stake,
     )?);
 
-    // TODO: Accumulate prices for the assets in the pool
+    // TODO: accumulate prices only if imbalanced provide is allowed
+    // accumulate_prices(&env, &mut config);
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -516,7 +517,8 @@ fn withdraw_liquidity(
         .into(),
     );
 
-    // TODO: accumulate prices for external oracle
+    // TODO: accumulate prices only if imbalanced provide is allowed
+    // accumulate_prices(&env, &mut config);
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -594,8 +596,6 @@ fn swap(
         last_price,
     )?;
 
-    // TODO: Accumulate prices for the assets in the pool
-
     // Get fee info from the factory
     let fee_info = query_fee_info(
         &deps.querier,
@@ -623,6 +623,8 @@ fn swap(
             messages.push(fee.into_msg(&deps.querier, fee_address)?);
         }
     }
+
+    accumulate_prices(&env, &mut config);
 
     CONFIG.save(deps.storage, &config)?;
 

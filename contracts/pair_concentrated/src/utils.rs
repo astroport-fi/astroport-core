@@ -5,10 +5,10 @@ use cosmwasm_std::{
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 
-use astroport::asset::{Asset, AssetInfo, DecimalAsset};
+use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
 use astroport::querier::{query_factory_config, query_supply};
 
-use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
+use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, TWAP_PRECISION_DEC};
 use crate::error::ContractError;
 use crate::math::{calc_d, calc_y};
 use crate::state::{Config, Precisions};
@@ -339,4 +339,35 @@ pub fn compute_offer_amount(
     let spread_fee = dy * xs[ask_ind] / xs[offer_ind] - want_amount;
 
     Ok((dy, spread_fee, fee))
+}
+
+/// Accumulate token prices for the assets in the pool.
+pub fn accumulate_prices(env: &Env, config: &mut Config) {
+    let block_time = env.block.time.seconds();
+    if block_time <= config.block_time_last {
+        return;
+    }
+
+    let time_elapsed = Uint128::from(block_time - config.block_time_last);
+
+    let last_price = config.pool_state.price_state.last_price;
+    for (from, _, value) in config.cumulative_prices.iter_mut() {
+        let price = if &config.pair_info.asset_infos[0] == from {
+            last_price.inv().unwrap()
+        } else {
+            last_price
+        };
+        // Price max value = 1e18 bc smallest value in Decimal is 1e-18.
+        // Thus highest inverted price is 1/1e-18.
+        // (price * twap) max value = 1e24 which fits into Uint128 thus we use unwrap here
+        let price: Uint128 = (price * TWAP_PRECISION_DEC)
+            .to_uint128_with_precision(0u8)
+            .unwrap();
+        // time_elapsed * price does not need checked_mul.
+        // price max value = 1e24, u128 max value = 340282366920938463463374607431768211455
+        // overflow is possible if time_elapsed > 340282366920939 seconds ~ 10790283 years
+        *value = value.wrapping_add(time_elapsed * price);
+    }
+
+    config.block_time_last = block_time;
 }
