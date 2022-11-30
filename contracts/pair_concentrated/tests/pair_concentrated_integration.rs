@@ -438,7 +438,7 @@ fn check_swaps_with_price_update() {
     let offer_asset = helper.assets[&test_coins[1]].with_balance(10_000_000000u128);
     let mut prev_vlp_price = helper.query_lp_price().unwrap();
 
-    for i in 0..3 {
+    for i in 0..4 {
         helper.give_me_money(&[offer_asset.clone()], &user1);
         helper.swap(&user1, &offer_asset, Some(half)).unwrap();
         let new_vlp_price = helper.query_lp_price().unwrap();
@@ -451,7 +451,7 @@ fn check_swaps_with_price_update() {
     }
 
     let offer_asset = helper.assets[&test_coins[0]].with_balance(10_000_000000u128);
-    for i in 0..3 {
+    for i in 0..4 {
         helper.give_me_money(&[offer_asset.clone()], &user1);
         helper.swap(&user1, &offer_asset, Some(half)).unwrap();
         let new_vlp_price = helper.query_lp_price().unwrap();

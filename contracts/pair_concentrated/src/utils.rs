@@ -268,25 +268,30 @@ pub fn compute_swap(
     let offer_ind = 1 - ask_ind;
 
     let mut ixs = xs.to_vec();
-    ixs[offer_ind] += offer_amount;
     ixs[1] *= config.pool_state.price_state.price_scale;
 
     let amp_gamma = config.pool_state.get_amp_gamma(env);
-    let d = calc_d(xs, &amp_gamma)?;
+    let d = calc_d(&ixs, &amp_gamma)?;
+
+    ixs[offer_ind] += offer_amount * config.pool_state.price_state.price_scale;
+
     let new_y = calc_y(&ixs, d, &amp_gamma, ask_ind)?;
     let mut dy = ixs[ask_ind] - new_y;
     ixs[ask_ind] = new_y;
 
-    let fee_rate = config.pool_params.fee(&ixs);
-
-    if ask_ind == 1 {
+    let price = if ask_ind == 1 {
         dy /= config.pool_state.price_state.price_scale;
-    }
+        config.pool_state.price_state.price_scale
+    } else {
+        config.pool_state.price_state.price_scale.inv().unwrap()
+    };
 
+    // Since price_scale moves slower than real price spread fee may become negative
+    let spread_fee = (offer_amount * price).saturating_sub(dy);
+
+    let fee_rate = config.pool_params.fee(&ixs);
     let fee = fee_rate * dy;
     dy -= fee;
-
-    let spread_fee = offer_amount * xs[ask_ind] / xs[offer_ind] - dy;
 
     Ok(SwapResult {
         dy,
@@ -336,7 +341,7 @@ pub fn compute_offer_amount(
     if offer_ind == 1 {
         dy /= config.pool_state.price_state.price_scale;
     }
-    let spread_fee = dy * xs[ask_ind] / xs[offer_ind] - want_amount;
+    let spread_fee = dy * config.pool_state.price_state.price_scale - before_fee;
 
     Ok((dy, spread_fee, fee))
 }

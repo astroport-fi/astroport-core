@@ -24,6 +24,8 @@ pub fn calc_y(
     newton_y(xs, amp_gamma.amp.into(), amp_gamma.gamma.into(), d, ask_ind)
 }
 
+/// * **d** - internal D invariant.
+/// * **price_scale** - x_0/x_1 exchange rate.
 pub fn get_xcp(d: Decimal256, price_scale: Decimal256) -> Decimal256 {
     let xs = [d / N, d / (N * price_scale)];
     geometric_mean(&xs)

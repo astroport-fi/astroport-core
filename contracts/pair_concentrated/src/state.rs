@@ -320,6 +320,7 @@ impl PoolState {
         let virtual_price;
         if !price_state.xcp.is_zero() {
             // If xcp dropped and no ramping happens then this swap makes loss
+            println!("new xcp {xcp}, old xcp {}", price_state.xcp);
             if xcp < price_state.xcp && block_time >= self.future_time {
                 return Err(StdError::generic_err(
                     "XCP value dropped. This action makes loss",
@@ -355,7 +356,6 @@ impl PoolState {
             let price_scale_new = numerator / norm;
             println!("price_scale_new {price_scale_new}");
 
-            // pool volumes after repeg (denominated in 1st coin)
             let xs = [
                 cur_xs[0],
                 cur_xs[1] * price_scale_new / price_state.price_scale,
@@ -366,11 +366,11 @@ impl PoolState {
             // pool volumes after repeg (real asset values)
             let new_xcp = get_xcp(new_d, price_scale_new);
             let new_virtual_price = new_xcp / total_lp;
-            println!(
-                "new xcp {new_xcp} old xcp {}  new_virtual_price {new_virtual_price}",
-                price_state.xcp
-            );
             if new_virtual_price > (xcp_profit - Decimal256::one()) / TWO + Decimal256::one() {
+                println!(
+                    "new xcp {new_xcp} old xcp {}  new_virtual_price {new_virtual_price}",
+                    price_state.xcp
+                );
                 price_state.price_scale = price_scale_new;
                 price_state.xcp = new_xcp;
             };

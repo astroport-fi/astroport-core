@@ -542,8 +542,6 @@ fn withdraw_liquidity(
 /// * **max_spread** sets the maximum spread of the swap operation.
 ///
 /// * **to** sets the recipient of the swap operation.
-///
-/// NOTE - the address that wants to swap should approve the pair contract to pull the offer token.
 fn swap(
     deps: DepsMut,
     env: Env,
@@ -571,9 +569,11 @@ fn swap(
 
     before_swap_check(&pools, offer_asset_dec.amount)?;
 
-    let xs = pools.iter().map(|asset| asset.amount).collect_vec();
+    let mut xs = pools.iter().map(|asset| asset.amount).collect_vec();
 
     let swap_result = compute_swap(&xs, offer_asset_dec.amount, ask_ind, &config, &env)?;
+    xs[offer_ind] += offer_asset_dec.amount;
+    xs[ask_ind] -= swap_result.dy;
 
     assert_max_spread(
         belief_price,
@@ -587,6 +587,9 @@ fn swap(
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
     let last_price = config.pool_state.price_state.price_scale * xs[0] / xs[1];
+
+    // .update_price() works only with internal representation
+    xs[1] *= config.pool_state.price_state.price_scale;
     config.pool_state.update_price(
         &config.pool_params,
         &env,
