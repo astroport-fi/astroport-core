@@ -1523,6 +1523,317 @@ fn generator_without_reward_proxies() {
 }
 
 #[test]
+fn generator_update_proxy_balance_failed() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked(OWNER);
+    let user1 = Addr::unchecked(USER1);
+    let user2 = Addr::unchecked(USER2);
+
+    let token_code_id = store_token_code(&mut app);
+    let factory_code_id = store_factory_code(&mut app);
+    let pair_code_id = store_pair_code_id(&mut app);
+
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+
+    let cny_eur_token_code_id = store_token_code(&mut app);
+    let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
+    let val_token = instantiate_token(&mut app, token_code_id, "VAL", None);
+
+    let (pair_val_eur, lp_val_eur) = create_pair(
+        &mut app,
+        &factory_instance,
+        None,
+        None,
+        vec![
+            AssetInfo::Token {
+                contract_addr: val_token.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: eur_token.clone(),
+            },
+        ],
+    );
+
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
+
+    let vkr_staking_instance =
+        instantiate_valkyrie_protocol(&mut app, &val_token, &pair_val_eur, &lp_val_eur);
+
+    let proxy_code_id = store_proxy_code(&mut app);
+
+    let proxy_to_vkr_instance = instantiate_proxy(
+        &mut app,
+        proxy_code_id,
+        &generator_instance,
+        &pair_val_eur,
+        &lp_val_eur,
+        &vkr_staking_instance,
+        &val_token,
+    );
+
+    let msg = GeneratorExecuteMsg::SetupPools {
+        pools: vec![(lp_val_eur.to_string(), Uint128::from(50u64))],
+    };
+
+    app.execute_contract(
+        Addr::unchecked(OWNER),
+        generator_instance.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    let msg = GeneratorExecuteMsg::MoveToProxy {
+        lp_token: lp_val_eur.to_string(),
+        proxy: proxy_to_vkr_instance.to_string(),
+    };
+
+    app.execute_contract(
+        Addr::unchecked(OWNER),
+        generator_instance.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    // Mint tokens, so user can deposit
+    mint_tokens(&mut app, pair_val_eur.clone(), &lp_val_eur, &user1, 10);
+    deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER1, &[(&lp_val_eur, 10)]);
+
+    // With the proxy, the Generator contract doesn't have the deposited LP tokens
+    check_token_balance(&mut app, &lp_val_eur, &generator_instance, 0);
+    // The LP tokens are in the 3rd party contract now
+    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 10);
+
+    // Mint tokens on staking for distributing
+    mint_tokens(
+        &mut app,
+        owner.clone(),
+        &val_token,
+        &vkr_staking_instance,
+        200_000_000,
+    );
+
+    app.update_block(|bi| next_block(bi));
+
+    // User 2
+    mint_tokens(&mut app, pair_val_eur.clone(), &lp_val_eur, &user2, 10);
+    deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER2, &[(&lp_val_eur, 10)]);
+
+    check_token_balance(&mut app, &lp_val_eur, &generator_instance, 0);
+    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 20);
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER1,
+        (10_000000, Some(vec![50_000000])),
+    );
+
+    // New deposits can't receive already calculated rewards
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER2,
+        (0, Some(vec![0])),
+    );
+
+    // Change pool alloc points
+    app.execute_contract(
+        owner.clone(),
+        generator_instance.clone(),
+        &GeneratorExecuteMsg::SetupPools {
+            pools: vec![(lp_val_eur.to_string(), Uint128::new(60))],
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.update_block(|bi| next_block(bi));
+
+    // check pending rewards for user1
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER1,
+        (15_000000, Some(vec![80_000_000])),
+    );
+
+    // check pending rewards for user2
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER2,
+        (5_000000, Some(vec![30000000])),
+    );
+
+    // check staking balance
+    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 20);
+
+    // Check user1, user2 and proxy balances
+    check_token_balance(&mut app, &val_token, &user1, 0);
+    check_token_balance(&mut app, &val_token, &user2, 0);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 50_000_000);
+
+    // Let's try withdraw for user1
+    let msg = GeneratorExecuteMsg::Withdraw {
+        lp_token: lp_val_eur.to_string(),
+        amount: Uint128::new(5),
+    };
+    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // check pending rewards for user1 after withdraw
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER1,
+        (0, Some(vec![0])),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER2,
+        (5_000_000, Some(vec![30_000_000])),
+    );
+
+    // Check user1, user2 and proxy balances
+    check_token_balance(&mut app, &val_token, &user1, 80_000_000);
+    check_token_balance(&mut app, &val_token, &user2, 0);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 30_000_000);
+
+    // Compare rewards on proxy and generator
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &generator_instance,
+            &QueryMsg::PoolInfo {
+                lp_token: lp_val_eur.to_string(),
+            },
+        )
+        .unwrap();
+
+    // Generator proxy reward balance before update is 110_000_000
+    assert_eq!(
+        Uint128::new(110_000_000),
+        reps.proxy_reward_balance_before_update
+    );
+
+    // Let's try checkpoint user boost
+    app.execute_contract(
+        user1.clone(),
+        generator_instance.clone(),
+        &GeneratorExecuteMsg::CheckpointUserBoost {
+            generators: vec![lp_val_eur.to_string()],
+            user: None,
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Compare rewards on proxy and generator
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &generator_instance,
+            &QueryMsg::PoolInfo {
+                lp_token: lp_val_eur.to_string(),
+            },
+        )
+        .unwrap();
+
+    // Proxies val_token balance is 30_000_000
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 30_000_000);
+
+    // Generator proxy reward balance before update is 30_000_000
+    assert_eq!(
+        Uint128::new(30_000_000),
+        reps.proxy_reward_balance_before_update
+    );
+
+    // Let's try claim rewards for user2
+    let msg = GeneratorExecuteMsg::ClaimRewards {
+        lp_tokens: vec![lp_val_eur.to_string()],
+    };
+    app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Check user1, user2 and proxy balances
+    check_token_balance(&mut app, &val_token, &user1, 80_000_000);
+    check_token_balance(&mut app, &val_token, &user2, 30_000_000);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 0);
+
+    // Let's try deactivate pool
+    app.execute_contract(
+        factory_instance.clone(),
+        generator_instance.clone(),
+        &GeneratorExecuteMsg::DeactivatePool {
+            lp_token: lp_val_eur.to_string(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.update_block(|bi| next_block(bi));
+
+    // Let's try claim rewards for user1
+    let msg = GeneratorExecuteMsg::ClaimRewards {
+        lp_tokens: vec![lp_val_eur.to_string()],
+    };
+    app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Let's try checkpoint user boost
+    app.execute_contract(
+        factory_instance.clone(),
+        generator_instance.clone(),
+        &GeneratorExecuteMsg::CheckpointUserBoost {
+            generators: vec![lp_val_eur.to_string()],
+            user: None,
+        },
+        &[],
+    )
+    .unwrap();
+
+    // check pending rewards for user1 after withdraw
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER1,
+        (0, Some(vec![0])),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER2,
+        (0, Some(vec![0])),
+    );
+
+    // check staking balance
+    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 15);
+
+    // Check user1, user2 and proxy balances
+    check_token_balance(&mut app, &val_token, &user1, 80_000_000);
+    check_token_balance(&mut app, &val_token, &user2, 30_000_000);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 0);
+}
+
+#[test]
 fn generator_with_vkr_reward_proxy() {
     let mut app = mock_app();
 
