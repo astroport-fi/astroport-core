@@ -82,7 +82,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::UpdateRewards {} => update_rewards(deps),
+        ExecuteMsg::UpdateRewards {} => update_rewards(deps, info),
         ExecuteMsg::SendRewards { account, amount } => send_rewards(deps, info, account, amount),
         ExecuteMsg::Withdraw { account, amount } => withdraw(deps, env, info, account, amount),
         ExecuteMsg::EmergencyWithdraw { account, amount } => {
