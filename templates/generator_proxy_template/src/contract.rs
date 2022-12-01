@@ -131,9 +131,13 @@ fn receive_cw20(
 ///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
-fn update_rewards(deps: DepsMut) -> Result<Response, ContractError> {
+fn update_rewards(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
+
+    if info.sender != cfg.generator_contract_addr {
+        return Err(ContractError::Unauthorized {});
+    };
 
     response
         .messages
