@@ -1,9 +1,9 @@
 use std::vec;
 
 use cosmwasm_std::{
-    attr, entry_point, from_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg,
-    Decimal, Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
-    SubMsgResponse, SubMsgResult, Uint128,
+    attr, coin, entry_point, from_binary, wasm_execute, wasm_instantiate, Addr, BankMsg, Binary,
+    CosmosMsg, Decimal, Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError,
+    StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -30,9 +30,9 @@ use crate::state::{
     store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, CONFIG,
 };
 use crate::utils::{
-    accumulate_prices, assert_max_spread, before_swap_check, calculate_maker_fee,
-    check_asset_infos, check_assets, check_cw20_in_pool, compute_swap, get_share_in_assets,
-    mint_liquidity_token_message, pool_info, query_pools,
+    accumulate_prices, assert_max_spread, balanced_deposits, before_swap_check,
+    calculate_maker_fee, check_asset_infos, check_assets, check_cw20_in_pool, compute_swap,
+    get_share_in_assets, mint_liquidity_token_message, pool_info, query_pools,
 };
 
 /// Contract name that is used for migration.
@@ -336,23 +336,22 @@ pub fn provide_liquidity(
 ) -> Result<Response, ContractError> {
     check_assets(deps.api, &assets)?;
 
+    assets
+        .iter()
+        .try_for_each(|asset| asset.assert_sent_native_token_balance(&info))?;
+
     let config = CONFIG.load(deps.storage)?;
 
-    if assets.len() > config.pair_info.asset_infos.len() {
+    if assets.len() != config.pair_info.asset_infos.len() {
         return Err(ContractError::InvalidNumberOfAssets(
             config.pair_info.asset_infos.len(),
         ));
     }
 
-    assets
-        .iter()
-        .try_for_each(|asset| asset.assert_sent_native_token_balance(&info))?;
-
     let precisions = Precisions::new(deps.storage)?;
 
     let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
-    // TODO: fix this in case imbalanced provide is allowed
     let deposits = [
         Decimal256::with_precision(assets[0].amount, precisions.get_precision(&assets[0].info)?)?,
         Decimal256::with_precision(assets[1].amount, precisions.get_precision(&assets[1].info)?)?,
@@ -362,35 +361,51 @@ pub fn provide_liquidity(
         return Err(ContractError::InvalidZeroAmount {});
     }
 
+    let (bal_deposit, excess_tokens) =
+        balanced_deposits(&deposits, config.pool_state.price_state.price_scale);
+
     let mut messages = vec![];
     for (i, pool) in pools.iter_mut().enumerate() {
         // If the asset is a token contract, then we need to execute a TransferFrom msg to receive assets
-        if let AssetInfo::Token { contract_addr, .. } = &pool.info {
-            messages.push(CosmosMsg::Wasm(wasm_execute(
+        match &pool.info {
+            AssetInfo::Token { contract_addr } => messages.push(CosmosMsg::Wasm(wasm_execute(
                 contract_addr,
                 &Cw20ExecuteMsg::TransferFrom {
                     owner: info.sender.to_string(),
                     recipient: env.contract.address.to_string(),
-                    amount: deposits[i].to_uint(precisions.get_precision(&assets[i].info)?)?,
+                    amount: (deposits[i] - excess_tokens[i])
+                        .to_uint(precisions.get_precision(&assets[i].info)?)?,
                 },
                 vec![],
-            )?));
-        } else {
-            // If the asset is native token, the pool balance is already increased
-            // To calculate the total amount of deposits properly, we should subtract the user deposit from the pool
-            pool.amount = pool.amount.checked_sub(deposits[i])?;
+            )?)),
+            AssetInfo::NativeToken { denom } => {
+                // If the asset is native token, the pool balance is already increased
+                // To calculate the total amount of deposits properly, we should subtract the user deposit from the pool
+                pool.amount = pool.amount.checked_sub(deposits[i])?;
+
+                // send excess tokens back to the user
+                if !excess_tokens[i].is_zero() {
+                    messages.push(CosmosMsg::Bank(BankMsg::Send {
+                        to_address: info.sender.to_string(),
+                        amount: vec![coin(
+                            excess_tokens[i]
+                                .to_uint(precisions.get_precision(&assets[i].info)?)?
+                                .u128(),
+                            denom,
+                        )],
+                    }))
+                }
+            }
         }
     }
 
-    let mut new_xp = pools
-        .iter()
-        .zip(deposits.iter())
-        .map(|(pool, deposit)| pool.amount + deposit)
-        .collect_vec();
+    let mut new_xp = pools.iter().map(|pool| pool.amount).collect_vec();
     new_xp[1] *= config.pool_state.price_state.price_scale;
+    new_xp[0] += bal_deposit;
+    new_xp[1] += bal_deposit;
+
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
-    let auto_stake = auto_stake.unwrap_or(false);
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
 
     let mint_amount = if total_share.is_zero() {
@@ -442,6 +457,7 @@ pub fn provide_liquidity(
 
     // Mint LP tokens for the sender or for the receiver (if set)
     let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());
+    let auto_stake = auto_stake.unwrap_or(false);
     messages.extend(mint_liquidity_token_message(
         deps.querier,
         &config,

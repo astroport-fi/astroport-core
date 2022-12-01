@@ -376,3 +376,27 @@ pub fn accumulate_prices(env: &Env, config: &mut Config) {
 
     config.block_time_last = block_time;
 }
+
+/// Calculates balanced share and excess tokens.
+/// * **deposits** deposit values as they came in the contract (real values).
+/// * **price_scale** x0 -> x1 exchange rate
+///
+/// Returns:
+/// (
+///     balanced share (internal representation),
+///     array with excess tokens (real values)
+/// )
+pub fn balanced_deposits(
+    deposits: &[Decimal256],
+    price_scale: Decimal256,
+) -> (Decimal256, Vec<Decimal256>) {
+    let min_dep = deposits[0].min(deposits[1] * price_scale);
+
+    (
+        min_dep,
+        vec![
+            deposits[0] - min_dep,
+            (deposits[1] * price_scale - min_dep) / price_scale,
+        ],
+    )
+}

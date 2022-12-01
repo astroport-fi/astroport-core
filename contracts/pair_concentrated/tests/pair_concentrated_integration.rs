@@ -211,6 +211,58 @@ fn provide_and_withdraw() {
 }
 
 #[test]
+fn try_imbalanced_provide() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+
+    let mut params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        initial_price_scale: Decimal::from_ratio(2u8, 1u8),
+        ma_half_time: 600,
+        owner: None,
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params.clone()).unwrap();
+
+    let user1 = Addr::unchecked("user1");
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
+    ];
+    helper.give_me_money(&assets, &user1);
+    helper.provide_liquidity(&user1, &assets).unwrap();
+
+    assert_eq!(70710_677118, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
+    // coin_1 was sent back to user as provide was imbalanced
+    assert_eq!(50_000_000000, helper.coin_balance(&test_coins[1], &user1));
+
+    // creating a new pool with inverted price scale
+    params.initial_price_scale = Decimal::from_ratio(1u8, 2u8);
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
+    ];
+    helper.give_me_money(&assets, &user1);
+    helper.provide_liquidity(&user1, &assets).unwrap();
+
+    assert_eq!(70710_677118, helper.token_balance(&helper.lp_token, &user1));
+    // coin_0 was sent back to user as provide was imbalanced
+    assert_eq!(50_000_000000, helper.coin_balance(&test_coins[0], &user1));
+    assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
+}
+
+#[test]
 fn provide_with_different_precision() {
     let owner = Addr::unchecked("owner");
 
