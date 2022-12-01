@@ -614,6 +614,7 @@ fn swap(
     }
     .into_msg(&deps.querier, &receiver)?];
 
+    // TODO: maker fee should be accounted before update price
     let commission_amount = swap_result.fee.to_uint(ask_asset_prec)?;
     let mut maker_fee_amount = Uint128::zero();
     if let Some(fee_address) = fee_info.fee_address {

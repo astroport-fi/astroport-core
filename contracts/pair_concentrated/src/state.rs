@@ -338,7 +338,7 @@ impl PoolState {
         price_state.xcp_profit = xcp_profit;
 
         let norm = (price_state.oracle_price / price_state.price_scale).diff(Decimal256::one());
-        let scale_delta: Decimal256 = pool_params.min_price_scale_delta.into();
+        let scale_delta = Decimal256::from(pool_params.min_price_scale_delta).min(norm);
         println!("norm {norm} scale_delta {scale_delta} virtual_price {virtual_price} xcp_profit {xcp_profit} oracle {}", price_state.oracle_price);
         println!(
             "{} > {} + {} ?",
@@ -346,7 +346,7 @@ impl PoolState {
             (xcp_profit - Decimal256::one()) / TWO,
             pool_params.repeg_profit_threshold
         );
-        if norm > scale_delta
+        if !scale_delta.is_zero()
             && virtual_price - Decimal256::one()
                 > (xcp_profit - Decimal256::one()) / TWO
                     + Decimal256::from(pool_params.repeg_profit_threshold)
