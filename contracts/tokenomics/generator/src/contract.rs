@@ -1061,7 +1061,7 @@ pub fn accumulate_rewards_per_share(
                 querier.query_wasm_smart(proxy, &ProxyQueryMsg::Reward {})?;
 
             let token_rewards =
-                reward_amount.checked_sub(pool.proxy_reward_balance_before_update)?;
+                reward_amount.saturating_sub(pool.proxy_reward_balance_before_update);
 
             let share = Decimal::from_ratio(token_rewards, proxy_lp_supply);
             pool.accumulated_proxy_rewards_per_share
