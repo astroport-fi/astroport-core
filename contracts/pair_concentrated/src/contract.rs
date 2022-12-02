@@ -472,13 +472,26 @@ pub fn provide_liquidity(
 
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::new().add_messages(messages).add_attributes(vec![
+    let mut attrs = vec![
         attr("action", "provide_liquidity"),
         attr("sender", info.sender),
         attr("receiver", receiver),
-        attr("assets", format!("{}, {}", assets[0], assets[1])),
+        attr("assets", format!("{}, {}", &assets[0], &assets[1])),
         attr("share", mint_amount),
-    ]))
+    ];
+
+    if let Some((ind, excess)) = excess_tokens.iter().find_position(|val| !val.is_zero()) {
+        attrs.push(attr(
+            "excess_tokens",
+            Asset {
+                info: assets[ind].info.clone(),
+                amount: excess.to_uint(precisions.get_precision(&assets[ind].info)?)?,
+            }
+            .to_string(),
+        ))
+    }
+
+    Ok(Response::new().add_messages(messages).add_attributes(attrs))
 }
 
 /// Withdraw liquidity from the pool.
