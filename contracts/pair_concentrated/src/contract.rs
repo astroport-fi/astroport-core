@@ -42,7 +42,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// A `reply` call code ID used for sub-messages.
 const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 /// An LP token's precision.
-pub(crate) const LP_TOKEN_PRECISION: u8 = 18;
+pub(crate) const LP_TOKEN_PRECISION: u8 = 6;
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]

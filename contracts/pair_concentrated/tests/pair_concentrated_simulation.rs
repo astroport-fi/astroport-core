@@ -73,7 +73,7 @@ fn simulate_case(case: Vec<(usize, u128, u64)>) {
 
 fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128)>) {
     let owner = Addr::unchecked("owner");
-    let tolerance = 1e-6; // allowed loss per provide due to integer math withing contract
+    let tolerance = 1e-5; // allowed loss per provide due to integer math withing contract
 
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20precise("USDC", 10)];
 
@@ -223,7 +223,7 @@ fn generate_provide_cases() -> impl Strategy<Value = Vec<(String, u128, u128)>> 
 }
 
 proptest! {
-    // #[ignore]
+    #[ignore]
     #[test]
     fn simulate_transactions(case in generate_cases()) {
         simulate_case(case);
