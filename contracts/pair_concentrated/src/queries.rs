@@ -13,7 +13,7 @@ use astroport::pair::{
     SimulationResponse,
 };
 use astroport::pair_concentrated::{AmpGammaResponse, QueryMsg};
-use astroport::querier::query_supply;
+use astroport::querier::{query_fee_info, query_supply};
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal256, Deps, Env, StdError, StdResult, Uint128,
 };
@@ -110,12 +110,31 @@ pub fn query_simulation(
     before_swap_check(&pools, offer_asset_dec.amount)?;
 
     let xs = pools.iter().map(|asset| asset.amount).collect_vec();
-    let swap_result = compute_swap(&xs, offer_asset_dec.amount, ask_ind, &config, &env)?;
+
+    // Get fee info from the factory
+    let fee_info = query_fee_info(
+        &deps.querier,
+        &config.factory_addr,
+        config.pair_info.pair_type.clone(),
+    )?;
+    let mut maker_fee_share = Decimal256::zero();
+    if fee_info.fee_address.is_some() {
+        maker_fee_share = fee_info.maker_fee_rate.into();
+    }
+
+    let swap_result = compute_swap(
+        &xs,
+        offer_asset_dec.amount,
+        ask_ind,
+        &config,
+        &env,
+        maker_fee_share,
+    )?;
 
     Ok(SimulationResponse {
         return_amount: swap_result.dy.to_uint(ask_asset_prec)?,
         spread_amount: swap_result.spread_fee.to_uint(ask_asset_prec)?,
-        commission_amount: swap_result.fee.to_uint(ask_asset_prec)?,
+        commission_amount: swap_result.total_fee.to_uint(ask_asset_prec)?,
     })
 }
 

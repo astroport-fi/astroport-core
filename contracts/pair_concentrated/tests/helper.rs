@@ -114,6 +114,7 @@ pub struct Helper {
     pub factory: Addr,
     pub pair_addr: Addr,
     pub lp_token: Addr,
+    pub fake_maker: Addr,
 }
 
 impl Helper {
@@ -148,8 +149,10 @@ impl Helper {
         let factory_code_id = app.store_code(factory_contract());
         let pair_type = PairType::Concentrated {};
 
+        let fake_maker = Addr::unchecked("fake_maker");
+
         let init_msg = astroport::factory::InstantiateMsg {
-            fee_address: None,
+            fee_address: Some(fake_maker.to_string()),
             pair_configs: vec![PairConfig {
                 code_id: pair_code_id,
                 maker_fee_bps: 5000,
@@ -198,6 +201,7 @@ impl Helper {
             factory,
             pair_addr: resp.contract_addr,
             lp_token: resp.liquidity_token,
+            fake_maker,
         })
     }
 

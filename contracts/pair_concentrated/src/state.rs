@@ -286,7 +286,6 @@ impl PoolState {
     /// The function is responsible for repegging mechanism.
     /// It updates internal oracle price and adjusts price scale.
     ///
-    /// * **cur_d** - D invariant for internal representation
     /// * **cur_xs** - internal representation of pool volumes
     /// * **cur_price** - last price happened in the previous action (swap, provide or withdraw)
     pub fn update_price(
@@ -294,7 +293,6 @@ impl PoolState {
         pool_params: &PoolParams,
         env: &Env,
         total_lp: Decimal256,
-        cur_d: Decimal256,
         cur_xs: &[Decimal256],
         cur_price: Decimal256,
     ) -> StdResult<()> {
@@ -314,10 +312,11 @@ impl PoolState {
         }
         price_state.last_price = cur_price;
 
+        let cur_d = calc_d(cur_xs, &amp_gamma)?;
         let xcp = get_xcp(cur_d, price_state.price_scale);
 
-        let xcp_profit;
-        let virtual_price;
+        let mut xcp_profit = Decimal256::one();
+        let mut virtual_price = Decimal256::one();
         if !price_state.xcp.is_zero() {
             // If xcp dropped and no ramping happens then this swap makes loss
             println!("new xcp {xcp}, old xcp {}", price_state.xcp);
@@ -328,25 +327,22 @@ impl PoolState {
             }
 
             xcp_profit = price_state.xcp_profit * xcp / price_state.xcp;
-            virtual_price = xcp_profit * xcp / total_lp;
-        } else {
-            price_state.xcp = xcp;
-            virtual_price = Decimal256::one();
-            xcp_profit = Decimal256::one();
+            virtual_price = xcp / total_lp;
         }
 
+        price_state.xcp = xcp;
         price_state.xcp_profit = xcp_profit;
 
         let norm = (price_state.oracle_price / price_state.price_scale).diff(Decimal256::one());
-        let scale_delta = Decimal256::from(pool_params.min_price_scale_delta).min(norm);
-        println!("norm {norm} scale_delta {scale_delta} virtual_price {virtual_price} xcp_profit {xcp_profit} oracle {}", price_state.oracle_price);
+        let scale_delta = Decimal256::from(pool_params.min_price_scale_delta).max(norm);
+        println!("norm {norm} scale_delta {scale_delta} virtual_price {virtual_price} xcp_profit {xcp_profit} oracle {} price_scale {}", price_state.oracle_price, price_state.price_scale);
         println!(
             "{} > {} + {} ?",
             virtual_price - Decimal256::one(),
             (xcp_profit - Decimal256::one()) / TWO,
             pool_params.repeg_profit_threshold
         );
-        if !scale_delta.is_zero()
+        if norm >= scale_delta
             && virtual_price - Decimal256::one()
                 > (xcp_profit - Decimal256::one()) / TWO
                     + Decimal256::from(pool_params.repeg_profit_threshold)
@@ -362,15 +358,17 @@ impl PoolState {
             ];
             println!("New xs after repeg: {} {}", xs[0], xs[1]);
             let new_d = calc_d(&xs, &amp_gamma)?;
+            println!("new_d {new_d}");
 
-            // pool volumes after repeg (real asset values)
             let new_xcp = get_xcp(new_d, price_scale_new);
             let new_virtual_price = new_xcp / total_lp;
-            if new_virtual_price > (xcp_profit - Decimal256::one()) / TWO + Decimal256::one() {
-                println!(
-                    "new xcp {new_xcp} old xcp {}  new_virtual_price {new_virtual_price}",
-                    price_state.xcp
-                );
+            println!(
+                "new xcp {new_xcp} old xcp {}  new_virtual_price {new_virtual_price}",
+                price_state.xcp
+            );
+            println!("2 * {new_virtual_price} > {xcp_profit} + 1?");
+            if TWO * new_virtual_price > xcp_profit + Decimal256::one() {
+                println!("Repeg done");
                 price_state.price_scale = price_scale_new;
                 price_state.xcp = new_xcp;
             };
@@ -678,7 +676,7 @@ mod test {
         let mut ext_xs = [f64_to_dec256(1_000_000f64), f64_to_dec256(500_000f64)];
 
         let offer_amount = f64_to_dec256(1000_f64);
-        let (cur_d, total_lp, price) = swap(
+        let (_cur_d, total_lp, price) = swap(
             &mut ext_xs,
             offer_amount,
             pool_state.price_state.price_scale,
@@ -691,7 +689,6 @@ mod test {
                 &pool_params,
                 &env,
                 total_lp,
-                cur_d,
                 &to_internal_repr(&ext_xs, pool_state.price_state.price_scale),
                 price,
             )
@@ -700,7 +697,7 @@ mod test {
         to_future(&mut env, 600);
 
         let offer_amount = f64_to_dec256(10000_f64);
-        let (cur_d, total_lp, price) = swap(
+        let (_cur_d, total_lp, price) = swap(
             &mut ext_xs,
             offer_amount,
             pool_state.price_state.price_scale,
@@ -713,7 +710,6 @@ mod test {
                 &pool_params,
                 &env,
                 total_lp,
-                cur_d,
                 &to_internal_repr(&ext_xs, pool_state.price_state.price_scale),
                 price,
             )
@@ -722,7 +718,7 @@ mod test {
         to_future(&mut env, 600);
 
         let offer_amount = f64_to_dec256(200_000_f64);
-        let (cur_d, total_lp, price) = swap(
+        let (_cur_d, total_lp, price) = swap(
             &mut ext_xs,
             offer_amount,
             pool_state.price_state.price_scale,
@@ -735,7 +731,6 @@ mod test {
                 &pool_params,
                 &env,
                 total_lp,
-                cur_d,
                 &to_internal_repr(&ext_xs, pool_state.price_state.price_scale),
                 price,
             )
@@ -744,7 +739,7 @@ mod test {
         to_future(&mut env, 12000);
 
         let offer_amount = f64_to_dec256(1_000_f64);
-        let (cur_d, total_lp, price) = swap(
+        let (_cur_d, total_lp, price) = swap(
             &mut ext_xs,
             offer_amount,
             pool_state.price_state.price_scale,
@@ -758,7 +753,6 @@ mod test {
                 &pool_params,
                 &env,
                 total_lp,
-                cur_d,
                 &to_internal_repr(&ext_xs, pool_state.price_state.price_scale),
                 price,
             )
@@ -767,7 +761,7 @@ mod test {
         to_future(&mut env, 600);
 
         let offer_amount = f64_to_dec256(200_000_f64);
-        let (cur_d, total_lp, price) = swap(
+        let (_cur_d, total_lp, price) = swap(
             &mut ext_xs,
             offer_amount,
             pool_state.price_state.price_scale,
@@ -781,7 +775,6 @@ mod test {
                 &pool_params,
                 &env,
                 total_lp,
-                cur_d,
                 &to_internal_repr(&ext_xs, pool_state.price_state.price_scale),
                 price,
             )
@@ -790,7 +783,7 @@ mod test {
         to_future(&mut env, 60);
 
         let offer_amount = f64_to_dec256(2_000_f64);
-        let (cur_d, total_lp, price) = swap(
+        let (_cur_d, total_lp, price) = swap(
             &mut ext_xs,
             offer_amount,
             pool_state.price_state.price_scale,
@@ -804,7 +797,6 @@ mod test {
                 &pool_params,
                 &env,
                 total_lp,
-                cur_d,
                 &to_internal_repr(&ext_xs, pool_state.price_state.price_scale),
                 price,
             )

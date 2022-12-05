@@ -141,29 +141,6 @@ pub(crate) fn get_share_in_assets(
         .collect()
 }
 
-/// Calculates the amount of fees the Maker contract gets according to specified pair parameters.
-
-/// * **pool_info** pool asset info for which the commission will be calculated.
-///
-/// * **commission_amount** total amount of fees charged for a swap.
-///
-/// * **maker_commission_rate** percentage of fees that go to the Maker contract.
-pub(crate) fn calculate_maker_fee(
-    pool_info: &AssetInfo,
-    commission_amount: Uint128,
-    maker_commission_rate: Decimal,
-) -> Option<Asset> {
-    let maker_fee = commission_amount * maker_commission_rate;
-    if maker_fee.is_zero() {
-        None
-    } else {
-        Some(Asset {
-            info: pool_info.clone(),
-            amount: maker_fee,
-        })
-    }
-}
-
 /// If `belief_price` and `max_spread` are both specified, we compute a new spread,
 /// otherwise we just use the swap spread to check `max_spread`.
 
@@ -253,8 +230,8 @@ pub(crate) fn before_swap_check(pools: &[DecimalAsset], offer_amount: Decimal256
 pub struct SwapResult {
     pub dy: Decimal256,
     pub spread_fee: Decimal256,
-    pub fee: Decimal256,
-    pub d: Decimal256,
+    pub maker_fee: Decimal256,
+    pub total_fee: Decimal256,
 }
 
 /// Calculate swap result.
@@ -264,6 +241,7 @@ pub fn compute_swap(
     ask_ind: usize,
     config: &Config,
     env: &Env,
+    maker_fee_share: Decimal256,
 ) -> StdResult<SwapResult> {
     let offer_ind = 1 - ask_ind;
 
@@ -273,7 +251,13 @@ pub fn compute_swap(
     let amp_gamma = config.pool_state.get_amp_gamma(env);
     let d = calc_d(&ixs, &amp_gamma)?;
 
-    ixs[offer_ind] += offer_amount * config.pool_state.price_state.price_scale;
+    let offer_amount = if offer_ind == 1 {
+        offer_amount * config.pool_state.price_state.price_scale
+    } else {
+        offer_amount
+    };
+
+    ixs[offer_ind] += offer_amount;
 
     let new_y = calc_y(&ixs, d, &amp_gamma, ask_ind)?;
     let mut dy = ixs[ask_ind] - new_y;
@@ -281,23 +265,23 @@ pub fn compute_swap(
 
     let price = if ask_ind == 1 {
         dy /= config.pool_state.price_state.price_scale;
-        config.pool_state.price_state.price_scale
-    } else {
         config.pool_state.price_state.price_scale.inv().unwrap()
+    } else {
+        config.pool_state.price_state.price_scale
     };
 
     // Since price_scale moves slower than real price spread fee may become negative
     let spread_fee = (offer_amount * price).saturating_sub(dy);
 
     let fee_rate = config.pool_params.fee(&ixs);
-    let fee = fee_rate * dy;
-    dy -= fee;
+    let total_fee = fee_rate * dy;
+    dy -= total_fee;
 
     Ok(SwapResult {
         dy,
         spread_fee,
-        fee,
-        d,
+        maker_fee: total_fee * maker_fee_share,
+        total_fee,
     })
 }
 

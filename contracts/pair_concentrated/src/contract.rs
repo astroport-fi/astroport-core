@@ -30,9 +30,9 @@ use crate::state::{
     store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, CONFIG,
 };
 use crate::utils::{
-    accumulate_prices, assert_max_spread, balanced_deposits, before_swap_check,
-    calculate_maker_fee, check_asset_infos, check_assets, check_cw20_in_pool, compute_swap,
-    get_share_in_assets, mint_liquidity_token_message, pool_info, query_pools,
+    accumulate_prices, assert_max_spread, balanced_deposits, before_swap_check, check_asset_infos,
+    check_assets, check_cw20_in_pool, compute_swap, get_share_in_assets,
+    mint_liquidity_token_message, pool_info, query_pools,
 };
 
 /// Contract name that is used for migration.
@@ -600,9 +600,27 @@ fn swap(
 
     let mut xs = pools.iter().map(|asset| asset.amount).collect_vec();
 
-    let swap_result = compute_swap(&xs, offer_asset_dec.amount, ask_ind, &config, &env)?;
+    // Get fee info from the factory
+    let fee_info = query_fee_info(
+        &deps.querier,
+        &config.factory_addr,
+        config.pair_info.pair_type.clone(),
+    )?;
+    let mut maker_fee_share = Decimal256::zero();
+    if fee_info.fee_address.is_some() {
+        maker_fee_share = fee_info.maker_fee_rate.into();
+    }
+
+    let swap_result = compute_swap(
+        &xs,
+        offer_asset_dec.amount,
+        ask_ind,
+        &config,
+        &env,
+        maker_fee_share,
+    )?;
     xs[offer_ind] += offer_asset_dec.amount;
-    xs[ask_ind] -= swap_result.dy;
+    xs[ask_ind] -= swap_result.dy + swap_result.maker_fee;
 
     assert_max_spread(
         belief_price,
@@ -615,25 +633,24 @@ fn swap(
 
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
-    let last_price = config.pool_state.price_state.price_scale * xs[0] / xs[1];
 
-    // .update_price() works only with internal representation
+    let last_price = if offer_ind == 0 {
+        offer_asset_dec.amount / (swap_result.dy + swap_result.maker_fee)
+    } else {
+        (swap_result.dy + swap_result.maker_fee) / offer_asset_dec.amount
+    };
+    println!(
+        "coin_{offer_ind}->coin_{ask_ind} ({}->{}) last price {last_price}",
+        offer_asset_dec.amount,
+        swap_result.dy + swap_result.maker_fee
+    );
+
+    // update_price() works only with internal representation
     xs[1] *= config.pool_state.price_state.price_scale;
-    config.pool_state.update_price(
-        &config.pool_params,
-        &env,
-        total_share,
-        swap_result.d,
-        &xs,
-        last_price,
-    )?;
+    config
+        .pool_state
+        .update_price(&config.pool_params, &env, total_share, &xs, last_price)?;
 
-    // Get fee info from the factory
-    let fee_info = query_fee_info(
-        &deps.querier,
-        &config.factory_addr,
-        config.pair_info.pair_type.clone(),
-    )?;
     let receiver = to.unwrap_or_else(|| sender.clone());
 
     let return_amount = swap_result.dy.to_uint(ask_asset_prec)?;
@@ -643,16 +660,14 @@ fn swap(
     }
     .into_msg(&deps.querier, &receiver)?];
 
-    // TODO: maker fee should be accounted before update price
-    let commission_amount = swap_result.fee.to_uint(ask_asset_prec)?;
-    let mut maker_fee_amount = Uint128::zero();
+    let mut maker_fee = Uint128::zero();
     if let Some(fee_address) = fee_info.fee_address {
-        if let Some(fee) = calculate_maker_fee(
-            &pools[ask_ind].info,
-            commission_amount,
-            fee_info.maker_fee_rate,
-        ) {
-            maker_fee_amount = fee.amount;
+        if !swap_result.maker_fee.is_zero() {
+            maker_fee = swap_result.maker_fee.to_uint(ask_asset_prec)?;
+            let fee = Asset {
+                info: pools[ask_ind].info.clone(),
+                amount: maker_fee,
+            };
             messages.push(fee.into_msg(&deps.querier, fee_address)?);
         }
     }
@@ -670,8 +685,11 @@ fn swap(
         attr("offer_amount", offer_asset.amount),
         attr("return_amount", return_amount),
         attr("spread_amount", spread_amount),
-        attr("commission_amount", commission_amount),
-        attr("maker_fee_amount", maker_fee_amount),
+        attr(
+            "commission_amount",
+            swap_result.total_fee.to_uint(ask_asset_prec)?,
+        ),
+        attr("maker_fee_amount", maker_fee),
     ]))
 }
 
