@@ -120,7 +120,7 @@ fn provide_and_withdraw() {
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
-    // checking LP token price on an empty pool
+    // checking LP token virtual price on an empty pool
     let lp_price = helper.query_lp_price().unwrap();
     assert_eq!(lp_price, 0.0);
 
@@ -162,10 +162,6 @@ fn provide_and_withdraw() {
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
 
-    // Check virtual LP token price grows
-    // let lp_price = helper.query_lp_price().unwrap();
-    // assert_eq!(lp_price, ?);
-
     // The user2 with the same assets should receive the same share
     // (except MINIMUM_LIQUIDITY_AMOUNT bc of 1st provide)
     let user2 = Addr::unchecked("user2");
@@ -180,9 +176,18 @@ fn provide_and_withdraw() {
         helper.token_balance(&helper.lp_token, &user2)
     );
 
-    // LP token price grows up because of noise fees
-    // let lp_price = helper.query_lp_price().unwrap();
-    // assert_eq!(lp_price, ?);
+    // check that imbalanced withdraw is currently disabled
+    let withdraw_assets = vec![
+        helper.assets[&test_coins[0]].with_balance(10_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(5_000_000000u128),
+    ];
+    let err = helper
+        .withdraw_liquidity(&user1, 7071_067711, withdraw_assets)
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Imbalanced withdraw is currently disabled"
+    );
 
     // user1 withdraws one 10th
     helper

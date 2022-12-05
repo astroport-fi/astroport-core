@@ -536,7 +536,7 @@ fn withdraw_liquidity(
         burn_amount = amount;
         refund_assets = get_share_in_assets(&pools, amount, total_share)?;
     } else {
-        todo!("Imbalanced withdraw + update prices")
+        return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
     }
 
     // decrease XCP
