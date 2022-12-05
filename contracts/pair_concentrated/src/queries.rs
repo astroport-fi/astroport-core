@@ -190,7 +190,7 @@ pub fn query_reverse_simulation(
     })
 }
 
-/// Returns information about cumulative prices for the assets in the pool using a [`CumulativePricesResponse`] object.
+/// Returns information about cumulative prices for the assets in the pool.
 fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
     let mut config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps.querier, &config)?;
@@ -203,6 +203,7 @@ fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesRe
     })
 }
 
+/// Compute the current LP token virtual price.
 pub fn query_lp_price(deps: Deps) -> StdResult<Decimal256> {
     let config = CONFIG.load(deps.storage)?;
     let total_lp = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
@@ -216,7 +217,7 @@ pub fn query_lp_price(deps: Deps) -> StdResult<Decimal256> {
     Ok(vlp_price)
 }
 
-/// Returns the pair contract configuration in a [`ConfigResponse`] object.
+/// Returns the pair contract configuration.
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
@@ -226,6 +227,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     })
 }
 
+/// Returns current Amp and Gamma values.
 pub fn query_amp_gamma(deps: Deps, env: Env) -> StdResult<AmpGammaResponse> {
     let config = CONFIG.load(deps.storage)?;
     let AmpGamma { amp, gamma } = config.pool_state.get_amp_gamma(&env);
@@ -237,12 +239,7 @@ pub fn query_amp_gamma(deps: Deps, env: Env) -> StdResult<AmpGammaResponse> {
     })
 }
 
-/// ## Description
 /// Compute the current pool D value.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
 pub fn query_compute_d(deps: Deps, env: Env) -> StdResult<Decimal256> {
     let config = CONFIG.load(deps.storage)?;
     let precisions = Precisions::new(deps.storage)?;

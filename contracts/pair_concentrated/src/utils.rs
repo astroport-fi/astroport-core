@@ -13,7 +13,7 @@ use crate::error::ContractError;
 use crate::math::{calc_d, calc_y};
 use crate::state::{Config, Precisions};
 
-/// Helper function to check if the given asset infos are valid.
+/// Helper function to check the given asset infos are valid.
 pub(crate) fn check_asset_infos(
     api: &dyn Api,
     asset_infos: &[AssetInfo],
@@ -49,13 +49,12 @@ pub(crate) fn check_cw20_in_pool(config: &Config, cw20_sender: &Addr) -> Result<
 }
 
 /// Mint LP tokens for a beneficiary and auto stake the tokens in the Generator contract (if auto staking is specified).
-/// # Params
 ///
-/// * **recipient** is an object of type [`Addr`]. This is the LP token recipient.
+/// * **recipient** LP token recipient.
 ///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens that will be minted for the recipient.
+/// * **amount** amount of LP tokens that will be minted for the recipient.
 ///
-/// * **auto_stake** is the field of type [`bool`]. Determines whether the newly minted LP tokens will
+/// * **auto_stake** determines whether the newly minted LP tokens will
 /// be automatically staked in the Generator on behalf of the recipient.
 pub(crate) fn mint_liquidity_token_message(
     querier: QuerierWrapper,
@@ -143,7 +142,7 @@ pub(crate) fn get_share_in_assets(
 
 /// If `belief_price` and `max_spread` are both specified, we compute a new spread,
 /// otherwise we just use the swap spread to check `max_spread`.
-
+///
 /// * **belief_price** belief price used in the swap.
 ///
 /// * **max_spread** max spread allowed so that the swap can be executed successfuly.
@@ -198,6 +197,7 @@ pub(crate) fn pool_info(
     Ok((pools, total_share))
 }
 
+/// Returns current pool's volumes where amoint is in [`Decimal256`] form.
 pub(crate) fn query_pools(
     querier: QuerierWrapper,
     addr: &Addr,
@@ -216,6 +216,7 @@ pub(crate) fn query_pools(
         .collect()
 }
 
+/// Checks whether it possible to make a swap or not.
 pub(crate) fn before_swap_check(pools: &[DecimalAsset], offer_amount: Decimal256) -> StdResult<()> {
     if offer_amount.is_zero() {
         return Err(StdError::generic_err("Swap amount must not be zero"));
@@ -227,6 +228,7 @@ pub(crate) fn before_swap_check(pools: &[DecimalAsset], offer_amount: Decimal256
     Ok(())
 }
 
+/// This structure is for internal use only. Represents swap's result.
 pub struct SwapResult {
     pub dy: Decimal256,
     pub spread_fee: Decimal256,

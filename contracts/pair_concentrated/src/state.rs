@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    Addr, Decimal, Decimal256, DepsMut, Env, Order, StdError, StdResult, Storage, Uint128, Uint256,
+    Addr, Decimal, Decimal256, DepsMut, Env, Order, StdError, StdResult, Storage, Uint128,
 };
 use cw_storage_plus::{Item, Map};
 
@@ -19,6 +19,7 @@ use crate::consts::{
 use crate::error::ContractError;
 use crate::math::{calc_d, get_xcp, half_float_pow};
 
+/// This structure stores the concentrated pair parameters.
 #[cw_serde]
 pub struct Config {
     /// The pair information stored in a [`PairInfo`] struct
@@ -56,6 +57,7 @@ pub struct PoolParams {
     pub ma_half_time: u64,
 }
 
+/// Validates input value against its limits.
 fn validate_param<T>(name: &str, val: T, min: T, max: T) -> Result<(), ContractError>
 where
     T: PartialOrd + Display,
@@ -73,7 +75,7 @@ where
 
 impl PoolParams {
     /// Intended to update current pool parameters. Performs validation of the new parameters.
-    /// ## Arguments
+    ///
     /// * `update_params` - an object which contains new pool parameters. Any of the parameters may be omitted.
     pub fn update_params(&mut self, update_params: UpdatePoolParams) -> Result<(), ContractError> {
         if let Some(mid_fee) = update_params.mid_fee {
@@ -146,7 +148,7 @@ impl PoolParams {
     }
 }
 
-/// Internal structure which stores Amp and Gamma.
+/// Structure which stores Amp and Gamma.
 #[cw_serde]
 #[derive(Default, Copy)]
 pub struct AmpGamma {
@@ -161,11 +163,6 @@ impl AmpGamma {
         validate_param("gamma", gamma, GAMMA_MIN, GAMMA_MAX)?;
 
         Ok(AmpGamma { amp, gamma })
-    }
-
-    /// Returns Amp * n_coins ^ n_coins.
-    pub fn ann(&self) -> Uint256 {
-        (self.amp * Uint128::from(4u8)).into()
     }
 }
 
@@ -186,7 +183,7 @@ pub struct PriceState {
     /// Keeps track of positive change in xcp due to fees accruing
     pub xcp_profit: Decimal256,
     /// Amount of liquidity if price returns to price_scale.
-    /// Used to measure increases in pool value from collected fees
+    /// Used to measure increases in pool value from collected fees.
     pub xcp: Decimal256,
 }
 
@@ -229,7 +226,7 @@ impl PoolState {
         // Calculate current amp and gamma
         let cur_amp_gamma = self.get_amp_gamma(env);
 
-        // Validate amp and gamma values are changed by <= 10%
+        // Validate amp and gamma values are being changed by <= 10%
         let one = Decimal::one();
         if (next_amp_gamma.amp / cur_amp_gamma.amp).diff(one) > MAX_CHANGE {
             return Err(ContractError::MaxChangeAssertion(
@@ -286,6 +283,7 @@ impl PoolState {
     /// The function is responsible for repegging mechanism.
     /// It updates internal oracle price and adjusts price scale.
     ///
+    /// * **total_lp** total LP tokens were minted
     /// * **cur_xs** - internal representation of pool volumes
     /// * **cur_price** - last price happened in the previous action (swap, provide or withdraw)
     pub fn update_price(
@@ -378,8 +376,7 @@ impl PoolState {
     }
 }
 
-/// ## Description
-/// Store all token precisions and return the greatest one.
+/// Store all token precisions.
 pub(crate) fn store_precisions(deps: DepsMut, asset_infos: &[AssetInfo]) -> StdResult<()> {
     for asset_info in asset_infos {
         let precision = asset_info.decimals(&deps.querier)?;

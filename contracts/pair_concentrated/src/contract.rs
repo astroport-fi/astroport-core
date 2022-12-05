@@ -262,18 +262,9 @@ pub fn execute(
     }
 }
 
-/// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// If no template is not found in the received message, then an [`ContractError`] is returned,
-/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 receive message to process.
+/// * **cw20_msg** CW20 receive message to process.
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -499,11 +490,12 @@ pub fn provide_liquidity(
 }
 
 /// Withdraw liquidity from the pool.
-/// * **sender** is the address that will receive assets back from the pair contract
 ///
-/// * **amount** is the amount of provided LP tokens
+/// * **sender** address that will receive assets back from the pair contract
 ///
-/// * **assets** array with [`Asset`] objects which define number of coins a user wants to withdraw
+/// * **amount** amount of provided LP tokens
+///
+/// * **assets** defines number of coins a user wants to withdraw per each asset.
 fn withdraw_liquidity(
     deps: DepsMut,
     env: Env,
