@@ -11,7 +11,7 @@ mod signed_decimal;
 
 pub use math_decimal::half_float_pow;
 
-/// Calculate D invariant based on know pool volumes.
+/// Calculate D invariant based on known pool volumes.
 ///
 /// * **xs** - internal representation of pool volumes.
 /// * **amp_gamma** - an object which represents current Amp and Gamma parameters.
@@ -19,7 +19,7 @@ pub fn calc_d(xs: &[Decimal256], amp_gamma: &AmpGamma) -> StdResult<Decimal256> 
     newton_d(xs, amp_gamma.amp.into(), amp_gamma.gamma.into())
 }
 
-/// Calculate unknown pool's volume based on the other side of pools which is know and D.
+/// Calculate unknown pool's volume based on the other side of pools which is known and D.
 ///
 /// * **xs** - internal representation of pool volumes.
 /// * **d** - current D invariant.
