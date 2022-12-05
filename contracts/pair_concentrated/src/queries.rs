@@ -44,7 +44,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Pair {} => to_binary(&CONFIG.load(deps.storage)?.pair_info),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
-        QueryMsg::Share { amount } => to_binary(&query_share(deps, amount)?),
+        QueryMsg::Share { amount } => to_binary(
+            &query_share(deps, amount).map_err(|err| StdError::generic_err(err.to_string()))?,
+        ),
         QueryMsg::Simulation { offer_asset, .. } => to_binary(
             &query_simulation(deps, env, offer_asset)
                 .map_err(|err| StdError::generic_err(format!("{err}")))?,
@@ -79,10 +81,29 @@ fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 /// The result is returned in a vector that contains objects of type [`Asset`].
 ///
 /// * **amount** is the amount of LP tokens for which we calculate associated amounts of assets.
-fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
+fn query_share(deps: Deps, amount: Uint128) -> Result<Vec<Asset>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let (pools, total_share) = pool_info(deps.querier, &config)?;
+    let precisions = Precisions::new(deps.storage)?;
+    let pools = query_pools(
+        deps.querier,
+        &config.pair_info.contract_addr,
+        &config,
+        &precisions,
+    )?;
+    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
     let refund_assets = get_share_in_assets(&pools, amount, total_share)?;
+
+    let refund_assets = refund_assets
+        .into_iter()
+        .map(|asset| {
+            let prec = precisions.get_precision(&asset.info).unwrap();
+
+            Ok(Asset {
+                info: asset.info,
+                amount: asset.amount.to_uint(prec)?,
+            })
+        })
+        .collect::<StdResult<Vec<_>>>()?;
 
     Ok(refund_assets)
 }

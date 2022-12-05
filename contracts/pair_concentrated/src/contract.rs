@@ -32,7 +32,7 @@ use crate::state::{
 use crate::utils::{
     accumulate_prices, assert_max_spread, balanced_deposits, before_swap_check, check_asset_infos,
     check_assets, check_cw20_in_pool, compute_swap, get_share_in_assets,
-    mint_liquidity_token_message, pool_info, query_pools,
+    mint_liquidity_token_message, query_pools,
 };
 
 /// Contract name that is used for migration.
@@ -340,7 +340,7 @@ pub fn provide_liquidity(
         .iter()
         .try_for_each(|asset| asset.assert_sent_native_token_balance(&info))?;
 
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     if assets.len() != config.pair_info.asset_infos.len() {
         return Err(ContractError::InvalidNumberOfAssets(
@@ -407,9 +407,9 @@ pub fn provide_liquidity(
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+    let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
 
     let mint_amount = if total_share.is_zero() {
-        let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
         let mint_amount = xcp
             .to_uint(LP_TOKEN_PRECISION)?
             .checked_sub(MINIMUM_LIQUIDITY_AMOUNT)
@@ -429,6 +429,8 @@ pub fn provide_liquidity(
             return Err(ContractError::MinimumLiquidityAmountError {});
         }
 
+        config.pool_state.price_state.xcp_profit = Decimal256::one();
+
         mint_amount
     } else {
         // TODO: Assert slippage tolerance if needed
@@ -443,6 +445,8 @@ pub fn provide_liquidity(
             .saturating_sub(total_share)
             .to_uint(LP_TOKEN_PRECISION)?
     };
+
+    config.pool_state.price_state.xcp = xcp;
 
     // TODO: we will need to update price in case imbalanced provide is allowed
     // let last_price = config.pool_state.price_state.price_scale * new_xp[0] / new_xp[1];
@@ -502,19 +506,26 @@ pub fn provide_liquidity(
 /// * **assets** array with [`Asset`] objects which define number of coins a user wants to withdraw
 fn withdraw_liquidity(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     sender: Addr,
     amount: Uint128,
     assets: Vec<Asset>,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.pair_info.liquidity_token {
         return Err(ContractError::Unauthorized {});
     }
 
-    let (pools, total_share) = pool_info(deps.querier, &config)?;
+    let precisions = Precisions::new(deps.storage)?;
+    let pools = query_pools(
+        deps.querier,
+        &config.pair_info.contract_addr,
+        &config,
+        &precisions,
+    )?;
+    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
 
     let burn_amount;
     let refund_assets;
@@ -528,10 +539,31 @@ fn withdraw_liquidity(
         todo!("Imbalanced withdraw + update prices")
     }
 
+    // decrease XCP
+    let mut xs = pools.into_iter().map(|a| a.amount).collect_vec();
+    xs[0] -= refund_assets[0].amount;
+    xs[1] -= refund_assets[1].amount;
+    xs[1] *= config.pool_state.price_state.price_scale;
+    let amp_gamma = config.pool_state.get_amp_gamma(&env);
+    let d = calc_d(&xs, &amp_gamma)?;
+    config.pool_state.price_state.xcp = get_xcp(d, config.pool_state.price_state.price_scale);
+
+    let refund_assets = refund_assets
+        .into_iter()
+        .map(|asset| {
+            let prec = precisions.get_precision(&asset.info).unwrap();
+
+            Ok(Asset {
+                info: asset.info,
+                amount: asset.amount.to_uint(prec)?,
+            })
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
     messages.extend(
         refund_assets
-            .clone()
-            .into_iter()
+            .iter()
+            .cloned()
             .map(|asset| asset.into_msg(&deps.querier, &sender))
             .collect::<StdResult<Vec<_>>>()?,
     );

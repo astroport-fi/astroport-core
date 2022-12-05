@@ -114,26 +114,26 @@ pub(crate) fn mint_liquidity_token_message(
 
 /// Return the amount of tokens that a specific amount of LP tokens would withdraw.
 ///
-/// * **pools** is an array of [`Asset`] type items. These are the assets available in the pool.
+/// * **pools** assets available in the pool.
 ///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to calculate underlying amounts for.
+/// * **amount** amount of LP tokens to calculate underlying amounts for.
 ///
-/// * **total_share** is an object of type [`Uint128`]. This is the total amount of LP tokens currently issued by the pool.
+/// * **total_share** total amount of LP tokens currently issued by the pool.
 pub(crate) fn get_share_in_assets(
-    pools: &[Asset],
+    pools: &[DecimalAsset],
     amount: Uint128,
     total_share: Uint128,
-) -> StdResult<Vec<Asset>> {
+) -> StdResult<Vec<DecimalAsset>> {
     let share_ratio = if !total_share.is_zero() {
-        Decimal::from_ratio(amount, total_share)
+        Decimal256::from_ratio(amount, total_share)
     } else {
-        Decimal::zero()
+        Decimal256::zero()
     };
 
     pools
         .iter()
         .map(|pool| {
-            Ok(Asset {
+            Ok(DecimalAsset {
                 info: pool.info.clone(),
                 amount: pool.amount * share_ratio,
             })

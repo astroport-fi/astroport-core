@@ -511,6 +511,62 @@ fn check_swaps_with_price_update() {
 }
 
 #[test]
+fn provides_and_swaps() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        initial_price_scale: Decimal::one(),
+        ma_half_time: 600,
+        owner: None,
+    };
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    helper.app.next_block(1000);
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    helper.app.next_block(1000);
+
+    let user = Addr::unchecked("user");
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, None).unwrap();
+
+    let provider = Addr::unchecked("provider");
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(1_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(1_000_000000u128),
+    ];
+    helper.give_me_money(&assets, &provider);
+    helper.provide_liquidity(&provider, &assets).unwrap();
+
+    let offer_asset = helper.assets[&test_coins[1]].with_balance(100_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, None).unwrap();
+
+    helper
+        .withdraw_liquidity(&provider, 999_999354, vec![])
+        .unwrap();
+
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, None).unwrap();
+}
+
+#[test]
 fn check_amp_gamma_change() {
     let owner = Addr::unchecked("owner");
 

@@ -315,7 +315,6 @@ impl PoolState {
         let cur_d = calc_d(cur_xs, &amp_gamma)?;
         let xcp = get_xcp(cur_d, price_state.price_scale);
 
-        let mut xcp_profit = Decimal256::one();
         let mut virtual_price = Decimal256::one();
         if !price_state.xcp.is_zero() {
             // If xcp dropped and no ramping happens then this swap makes loss
@@ -326,12 +325,13 @@ impl PoolState {
                 ));
             }
 
-            xcp_profit = price_state.xcp_profit * xcp / price_state.xcp;
+            price_state.xcp_profit = price_state.xcp_profit * xcp / price_state.xcp;
             virtual_price = xcp / total_lp;
         }
 
         price_state.xcp = xcp;
-        price_state.xcp_profit = xcp_profit;
+
+        let xcp_profit = price_state.xcp_profit;
 
         let norm = (price_state.oracle_price / price_state.price_scale).diff(Decimal256::one());
         let scale_delta = Decimal256::from(pool_params.min_price_scale_delta).max(norm);
