@@ -11,16 +11,27 @@ use crate::pair::{
 /// This structure holds concentrated pool parameters.
 #[cw_serde]
 pub struct ConcentratedPoolParams {
+    /// Amplification coefficient affects trades close to price_scale
     pub amp: Decimal,
+    /// Affects how gradual the curve changes from constant sum to constant product
+    /// as price moves away from price scale. Low values mean more gradual.
     pub gamma: Decimal,
+    /// The minimum fee, charged when pool is fully balanced
     pub mid_fee: Decimal,
+    /// The maximum fee, charged when pool is imbalanced
     pub out_fee: Decimal,
+    /// Parameter that defines how gradual the fee changes from fee_mid to fee_out
+    /// based on distance from price_scale.
     pub fee_gamma: Decimal,
+    /// Minimum profit before initiating a new repeg
     pub repeg_profit_threshold: Decimal,
+    /// Minimum amount to change price_scale when repegging.
     pub min_price_scale_delta: Decimal,
-    /// 1 x\[0] = initial_price_scale * x\[1]
+    /// 1 x\[0] = initial_price_scale * x\[1].
     pub initial_price_scale: Decimal,
+    /// Half-time used for calculating the price oracle.
     pub ma_half_time: u64,
+    /// An account which is able to update pool's parameters along with factory contract.
     pub owner: Option<String>,
 }
 
@@ -46,8 +57,11 @@ pub struct PromoteParams {
 /// This enum intended for parameters update.
 #[cw_serde]
 pub enum ConcentratedPoolUpdateParams {
+    /// Allows to update fee parameters as well as repeg_profit_threshold, min_price_scale_delta and EMA interval.
     Update(UpdatePoolParams),
+    /// Starts gradual (de/in)crease of Amp or Gamma parameters. Can handle an update of both of them.
     Promote(PromoteParams),
+    /// Stops Amp and Gamma update and stores current values.
     StopChangingAmpGamma {},
 }
 
@@ -63,37 +77,37 @@ pub struct AmpGammaResponse {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    /// Returns information about a pair in an object of type [`super::asset::PairInfo`].
+    /// Returns information about a pair
     #[returns(PairInfo)]
     Pair {},
-    /// Returns information about a pool in an object of type [`PoolResponse`].
+    /// Returns information about a pool
     #[returns(PoolResponse)]
     Pool {},
-    /// Returns contract configuration settings in a custom [`ConfigResponse`] structure.
+    /// Returns contract configuration
     #[returns(ConfigResponse)]
     Config {},
     /// Returns information about the share of the pool in a vector that contains objects of type [`Asset`].
     #[returns(Vec<Asset>)]
     Share { amount: Uint128 },
-    /// Returns information about a swap simulation in a [`SimulationResponse`] object.
+    /// Returns information about a swap simulation
     #[returns(SimulationResponse)]
     Simulation {
         offer_asset: Asset,
         ask_asset_info: Option<AssetInfo>,
     },
-    /// Returns information about cumulative prices in a [`ReverseSimulationResponse`] object.
+    /// Returns information about a reverse swap simulation
     #[returns(ReverseSimulationResponse)]
     ReverseSimulation {
         offer_asset_info: Option<AssetInfo>,
         ask_asset: Asset,
     },
-    /// Returns information about the cumulative prices in a [`CumulativePricesResponse`] object
+    /// Returns information about the cumulative prices
     #[returns(CumulativePricesResponse)]
     CumulativePrices {},
-    /// Returns current D invariant in as a [`u128`] value
+    /// Returns current D invariant
     #[returns(Decimal256)]
     ComputeD {},
-    /// Query LP token price denominated in first asset
+    /// Query LP token virtual price
     #[returns(Decimal256)]
     LpPrice {},
     /// Query current Amp and Gamma
