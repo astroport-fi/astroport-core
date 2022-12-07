@@ -226,14 +226,7 @@ impl AssetInfo {
             AssetInfo::Token { contract_addr } => {
                 addr_validate_to_lower(api, contract_addr.as_str())?;
             }
-            AssetInfo::NativeToken { denom } => {
-                if !denom.starts_with("ibc/") && denom != &denom.to_lowercase() {
-                    return Err(StdError::generic_err(format!(
-                        "Non-IBC token denom {} should be lowercase",
-                        denom
-                    )));
-                }
-            }
+            _ => {}
         }
         Ok(())
     }
