@@ -2465,6 +2465,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             "2.1.0" => {
                 migration::migrate_configs_from_v210(&mut deps)?;
             }
+            "2.1.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
