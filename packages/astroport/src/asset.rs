@@ -222,12 +222,10 @@ impl AssetInfo {
     ///
     /// * **api** is a object of type [`Api`]
     pub fn check(&self, api: &dyn Api) -> StdResult<()> {
-        match self {
-            AssetInfo::Token { contract_addr } => {
-                addr_validate_to_lower(api, contract_addr.as_str())?;
-            }
-            _ => {}
+        if let AssetInfo::Token { contract_addr } = self {
+            addr_validate_to_lower(api, contract_addr.as_str())?;
         }
+
         Ok(())
     }
 }
