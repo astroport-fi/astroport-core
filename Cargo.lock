@@ -206,6 +206,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-pair-astro-xastro"
+version = "1.0.0"
+dependencies = [
+ "astroport 2.0.1",
+ "astroport-factory",
+ "astroport-pair-bonded",
+ "astroport-staking",
+ "astroport-token",
+ "astroport-xastro-token",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus 0.15.1",
+ "cw2 0.15.1",
+ "cw20 0.15.1",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-pair-bonded"
+version = "1.0.0"
+dependencies = [
+ "astroport 2.0.1",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw2 0.15.1",
+ "cw20 0.15.1",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-pair-stable"
 version = "1.0.0-fix1"
 dependencies = [

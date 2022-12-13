@@ -12,7 +12,8 @@ members = [
     "contracts/tokenomics/staking",
     "contracts/tokenomics/vesting",
     "contracts/tokenomics/xastro_token",
-    "contracts/periphery/oracle"
+    "contracts/pair_astro_xastro",
+    "contracts/periphery/oracle",
 ]
 
 [profile.release]
