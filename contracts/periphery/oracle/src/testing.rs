@@ -2,7 +2,7 @@ use crate::contract::{execute, instantiate};
 use crate::mock_querier::mock_dependencies;
 use astroport::asset::{Asset, AssetInfo};
 use astroport::oracle::{ExecuteMsg, InstantiateMsg};
-use cosmwasm_std::testing::{mock_env, mock_info};
+use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{Addr, Decimal256, Uint128, Uint256};
 use std::ops::Mul;
 
@@ -32,6 +32,17 @@ fn oracle_overflow() {
     let factory = Addr::unchecked("factory");
     let astro_token_contract = Addr::unchecked("astro-token");
     let usdc_token_contract = Addr::unchecked("usdc-token");
+
+    deps.querier.with_token_balances(&[
+        (
+            &astro_token_contract.to_string(),
+            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(10000))],
+        ),
+        (
+            &usdc_token_contract.to_string(),
+            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(10000))],
+        ),
+    ]);
 
     let astro_asset_info = AssetInfo::Token {
         contract_addr: astro_token_contract.clone(),

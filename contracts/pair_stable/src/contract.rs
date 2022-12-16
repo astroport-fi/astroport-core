@@ -36,7 +36,7 @@ use crate::error::ContractError;
 use crate::math::{
     calc_y, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME,
 };
-use crate::migration::CONFIG_V100;
+use crate::migration::{is_native_registered, CONFIG_V100};
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{get_precision, store_precisions, Config, CONFIG, OWNERSHIP_PROPOSAL};
 use crate::utils::{
@@ -80,7 +80,8 @@ pub fn instantiate(
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let greatest_precision = store_precisions(deps.branch(), &msg.asset_infos)?;
+    let factory_addr = addr_validate_to_lower(deps.api, msg.factory_addr)?;
+    let greatest_precision = store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
     // Initializing cumulative prices
     let mut cumulative_prices = vec![];
@@ -100,7 +101,7 @@ pub fn instantiate(
             asset_infos: msg.asset_infos.clone(),
             pair_type: PairType::Stable {},
         },
-        factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr)?,
+        factory_addr,
         block_time_last: 0,
         init_amp: params.amp * AMP_PRECISION,
         init_amp_time: env.block.time.seconds(),
@@ -1003,9 +1004,11 @@ pub fn query_simulation(
     ask_asset_info: Option<AssetInfo>,
 ) -> StdResult<SimulationResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let pools = config
-        .pair_info
-        .query_pools_decimal(&deps.querier, &config.pair_info.contract_addr)?;
+    let pools = config.pair_info.query_pools_decimal(
+        &deps.querier,
+        &config.pair_info.contract_addr,
+        &config.factory_addr,
+    )?;
 
     let (offer_pool, ask_pool) =
         select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)
@@ -1077,9 +1080,11 @@ pub fn query_reverse_simulation(
     offer_asset_info: Option<AssetInfo>,
 ) -> StdResult<ReverseSimulationResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let pools = config
-        .pair_info
-        .query_pools_decimal(&deps.querier, &config.pair_info.contract_addr)?;
+    let pools = config.pair_info.query_pools_decimal(
+        &deps.querier,
+        &config.pair_info.contract_addr,
+        &config.factory_addr,
+    )?;
     let (offer_pool, ask_pool) =
         select_pools(offer_asset_info.as_ref(), Some(&ask_asset.info), &pools)
             .map_err(|err| StdError::generic_err(format!("{err}")))?;
@@ -1251,8 +1256,11 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
                         cfg_v100.price1_cumulative_last,
                     ),
                 ];
-                let greatest_precision =
-                    store_precisions(deps.branch(), &cfg_v100.pair_info.asset_infos)?;
+                let greatest_precision = store_precisions(
+                    deps.branch(),
+                    &cfg_v100.pair_info.asset_infos,
+                    &cfg_v100.factory_addr,
+                )?;
 
                 CONFIG.save(
                     deps.storage,
@@ -1268,6 +1276,14 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
                         greatest_precision,
                         cumulative_prices,
                     },
+                )?;
+            }
+            "2.0.0" => {
+                let cfg_v200 = CONFIG.load(deps.storage)?;
+                is_native_registered(
+                    &deps.querier,
+                    &cfg_v200.pair_info.asset_infos,
+                    &cfg_v200.factory_addr,
                 )?;
             }
             _ => return Err(ContractError::MigrationError {}),
@@ -1394,7 +1410,7 @@ fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint128> {
     let amp = compute_current_amp(&config, &env)?;
     let pools = config
         .pair_info
-        .query_pools_decimal(&deps.querier, env.contract.address)?
+        .query_pools_decimal(&deps.querier, env.contract.address, &config.factory_addr)?
         .into_iter()
         .map(|pool| pool.amount)
         .collect::<Vec<_>>();

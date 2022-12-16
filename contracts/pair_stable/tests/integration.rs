@@ -61,7 +61,52 @@ fn store_factory_code(app: &mut App) -> u64 {
     app.store_code(factory_contract)
 }
 
+fn store_coin_registry_code(app: &mut App) -> u64 {
+    let coin_registry_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_native_coin_registry::contract::execute,
+        astroport_native_coin_registry::contract::instantiate,
+        astroport_native_coin_registry::contract::query,
+    ));
+
+    app.store_code(coin_registry_contract)
+}
+
+fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>) -> Addr {
+    let coin_registry_id = store_coin_registry_code(&mut app);
+    let coin_registry_address = app
+        .instantiate_contract(
+            coin_registry_id,
+            Addr::unchecked(OWNER),
+            &ap_native_coin_registry::InstantiateMsg {
+                owner: OWNER.to_string(),
+            },
+            &[],
+            "Coin registry",
+            None,
+        )
+        .unwrap();
+
+    if let Some(coins) = coins {
+        app.execute_contract(
+            Addr::unchecked(OWNER),
+            coin_registry_address.clone(),
+            &ap_native_coin_registry::ExecuteMsg::Add {
+                native_coins: coins,
+            },
+            &[],
+        )
+        .unwrap();
+    }
+
+    coin_registry_address
+}
+
 fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
+    let coin_registry_address = instantiate_coin_registry(
+        &mut router,
+        Some(vec![("uusd".to_string(), 6), ("uluna".to_string(), 6)]),
+    );
+
     let token_contract_code_id = store_token_code(&mut router);
     let pair_contract_code_id = store_pair_code(&mut router);
     let factory_code_id = store_factory_code(&mut router);
@@ -80,6 +125,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         generator_address: None,
         owner: owner.to_string(),
         whitelist_code_id: 234u64,
+        coin_registry_address: coin_registry_address.to_string(),
     };
 
     let factory_addr = router
@@ -157,8 +203,8 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         .wrap()
         .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
         .unwrap();
-    assert_eq!("contract1", res.contract_addr);
-    assert_eq!("contract2", res.liquidity_token);
+    assert_eq!("contract2", res.contract_addr);
+    assert_eq!("contract3", res.liquidity_token);
 
     pair
 }
@@ -260,7 +306,7 @@ fn test_provide_and_withdraw_liquidity() {
     );
 
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
-    assert_eq!(res.events[3].attributes[2], attr("to", "contract1"));
+    assert_eq!(res.events[3].attributes[2], attr("to", "contract2"));
     assert_eq!(
         res.events[3].attributes[3],
         attr("amount", 1000.to_string())
@@ -437,6 +483,7 @@ fn provide_lp_for_single_token() {
         generator_address: Some(String::from("generator")),
         owner: String::from("owner0000"),
         whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
     };
 
     let factory_instance = app
@@ -770,6 +817,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         generator_address: Some(String::from("generator")),
         owner: String::from("owner0000"),
         whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
     };
 
     let factory_instance = app
@@ -1064,6 +1112,11 @@ fn update_pair_config() {
         ],
     );
 
+    let coin_registry_address = instantiate_coin_registry(
+        &mut router,
+        Some(vec![("uusd".to_string(), 6), ("uluna".to_string(), 6)]),
+    );
+
     let token_contract_code_id = store_token_code(&mut router);
     let pair_contract_code_id = store_pair_code(&mut router);
 
@@ -1076,6 +1129,7 @@ fn update_pair_config() {
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
         whitelist_code_id: 234u64,
+        coin_registry_address: coin_registry_address.to_string(),
     };
 
     let factory_instance = router

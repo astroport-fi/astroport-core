@@ -52,6 +52,7 @@ fn proper_initialization() {
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
         whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
     };
 
     let factory_instance = app
@@ -91,6 +92,7 @@ fn update_config() {
             Some("fee".to_string()),
             Some("generator".to_string()),
             None,
+            None,
         )
         .unwrap();
 
@@ -111,6 +113,7 @@ fn update_config() {
         .update_config(
             &mut app,
             &Addr::unchecked("not_owner"),
+            None,
             None,
             None,
             None,

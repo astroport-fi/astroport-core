@@ -15,6 +15,8 @@ use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{next_block, App, ContractWrapper, Executor};
 use std::str::FromStr;
 
+const OWNER: &str = "owner";
+
 fn mock_app(owner: Addr, coins: Vec<Coin>) -> App {
     let mut app = App::new(|router, _, storage| {
         // initialization moved to App construction
@@ -42,8 +44,48 @@ fn validate_and_send_funds(router: &mut App, sender: &Addr, recipient: &Addr, fu
     }
 }
 
+fn store_coin_registry_code(app: &mut App) -> u64 {
+    let coin_registry_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_native_coin_registry::contract::execute,
+        astroport_native_coin_registry::contract::instantiate,
+        astroport_native_coin_registry::contract::query,
+    ));
+
+    app.store_code(coin_registry_contract)
+}
+
+fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>) -> Addr {
+    let coin_registry_id = store_coin_registry_code(&mut app);
+    let coin_registry_address = app
+        .instantiate_contract(
+            coin_registry_id,
+            Addr::unchecked(OWNER),
+            &ap_native_coin_registry::InstantiateMsg {
+                owner: OWNER.to_string(),
+            },
+            &[],
+            "Coin registry",
+            None,
+        )
+        .unwrap();
+
+    if let Some(coins) = coins {
+        app.execute_contract(
+            Addr::unchecked(OWNER),
+            coin_registry_address.clone(),
+            &ap_native_coin_registry::ExecuteMsg::Add {
+                native_coins: coins,
+            },
+            &[],
+        )
+        .unwrap();
+    }
+
+    coin_registry_address
+}
+
 fn instantiate_contracts(
-    router: &mut App,
+    mut router: &mut App,
     owner: Addr,
     staking: Addr,
     governance_percent: Uint64,
@@ -106,6 +148,11 @@ fn instantiate_contracts(
         }
     };
 
+    let coin_registry_address = instantiate_coin_registry(
+        &mut router,
+        Some(vec![("uluna".to_string(), 6), ("uusd".to_string(), 6)]),
+    );
+
     let factory_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_factory::contract::execute,
@@ -130,6 +177,7 @@ fn instantiate_contracts(
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
         whitelist_code_id: 234u64,
+        coin_registry_address: coin_registry_address.to_string(),
     };
 
     let factory_instance = router

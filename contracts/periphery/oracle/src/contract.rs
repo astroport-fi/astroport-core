@@ -1,11 +1,13 @@
 use crate::error::ContractError;
 use crate::migration::PRICE_LAST_V100;
 use crate::querier::{query_cumulative_prices, query_prices};
-use crate::state::{Config, PriceCumulativeLast, CONFIG, PRICE_LAST};
+use crate::state::{
+    get_precision, store_precisions, Config, PriceCumulativeLast, CONFIG, PRICE_LAST,
+};
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
 use astroport::oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use astroport::pair::TWAP_PRECISION;
-use astroport::querier::{query_pair_info, query_token_precision};
+use astroport::querier::query_pair_info;
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal256, Deps, DepsMut, Env, MessageInfo, Response,
     StdError, StdResult, Uint128, Uint256,
@@ -23,17 +25,19 @@ pub const PERIOD: u64 = 86400;
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    msg.asset_infos[0].check(deps.api)?;
-    msg.asset_infos[1].check(deps.api)?;
+    let factory_contract = addr_validate_to_lower(deps.api, &msg.factory_contract)?;
+
+    for asset_info in &msg.asset_infos {
+        asset_info.check(deps.api)?;
+        store_precisions(deps.branch(), asset_info, &factory_contract)?;
+    }
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    let factory_contract = addr_validate_to_lower(deps.api, &msg.factory_contract)?;
     let pair_info = query_pair_info(&deps.querier, &factory_contract, &msg.asset_infos)?;
 
     let config = Config {
@@ -43,6 +47,7 @@ pub fn instantiate(
         pair: pair_info.clone(),
     };
     CONFIG.save(deps.storage, &config)?;
+
     let prices = query_cumulative_prices(deps.querier, pair_info.contract_addr)?;
     let average_prices = prices
         .cumulative_prices
@@ -57,6 +62,7 @@ pub fn instantiate(
         block_timestamp_last: env.block.time.seconds(),
     };
     PRICE_LAST.save(deps.storage, &price)?;
+
     Ok(Response::default())
 }
 
@@ -150,7 +156,7 @@ fn consult(
     }
 
     // Get the token's precision
-    let p = query_token_precision(&deps.querier, &token)?;
+    let p = get_precision(deps.storage, &token)?;
     let one = Uint128::new(10_u128.pow(p.into()));
 
     average_prices
@@ -184,7 +190,7 @@ fn consult(
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
@@ -226,6 +232,12 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
                         block_timestamp_last: price_last_v100.block_timestamp_last,
                     },
                 )?;
+            }
+            "2.0.0" => {
+                let config = CONFIG.load(deps.branch().storage)?;
+                for asset_info in &config.asset_infos {
+                    store_precisions(deps.branch(), asset_info, &config.factory)?;
+                }
             }
             _ => return Err(ContractError::MigrationError {}),
         },

@@ -90,6 +90,14 @@ fn factory_contract() -> Box<dyn Contract<Empty>> {
     )
 }
 
+fn store_coin_registry_code() -> Box<dyn Contract<Empty>> {
+    Box::new(ContractWrapper::new_with_empty(
+        astroport_native_coin_registry::contract::execute,
+        astroport_native_coin_registry::contract::instantiate,
+        astroport_native_coin_registry::contract::query,
+    ))
+}
+
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Helper {
@@ -132,6 +140,37 @@ impl Helper {
             }
         });
 
+        let coin_registry_id = app.store_code(store_coin_registry_code());
+        let coin_registry_address = app
+            .instantiate_contract(
+                coin_registry_id,
+                Addr::unchecked(owner.to_string()),
+                &ap_native_coin_registry::InstantiateMsg {
+                    owner: owner.to_string(),
+                },
+                &[],
+                "Coin registry",
+                None,
+            )
+            .unwrap();
+
+        app.execute_contract(
+            Addr::unchecked(owner.to_string()),
+            coin_registry_address.clone(),
+            &ap_native_coin_registry::ExecuteMsg::Add {
+                native_coins: vec![
+                    ("one".to_string(), 6),
+                    ("three".to_string(), 6),
+                    ("five".to_string(), 6),
+                    ("uusd".to_string(), 6),
+                    ("ibc/usd".to_string(), 6),
+                    ("uluna".to_string(), 6),
+                ],
+            },
+            &[],
+        )
+        .unwrap();
+
         let pair_code_id = app.store_code(pair_contract());
         let factory_code_id = app.store_code(factory_contract());
 
@@ -149,6 +188,7 @@ impl Helper {
             generator_address: None,
             owner: owner.to_string(),
             whitelist_code_id: 234u64,
+            coin_registry_address: coin_registry_address.to_string(),
         };
 
         let factory = app.instantiate_contract(

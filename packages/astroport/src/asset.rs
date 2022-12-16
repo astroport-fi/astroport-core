@@ -1,14 +1,14 @@
 use cosmwasm_schema::cw_serde;
 use std::fmt;
 
-use crate::factory::PairType;
+use crate::factory::{Config, PairType};
 use crate::pair::QueryMsg as PairQueryMsg;
-use crate::querier::{
-    query_balance, query_token_balance, query_token_symbol, NATIVE_TOKEN_PRECISION,
-};
+use crate::querier::{query_balance, query_token_balance, query_token_symbol};
+
 use cosmwasm_std::{
-    to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError, CosmosMsg, Decimal256, Fraction,
-    MessageInfo, QuerierWrapper, StdError, StdResult, Uint128, Uint256, WasmMsg,
+    from_slice, to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError, CosmosMsg,
+    Decimal256, Fraction, MessageInfo, QuerierWrapper, StdError, StdResult, Uint128, Uint256,
+    WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
 use itertools::Itertools;
@@ -175,10 +175,40 @@ impl AssetInfo {
         }
     }
 
+    /// Returns the number of decimals that a native token has.
+    pub fn query_native_precision(
+        &self,
+        querier: &QuerierWrapper,
+        denom: &String,
+        factory_addr: &Addr,
+    ) -> StdResult<u8> {
+        if let Some(res) = querier.query_wasm_raw(factory_addr, b"config".as_slice())? {
+            let res: Config = from_slice(&res)?;
+            let result = ap_native_coin_registry::COINS_INFO.query(
+                querier,
+                res.coin_registry_address,
+                denom.to_string(),
+            )?;
+
+            if let Some(decimals) = result {
+                Ok(decimals)
+            } else {
+                Err(StdError::generic_err(format!(
+                    "The coin precision not found: {}",
+                    denom
+                )))
+            }
+        } else {
+            Err(StdError::generic_err("The factory config not found!"))
+        }
+    }
+
     /// Returns the number of decimals that a token has.
-    pub fn decimals(&self, querier: &QuerierWrapper) -> StdResult<u8> {
+    pub fn decimals(&self, querier: &QuerierWrapper, factory_addr: &Addr) -> StdResult<u8> {
         let decimals = match &self {
-            AssetInfo::NativeToken { .. } => NATIVE_TOKEN_PRECISION,
+            AssetInfo::NativeToken { denom } => {
+                self.query_native_precision(querier, denom, factory_addr)?
+            }
             AssetInfo::Token { contract_addr } => {
                 let res: TokenInfoResponse =
                     querier.query_wasm_smart(contract_addr, &Cw20QueryMsg::TokenInfo {})?;
@@ -219,12 +249,10 @@ impl AssetInfo {
 
     /// Checks that the tokens' denom or contract addr is lowercased and valid.
     pub fn check(&self, api: &dyn Api) -> StdResult<()> {
-        match self {
-            AssetInfo::Token { contract_addr } => {
-                addr_validate_to_lower(api, contract_addr)?;
-            }
-            _ => {}
+        if let AssetInfo::Token { contract_addr } = self {
+            addr_validate_to_lower(api, contract_addr)?;
         }
+
         Ok(())
     }
 }
@@ -270,8 +298,10 @@ impl PairInfo {
         &self,
         querier: &QuerierWrapper,
         contract_addr: impl Into<String>,
+        factory_addr: &Addr,
     ) -> StdResult<Vec<DecimalAsset>> {
         let contract_addr = contract_addr.into();
+
         self.asset_infos
             .iter()
             .map(|asset_info| {
@@ -279,7 +309,7 @@ impl PairInfo {
                     info: asset_info.clone(),
                     amount: Decimal256::from_atomics(
                         asset_info.query_pool(querier, &contract_addr)?,
-                        asset_info.decimals(querier)?.into(),
+                        asset_info.decimals(querier, factory_addr)?.into(),
                     )
                     .map_err(|_| StdError::generic_err("Decimal256RangeExceeded"))?,
                 })
