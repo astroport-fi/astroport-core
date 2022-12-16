@@ -158,7 +158,25 @@
     "proposeNewOwner": {
       "owner": null,
       "expires_in": 604800
-    }
+    },
+    "new_incentives_pools": [
+      [
+        "terra1886vn036tc9e7ejx8pe4nkhts3gwpdfegwc4n3u77n0q76fjdthqarl8uc",
+        "50000"
+      ],
+      [
+        "terra1hwwzt7sv386me5t7hy9ujafy6mfnyjl0h8cn92lnqd58jjmeksqstja4ng",
+        "50000"
+      ],
+      [
+        "terra1plzrd3v55k0y8uy2mkvugme9zp4kucwr0ylqfyw63mpq023xe4mqpdt9ut",
+        "10000"
+      ],
+      [
+        "terra1wfl4rrghs2glm874dnzfknl62j2uw6n62mdzcyplg5hfwegyhkzqgkec9z",
+        "50000"
+      ]
+    ]
   },
   "generatorProxy": {
     "admin": null,
