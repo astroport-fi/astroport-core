@@ -14,6 +14,7 @@ members = [
     "contracts/tokenomics/xastro_token",
     "contracts/pair_astro_xastro",
     "contracts/periphery/oracle",
+    "contracts/periphery/native_coin_registry",
 ]
 
 [profile.release]

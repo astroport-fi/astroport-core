@@ -6,9 +6,11 @@ use cw_storage_plus::{Item, Map};
 
 /// This structure describes a contract migration message.
 #[cw_serde]
-pub struct MigrationMsgV100 {
+pub struct MigrationMsg {
     /// CW1 whitelist contract code ID used to store 3rd party staking rewards
     pub whitelist_code_id: u64,
+    /// The address of the contract that contains native coins with their precisions
+    pub coin_registry_address: String,
 }
 
 /// This structure holds the main parameters for the factory contract.
@@ -25,6 +27,23 @@ pub struct ConfigV100 {
 }
 
 pub const CONFIGV100: Item<ConfigV100> = Item::new("config");
+
+/// This structure holds the main parameters for the factory contract.
+#[cw_serde]
+pub struct ConfigV120 {
+    /// Address allowed to change contract parameters
+    pub owner: Addr,
+    /// CW20 token contract code identifier
+    pub token_code_id: u64,
+    /// Generator contract address
+    pub generator_address: Option<Addr>,
+    /// Contract address to send governance fees to (the Maker contract)
+    pub fee_address: Option<Addr>,
+    /// CW1 whitelist contract code id used to store 3rd party generator staking rewards
+    pub whitelist_code_id: u64,
+}
+
+pub const CONFIG_V120: Item<ConfigV120> = Item::new("config");
 
 /// This structure describes a pair's configuration.
 #[cw_serde]

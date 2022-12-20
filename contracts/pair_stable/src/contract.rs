@@ -24,6 +24,7 @@ use astroport::pair::{
     MAX_ALLOWED_SLIPPAGE, TWAP_PRECISION,
 };
 
+use crate::migration::is_native_registered;
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse, StablePoolConfig,
@@ -32,7 +33,7 @@ use astroport::querier::{
     query_factory_config, query_fee_info, query_supply, query_token_precision,
 };
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
 use std::cmp::Ordering;
@@ -80,6 +81,11 @@ pub fn instantiate(
 
     if params.amp == 0 || params.amp > MAX_AMP {
         return Err(ContractError::IncorrectAmp {});
+    }
+
+    let factory_addr = addr_validate_to_lower(deps.api, &msg.factory_addr)?;
+    for asset_info in &msg.asset_infos {
+        query_token_precision(&deps.querier, asset_info, &factory_addr)?;
     }
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -411,8 +417,10 @@ pub fn provide_liquidity(
     // Assert that slippage tolerance is respected
     assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
 
-    let token_precision_0 = query_token_precision(&deps.querier, pools[0].info.clone())?;
-    let token_precision_1 = query_token_precision(&deps.querier, pools[1].info.clone())?;
+    let token_precision_0 =
+        query_token_precision(&deps.querier, &pools[0].info, &config.factory_addr)?;
+    let token_precision_1 =
+        query_token_precision(&deps.querier, &pools[1].info, &config.factory_addr)?;
 
     let greater_precision = token_precision_0.max(token_precision_1);
 
@@ -423,9 +431,10 @@ pub fn provide_liquidity(
     let share = if total_share.is_zero() {
         let liquidity_token_precision = query_token_precision(
             &deps.querier,
-            AssetInfo::Token {
+            &AssetInfo::Token {
                 contract_addr: config.pair_info.liquidity_token.clone(),
             },
+            &config.factory_addr,
         )?;
 
         // Initial share = collateral amount
@@ -618,14 +627,17 @@ pub fn withdraw_liquidity(
     let (pools, total_share) = pool_info(deps.as_ref(), config.clone())?;
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
 
+    let x_precision = query_token_precision(&deps.querier, &pools[0].info, &config.factory_addr)?;
+    let y_precision = query_token_precision(&deps.querier, &pools[1].info, &config.factory_addr)?;
+
     // Accumulate prices for the assets in the pool
     if accumulate_prices(
         env,
         &mut config,
         pools[0].amount,
-        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        x_precision,
         pools[1].amount,
-        query_token_precision(&deps.querier, pools[1].info.clone())?,
+        y_precision,
     )? {
         CONFIG.save(deps.storage, &config)?;
     }
@@ -764,9 +776,9 @@ pub fn swap(
     let offer_amount = offer_asset.amount;
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
-        query_token_precision(&deps.querier, offer_pool.info)?,
+        query_token_precision(&deps.querier, &offer_pool.info, &config.factory_addr)?,
         ask_pool.amount,
-        query_token_precision(&deps.querier, ask_pool.info.clone())?,
+        query_token_precision(&deps.querier, &ask_pool.info, &config.factory_addr)?,
         offer_amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -807,14 +819,17 @@ pub fn swap(
         }
     }
 
+    let x_precision = query_token_precision(&deps.querier, &pools[0].info, &config.factory_addr)?;
+    let y_precision = query_token_precision(&deps.querier, &pools[1].info, &config.factory_addr)?;
+
     // Accumulate prices for the assets in the pool
     if accumulate_prices(
         env,
         &mut config,
         pools[0].amount,
-        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        x_precision,
         pools[1].amount,
-        query_token_precision(&deps.querier, pools[1].info.clone())?,
+        y_precision,
     )? {
         CONFIG.save(deps.storage, &config)?;
     }
@@ -1059,9 +1074,9 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
 
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
-        query_token_precision(&deps.querier, offer_pool.info)?,
+        query_token_precision(&deps.querier, &offer_pool.info, &config.factory_addr)?,
         ask_pool.amount,
-        query_token_precision(&deps.querier, ask_pool.info)?,
+        query_token_precision(&deps.querier, &ask_pool.info, &config.factory_addr)?,
         offer_asset.amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -1116,9 +1131,9 @@ pub fn query_reverse_simulation(
 
     let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
         offer_pool.amount,
-        query_token_precision(&deps.querier, offer_pool.info)?,
+        query_token_precision(&deps.querier, &offer_pool.info, &config.factory_addr)?,
         ask_pool.amount,
-        query_token_precision(&deps.querier, ask_pool.info)?,
+        query_token_precision(&deps.querier, &ask_pool.info, &config.factory_addr)?,
         ask_asset.amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -1141,13 +1156,16 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
     let mut config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps, config.clone())?;
 
+    let x_precision = query_token_precision(&deps.querier, &assets[0].info, &config.factory_addr)?;
+    let y_precision = query_token_precision(&deps.querier, &assets[1].info, &config.factory_addr)?;
+
     accumulate_prices(
         env,
         &mut config,
         assets[0].amount,
-        query_token_precision(&deps.querier, assets[0].info.clone())?,
+        x_precision,
         assets[1].amount,
-        query_token_precision(&deps.querier, assets[1].info.clone())?,
+        y_precision,
     )
     .map_err(|err| StdError::generic_err(format!("{err}")))?;
 
@@ -1386,17 +1404,29 @@ fn assert_slippage_tolerance(
     Ok(())
 }
 
-/// ## Description
-/// Used for contract migration. Returns a default object of type [`Response`].
-/// ## Params
-/// * **_deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_msg** is an object of type [`MigrateMsg`].
+/// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-pair-stable" => match contract_version.version.as_ref() {
+            "1.0.0-fix1" => {
+                let cfg = CONFIG.load(deps.storage)?;
+                is_native_registered(&deps.querier, &cfg.pair_info.asset_infos, &cfg.factory_addr)?;
+            }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
 
 /// ## Description
