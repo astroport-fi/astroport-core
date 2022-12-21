@@ -1,8 +1,9 @@
 use cosmwasm_std::{Addr, Decimal, Uint128};
-use cw_multi_test::next_block;
+use cw_multi_test::{next_block, Executor};
 use itertools::Itertools;
 
 use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::pair::ExecuteMsg;
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, UpdatePoolParams,
 };
@@ -733,4 +734,97 @@ fn check_prices() {
     helper.give_me_money(&[offer_asset.clone()], &user1);
     helper.swap(&user1, &offer_asset, None).unwrap();
     check_prices(&helper);
+}
+
+#[test]
+fn update_owner() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("USDX")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        initial_price_scale: Decimal::one(),
+        ma_half_time: 600,
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let new_owner = String::from("new_owner");
+
+    // New owner
+    let msg = ExecuteMsg::ProposeNewOwner {
+        owner: new_owner.clone(),
+        expires_in: 100, // seconds
+    };
+
+    // Unauthorized check
+    let err = helper
+        .app
+        .execute_contract(
+            Addr::unchecked("not_owner"),
+            helper.pair_addr.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
+
+    // Claim before proposal
+    let err = helper
+        .app
+        .execute_contract(
+            Addr::unchecked(new_owner.clone()),
+            helper.pair_addr.clone(),
+            &ExecuteMsg::ClaimOwnership {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Ownership proposal not found"
+    );
+
+    // Propose new owner
+    helper
+        .app
+        .execute_contract(
+            Addr::unchecked(&helper.owner),
+            helper.pair_addr.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
+
+    // Claim from invalid addr
+    let err = helper
+        .app
+        .execute_contract(
+            Addr::unchecked("invalid_addr"),
+            helper.pair_addr.clone(),
+            &ExecuteMsg::ClaimOwnership {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
+
+    // Claim ownership
+    helper
+        .app
+        .execute_contract(
+            Addr::unchecked(new_owner.clone()),
+            helper.pair_addr.clone(),
+            &ExecuteMsg::ClaimOwnership {},
+            &[],
+        )
+        .unwrap();
+
+    let config = helper.query_config().unwrap();
+    assert_eq!(config.owner.unwrap().to_string(), new_owner)
 }

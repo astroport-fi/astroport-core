@@ -14,6 +14,7 @@ use astroport::asset::{
     addr_opt_validate, addr_validate_to_lower, format_lp_token_name, token_asset, Asset, AssetInfo,
     Decimal256Ext, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
 use astroport::pair::migration_check;
@@ -28,6 +29,7 @@ use crate::error::ContractError;
 use crate::math::{calc_d, get_xcp};
 use crate::state::{
     store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, CONFIG,
+    OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
     accumulate_prices, assert_max_spread, balanced_deposits, before_swap_check, check_asset_infos,
@@ -106,9 +108,6 @@ pub fn instantiate(
         },
     };
 
-    let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
-    let factory_config = query_factory_config(&deps.querier, &factory_addr)?;
-
     let config = Config {
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
@@ -121,7 +120,7 @@ pub fn instantiate(
         cumulative_prices,
         pool_params,
         pool_state,
-        owner: Some(factory_config.owner),
+        owner: None,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -261,7 +260,42 @@ pub fn execute(
             )
         }
         ExecuteMsg::UpdateConfig { params } => update_config(deps, env, info, params),
-        _ => Err(ContractError::NonSupported {}),
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            let factory_config = query_factory_config(&deps.querier, config.factory_addr)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                owner,
+                expires_in,
+                config.owner.unwrap_or(factory_config.owner),
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(Into::into)
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let factory_config = query_factory_config(&deps.querier, config.factory_addr)?;
+
+            drop_ownership_proposal(
+                deps,
+                info,
+                config.owner.unwrap_or(factory_config.owner),
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(Into::into)
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut config| {
+                    config.owner = Some(new_owner);
+                    Ok(config)
+                })?;
+
+                Ok(())
+            })
+            .map_err(Into::into)
+        }
     }
 }
 
