@@ -31,8 +31,6 @@ pub struct ConcentratedPoolParams {
     pub initial_price_scale: Decimal,
     /// Half-time used for calculating the price oracle.
     pub ma_half_time: u64,
-    /// An account which is able to update pool's parameters along with factory contract.
-    pub owner: Option<String>,
 }
 
 /// This structure holds concentrated pool parameters which can be changed immediately.

@@ -27,7 +27,6 @@ fn check_wrong_initialization() {
         min_price_scale_delta: f64_to_dec(0.000146),
         initial_price_scale: Decimal::from_ratio(2u8, 1u8),
         ma_half_time: 600,
-        owner: None,
     };
 
     let err = Helper::new(&owner, vec![TestCoin::native("uluna")], params.clone()).unwrap_err();
@@ -115,7 +114,6 @@ fn provide_and_withdraw() {
         min_price_scale_delta: f64_to_dec(0.000146),
         initial_price_scale: Decimal::from_ratio(2u8, 1u8),
         ma_half_time: 600,
-        owner: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -231,7 +229,6 @@ fn try_imbalanced_provide() {
         min_price_scale_delta: f64_to_dec(0.000146),
         initial_price_scale: Decimal::from_ratio(2u8, 1u8),
         ma_half_time: 600,
-        owner: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params.clone()).unwrap();
@@ -286,7 +283,6 @@ fn provide_with_different_precision() {
         min_price_scale_delta: f64_to_dec(0.000146),
         initial_price_scale: Decimal::one(),
         ma_half_time: 600,
-        owner: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -346,7 +342,6 @@ fn swap_different_precisions() {
         min_price_scale_delta: f64_to_dec(0.000146),
         initial_price_scale: Decimal::one(),
         ma_half_time: 600,
-        owner: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -403,7 +398,6 @@ fn check_swaps_simple() {
         min_price_scale_delta: f64_to_dec(0.000146),
         initial_price_scale: Decimal::one(),
         ma_half_time: 600,
-        owner: None,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
@@ -477,7 +471,6 @@ fn check_swaps_with_price_update() {
         min_price_scale_delta: f64_to_dec(0.000146),
         initial_price_scale: Decimal::one(),
         ma_half_time: 600,
-        owner: None,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
@@ -531,7 +524,6 @@ fn provides_and_swaps() {
         min_price_scale_delta: f64_to_dec(0.000146),
         initial_price_scale: Decimal::one(),
         ma_half_time: 600,
-        owner: None,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
@@ -587,7 +579,6 @@ fn check_amp_gamma_change() {
         min_price_scale_delta: f64_to_dec(0.000146),
         initial_price_scale: Decimal::one(),
         ma_half_time: 600,
-        owner: None,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
@@ -684,7 +675,6 @@ fn check_prices() {
         min_price_scale_delta: f64_to_dec(0.000146),
         initial_price_scale: Decimal::one(),
         ma_half_time: 600,
-        owner: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();

@@ -106,6 +106,9 @@ pub fn instantiate(
         },
     };
 
+    let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
+    let factory_config = query_factory_config(&deps.querier, &factory_addr)?;
+
     let config = Config {
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
@@ -113,12 +116,12 @@ pub fn instantiate(
             asset_infos: msg.asset_infos.clone(),
             pair_type: PairType::Concentrated {},
         },
-        factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr)?,
+        factory_addr: addr_validate_to_lower(deps.api, &msg.factory_addr)?,
         block_time_last: env.block.time.seconds(),
         cumulative_prices,
         pool_params,
         pool_state,
-        owner: addr_opt_validate(deps.api, &params.owner)?,
+        owner: Some(factory_config.owner),
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -729,7 +732,8 @@ fn update_config(
     let mut config = CONFIG.load(deps.storage)?;
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
-    if info.sender != factory_config.owner && Some(info.sender) != config.owner {
+    let owner = config.owner.as_ref().unwrap_or(&factory_config.owner);
+    if &info.sender != owner {
         return Err(ContractError::Unauthorized {});
     }
 
