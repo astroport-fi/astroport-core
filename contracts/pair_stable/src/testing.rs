@@ -1,20 +1,3 @@
-use crate::contract::{
-    assert_max_spread, execute, instantiate, query_pool, query_reverse_simulation, query_share,
-    query_simulation, reply,
-};
-use crate::error::ContractError;
-use crate::math::AMP_PRECISION;
-use crate::mock_querier::mock_dependencies;
-
-use crate::response::MsgInstantiateContractResponse;
-use crate::state::{store_precisions, Config, CONFIG};
-use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo, PairInfo};
-
-use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, SimulationResponse, StablePoolParams,
-    TWAP_PRECISION,
-};
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, coin, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut, Env, Reply,
@@ -22,27 +5,57 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use itertools::Itertools;
-use protobuf::Message;
+use proptest::prelude::*;
+use prost::Message;
+use sim::StableSwapModel;
+
+use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo, PairInfo};
+use astroport::factory::PairType;
+use astroport::pair::{
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, SimulationResponse, StablePoolParams,
+    TWAP_PRECISION,
+};
+use astroport::querier::NATIVE_TOKEN_PRECISION;
+use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+
+use crate::contract::{
+    assert_max_spread, execute, instantiate, query_pool, query_reverse_simulation, query_share,
+    query_simulation, reply,
+};
+use crate::error::ContractError;
+use crate::math::AMP_PRECISION;
+use crate::mock_querier::mock_dependencies;
+use crate::state::{store_precisions, Config, CONFIG};
+use crate::utils::{accumulate_prices, compute_swap, select_pools};
+
+#[derive(Clone, PartialEq, Message)]
+struct MsgInstantiateContractResponse {
+    #[prost(string, tag = "1")]
+    pub contract_address: String,
+    #[prost(bytes, tag = "2")]
+    pub data: Vec<u8>,
+}
 
 fn store_liquidity_token(deps: DepsMut, msg_id: u64, contract_addr: String) {
-    let data = MsgInstantiateContractResponse {
+    let instantiate_reply = MsgInstantiateContractResponse {
         contract_address: contract_addr,
         data: vec![],
-        unknown_fields: Default::default(),
-        cached_size: Default::default(),
-    }
-    .write_to_bytes()
-    .unwrap();
+    };
+
+    let mut encoded_instantiate_reply = Vec::<u8>::with_capacity(instantiate_reply.encoded_len());
+    instantiate_reply
+        .encode(&mut encoded_instantiate_reply)
+        .unwrap();
 
     let reply_msg = Reply {
         id: msg_id,
         result: SubMsgResult::Ok(SubMsgResponse {
             events: vec![],
-            data: Some(data.into()),
+            data: Some(encoded_instantiate_reply.into()),
         }),
     };
 
-    let _res = reply(deps, mock_env(), reply_msg.clone()).unwrap();
+    reply(deps, mock_env(), reply_msg).unwrap();
 }
 
 #[test]
@@ -348,7 +361,7 @@ fn provide_liquidity() {
                 contract_addr: String::from("liquidity0000"),
                 msg: to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: String::from("addr0000"),
-                    amount: Uint128::from(74_944_452_888_487_171_363u128),
+                    amount: Uint128::from(74981956874579_206461u128),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -682,7 +695,7 @@ fn try_native_to_token() {
     let env = mock_env_with_block_time(100);
     let info = mock_info("addr0000", &[]);
     // We can just call .unwrap() to assert this was a success
-    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // Store the liquidity token
     store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
@@ -1274,12 +1287,6 @@ fn mock_env_with_block_time(time: u64) -> Env {
     };
     env
 }
-
-use crate::utils::{accumulate_prices, compute_swap, select_pools};
-use astroport::factory::PairType;
-use astroport::querier::NATIVE_TOKEN_PRECISION;
-use proptest::prelude::*;
-use sim::StableSwapModel;
 
 proptest! {
     #[test]
