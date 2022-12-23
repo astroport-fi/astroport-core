@@ -294,11 +294,11 @@ fn test_provide_and_withdraw_liquidity() {
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 200u128.to_string())
+        attr("share", 199u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "bob"));
-    assert_eq!(res.events[3].attributes[3], attr("amount", 200.to_string()));
+    assert_eq!(res.events[3].attributes[3], attr("amount", 199.to_string()));
 }
 
 fn provide_liquidity_msg(
@@ -902,7 +902,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .wrap()
         .query_wasm_smart(&pair_instance, &QueryMsg::QueryComputeD {})
         .unwrap();
-    assert_eq!(d, 19999999999999);
+    assert_eq!(d, 20000000000000);
 }
 
 #[test]

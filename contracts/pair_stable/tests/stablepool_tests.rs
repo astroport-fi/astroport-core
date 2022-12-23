@@ -162,11 +162,11 @@ fn provide_with_different_precision() {
     assert_eq!(9999500, helper.coin_balance(&test_coins[1], &user1));
 
     let user2 = Addr::unchecked("user2");
-    assert_eq!(20000000, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(19999999, helper.token_balance(&helper.lp_token, &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user2));
 
-    helper.withdraw_liquidity(&user2, 20000000, vec![]).unwrap();
+    helper.withdraw_liquidity(&user2, 19999999, vec![]).unwrap();
 
     assert_eq!(0, helper.token_balance(&helper.lp_token, &user2));
     assert_eq!(999999, helper.coin_balance(&test_coins[0], &user2));
