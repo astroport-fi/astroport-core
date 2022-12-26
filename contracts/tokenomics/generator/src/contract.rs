@@ -180,7 +180,9 @@ pub fn execute(
         ExecuteMsg::CheckpointUserBoost { generators, user } => {
             checkpoint_user_boost(deps, env, info, generators, user)
         }
-        ExecuteMsg::DeactivatePools { pair_types } => deactivate_pools(deps, env, pair_types),
+        ExecuteMsg::DeactivateBlacklistedPools { pair_types } => {
+            deactivate_blacklisted(deps, env, pair_types)
+        }
         ExecuteMsg::DeactivatePool { lp_token } => {
             let cfg = CONFIG.load(deps.storage)?;
             if info.sender != cfg.factory {
@@ -389,7 +391,7 @@ fn checkpoint_user_boost(
 
 /// ## Description
 /// Sets the allocation point to zero for each pool by the pair type
-fn deactivate_pools(
+fn deactivate_blacklisted(
     mut deps: DepsMut,
     env: Env,
     pair_types: Vec<PairType>,
@@ -440,7 +442,7 @@ fn deactivate_pools(
     }
 
     CONFIG.save(deps.storage, &cfg)?;
-    Ok(Response::new().add_attribute("action", "deactivate_pools"))
+    Ok(Response::new().add_attribute("action", "deactivate_blacklisted_pools"))
 }
 
 /// Add or remove tokens to and from the blocked list. Returns a [`ContractError`] on failure.

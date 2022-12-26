@@ -3030,7 +3030,7 @@ fn deactivate_pools_by_pair_types() {
     );
 
     // try to deactivate pools for not blacklisted pair types
-    let msg = GeneratorExecuteMsg::DeactivatePools {
+    let msg = GeneratorExecuteMsg::DeactivateBlacklistedPools {
         pair_types: vec![PairType::Xyk {}, PairType::Stable {}],
     };
     let err = app
@@ -3069,7 +3069,7 @@ fn deactivate_pools_by_pair_types() {
         .unwrap();
     assert_eq!(res, vec![PairType::Stable {}]);
 
-    let msg = GeneratorExecuteMsg::DeactivatePools {
+    let msg = GeneratorExecuteMsg::DeactivateBlacklistedPools {
         pair_types: vec![PairType::Stable {}],
     };
     app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])

@@ -136,7 +136,7 @@ pub enum ExecuteMsg {
         lp_token: String,
     },
     /// Sets the allocation point to zero for each pool by the pair type
-    DeactivatePools {
+    DeactivateBlacklistedPools {
         pair_types: Vec<PairType>,
     },
     /// Updates the boost emissions for specified user and generators
