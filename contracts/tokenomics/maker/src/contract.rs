@@ -713,6 +713,12 @@ fn update_config(
                 attributes.push(attr("governance_contract", &gov));
             }
             UpdateAddr::Remove {} => {
+                if config.staking_contract.is_none() {
+                    return Err(StdError::generic_err(
+                        "Cannot remove governance contract if staking contract is not set",
+                    )
+                    .into());
+                }
                 config.governance_contract = None;
             }
         }
