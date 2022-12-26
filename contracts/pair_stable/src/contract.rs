@@ -13,7 +13,7 @@ use cosmwasm_std::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
-    format_lp_token_name, Asset, AssetInfo, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
+    format_lp_token_name, Asset, AssetInfo, CoinsExt, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::factory::PairType;
 
@@ -353,11 +353,10 @@ pub fn provide_liquidity(
     assets[1].info.check(deps.api)?;
 
     let auto_stake = auto_stake.unwrap_or(false);
-    for asset in assets.iter() {
-        asset.assert_sent_native_token_balance(&info)?;
-    }
 
-    let mut config: Config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
+    info.funds
+        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
     let mut pools: [Asset; 2] = config
         .pair_info
         .query_pools(&deps.querier, env.contract.address.clone())?;

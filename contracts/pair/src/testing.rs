@@ -379,13 +379,12 @@ fn provide_liquidity() {
         }],
     );
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
-    match res {
-        ContractError::Std(StdError::GenericErr { msg, .. }) => assert_eq!(
-            msg,
-            "Native token balance mismatch between the argument and the transferred".to_string()
-        ),
-        _ => panic!("Must return generic error"),
-    }
+    assert_eq!(
+        res,
+        ContractError::Std(StdError::generic_err(
+            "Native token balance mismatch between the argument and the transferred",
+        ))
+    );
 
     // Initialize token amount to the 1:1 ratio
     deps.querier.with_balance(&[(

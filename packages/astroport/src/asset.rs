@@ -1,4 +1,5 @@
 use cosmwasm_schema::cw_serde;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use crate::factory::PairType;
@@ -9,6 +10,7 @@ use cosmwasm_std::{
     StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use cw_utils::must_pay;
 
 pub const UUSD_DENOM: &str = "uusd";
 /// LUNA token denomination
@@ -105,25 +107,81 @@ impl Asset {
     /// * **message_info** is an object of type [`MessageInfo`]
     pub fn assert_sent_native_token_balance(&self, message_info: &MessageInfo) -> StdResult<()> {
         if let AssetInfo::NativeToken { denom } = &self.info {
-            match message_info.funds.iter().find(|x| x.denom == *denom) {
-                Some(coin) => {
-                    if self.amount == coin.amount {
-                        Ok(())
-                    } else {
-                        Err(StdError::generic_err("Native token balance mismatch between the argument and the transferred"))
-                    }
-                }
-                None => {
-                    if self.amount.is_zero() {
-                        Ok(())
-                    } else {
-                        Err(StdError::generic_err("Native token balance mismatch between the argument and the transferred"))
-                    }
-                }
+            let amount = must_pay(message_info, denom)
+                .map_err(|err| StdError::generic_err(err.to_string()))?;
+            if self.amount == amount {
+                Ok(())
+            } else {
+                Err(StdError::generic_err(
+                    "Native token balance mismatch between the argument and the transferred",
+                ))
             }
         } else {
             Ok(())
         }
+    }
+}
+
+pub trait CoinsExt {
+    fn assert_coins_properly_sent(
+        &self,
+        assets: &[Asset],
+        pool_asset_infos: &[AssetInfo],
+    ) -> StdResult<()>;
+}
+
+impl CoinsExt for Vec<Coin> {
+    fn assert_coins_properly_sent(
+        &self,
+        input_assets: &[Asset],
+        pool_asset_infos: &[AssetInfo],
+    ) -> StdResult<()> {
+        let pool_coins = pool_asset_infos
+            .iter()
+            .filter_map(|asset_info| match asset_info {
+                AssetInfo::NativeToken { denom } => Some(denom.to_string()),
+                _ => None,
+            })
+            .collect::<HashSet<_>>();
+        // Skip check if the pool doesn't have any native tokens
+        if pool_coins.is_empty() {
+            return Ok(());
+        }
+
+        let input_coins = input_assets
+            .iter()
+            .filter_map(|asset| match &asset.info {
+                AssetInfo::NativeToken { denom } => Some((denom.to_string(), asset.amount)),
+                _ => None,
+            })
+            .map(|pair| {
+                if pool_coins.contains(&pair.0) {
+                    Ok(pair)
+                } else {
+                    Err(StdError::generic_err(format!(
+                        "Asset {} is not in the pool",
+                        pair.0
+                    )))
+                }
+            })
+            .collect::<StdResult<HashMap<_, _>>>()?;
+
+        self.iter().try_for_each(|coin| {
+            if input_coins.contains_key(&coin.denom) {
+                if input_coins[&coin.denom] == coin.amount {
+                    Ok(())
+                } else {
+                    Err(StdError::generic_err(
+                        "Native token balance mismatch between the argument and the transferred",
+                    ))
+                }
+            } else {
+                Err(StdError::generic_err(format!(
+                    "Supplied coins contain {} that is not in the input asset vector",
+                    coin.denom
+                )))
+            }
+        })
     }
 }
 
@@ -373,5 +431,89 @@ impl AssetInfoExt for AssetInfo {
             info: self.clone(),
             amount: balance.into(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cosmwasm_std::testing::mock_info;
+    use cosmwasm_std::{coin, coins};
+
+    #[test]
+    fn test_native_coins_sent() {
+        let asset = native_asset_info("uusd".to_string()).with_balance(1000u16);
+
+        let info = mock_info("addr0000", &coins(1000, "random"));
+        let err = asset.assert_sent_native_token_balance(&info).unwrap_err();
+        assert_eq!(err, StdError::generic_err("Must send reserve token 'uusd'"));
+
+        let info = mock_info("addr0000", &coins(100, "uusd"));
+        let err = asset.assert_sent_native_token_balance(&info).unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err(
+                "Native token balance mismatch between the argument and the transferred"
+            )
+        );
+
+        let info = mock_info("addr0000", &coins(1000, "uusd"));
+        asset.assert_sent_native_token_balance(&info).unwrap();
+    }
+
+    #[test]
+    fn test_proper_native_coins_sent() {
+        let pool_asset_infos = [
+            native_asset_info("uusd".to_string()),
+            native_asset_info("uluna".to_string()),
+        ];
+
+        let assets = [
+            pool_asset_infos[0].with_balance(1000u16),
+            pool_asset_infos[1].with_balance(100u16),
+        ];
+        let err = vec![coin(1000, "uusd"), coin(1000, "random")]
+            .assert_coins_properly_sent(&assets, &pool_asset_infos)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err(
+                "Supplied coins contain random that is not in the input asset vector"
+            )
+        );
+
+        let assets = [
+            pool_asset_infos[0].with_balance(1000u16),
+            native_asset_info("random".to_string()).with_balance(100u16),
+        ];
+        let err = vec![coin(1000, "uusd"), coin(100, "random")]
+            .assert_coins_properly_sent(&assets, &pool_asset_infos)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err("Asset random is not in the pool")
+        );
+
+        let assets = [
+            pool_asset_infos[0].with_balance(1000u16),
+            pool_asset_infos[1].with_balance(1000u16),
+        ];
+        let err = vec![coin(1000, "uusd"), coin(100, "uluna")]
+            .assert_coins_properly_sent(&assets, &pool_asset_infos)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err(
+                "Native token balance mismatch between the argument and the transferred"
+            )
+        );
+
+        let assets = [
+            pool_asset_infos[0].with_balance(1000u16),
+            pool_asset_infos[1].with_balance(1000u16),
+        ];
+        vec![coin(1000, "uusd"), coin(1000, "uluna")]
+            .assert_coins_properly_sent(&assets, &pool_asset_infos)
+            .unwrap();
     }
 }
