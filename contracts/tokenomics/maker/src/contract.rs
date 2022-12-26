@@ -14,6 +14,7 @@ use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg,
     QueryMsg,
 };
+use astroport::pair::MAX_ALLOWED_SLIPPAGE;
 use cosmwasm_std::{
     attr, coins, entry_point, to_binary, wasm_execute, Addr, Attribute, Binary, CosmosMsg, Decimal,
     Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
@@ -22,6 +23,7 @@ use cosmwasm_std::{
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ExecuteMsg;
 use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-maker";
@@ -61,7 +63,7 @@ pub fn instantiate(
     };
 
     let max_spread = if let Some(max_spread) = msg.max_spread {
-        if max_spread.gt(&Decimal::one()) {
+        if max_spread.gt(&Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?) {
             return Err(ContractError::IncorrectMaxSpread {});
         };
 
@@ -728,7 +730,7 @@ fn update_config(
     }
 
     if let Some(max_spread) = max_spread {
-        if max_spread > Decimal::one() {
+        if max_spread > Decimal::from_str(MAX_ALLOWED_SLIPPAGE)? {
             return Err(ContractError::IncorrectMaxSpread {});
         };
 
