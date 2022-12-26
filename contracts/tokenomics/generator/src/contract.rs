@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Order, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
-    Uint128, Uint64, WasmMsg,
+    attr, entry_point, from_binary, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal,
+    Deps, DepsMut, Env, MessageInfo, Order, QuerierWrapper, Reply, ReplyOn, Response, StdError,
+    StdResult, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, MinterResponse};
@@ -1001,16 +1001,17 @@ pub fn claim_rewards(
             &account,
         )?);
 
-        let mut reward_msg = build_claim_pools_asset_reward_messages(
-            deps.as_ref(),
-            &env,
-            lp_token,
-            &pool,
-            &account,
-            user.amount,
-            Uint128::zero(),
-        )?;
-        send_rewards_msg.append(&mut reward_msg);
+        // TODO: build asset rewards msg
+        // let mut reward_msg = build_claim_pools_asset_reward_messages(
+        //     deps.as_ref(),
+        //     &env,
+        //     lp_token,
+        //     &pool,
+        //     &account,
+        //     user.amount,
+        //     Uint128::zero(),
+        // )?;
+        // send_rewards_msg.append(&mut reward_msg);
 
         // Update user's amount
         let amount = user.amount;
@@ -1260,36 +1261,35 @@ pub fn deposit(
     accumulate_rewards_per_share(&deps.querier, &env, &lp_token, &mut pool, &cfg)?;
 
     // Send pending rewards (if any) to the depositor
-    let send_rewards_msg = send_pending_rewards(deps.as_ref(), &cfg, &pool, &user, &beneficiary)?;
+    let mut messages = send_pending_rewards(deps.as_ref(), &cfg, &pool, &user, &beneficiary)?;
 
     let mut lp_balance = query_lp_balance(deps.as_ref(), &env.contract.address, &lp_token, &pool)?;
 
     // If a reward proxy is set - send LP tokens to the proxy
-    let transfer_msg = if !amount.is_zero() && pool.reward_proxy.is_some() {
+    if !amount.is_zero() && pool.reward_proxy.is_some() {
         // Consider deposited LP tokens
         lp_balance += amount;
-        vec![WasmMsg::Execute {
-            contract_addr: lp_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
+        messages.push(wasm_execute(
+            &lp_token,
+            &Cw20ExecuteMsg::Send {
                 contract: pool.reward_proxy.clone().unwrap().to_string(),
                 msg: to_binary(&ProxyCw20HookMsg::Deposit {})?,
                 amount,
-            })?,
-            funds: vec![],
-        }]
-    } else {
-        vec![]
+            },
+            vec![],
+        )?);
     };
 
-    let reward_msg = build_claim_pools_asset_reward_messages(
-        deps.as_ref(),
-        &env,
-        &lp_token,
-        &pool,
-        &beneficiary,
-        user.amount,
-        amount,
-    )?;
+    // TODO: build asset rewards msg
+    // messages.extend(build_claim_pools_asset_reward_messages(
+    //     deps.as_ref(),
+    //     &env,
+    //     &lp_token,
+    //     &pool,
+    //     &beneficiary,
+    //     user.amount,
+    //     amount,
+    // )?);
 
     // Update user's LP token balance
     let updated_amount = user.amount.checked_add(amount)?;
@@ -1308,9 +1308,7 @@ pub fn deposit(
     USER_INFO.save(deps.storage, (&lp_token, &beneficiary), &user)?;
 
     Ok(Response::new()
-        .add_messages(send_rewards_msg)
-        .add_messages(transfer_msg)
-        .add_messages(reward_msg)
+        .add_messages(messages)
         .add_attribute("action", "deposit")
         .add_attribute("amount", amount))
 }
@@ -1371,15 +1369,16 @@ pub fn withdraw(
     };
     send_rewards_msgs.push(transfer_msg);
 
-    send_rewards_msgs.append(&mut build_claim_pools_asset_reward_messages(
-        deps.as_ref(),
-        &env,
-        &lp_token,
-        &pool,
-        &account,
-        user.amount,
-        Uint128::zero(),
-    )?);
+    // TODO: build asset rewards msg
+    // send_rewards_msgs.append(&mut build_claim_pools_asset_reward_messages(
+    //     deps.as_ref(),
+    //     &env,
+    //     &lp_token,
+    //     &pool,
+    //     &account,
+    //     user.amount,
+    //     Uint128::zero(),
+    // )?);
 
     // Update user's balance
     let updated_amount = user.amount.checked_sub(amount)?;
@@ -1411,6 +1410,7 @@ pub fn withdraw(
 
 /// ## Description
 /// Builds claim reward messages for a specific generator (if the messages are supported)
+#[allow(dead_code)]
 pub fn build_claim_pools_asset_reward_messages(
     deps: Deps,
     env: &Env,
