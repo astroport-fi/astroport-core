@@ -1,4 +1,4 @@
-use astroport::asset::{addr_validate_to_lower, AssetInfo};
+use astroport::asset::{addr_validate_to_lower, token_asset_info, AssetInfo};
 use astroport::common::OwnershipProposal;
 use astroport::{
     generator::{PoolInfo, RestrictedVector, UserInfo, UserInfoV2},
@@ -7,7 +7,7 @@ use astroport::{
 };
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
 
-use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128, Uint64};
+use cosmwasm_std::{from_slice, Addr, DepsMut, StdResult, Storage, Uint128, Uint64};
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Decimal, Deps};
@@ -310,4 +310,33 @@ pub(crate) fn query_lp_balance(
         res.balance
     };
     Ok(lp_amount)
+}
+
+/// Query an xASTRO token if it is presented in the current chain.
+pub(crate) fn query_xastro_addr(deps: Deps, factory_addr: &Addr) -> StdResult<Option<AssetInfo>> {
+    let mut xastro = None;
+    let factory_cfg: astroport::factory::ConfigResponse = deps
+        .querier
+        .query_wasm_smart(factory_addr, &astroport::factory::QueryMsg::Config {})?;
+    if let Some(maker_addr) = factory_cfg.fee_address {
+        let maker_cfg_opt: Option<astroport_maker::state::Config> = deps
+            .querier
+            .query_wasm_raw(&maker_addr, astroport_maker::state::CONFIG.as_slice())?
+            .map(|data| from_slice(&data))
+            .transpose()?;
+        if let Some(maker_cfg) = maker_cfg_opt {
+            if let Some(staking_addr) = maker_cfg.staking_contract {
+                let staking_cfg_opt: Option<astroport_staking::state::Config> = deps
+                    .querier
+                    .query_wasm_raw(&staking_addr, astroport_staking::state::CONFIG.as_slice())?
+                    .map(|data| from_slice(&data))
+                    .transpose()?;
+                if let Some(staking_cfg) = staking_cfg_opt {
+                    xastro = Some(token_asset_info(staking_cfg.xastro_token_addr));
+                }
+            }
+        }
+    }
+
+    Ok(xastro)
 }

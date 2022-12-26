@@ -27,6 +27,8 @@ cw-storage-plus = "0.15"
 thiserror = "1.0"
 astroport = { path = "../../../packages/astroport" }
 astroport-governance = { git = "https://github.com/astroport-fi/hidden_astroport_governance.git", branch = "release" }
+astroport-maker = { path = "../maker" }
+astroport-staking = { path = "../staking" }
 protobuf = { version = "2", features = ["with-bytes"] }
 cosmwasm-schema = "1.1"
 cw1-whitelist = { version = "0.15", features = ["library"] }
@@ -36,7 +38,6 @@ cw-multi-test = "0.15"
 astroport-token = { path = "../../token" }
 
 astroport-vesting = { path = "../vesting" }
-astroport-staking = { path = "../staking" }
 astroport-factory = { path = "../../factory" }
 astroport-pair = { path = "../../pair" }
 astroport-pair-stable = { path = "../../pair_stable" }

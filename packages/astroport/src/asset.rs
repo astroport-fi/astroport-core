@@ -163,6 +163,14 @@ impl AssetInfo {
         }
     }
 
+    /// Checks whether the native coin is IBCed token or not.
+    pub fn is_ibc(&self) -> bool {
+        match self {
+            AssetInfo::NativeToken { denom } => denom.to_lowercase().starts_with("ibc/"),
+            AssetInfo::Token { .. } => false,
+        }
+    }
+
     /// Returns the balance of token in a pool.
     /// ## Params
     /// * **self** is the type of the caller object.
