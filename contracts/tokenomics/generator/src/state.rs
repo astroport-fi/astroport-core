@@ -7,7 +7,7 @@ use astroport::{
 };
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
 
-use cosmwasm_std::{Addr, DepsMut, Env, StdResult, Storage, Uint128, Uint64};
+use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128, Uint64};
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Decimal, Deps};
@@ -250,12 +250,11 @@ pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
 /// - W is the total amount of vxASTRO
 pub(crate) fn update_virtual_amount(
     deps: Deps,
-    env: &Env,
     cfg: &Config,
     pool: &mut PoolInfo,
     user_info: &mut UserInfoV2,
     account: &Addr,
-    generator: &Addr,
+    lp_balance: Uint128,
 ) -> StdResult<()> {
     let mut user_vp = Uint128::zero();
     let mut total_vp = Uint128::zero();
@@ -267,18 +266,6 @@ pub(crate) fn update_virtual_amount(
 
     let user_virtual_share = user_info.amount.multiply_ratio(4u128, 10u128);
 
-    let lp_balance = if let Some(proxy) = &pool.reward_proxy {
-        deps.querier
-            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
-    } else {
-        let res: BalanceResponse = deps.querier.query_wasm_smart(
-            generator,
-            &cw20::Cw20QueryMsg::Balance {
-                address: env.contract.address.to_string(),
-            },
-        )?;
-        res.balance
-    };
     let total_virtual_share = lp_balance.multiply_ratio(6u128, 10u128);
 
     let vx_share_emission = if !total_vp.is_zero() {
@@ -300,4 +287,27 @@ pub(crate) fn update_virtual_amount(
     user_info.virtual_amount = current_virtual_amount;
 
     Ok(())
+}
+
+/// Query total LP tokens balance for specified generator.
+/// If tokens are staked in proxy, then query proxy balance. Otherwise query generator contract balance.
+pub(crate) fn query_lp_balance(
+    deps: Deps,
+    generator_addr: &Addr,
+    lp_token: &Addr,
+    pool_info: &PoolInfo,
+) -> StdResult<Uint128> {
+    let lp_amount = if let Some(proxy) = &pool_info.reward_proxy {
+        deps.querier
+            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
+    } else {
+        let res: BalanceResponse = deps.querier.query_wasm_smart(
+            lp_token,
+            &cw20::Cw20QueryMsg::Balance {
+                address: generator_addr.to_string(),
+            },
+        )?;
+        res.balance
+    };
+    Ok(lp_amount)
 }

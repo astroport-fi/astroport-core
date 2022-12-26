@@ -35,10 +35,10 @@ use astroport::{
 
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
-    accumulate_pool_proxy_rewards, update_proxy_asset, update_user_balance, update_virtual_amount,
-    CompatibleLoader, Config, ExecuteOnReply, CHECKPOINT_GENERATORS_LIMIT, CONFIG, DEFAULT_LIMIT,
-    MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO, PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET,
-    TMP_USER_ACTION, USER_INFO,
+    accumulate_pool_proxy_rewards, query_lp_balance, update_proxy_asset, update_user_balance,
+    update_virtual_amount, CompatibleLoader, Config, ExecuteOnReply, CHECKPOINT_GENERATORS_LIMIT,
+    CONFIG, DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO, PROXY_REWARDS_HOLDER,
+    PROXY_REWARD_ASSET, TMP_USER_ACTION, USER_INFO,
 };
 
 /// Contract name that is used for migration.
@@ -343,15 +343,15 @@ fn checkpoint_user_boost(
 
     let mut send_rewards_msg: Vec<WasmMsg> = vec![];
     for generator in generators {
-        let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
+        let lp_token = addr_validate_to_lower(deps.api, &generator)?;
 
         // calculates the emission boost  only for user who has LP in generator
-        if USER_INFO.has(deps.storage, (&generator_addr, &recipient_addr)) {
+        if USER_INFO.has(deps.storage, (&lp_token, &recipient_addr)) {
             let user_info =
-                USER_INFO.compatible_load(deps.storage, (&generator_addr, &recipient_addr))?;
+                USER_INFO.compatible_load(deps.storage, (&lp_token, &recipient_addr))?;
 
-            let mut pool = POOL_INFO.load(deps.storage, &generator_addr)?;
-            accumulate_rewards_per_share(&deps.querier, &env, &generator_addr, &mut pool, &config)?;
+            let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
+            accumulate_rewards_per_share(&deps.querier, &env, &lp_token, &mut pool, &config)?;
 
             send_rewards_msg.append(&mut send_pending_rewards(
                 deps.as_ref(),
@@ -364,20 +364,21 @@ fn checkpoint_user_boost(
             // Update user's amount
             let amount = user_info.amount;
             let mut user_info = update_user_balance(user_info, &pool, amount)?;
+            let lp_balance =
+                query_lp_balance(deps.as_ref(), &env.contract.address, &lp_token, &pool)?;
 
             // Update user's virtual amount
             update_virtual_amount(
                 deps.as_ref(),
-                &env,
                 &config,
                 &mut pool,
                 &mut user_info,
                 &recipient_addr,
-                &generator_addr,
+                lp_balance,
             )?;
 
-            USER_INFO.save(deps.storage, (&generator_addr, &recipient_addr), &user_info)?;
-            POOL_INFO.save(deps.storage, &generator_addr, &pool)?;
+            USER_INFO.save(deps.storage, (&lp_token, &recipient_addr), &user_info)?;
+            POOL_INFO.save(deps.storage, &lp_token, &pool)?;
         }
     }
 
@@ -1008,16 +1009,16 @@ pub fn claim_rewards(
         // Update user's amount
         let amount = user.amount;
         let mut user = update_user_balance(user, &pool, amount)?;
+        let lp_balance = query_lp_balance(deps.as_ref(), &env.contract.address, &lp_token, &pool)?;
 
         // Update user's virtual amount
         update_virtual_amount(
             deps.as_ref(),
-            &env,
             &cfg,
             &mut pool,
             &mut user,
             &account,
-            lp_token,
+            lp_balance,
         )?;
 
         USER_INFO.save(deps.storage, (lp_token, &account), &user)?;
@@ -1252,8 +1253,12 @@ pub fn deposit(
     // Send pending rewards (if any) to the depositor
     let send_rewards_msg = send_pending_rewards(deps.as_ref(), &cfg, &pool, &user, &beneficiary)?;
 
+    let mut lp_balance = query_lp_balance(deps.as_ref(), &env.contract.address, &lp_token, &pool)?;
+
     // If a reward proxy is set - send LP tokens to the proxy
     let transfer_msg = if !amount.is_zero() && pool.reward_proxy.is_some() {
+        // Consider deposited LP tokens
+        lp_balance += amount;
         vec![WasmMsg::Execute {
             contract_addr: lp_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
@@ -1283,12 +1288,11 @@ pub fn deposit(
 
     update_virtual_amount(
         deps.as_ref(),
-        &env,
         &cfg,
         &mut pool,
         &mut user,
         &beneficiary,
-        &lp_token,
+        lp_balance,
     )?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
@@ -1371,15 +1375,15 @@ pub fn withdraw(
     // Update user's balance
     let updated_amount = user.amount.checked_sub(amount)?;
     let mut user = update_user_balance(user, &pool, updated_amount)?;
+    let lp_balance = query_lp_balance(deps.as_ref(), &env.contract.address, &lp_token, &pool)?;
 
     update_virtual_amount(
         deps.as_ref(),
-        &env,
         &cfg,
         &mut pool,
         &mut user,
         &account,
-        &lp_token,
+        lp_balance,
     )?;
 
     POOL_INFO.save(deps.storage, &lp_token, &pool)?;
