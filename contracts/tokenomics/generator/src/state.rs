@@ -16,6 +16,12 @@ use cw_storage_plus::{Item, Map};
 use std::cmp::min;
 use std::collections::HashMap;
 
+/// Constants to update user's virtual amount. For more info see update_virtual_amount() documentation.
+/// 0.4 of the LP tokens amount.
+const REAL_SHARE: Decimal = Decimal::raw(400000000000000000);
+/// 0.6 of the user's voting power aka vxASTRO balance.
+const VXASTRO_SHARE: Decimal = Decimal::raw(600000000000000000);
+
 /// This structure stores the core parameters for the Generator contract.
 #[cw_serde]
 pub struct Config {
@@ -264,9 +270,9 @@ pub(crate) fn update_virtual_amount(
         total_vp = get_total_voting_power(deps.querier, voting_escrow)?;
     }
 
-    let user_virtual_share = user_info.amount.multiply_ratio(4u128, 10u128);
+    let user_virtual_share = user_info.amount * REAL_SHARE;
 
-    let total_virtual_share = lp_balance.multiply_ratio(6u128, 10u128);
+    let total_virtual_share = lp_balance * VXASTRO_SHARE;
 
     let vx_share_emission = if !total_vp.is_zero() {
         Decimal::from_ratio(user_vp, total_vp)
