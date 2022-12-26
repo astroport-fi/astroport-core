@@ -1,4 +1,4 @@
-use astroport::asset::{addr_validate_to_lower, token_asset_info, AssetInfo};
+use astroport::asset::{token_asset_info, AssetInfo};
 use astroport::common::OwnershipProposal;
 use astroport::{
     generator::{PoolInfo, RestrictedVector, UserInfo, UserInfoV2},
@@ -236,7 +236,7 @@ pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
             .querier
             .query_wasm_smart(proxy_addr, &astroport::generator_proxy::QueryMsg::Config {})?;
         let asset = AssetInfo::Token {
-            contract_addr: addr_validate_to_lower(deps.api, &proxy_cfg.reward_token_addr)?,
+            contract_addr: deps.api.addr_validate(&proxy_cfg.reward_token_addr)?,
         };
         PROXY_REWARD_ASSET.save(deps.storage, proxy_addr, &asset)?
     }

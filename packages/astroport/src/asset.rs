@@ -231,7 +231,7 @@ impl AssetInfo {
     /// * **api** is a object of type [`Api`]
     pub fn check(&self, api: &dyn Api) -> StdResult<()> {
         if let AssetInfo::Token { contract_addr } = self {
-            addr_validate_to_lower(api, contract_addr.as_str())?;
+            api.addr_validate(contract_addr.as_str())?;
         }
 
         Ok(())
@@ -277,25 +277,10 @@ impl PairInfo {
     }
 }
 
-/// Returns a lowercased, validated address upon success. Otherwise returns [`Err`]
-/// ## Params
-/// * **api** is an object of type [`Api`]
-///
-/// * **addr** is an object of type [`Addr`]
-pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
-    if addr.to_lowercase() != addr {
-        return Err(StdError::generic_err(format!(
-            "Address {} should be lowercase",
-            addr
-        )));
-    }
-    api.addr_validate(addr)
-}
-
 /// Returns a lowercased, validated address upon success if present.
 pub fn addr_opt_validate(api: &dyn Api, addr: &Option<String>) -> StdResult<Option<Addr>> {
     addr.as_ref()
-        .map(|addr| addr_validate_to_lower(api, addr))
+        .map(|addr| api.addr_validate(addr))
         .transpose()
 }
 

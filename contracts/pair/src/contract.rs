@@ -10,8 +10,7 @@ use cosmwasm_std::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
-    addr_validate_to_lower, format_lp_token_name, Asset, AssetInfo, PairInfo,
-    MINIMUM_LIQUIDITY_AMOUNT,
+    format_lp_token_name, Asset, AssetInfo, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
@@ -69,7 +68,7 @@ pub fn instantiate(
             asset_infos: msg.asset_infos.clone(),
             pair_type: PairType::Xyk {},
         },
-        factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr.as_str())?,
+        factory_addr: deps.api.addr_validate(msg.factory_addr.as_str())?,
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
@@ -129,8 +128,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
         })?;
 
-    config.pair_info.liquidity_token =
-        addr_validate_to_lower(deps.api, res.get_contract_address())?;
+    config.pair_info.liquidity_token = deps.api.addr_validate(res.get_contract_address())?;
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -203,7 +201,7 @@ pub fn execute(
             }
 
             let to_addr = if let Some(to_addr) = to {
-                Some(addr_validate_to_lower(deps.api, &to_addr)?)
+                Some(deps.api.addr_validate(&to_addr)?)
             } else {
                 None
             };
@@ -264,7 +262,7 @@ pub fn receive_cw20(
             }
 
             let to_addr = if let Some(to_addr) = to {
-                Some(addr_validate_to_lower(deps.api, to_addr.as_str())?)
+                Some(deps.api.addr_validate(to_addr.as_str())?)
             } else {
                 None
             };
@@ -422,7 +420,7 @@ pub fn provide_liquidity(
         deps.as_ref(),
         &config,
         env.clone(),
-        addr_validate_to_lower(deps.api, receiver.as_str())?,
+        deps.api.addr_validate(receiver.as_str())?,
         share,
         auto_stake,
     )?);

@@ -15,7 +15,6 @@ use cw20::{
 };
 
 use crate::response::MsgInstantiateContractResponse;
-use astroport::asset::addr_validate_to_lower;
 use astroport::xastro_token::InstantiateMsg as TokenInstantiateMsg;
 use protobuf::Message;
 
@@ -56,7 +55,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            astro_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
+            astro_token_addr: deps.api.addr_validate(&msg.deposit_token_addr)?,
             xastro_token_addr: Addr::unchecked(""),
         },
     )?;
@@ -138,7 +137,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
         })?;
 
     // Set xASTRO addr
-    config.xastro_token_addr = addr_validate_to_lower(deps.api, res.get_contract_address())?;
+    config.xastro_token_addr = deps.api.addr_validate(res.get_contract_address())?;
 
     CONFIG.save(deps.storage, &config)?;
 

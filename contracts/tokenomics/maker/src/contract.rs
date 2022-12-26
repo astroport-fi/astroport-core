@@ -7,7 +7,7 @@ use crate::utils::{
     build_distribute_msg, build_swap_msg, try_build_swap_msg, validate_bridge,
     BRIDGES_EXECUTION_MAX_DEPTH, BRIDGES_INITIAL_DEPTH,
 };
-use astroport::asset::{addr_opt_validate, addr_validate_to_lower, Asset, AssetInfo};
+use astroport::asset::{addr_opt_validate, Asset, AssetInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
 use astroport::maker::{
@@ -79,10 +79,10 @@ pub fn instantiate(
     }
 
     let cfg = Config {
-        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+        owner: deps.api.addr_validate(&msg.owner)?,
         default_bridge: msg.default_bridge,
         astro_token: msg.astro_token,
-        factory_contract: addr_validate_to_lower(deps.api, &msg.factory_contract)?,
+        factory_contract: deps.api.addr_validate(&msg.factory_contract)?,
         staking_contract: addr_opt_validate(deps.api, &msg.staking_contract)?,
         rewards_enabled: false,
         pre_upgrade_blocks: 0,
@@ -697,19 +697,19 @@ fn update_config(
     }
 
     if let Some(factory_contract) = factory_contract {
-        config.factory_contract = addr_validate_to_lower(deps.api, &factory_contract)?;
+        config.factory_contract = deps.api.addr_validate(&factory_contract)?;
         attributes.push(attr("factory_contract", &factory_contract));
     };
 
     if let Some(staking_contract) = staking_contract {
-        config.staking_contract = Some(addr_validate_to_lower(deps.api, &staking_contract)?);
+        config.staking_contract = Some(deps.api.addr_validate(&staking_contract)?);
         attributes.push(attr("staking_contract", &staking_contract));
     };
 
     if let Some(action) = governance_contract {
         match action {
             UpdateAddr::Set(gov) => {
-                config.governance_contract = Some(addr_validate_to_lower(deps.api, &gov)?);
+                config.governance_contract = Some(deps.api.addr_validate(&gov)?);
                 attributes.push(attr("governance_contract", &gov));
             }
             UpdateAddr::Remove {} => {
@@ -784,7 +784,7 @@ fn update_bridges(
         for asset in remove_bridges {
             BRIDGES.remove(
                 deps.storage,
-                addr_validate_to_lower(deps.api, &asset.to_string())?.to_string(),
+                deps.api.addr_validate(&asset.to_string())?.to_string(),
             );
         }
     }

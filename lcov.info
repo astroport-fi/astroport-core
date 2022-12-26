@@ -6360,7 +6360,7 @@ FN:188,equal
 FN:212,as_bytes
 FN:224,check
 FN:263,query_pools
-FN:286,addr_validate_to_lower
+FN:286,deps.api.addr_validate
 FN:297,addr_opt_validate
 FN:299,{closure#0}
 FN:310,format_lp_token_name
@@ -6385,7 +6385,7 @@ FNDA:14,equal
 FNDA:12,as_bytes
 FNDA:28,check
 FNDA:14,query_pools
-FNDA:42,addr_validate_to_lower
+FNDA:42,deps.api.addr_validate
 FNDA:5,addr_opt_validate
 FNDA:15,{closure#0}
 FNDA:19,format_lp_token_name

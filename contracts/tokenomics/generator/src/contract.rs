@@ -13,7 +13,7 @@ use protobuf::Message;
 use crate::error::ContractError;
 use crate::migration;
 
-use astroport::asset::{addr_validate_to_lower, pair_info_by_pool, Asset, AssetInfo, PairInfo};
+use astroport::asset::{pair_info_by_pool, Asset, AssetInfo, PairInfo};
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{PairConfig, PairType};
@@ -71,15 +71,15 @@ pub fn instantiate(
     msg.astro_token.check(deps.api)?;
 
     let mut config = Config {
-        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-        factory: addr_validate_to_lower(deps.api, &msg.factory)?,
+        owner: deps.api.addr_validate(&msg.owner)?,
+        factory: deps.api.addr_validate(&msg.factory)?,
         generator_controller: None,
         guardian: None,
         astro_token: msg.astro_token,
         tokens_per_block: msg.tokens_per_block,
         total_alloc_point: Uint128::zero(),
         start_block: msg.start_block,
-        vesting_contract: addr_validate_to_lower(deps.api, &msg.vesting_contract)?,
+        vesting_contract: deps.api.addr_validate(&msg.vesting_contract)?,
         active_pools: vec![],
         blocked_tokens_list: vec![],
         voting_escrow: None,
@@ -87,16 +87,15 @@ pub fn instantiate(
     };
 
     if let Some(generator_controller) = msg.generator_controller {
-        config.generator_controller =
-            Some(addr_validate_to_lower(deps.api, &generator_controller)?);
+        config.generator_controller = Some(deps.api.addr_validate(&generator_controller)?);
     }
 
     if let Some(guardian) = msg.guardian {
-        config.guardian = Some(addr_validate_to_lower(deps.api, &guardian)?);
+        config.guardian = Some(deps.api.addr_validate(&guardian)?);
     }
 
     if let Some(voting_escrow) = msg.voting_escrow {
-        config.voting_escrow = Some(addr_validate_to_lower(deps.api, &voting_escrow)?);
+        config.voting_escrow = Some(deps.api.addr_validate(&voting_escrow)?);
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -188,7 +187,7 @@ pub fn execute(
             if info.sender != cfg.factory {
                 return Err(ContractError::Unauthorized {});
             }
-            let lp_token_addr = addr_validate_to_lower(deps.api, &lp_token)?;
+            let lp_token_addr = deps.api.addr_validate(&lp_token)?;
             let active_pools: Vec<Addr> =
                 cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
             mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
@@ -227,7 +226,7 @@ pub fn execute(
         ExecuteMsg::ClaimRewards { lp_tokens } => {
             let mut lp_tokens_addr: Vec<Addr> = vec![];
             for lp_token in &lp_tokens {
-                lp_tokens_addr.push(addr_validate_to_lower(deps.api, lp_token)?);
+                lp_tokens_addr.push(deps.api.addr_validate(lp_token)?);
             }
 
             update_rewards_and_execute(
@@ -244,7 +243,7 @@ pub fn execute(
             if amount.is_zero() {
                 return Err(ContractError::ZeroWithdraw {});
             }
-            let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+            let lp_token = deps.api.addr_validate(&lp_token)?;
 
             update_rewards_and_execute(
                 deps.branch(),
@@ -329,7 +328,7 @@ fn checkpoint_user_boost(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let recipient_addr = if let Some(user) = user {
-        addr_validate_to_lower(deps.api, &user)?
+        deps.api.addr_validate(&user)?
     } else {
         info.sender
     };
@@ -345,7 +344,7 @@ fn checkpoint_user_boost(
 
     let mut send_rewards_msg: Vec<WasmMsg> = vec![];
     for generator in generators {
-        let lp_token = addr_validate_to_lower(deps.api, &generator)?;
+        let lp_token = deps.api.addr_validate(&generator)?;
 
         // calculates the emission boost  only for user who has LP in generator
         if USER_INFO.has(deps.storage, (&lp_token, &recipient_addr)) {
@@ -556,22 +555,19 @@ pub fn execute_update_config(
     }
 
     if let Some(vesting_contract) = vesting_contract {
-        config.vesting_contract = addr_validate_to_lower(deps.api, vesting_contract.as_str())?;
+        config.vesting_contract = deps.api.addr_validate(vesting_contract.as_str())?;
     }
 
     if let Some(generator_controller) = generator_controller {
-        config.generator_controller = Some(addr_validate_to_lower(
-            deps.api,
-            generator_controller.as_str(),
-        )?);
+        config.generator_controller = Some(deps.api.addr_validate(generator_controller.as_str())?);
     }
 
     if let Some(guardian) = guardian {
-        config.guardian = Some(addr_validate_to_lower(deps.api, guardian.as_str())?);
+        config.guardian = Some(deps.api.addr_validate(guardian.as_str())?);
     }
 
     if let Some(voting_escrow) = voting_escrow {
-        config.voting_escrow = Some(addr_validate_to_lower(deps.api, voting_escrow.as_str())?);
+        config.voting_escrow = Some(deps.api.addr_validate(voting_escrow.as_str())?);
     }
 
     if let Some(generator_limit) = checkpoint_generator_limit {
@@ -620,7 +616,7 @@ pub fn execute_setup_pools(
     )?;
 
     for (addr, alloc_point) in pools {
-        let pool_addr = addr_validate_to_lower(deps.api, &addr)?;
+        let pool_addr = deps.api.addr_validate(&addr)?;
         let pair_info = pair_info_by_pool(deps.as_ref(), pool_addr.clone())?;
 
         // check if assets in the blocked list
@@ -701,7 +697,7 @@ pub fn execute_update_pool(
     lp_token: String,
     has_asset_rewards: bool,
 ) -> Result<Response, ContractError> {
-    let lp_token_addr = addr_validate_to_lower(deps.api, &lp_token)?;
+    let lp_token_addr = deps.api.addr_validate(&lp_token)?;
 
     let cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.owner {
@@ -844,7 +840,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                 .map_err(|_| {
                     StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
                 })?;
-            let rewards_holder = addr_validate_to_lower(deps.api, &res.contract_address)?;
+            let rewards_holder = deps.api.addr_validate(&res.contract_address)?;
             PROXY_REWARDS_HOLDER.save(deps.storage, &rewards_holder)?;
 
             Ok(Response::new().add_attribute("action", "init_rewards_holder"))
@@ -1477,7 +1473,7 @@ pub fn emergency_withdraw(
     info: MessageInfo,
     lp_token: String,
 ) -> Result<Response, ContractError> {
-    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+    let lp_token = deps.api.addr_validate(&lp_token)?;
 
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let user = USER_INFO.compatible_load(deps.storage, (&lp_token, &info.sender))?;
@@ -1557,8 +1553,8 @@ fn send_orphan_proxy_rewards(
         return Err(ContractError::Unauthorized {});
     };
 
-    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
-    let recipient = addr_validate_to_lower(deps.api, &recipient)?;
+    let lp_token = deps.api.addr_validate(&lp_token)?;
+    let recipient = deps.api.addr_validate(&recipient)?;
 
     let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
@@ -1648,8 +1644,8 @@ fn migrate_proxy(
     lp_token: String,
     new_proxy: String,
 ) -> Result<Response, ContractError> {
-    let lp_addr = addr_validate_to_lower(deps.api, &lp_token)?;
-    let new_proxy_addr = addr_validate_to_lower(deps.api, &new_proxy)?;
+    let lp_addr = deps.api.addr_validate(&lp_token)?;
+    let new_proxy_addr = deps.api.addr_validate(&new_proxy)?;
 
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -1808,8 +1804,8 @@ fn move_to_proxy(
     lp_token: String,
     proxy: String,
 ) -> Result<Response, ContractError> {
-    let lp_addr = addr_validate_to_lower(deps.api, &lp_token)?;
-    let proxy_addr = addr_validate_to_lower(deps.api, &proxy)?;
+    let lp_addr = deps.api.addr_validate(&lp_token)?;
+    let proxy_addr = deps.api.addr_validate(&proxy)?;
 
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -1968,7 +1964,7 @@ pub fn pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
 /// ## Description
 /// Return total virtual supply by pool
 pub fn total_virtual_supply(deps: Deps, generator: String) -> Result<Uint128, ContractError> {
-    let generator_addr = addr_validate_to_lower(deps.api, &generator)?;
+    let generator_addr = deps.api.addr_validate(&generator)?;
     let pool = POOL_INFO.load(deps.storage, &generator_addr)?;
 
     Ok(pool.total_virtual_supply)
@@ -1993,8 +1989,8 @@ pub fn active_pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractErro
 ///
 /// * **user** is an object of type [`String`]. This is the user whose balance we query.
 pub fn query_deposit(deps: Deps, lp_token: String, user: String) -> Result<Uint128, ContractError> {
-    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
-    let user = addr_validate_to_lower(deps.api, &user)?;
+    let lp_token = deps.api.addr_validate(&lp_token)?;
+    let user = deps.api.addr_validate(&user)?;
 
     let user_info = USER_INFO
         .compatible_load(deps.storage, (&lp_token, &user))
@@ -2015,8 +2011,8 @@ pub fn query_virtual_amount(
     lp_token: String,
     user: String,
 ) -> Result<Uint128, ContractError> {
-    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
-    let user = addr_validate_to_lower(deps.api, &user)?;
+    let lp_token = deps.api.addr_validate(&lp_token)?;
+    let user = deps.api.addr_validate(&user)?;
 
     let user_info = USER_INFO
         .compatible_load(deps.storage, (&lp_token, &user))
@@ -2044,8 +2040,8 @@ pub fn pending_token(
 ) -> Result<PendingTokenResponse, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
-    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
-    let user = addr_validate_to_lower(deps.api, &user)?;
+    let lp_token = deps.api.addr_validate(&lp_token)?;
+    let user = deps.api.addr_validate(&user)?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
     let user_info = USER_INFO
@@ -2143,7 +2139,7 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
 fn query_reward_info(deps: Deps, lp_token: String) -> Result<RewardInfoResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+    let lp_token = deps.api.addr_validate(&lp_token)?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
@@ -2173,7 +2169,7 @@ fn query_orphan_proxy_rewards(
     deps: Deps,
     lp_token: String,
 ) -> Result<Vec<(AssetInfo, Uint128)>, ContractError> {
-    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+    let lp_token = deps.api.addr_validate(&lp_token)?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
     if pool.reward_proxy.is_some() {
@@ -2208,7 +2204,7 @@ fn query_pool_info(
 ) -> Result<PoolInfoResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+    let lp_token = deps.api.addr_validate(&lp_token)?;
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
 
     let lp_supply: Uint128;
@@ -2292,7 +2288,7 @@ pub fn query_simulate_future_reward(
 ) -> Result<Uint128, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
-    let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
+    let lp_token = deps.api.addr_validate(&lp_token)?;
     let alloc_point = get_alloc_point(&cfg.active_pools, &lp_token);
     let n_blocks = Uint128::from(future_block)
         .checked_sub(env.block.height.into())
@@ -2328,13 +2324,13 @@ pub fn query_list_of_stakers(
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> Result<Vec<StakerResponse>, ContractError> {
-    let lp_addr = addr_validate_to_lower(deps.api, lp_token.as_str())?;
+    let lp_addr = deps.api.addr_validate(lp_token.as_str())?;
     let mut active_stakers: Vec<StakerResponse> = vec![];
 
     if POOL_INFO.has(deps.storage, &lp_addr) {
         let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
         let start = start_after
-            .map(|start| addr_validate_to_lower(deps.api, start.as_str()))
+            .map(|start| deps.api.addr_validate(start.as_str()))
             .transpose()?;
         let start = start.as_ref().map(Bound::exclusive);
 

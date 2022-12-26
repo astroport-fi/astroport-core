@@ -14,7 +14,7 @@ use crate::state::{
 
 use crate::response::MsgInstantiateContractResponse;
 
-use astroport::asset::{addr_validate_to_lower, AssetInfo, PairInfo};
+use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
     PairsResponse, QueryMsg,
@@ -56,7 +56,7 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let mut config = Config {
-        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+        owner: deps.api.addr_validate(&msg.owner)?,
         token_code_id: msg.token_code_id,
         fee_address: None,
         generator_address: None,
@@ -64,14 +64,11 @@ pub fn instantiate(
     };
 
     if let Some(generator_address) = msg.generator_address {
-        config.generator_address = Some(addr_validate_to_lower(
-            deps.api,
-            generator_address.as_str(),
-        )?);
+        config.generator_address = Some(deps.api.addr_validate(generator_address.as_str())?);
     }
 
     if let Some(fee_address) = msg.fee_address {
-        config.fee_address = Some(addr_validate_to_lower(deps.api, fee_address.as_str())?);
+        config.fee_address = Some(deps.api.addr_validate(fee_address.as_str())?);
     }
 
     let config_set: HashSet<String> = msg
@@ -238,15 +235,12 @@ pub fn execute_update_config(
 
     if let Some(fee_address) = param.fee_address {
         // Validate address format
-        config.fee_address = Some(addr_validate_to_lower(deps.api, fee_address.as_str())?);
+        config.fee_address = Some(deps.api.addr_validate(fee_address.as_str())?);
     }
 
     if let Some(generator_address) = param.generator_address {
         // Validate the address format
-        config.generator_address = Some(addr_validate_to_lower(
-            deps.api,
-            generator_address.as_str(),
-        )?);
+        config.generator_address = Some(deps.api.addr_validate(generator_address.as_str())?);
     }
 
     if let Some(token_code_id) = param.token_code_id {
@@ -398,7 +392,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
         })?;
 
-    let pair_contract = addr_validate_to_lower(deps.api, res.get_contract_address())?;
+    let pair_contract = deps.api.addr_validate(res.get_contract_address())?;
 
     PAIRS.save(deps.storage, &tmp.pair_key, &pair_contract)?;
 
