@@ -913,7 +913,7 @@ pub fn deactivate_pool(deps: DepsMut, lp_token: Addr) -> Result<Response, Contra
 
     CONFIG.save(deps.storage, &cfg)?;
 
-    Ok(Response::new().add_attribute("action", "setup_pool"))
+    Ok(Response::new().add_attribute("action", "deactivate_pool"))
 }
 
 /// Sets a new amount of ASTRO distributed per block among all active generators. Before that, we
