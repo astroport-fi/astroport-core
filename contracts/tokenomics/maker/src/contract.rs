@@ -630,13 +630,16 @@ fn distribute(
     };
 
     if let Some(staking_contract) = &cfg.staking_contract {
-        let to_staking_asset = Asset {
-            info: cfg.astro_token.clone(),
-            amount: amount.checked_sub(governance_amount)?,
-        };
-        result.push(SubMsg::new(
-            to_staking_asset.into_msg(&deps.querier, staking_contract.clone())?,
-        ));
+        let amount = amount.checked_sub(governance_amount)?;
+        if !amount.is_zero() {
+            let to_staking_asset = Asset {
+                info: cfg.astro_token.clone(),
+                amount,
+            };
+            result.push(SubMsg::new(
+                to_staking_asset.into_msg(&deps.querier, staking_contract.clone())?,
+            ));
+        }
     }
 
     attributes = vec![
