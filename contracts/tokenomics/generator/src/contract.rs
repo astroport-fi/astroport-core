@@ -1131,16 +1131,19 @@ fn receive_cw20(
                 amount,
             },
         ),
-        Cw20HookMsg::DepositFor(beneficiary) => update_rewards_and_execute(
-            deps,
-            env,
-            Some(lp_token.clone()),
-            ExecuteOnReply::Deposit {
-                lp_token,
-                account: beneficiary,
-                amount,
-            },
-        ),
+        Cw20HookMsg::DepositFor(beneficiary) => {
+            let account = deps.api.addr_validate(&beneficiary)?;
+            update_rewards_and_execute(
+                deps,
+                env,
+                Some(lp_token.clone()),
+                ExecuteOnReply::Deposit {
+                    lp_token,
+                    account,
+                    amount,
+                },
+            )
+        }
     }
 }
 
