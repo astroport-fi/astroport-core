@@ -279,7 +279,7 @@ pub fn execute(
             marketing,
         } => execute_update_marketing(deps, env, info, project, description, marketing),
         ExecuteMsg::UploadLogo(logo) => execute_upload_logo(deps, env, info, logo),
-        _ => Err(ContractError::Unauthorized {}),
+        _ => Err(StdError::generic_err("Unsupported execute message").into()),
     }
 }
 

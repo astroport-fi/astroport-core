@@ -234,7 +234,7 @@ pub trait PairBonded<'a> {
     ) -> Result<Response, ContractError> {
         offer_asset.info.check(deps.api)?;
         if !offer_asset.is_native_token() {
-            return Err(ContractError::Unauthorized {});
+            return Err(ContractError::Cw20DirectSwap {});
         }
 
         let to_addr = addr_opt_validate(deps.api, &to)?;

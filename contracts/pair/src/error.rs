@@ -12,6 +12,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
+    #[error("CW20 tokens can be swapped via Cw20::Send message only")]
+    Cw20DirectSwap {},
+
     #[error("Operation non supported")]
     NonSupported {},
 

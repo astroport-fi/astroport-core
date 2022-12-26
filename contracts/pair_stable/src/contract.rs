@@ -226,7 +226,7 @@ pub fn execute(
         } => {
             offer_asset.info.check(deps.api)?;
             if !offer_asset.is_native_token() {
-                return Err(ContractError::Unauthorized {});
+                return Err(ContractError::Cw20DirectSwap {});
             }
 
             let to_addr = if let Some(to_addr) = to {
