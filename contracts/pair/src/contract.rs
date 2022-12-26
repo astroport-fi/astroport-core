@@ -704,9 +704,11 @@ pub fn swap(
 
     let tax_amount = return_asset.compute_tax(&deps.querier)?;
     let receiver = to.unwrap_or_else(|| sender.clone());
-    let mut messages: Vec<CosmosMsg> =
-        vec![return_asset.into_msg(&deps.querier, receiver.clone())?];
 
+    let mut messages = vec![];
+    if !return_amount.is_zero() {
+        messages.push(return_asset.into_msg(&deps.querier, receiver.clone())?)
+    }
     // Compute the Maker fee
     let mut maker_fee_amount = Uint128::new(0);
     if let Some(fee_address) = fee_info.fee_address {
