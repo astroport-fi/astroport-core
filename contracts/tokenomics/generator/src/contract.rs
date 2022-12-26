@@ -103,7 +103,7 @@ pub fn instantiate(
     TMP_USER_ACTION.save(deps.storage, &None)?;
 
     let init_reward_holder_msg =
-        init_proxy_rewards_holder(&config.owner, &env.contract.address, msg.whitelist_code_id)?;
+        init_proxy_rewards_holder(&env.contract.address, msg.whitelist_code_id)?;
 
     Ok(Response::default().add_submessage(init_reward_holder_msg))
 }
@@ -1614,22 +1614,17 @@ fn send_orphan_proxy_rewards(
         .add_attribute("lp_token", lp_token.to_string()))
 }
 
-/// ## Description
-/// Return a message object that can help claim bLUNA rewards for an account.
-/// Returns an [`ContractError`] on failure, otherwise returns the object
-/// of type [`SubMsg`].
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// Builds init msg to initialize whitelist contract which keeps proxy rewards.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **admin** - whitelist contract admin (don't confuse with contract's admin which is able to migrate contract)
+/// * **whitelist_code_id** - whitelist contract code id
 fn init_proxy_rewards_holder(
-    owner: &Addr,
     admin: &Addr,
     whitelist_code_id: u64,
 ) -> Result<SubMsg, ContractError> {
     let msg = SubMsg::reply_on_success(
         CosmosMsg::Wasm(WasmMsg::Instantiate {
-            admin: Some(owner.to_string()),
+            admin: None,
             code_id: whitelist_code_id,
             funds: vec![],
             label: "Proxy rewards holder".to_string(),
@@ -2489,12 +2484,8 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
     let mut response = Response::new();
     // Initialize the contract if it is not already initialized
     if PROXY_REWARDS_HOLDER.may_load(deps.storage)?.is_none() {
-        let config = CONFIG.load(deps.storage)?;
-        let init_reward_holder_msg = init_proxy_rewards_holder(
-            &config.owner,
-            &env.contract.address,
-            msg.whitelist_code_id.unwrap(),
-        )?;
+        let init_reward_holder_msg =
+            init_proxy_rewards_holder(&env.contract.address, msg.whitelist_code_id.unwrap())?;
         response = response.add_submessage(init_reward_holder_msg);
     }
 
