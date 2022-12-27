@@ -719,6 +719,7 @@ fn update_config(
                     )
                     .into());
                 }
+                attributes.push(attr("governance_contract", "removed"));
                 config.governance_contract = None;
             }
         }
@@ -735,6 +736,7 @@ fn update_config(
 
     if let Some(default_bridge) = &default_bridge_opt {
         default_bridge.check(deps.api)?;
+        attributes.push(attr("default_bridge", default_bridge.to_string()));
         config.default_bridge = default_bridge_opt;
     }
 
