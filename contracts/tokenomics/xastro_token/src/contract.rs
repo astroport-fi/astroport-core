@@ -739,7 +739,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// ## Description
-/// Returns an aStdError`] on failure, otherwise returns the specified account's balance.
+/// Returns an [`StdError`] on failure, otherwise returns the specified account's balance.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///

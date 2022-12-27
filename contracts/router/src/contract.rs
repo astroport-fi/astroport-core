@@ -397,7 +397,7 @@ fn simulate_swap_operations(
 
     assert_operations(deps.api, &operations)?;
 
-    let mut offer_amount = offer_amount;
+    let mut return_amount = offer_amount;
     for operation in operations.into_iter() {
         match operation {
             SwapOperation::AstroSwap {
@@ -414,10 +414,10 @@ fn simulate_swap_operations(
                 if let AssetInfo::NativeToken { denom } = offer_asset_info.clone() {
                     let asset = Asset {
                         info: AssetInfo::NativeToken { denom },
-                        amount: offer_amount,
+                        amount: return_amount,
                     };
 
-                    offer_amount = offer_amount.checked_sub(asset.compute_tax(&deps.querier)?)?;
+                    return_amount = return_amount.checked_sub(asset.compute_tax(&deps.querier)?)?;
                 }
 
                 let mut res: SimulationResponse =
@@ -426,7 +426,7 @@ fn simulate_swap_operations(
                         msg: to_binary(&PairQueryMsg::Simulation {
                             offer_asset: Asset {
                                 info: offer_asset_info.clone(),
-                                amount: offer_amount,
+                                amount: return_amount,
                             },
                         })?,
                     }))?;
@@ -443,7 +443,7 @@ fn simulate_swap_operations(
                         .checked_sub(asset.compute_tax(&deps.querier)?)?;
                 }
 
-                offer_amount = res.return_amount;
+                return_amount = res.return_amount;
             }
             SwapOperation::NativeSwap { .. } => {
                 return Err(ContractError::NativeSwapNotSupported {})
@@ -452,7 +452,7 @@ fn simulate_swap_operations(
     }
 
     Ok(SimulateSwapOperationsResponse {
-        amount: offer_amount,
+        amount: return_amount,
     })
 }
 

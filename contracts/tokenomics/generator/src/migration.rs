@@ -71,7 +71,7 @@ pub struct ConfigV210 {
 /// Stores the contract config(V2.0.0) at the given key
 pub const CONFIG_V200: Item<ConfigV200> = Item::new("config");
 
-/// Stores the contract config(V2.0.0) at the given key
+/// Stores the contract config(V2.1.0) at the given key
 pub const CONFIG_V210: Item<ConfigV210> = Item::new("config");
 
 /// Migrate config to V2.0.0

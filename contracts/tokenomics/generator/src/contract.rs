@@ -1795,7 +1795,7 @@ fn migrate_proxy_deposit_lp(
 }
 
 /// ## Description
-/// Sets the reward proxy contract for a specifi generator. Returns a [`ContractError`] on failure, otherwise
+/// Sets the reward proxy contract for a specific generator. Returns a [`ContractError`] on failure, otherwise
 /// returns a [`Response`] with the specified attributes if the operation was successful.
 fn move_to_proxy(
     mut deps: DepsMut,
