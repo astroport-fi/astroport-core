@@ -209,7 +209,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-astro-xastro"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "astroport 2.0.1",
  "astroport-factory",
