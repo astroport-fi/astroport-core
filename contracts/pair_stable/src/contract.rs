@@ -204,18 +204,10 @@ pub fn execute(
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ProvideLiquidity {
             assets,
-            slippage_tolerance,
             auto_stake,
             receiver,
-        } => provide_liquidity(
-            deps,
-            env,
-            info,
-            assets,
-            slippage_tolerance,
-            auto_stake,
-            receiver,
-        ),
+            ..
+        } => provide_liquidity(deps, env, info, assets, auto_stake, receiver),
         ExecuteMsg::Swap {
             offer_asset,
             belief_price,
@@ -345,7 +337,6 @@ pub fn provide_liquidity(
     env: Env,
     info: MessageInfo,
     assets: [Asset; 2],
-    slippage_tolerance: Option<Decimal>,
     auto_stake: Option<bool>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
@@ -404,9 +395,6 @@ pub fn provide_liquidity(
             }
         }
     }
-
-    // Assert that slippage tolerance is respected
-    assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
 
     let token_precision_0 = query_token_precision(&deps.querier, pools[0].info.clone())?;
     let token_precision_1 = query_token_precision(&deps.querier, pools[1].info.clone())?;
@@ -1362,24 +1350,6 @@ pub fn assert_max_spread(
         return Err(ContractError::MaxSpreadAssertion {});
     }
 
-    Ok(())
-}
-
-/// ## Description
-/// This is an internal function that enforces slippage tolerance for swaps.
-/// Returns a [`ContractError`] on failure, otherwise returns [`Ok`].
-/// ## Params
-/// * **slippage_tolerance** is an object of type [`Option<Decimal>`]. This is the slippage tolerance to enforce.
-///
-/// * **deposits** are an array of [`Uint128`] type items. These are offer and ask amounts for a swap.
-///
-/// * **pools** are an array of [`Asset`] type items. These are total amounts of assets in the pool.
-fn assert_slippage_tolerance(
-    _slippage_tolerance: &Option<Decimal>,
-    _deposits: &[Uint128; 2],
-    _pools: &[Asset; 2],
-) -> Result<(), ContractError> {
-    // There is no slippage in the stable pool
     Ok(())
 }
 
