@@ -18,7 +18,7 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
 use astroport::pair::migration_check;
-use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg};
+use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, UpdatePoolParams,
 };
@@ -788,10 +788,4 @@ fn update_config(
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default().add_attribute("action", action))
-}
-
-/// Manages the contract migration.
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
 }
