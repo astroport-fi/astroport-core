@@ -63,14 +63,6 @@ pub enum ConcentratedPoolUpdateParams {
     StopChangingAmpGamma {},
 }
 
-/// Represents current Amp and Gamma values with future time when change will stop.
-#[cw_serde]
-pub struct AmpGammaResponse {
-    pub amp: Decimal,
-    pub gamma: Decimal,
-    pub future_time: u64,
-}
-
 /// This structure describes the query messages available in the contract.
 #[cw_serde]
 #[derive(QueryResponses)]
@@ -108,7 +100,4 @@ pub enum QueryMsg {
     /// Query LP token virtual price
     #[returns(Decimal256)]
     LpPrice {},
-    /// Query current Amp and Gamma
-    #[returns(AmpGammaResponse)]
-    AmpGamma {},
 }

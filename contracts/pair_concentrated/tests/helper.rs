@@ -16,19 +16,27 @@ use anyhow::Result as AnyResult;
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, ReverseSimulationResponse,
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, ReverseSimulationResponse,
     SimulationResponse,
 };
 use astroport::pair_concentrated::{
-    AmpGammaResponse, ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
+    ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
 };
 use astroport::querier::NATIVE_TOKEN_PRECISION;
 use astroport_pair_concentrated::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated::queries::query;
 use astroport_pair_concentrated::state::Config;
+use cosmwasm_schema::cw_serde;
 use derivative::Derivative;
 
 const INIT_BALANCE: u128 = 1_000_000_000000;
+
+#[cw_serde]
+pub struct AmpGammaResponse {
+    pub amp: Decimal,
+    pub gamma: Decimal,
+    pub future_time: u64,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TestCoin {
@@ -417,9 +425,20 @@ impl Helper {
     }
 
     pub fn query_amp_gamma(&self) -> StdResult<AmpGammaResponse> {
-        self.app
+        let config_resp: ConfigResponse = self
+            .app
             .wrap()
-            .query_wasm_smart(&self.pair_addr, &QueryMsg::AmpGamma {})
+            .query_wasm_smart(&self.pair_addr, &QueryMsg::Config {})?;
+        let params: ConcentratedPoolParams = from_slice(
+            &config_resp
+                .params
+                .ok_or_else(|| StdError::generic_err("Params not found in config response!"))?,
+        )?;
+        Ok(AmpGammaResponse {
+            amp: params.amp,
+            gamma: params.gamma,
+            future_time: self.query_config()?.pool_state.future_time,
+        })
     }
 
     pub fn query_d(&self) -> StdResult<Decimal256> {

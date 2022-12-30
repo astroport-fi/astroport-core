@@ -1,7 +1,7 @@
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
 use crate::math::calc_d;
-use crate::state::{AmpGamma, Precisions, CONFIG};
+use crate::state::{Precisions, CONFIG};
 use crate::utils::{
     accumulate_prices, before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets,
     pool_info, query_pools,
@@ -12,10 +12,10 @@ use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
     SimulationResponse,
 };
-use astroport::pair_concentrated::{AmpGammaResponse, QueryMsg};
+use astroport::pair_concentrated::{ConcentratedPoolParams, QueryMsg};
 use astroport::querier::{query_fee_info, query_supply};
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Decimal256, Deps, Env, StdError, StdResult, Uint128,
+    entry_point, to_binary, Binary, Decimal, Decimal256, Deps, Env, StdError, StdResult, Uint128,
 };
 use itertools::Itertools;
 
@@ -56,10 +56,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 .map_err(|err| StdError::generic_err(format!("{err}")))?,
         ),
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
         QueryMsg::LpPrice {} => to_binary(&query_lp_price(deps)?),
         QueryMsg::ComputeD {} => to_binary(&query_compute_d(deps, env)?),
-        QueryMsg::AmpGamma {} => to_binary(&query_amp_gamma(deps, env)?),
     }
 }
 
@@ -218,24 +217,30 @@ pub fn query_lp_price(deps: Deps) -> StdResult<Decimal256> {
 }
 
 /// Returns the pair contract configuration.
-pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
+    let amp_gamma = config.pool_state.get_amp_gamma(&env);
+    let dec256_price_scale = config.pool_state.price_state.price_scale;
+    let price_scale = Decimal::from_atomics(
+        Uint128::try_from(dec256_price_scale.atomics())?,
+        dec256_price_scale.decimal_places(),
+    )
+    .map_err(|e| StdError::generic_err(format!("{e}")))?;
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
-        params: None,
-        owner: None,
-    })
-}
-
-/// Returns current Amp and Gamma values.
-pub fn query_amp_gamma(deps: Deps, env: Env) -> StdResult<AmpGammaResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    let AmpGamma { amp, gamma } = config.pool_state.get_amp_gamma(&env);
-
-    Ok(AmpGammaResponse {
-        amp,
-        gamma,
-        future_time: config.pool_state.future_time,
+        params: Some(to_binary(&ConcentratedPoolParams {
+            amp: amp_gamma.amp,
+            gamma: amp_gamma.gamma,
+            mid_fee: config.pool_params.mid_fee,
+            out_fee: config.pool_params.out_fee,
+            fee_gamma: config.pool_params.fee_gamma,
+            repeg_profit_threshold: config.pool_params.repeg_profit_threshold,
+            min_price_scale_delta: config.pool_params.min_price_scale_delta,
+            // this is not initial price anymore, however current price scale makes more sense
+            initial_price_scale: price_scale,
+            ma_half_time: config.pool_params.ma_half_time,
+        })?),
+        owner: config.owner,
     })
 }
 
