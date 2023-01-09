@@ -27,8 +27,8 @@ pub struct ConcentratedPoolParams {
     pub repeg_profit_threshold: Decimal,
     /// Minimum amount to change price_scale when repegging.
     pub min_price_scale_delta: Decimal,
-    /// 1 x\[0] = initial_price_scale * x\[1].
-    pub initial_price_scale: Decimal,
+    /// 1 x\[0] = price_scale * x\[1].
+    pub price_scale: Decimal,
     /// Half-time used for calculating the price oracle.
     pub ma_half_time: u64,
 }

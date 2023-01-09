@@ -307,27 +307,34 @@ pub fn compute_offer_amount(
     let amp_gamma = config.pool_state.get_amp_gamma(env);
     let d = calc_d(xs, &amp_gamma)?;
 
-    // forecasting fee: as internal exchange rate should be nearly equal to 1
-    // we consider that want_amount = offer_amount
+    // multistage fee forecasting
+    // 1. calculate fee rate with new pool volumes
     let mut ixs_for_fees = ixs.clone();
-    ixs_for_fees[ask_ind] += want_amount;
-    ixs_for_fees[offer_ind] -= want_amount;
+    ixs_for_fees[ask_ind] -= want_amount;
+    ixs_for_fees[offer_ind] += want_amount;
+    let fee_rate = config.pool_params.fee(&ixs_for_fees);
+
+    // 2. calculate new pool volumes with forecasted fee rate and forecast fee again
+    let mut ixs_for_fees = ixs.clone();
+    let before_fee = want_amount * (Decimal256::one() - fee_rate).inv().unwrap();
+    ixs_for_fees[ask_ind] -= before_fee;
+    ixs_for_fees[offer_ind] = calc_y(&ixs_for_fees, d, &amp_gamma, offer_ind)?;
     let fee_rate = config.pool_params.fee(&ixs_for_fees);
 
     let before_fee = want_amount * (Decimal256::one() - fee_rate).inv().unwrap();
-    let fee = before_fee - want_amount;
+    let mut fee = before_fee - want_amount;
 
     ixs[ask_ind] -= before_fee;
 
     let new_y = calc_y(&ixs, d, &amp_gamma, offer_ind)?;
     let mut dy = new_y - ixs[offer_ind];
 
-    ixs[offer_ind] = new_y;
-
+    let mut spread_fee = dy - before_fee;
     if offer_ind == 1 {
         dy /= config.pool_state.price_state.price_scale;
+        spread_fee /= config.pool_state.price_state.price_scale;
+        fee /= config.pool_state.price_state.price_scale;
     }
-    let spread_fee = dy * config.pool_state.price_state.price_scale - before_fee;
 
     Ok((dy, spread_fee, fee))
 }

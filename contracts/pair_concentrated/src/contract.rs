@@ -65,7 +65,7 @@ pub fn instantiate(
             .ok_or(ContractError::InitParamsNotFound {})?,
     )?;
 
-    if params.initial_price_scale.is_zero() {
+    if params.price_scale.is_zero() {
         return Err(StdError::generic_err("Initial price scale can not be zero").into());
     }
 
@@ -99,9 +99,9 @@ pub fn instantiate(
         future_time: env.block.time.seconds(),
         initial_time: 0,
         price_state: PriceState {
-            oracle_price: params.initial_price_scale.into(),
-            last_price: params.initial_price_scale.into(),
-            price_scale: params.initial_price_scale.into(),
+            oracle_price: params.price_scale.into(),
+            last_price: params.price_scale.into(),
+            price_scale: params.price_scale.into(),
             last_price_update: env.block.time.seconds(),
             xcp_profit: Decimal256::zero(),
             xcp: Decimal256::zero(),

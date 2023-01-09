@@ -26,7 +26,7 @@ fn simulate_case(case: Vec<(usize, u128, u64)>) {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        initial_price_scale: Decimal::one(),
+        price_scale: Decimal::one(),
         ma_half_time: 600,
     };
 
@@ -84,7 +84,7 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128)>) {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        initial_price_scale: Decimal::one(),
+        price_scale: Decimal::one(),
         ma_half_time: 600,
     };
 

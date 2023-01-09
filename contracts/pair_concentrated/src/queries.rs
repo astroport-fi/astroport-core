@@ -236,8 +236,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
             fee_gamma: config.pool_params.fee_gamma,
             repeg_profit_threshold: config.pool_params.repeg_profit_threshold,
             min_price_scale_delta: config.pool_params.min_price_scale_delta,
-            // this is not initial price anymore, however current price scale makes more sense
-            initial_price_scale: price_scale,
+            price_scale,
             ma_half_time: config.pool_params.ma_half_time,
         })?),
         owner: config.owner,

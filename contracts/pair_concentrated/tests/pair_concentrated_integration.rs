@@ -26,7 +26,7 @@ fn check_wrong_initialization() {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        initial_price_scale: Decimal::from_ratio(2u8, 1u8),
+        price_scale: Decimal::from_ratio(2u8, 1u8),
         ma_half_time: 600,
     };
 
@@ -76,7 +76,7 @@ fn check_wrong_initialization() {
     );
 
     let mut wrong_params = params.clone();
-    wrong_params.initial_price_scale = Decimal::zero();
+    wrong_params.price_scale = Decimal::zero();
 
     let err = Helper::new(
         &owner,
@@ -113,7 +113,7 @@ fn provide_and_withdraw() {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        initial_price_scale: Decimal::from_ratio(2u8, 1u8),
+        price_scale: Decimal::from_ratio(2u8, 1u8),
         ma_half_time: 600,
     };
 
@@ -228,7 +228,7 @@ fn try_imbalanced_provide() {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        initial_price_scale: Decimal::from_ratio(2u8, 1u8),
+        price_scale: Decimal::from_ratio(2u8, 1u8),
         ma_half_time: 600,
     };
 
@@ -248,7 +248,7 @@ fn try_imbalanced_provide() {
     assert_eq!(50_000_000000, helper.coin_balance(&test_coins[1], &user1));
 
     // creating a new pool with inverted price scale
-    params.initial_price_scale = Decimal::from_ratio(1u8, 2u8);
+    params.price_scale = Decimal::from_ratio(1u8, 2u8);
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
@@ -282,7 +282,7 @@ fn provide_with_different_precision() {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        initial_price_scale: Decimal::one(),
+        price_scale: Decimal::one(),
         ma_half_time: 600,
     };
 
@@ -341,7 +341,7 @@ fn swap_different_precisions() {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        initial_price_scale: Decimal::one(),
+        price_scale: Decimal::one(),
         ma_half_time: 600,
     };
 
@@ -370,6 +370,8 @@ fn swap_different_precisions() {
         offer_asset.amount,
         reverse_sim_resp.offer_amount + Uint128::one() // slight error appears due to dynamic fee rate
     );
+    assert_eq!(reverse_sim_resp.commission_amount.u128(), 26081);
+    assert_eq!(reverse_sim_resp.spread_amount.u128(), 125);
 
     helper.give_me_money(&[offer_asset.clone()], &user);
     helper.swap(&user, &offer_asset, None).unwrap();
@@ -381,6 +383,49 @@ fn swap_different_precisions() {
         sim_resp.return_amount.u128(),
         helper.coin_balance(&test_coins[1], &user)
     );
+}
+
+#[test]
+fn check_reverse_swap() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::cw20("FOO"), TestCoin::cw20("BAR")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::one(),
+        ma_half_time: 600,
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(50_000_000000u128);
+
+    let sim_resp = helper.simulate_swap(&offer_asset, None).unwrap();
+    let reverse_sim_resp = helper
+        .simulate_reverse_swap(
+            &helper.assets[&test_coins[1]].with_balance(sim_resp.return_amount.u128()),
+            None,
+        )
+        .unwrap();
+    assert_eq!(
+        offer_asset.amount,
+        reverse_sim_resp.offer_amount + Uint128::one() // slight error appears due to dynamic fee rate
+    );
+    assert_eq!(reverse_sim_resp.commission_amount.u128(), 151_815357);
+    assert_eq!(reverse_sim_resp.spread_amount.u128(), 16241_436140);
 }
 
 #[test]
@@ -397,7 +442,7 @@ fn check_swaps_simple() {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        initial_price_scale: Decimal::one(),
+        price_scale: Decimal::one(),
         ma_half_time: 600,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -470,7 +515,7 @@ fn check_swaps_with_price_update() {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        initial_price_scale: Decimal::one(),
+        price_scale: Decimal::one(),
         ma_half_time: 600,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -523,7 +568,7 @@ fn provides_and_swaps() {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        initial_price_scale: Decimal::one(),
+        price_scale: Decimal::one(),
         ma_half_time: 600,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -578,7 +623,7 @@ fn check_amp_gamma_change() {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        initial_price_scale: Decimal::one(),
+        price_scale: Decimal::one(),
         ma_half_time: 600,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -674,7 +719,7 @@ fn check_prices() {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        initial_price_scale: Decimal::one(),
+        price_scale: Decimal::one(),
         ma_half_time: 600,
     };
 
@@ -750,7 +795,7 @@ fn update_owner() {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        initial_price_scale: Decimal::one(),
+        price_scale: Decimal::one(),
         ma_half_time: 600,
     };
 
