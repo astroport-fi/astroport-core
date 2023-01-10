@@ -340,7 +340,7 @@ pub fn compute_offer_amount(
 }
 
 /// Accumulate token prices for the assets in the pool.
-pub fn accumulate_prices(env: &Env, config: &mut Config) {
+pub fn accumulate_prices(env: &Env, config: &mut Config, last_real_price: Decimal256) {
     let block_time = env.block.time.seconds();
     if block_time <= config.block_time_last {
         return;
@@ -348,12 +348,11 @@ pub fn accumulate_prices(env: &Env, config: &mut Config) {
 
     let time_elapsed = Uint128::from(block_time - config.block_time_last);
 
-    let last_price = config.pool_state.price_state.last_price;
     for (from, _, value) in config.cumulative_prices.iter_mut() {
         let price = if &config.pair_info.asset_infos[0] == from {
-            last_price.inv().unwrap()
+            last_real_price.inv().unwrap()
         } else {
-            last_price
+            last_real_price
         };
         // Price max value = 1e18 bc smallest value in Decimal is 1e-18.
         // Thus highest inverted price is 1/1e-18.

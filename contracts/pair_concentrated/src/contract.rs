@@ -695,10 +695,17 @@ fn swap(
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
 
-    let last_price = if offer_ind == 0 {
-        offer_asset_dec.amount / (swap_result.dy + swap_result.maker_fee)
+    // last_price is used in repeg algo while last_real_price is a real price for an end user
+    let (last_price, last_real_price) = if offer_ind == 0 {
+        (
+            offer_asset_dec.amount / (swap_result.dy + swap_result.maker_fee),
+            offer_asset_dec.amount / swap_result.dy,
+        )
     } else {
-        (swap_result.dy + swap_result.maker_fee) / offer_asset_dec.amount
+        (
+            (swap_result.dy + swap_result.maker_fee) / offer_asset_dec.amount,
+            swap_result.dy / offer_asset_dec.amount,
+        )
     };
     println!(
         "coin_{offer_ind}->coin_{ask_ind} ({}->{}) last price {last_price}",
@@ -733,7 +740,7 @@ fn swap(
         }
     }
 
-    accumulate_prices(&env, &mut config);
+    accumulate_prices(&env, &mut config, last_real_price);
 
     CONFIG.save(deps.storage, &config)?;
 

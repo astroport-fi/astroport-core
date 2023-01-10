@@ -6,7 +6,7 @@ use crate::utils::{
     accumulate_prices, before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets,
     pool_info, query_pools,
 };
-use astroport::asset::Asset;
+use astroport::asset::{Asset, AssetInfoExt};
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
@@ -193,7 +193,21 @@ pub fn query_reverse_simulation(
 fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
     let mut config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps.querier, &config)?;
-    accumulate_prices(&env, &mut config);
+    let mut offer_amount = assets[0].amount.multiply_ratio(1u8, 100u8);
+    if offer_amount.is_zero() {
+        offer_amount = Uint128::one();
+    }
+    let swap_sim = query_simulation(
+        deps,
+        env.clone(),
+        config.pair_info.asset_infos[0].with_balance(offer_amount),
+    )
+    .map_err(|err| StdError::generic_err(format!("{err}")))?;
+    accumulate_prices(
+        &env,
+        &mut config,
+        Decimal256::from_ratio(offer_amount, swap_sim.return_amount),
+    );
 
     Ok(CumulativePricesResponse {
         assets,
