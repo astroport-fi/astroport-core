@@ -1612,14 +1612,10 @@ fn send_orphan_proxy_rewards(
         .add_attribute("lp_token", lp_token.to_string()))
 }
 
-/// ## Description
-/// Return a message object that can help claim bLUNA rewards for an account.
-/// Returns an [`ContractError`] on failure, otherwise returns the object
-/// of type [`SubMsg`].
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// Builds init msg to initialize whitelist contract which keeps proxy rewards.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **admin** - whitelist contract admin (don't confuse with contract's admin which is able to migrate contract)
+/// * **whitelist_code_id** - whitelist contract code id
 fn init_proxy_rewards_holder(
     owner: &Addr,
     admin: &Addr,
