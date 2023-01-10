@@ -143,10 +143,6 @@ impl CoinsExt for Vec<Coin> {
                 _ => None,
             })
             .collect::<HashSet<_>>();
-        // Skip check if the pool doesn't have any native tokens
-        if pool_coins.is_empty() {
-            return Ok(());
-        }
 
         let input_coins = input_assets
             .iter()
@@ -515,5 +511,23 @@ mod tests {
         vec![coin(1000, "uusd"), coin(1000, "uluna")]
             .assert_coins_properly_sent(&assets, &pool_asset_infos)
             .unwrap();
+
+        let pool_asset_infos = [
+            token_asset_info(Addr::unchecked("addr0000")),
+            token_asset_info(Addr::unchecked("addr0001")),
+        ];
+        let assets = [
+            pool_asset_infos[0].with_balance(1000u16),
+            pool_asset_infos[1].with_balance(1000u16),
+        ];
+        let err = vec![coin(1000, "uusd"), coin(1000, "uluna")]
+            .assert_coins_properly_sent(&assets, &pool_asset_infos)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err(
+                "Supplied coins contain uusd that is not in the input asset vector"
+            )
+        );
     }
 }
