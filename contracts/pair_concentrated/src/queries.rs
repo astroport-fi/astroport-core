@@ -206,7 +206,10 @@ fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesRe
     accumulate_prices(
         &env,
         &mut config,
-        Decimal256::from_ratio(offer_amount, swap_sim.return_amount),
+        Decimal256::from_ratio(
+            offer_amount,
+            swap_sim.return_amount + swap_sim.commission_amount,
+        ),
     );
 
     Ok(CumulativePricesResponse {

@@ -699,12 +699,12 @@ fn swap(
     let (last_price, last_real_price) = if offer_ind == 0 {
         (
             offer_asset_dec.amount / (swap_result.dy + swap_result.maker_fee),
-            offer_asset_dec.amount / swap_result.dy,
+            offer_asset_dec.amount / (swap_result.dy + swap_result.total_fee),
         )
     } else {
         (
             (swap_result.dy + swap_result.maker_fee) / offer_asset_dec.amount,
-            swap_result.dy / offer_asset_dec.amount,
+            (swap_result.dy + swap_result.total_fee) / offer_asset_dec.amount,
         )
     };
     println!(
