@@ -487,7 +487,7 @@ fn update_blocked_tokens_list(
         mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
 
         for asset_info in asset_infos {
-            // ASTRO or Terra native assets (UST, LUNA etc) cannot be blacklisted
+            // ASTRO or chain's native assets (ust, uluna, inj, etc) cannot be blacklisted
             if asset_info.is_native_token() && !asset_info.is_ibc()
                 || asset_info.eq(&cfg.astro_token)
             {
@@ -1012,7 +1012,7 @@ pub fn claim_rewards(
         // Update user's amount
         let amount = user.amount;
         let mut user = update_user_balance(user, &pool, amount)?;
-        let lp_balance = query_lp_balance(deps.as_ref(), &env.contract.address, &lp_token, &pool)?;
+        let lp_balance = query_lp_balance(deps.as_ref(), &env.contract.address, lp_token, &pool)?;
 
         // Update user's virtual amount
         update_virtual_amount(
