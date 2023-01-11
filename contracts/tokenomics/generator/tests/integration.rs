@@ -1,7 +1,6 @@
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::generator::{ExecuteMsg, QueryMsg, StakerResponse};
 use astroport_governance::utils::WEEK;
-use std::str::FromStr;
 
 use astroport::generator_proxy::{ConfigResponse, ExecuteMsg as ProxyExecuteMsg};
 use astroport::pair::StablePoolParams;
@@ -24,7 +23,7 @@ use astroport::{
 };
 use astroport_generator::error::ContractError;
 use astroport_generator::state::Config;
-use cosmwasm_std::{to_binary, Addr, Binary, Decimal, StdResult, Uint128, Uint64};
+use cosmwasm_std::{to_binary, Addr, Binary, StdResult, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{next_block, App, ContractWrapper, Executor};
 use valkyrie::lp_staking::execute_msgs::InstantiateMsg as ValkyrieInstantiateMsg;
@@ -2382,26 +2381,6 @@ fn update_tokens_blocked_list() {
 
     let factory_instance =
         instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
-    let (maker_instance, xastro_addr) = init_maker_with_staking(
-        &mut app,
-        token_code_id,
-        &astro_token_instance,
-        &factory_instance,
-    );
-
-    let update_maker_msg = FactoryExecuteMsg::UpdateConfig {
-        token_code_id: None,
-        fee_address: Some(maker_instance.to_string()),
-        generator_address: None,
-        whitelist_code_id: None,
-    };
-    app.execute_contract(
-        Addr::unchecked(OWNER),
-        factory_instance.clone(),
-        &update_maker_msg,
-        &[],
-    )
-    .unwrap();
 
     let generator_instance = instantiate_generator(
         &mut app,
@@ -2521,21 +2500,6 @@ fn update_tokens_blocked_list() {
     };
     app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap();
-
-    // if xASTRO is present on the chain it can not be blocked
-    let msg = ExecuteMsg::UpdateBlockedTokenslist {
-        add: Some(vec![token_asset_info(xastro_addr.clone())]),
-        remove: None,
-    };
-    let err = app
-        .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap_err();
-    assert_eq!(
-        ContractError::AssetCannotBeBlocked {
-            asset: xastro_addr.to_string()
-        },
-        err.downcast().unwrap()
-    );
 
     let msg = ExecuteMsg::UpdateBlockedTokenslist {
         add: Some(vec![token_asset_info(cny_token.clone())]),
@@ -3499,78 +3463,6 @@ fn instantiate_token(app: &mut App, token_code_id: u64, name: &str, cap: Option<
 
     app.instantiate_contract(token_code_id, Addr::unchecked(OWNER), &msg, &[], name, None)
         .unwrap()
-}
-
-fn init_maker_with_staking(
-    app: &mut App,
-    token_code_id: u64,
-    astro_instance: &Addr,
-    factory_addr: &Addr,
-) -> (Addr, Addr) {
-    let staking_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_staking::contract::execute,
-            astroport_staking::contract::instantiate,
-            astroport_staking::contract::query,
-        )
-        .with_reply_empty(astroport_staking::contract::reply),
-    );
-
-    let staking_code_id = app.store_code(staking_contract);
-
-    let msg = astroport::staking::InstantiateMsg {
-        owner: OWNER.to_string(),
-        token_code_id,
-        deposit_token_addr: astro_instance.to_string(),
-        marketing: None,
-    };
-    let staking_instance = app
-        .instantiate_contract(
-            staking_code_id,
-            Addr::unchecked(OWNER),
-            &msg,
-            &[],
-            String::from("Astro staking contract"),
-            None,
-        )
-        .unwrap();
-
-    let staking_cfg: astroport::staking::ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&staking_instance, &astroport::staking::QueryMsg::Config {})
-        .unwrap();
-    let xastro_addr = staking_cfg.share_token_addr;
-
-    let maker_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_maker::contract::execute,
-        astroport_maker::contract::instantiate,
-        astroport_maker::contract::query,
-    ));
-
-    let maker_code_id = app.store_code(maker_contract);
-
-    let msg = astroport::maker::InstantiateMsg {
-        owner: OWNER.to_string(),
-        factory_contract: factory_addr.to_string(),
-        staking_contract: Some(staking_instance.to_string()),
-        governance_contract: None,
-        governance_percent: None,
-        astro_token: token_asset_info(astro_instance.clone()),
-        default_bridge: Some(native_asset_info("uluna".to_string())),
-        max_spread: Some(Decimal::from_str("0.5").unwrap()),
-    };
-    let maker_instance = app
-        .instantiate_contract(
-            maker_code_id,
-            Addr::unchecked(OWNER),
-            &msg,
-            &[],
-            String::from("MAKER"),
-            None,
-        )
-        .unwrap();
-
-    (maker_instance, xastro_addr)
 }
 
 fn instantiate_factory(

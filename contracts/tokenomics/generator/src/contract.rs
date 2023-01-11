@@ -35,10 +35,10 @@ use astroport::{
 
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
-    accumulate_pool_proxy_rewards, query_lp_balance, query_xastro_addr, update_proxy_asset,
-    update_user_balance, update_virtual_amount, CompatibleLoader, Config, ExecuteOnReply,
-    CHECKPOINT_GENERATORS_LIMIT, CONFIG, DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO,
-    PROXY_REWARDS_HOLDER, PROXY_REWARD_ASSET, TMP_USER_ACTION, USER_INFO,
+    accumulate_pool_proxy_rewards, query_lp_balance, update_proxy_asset, update_user_balance,
+    update_virtual_amount, CompatibleLoader, Config, ExecuteOnReply, CHECKPOINT_GENERATORS_LIMIT,
+    CONFIG, DEFAULT_LIMIT, MAX_LIMIT, OWNERSHIP_PROPOSAL, POOL_INFO, PROXY_REWARDS_HOLDER,
+    PROXY_REWARD_ASSET, TMP_USER_ACTION, USER_INFO,
 };
 
 /// Contract name that is used for migration.
@@ -485,13 +485,11 @@ fn update_blocked_tokens_list(
     if let Some(asset_infos) = add {
         let active_pools: Vec<Addr> = cfg.active_pools.iter().map(|pool| pool.0.clone()).collect();
         mass_update_pools(deps.branch(), &env, &cfg, &active_pools)?;
-        let maybe_xastro = query_xastro_addr(deps.as_ref(), &cfg.factory)?;
 
         for asset_info in asset_infos {
-            // ASTRO or chain's native assets (ust, uluna, inj, etc) cannot be blacklisted
+            // ASTRO or Terra native assets (UST, LUNA etc) cannot be blacklisted
             if asset_info.is_native_token() && !asset_info.is_ibc()
                 || asset_info.eq(&cfg.astro_token)
-                || maybe_xastro.as_ref() == Some(&asset_info)
             {
                 return Err(ContractError::AssetCannotBeBlocked {
                     asset: asset_info.to_string(),
@@ -1014,7 +1012,7 @@ pub fn claim_rewards(
         // Update user's amount
         let amount = user.amount;
         let mut user = update_user_balance(user, &pool, amount)?;
-        let lp_balance = query_lp_balance(deps.as_ref(), &env.contract.address, lp_token, &pool)?;
+        let lp_balance = query_lp_balance(deps.as_ref(), &env.contract.address, &lp_token, &pool)?;
 
         // Update user's virtual amount
         update_virtual_amount(

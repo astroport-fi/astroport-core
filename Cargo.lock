@@ -113,7 +113,6 @@ dependencies = [
  "astroport 2.0.1",
  "astroport-factory",
  "astroport-governance",
- "astroport-maker",
  "astroport-pair",
  "astroport-pair-stable",
  "astroport-staking",
