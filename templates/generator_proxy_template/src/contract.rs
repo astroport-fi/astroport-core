@@ -37,10 +37,14 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
-        generator_contract_addr: deps.api.addr_validate(deps.api, &msg.generator_contract_addr)?,
+        generator_contract_addr: deps
+            .api
+            .addr_validate(deps.api, &msg.generator_contract_addr)?,
         pair_addr: deps.api.addr_validate(deps.api, &msg.pair_addr)?,
         lp_token_addr: deps.api.addr_validate(deps.api, &msg.lp_token_addr)?,
-        reward_contract_addr: deps.api.addr_validate(deps.api, &msg.reward_contract_addr)?,
+        reward_contract_addr: deps
+            .api
+            .addr_validate(deps.api, &msg.reward_contract_addr)?,
         reward_token_addr: deps.api.addr_validate(deps.api, &msg.reward_token_addr)?,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -416,8 +420,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let reward_amount = res?.balance;
 
             to_binary(&reward_amount)
-        },
-        QueryMsg::PendingToken {
+        }
+        QueryMsg::PendingToken { .. } => {
             // query the 3rd party reward contract and retrieve the pending token amount
             // the returned value must be a Uint128
             unimplemented!();
