@@ -488,6 +488,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
     match contract_version.contract.as_ref() {
         "astroport-vesting" => match contract_version.version.as_ref() {
             "1.0.0" => migrate_from_v100(deps.branch())?,
+            "1.1.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
