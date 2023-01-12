@@ -305,23 +305,13 @@ pub fn compute_offer_amount(
     ixs[1] *= config.pool_state.price_state.price_scale;
 
     let amp_gamma = config.pool_state.get_amp_gamma(env);
-    let d = calc_d(xs, &amp_gamma)?;
+    let d = calc_d(&ixs, &amp_gamma)?;
 
-    // multistage fee forecasting
-    // 1. calculate fee rate with new pool volumes
-    let mut ixs_for_fees = ixs.clone();
-    ixs_for_fees[ask_ind] -= want_amount;
-    ixs_for_fees[offer_ind] += want_amount;
-    let fee_rate = config.pool_params.fee(&ixs_for_fees);
-
-    // 2. calculate new pool volumes with forecasted fee rate and forecast fee again
-    let mut ixs_for_fees = ixs.clone();
-    let before_fee = want_amount * (Decimal256::one() - fee_rate).inv().unwrap();
-    ixs_for_fees[ask_ind] -= before_fee;
-    ixs_for_fees[offer_ind] = calc_y(&ixs_for_fees, d, &amp_gamma, offer_ind)?;
-    let fee_rate = config.pool_params.fee(&ixs_for_fees);
-
-    let before_fee = want_amount * (Decimal256::one() - fee_rate).inv().unwrap();
+    // It's hard to predict fee rate thus we use maximum possible fee rate
+    let before_fee = want_amount
+        * (Decimal256::one() - Decimal256::from(config.pool_params.out_fee))
+            .inv()
+            .unwrap();
     let mut fee = before_fee - want_amount;
 
     ixs[ask_ind] -= before_fee;

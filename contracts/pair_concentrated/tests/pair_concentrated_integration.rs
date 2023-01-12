@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Decimal};
 use cw_multi_test::{next_block, Executor};
 use itertools::Itertools;
 
@@ -366,11 +366,8 @@ fn swap_different_precisions() {
             None,
         )
         .unwrap();
-    assert_eq!(
-        offer_asset.amount,
-        reverse_sim_resp.offer_amount + Uint128::one() // slight error appears due to dynamic fee rate
-    );
-    assert_eq!(reverse_sim_resp.commission_amount.u128(), 26081);
+    assert_eq!(reverse_sim_resp.offer_amount.u128(), 10019003);
+    assert_eq!(reverse_sim_resp.commission_amount.u128(), 45084);
     assert_eq!(reverse_sim_resp.spread_amount.u128(), 125);
 
     helper.give_me_money(&[offer_asset.clone()], &user);
@@ -420,12 +417,9 @@ fn check_reverse_swap() {
             None,
         )
         .unwrap();
-    assert_eq!(
-        offer_asset.amount,
-        reverse_sim_resp.offer_amount + Uint128::one() // slight error appears due to dynamic fee rate
-    );
-    assert_eq!(reverse_sim_resp.commission_amount.u128(), 151_815357);
-    assert_eq!(reverse_sim_resp.spread_amount.u128(), 16241_436140);
+    assert_eq!(reverse_sim_resp.offer_amount.u128(), 50000220879u128); // as it is hard to predict dynamic fees reverse swap is not exact
+    assert_eq!(reverse_sim_resp.commission_amount.u128(), 151_913981);
+    assert_eq!(reverse_sim_resp.spread_amount.u128(), 16241_558397);
 }
 
 #[test]
