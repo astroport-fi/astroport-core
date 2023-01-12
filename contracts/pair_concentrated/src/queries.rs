@@ -6,7 +6,7 @@ use crate::utils::{
     accumulate_prices, before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets,
     pool_info, query_pools,
 };
-use astroport::asset::{Asset, AssetInfoExt};
+use astroport::asset::Asset;
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
@@ -55,7 +55,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             &query_reverse_simulation(deps, env, ask_asset)
                 .map_err(|err| StdError::generic_err(format!("{err}")))?,
         ),
-        QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
+        QueryMsg::CumulativePrices {} => to_binary(
+            &query_cumulative_prices(deps, env)
+                .map_err(|err| StdError::generic_err(format!("{err}")))?,
+        ),
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
         QueryMsg::LpPrice {} => to_binary(&query_lp_price(deps)?),
         QueryMsg::ComputeD {} => to_binary(&query_compute_d(deps, env)?),
@@ -190,27 +193,34 @@ pub fn query_reverse_simulation(
 }
 
 /// Returns information about cumulative prices for the assets in the pool.
-fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
+fn query_cumulative_prices(
+    deps: Deps,
+    env: Env,
+) -> Result<CumulativePricesResponse, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
-    let (assets, total_share) = pool_info(deps.querier, &config)?;
-    let mut offer_amount = assets[0].amount.multiply_ratio(1u8, 100u8);
-    if offer_amount.is_zero() {
-        offer_amount = Uint128::one();
+    let precisions = Precisions::new(deps.storage)?;
+    let pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
+
+    let offer_amount = pools[0].amount * Decimal256::percent(1);
+    let xs = pools.iter().map(|asset| asset.amount).collect_vec();
+    let fee_info = query_fee_info(
+        &deps.querier,
+        &config.factory_addr,
+        config.pair_info.pair_type.clone(),
+    )?;
+    let mut maker_fee_share = Decimal256::zero();
+    if fee_info.fee_address.is_some() {
+        maker_fee_share = fee_info.maker_fee_rate.into();
     }
-    let swap_sim = query_simulation(
-        deps,
-        env.clone(),
-        config.pair_info.asset_infos[0].with_balance(offer_amount),
-    )
-    .map_err(|err| StdError::generic_err(format!("{err}")))?;
+    let swap_result = compute_swap(&xs, offer_amount, 1, &config, &env, maker_fee_share)?;
+
     accumulate_prices(
         &env,
         &mut config,
-        Decimal256::from_ratio(
-            offer_amount,
-            swap_sim.return_amount + swap_sim.commission_amount,
-        ),
+        offer_amount / swap_result.dy + swap_result.total_fee,
     );
+
+    let (assets, total_share) = pool_info(deps.querier, &config)?;
 
     Ok(CumulativePricesResponse {
         assets,
