@@ -223,6 +223,12 @@ pub fn execute(
             has_asset_rewards,
         } => execute_update_pool(deps, info, lp_token, has_asset_rewards),
         ExecuteMsg::ClaimRewards { lp_tokens } => {
+            // Check for duplicate lp tokens
+            let mut uniq: HashSet<String> = HashSet::new();
+            if !lp_tokens.clone().into_iter().all(|a| uniq.insert(a)) {
+                return Err(ContractError::PoolDuplicate {});
+            }
+
             let mut lp_tokens_addr: Vec<Addr> = vec![];
             for lp_token in &lp_tokens {
                 lp_tokens_addr.push(addr_validate_to_lower(deps.api, lp_token)?);
