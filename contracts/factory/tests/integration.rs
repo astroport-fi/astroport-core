@@ -73,6 +73,7 @@ fn proper_initialization() {
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
         whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
     };
 
     let factory_instance = app
@@ -116,6 +117,7 @@ fn update_config() {
         fee_address: fee_address.clone(),
         generator_address: generator_address.clone(),
         whitelist_code_id: None,
+        coin_registry_address: None,
     };
 
     app.execute_contract(
@@ -148,6 +150,7 @@ fn update_config() {
         fee_address: None,
         generator_address: None,
         whitelist_code_id: None,
+        coin_registry_address: None,
     };
 
     let res = app
@@ -181,6 +184,7 @@ fn instantiate_contract(app: &mut TerraApp, owner: &Addr, token_code_id: u64) ->
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
         whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
     };
 
     app.instantiate_contract(

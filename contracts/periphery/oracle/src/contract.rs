@@ -186,7 +186,7 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, Std
 
     Ok(if price_average.is_zero() {
         // Get the token's precision
-        let p = query_token_precision(&deps.querier, token.clone())?;
+        let p = query_token_precision(&deps.querier, &token, &config.factory)?;
         let one = Uint128::new(10_u128.pow(p.into()));
 
         let price = query_prices(
