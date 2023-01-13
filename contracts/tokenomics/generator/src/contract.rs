@@ -231,7 +231,7 @@ pub fn execute(
             update_rewards_and_execute(
                 deps,
                 env,
-                None,
+                Some(lp_tokens_addr.clone()),
                 ExecuteOnReply::ClaimRewards {
                     lp_tokens: lp_tokens_addr,
                     account: info.sender,
@@ -247,7 +247,7 @@ pub fn execute(
             update_rewards_and_execute(
                 deps.branch(),
                 env,
-                Some(lp_token.clone()),
+                Some(vec![lp_token.clone()]),
                 ExecuteOnReply::Withdraw {
                     lp_token,
                     account: info.sender,
@@ -721,14 +721,14 @@ pub fn execute_update_pool(
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **update_single_pool** is an [`Option`] field object of type [`Addr`]. This indicates whether a single generator
-/// should be updated and if yes, which one.
+/// * **update_specified_pools** is an [`Option`] field object of type [`Vec<Addr>`]. This indicates
+/// whether generators should be updated and if yes, which ones.
 ///
 /// * **on_reply** is an object of type [`ExecuteOnReply`]. This is the action to be performed on reply.
 fn update_rewards_and_execute(
     mut deps: DepsMut,
     env: Env,
-    update_single_pool: Option<Addr>,
+    update_specified_pools: Option<Vec<Addr>>,
     on_reply: ExecuteOnReply,
 ) -> Result<Response, ContractError> {
     TMP_USER_ACTION.update(deps.storage, |v| {
@@ -740,10 +740,11 @@ fn update_rewards_and_execute(
     })?;
 
     let mut pools: Vec<(Addr, PoolInfo)> = vec![];
-    match update_single_pool {
-        Some(lp_token) => {
-            let pool = POOL_INFO.load(deps.storage, &lp_token)?;
-            pools = vec![(lp_token, pool)];
+    match update_specified_pools {
+        Some(lp_tokens) => {
+            for lp_token in lp_tokens {
+                pools.push((lp_token.clone(), POOL_INFO.load(deps.storage, &lp_token)?))
+            }
         }
         None => {
             let config = CONFIG.load(deps.storage)?;
@@ -1123,7 +1124,7 @@ fn receive_cw20(
         Cw20HookMsg::Deposit {} => update_rewards_and_execute(
             deps,
             env,
-            Some(lp_token.clone()),
+            Some(vec![lp_token.clone()]),
             ExecuteOnReply::Deposit {
                 lp_token,
                 account: Addr::unchecked(cw20_msg.sender),
@@ -1133,7 +1134,7 @@ fn receive_cw20(
         Cw20HookMsg::DepositFor(beneficiary) => update_rewards_and_execute(
             deps,
             env,
-            Some(lp_token.clone()),
+            Some(vec![lp_token.clone()]),
             ExecuteOnReply::Deposit {
                 lp_token,
                 account: beneficiary,
@@ -1661,7 +1662,7 @@ fn migrate_proxy(
     update_rewards_and_execute(
         deps,
         env,
-        Some(lp_addr.clone()),
+        Some(vec![lp_addr.clone()]),
         ExecuteOnReply::MigrateProxy {
             lp_addr,
             new_proxy_addr,
