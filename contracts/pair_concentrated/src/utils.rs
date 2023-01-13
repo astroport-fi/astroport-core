@@ -239,7 +239,7 @@ pub struct SwapResult {
 
 impl SwapResult {
     /// Calculates **last price** and **last real price**.
-    /// Return (last_price, last_real_price) where:
+    /// Returns (last_price, last_real_price) where:
     /// - last_price is a price for repeg algo,
     /// - last_real_price is a real price occurred for user.
     pub fn calc_last_prices(
@@ -384,6 +384,9 @@ pub fn accumulate_prices(env: &Env, config: &mut Config, last_real_price: Decima
     config.block_time_last = block_time;
 }
 
+/// Calculate provide fee applied on the amount of LP tokens. Only charged for imbalanced provide.
+/// * `deposits` - internal repr of deposit
+/// * `xp` - internal repr of pools
 pub fn calc_provide_fee(
     deposits: &[Decimal256],
     xp: &[Decimal256],
