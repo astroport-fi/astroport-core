@@ -135,7 +135,7 @@ impl Helper {
         let mut app = App::new(|router, _, storage| {
             router
                 .bank
-                .init_balance(storage, &owner, init_native_coins(&test_coins))
+                .init_balance(storage, owner, init_native_coins(&test_coins))
                 .unwrap()
         });
 
@@ -147,9 +147,9 @@ impl Helper {
 
         let token_code_id = app.store_code(token_contract());
 
-        test_coins.clone().into_iter().for_each(|coin| {
+        test_coins.into_iter().for_each(|coin| {
             if let Some((name, decimals)) = coin.cw20_init_data() {
-                let token_addr = Self::init_token(&mut app, token_code_id, name, decimals, &owner);
+                let token_addr = Self::init_token(&mut app, token_code_id, name, decimals, owner);
                 asset_infos_vec.push((coin, token_asset_info(token_addr)))
             }
         });

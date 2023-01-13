@@ -109,9 +109,9 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128, u64)>) {
         helper.provide_liquidity(&user, &assets).unwrap();
 
         let entry = accounts.entry(user).or_default();
-        (*entry).0 = entry.0 + coin0_amnt;
-        (*entry).1 = entry.1 + coin1_amnt;
-        (*entry).2 += 1;
+        entry.0 = entry.0 + coin0_amnt;
+        entry.1 = entry.1 + coin1_amnt;
+        entry.2 += 1;
 
         // Shift time so EMA will update oracle prices
         helper.app.next_block(shift_time);

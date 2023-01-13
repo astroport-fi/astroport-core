@@ -622,7 +622,7 @@ fn check_amp_gamma_change() {
         price_scale: Decimal::one(),
         ma_half_time: 600,
     };
-    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+    let mut helper = Helper::new(&owner, test_coins, params).unwrap();
 
     let random_user = Addr::unchecked("random");
     let action = ConcentratedPoolUpdateParams::Update(UpdatePoolParams {
@@ -734,7 +734,7 @@ fn check_prices() {
                     .cumulative_prices
                     .iter()
                     .filter(|(from, to, _)| {
-                        from.eq(&helper.assets[&from_coin]) && to.eq(&helper.assets[&to_coin])
+                        from.eq(&helper.assets[from_coin]) && to.eq(&helper.assets[to_coin])
                     })
                     .collect::<Vec<_>>();
                 assert_eq!(price.len(), 1);
@@ -795,7 +795,7 @@ fn update_owner() {
         ma_half_time: 600,
     };
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+    let mut helper = Helper::new(&owner, test_coins, params).unwrap();
 
     let new_owner = String::from("new_owner");
 

@@ -171,7 +171,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             let init_response = parse_instantiate_response_data(data.as_slice())
                 .map_err(|e| StdError::generic_err(format!("{e}")))?;
             config.pair_info.liquidity_token =
-                addr_validate_to_lower(deps.api, &init_response.contract_address)?;
+                addr_validate_to_lower(deps.api, init_response.contract_address)?;
             CONFIG.save(deps.storage, &config)?;
             Ok(Response::new()
                 .add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
@@ -454,7 +454,7 @@ pub fn provide_liquidity(
         let total_share = total_share.to_decimal256(LP_TOKEN_PRECISION)?;
         let mut share = (total_share * new_d / old_d).saturating_sub(total_share);
 
-        let mut ideposits = deposits.clone();
+        let mut ideposits = deposits;
         ideposits[1] *= config.pool_state.price_state.price_scale;
         share *= Decimal256::one() - calc_provide_fee(&ideposits, &old_xp, &config.pool_params);
 
