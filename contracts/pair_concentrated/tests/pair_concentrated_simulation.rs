@@ -2,7 +2,7 @@ extern crate core;
 
 mod helper;
 
-use crate::helper::{f64_to_dec, AppExtension, Helper, TestCoin};
+use crate::helper::{dec_to_f64, f64_to_dec, AppExtension, Helper, TestCoin};
 use astroport::asset::AssetInfoExt;
 use astroport::pair_concentrated::ConcentratedPoolParams;
 use astroport_pair_concentrated::error::ContractError;
@@ -70,11 +70,11 @@ fn simulate_case(case: Vec<(usize, u128, u64)>) {
     }
 }
 
-fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128)>) {
+fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128, u64)>) {
     let owner = Addr::unchecked("owner");
-    let tolerance = 1e-5; // allowed loss per provide due to integer math withing contract
+    let tolerance = 0.05; // allowed loss per provide due to integer math withing contract
 
-    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20precise("USDC", 10)];
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
 
     let params = ConcentratedPoolParams {
         amp: f64_to_dec(40f64),
@@ -90,15 +90,15 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128)>) {
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
-    // owner makes the first provide cuz the pool charges small amount
+    // owner makes the first provide cuz the pool charges small amount of fees
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(1_000_000000u128),
-        helper.assets[&test_coins[1]].with_balance(1_000_0000000000u128),
+        helper.assets[&test_coins[1]].with_balance(1_000_000000u128),
     ];
     helper.provide_liquidity(&owner, &assets).unwrap();
 
     let mut accounts: HashMap<Addr, (u128, u128, u8)> = HashMap::new();
-    for (user, coin0_amnt, coin1_amnt) in case {
+    for (user, coin0_amnt, coin1_amnt, shift_time) in case {
         let user = Addr::unchecked(user);
         println!("{user} {coin0_amnt} {coin1_amnt}");
         let assets = vec![
@@ -112,24 +112,28 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128)>) {
         (*entry).0 = entry.0 + coin0_amnt;
         (*entry).1 = entry.1 + coin1_amnt;
         (*entry).2 += 1;
+
+        // Shift time so EMA will update oracle prices
+        helper.app.next_block(shift_time);
     }
 
-    for (user, &(coin0_amnt, coin1_amnt, cnt)) in &accounts {
-        println!("Checking user {user}");
+    let config = helper.query_config().unwrap();
+    let price_scale = dec_to_f64(config.pool_state.price_state.price_scale);
 
+    for (user, &(coin0_amnt, coin1_amnt, cnt)) in &accounts {
         let lp_amount = helper.token_balance(&helper.lp_token, user);
         helper.withdraw_liquidity(user, lp_amount, vec![]).unwrap();
 
-        let coin0_amnt = coin0_amnt as f64;
-        let coin1_amnt = coin1_amnt as f64;
+        let total_sent_liq = coin0_amnt as f64 + coin1_amnt as f64 * price_scale;
         let coin0_bal = helper.coin_balance(&test_coins[0], user) as f64;
         let coin1_bal = helper.coin_balance(&test_coins[1], user) as f64;
+        let total_contract_liq = coin0_bal + coin1_bal * price_scale;
 
-        if (coin0_amnt - coin0_bal) / 1e6 > tolerance * cnt as f64 {
-            assert_eq!(coin0_amnt, coin0_bal, "Coin0 balances mismatch");
-        }
-        if (coin1_amnt - coin1_bal) / 1e10 > tolerance * cnt as f64 {
-            assert_eq!(coin1_amnt, coin1_bal, "Coin1 balances mismatch");
+        if 1.0 - total_contract_liq / total_sent_liq > tolerance * cnt as f64 {
+            assert_eq!(
+                total_sent_liq, total_contract_liq,
+                "Too much losses in {user}'s liquidity"
+            );
         }
     }
 }
@@ -182,17 +186,95 @@ fn single_test() {
 #[test]
 fn single_provide_test() {
     let case = [
-        ("bbb", 287166875150, 216951545941),
-        ("bbb", 671353776007, 92309496809),
-        ("bbb", 490534003722, 640604342342),
-        ("bbb", 208423623268, 267950669874),
-        ("bbb", 717061608586, 728344078152),
-        ("bbb", 579995009807, 557225637539),
-        ("bbb", 745569605635, 568909166207),
-        ("bbb", 371145293172, 89225008921),
-        ("bbb", 304228471669, 419036924501),
-        ("bbb", 481757145539, 559544927040),
-        ("bbb", 654615636767, 768315025971),
+        ("aaa", 1000107, 594723897570, 197),
+        ("bbb", 118018421609, 866237402992, 1681),
+        ("bab", 545517989124, 881646979723, 2555),
+        ("bbb", 287166875150, 216951545941, 3359),
+        ("abb", 124961125834, 474622062730, 2077),
+        ("aaa", 15773250045, 941579741450, 1198),
+        ("abb", 869290979433, 231139951269, 155),
+        ("bbb", 489892656085, 470441621889, 1916),
+        ("bba", 527331704654, 293938537883, 2101),
+        ("bab", 397172218491, 555571280367, 1696),
+        ("aba", 364154509726, 718075826094, 3092),
+        ("baa", 155800416418, 537274193065, 375),
+        ("aba", 519998444778, 650945767164, 3403),
+        ("aba", 490025440189, 664470287970, 3451),
+        ("aab", 719468877853, 589687952509, 2473),
+        ("aaa", 578253806045, 378503907467, 21),
+        ("bbb", 395640215157, 98817071063, 2755),
+        ("aab", 371016145602, 744232303397, 323),
+        ("aba", 9231411809, 563696727107, 3364),
+        ("aba", 236903055947, 426256358744, 3406),
+        ("aaa", 600852618399, 121961039074, 3471),
+        ("aab", 326991602417, 962805514134, 1208),
+        ("bab", 725067759250, 526927133600, 1477),
+        ("bbb", 208423623268, 267950669874, 3036),
+        ("bba", 324345682294, 917258889258, 2036),
+        ("baa", 631496244660, 597148885687, 822),
+        ("abb", 544603336979, 914047648485, 1878),
+        ("aaa", 380540722468, 876147769404, 445),
+        ("bab", 171307546213, 542606562109, 2667),
+        ("aaa", 803133216637, 536888160757, 1477),
+        ("aab", 798701048448, 447621664465, 2625),
+        ("aaa", 529568066448, 969956360969, 922),
+        ("abb", 440168549394, 366046706509, 2583),
+        ("baa", 678168792654, 200020793371, 2554),
+        ("bba", 872196737841, 888825256324, 2943),
+        ("bbb", 400967045141, 882270262696, 157),
+        ("aaa", 394343540769, 231295965597, 2376),
+        ("baa", 291008197310, 489383033801, 334),
+        ("bba", 748194556086, 195431639218, 2609),
+        ("aaa", 672004396539, 662701988821, 1200),
+        ("bbb", 598679023303, 40730083508, 342),
+        ("aaa", 861995955441, 859305201622, 371),
+        ("baa", 208190222301, 564405565438, 2587),
+        ("bab", 535445721599, 46600163393, 1495),
+        ("baa", 168786397151, 668162284987, 2161),
+        ("abb", 703522158927, 148007906728, 3038),
+        ("aaa", 536093534284, 808170308790, 1380),
+        ("aab", 454822690791, 710185613454, 241),
+        ("aab", 171701593822, 902322808409, 3064),
+        ("bba", 358112911824, 91790675209, 794),
+        ("bbb", 476031477866, 275184138697, 1213),
+        ("aba", 968643490362, 790577622555, 2036),
+        ("bba", 346500233057, 857488811527, 2496),
+        ("baa", 767958745099, 881314575102, 3233),
+        ("bba", 79139307223, 687075059767, 2995),
+        ("aba", 773303534271, 613989708385, 2719),
+        ("bba", 375228353551, 147564468426, 1027),
+        ("bab", 836724995486, 148016626885, 494),
+        ("aba", 272022060743, 583596491847, 1157),
+        ("aba", 191821103112, 490281609793, 490),
+        ("abb", 94653167899, 932786368102, 1810),
+        ("bbb", 804917774813, 13775357034, 1272),
+        ("abb", 56134397731, 719331741547, 2927),
+        ("aba", 845287628341, 534059109177, 1904),
+        ("abb", 784462231243, 154167184048, 1229),
+        ("bbb", 654615636767, 768315025971, 3216),
+        ("bba", 893530774682, 731616339416, 3281),
+        ("bbb", 343723573837, 150290349315, 2803),
+        ("abb", 22227179932, 187040634950, 2680),
+        ("bab", 200637641020, 147006024706, 201),
+        ("baa", 875341516868, 472241634877, 1465),
+        ("bba", 256420237132, 692647182519, 2273),
+        ("abb", 575966363984, 867783883393, 1324),
+        ("aab", 461578271314, 497809535606, 21),
+        ("abb", 828000102476, 713362572580, 846),
+        ("baa", 228912071527, 28317247489, 934),
+        ("aaa", 844735877718, 409278236302, 2922),
+        ("aba", 187177485309, 550680536839, 3100),
+        ("aba", 235519991408, 794638182512, 2673),
+        ("bba", 209255529957, 854621274698, 3445),
+        ("bba", 169371355699, 767915066308, 690),
+        ("bbb", 294038932236, 612820830935, 299),
+        ("bab", 574221615498, 188638677434, 777),
+        ("aab", 615793637311, 525031135192, 2167),
+        ("aab", 437870178814, 947454396380, 3211),
+        ("aab", 465240818778, 355520463158, 566),
+        ("bbb", 113520975489, 266019523208, 1228),
+        ("baa", 255011587436, 157170193250, 2527),
+        ("aba", 150715871611, 140659656729, 3394),
     ];
 
     simulate_provide_case(case.to_vec());
@@ -209,12 +291,13 @@ fn generate_cases() -> impl Strategy<Value = Vec<(usize, u128, u64)>> {
     )
 }
 
-fn generate_provide_cases() -> impl Strategy<Value = Vec<(String, u128, u128)>> {
+fn generate_provide_cases() -> impl Strategy<Value = Vec<(String, u128, u128, u64)>> {
     prop::collection::vec(
         (
             "[a-b]{3}",                     // user
             1_000000..1_000_000_000000u128, // coin0
             1_000000..1_000_000_000000u128, // coin1
+            0..3600u64,                     // shift_time
         ),
         MAX_EVENTS,
     )

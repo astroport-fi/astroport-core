@@ -161,8 +161,6 @@ fn provide_and_withdraw() {
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
 
-    // The user2 with the same assets should receive the same share
-    // (except MINIMUM_LIQUIDITY_AMOUNT bc of 1st provide)
     let user2 = Addr::unchecked("user2");
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
@@ -188,7 +186,7 @@ fn provide_and_withdraw() {
         "Generic error: Imbalanced withdraw is currently disabled"
     );
 
-    // user1 withdraws one 10th
+    // user1 withdraws 1/10 of his LP tokens
     helper
         .withdraw_liquidity(&user1, 7071_067711, vec![])
         .unwrap();
@@ -215,7 +213,7 @@ fn provide_and_withdraw() {
 }
 
 #[test]
-fn try_imbalanced_provide() {
+fn check_imbalanced_provide() {
     let owner = Addr::unchecked("owner");
 
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
@@ -242,10 +240,12 @@ fn try_imbalanced_provide() {
     helper.give_me_money(&assets, &user1);
     helper.provide_liquidity(&user1, &assets).unwrap();
 
-    assert_eq!(70710_677118, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(
+        100285_256937,
+        helper.token_balance(&helper.lp_token, &user1)
+    );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
-    // coin_1 was sent back to user as provide was imbalanced
-    assert_eq!(50_000_000000, helper.coin_balance(&test_coins[1], &user1));
+    assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
 
     // creating a new pool with inverted price scale
     params.price_scale = Decimal::from_ratio(1u8, 2u8);
@@ -259,9 +259,11 @@ fn try_imbalanced_provide() {
     helper.give_me_money(&assets, &user1);
     helper.provide_liquidity(&user1, &assets).unwrap();
 
-    assert_eq!(70710_677118, helper.token_balance(&helper.lp_token, &user1));
-    // coin_0 was sent back to user as provide was imbalanced
-    assert_eq!(50_000_000000, helper.coin_balance(&test_coins[0], &user1));
+    assert_eq!(
+        100285_256937,
+        helper.token_balance(&helper.lp_token, &user1)
+    );
+    assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
 }
 

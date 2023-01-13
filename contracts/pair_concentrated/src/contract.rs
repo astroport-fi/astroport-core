@@ -1,9 +1,9 @@
 use std::vec;
 
 use cosmwasm_std::{
-    attr, coin, entry_point, from_binary, wasm_execute, wasm_instantiate, Addr, BankMsg, Binary,
-    CosmosMsg, Decimal, Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError,
-    StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128,
+    attr, entry_point, from_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg,
+    Decimal, Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
+    SubMsgResponse, SubMsgResult, Uint128,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -15,7 +15,7 @@ use astroport::asset::{
     Decimal256Ext, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
+use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
 use astroport::pair::migration_check;
 use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg};
@@ -32,7 +32,7 @@ use crate::state::{
     OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
-    accumulate_prices, assert_max_spread, balanced_deposits, before_swap_check, check_asset_infos,
+    accumulate_prices, assert_max_spread, before_swap_check, calc_provide_fee, check_asset_infos,
     check_assets, check_cw20_in_pool, compute_swap, get_share_in_assets,
     mint_liquidity_token_message, query_pools,
 };
@@ -389,9 +389,6 @@ pub fn provide_liquidity(
         return Err(ContractError::InvalidZeroAmount {});
     }
 
-    let (bal_deposit, excess_tokens) =
-        balanced_deposits(&deposits, config.pool_state.price_state.price_scale);
-
     let mut messages = vec![];
     for (i, pool) in pools.iter_mut().enumerate() {
         // If the asset is a token contract, then we need to execute a TransferFrom msg to receive assets
@@ -401,36 +398,24 @@ pub fn provide_liquidity(
                 &Cw20ExecuteMsg::TransferFrom {
                     owner: info.sender.to_string(),
                     recipient: env.contract.address.to_string(),
-                    amount: (deposits[i] - excess_tokens[i])
-                        .to_uint(precisions.get_precision(&assets[i].info)?)?,
+                    amount: deposits[i].to_uint(precisions.get_precision(&assets[i].info)?)?,
                 },
                 vec![],
             )?)),
-            AssetInfo::NativeToken { denom } => {
+            AssetInfo::NativeToken { .. } => {
                 // If the asset is native token, the pool balance is already increased
                 // To calculate the total amount of deposits properly, we should subtract the user deposit from the pool
                 pool.amount = pool.amount.checked_sub(deposits[i])?;
-
-                // send excess tokens back to the user
-                if !excess_tokens[i].is_zero() {
-                    messages.push(CosmosMsg::Bank(BankMsg::Send {
-                        to_address: info.sender.to_string(),
-                        amount: vec![coin(
-                            excess_tokens[i]
-                                .to_uint(precisions.get_precision(&assets[i].info)?)?
-                                .u128(),
-                            denom,
-                        )],
-                    }))
-                }
             }
         }
     }
 
-    let mut new_xp = pools.iter().map(|pool| pool.amount).collect_vec();
+    let mut new_xp = pools
+        .iter()
+        .enumerate()
+        .map(|(ind, pool)| pool.amount + deposits[ind])
+        .collect_vec();
     new_xp[1] *= config.pool_state.price_state.price_scale;
-    new_xp[0] += bal_deposit;
-    new_xp[1] += bal_deposit;
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
@@ -462,30 +447,53 @@ pub fn provide_liquidity(
         mint_amount
     } else {
         // TODO: Assert slippage tolerance if needed
-        // TODO: calculate provide fee or allow only balanced provide
 
         let mut old_xp = pools.iter().map(|a| a.amount).collect_vec();
         old_xp[1] *= config.pool_state.price_state.price_scale;
         let old_d = calc_d(&old_xp, &amp_gamma)?;
         let total_share = total_share.to_decimal256(LP_TOKEN_PRECISION)?;
+        let mut share = (total_share * new_d / old_d).saturating_sub(total_share);
 
-        (total_share * new_d / old_d)
-            .saturating_sub(total_share)
-            .to_uint(LP_TOKEN_PRECISION)?
+        let mut ideposits = deposits.clone();
+        ideposits[1] *= config.pool_state.price_state.price_scale;
+        share *= Decimal256::one() - calc_provide_fee(&ideposits, &old_xp, &config.pool_params);
+
+        // calculate accrued share
+        let share_ratio = share / (total_share + share);
+        let balanced_share = vec![
+            new_xp[0] * share_ratio,
+            new_xp[1] * share_ratio / config.pool_state.price_state.price_scale,
+        ];
+        println!(
+            "balanced_share: {} {}",
+            balanced_share[0], balanced_share[1]
+        );
+        println!("deposits {} {}", deposits[0], deposits[1]);
+        let assets_diff = vec![
+            deposits[0].diff(balanced_share[0]),
+            deposits[1].diff(balanced_share[1]),
+        ];
+
+        // if assets_diff[1] is zero then deposits are balanced thus no need to update price
+        if !assets_diff[1].is_zero() {
+            let last_price = assets_diff[0] / assets_diff[1];
+            println!("last_price driven from share: {last_price}");
+
+            config.pool_state.update_price(
+                &config.pool_params,
+                &env,
+                total_share + share,
+                &new_xp,
+                last_price,
+            )?;
+
+            accumulate_prices(&env, &mut config, last_price);
+        }
+
+        share.to_uint(LP_TOKEN_PRECISION)?
     };
 
     config.pool_state.price_state.xcp = xcp;
-
-    // TODO: we will need to update price in case imbalanced provide is allowed
-    // let last_price = config.pool_state.price_state.price_scale * new_xp[0] / new_xp[1];
-    // config.pool_state.update_price(
-    //     &config.pool_params,
-    //     &env,
-    //     total_share + mint_amount.to_decimal256(0u8)?,
-    //     new_d,
-    //     &new_xp,
-    //     last_price,
-    // )?;
 
     // Mint LP tokens for the sender or for the receiver (if set)
     let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());
@@ -499,29 +507,15 @@ pub fn provide_liquidity(
         auto_stake,
     )?);
 
-    // TODO: accumulate prices only if imbalanced provide is allowed
-    // accumulate_prices(&env, &mut config);
-
     CONFIG.save(deps.storage, &config)?;
 
-    let mut attrs = vec![
+    let attrs = vec![
         attr("action", "provide_liquidity"),
         attr("sender", info.sender),
         attr("receiver", receiver),
         attr("assets", format!("{}, {}", &assets[0], &assets[1])),
         attr("share", mint_amount),
     ];
-
-    if let Some((ind, excess)) = excess_tokens.iter().find_position(|val| !val.is_zero()) {
-        attrs.push(attr(
-            "excess_tokens",
-            Asset {
-                info: assets[ind].info.clone(),
-                amount: excess.to_uint(precisions.get_precision(&assets[ind].info)?)?,
-            }
-            .to_string(),
-        ))
-    }
 
     Ok(Response::new().add_messages(messages).add_attributes(attrs))
 }
@@ -696,19 +690,10 @@ fn swap(
         .to_decimal256(LP_TOKEN_PRECISION)?;
 
     // last_price is used in repeg algo while last_real_price is a real price for an end user
-    let (last_price, last_real_price) = if offer_ind == 0 {
-        (
-            offer_asset_dec.amount / (swap_result.dy + swap_result.maker_fee),
-            offer_asset_dec.amount / (swap_result.dy + swap_result.total_fee),
-        )
-    } else {
-        (
-            (swap_result.dy + swap_result.maker_fee) / offer_asset_dec.amount,
-            (swap_result.dy + swap_result.total_fee) / offer_asset_dec.amount,
-        )
-    };
+    let (last_price, last_real_price) =
+        swap_result.calc_last_prices(offer_asset_dec.amount, offer_ind);
     println!(
-        "coin_{offer_ind}->coin_{ask_ind} ({}->{}) last price {last_price}",
+        "coin_{offer_ind}->coin_{ask_ind} ({}->{}) last price {last_price} last real price {last_real_price}",
         offer_asset_dec.amount,
         swap_result.dy + swap_result.maker_fee
     );

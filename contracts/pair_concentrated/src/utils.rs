@@ -6,12 +6,13 @@ use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
+use astroport::cosmwasm_ext::AbsDiff;
 use astroport::querier::{query_factory_config, query_supply};
 
-use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, TWAP_PRECISION_DEC};
+use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, TWAP_PRECISION_DEC};
 use crate::error::ContractError;
 use crate::math::{calc_d, calc_y};
-use crate::state::{Config, Precisions};
+use crate::state::{Config, PoolParams, Precisions};
 
 /// Helper function to check the given asset infos are valid.
 pub(crate) fn check_asset_infos(
@@ -236,6 +237,30 @@ pub struct SwapResult {
     pub total_fee: Decimal256,
 }
 
+impl SwapResult {
+    /// Calculates **last price** and **last real price**.
+    /// Return (last_price, last_real_price) where:
+    /// - last_price is a price for repeg algo,
+    /// - last_real_price is a real price occurred for user.
+    pub fn calc_last_prices(
+        &self,
+        offer_amount: Decimal256,
+        offer_ind: usize,
+    ) -> (Decimal256, Decimal256) {
+        if offer_ind == 0 {
+            (
+                offer_amount / (self.dy + self.maker_fee),
+                offer_amount / (self.dy + self.total_fee),
+            )
+        } else {
+            (
+                (self.dy + self.maker_fee) / offer_amount,
+                (self.dy + self.total_fee) / offer_amount,
+            )
+        }
+    }
+}
+
 /// Calculate swap result.
 pub fn compute_swap(
     xs: &[Decimal256],
@@ -359,26 +384,65 @@ pub fn accumulate_prices(env: &Env, config: &mut Config, last_real_price: Decima
     config.block_time_last = block_time;
 }
 
-/// Calculates balanced share and excess tokens.
-/// * **deposits** deposit values as they came in the contract (real values).
-/// * **price_scale** x0 -> x1 exchange rate
-///
-/// Returns:
-/// (
-///     balanced share (internal representation),
-///     array with excess tokens (real values)
-/// )
-pub fn balanced_deposits(
+pub fn calc_provide_fee(
     deposits: &[Decimal256],
-    price_scale: Decimal256,
-) -> (Decimal256, Vec<Decimal256>) {
-    let min_dep = deposits[0].min(deposits[1] * price_scale);
+    xp: &[Decimal256],
+    params: &PoolParams,
+) -> Decimal256 {
+    let sum = deposits[0] + deposits[1];
+    let avg = sum / N;
+    let deviation = deposits[0].diff(avg) + deposits[1].diff(avg);
 
-    (
-        min_dep,
-        vec![
-            deposits[0] - min_dep,
-            (deposits[1] * price_scale - min_dep) / price_scale,
-        ],
-    )
+    deviation * params.fee(xp) / (sum * N)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::error::Error;
+    use std::fmt::Display;
+    use std::str::FromStr;
+
+    pub fn f64_to_dec<T>(val: f64) -> T
+    where
+        T: FromStr,
+        T::Err: Error,
+    {
+        T::from_str(&val.to_string()).unwrap()
+    }
+
+    pub fn dec_to_f64(val: impl Display) -> f64 {
+        f64::from_str(&val.to_string()).unwrap()
+    }
+
+    #[test]
+    fn test_provide_fees() {
+        let params = PoolParams {
+            mid_fee: f64_to_dec(0.0026),
+            out_fee: f64_to_dec(0.0045),
+            fee_gamma: f64_to_dec(0.00023),
+            ..PoolParams::default()
+        };
+
+        let fee_rate = calc_provide_fee(
+            &[f64_to_dec(50_000f64), f64_to_dec(50_000f64)],
+            &[f64_to_dec(100_000f64), f64_to_dec(100_000f64)],
+            &params,
+        );
+        assert_eq!(dec_to_f64(fee_rate), 0.0);
+
+        let fee_rate = calc_provide_fee(
+            &[f64_to_dec(99_000f64), f64_to_dec(1_000f64)],
+            &[f64_to_dec(100_000f64), f64_to_dec(100_000f64)],
+            &params,
+        );
+        assert_eq!(dec_to_f64(fee_rate), 0.001274);
+
+        let fee_rate = calc_provide_fee(
+            &[f64_to_dec(99_000f64), f64_to_dec(1_000f64)],
+            &[f64_to_dec(1_000f64), f64_to_dec(99_000f64)],
+            &params,
+        );
+        assert_eq!(dec_to_f64(fee_rate), 0.002205);
+    }
 }

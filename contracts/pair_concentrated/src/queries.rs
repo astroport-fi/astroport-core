@@ -1,3 +1,4 @@
+use crate::consts::FORECAST_PERCENT;
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
 use crate::math::calc_d;
@@ -201,8 +202,9 @@ fn query_cumulative_prices(
     let precisions = Precisions::new(deps.storage)?;
     let pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
-    let offer_amount = pools[0].amount * Decimal256::percent(1);
     let xs = pools.iter().map(|asset| asset.amount).collect_vec();
+
+    let offer_amount = xs[0] * FORECAST_PERCENT;
     let fee_info = query_fee_info(
         &deps.querier,
         &config.factory_addr,
@@ -212,13 +214,11 @@ fn query_cumulative_prices(
     if fee_info.fee_address.is_some() {
         maker_fee_share = fee_info.maker_fee_rate.into();
     }
-    let swap_result = compute_swap(&xs, offer_amount, 1, &config, &env, maker_fee_share)?;
 
-    accumulate_prices(
-        &env,
-        &mut config,
-        offer_amount / swap_result.dy + swap_result.total_fee,
-    );
+    let (_, last_real_price) = compute_swap(&xs, offer_amount, 1, &config, &env, maker_fee_share)?
+        .calc_last_prices(offer_amount, 0);
+
+    accumulate_prices(&env, &mut config, last_real_price);
 
     let (assets, total_share) = pool_info(deps.querier, &config)?;
 

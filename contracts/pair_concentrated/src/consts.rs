@@ -6,6 +6,8 @@ use std::ops::RangeInclusive;
 pub const DEFAULT_SLIPPAGE: Decimal256 = Decimal256::raw(50000000000000000);
 /// 0.5
 pub const MAX_ALLOWED_SLIPPAGE: Decimal256 = Decimal256::raw(500000000000000000);
+/// Percentage of 1st pool volume used as offer amount to forecast last price (0.01% or 0.0001).
+pub const FORECAST_PERCENT: Decimal256 = Decimal256::raw(100000000000000);
 
 /// ## Internal constants
 /// Number of coins. (2.0)
