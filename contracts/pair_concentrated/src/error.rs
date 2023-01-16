@@ -47,7 +47,7 @@ pub enum ContractError {
     #[error("Operation non supported")]
     NonSupported {},
 
-    #[error("Event of zero transfer")]
+    #[error("Initial provide must not contain zero amount")]
     InvalidZeroAmount {},
 
     #[error("Operation exceeds max spread limit")]

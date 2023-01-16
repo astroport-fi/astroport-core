@@ -126,16 +126,46 @@ fn provide_and_withdraw() {
     let user1 = Addr::unchecked("user1");
 
     // Try to provide with additional wrong asset
+    let random_coin = native_asset_info("random_coin".to_string()).with_balance(100u8);
     let wrong_assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
         helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
-        native_asset_info("random_coin".to_string()).with_balance(100u8),
+        random_coin.clone(),
     ];
     helper.give_me_money(&wrong_assets, &user1);
     let err = helper.provide_liquidity(&user1, &wrong_assets).unwrap_err();
     assert_eq!(
         ContractError::InvalidNumberOfAssets(2usize),
         err.downcast().unwrap()
+    );
+
+    // Provide with asset which does not belong to the pair
+    let err = helper
+        .provide_liquidity(
+            &user1,
+            &[
+                random_coin.clone(),
+                helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+            ],
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::InvalidAsset("random_coin".to_string()),
+        err.downcast().unwrap()
+    );
+
+    let err = helper
+        .provide_liquidity(&user1, &[random_coin])
+        .unwrap_err();
+    assert_eq!(
+        ContractError::InvalidAsset("random_coin".to_string()),
+        err.downcast().unwrap()
+    );
+
+    let err = helper.provide_liquidity(&user1, &[]).unwrap_err();
+    assert_eq!(
+        "Generic error: Nothing to provide",
+        err.root_cause().to_string()
     );
 
     // Try to provide with zero amount
@@ -173,6 +203,38 @@ fn provide_and_withdraw() {
         helper.token_balance(&helper.lp_token, &user2)
     );
 
+    // Changing order of assets does not matter
+    let user3 = Addr::unchecked("user3");
+    let assets = vec![
+        helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+    ];
+    helper.give_me_money(&assets, &user3);
+    helper.provide_liquidity(&user3, &assets).unwrap();
+    assert_eq!(
+        70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128(),
+        helper.token_balance(&helper.lp_token, &user3)
+    );
+
+    // After initial provide one-sided provide is allowed
+    let user4 = Addr::unchecked("user4");
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(0u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
+    ];
+    helper.give_me_money(&assets, &user4);
+    helper.provide_liquidity(&user4, &assets).unwrap();
+    // LP amount is less than for prev users as provide is imbalanced
+    assert_eq!(62217_722016, helper.token_balance(&helper.lp_token, &user4));
+
+    // One of assets may be omitted
+    let user5 = Addr::unchecked("user5");
+    let assets = vec![helper.assets[&test_coins[0]].with_balance(200_000_000000u128)];
+    helper.give_me_money(&assets, &user5);
+    helper.provide_liquidity(&user5, &assets).unwrap();
+    // This provide makes pool balanced again thus user5 gets more LP tokens
+    assert_eq!(78920_465546, helper.token_balance(&helper.lp_token, &user5));
+
     // check that imbalanced withdraw is currently disabled
     let withdraw_assets = vec![
         helper.assets[&test_coins[0]].with_balance(10_000_000000u128),
@@ -196,8 +258,9 @@ fn provide_and_withdraw() {
         helper.token_balance(&helper.lp_token, &user1)
     );
     // initial provide charged small fee thus user1 received slightly less fees
-    assert_eq!(9999_999857, helper.coin_balance(&test_coins[0], &user1));
-    assert_eq!(4999_999928, helper.coin_balance(&test_coins[1], &user1));
+    // however, user1 received more share because he accumulated fees from imbalanced provides
+    assert_eq!(10008_015496, helper.coin_balance(&test_coins[0], &user1));
+    assert_eq!(5004_007748, helper.coin_balance(&test_coins[1], &user1));
 
     // user2 withdraws half
     helper
@@ -208,8 +271,8 @@ fn provide_and_withdraw() {
         70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128() - 35355_339059,
         helper.token_balance(&helper.lp_token, &user2)
     );
-    assert_eq!(50000000000, helper.coin_balance(&test_coins[0], &user2));
-    assert_eq!(25000000000, helper.coin_balance(&test_coins[1], &user2));
+    assert_eq!(50040_078197, helper.coin_balance(&test_coins[0], &user2));
+    assert_eq!(25020_039098, helper.coin_balance(&test_coins[1], &user2));
 }
 
 #[test]

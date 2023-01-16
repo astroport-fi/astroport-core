@@ -357,7 +357,7 @@ pub fn provide_liquidity(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    assets: Vec<Asset>,
+    mut assets: Vec<Asset>,
     _slippage_tolerance: Option<Decimal>,
     auto_stake: Option<bool>,
     receiver: Option<String>,
@@ -370,22 +370,46 @@ pub fn provide_liquidity(
 
     let mut config = CONFIG.load(deps.storage)?;
 
-    if assets.len() != config.pair_info.asset_infos.len() {
-        return Err(ContractError::InvalidNumberOfAssets(
-            config.pair_info.asset_infos.len(),
-        ));
-    }
-
     let precisions = Precisions::new(deps.storage)?;
-
     let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
+    match assets.len() {
+        0 => {
+            return Err(StdError::generic_err("Nothing to provide").into());
+        }
+        1 => {
+            // Append omitted asset with explicit zero amount
+            let (given_ind, _) = pools
+                .iter()
+                .find_position(|pool| pool.info.equal(&assets[0].info))
+                .ok_or(ContractError::InvalidAsset(assets[0].info.to_string()))?;
+            assets.push(Asset {
+                info: pools[1 - given_ind].info.clone(),
+                amount: Uint128::zero(),
+            });
+        }
+        2 => {}
+        _ => {
+            return Err(ContractError::InvalidNumberOfAssets(
+                config.pair_info.asset_infos.len(),
+            ))
+        }
+    }
+
+    if pools[0].info.equal(&assets[1].info) {
+        assets.swap(0, 1);
+    }
+
+    // precisions.get_precision() as well validates that the asset belongs to the pool
     let deposits = [
         Decimal256::with_precision(assets[0].amount, precisions.get_precision(&assets[0].info)?)?,
         Decimal256::with_precision(assets[1].amount, precisions.get_precision(&assets[1].info)?)?,
     ];
 
-    if deposits[0].is_zero() || deposits[1].is_zero() {
+    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+
+    // Initial provide can not be one-sided
+    if total_share.is_zero() && (deposits[0].is_zero() || deposits[1].is_zero()) {
         return Err(ContractError::InvalidZeroAmount {});
     }
 
@@ -393,15 +417,20 @@ pub fn provide_liquidity(
     for (i, pool) in pools.iter_mut().enumerate() {
         // If the asset is a token contract, then we need to execute a TransferFrom msg to receive assets
         match &pool.info {
-            AssetInfo::Token { contract_addr } => messages.push(CosmosMsg::Wasm(wasm_execute(
-                contract_addr,
-                &Cw20ExecuteMsg::TransferFrom {
-                    owner: info.sender.to_string(),
-                    recipient: env.contract.address.to_string(),
-                    amount: deposits[i].to_uint(precisions.get_precision(&assets[i].info)?)?,
-                },
-                vec![],
-            )?)),
+            AssetInfo::Token { contract_addr } => {
+                if !deposits[i].is_zero() {
+                    messages.push(CosmosMsg::Wasm(wasm_execute(
+                        contract_addr,
+                        &Cw20ExecuteMsg::TransferFrom {
+                            owner: info.sender.to_string(),
+                            recipient: env.contract.address.to_string(),
+                            amount: deposits[i]
+                                .to_uint(precisions.get_precision(&assets[i].info)?)?,
+                        },
+                        vec![],
+                    )?))
+                }
+            }
             AssetInfo::NativeToken { .. } => {
                 // If the asset is native token, the pool balance is already increased
                 // To calculate the total amount of deposits properly, we should subtract the user deposit from the pool
@@ -419,7 +448,6 @@ pub fn provide_liquidity(
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
-    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
     let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
 
     let mint_amount = if total_share.is_zero() {
@@ -456,7 +484,7 @@ pub fn provide_liquidity(
 
         let mut ideposits = deposits;
         ideposits[1] *= config.pool_state.price_state.price_scale;
-        share *= Decimal256::one() - calc_provide_fee(&ideposits, &old_xp, &config.pool_params);
+        share *= Decimal256::one() - calc_provide_fee(&ideposits, &new_xp, &config.pool_params);
 
         // calculate accrued share
         let share_ratio = share / (total_share + share);
