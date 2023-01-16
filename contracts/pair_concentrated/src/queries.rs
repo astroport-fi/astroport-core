@@ -204,7 +204,10 @@ fn query_cumulative_prices(
 
     let xs = pools.iter().map(|asset| asset.amount).collect_vec();
 
-    let offer_amount = xs[0] * FORECAST_PERCENT;
+    let mut offer_amount = xs[0] * FORECAST_PERCENT;
+    if offer_amount.is_zero() {
+        offer_amount = Decimal256::one();
+    }
     let fee_info = query_fee_info(
         &deps.querier,
         &config.factory_addr,

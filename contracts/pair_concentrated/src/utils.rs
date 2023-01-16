@@ -344,7 +344,7 @@ pub fn compute_offer_amount(
     let new_y = calc_y(&ixs, d, &amp_gamma, offer_ind)?;
     let mut dy = new_y - ixs[offer_ind];
 
-    let mut spread_fee = dy - before_fee;
+    let mut spread_fee = dy.saturating_sub(before_fee);
     if offer_ind == 1 {
         dy /= config.pool_state.price_state.price_scale;
         spread_fee /= config.pool_state.price_state.price_scale;
