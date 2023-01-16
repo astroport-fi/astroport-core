@@ -1,4 +1,5 @@
 use cosmwasm_schema::cw_serde;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use crate::factory::PairType;
@@ -9,6 +10,7 @@ use cosmwasm_std::{
     StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use cw_utils::must_pay;
 
 pub const UUSD_DENOM: &str = "uusd";
 /// LUNA token denomination
@@ -105,25 +107,77 @@ impl Asset {
     /// * **message_info** is an object of type [`MessageInfo`]
     pub fn assert_sent_native_token_balance(&self, message_info: &MessageInfo) -> StdResult<()> {
         if let AssetInfo::NativeToken { denom } = &self.info {
-            match message_info.funds.iter().find(|x| x.denom == *denom) {
-                Some(coin) => {
-                    if self.amount == coin.amount {
-                        Ok(())
-                    } else {
-                        Err(StdError::generic_err("Native token balance mismatch between the argument and the transferred"))
-                    }
-                }
-                None => {
-                    if self.amount.is_zero() {
-                        Ok(())
-                    } else {
-                        Err(StdError::generic_err("Native token balance mismatch between the argument and the transferred"))
-                    }
-                }
+            let amount = must_pay(message_info, denom)
+                .map_err(|err| StdError::generic_err(err.to_string()))?;
+            if self.amount == amount {
+                Ok(())
+            } else {
+                Err(StdError::generic_err(
+                    "Native token balance mismatch between the argument and the transferred",
+                ))
             }
         } else {
             Ok(())
         }
+    }
+}
+
+pub trait CoinsExt {
+    fn assert_coins_properly_sent(
+        &self,
+        assets: &[Asset],
+        pool_asset_infos: &[AssetInfo],
+    ) -> StdResult<()>;
+}
+
+impl CoinsExt for Vec<Coin> {
+    fn assert_coins_properly_sent(
+        &self,
+        input_assets: &[Asset],
+        pool_asset_infos: &[AssetInfo],
+    ) -> StdResult<()> {
+        let pool_coins = pool_asset_infos
+            .iter()
+            .filter_map(|asset_info| match asset_info {
+                AssetInfo::NativeToken { denom } => Some(denom.to_string()),
+                _ => None,
+            })
+            .collect::<HashSet<_>>();
+
+        let input_coins = input_assets
+            .iter()
+            .filter_map(|asset| match &asset.info {
+                AssetInfo::NativeToken { denom } => Some((denom.to_string(), asset.amount)),
+                _ => None,
+            })
+            .map(|pair| {
+                if pool_coins.contains(&pair.0) {
+                    Ok(pair)
+                } else {
+                    Err(StdError::generic_err(format!(
+                        "Asset {} is not in the pool",
+                        pair.0
+                    )))
+                }
+            })
+            .collect::<StdResult<HashMap<_, _>>>()?;
+
+        self.iter().try_for_each(|coin| {
+            if input_coins.contains_key(&coin.denom) {
+                if input_coins[&coin.denom] == coin.amount {
+                    Ok(())
+                } else {
+                    Err(StdError::generic_err(
+                        "Native token balance mismatch between the argument and the transferred",
+                    ))
+                }
+            } else {
+                Err(StdError::generic_err(format!(
+                    "Supplied coins contain {} that is not in the input asset vector",
+                    coin.denom
+                )))
+            }
+        })
     }
 }
 
@@ -159,6 +213,14 @@ impl AssetInfo {
     pub fn is_native_token(&self) -> bool {
         match self {
             AssetInfo::NativeToken { .. } => true,
+            AssetInfo::Token { .. } => false,
+        }
+    }
+
+    /// Checks whether the native coin is IBCed token or not.
+    pub fn is_ibc(&self) -> bool {
+        match self {
+            AssetInfo::NativeToken { denom } => denom.to_lowercase().starts_with("ibc/"),
             AssetInfo::Token { .. } => false,
         }
     }
@@ -223,7 +285,7 @@ impl AssetInfo {
     /// * **api** is a object of type [`Api`]
     pub fn check(&self, api: &dyn Api) -> StdResult<()> {
         if let AssetInfo::Token { contract_addr } = self {
-            addr_validate_to_lower(api, contract_addr.as_str())?;
+            api.addr_validate(contract_addr.as_str())?;
         }
 
         Ok(())
@@ -269,25 +331,10 @@ impl PairInfo {
     }
 }
 
-/// Returns a lowercased, validated address upon success. Otherwise returns [`Err`]
-/// ## Params
-/// * **api** is an object of type [`Api`]
-///
-/// * **addr** is an object of type [`Addr`]
-pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
-    if addr.to_lowercase() != addr {
-        return Err(StdError::generic_err(format!(
-            "Address {} should be lowercase",
-            addr
-        )));
-    }
-    api.addr_validate(addr)
-}
-
 /// Returns a lowercased, validated address upon success if present.
 pub fn addr_opt_validate(api: &dyn Api, addr: &Option<String>) -> StdResult<Option<Addr>> {
     addr.as_ref()
-        .map(|addr| addr_validate_to_lower(api, addr))
+        .map(|addr| api.addr_validate(addr))
         .transpose()
 }
 
@@ -380,5 +427,107 @@ impl AssetInfoExt for AssetInfo {
             info: self.clone(),
             amount: balance.into(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cosmwasm_std::testing::mock_info;
+    use cosmwasm_std::{coin, coins};
+
+    #[test]
+    fn test_native_coins_sent() {
+        let asset = native_asset_info("uusd".to_string()).with_balance(1000u16);
+
+        let info = mock_info("addr0000", &coins(1000, "random"));
+        let err = asset.assert_sent_native_token_balance(&info).unwrap_err();
+        assert_eq!(err, StdError::generic_err("Must send reserve token 'uusd'"));
+
+        let info = mock_info("addr0000", &coins(100, "uusd"));
+        let err = asset.assert_sent_native_token_balance(&info).unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err(
+                "Native token balance mismatch between the argument and the transferred"
+            )
+        );
+
+        let info = mock_info("addr0000", &coins(1000, "uusd"));
+        asset.assert_sent_native_token_balance(&info).unwrap();
+    }
+
+    #[test]
+    fn test_proper_native_coins_sent() {
+        let pool_asset_infos = [
+            native_asset_info("uusd".to_string()),
+            native_asset_info("uluna".to_string()),
+        ];
+
+        let assets = [
+            pool_asset_infos[0].with_balance(1000u16),
+            pool_asset_infos[1].with_balance(100u16),
+        ];
+        let err = vec![coin(1000, "uusd"), coin(1000, "random")]
+            .assert_coins_properly_sent(&assets, &pool_asset_infos)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err(
+                "Supplied coins contain random that is not in the input asset vector"
+            )
+        );
+
+        let assets = [
+            pool_asset_infos[0].with_balance(1000u16),
+            native_asset_info("random".to_string()).with_balance(100u16),
+        ];
+        let err = vec![coin(1000, "uusd"), coin(100, "random")]
+            .assert_coins_properly_sent(&assets, &pool_asset_infos)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err("Asset random is not in the pool")
+        );
+
+        let assets = [
+            pool_asset_infos[0].with_balance(1000u16),
+            pool_asset_infos[1].with_balance(1000u16),
+        ];
+        let err = vec![coin(1000, "uusd"), coin(100, "uluna")]
+            .assert_coins_properly_sent(&assets, &pool_asset_infos)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err(
+                "Native token balance mismatch between the argument and the transferred"
+            )
+        );
+
+        let assets = [
+            pool_asset_infos[0].with_balance(1000u16),
+            pool_asset_infos[1].with_balance(1000u16),
+        ];
+        vec![coin(1000, "uusd"), coin(1000, "uluna")]
+            .assert_coins_properly_sent(&assets, &pool_asset_infos)
+            .unwrap();
+
+        let pool_asset_infos = [
+            token_asset_info(Addr::unchecked("addr0000")),
+            token_asset_info(Addr::unchecked("addr0001")),
+        ];
+        let assets = [
+            pool_asset_infos[0].with_balance(1000u16),
+            pool_asset_infos[1].with_balance(1000u16),
+        ];
+        let err = vec![coin(1000, "uusd"), coin(1000, "uluna")]
+            .assert_coins_properly_sent(&assets, &pool_asset_infos)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err(
+                "Supplied coins contain uusd that is not in the input asset vector"
+            )
+        );
     }
 }

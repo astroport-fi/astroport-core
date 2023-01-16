@@ -1,6 +1,6 @@
 [package]
 name = "astroport-router"
-version = "1.0.0"
+version = "1.1.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport router contract - provides multi-hop swap functionality for Astroport pools"

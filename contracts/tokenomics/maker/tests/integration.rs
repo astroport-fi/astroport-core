@@ -1186,7 +1186,7 @@ fn update_bridges() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: Address UKRT should be lowercase"
+        "Generic error: Invalid input: address not normalized"
     );
 
     let msg = ExecuteMsg::UpdateBridges {

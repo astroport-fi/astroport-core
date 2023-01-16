@@ -115,37 +115,7 @@ __NOTE__: you should increase your token allowance for the pool before providing
   }
 ```
 
-2. Providing Liquidity With Slippage Tolerance
-
-  ```json
-  {
-    "provide_liquidity": {
-      "assets": [
-        {
-          "info": {
-            "token": {
-              "contract_addr": "terra..."
-            }
-          },
-          "amount": "1000000"
-        },
-        {
-          "info": {
-            "native_token": {
-              "denom": "uusd"
-            }
-          },
-          "amount": "1000000"
-        }
-      ],
-      "slippage_tolerance": "0.01",
-      "auto_stake": false,
-      "receiver": "terra..."
-    }
-  }
-```
-
-3. Provides the liquidity with a single token. We can do this only for the non-empty pool.
+2. Provides the liquidity with a single token. We can do this only for the non-empty pool.
 
   ```json
   {
@@ -168,7 +138,6 @@ __NOTE__: you should increase your token allowance for the pool before providing
           "amount": "0"
         }
       ],
-      "slippage_tolerance": "0",
       "auto_stake": false,
       "receiver": "terra..."
     }

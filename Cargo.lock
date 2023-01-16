@@ -53,6 +53,7 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.0.1"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=release#5e29bec6f8e20fa5b9cbff33cdca64955442eec5"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -63,12 +64,12 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "2.0.1"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=release#5e29bec6f8e20fa5b9cbff33cdca64955442eec5"
+version = "2.1.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
+ "cw-utils 0.15.1",
  "cw20 0.15.1",
  "uint",
 ]
@@ -89,9 +90,9 @@ dependencies = [
 
 [[package]]
 name = "astroport-factory"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "astroport-pair",
  "astroport-token",
  "cosmwasm-schema",
@@ -106,10 +107,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-generator"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "anyhow",
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "astroport-factory",
  "astroport-governance",
  "astroport-pair",
@@ -140,7 +141,7 @@ name = "astroport-governance"
 version = "1.1.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_governance.git?branch=release#2bddf7d0da6877072b9c64204745636cfda45480"
 dependencies = [
- "astroport 2.0.1 (git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=release)",
+ "astroport 2.0.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -149,10 +150,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-maker"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "astro-satellite-package",
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
  "astroport-governance",
@@ -170,9 +171,9 @@ dependencies = [
 
 [[package]]
 name = "astroport-oracle"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "astroport-factory",
  "astroport-pair",
  "astroport-pair-stable",
@@ -188,9 +189,9 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "astroport-factory",
  "astroport-token",
  "cosmwasm-schema",
@@ -207,9 +208,9 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-astro-xastro"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "astroport-factory",
  "astroport-pair-bonded",
  "astroport-staking",
@@ -228,7 +229,7 @@ dependencies = [
 name = "astroport-pair-bonded"
 version = "1.0.0"
 dependencies = [
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
@@ -238,9 +239,9 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-stable"
-version = "1.0.0-fix1"
+version = "1.1.0"
 dependencies = [
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "astroport-factory",
  "astroport-token",
  "cosmwasm-schema",
@@ -258,10 +259,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-router"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "astroport-factory",
  "astroport-pair",
  "astroport-token",
@@ -277,9 +278,9 @@ dependencies = [
 
 [[package]]
 name = "astroport-staking"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -293,9 +294,9 @@ dependencies = [
 
 [[package]]
 name = "astroport-token"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2 0.15.1",
@@ -306,9 +307,9 @@ dependencies = [
 
 [[package]]
 name = "astroport-vesting"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -324,7 +325,7 @@ dependencies = [
 name = "astroport-whitelist"
 version = "1.0.0"
 dependencies = [
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw1-whitelist",
@@ -334,9 +335,9 @@ dependencies = [
 
 [[package]]
 name = "astroport-xastro-token"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
- "astroport 2.0.1",
+ "astroport 2.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",

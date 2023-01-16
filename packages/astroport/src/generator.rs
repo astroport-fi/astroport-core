@@ -136,7 +136,7 @@ pub enum ExecuteMsg {
         lp_token: String,
     },
     /// Sets the allocation point to zero for each pool by the pair type
-    DeactivatePools {
+    DeactivateBlacklistedPools {
         pair_types: Vec<PairType>,
     },
     /// Updates the boost emissions for specified user and generators
@@ -425,7 +425,7 @@ pub enum Cw20HookMsg {
     /// Deposit performs a token deposit on behalf of the message sender.
     Deposit {},
     /// DepositFor performs a token deposit on behalf of another address that's not the message sender.
-    DepositFor(Addr),
+    DepositFor(String),
 }
 
 /// This structure holds the parameters used to return information about a staked in

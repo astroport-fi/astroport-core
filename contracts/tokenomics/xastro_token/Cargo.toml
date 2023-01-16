@@ -1,6 +1,6 @@
 [package]
 name = "astroport-xastro-token"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "Expanded implementation of a CosmWasm-20 compliant token for post intialization and saving history"

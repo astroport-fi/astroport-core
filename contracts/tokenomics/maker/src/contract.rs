@@ -7,13 +7,14 @@ use crate::utils::{
     build_distribute_msg, build_swap_msg, try_build_swap_msg, validate_bridge,
     BRIDGES_EXECUTION_MAX_DEPTH, BRIDGES_INITIAL_DEPTH,
 };
-use astroport::asset::{addr_opt_validate, addr_validate_to_lower, Asset, AssetInfo};
+use astroport::asset::{addr_opt_validate, Asset, AssetInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
 use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg,
     QueryMsg,
 };
+use astroport::pair::MAX_ALLOWED_SLIPPAGE;
 use cosmwasm_std::{
     attr, coins, entry_point, to_binary, wasm_execute, Addr, Attribute, Binary, CosmosMsg, Decimal,
     Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
@@ -22,6 +23,7 @@ use cosmwasm_std::{
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ExecuteMsg;
 use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-maker";
@@ -61,7 +63,7 @@ pub fn instantiate(
     };
 
     let max_spread = if let Some(max_spread) = msg.max_spread {
-        if max_spread.gt(&Decimal::one()) {
+        if max_spread.gt(&Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?) {
             return Err(ContractError::IncorrectMaxSpread {});
         };
 
@@ -77,10 +79,10 @@ pub fn instantiate(
     }
 
     let cfg = Config {
-        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+        owner: deps.api.addr_validate(&msg.owner)?,
         default_bridge: msg.default_bridge,
         astro_token: msg.astro_token,
-        factory_contract: addr_validate_to_lower(deps.api, &msg.factory_contract)?,
+        factory_contract: deps.api.addr_validate(&msg.factory_contract)?,
         staking_contract: addr_opt_validate(deps.api, &msg.staking_contract)?,
         rewards_enabled: false,
         pre_upgrade_blocks: 0,
@@ -628,13 +630,16 @@ fn distribute(
     };
 
     if let Some(staking_contract) = &cfg.staking_contract {
-        let to_staking_asset = Asset {
-            info: cfg.astro_token.clone(),
-            amount: amount.checked_sub(governance_amount)?,
-        };
-        result.push(SubMsg::new(
-            to_staking_asset.into_msg(&deps.querier, staking_contract.clone())?,
-        ));
+        let amount = amount.checked_sub(governance_amount)?;
+        if !amount.is_zero() {
+            let to_staking_asset = Asset {
+                info: cfg.astro_token.clone(),
+                amount,
+            };
+            result.push(SubMsg::new(
+                to_staking_asset.into_msg(&deps.querier, staking_contract.clone())?,
+            ));
+        }
     }
 
     attributes = vec![
@@ -692,22 +697,29 @@ fn update_config(
     }
 
     if let Some(factory_contract) = factory_contract {
-        config.factory_contract = addr_validate_to_lower(deps.api, &factory_contract)?;
+        config.factory_contract = deps.api.addr_validate(&factory_contract)?;
         attributes.push(attr("factory_contract", &factory_contract));
     };
 
     if let Some(staking_contract) = staking_contract {
-        config.staking_contract = Some(addr_validate_to_lower(deps.api, &staking_contract)?);
+        config.staking_contract = Some(deps.api.addr_validate(&staking_contract)?);
         attributes.push(attr("staking_contract", &staking_contract));
     };
 
     if let Some(action) = governance_contract {
         match action {
             UpdateAddr::Set(gov) => {
-                config.governance_contract = Some(addr_validate_to_lower(deps.api, &gov)?);
+                config.governance_contract = Some(deps.api.addr_validate(&gov)?);
                 attributes.push(attr("governance_contract", &gov));
             }
             UpdateAddr::Remove {} => {
+                if config.staking_contract.is_none() {
+                    return Err(StdError::generic_err(
+                        "Cannot remove governance contract if staking contract is not set",
+                    )
+                    .into());
+                }
+                attributes.push(attr("governance_contract", "removed"));
                 config.governance_contract = None;
             }
         }
@@ -724,11 +736,12 @@ fn update_config(
 
     if let Some(default_bridge) = &default_bridge_opt {
         default_bridge.check(deps.api)?;
+        attributes.push(attr("default_bridge", default_bridge.to_string()));
         config.default_bridge = default_bridge_opt;
     }
 
     if let Some(max_spread) = max_spread {
-        if max_spread > Decimal::one() {
+        if max_spread > Decimal::from_str(MAX_ALLOWED_SLIPPAGE)? {
             return Err(ContractError::IncorrectMaxSpread {});
         };
 
@@ -773,7 +786,7 @@ fn update_bridges(
         for asset in remove_bridges {
             BRIDGES.remove(
                 deps.storage,
-                addr_validate_to_lower(deps.api, &asset.to_string())?.to_string(),
+                deps.api.addr_validate(&asset.to_string())?.to_string(),
             );
         }
     }

@@ -1,4 +1,3 @@
-use crate::asset::addr_validate_to_lower;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{attr, Addr, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
 use cw_storage_plus::Item;
@@ -44,7 +43,7 @@ pub fn propose_new_owner(
         return Err(StdError::generic_err("Unauthorized"));
     }
 
-    let new_owner = addr_validate_to_lower(deps.api, new_owner.as_str())?;
+    let new_owner = deps.api.addr_validate(new_owner.as_str())?;
 
     // Check that the new owner is not the same as the current one
     if new_owner == owner {

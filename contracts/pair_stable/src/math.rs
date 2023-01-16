@@ -45,7 +45,7 @@ pub fn calc_ask_amount(
 ///
 /// * **ask_pool** is an object of type [`u128`]. This is the amount of ask tokens currently in a stableswap pool.
 ///
-/// * **ask_amount** is an object of type [`u128`]. This is the amount of offer tokens to swap.
+/// * **ask_amount** is an object of type [`u128`]. This is the amount of ask tokens to swap.
 ///
 /// * **amp** is an object of type [`u64`]. This is the pool's amplification parameter.
 pub fn calc_offer_amount(

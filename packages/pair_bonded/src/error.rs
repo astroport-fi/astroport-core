@@ -10,6 +10,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
+    #[error("CW20 tokens can be swapped via Cw20::Send message only")]
+    Cw20DirectSwap {},
+
     #[error("Doubling assets in asset infos")]
     DoublingAssets {},
 
@@ -30,6 +33,9 @@ pub enum ContractError {
 
     #[error("Operation is not supported for this pool.")]
     NotSupported {},
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {

@@ -1,4 +1,4 @@
-use astroport::asset::{addr_validate_to_lower, AssetInfo};
+use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
 use astroport::{
     generator::{PoolInfo, RestrictedVector, UserInfo, UserInfoV2},
@@ -7,7 +7,7 @@ use astroport::{
 };
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
 
-use cosmwasm_std::{Addr, DepsMut, Env, StdResult, Storage, Uint128, Uint64};
+use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128, Uint64};
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Decimal, Deps};
@@ -15,6 +15,12 @@ use cw20::BalanceResponse;
 use cw_storage_plus::{Item, Map};
 use std::cmp::min;
 use std::collections::HashMap;
+
+/// Constants to update user's virtual amount. For more info see update_virtual_amount() documentation.
+/// 0.4 of the LP tokens amount.
+const REAL_SHARE: Decimal = Decimal::raw(400000000000000000);
+/// 0.6 of the user's voting power aka vxASTRO balance.
+const VXASTRO_SHARE: Decimal = Decimal::raw(600000000000000000);
 
 /// This structure stores the core parameters for the Generator contract.
 #[cw_serde]
@@ -230,7 +236,7 @@ pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
             .querier
             .query_wasm_smart(proxy_addr, &astroport::generator_proxy::QueryMsg::Config {})?;
         let asset = AssetInfo::Token {
-            contract_addr: addr_validate_to_lower(deps.api, &proxy_cfg.reward_token_addr)?,
+            contract_addr: deps.api.addr_validate(&proxy_cfg.reward_token_addr)?,
         };
         PROXY_REWARD_ASSET.save(deps.storage, proxy_addr, &asset)?
     }
@@ -250,12 +256,11 @@ pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
 /// - W is the total amount of vxASTRO
 pub(crate) fn update_virtual_amount(
     deps: Deps,
-    env: &Env,
     cfg: &Config,
     pool: &mut PoolInfo,
     user_info: &mut UserInfoV2,
     account: &Addr,
-    generator: &Addr,
+    lp_balance: Uint128,
 ) -> StdResult<()> {
     let mut user_vp = Uint128::zero();
     let mut total_vp = Uint128::zero();
@@ -265,21 +270,9 @@ pub(crate) fn update_virtual_amount(
         total_vp = get_total_voting_power(deps.querier, voting_escrow)?;
     }
 
-    let user_virtual_share = user_info.amount.multiply_ratio(4u128, 10u128);
+    let user_virtual_share = user_info.amount * REAL_SHARE;
 
-    let lp_balance = if let Some(proxy) = &pool.reward_proxy {
-        deps.querier
-            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
-    } else {
-        let res: BalanceResponse = deps.querier.query_wasm_smart(
-            generator,
-            &cw20::Cw20QueryMsg::Balance {
-                address: env.contract.address.to_string(),
-            },
-        )?;
-        res.balance
-    };
-    let total_virtual_share = lp_balance.multiply_ratio(6u128, 10u128);
+    let total_virtual_share = lp_balance * VXASTRO_SHARE;
 
     let vx_share_emission = if !total_vp.is_zero() {
         Decimal::from_ratio(user_vp, total_vp)
@@ -300,4 +293,27 @@ pub(crate) fn update_virtual_amount(
     user_info.virtual_amount = current_virtual_amount;
 
     Ok(())
+}
+
+/// Query total LP tokens balance for specified generator.
+/// If tokens are staked in proxy, then query proxy balance. Otherwise query generator contract balance.
+pub(crate) fn query_lp_balance(
+    deps: Deps,
+    generator_addr: &Addr,
+    lp_token: &Addr,
+    pool_info: &PoolInfo,
+) -> StdResult<Uint128> {
+    let lp_amount = if let Some(proxy) = &pool_info.reward_proxy {
+        deps.querier
+            .query_wasm_smart(proxy, &ProxyQueryMsg::Deposit {})?
+    } else {
+        let res: BalanceResponse = deps.querier.query_wasm_smart(
+            lp_token,
+            &cw20::Cw20QueryMsg::Balance {
+                address: generator_addr.to_string(),
+            },
+        )?;
+        res.balance
+    };
+    Ok(lp_amount)
 }
