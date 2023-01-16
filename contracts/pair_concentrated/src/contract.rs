@@ -382,7 +382,7 @@ pub fn provide_liquidity(
             let (given_ind, _) = pools
                 .iter()
                 .find_position(|pool| pool.info.equal(&assets[0].info))
-                .ok_or(ContractError::InvalidAsset(assets[0].info.to_string()))?;
+                .ok_or_else(|| ContractError::InvalidAsset(assets[0].info.to_string()))?;
             assets.push(Asset {
                 info: pools[1 - given_ind].info.clone(),
                 amount: Uint128::zero(),
