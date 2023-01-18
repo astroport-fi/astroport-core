@@ -215,12 +215,25 @@ impl Helper {
     }
 
     pub fn provide_liquidity(&mut self, sender: &Addr, assets: &[Asset]) -> AnyResult<AppResponse> {
+        self.provide_liquidity_with_slip_tolerance(
+            sender,
+            assets,
+            Some(f64_to_dec(0.5)), // 50% slip tolerance for testing purposes
+        )
+    }
+
+    pub fn provide_liquidity_with_slip_tolerance(
+        &mut self,
+        sender: &Addr,
+        assets: &[Asset],
+        slippage_tolerance: Option<Decimal>,
+    ) -> AnyResult<AppResponse> {
         let funds =
             assets.mock_coins_sent(&mut self.app, sender, &self.pair_addr, SendType::Allowance);
 
         let msg = ExecuteMsg::ProvideLiquidity {
             assets: assets.clone().to_vec(),
-            slippage_tolerance: None,
+            slippage_tolerance,
             auto_stake: None,
             receiver: None,
         };

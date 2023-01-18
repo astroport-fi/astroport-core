@@ -106,12 +106,22 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128, u64)>) {
             helper.assets[&test_coins[1]].with_balance(coin1_amnt),
         ];
         helper.give_me_money(&assets, &user);
-        helper.provide_liquidity(&user, &assets).unwrap();
 
-        let entry = accounts.entry(user).or_default();
-        entry.0 = entry.0 + coin0_amnt;
-        entry.1 = entry.1 + coin1_amnt;
-        entry.2 += 1;
+        if let Err(err) = helper.provide_liquidity(&user, &assets) {
+            let err: ContractError = err.downcast().unwrap();
+            match err {
+                ContractError::MaxSpreadAssertion {} => {
+                    // if swap fails because of spread then skip this case
+                    println!("spread limit exceeded");
+                }
+                _ => panic!("{err}"),
+            }
+        } else {
+            let entry = accounts.entry(user).or_default();
+            entry.0 = entry.0 + coin0_amnt;
+            entry.1 = entry.1 + coin1_amnt;
+            entry.2 += 1;
+        }
 
         // Shift time so EMA will update oracle prices
         helper.app.next_block(shift_time);
@@ -122,7 +132,9 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128, u64)>) {
 
     for (user, &(coin0_amnt, coin1_amnt, cnt)) in &accounts {
         let lp_amount = helper.token_balance(&helper.lp_token, user);
-        helper.withdraw_liquidity(user, lp_amount, vec![]).unwrap();
+        if cnt != 0 {
+            helper.withdraw_liquidity(user, lp_amount, vec![]).unwrap();
+        }
 
         let total_sent_liq = coin0_amnt as f64 + coin1_amnt as f64 * price_scale;
         let coin0_bal = helper.coin_balance(&test_coins[0], user) as f64;

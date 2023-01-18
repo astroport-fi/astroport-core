@@ -89,7 +89,8 @@ __NOTE__: you should increase your token allowance for the pool before providing
       }
     ],
     "auto_stake": false,
-    "receiver": "terra..."
+    "receiver": "terra...",
+    "slippage_tolerance": "0.01"
   }
 }
 ```

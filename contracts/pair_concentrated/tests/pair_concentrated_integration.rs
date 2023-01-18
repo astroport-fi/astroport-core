@@ -229,11 +229,10 @@ fn provide_and_withdraw() {
 
     // One of assets may be omitted
     let user5 = Addr::unchecked("user5");
-    let assets = vec![helper.assets[&test_coins[0]].with_balance(200_000_000000u128)];
+    let assets = vec![helper.assets[&test_coins[0]].with_balance(140_000_000000u128)];
     helper.give_me_money(&assets, &user5);
     helper.provide_liquidity(&user5, &assets).unwrap();
-    // This provide makes pool balanced again thus user5 gets more LP tokens
-    assert_eq!(78920_465546, helper.token_balance(&helper.lp_token, &user5));
+    assert_eq!(57271_023590, helper.token_balance(&helper.lp_token, &user5));
 
     // check that imbalanced withdraw is currently disabled
     let withdraw_assets = vec![
@@ -257,10 +256,8 @@ fn provide_and_withdraw() {
         70710_677118 - 7071_067711,
         helper.token_balance(&helper.lp_token, &user1)
     );
-    // initial provide charged small fee thus user1 received slightly less fees
-    // however, user1 received more share because he accumulated fees from imbalanced provides
-    assert_eq!(10008_015496, helper.coin_balance(&test_coins[0], &user1));
-    assert_eq!(5004_007748, helper.coin_balance(&test_coins[1], &user1));
+    assert_eq!(9382_010962, helper.coin_balance(&test_coins[0], &user1));
+    assert_eq!(5330_688046, helper.coin_balance(&test_coins[1], &user1));
 
     // user2 withdraws half
     helper
@@ -271,8 +268,8 @@ fn provide_and_withdraw() {
         70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128() - 35355_339059,
         helper.token_balance(&helper.lp_token, &user2)
     );
-    assert_eq!(50040_078197, helper.coin_balance(&test_coins[0], &user2));
-    assert_eq!(25020_039098, helper.coin_balance(&test_coins[1], &user2));
+    assert_eq!(46910_055479, helper.coin_balance(&test_coins[0], &user2));
+    assert_eq!(26653_440613, helper.coin_balance(&test_coins[1], &user2));
 }
 
 #[test]

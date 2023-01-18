@@ -9,7 +9,9 @@ use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
 use astroport::cosmwasm_ext::AbsDiff;
 use astroport::querier::{query_factory_config, query_supply};
 
-use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, TWAP_PRECISION_DEC};
+use crate::consts::{
+    DEFAULT_SLIPPAGE, FORECAST_PERCENT, MAX_ALLOWED_SLIPPAGE, N, TWAP_PRECISION_DEC,
+};
 use crate::error::ContractError;
 use crate::math::{calc_d, calc_y};
 use crate::state::{Config, PoolParams, Precisions};
@@ -261,6 +263,19 @@ impl SwapResult {
     }
 }
 
+/// Performs swap simulation to calculate price.
+pub fn forecast_last_price(xs: &[Decimal256], config: &Config, env: &Env) -> StdResult<Decimal256> {
+    let mut offer_amount = xs[0] * FORECAST_PERCENT;
+    if offer_amount.is_zero() {
+        offer_amount = Decimal256::one();
+    }
+
+    let (last_price, _) = compute_swap(&xs, offer_amount, 1, &config, &env, Decimal256::zero())?
+        .calc_last_prices(offer_amount, 0);
+
+    Ok(last_price)
+}
+
 /// Calculate swap result.
 pub fn compute_swap(
     xs: &[Decimal256],
@@ -397,6 +412,27 @@ pub fn calc_provide_fee(
     let deviation = deposits[0].diff(avg) + deposits[1].diff(avg);
 
     deviation * params.fee(xp) / (sum * N)
+}
+
+/// This is an internal function that enforces slippage tolerance for swaps.
+pub fn assert_slippage_tolerance(
+    old_price: Decimal256,
+    new_price: Decimal256,
+    slippage_tolerance: Option<Decimal>,
+) -> Result<(), ContractError> {
+    let slippage_tolerance = slippage_tolerance
+        .map(Into::into)
+        .unwrap_or(DEFAULT_SLIPPAGE);
+    if slippage_tolerance > MAX_ALLOWED_SLIPPAGE {
+        return Err(ContractError::AllowedSpreadAssertion {});
+    }
+
+    // Ensure price was not changed more than the slippage tolerance allows
+    if Decimal256::one().diff(new_price / old_price) > slippage_tolerance {
+        return Err(ContractError::MaxSpreadAssertion {});
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

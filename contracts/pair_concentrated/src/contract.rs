@@ -32,9 +32,9 @@ use crate::state::{
     OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
-    accumulate_prices, assert_max_spread, before_swap_check, calc_provide_fee, check_asset_infos,
-    check_assets, check_cw20_in_pool, compute_swap, get_share_in_assets,
-    mint_liquidity_token_message, query_pools,
+    accumulate_prices, assert_max_spread, assert_slippage_tolerance, before_swap_check,
+    calc_provide_fee, check_asset_infos, check_assets, check_cw20_in_pool, compute_swap,
+    forecast_last_price, get_share_in_assets, mint_liquidity_token_message, query_pools,
 };
 
 /// Contract name that is used for migration.
@@ -358,7 +358,7 @@ pub fn provide_liquidity(
     env: Env,
     info: MessageInfo,
     mut assets: Vec<Asset>,
-    _slippage_tolerance: Option<Decimal>,
+    slippage_tolerance: Option<Decimal>,
     auto_stake: Option<bool>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
@@ -400,7 +400,7 @@ pub fn provide_liquidity(
         assets.swap(0, 1);
     }
 
-    // precisions.get_precision() as well validates that the asset belongs to the pool
+    // precisions.get_precision() also validates that the asset belongs to the pool
     let deposits = [
         Decimal256::with_precision(assets[0].amount, precisions.get_precision(&assets[0].info)?)?,
         Decimal256::with_precision(assets[1].amount, precisions.get_precision(&assets[1].info)?)?,
@@ -477,6 +477,9 @@ pub fn provide_liquidity(
         // TODO: Assert slippage tolerance if needed
 
         let mut old_xp = pools.iter().map(|a| a.amount).collect_vec();
+        println!("Initial pool volume: {} {}", old_xp[0], old_xp[1]);
+        let before_price = forecast_last_price(&old_xp, &config, &env)?;
+        println!("Before provide pool price: {before_price}");
         old_xp[1] *= config.pool_state.price_state.price_scale;
         let old_d = calc_d(&old_xp, &amp_gamma)?;
         let total_share = total_share.to_decimal256(LP_TOKEN_PRECISION)?;
@@ -506,6 +509,15 @@ pub fn provide_liquidity(
         if !assets_diff[1].is_zero() {
             let last_price = assets_diff[0] / assets_diff[1];
             println!("last_price driven from share: {last_price}");
+
+            let tmp_xp = vec![
+                new_xp[0],
+                new_xp[1] / config.pool_state.price_state.price_scale,
+            ];
+            let after_price = forecast_last_price(&tmp_xp, &config, &env)?;
+            println!("After provide pool price: {after_price}");
+
+            assert_slippage_tolerance(before_price, after_price, slippage_tolerance)?;
 
             config.pool_state.update_price(
                 &config.pool_params,
