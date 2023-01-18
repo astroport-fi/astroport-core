@@ -268,7 +268,7 @@ pub fn calc_last_price(xs: &[Decimal256], config: &Config, env: &Env) -> StdResu
         offer_amount = Decimal256::one();
     }
 
-    let (last_price, _) = compute_swap(&xs, offer_amount, 1, &config, &env, Decimal256::zero())?
+    let (last_price, _) = compute_swap(xs, offer_amount, 1, config, env, Decimal256::zero())?
         .calc_last_prices(offer_amount, 0);
 
     Ok(last_price)
