@@ -406,7 +406,8 @@ pub fn provide_liquidity(
         Decimal256::with_precision(assets[1].amount, precisions.get_precision(&assets[1].info)?)?,
     ];
 
-    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
+        .to_decimal256(LP_TOKEN_PRECISION)?;
 
     // Initial provide can not be one-sided
     if total_share.is_zero() && (deposits[0].is_zero() || deposits[1].is_zero()) {
@@ -449,11 +450,11 @@ pub fn provide_liquidity(
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
     let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
+    let mut old_price = config.pool_state.price_state.last_price;
 
-    let mint_amount = if total_share.is_zero() {
+    let share = if total_share.is_zero() {
         let mint_amount = xcp
-            .to_uint(LP_TOKEN_PRECISION)?
-            .checked_sub(MINIMUM_LIQUIDITY_AMOUNT)
+            .checked_sub(MINIMUM_LIQUIDITY_AMOUNT.to_decimal256(LP_TOKEN_PRECISION)?)
             .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
 
         messages.extend(mint_liquidity_token_message(
@@ -474,63 +475,62 @@ pub fn provide_liquidity(
 
         mint_amount
     } else {
-        // TODO: Assert slippage tolerance if needed
-
         let mut old_xp = pools.iter().map(|a| a.amount).collect_vec();
         println!("Initial pool volume: {} {}", old_xp[0], old_xp[1]);
-        let old_price = calc_last_price(&old_xp, &config, &env)?;
+        old_price = calc_last_price(&old_xp, &config, &env)?;
         println!("Before provide price: {old_price}");
         old_xp[1] *= config.pool_state.price_state.price_scale;
         let old_d = calc_d(&old_xp, &amp_gamma)?;
-        let total_share = total_share.to_decimal256(LP_TOKEN_PRECISION)?;
-        let mut share = (total_share * new_d / old_d).saturating_sub(total_share);
+        let share = (total_share * new_d / old_d).saturating_sub(total_share);
 
         let mut ideposits = deposits;
         ideposits[1] *= config.pool_state.price_state.price_scale;
-        share *= Decimal256::one() - calc_provide_fee(&ideposits, &new_xp, &config.pool_params);
 
-        // calculate accrued share
-        let share_ratio = share / (total_share + share);
-        let balanced_share = vec![
-            new_xp[0] * share_ratio,
-            new_xp[1] * share_ratio / config.pool_state.price_state.price_scale,
-        ];
-        println!(
-            "balanced_share: {} {}",
-            balanced_share[0], balanced_share[1]
-        );
-        println!("deposits {} {}", deposits[0], deposits[1]);
-        let assets_diff = vec![
-            deposits[0].diff(balanced_share[0]),
-            deposits[1].diff(balanced_share[1]),
-        ];
-
-        let tmp_xp = vec![
-            new_xp[0],
-            new_xp[1] / config.pool_state.price_state.price_scale,
-        ];
-        let new_price = calc_last_price(&tmp_xp, &config, &env)?;
-        println!("After provide price: {new_price}");
-        accumulate_prices(&env, &mut config, new_price);
-
-        // if assets_diff[1] is zero then deposits are balanced thus no need to update price
-        if !assets_diff[1].is_zero() {
-            let last_price = assets_diff[0] / assets_diff[1];
-            println!("last_price driven from share: {last_price}");
-
-            assert_slippage_tolerance(old_price, new_price, slippage_tolerance)?;
-
-            config.pool_state.update_price(
-                &config.pool_params,
-                &env,
-                total_share + share,
-                &new_xp,
-                last_price,
-            )?;
-        }
-
-        share.to_uint(LP_TOKEN_PRECISION)?
+        share * (Decimal256::one() - calc_provide_fee(&ideposits, &new_xp, &config.pool_params))
     };
+
+    // calculate accrued share
+    let share_ratio = share / (total_share + share);
+    let balanced_share = vec![
+        new_xp[0] * share_ratio,
+        new_xp[1] * share_ratio / config.pool_state.price_state.price_scale,
+    ];
+    println!(
+        "balanced_share: {} {}",
+        balanced_share[0], balanced_share[1]
+    );
+    println!("deposits {} {}", deposits[0], deposits[1]);
+    let assets_diff = vec![
+        deposits[0].diff(balanced_share[0]),
+        deposits[1].diff(balanced_share[1]),
+    ];
+
+    let tmp_xp = vec![
+        new_xp[0],
+        new_xp[1] / config.pool_state.price_state.price_scale,
+    ];
+    let new_price = calc_last_price(&tmp_xp, &config, &env)?;
+    println!("After provide price: {new_price}");
+
+    accumulate_prices(&env, &mut config, new_price);
+
+    // if assets_diff[1] is zero then deposits are balanced thus no need to update price
+    if !assets_diff[1].is_zero() {
+        let last_price = assets_diff[0] / assets_diff[1];
+        println!("last_price driven from share: {last_price}");
+
+        assert_slippage_tolerance(old_price, new_price, slippage_tolerance)?;
+
+        config.pool_state.update_price(
+            &config.pool_params,
+            &env,
+            total_share + share,
+            &new_xp,
+            last_price,
+        )?;
+    }
+
+    let share_uint128 = share.to_uint(LP_TOKEN_PRECISION)?;
 
     config.pool_state.price_state.xcp = xcp;
 
@@ -542,7 +542,7 @@ pub fn provide_liquidity(
         &config,
         &env.contract.address,
         &receiver,
-        mint_amount,
+        share_uint128,
         auto_stake,
     )?);
 
@@ -553,7 +553,7 @@ pub fn provide_liquidity(
         attr("sender", info.sender),
         attr("receiver", receiver),
         attr("assets", format!("{}, {}", &assets[0], &assets[1])),
-        attr("share", mint_amount),
+        attr("share", share_uint128),
     ];
 
     Ok(Response::new().add_messages(messages).add_attributes(attrs))
