@@ -33,8 +33,8 @@ use crate::state::{
 };
 use crate::utils::{
     accumulate_prices, assert_max_spread, assert_slippage_tolerance, before_swap_check,
-    calc_provide_fee, check_asset_infos, check_assets, check_cw20_in_pool, compute_swap,
-    forecast_last_price, get_share_in_assets, mint_liquidity_token_message, query_pools,
+    calc_last_price, calc_provide_fee, check_asset_infos, check_assets, check_cw20_in_pool,
+    compute_swap, get_share_in_assets, mint_liquidity_token_message, query_pools,
 };
 
 /// Contract name that is used for migration.
@@ -478,8 +478,8 @@ pub fn provide_liquidity(
 
         let mut old_xp = pools.iter().map(|a| a.amount).collect_vec();
         println!("Initial pool volume: {} {}", old_xp[0], old_xp[1]);
-        let before_price = forecast_last_price(&old_xp, &config, &env)?;
-        println!("Before provide pool price: {before_price}");
+        let old_price = calc_last_price(&old_xp, &config, &env)?;
+        println!("Before provide price: {old_price}");
         old_xp[1] *= config.pool_state.price_state.price_scale;
         let old_d = calc_d(&old_xp, &amp_gamma)?;
         let total_share = total_share.to_decimal256(LP_TOKEN_PRECISION)?;
@@ -505,19 +505,20 @@ pub fn provide_liquidity(
             deposits[1].diff(balanced_share[1]),
         ];
 
+        let tmp_xp = vec![
+            new_xp[0],
+            new_xp[1] / config.pool_state.price_state.price_scale,
+        ];
+        let new_price = calc_last_price(&tmp_xp, &config, &env)?;
+        println!("After provide price: {new_price}");
+        accumulate_prices(&env, &mut config, new_price);
+
         // if assets_diff[1] is zero then deposits are balanced thus no need to update price
         if !assets_diff[1].is_zero() {
             let last_price = assets_diff[0] / assets_diff[1];
             println!("last_price driven from share: {last_price}");
 
-            let tmp_xp = vec![
-                new_xp[0],
-                new_xp[1] / config.pool_state.price_state.price_scale,
-            ];
-            let after_price = forecast_last_price(&tmp_xp, &config, &env)?;
-            println!("After provide pool price: {after_price}");
-
-            assert_slippage_tolerance(before_price, after_price, slippage_tolerance)?;
+            assert_slippage_tolerance(old_price, new_price, slippage_tolerance)?;
 
             config.pool_state.update_price(
                 &config.pool_params,
@@ -526,8 +527,6 @@ pub fn provide_liquidity(
                 &new_xp,
                 last_price,
             )?;
-
-            accumulate_prices(&env, &mut config, last_price);
         }
 
         share.to_uint(LP_TOKEN_PRECISION)?

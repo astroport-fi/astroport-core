@@ -9,9 +9,7 @@ use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
 use astroport::cosmwasm_ext::AbsDiff;
 use astroport::querier::{query_factory_config, query_supply};
 
-use crate::consts::{
-    DEFAULT_SLIPPAGE, FORECAST_PERCENT, MAX_ALLOWED_SLIPPAGE, N, TWAP_PRECISION_DEC,
-};
+use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, OFFER_PERCENT, TWAP_PRECISION_DEC};
 use crate::error::ContractError;
 use crate::math::{calc_d, calc_y};
 use crate::state::{Config, PoolParams, Precisions};
@@ -264,8 +262,8 @@ impl SwapResult {
 }
 
 /// Performs swap simulation to calculate price.
-pub fn forecast_last_price(xs: &[Decimal256], config: &Config, env: &Env) -> StdResult<Decimal256> {
-    let mut offer_amount = xs[0] * FORECAST_PERCENT;
+pub fn calc_last_price(xs: &[Decimal256], config: &Config, env: &Env) -> StdResult<Decimal256> {
+    let mut offer_amount = xs[0] * OFFER_PERCENT;
     if offer_amount.is_zero() {
         offer_amount = Decimal256::one();
     }

@@ -1,11 +1,10 @@
-use crate::consts::FORECAST_PERCENT;
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
 use crate::math::calc_d;
 use crate::state::{Precisions, CONFIG};
 use crate::utils::{
-    accumulate_prices, before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets,
-    pool_info, query_pools,
+    accumulate_prices, before_swap_check, calc_last_price, compute_offer_amount, compute_swap,
+    get_share_in_assets, pool_info, query_pools,
 };
 use astroport::asset::Asset;
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
@@ -203,23 +202,7 @@ fn query_cumulative_prices(
     let pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
     let xs = pools.iter().map(|asset| asset.amount).collect_vec();
-
-    let mut offer_amount = xs[0] * FORECAST_PERCENT;
-    if offer_amount.is_zero() {
-        offer_amount = Decimal256::one();
-    }
-    let fee_info = query_fee_info(
-        &deps.querier,
-        &config.factory_addr,
-        config.pair_info.pair_type.clone(),
-    )?;
-    let mut maker_fee_share = Decimal256::zero();
-    if fee_info.fee_address.is_some() {
-        maker_fee_share = fee_info.maker_fee_rate.into();
-    }
-
-    let (_, last_real_price) = compute_swap(&xs, offer_amount, 1, &config, &env, maker_fee_share)?
-        .calc_last_prices(offer_amount, 0);
+    let last_real_price = calc_last_price(&xs, &config, &env)?;
 
     accumulate_prices(&env, &mut config, last_real_price);
 
