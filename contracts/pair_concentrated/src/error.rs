@@ -1,9 +1,6 @@
 use crate::consts::MIN_AMP_CHANGING_TIME;
 use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
-use cosmwasm_std::{
-    CheckedFromRatioError, CheckedMultiplyRatioError, ConversionOverflowError, Decimal,
-    OverflowError, StdError,
-};
+use cosmwasm_std::{ConversionOverflowError, Decimal, OverflowError, StdError};
 use thiserror::Error;
 
 /// This enum describes pair contract errors
@@ -11,12 +8,6 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
-
-    #[error("{0}")]
-    CheckedMultiplyRatioError(#[from] CheckedMultiplyRatioError),
-
-    #[error("{0}")]
-    CheckedFromRatioError(#[from] CheckedFromRatioError),
 
     #[error("{0}")]
     ConversionOverflowError(#[from] ConversionOverflowError),
@@ -44,9 +35,6 @@ pub enum ContractError {
     )]
     MinChangingTimeAssertion {},
 
-    #[error("Operation non supported")]
-    NonSupported {},
-
     #[error("Initial provide must not contain zero amount")]
     InvalidZeroAmount {},
 
@@ -56,14 +44,8 @@ pub enum ContractError {
     #[error("Provided spread amount exceeds allowed limit")]
     AllowedSpreadAssertion {},
 
-    #[error("Operation exceeds max splippage tolerance")]
-    MaxSlippageAssertion {},
-
     #[error("Doubling assets in asset infos")]
     DoublingAssets {},
-
-    #[error("Asset mismatch between the requested and the stored asset in contract")]
-    AssetMismatch {},
 
     #[error("Generator address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
@@ -77,7 +59,7 @@ pub enum ContractError {
     #[error("Failed to parse or process reply message")]
     FailedToParseReply {},
 
-    #[error("Invalid number of assets. This pair support only {0} assets")]
+    #[error("Invalid number of assets. This pair supports only {0} assets")]
     InvalidNumberOfAssets(usize),
 
     #[error("The asset {0} does not belong to the pair")]
