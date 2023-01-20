@@ -208,7 +208,7 @@ pub fn execute(
             update_rewards_and_execute(
                 deps,
                 env,
-                None,
+                Some(lp_tokens_addr.clone()),
                 ExecuteOnReply::ClaimRewards {
                     lp_tokens: lp_tokens_addr,
                     account: info.sender,
@@ -224,7 +224,7 @@ pub fn execute(
             update_rewards_and_execute(
                 deps.branch(),
                 env,
-                Some(lp_token.clone()),
+                Some(vec![lp_token.clone()]),
                 ExecuteOnReply::Withdraw {
                     lp_token,
                     account: info.sender,
@@ -675,13 +675,23 @@ pub fn execute_update_pool(
 fn update_rewards_and_execute(
     deps: DepsMut,
     env: Env,
-    update_single_pool: Option<Addr>,
+    update_specified_pools: Option<Vec<Addr>>,
     action_on_reply: ExecuteOnReply,
 ) -> Result<Response, ContractError> {
-    let pools = match update_single_pool {
-        Some(lp_token) => {
-            let pool = POOL_INFO.load(deps.storage, &lp_token)?;
-            vec![(lp_token, pool)]
+    let pools = match update_specified_pools {
+        Some(lp_tokens) => {
+            // Check for duplicate lp tokens
+            if lp_tokens.len() > 1 {
+                let mut uniq: HashSet<&Addr> = HashSet::new();
+                if !lp_tokens.iter().all(|a| uniq.insert(a)) {
+                    return Err(ContractError::PoolDuplicate {});
+                }
+            }
+
+            lp_tokens
+                .iter()
+                .map(|lp_token| Ok((lp_token.clone(), POOL_INFO.load(deps.storage, lp_token)?)))
+                .collect::<StdResult<Vec<_>>>()?
         }
         None => {
             let config = CONFIG.load(deps.storage)?;
@@ -1004,7 +1014,7 @@ fn receive_cw20(
             update_rewards_and_execute(
                 deps,
                 env,
-                Some(lp_token.clone()),
+                Some(vec![lp_token.clone()]),
                 ExecuteOnReply::Deposit {
                     lp_token,
                     account,
@@ -1015,7 +1025,7 @@ fn receive_cw20(
         Cw20HookMsg::DepositFor(beneficiary) => update_rewards_and_execute(
             deps,
             env,
-            Some(lp_token.clone()),
+            Some(vec![lp_token.clone()]),
             ExecuteOnReply::Deposit {
                 lp_token,
                 account: beneficiary,
@@ -1492,7 +1502,7 @@ fn migrate_proxy(
     update_rewards_and_execute(
         deps,
         env,
-        Some(lp_addr.clone()),
+        Some(vec![lp_addr.clone()]),
         ExecuteOnReply::MigrateProxy {
             lp_addr,
             new_proxy_addr,
