@@ -262,16 +262,21 @@ impl SwapResult {
 }
 
 /// Performs swap simulation to calculate price.
-pub fn calc_last_price(xs: &[Decimal256], config: &Config, env: &Env) -> StdResult<Decimal256> {
+pub fn calc_last_prices(
+    xs: &[Decimal256],
+    config: &Config,
+    env: &Env,
+) -> StdResult<(Decimal256, Decimal256)> {
     let mut offer_amount = Decimal256::one().min(xs[0] * OFFER_PERCENT);
     if offer_amount.is_zero() {
         offer_amount = Decimal256::raw(1u128);
     }
 
-    let (last_price, _) = compute_swap(xs, offer_amount, 1, config, env, Decimal256::zero())?
-        .calc_last_prices(offer_amount, 0);
+    let (last_price, last_real_price) =
+        compute_swap(xs, offer_amount, 1, config, env, Decimal256::zero())?
+            .calc_last_prices(offer_amount, 0);
 
-    Ok(last_price)
+    Ok((last_price, last_real_price))
 }
 
 /// Calculate swap result.

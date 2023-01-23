@@ -33,7 +33,7 @@ use crate::state::{
 };
 use crate::utils::{
     accumulate_prices, assert_max_spread, assert_slippage_tolerance, before_swap_check,
-    calc_last_price, calc_provide_fee, check_asset_infos, check_assets, check_cw20_in_pool,
+    calc_last_prices, calc_provide_fee, check_asset_infos, check_assets, check_cw20_in_pool,
     compute_swap, get_share_in_assets, mint_liquidity_token_message, query_pools,
 };
 
@@ -477,7 +477,7 @@ pub fn provide_liquidity(
     } else {
         let mut old_xp = pools.iter().map(|a| a.amount).collect_vec();
         println!("Initial pool volume: {} {}", old_xp[0], old_xp[1]);
-        old_price = calc_last_price(&old_xp, &config, &env)?;
+        old_price = calc_last_prices(&old_xp, &config, &env)?.0;
         println!("Before provide price: {old_price}");
         old_xp[1] *= config.pool_state.price_state.price_scale;
         let old_d = calc_d(&old_xp, &amp_gamma)?;
@@ -509,10 +509,10 @@ pub fn provide_liquidity(
         new_xp[0],
         new_xp[1] / config.pool_state.price_state.price_scale,
     ];
-    let new_price = calc_last_price(&tmp_xp, &config, &env)?;
+    let (new_price, new_real_price) = calc_last_prices(&tmp_xp, &config, &env)?;
     println!("After provide price: {new_price}");
 
-    accumulate_prices(&env, &mut config, new_price);
+    accumulate_prices(&env, &mut config, new_real_price);
 
     // if assets_diff[1] is zero then deposits are balanced thus no need to update price
     if !assets_diff[1].is_zero() {

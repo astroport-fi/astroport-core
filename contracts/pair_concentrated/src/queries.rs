@@ -3,7 +3,7 @@ use crate::error::ContractError;
 use crate::math::calc_d;
 use crate::state::{Precisions, CONFIG};
 use crate::utils::{
-    accumulate_prices, before_swap_check, calc_last_price, compute_offer_amount, compute_swap,
+    accumulate_prices, before_swap_check, calc_last_prices, compute_offer_amount, compute_swap,
     get_share_in_assets, pool_info, query_pools,
 };
 use astroport::asset::Asset;
@@ -202,7 +202,7 @@ fn query_cumulative_prices(
     let pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
     let xs = pools.iter().map(|asset| asset.amount).collect_vec();
-    let last_real_price = calc_last_price(&xs, &config, &env)?;
+    let (_, last_real_price) = calc_last_prices(&xs, &config, &env)?;
 
     accumulate_prices(&env, &mut config, last_real_price);
 
