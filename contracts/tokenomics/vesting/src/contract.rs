@@ -1,19 +1,21 @@
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    Response, StdError, StdResult, SubMsg, Uint128,
 };
 
 use crate::state::{read_vesting_infos, Config, CONFIG, OWNERSHIP_PROPOSAL, VESTING_INFO};
 
 use crate::error::ContractError;
-use astroport::asset::addr_validate_to_lower;
+use crate::migration::migrate_from_v100;
+use astroport::asset::{token_asset_info, AssetInfo, AssetInfoExt};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::vesting::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg,
     VestingAccount, VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
 };
-use cw2::set_contract_version;
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw2::{get_contract_version, set_contract_version};
+use cw20::Cw20ReceiveMsg;
+use cw_utils::must_pay;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-vesting";
@@ -42,11 +44,13 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    msg.vesting_token.check(deps.api)?;
+
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-            token_addr: addr_validate_to_lower(deps.api, &msg.token_addr)?,
+            owner: deps.api.addr_validate(&msg.owner)?,
+            vesting_token: msg.vesting_token,
         },
     )?;
 
@@ -79,6 +83,17 @@ pub fn execute(
     match msg {
         ExecuteMsg::Claim { recipient, amount } => claim(deps, env, info, recipient, amount),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::RegisterVestingAccounts { vesting_accounts } => {
+            let config = CONFIG.load(deps.storage)?;
+
+            match &config.vesting_token {
+                AssetInfo::NativeToken { denom } if info.sender == config.owner => {
+                    let amount = must_pay(&info, denom)?;
+                    register_vesting_accounts(deps, env, vesting_accounts, amount)
+                }
+                _ => Err(ContractError::Unauthorized {}),
+            }
+        }
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             let config: Config = CONFIG.load(deps.storage)?;
 
@@ -133,13 +148,8 @@ fn receive_cw20(
 ) -> Result<Response, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
 
-    // Check owner
-    if cw20_msg.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    // Check token
-    if info.sender != config.token_addr {
+    // Permission check
+    if cw20_msg.sender != config.owner || token_asset_info(info.sender) != config.vesting_token {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -169,7 +179,7 @@ pub fn register_vesting_accounts(
     deps: DepsMut,
     _env: Env,
     vesting_accounts: Vec<VestingAccount>,
-    cw20_amount: Uint128,
+    amount: Uint128,
 ) -> Result<Response, ContractError> {
     let response = Response::new();
 
@@ -177,7 +187,7 @@ pub fn register_vesting_accounts(
 
     for mut vesting_account in vesting_accounts {
         let mut released_amount = Uint128::zero();
-        let account_address = addr_validate_to_lower(deps.api, &vesting_account.address)?;
+        let account_address = deps.api.addr_validate(&vesting_account.address)?;
 
         assert_vesting_schedules(&account_address, &vesting_account.schedules)?;
 
@@ -205,7 +215,7 @@ pub fn register_vesting_accounts(
         )?;
     }
 
-    if to_deposit != cw20_amount {
+    if to_deposit != amount {
         return Err(ContractError::VestingScheduleAmountError {});
     }
 
@@ -258,10 +268,6 @@ pub fn claim(
     amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     let mut response = Response::new();
-    let mut attributes = vec![
-        attr("action", "claim"),
-        attr("address", info.sender.clone()),
-    ];
 
     let config: Config = CONFIG.load(deps.storage)?;
 
@@ -278,28 +284,24 @@ pub fn claim(
         available_amount
     };
 
-    attributes.append(&mut vec![
-        attr("available_amount", available_amount),
-        attr("claimed_amount", claim_amount),
-    ]);
-
     if !claim_amount.is_zero() {
-        response
-            .messages
-            .append(&mut vec![SubMsg::new(WasmMsg::Execute {
-                contract_addr: config.token_addr.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: recipient.unwrap_or_else(|| info.sender.to_string()),
-                    amount: claim_amount,
-                })?,
-            })]);
+        let transfer_msg = config.vesting_token.with_balance(claim_amount).into_msg(
+            &deps.querier,
+            deps.api
+                .addr_validate(&recipient.unwrap_or_else(|| info.sender.to_string()))?,
+        )?;
+        response = response.add_submessage(SubMsg::new(transfer_msg));
 
         vesting_info.released_amount = vesting_info.released_amount.checked_add(claim_amount)?;
         VESTING_INFO.save(deps.storage, &info.sender, &vesting_info)?;
     };
 
-    Ok(response.add_attributes(attributes))
+    Ok(response.add_attributes(vec![
+        attr("action", "claim"),
+        attr("address", &info.sender),
+        attr("available_amount", available_amount),
+        attr("claimed_amount", claim_amount),
+    ]))
 }
 
 /// ## Description
@@ -392,7 +394,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
         owner: config.owner,
-        token_addr: config.token_addr,
+        vesting_token: config.vesting_token,
     };
 
     Ok(resp)
@@ -412,7 +414,7 @@ pub fn query_timestamp(env: Env) -> StdResult<u64> {
 ///
 /// * **address** is an object of type [`String`]. This is the vesting recipient for which to return vesting data.
 pub fn query_vesting_account(deps: Deps, address: String) -> StdResult<VestingAccountResponse> {
-    let address = addr_validate_to_lower(deps.api, &address)?;
+    let address = deps.api.addr_validate(&address)?;
     let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
 
     let resp = VestingAccountResponse { address, info };
@@ -439,7 +441,7 @@ pub fn query_vesting_accounts(
     order_by: Option<OrderBy>,
 ) -> StdResult<VestingAccountsResponse> {
     let start_after = start_after
-        .map(|v| addr_validate_to_lower(deps.api, &v))
+        .map(|v| deps.api.addr_validate(&v))
         .transpose()?;
 
     let vesting_infos = read_vesting_infos(deps, start_after, limit, order_by)?;
@@ -464,7 +466,7 @@ pub fn query_vesting_accounts(
 ///
 /// * **address** is an object of type [`String`]. This is the vesting recipient for which to return the available amount of tokens to claim.
 pub fn query_vesting_available_amount(deps: Deps, env: Env, address: String) -> StdResult<Uint128> {
-    let address = addr_validate_to_lower(deps.api, &address)?;
+    let address = deps.api.addr_validate(&address)?;
 
     let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
     let available_amount = compute_available_amount(env.block.time.seconds(), &info)?;
@@ -480,6 +482,23 @@ pub fn query_vesting_available_amount(deps: Deps, env: Env, address: String) -> 
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-vesting" => match contract_version.version.as_ref() {
+            "1.0.0" => migrate_from_v100(deps.branch())?,
+            "1.1.0" => {}
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

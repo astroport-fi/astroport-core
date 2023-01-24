@@ -2,31 +2,28 @@ use crate::error::ContractError;
 use crate::state::{Config, BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
 use std::cmp::min;
 
-use crate::migration;
+use crate::migration::migrate_to_v110;
 use crate::utils::{
     build_distribute_msg, build_swap_msg, try_build_swap_msg, validate_bridge,
     BRIDGES_EXECUTION_MAX_DEPTH, BRIDGES_INITIAL_DEPTH,
 };
-use astroport::asset::ULUNA_DENOM;
-use astroport::asset::{
-    addr_validate_to_lower, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo,
-    PairInfo,
-};
+use astroport::asset::{addr_opt_validate, Asset, AssetInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
 use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg,
     QueryMsg,
 };
-use astroport::pair::QueryMsg as PairQueryMsg;
+use astroport::pair::MAX_ALLOWED_SLIPPAGE;
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Order, QueryRequest, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
-    WasmMsg, WasmQuery,
+    attr, coins, entry_point, to_binary, wasm_execute, Addr, Attribute, Binary, CosmosMsg, Decimal,
+    Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
+    WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ExecuteMsg;
 use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-maker";
@@ -54,11 +51,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    let governance_contract = if let Some(governance_contract) = msg.governance_contract {
-        Option::from(addr_validate_to_lower(deps.api, &governance_contract)?)
-    } else {
-        None
-    };
+    let governance_contract = addr_opt_validate(deps.api, &msg.governance_contract)?;
 
     let governance_percent = if let Some(governance_percent) = msg.governance_percent {
         if governance_percent > Uint64::new(100) {
@@ -70,7 +63,7 @@ pub fn instantiate(
     };
 
     let max_spread = if let Some(max_spread) = msg.max_spread {
-        if max_spread.gt(&Decimal::one()) {
+        if max_spread.gt(&Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?) {
             return Err(ContractError::IncorrectMaxSpread {});
         };
 
@@ -79,11 +72,18 @@ pub fn instantiate(
         Decimal::percent(DEFAULT_MAX_SPREAD)
     };
 
+    msg.astro_token.check(deps.api)?;
+
+    if let Some(default_bridge) = &msg.default_bridge {
+        default_bridge.check(deps.api)?
+    }
+
     let cfg = Config {
-        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-        astro_token_contract: addr_validate_to_lower(deps.api, &msg.astro_token_contract)?,
-        factory_contract: addr_validate_to_lower(deps.api, &msg.factory_contract)?,
-        staking_contract: addr_validate_to_lower(deps.api, &msg.staking_contract)?,
+        owner: deps.api.addr_validate(&msg.owner)?,
+        default_bridge: msg.default_bridge,
+        astro_token: msg.astro_token,
+        factory_contract: deps.api.addr_validate(&msg.factory_contract)?,
+        staking_contract: addr_opt_validate(deps.api, &msg.staking_contract)?,
         rewards_enabled: false,
         pre_upgrade_blocks: 0,
         last_distribution_block: 0,
@@ -93,6 +93,12 @@ pub fn instantiate(
         governance_percent,
         max_spread,
     };
+
+    if cfg.staking_contract.is_none() && cfg.governance_contract.is_none() {
+        return Err(
+            StdError::generic_err("Either staking or governance contract must be set").into(),
+        );
+    }
 
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -149,6 +155,7 @@ pub fn execute(
             staking_contract,
             governance_contract,
             governance_percent,
+            basic_asset,
             max_spread,
         } => update_config(
             deps,
@@ -157,6 +164,7 @@ pub fn execute(
             staking_contract,
             governance_contract,
             governance_percent,
+            basic_asset,
             max_spread,
         ),
         ExecuteMsg::UpdateBridges { add, remove } => update_bridges(deps, info, add, remove),
@@ -176,13 +184,13 @@ pub fn execute(
                 config.owner,
                 OWNERSHIP_PROPOSAL,
             )
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
         ExecuteMsg::DropOwnershipProposal {} => {
             let config: Config = CONFIG.load(deps.storage)?;
 
             drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
-                .map_err(|e| e.into())
+                .map_err(Into::into)
         }
         ExecuteMsg::ClaimOwnership {} => {
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
@@ -193,7 +201,7 @@ pub fn execute(
 
                 Ok(())
             })
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
         ExecuteMsg::EnableRewards { blocks } => {
             let mut config: Config = CONFIG.load(deps.storage)?;
@@ -218,7 +226,8 @@ pub fn execute(
             config.pre_upgrade_blocks = blocks;
             config.last_distribution_block = env.block.height;
             CONFIG.save(deps.storage, &config)?;
-            Ok(Response::default())
+
+            Ok(Response::default().add_attribute("action", "enable_rewards"))
         }
     }
 }
@@ -240,7 +249,7 @@ fn collect(
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
 
-    let astro = token_asset_info(cfg.astro_token_contract.clone());
+    let astro = cfg.astro_token.clone();
 
     // Check for duplicate assets
     let mut uniq = HashSet::new();
@@ -255,7 +264,7 @@ fn collect(
     // Swap all non ASTRO tokens
     let (mut response, bridge_assets) = swap_assets(
         deps.as_ref(),
-        env.clone(),
+        &env.contract.address,
         &cfg,
         assets.into_iter().filter(|a| a.info.ne(&astro)).collect(),
         true,
@@ -292,7 +301,7 @@ enum SwapTarget {
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is an object of type [`Env`].
+/// * **contract_addr** is an object of type [`Addr`] which is the maker contract address.
 ///
 /// * **cfg** is an object of type [`Config`]. This is the Maker contract configuration.
 ///
@@ -301,7 +310,7 @@ enum SwapTarget {
 /// * **with_validation** is a parameter of type [`u64`]. Determines whether the swap operation is validated or not.
 fn swap_assets(
     deps: Deps,
-    env: Env,
+    contract_addr: &Addr,
     cfg: &Config,
     assets: Vec<AssetWithLimit>,
     with_validation: bool,
@@ -311,9 +320,7 @@ fn swap_assets(
 
     for a in assets {
         // Get balance
-        let mut balance = a
-            .info
-            .query_pool(&deps.querier, env.contract.address.clone())?;
+        let mut balance = a.info.query_pool(&deps.querier, contract_addr.clone())?;
         if let Some(limit) = a.limit {
             if limit < balance && limit > Uint128::zero() {
                 balance = limit;
@@ -360,36 +367,48 @@ fn swap(
     from_token: AssetInfo,
     amount_in: Uint128,
 ) -> Result<SwapTarget, ContractError> {
-    let astro = token_asset_info(cfg.astro_token_contract.clone());
-    let uluna = native_asset_info(ULUNA_DENOM.to_string());
-
-    // 2. Check if bridge tokens exist
+    // 1. Check if bridge tokens exist
     let bridge_token = BRIDGES.load(deps.storage, from_token.to_string());
-    if let Ok(asset) = bridge_token {
+    if let Ok(bridge_token) = bridge_token {
         let bridge_pool = validate_bridge(
             deps,
-            cfg,
-            from_token.clone(),
-            asset.clone(),
-            astro,
+            &cfg.factory_contract,
+            &from_token,
+            &bridge_token,
+            &cfg.astro_token,
             BRIDGES_INITIAL_DEPTH,
         )?;
 
-        let msg = build_swap_msg(deps, cfg, bridge_pool, from_token, amount_in)?;
-        return Ok(SwapTarget::Bridge { asset, msg });
+        let msg = build_swap_msg(
+            &deps.querier,
+            cfg.max_spread,
+            &bridge_pool,
+            &from_token,
+            amount_in,
+        )?;
+        return Ok(SwapTarget::Bridge {
+            asset: bridge_token,
+            msg,
+        });
     }
 
-    // 4. Check for a pair with LUNA
-    if from_token.ne(&uluna) {
-        let swap_to_uluna =
-            try_build_swap_msg(deps, cfg, from_token.clone(), uluna.clone(), amount_in);
-        if let Ok(msg) = swap_to_uluna {
-            return Ok(SwapTarget::Bridge { asset: uluna, msg });
+    // 2. Check for a pair with a default bridge
+    if let Some(default_bridge) = &cfg.default_bridge {
+        if from_token.ne(default_bridge) {
+            let swap_to_default =
+                try_build_swap_msg(&deps.querier, cfg, &from_token, default_bridge, amount_in);
+            if let Ok(msg) = swap_to_default {
+                return Ok(SwapTarget::Bridge {
+                    asset: default_bridge.clone(),
+                    msg,
+                });
+            }
         }
     }
 
-    // 5. Check for a direct pair with ASTRO
-    let swap_to_astro = try_build_swap_msg(deps, cfg, from_token.clone(), astro, amount_in);
+    // 3. Check for a direct pair with ASTRO
+    let swap_to_astro =
+        try_build_swap_msg(&deps.querier, cfg, &from_token, &cfg.astro_token, amount_in);
     if let Ok(msg) = swap_to_astro {
         return Ok(SwapTarget::Astro(msg));
     }
@@ -415,17 +434,17 @@ fn swap_no_validate(
     from_token: AssetInfo,
     amount_in: Uint128,
 ) -> Result<SwapTarget, ContractError> {
-    let astro = token_asset_info(cfg.astro_token_contract.clone());
+    let astro = cfg.astro_token.clone();
 
     // Check if next level bridge exists
     let bridge_token = BRIDGES.load(deps.storage, from_token.to_string());
     if let Ok(asset) = bridge_token {
-        let msg = try_build_swap_msg(deps, cfg, from_token, asset.clone(), amount_in)?;
+        let msg = try_build_swap_msg(&deps.querier, cfg, &from_token, &asset, amount_in)?;
         return Ok(SwapTarget::Bridge { asset, msg });
     }
 
     // Check for a direct swap to ASTRO
-    let swap_to_astro = try_build_swap_msg(deps, cfg, from_token.clone(), astro, amount_in);
+    let swap_to_astro = try_build_swap_msg(&deps.querier, cfg, &from_token, &astro, amount_in);
     if let Ok(msg) = swap_to_astro {
         return Ok(SwapTarget::Astro(msg));
     }
@@ -478,7 +497,8 @@ fn swap_bridge_assets(
         })
         .collect();
 
-    let (response, bridge_assets) = swap_assets(deps.as_ref(), env.clone(), &cfg, bridges, false)?;
+    let (response, bridge_assets) =
+        swap_assets(deps.as_ref(), &env.contract.address, &cfg, bridges, false)?;
 
     // There should always be some messages, if there are none - something went wrong
     if response.messages.is_empty() {
@@ -519,7 +539,7 @@ fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
         .add_attributes(attributes))
 }
 
-type DistributeMsgParts = (Vec<SubMsg>, Vec<(String, String)>);
+type DistributeMsgParts = (Vec<SubMsg>, Vec<Attribute>);
 
 /// ## Description
 /// Private function that performs the ASTRO token distribution to x/vxASTRO. Returns a [`ContractError`] on failure,
@@ -538,9 +558,9 @@ fn distribute(
     let mut result = vec![];
     let mut attributes = vec![];
 
-    let astro = token_asset_info(cfg.astro_token_contract.clone());
-
-    let mut amount = astro.query_pool(&deps.querier, env.contract.address.clone())?;
+    let mut amount = cfg
+        .astro_token
+        .query_pool(&deps.querier, env.contract.address)?;
     if amount.is_zero() {
         return Ok((result, attributes));
     }
@@ -560,8 +580,7 @@ fn distribute(
         let mut remainder_reward = cfg.remainder_reward;
         let astro_distribution_portion = cfg
             .pre_upgrade_astro_amount
-            .checked_div(Uint128::from(cfg.pre_upgrade_blocks))
-            .map_err(|e| StdError::DivideByZero { source: e })?;
+            .checked_div(Uint128::from(cfg.pre_upgrade_blocks))?;
 
         current_preupgrade_distribution = min(
             Uint128::from(blocks_passed).checked_mul(astro_distribution_portion)?,
@@ -583,19 +602,26 @@ fn distribute(
         CONFIG.save(deps.storage, cfg)?;
     }
 
-    let governance_amount = if let Some(governance_contract) = cfg.governance_contract.clone() {
+    let governance_amount = if let Some(governance_contract) = &cfg.governance_contract {
         let amount =
             amount.multiply_ratio(Uint128::from(cfg.governance_percent), Uint128::new(100));
         if amount.u128() > 0 {
-            let send_msg = CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.astro_token_contract.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: governance_contract.to_string(),
-                    msg: Binary::default(),
-                    amount,
-                })?,
-                funds: vec![],
-            });
+            let send_msg = match &cfg.astro_token {
+                AssetInfo::Token { contract_addr } => CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: contract_addr.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Send {
+                        contract: governance_contract.to_string(),
+                        msg: Binary::default(),
+                        amount,
+                    })?,
+                    funds: vec![],
+                }),
+                AssetInfo::NativeToken { denom } => CosmosMsg::Wasm(wasm_execute(
+                    governance_contract,
+                    &astro_satellite_package::ExecuteMsg::TransferAstro {},
+                    coins(amount.u128(), denom),
+                )?),
+            };
             result.push(SubMsg::new(send_msg))
         }
         amount
@@ -603,26 +629,30 @@ fn distribute(
         Uint128::zero()
     };
 
-    let to_staking_asset = token_asset(
-        cfg.astro_token_contract.clone(),
-        amount.checked_sub(governance_amount)?,
-    );
+    if let Some(staking_contract) = &cfg.staking_contract {
+        let amount = amount.checked_sub(governance_amount)?;
+        if !amount.is_zero() {
+            let to_staking_asset = Asset {
+                info: cfg.astro_token.clone(),
+                amount,
+            };
+            result.push(SubMsg::new(
+                to_staking_asset.into_msg(&deps.querier, staking_contract.clone())?,
+            ));
+        }
+    }
 
-    attributes.push(("action".to_string(), "distribute_astro".to_string()));
-    attributes.push((
-        "astro_distribution".to_string(),
-        pure_astro_reward.to_string(),
-    ));
+    attributes = vec![
+        attr("action", "distribute_astro"),
+        attr("astro_distribution", pure_astro_reward),
+    ];
     if !current_preupgrade_distribution.is_zero() {
-        attributes.push((
-            "preupgrade_astro_distribution".to_string(),
-            current_preupgrade_distribution.to_string(),
+        attributes.push(attr(
+            "preupgrade_astro_distribution",
+            current_preupgrade_distribution,
         ));
     }
 
-    result.push(SubMsg::new(
-        to_staking_asset.into_msg(&deps.querier, cfg.staking_contract.clone())?,
-    ));
     Ok((result, attributes))
 }
 
@@ -646,6 +676,7 @@ fn distribute(
 ///
 /// ##Executor
 /// Only the owner can execute this.
+#[allow(clippy::too_many_arguments)]
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -653,6 +684,7 @@ fn update_config(
     staking_contract: Option<String>,
     governance_contract: Option<UpdateAddr>,
     governance_percent: Option<Uint64>,
+    default_bridge_opt: Option<AssetInfo>,
     max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     let mut attributes = vec![attr("action", "set_config")];
@@ -665,22 +697,29 @@ fn update_config(
     }
 
     if let Some(factory_contract) = factory_contract {
-        config.factory_contract = addr_validate_to_lower(deps.api, &factory_contract)?;
-        attributes.push(Attribute::new("factory_contract", &factory_contract));
+        config.factory_contract = deps.api.addr_validate(&factory_contract)?;
+        attributes.push(attr("factory_contract", &factory_contract));
     };
 
     if let Some(staking_contract) = staking_contract {
-        config.staking_contract = addr_validate_to_lower(deps.api, &staking_contract)?;
-        attributes.push(Attribute::new("staking_contract", &staking_contract));
+        config.staking_contract = Some(deps.api.addr_validate(&staking_contract)?);
+        attributes.push(attr("staking_contract", &staking_contract));
     };
 
     if let Some(action) = governance_contract {
         match action {
             UpdateAddr::Set(gov) => {
-                config.governance_contract = Option::from(addr_validate_to_lower(deps.api, &gov)?);
-                attributes.push(Attribute::new("governance_contract", &gov));
+                config.governance_contract = Some(deps.api.addr_validate(&gov)?);
+                attributes.push(attr("governance_contract", &gov));
             }
             UpdateAddr::Remove {} => {
+                if config.staking_contract.is_none() {
+                    return Err(StdError::generic_err(
+                        "Cannot remove governance contract if staking contract is not set",
+                    )
+                    .into());
+                }
+                attributes.push(attr("governance_contract", "removed"));
                 config.governance_contract = None;
             }
         }
@@ -692,16 +731,22 @@ fn update_config(
         };
 
         config.governance_percent = governance_percent;
-        attributes.push(Attribute::new("governance_percent", governance_percent));
+        attributes.push(attr("governance_percent", governance_percent));
     };
 
+    if let Some(default_bridge) = &default_bridge_opt {
+        default_bridge.check(deps.api)?;
+        attributes.push(attr("default_bridge", default_bridge.to_string()));
+        config.default_bridge = default_bridge_opt;
+    }
+
     if let Some(max_spread) = max_spread {
-        if max_spread.gt(&Decimal::one()) {
+        if max_spread > Decimal::from_str(MAX_ALLOWED_SLIPPAGE)? {
             return Err(ContractError::IncorrectMaxSpread {});
         };
 
         config.max_spread = max_spread;
-        attributes.push(Attribute::new("max_spread", max_spread.to_string()));
+        attributes.push(attr("max_spread", max_spread.to_string()));
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -741,13 +786,13 @@ fn update_bridges(
         for asset in remove_bridges {
             BRIDGES.remove(
                 deps.storage,
-                addr_validate_to_lower(deps.api, asset.to_string().as_str())?.to_string(),
+                deps.api.addr_validate(&asset.to_string())?.to_string(),
             );
         }
     }
 
     // Add new bridges
-    let astro = token_asset_info(cfg.astro_token_contract.clone());
+    let astro = cfg.astro_token.clone();
     if let Some(add_bridges) = add {
         for (asset, bridge) in add_bridges {
             if asset.equal(&bridge) {
@@ -757,10 +802,10 @@ fn update_bridges(
             // Check that bridge tokens can be swapped to ASTRO
             validate_bridge(
                 deps.as_ref(),
-                &cfg,
-                asset.clone(),
-                bridge.clone(),
-                astro.clone(),
+                &cfg.factory_contract,
+                &asset,
+                &bridge,
+                &astro,
                 BRIDGES_INITIAL_DEPTH,
             )?;
 
@@ -793,7 +838,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_get_config(deps)?),
         QueryMsg::Balances { assets } => to_binary(&query_get_balances(deps, env, assets)?),
-        QueryMsg::Bridges {} => to_binary(&query_bridges(deps, env)?),
+        QueryMsg::Bridges {} => to_binary(&query_bridges(deps)?),
     }
 }
 
@@ -809,10 +854,11 @@ fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
         staking_contract: config.staking_contract,
         governance_contract: config.governance_contract,
         governance_percent: config.governance_percent,
-        astro_token_contract: config.astro_token_contract,
+        astro_token: config.astro_token,
         max_spread: config.max_spread,
         remainder_reward: config.remainder_reward,
         pre_upgrade_astro_amount: config.pre_upgrade_astro_amount,
+        default_bridge: config.default_bridge,
     })
 }
 
@@ -845,9 +891,7 @@ fn query_get_balances(deps: Deps, env: Env, assets: Vec<AssetInfo>) -> StdResult
 /// Returns bridge tokens used for swapping fee tokens to ASTRO.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-fn query_bridges(deps: Deps, _env: Env) -> StdResult<Vec<(String, String)>> {
+fn query_bridges(deps: Deps) -> StdResult<Vec<(String, String)>> {
     BRIDGES
         .range(deps.storage, None, None, Order::Ascending)
         .map(|bridge| {
@@ -858,58 +902,25 @@ fn query_bridges(deps: Deps, _env: Env) -> StdResult<Vec<(String, String)>> {
 }
 
 /// ## Description
-/// Returns asset information for the specified pair.
+/// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
-/// * **contract_addr** is an object of type [`Addr`]. This is an Astroport pair contract address.
-pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<[AssetInfo; 2]> {
-    let res: PairInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: String::from(contract_addr),
-        msg: to_binary(&PairQueryMsg::Pair {})?,
-    }))?;
-
-    Ok(res.asset_infos)
-}
-
-/// ## Description
-/// Used for contract migration. Returns a default object of type [`Response`].
-/// ## Params
-/// * **_deps** is an object of type [`Deps`].
-///
 /// * **_env** is an object of type [`Env`].
 ///
-/// * **_msg** is an object of type [`MigrateMsg`].
+/// * **msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-maker" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                let config_v100 = migration::CONFIGV100.load(deps.storage)?;
-
-                let new_config = Config {
-                    owner: config_v100.owner,
-                    factory_contract: config_v100.factory_contract,
-                    staking_contract: config_v100.staking_contract,
-                    governance_contract: config_v100.governance_contract,
-                    governance_percent: config_v100.governance_percent,
-                    astro_token_contract: config_v100.astro_token_contract,
-                    max_spread: config_v100.max_spread,
-                    rewards_enabled: false,
-                    pre_upgrade_blocks: 0,
-                    last_distribution_block: 0,
-                    remainder_reward: Uint128::zero(),
-                    pre_upgrade_astro_amount: Uint128::zero(),
-                };
-
-                CONFIG.save(deps.storage, &new_config)?;
-            }
+            "1.0.1" => migrate_to_v110(deps.branch(), msg)?,
+            "1.1.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
-    }
+    };
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 

@@ -6,7 +6,6 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
-use astroport::asset::addr_validate_to_lower;
 use astroport::generator_proxy::{
     CallbackMsg, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
@@ -38,11 +37,15 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
-        generator_contract_addr: addr_validate_to_lower(deps.api, &msg.generator_contract_addr)?,
-        pair_addr: addr_validate_to_lower(deps.api, &msg.pair_addr)?,
-        lp_token_addr: addr_validate_to_lower(deps.api, &msg.lp_token_addr)?,
-        reward_contract_addr: addr_validate_to_lower(deps.api, &msg.reward_contract_addr)?,
-        reward_token_addr: addr_validate_to_lower(deps.api, &msg.reward_token_addr)?,
+        generator_contract_addr: deps
+            .api
+            .addr_validate(deps.api, &msg.generator_contract_addr)?,
+        pair_addr: deps.api.addr_validate(deps.api, &msg.pair_addr)?,
+        lp_token_addr: deps.api.addr_validate(deps.api, &msg.lp_token_addr)?,
+        reward_contract_addr: deps
+            .api
+            .addr_validate(deps.api, &msg.reward_contract_addr)?,
+        reward_token_addr: deps.api.addr_validate(deps.api, &msg.reward_token_addr)?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -82,7 +85,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::UpdateRewards {} => update_rewards(deps),
+        ExecuteMsg::UpdateRewards {} => update_rewards(deps, info),
         ExecuteMsg::SendRewards { account, amount } => send_rewards(deps, info, account, amount),
         ExecuteMsg::Withdraw { account, amount } => withdraw(deps, env, info, account, amount),
         ExecuteMsg::EmergencyWithdraw { account, amount } => {
@@ -131,9 +134,13 @@ fn receive_cw20(
 ///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
-fn update_rewards(deps: DepsMut) -> Result<Response, ContractError> {
+fn update_rewards(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
+
+    if info.sender != cfg.generator_contract_addr {
+        return Err(ContractError::Unauthorized {});
+    };
 
     response
         .messages
@@ -413,8 +420,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let reward_amount = res?.balance;
 
             to_binary(&reward_amount)
-        },
-        QueryMsg::PendingToken {
+        }
+        QueryMsg::PendingToken { .. } => {
             // query the 3rd party reward contract and retrieve the pending token amount
             // the returned value must be a Uint128
             unimplemented!();

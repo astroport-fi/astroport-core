@@ -13,8 +13,7 @@ use cosmwasm_std::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
-    addr_validate_to_lower, format_lp_token_name, Asset, AssetInfo, PairInfo,
-    MINIMUM_LIQUIDITY_AMOUNT,
+    format_lp_token_name, Asset, AssetInfo, CoinsExt, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::factory::PairType;
 
@@ -32,7 +31,7 @@ use astroport::querier::{
     query_factory_config, query_fee_info, query_supply, query_token_precision,
 };
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
 use std::cmp::Ordering;
@@ -91,7 +90,7 @@ pub fn instantiate(
             asset_infos: msg.asset_infos.clone(),
             pair_type: PairType::Stable {},
         },
-        factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr.as_str())?,
+        factory_addr: deps.api.addr_validate(msg.factory_addr.as_str())?,
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
@@ -143,24 +142,30 @@ pub fn instantiate(
 /// * **msg** is an object of type [`Reply`]. This is the reply from the submessage.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
+    match msg.id {
+        INSTANTIATE_TOKEN_REPLY_ID => {
+            let mut config: Config = CONFIG.load(deps.storage)?;
 
-    if config.pair_info.liquidity_token != Addr::unchecked("") {
-        return Err(ContractError::Unauthorized {});
+            if config.pair_info.liquidity_token != Addr::unchecked("") {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            let data = msg.result.unwrap().data.unwrap();
+            let res: MsgInstantiateContractResponse = Message::parse_from_bytes(data.as_slice())
+                .map_err(|_| {
+                    StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
+                })?;
+
+            config.pair_info.liquidity_token =
+                deps.api.addr_validate(res.get_contract_address())?;
+
+            CONFIG.save(deps.storage, &config)?;
+
+            Ok(Response::new()
+                .add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
+        }
+        _ => Err(StdError::generic_err(format!("Unknown reply ID: {}", msg.id)).into()),
     }
-
-    let data = msg.result.unwrap().data.unwrap();
-    let res: MsgInstantiateContractResponse =
-        Message::parse_from_bytes(data.as_slice()).map_err(|_| {
-            StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
-        })?;
-
-    config.pair_info.liquidity_token =
-        addr_validate_to_lower(deps.api, res.get_contract_address())?;
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new().add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
 }
 
 /// ## Description
@@ -206,18 +211,10 @@ pub fn execute(
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ProvideLiquidity {
             assets,
-            slippage_tolerance,
             auto_stake,
             receiver,
-        } => provide_liquidity(
-            deps,
-            env,
-            info,
-            assets,
-            slippage_tolerance,
-            auto_stake,
-            receiver,
-        ),
+            ..
+        } => provide_liquidity(deps, env, info, assets, auto_stake, receiver),
         ExecuteMsg::Swap {
             offer_asset,
             belief_price,
@@ -226,11 +223,11 @@ pub fn execute(
         } => {
             offer_asset.info.check(deps.api)?;
             if !offer_asset.is_native_token() {
-                return Err(ContractError::Unauthorized {});
+                return Err(ContractError::Cw20DirectSwap {});
             }
 
             let to_addr = if let Some(to_addr) = to {
-                Some(addr_validate_to_lower(deps.api, &to_addr)?)
+                Some(deps.api.addr_validate(&to_addr)?)
             } else {
                 None
             };
@@ -291,7 +288,7 @@ pub fn receive_cw20(
             }
 
             let to_addr = if let Some(to_addr) = to {
-                Some(addr_validate_to_lower(deps.api, to_addr.as_str())?)
+                Some(deps.api.addr_validate(to_addr.as_str())?)
             } else {
                 None
             };
@@ -347,7 +344,6 @@ pub fn provide_liquidity(
     env: Env,
     info: MessageInfo,
     assets: [Asset; 2],
-    slippage_tolerance: Option<Decimal>,
     auto_stake: Option<bool>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
@@ -355,11 +351,10 @@ pub fn provide_liquidity(
     assets[1].info.check(deps.api)?;
 
     let auto_stake = auto_stake.unwrap_or(false);
-    for asset in assets.iter() {
-        asset.assert_sent_native_token_balance(&info)?;
-    }
 
-    let mut config: Config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
+    info.funds
+        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
     let mut pools: [Asset; 2] = config
         .pair_info
         .query_pools(&deps.querier, env.contract.address.clone())?;
@@ -407,9 +402,6 @@ pub fn provide_liquidity(
             }
         }
     }
-
-    // Assert that slippage tolerance is respected
-    assert_slippage_tolerance(&slippage_tolerance, &deposits, &pools)?;
 
     let token_precision_0 = query_token_precision(&deps.querier, pools[0].info.clone())?;
     let token_precision_1 = query_token_precision(&deps.querier, pools[1].info.clone())?;
@@ -498,7 +490,7 @@ pub fn provide_liquidity(
         deps.as_ref(),
         &config,
         env.clone(),
-        addr_validate_to_lower(deps.api, receiver.as_str())?,
+        deps.api.addr_validate(receiver.as_str())?,
         share,
         auto_stake,
     )?);
@@ -582,7 +574,7 @@ fn mint_liquidity_token_message(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: generator.unwrap().to_string(),
                 amount,
-                msg: to_binary(&GeneratorHookMsg::DepositFor(recipient))?,
+                msg: to_binary(&GeneratorHookMsg::DepositFor(recipient.to_string()))?,
             })?,
             funds: vec![],
         }),
@@ -791,8 +783,10 @@ pub fn swap(
 
     let receiver = to.unwrap_or_else(|| sender.clone());
 
-    let mut messages: Vec<CosmosMsg> =
-        vec![return_asset.into_msg(&deps.querier, receiver.clone())?];
+    let mut messages = vec![];
+    if !return_amount.is_zero() {
+        messages.push(return_asset.into_msg(&deps.querier, receiver.clone())?)
+    }
 
     // Maker fee
     let mut maker_fee_amount = Uint128::new(0);
@@ -1369,24 +1363,6 @@ pub fn assert_max_spread(
 }
 
 /// ## Description
-/// This is an internal function that enforces slippage tolerance for swaps.
-/// Returns a [`ContractError`] on failure, otherwise returns [`Ok`].
-/// ## Params
-/// * **slippage_tolerance** is an object of type [`Option<Decimal>`]. This is the slippage tolerance to enforce.
-///
-/// * **deposits** are an array of [`Uint128`] type items. These are offer and ask amounts for a swap.
-///
-/// * **pools** are an array of [`Asset`] type items. These are total amounts of assets in the pool.
-fn assert_slippage_tolerance(
-    _slippage_tolerance: &Option<Decimal>,
-    _deposits: &[Uint128; 2],
-    _pools: &[Asset; 2],
-) -> Result<(), ContractError> {
-    // There is no slippage in the stable pool
-    Ok(())
-}
-
-/// ## Description
 /// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
 /// * **_deps** is an object of type [`DepsMut`].
@@ -1395,8 +1371,24 @@ fn assert_slippage_tolerance(
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-pair-stable" => match contract_version.version.as_ref() {
+            "1.0.0-fix1" => {}
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
 
 /// ## Description

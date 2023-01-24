@@ -13,6 +13,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
+    #[error("CW20 tokens can be swapped via Cw20::Send message only")]
+    Cw20DirectSwap {},
+
     #[error("Doubling assets in asset infos")]
     DoublingAssets {},
 
@@ -66,6 +69,9 @@ pub enum ContractError {
 
     #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
     MinimumLiquidityAmountError {},
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {

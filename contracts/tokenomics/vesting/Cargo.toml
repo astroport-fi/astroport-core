@@ -1,6 +1,6 @@
 [package]
 name = "astroport-vesting"
-version = "1.0.0"
+version = "1.1.1"
 authors = ["Astroport"]
 edition = "2021"
 
@@ -20,6 +20,7 @@ cw-storage-plus = { version = "0.15" }
 astroport = { path = "../../../packages/astroport", default-features = false }
 thiserror = { version = "1.0" }
 cosmwasm-schema = { version = "1.1" }
+cw-utils = "0.15"
 
 [dev-dependencies]
 cw-multi-test = "0.15"

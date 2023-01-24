@@ -17,8 +17,8 @@ pub struct InstantiateMsg {
     pub voting_escrow: Option<String>,
     /// Address of guardian
     pub guardian: Option<String>,
-    /// ASTRO token contract address
-    pub astro_token: String,
+    /// [`AssetInfo`] of the ASTRO token
+    pub astro_token: AssetInfo,
     /// Amount of ASTRO distributed per block among all pairs
     pub tokens_per_block: Uint128,
     /// Start block for distributing ASTRO
@@ -136,7 +136,7 @@ pub enum ExecuteMsg {
         lp_token: String,
     },
     /// Sets the allocation point to zero for each pool by the pair type
-    DeactivatePools {
+    DeactivateBlacklistedPools {
         pair_types: Vec<PairType>,
     },
     /// Updates the boost emissions for specified user and generators
@@ -333,8 +333,8 @@ pub struct UserInfoV2 {
 /// This structure holds the response returned when querying for the token addresses used to reward a specific generator
 #[cw_serde]
 pub struct RewardInfoResponse {
-    /// The address of the base reward token
-    pub base_reward_token: Addr,
+    /// [`AssetInfo`] of the base reward token
+    pub base_reward_token: AssetInfo,
     /// The address of the 3rd party reward token
     pub proxy_reward_token: Option<Addr>,
 }
@@ -379,8 +379,8 @@ pub struct ConfigResponse {
     pub generator_controller: Option<Addr>,
     /// The voting escrow contract address
     pub voting_escrow: Option<Addr>,
-    /// ASTRO token contract address
-    pub astro_token: Addr,
+    /// [`AssetInfo`] of the ASTRO token
+    pub astro_token: AssetInfo,
     /// Total amount of ASTRO distributed per block
     pub tokens_per_block: Uint128,
     /// Sum of total allocation points across all active generators
@@ -425,7 +425,7 @@ pub enum Cw20HookMsg {
     /// Deposit performs a token deposit on behalf of the message sender.
     Deposit {},
     /// DepositFor performs a token deposit on behalf of another address that's not the message sender.
-    DepositFor(Addr),
+    DepositFor(String),
 }
 
 /// This structure holds the parameters used to return information about a staked in

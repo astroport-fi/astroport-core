@@ -10,8 +10,7 @@ use cosmwasm_std::{
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
-    addr_validate_to_lower, format_lp_token_name, Asset, AssetInfo, PairInfo,
-    MINIMUM_LIQUIDITY_AMOUNT,
+    format_lp_token_name, Asset, AssetInfo, CoinsExt, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
@@ -69,7 +68,7 @@ pub fn instantiate(
             asset_infos: msg.asset_infos.clone(),
             pair_type: PairType::Xyk {},
         },
-        factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr.as_str())?,
+        factory_addr: deps.api.addr_validate(msg.factory_addr.as_str())?,
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
@@ -117,24 +116,30 @@ pub fn instantiate(
 /// * **msg** is an object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
+    match msg.id {
+        INSTANTIATE_TOKEN_REPLY_ID => {
+            let mut config: Config = CONFIG.load(deps.storage)?;
 
-    if config.pair_info.liquidity_token != Addr::unchecked("") {
-        return Err(ContractError::Unauthorized {});
+            if config.pair_info.liquidity_token != Addr::unchecked("") {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            let data = msg.result.unwrap().data.unwrap();
+            let res: MsgInstantiateContractResponse = Message::parse_from_bytes(data.as_slice())
+                .map_err(|_| {
+                    StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
+                })?;
+
+            config.pair_info.liquidity_token =
+                deps.api.addr_validate(res.get_contract_address())?;
+
+            CONFIG.save(deps.storage, &config)?;
+
+            Ok(Response::new()
+                .add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
+        }
+        _ => Err(StdError::generic_err(format!("Unknown reply ID: {}", msg.id)).into()),
     }
-
-    let data = msg.result.unwrap().data.unwrap();
-    let res: MsgInstantiateContractResponse =
-        Message::parse_from_bytes(data.as_slice()).map_err(|_| {
-            StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
-        })?;
-
-    config.pair_info.liquidity_token =
-        addr_validate_to_lower(deps.api, res.get_contract_address())?;
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new().add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
 }
 
 /// ## Description
@@ -199,11 +204,11 @@ pub fn execute(
         } => {
             offer_asset.info.check(deps.api)?;
             if !offer_asset.is_native_token() {
-                return Err(ContractError::Unauthorized {});
+                return Err(ContractError::Cw20DirectSwap {});
             }
 
             let to_addr = if let Some(to_addr) = to {
-                Some(addr_validate_to_lower(deps.api, &to_addr)?)
+                Some(deps.api.addr_validate(&to_addr)?)
             } else {
                 None
             };
@@ -264,7 +269,7 @@ pub fn receive_cw20(
             }
 
             let to_addr = if let Some(to_addr) = to {
-                Some(addr_validate_to_lower(deps.api, to_addr.as_str())?)
+                Some(deps.api.addr_validate(to_addr.as_str())?)
             } else {
                 None
             };
@@ -329,11 +334,10 @@ pub fn provide_liquidity(
     assets[1].info.check(deps.api)?;
 
     let auto_stake = auto_stake.unwrap_or(false);
-    for asset in assets.iter() {
-        asset.assert_sent_native_token_balance(&info)?;
-    }
 
-    let mut config: Config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
+    info.funds
+        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
     let mut pools: [Asset; 2] = config
         .pair_info
         .query_pools(&deps.querier, env.contract.address.clone())?;
@@ -422,7 +426,7 @@ pub fn provide_liquidity(
         deps.as_ref(),
         &config,
         env.clone(),
-        addr_validate_to_lower(deps.api, receiver.as_str())?,
+        deps.api.addr_validate(receiver.as_str())?,
         share,
         auto_stake,
     )?);
@@ -505,7 +509,7 @@ fn mint_liquidity_token_message(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: generator.unwrap().to_string(),
                 amount,
-                msg: to_binary(&GeneratorHookMsg::DepositFor(recipient))?,
+                msg: to_binary(&GeneratorHookMsg::DepositFor(recipient.to_string()))?,
             })?,
             funds: vec![],
         }),
@@ -704,9 +708,11 @@ pub fn swap(
 
     let tax_amount = return_asset.compute_tax(&deps.querier)?;
     let receiver = to.unwrap_or_else(|| sender.clone());
-    let mut messages: Vec<CosmosMsg> =
-        vec![return_asset.into_msg(&deps.querier, receiver.clone())?];
 
+    let mut messages = vec![];
+    if !return_amount.is_zero() {
+        messages.push(return_asset.into_msg(&deps.querier, receiver.clone())?)
+    }
     // Compute the Maker fee
     let mut maker_fee_amount = Uint128::new(0);
     if let Some(fee_address) = fee_info.fee_address {
@@ -733,7 +739,7 @@ pub fn swap(
     Ok(Response::new()
         .add_messages(
             // 1. send collateral tokens from the contract to a user
-            // 2. send inactive commission fees to the Maker ontract
+            // 2. send inactive commission fees to the Maker contract
             messages,
         )
         .add_attribute("action", "swap")
@@ -1243,6 +1249,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
     match contract_version.contract.as_ref() {
         "astroport-pair" => match contract_version.version.as_ref() {
             "1.0.0" => {}
+            "1.0.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

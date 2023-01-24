@@ -7,14 +7,14 @@ use crate::error::ContractError;
 use crate::operations::execute_swap_operation;
 use crate::state::{Config, CONFIG};
 
-use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo, PairInfo};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::pair::{QueryMsg as PairQueryMsg, SimulationResponse};
 use astroport::querier::query_pair_info;
 use astroport::router::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
     SimulateSwapOperationsResponse, SwapOperation, MAX_SWAP_OPERATIONS,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;
 use std::collections::HashMap;
 
@@ -46,7 +46,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            astroport_factory: addr_validate_to_lower(deps.api, &msg.astroport_factory)?,
+            astroport_factory: deps.api.addr_validate(&msg.astroport_factory)?,
         },
     )?;
 
@@ -122,7 +122,7 @@ pub fn execute(
             asset_info,
             prev_balance,
             minimum_receive,
-            addr_validate_to_lower(deps.api, &receiver)?,
+            deps.api.addr_validate(&receiver)?,
         ),
     }
 }
@@ -145,7 +145,7 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
+    let sender = deps.api.addr_validate(&cw20_msg.sender)?;
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::ExecuteSwapOperations {
             operations,
@@ -154,7 +154,7 @@ pub fn receive_cw20(
             max_spread,
         } => {
             let to_addr = if let Some(to_addr) = to {
-                Some(addr_validate_to_lower(deps.api, to_addr.as_str())?)
+                Some(deps.api.addr_validate(to_addr.as_str())?)
             } else {
                 None
             };
@@ -214,7 +214,7 @@ pub fn execute_swap_operations(
     assert_operations(deps.api, &operations)?;
 
     let to = if let Some(to) = to {
-        addr_validate_to_lower(deps.api, to.as_str())?
+        deps.api.addr_validate(to.as_str())?
     } else {
         sender
     };
@@ -348,8 +348,24 @@ pub fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-router" => match contract_version.version.as_ref() {
+            "1.0.0" => {}
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
 
 /// ## Description
@@ -381,7 +397,7 @@ fn simulate_swap_operations(
 
     assert_operations(deps.api, &operations)?;
 
-    let mut offer_amount = offer_amount;
+    let mut return_amount = offer_amount;
     for operation in operations.into_iter() {
         match operation {
             SwapOperation::AstroSwap {
@@ -398,10 +414,10 @@ fn simulate_swap_operations(
                 if let AssetInfo::NativeToken { denom } = offer_asset_info.clone() {
                     let asset = Asset {
                         info: AssetInfo::NativeToken { denom },
-                        amount: offer_amount,
+                        amount: return_amount,
                     };
 
-                    offer_amount = offer_amount.checked_sub(asset.compute_tax(&deps.querier)?)?;
+                    return_amount = return_amount.checked_sub(asset.compute_tax(&deps.querier)?)?;
                 }
 
                 let mut res: SimulationResponse =
@@ -410,7 +426,7 @@ fn simulate_swap_operations(
                         msg: to_binary(&PairQueryMsg::Simulation {
                             offer_asset: Asset {
                                 info: offer_asset_info.clone(),
-                                amount: offer_amount,
+                                amount: return_amount,
                             },
                         })?,
                     }))?;
@@ -427,7 +443,7 @@ fn simulate_swap_operations(
                         .checked_sub(asset.compute_tax(&deps.querier)?)?;
                 }
 
-                offer_amount = res.return_amount;
+                return_amount = res.return_amount;
             }
             SwapOperation::NativeSwap { .. } => {
                 return Err(ContractError::NativeSwapNotSupported {})
@@ -436,7 +452,7 @@ fn simulate_swap_operations(
     }
 
     Ok(SimulateSwapOperationsResponse {
-        amount: offer_amount,
+        amount: return_amount,
     })
 }
 

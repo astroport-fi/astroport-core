@@ -1,6 +1,6 @@
 [package]
 name = "astroport-factory"
-version = "1.2.0"
+version = "1.2.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport factory contract - pair contract generator and directory"

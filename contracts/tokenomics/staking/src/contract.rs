@@ -15,7 +15,6 @@ use cw20::{
 };
 
 use crate::response::MsgInstantiateContractResponse;
-use astroport::asset::addr_validate_to_lower;
 use astroport::xastro_token::InstantiateMsg as TokenInstantiateMsg;
 use protobuf::Message;
 
@@ -56,7 +55,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            astro_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
+            astro_token_addr: deps.api.addr_validate(&msg.deposit_token_addr)?,
             xastro_token_addr: Addr::unchecked(""),
         },
     )?;
@@ -125,24 +124,28 @@ pub fn execute(
 /// * **msg** is an object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
+    match msg.id {
+        INSTANTIATE_TOKEN_REPLY_ID => {
+            let mut config = CONFIG.load(deps.storage)?;
 
-    if config.xastro_token_addr != Addr::unchecked("") {
-        return Err(ContractError::Unauthorized {});
+            if config.xastro_token_addr != Addr::unchecked("") {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            let data = msg.result.unwrap().data.unwrap();
+            let res: MsgInstantiateContractResponse = Message::parse_from_bytes(data.as_slice())
+                .map_err(|_| {
+                    StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
+                })?;
+
+            config.xastro_token_addr = deps.api.addr_validate(res.get_contract_address())?;
+
+            CONFIG.save(deps.storage, &config)?;
+
+            Ok(Response::new())
+        }
+        _ => Err(StdError::generic_err(format!("Unknown reply ID: {}", msg.id)).into()),
     }
-
-    let data = msg.result.unwrap().data.unwrap();
-    let res: MsgInstantiateContractResponse =
-        Message::parse_from_bytes(data.as_slice()).map_err(|_| {
-            StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
-        })?;
-
-    // Set xASTRO addr
-    config.xastro_token_addr = addr_validate_to_lower(deps.api, res.get_contract_address())?;
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new())
 }
 
 /// ## Description

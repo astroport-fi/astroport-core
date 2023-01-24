@@ -379,13 +379,12 @@ fn provide_liquidity() {
         }],
     );
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
-    match res {
-        ContractError::Std(StdError::GenericErr { msg, .. }) => assert_eq!(
-            msg,
-            "Native token balance mismatch between the argument and the transferred".to_string()
-        ),
-        _ => panic!("Must return generic error"),
-    }
+    assert_eq!(
+        res,
+        ContractError::Std(StdError::generic_err(
+            "Native token balance mismatch between the argument and the transferred",
+        ))
+    );
 
     // Initialize token amount to the 1:1 ratio
     deps.querier.with_balance(&[(
@@ -917,7 +916,7 @@ fn try_token_to_native() {
     // Store liquidity token
     store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
-    // Unauthorized access; can not execute swap directy for token swap
+    // Unauthorized access; can not execute swap directly for token swap
     let msg = ExecuteMsg::Swap {
         offer_asset: Asset {
             info: AssetInfo::Token {
@@ -932,7 +931,7 @@ fn try_token_to_native() {
     let env = mock_env_with_block_time(1000);
     let info = mock_info("addr0000", &[]);
     let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
-    assert_eq!(res, ContractError::Unauthorized {});
+    assert_eq!(res, ContractError::Cw20DirectSwap {});
 
     // Normal sell
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
