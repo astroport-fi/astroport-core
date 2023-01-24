@@ -139,9 +139,9 @@ mod tests {
     #[test]
     fn test_compute_d() {
         let amp = Uint64::from(100u64);
-        let pool1 = Uint128::from(100_000_000000u128);
-        let pool2 = Uint128::from(100_000_000000u128);
-        let pool3 = Uint128::from(100_000_000000u128);
+        let pool1 = Uint128::from(100_000_000_000_u128);
+        let pool2 = Uint128::from(100_000_000_000_u128);
+        let pool3 = Uint128::from(100_000_000_000_u128);
         let model = StableSwapModel::new(
             amp.u64().into(),
             vec![pool1.u128(), pool2.u128(), pool3.u128()],
@@ -151,7 +151,7 @@ mod tests {
         let sim_d = model.sim_d();
         let d = compute_d(
             amp,
-            &vec![
+            &[
                 Decimal256::from_integer(pool1.u128()),
                 Decimal256::from_integer(pool2.u128()),
                 Decimal256::from_integer(pool3.u128()),
@@ -166,9 +166,9 @@ mod tests {
     #[test]
     fn test_compute_y() {
         let amp = Uint64::from(100u64);
-        let pool1 = Uint128::from(100_000_000000u128);
-        let pool2 = Uint128::from(100_000_000000u128);
-        let pool3 = Uint128::from(100_000_000000u128);
+        let pool1 = Uint128::from(100_000_000_000_u128);
+        let pool2 = Uint128::from(100_000_000_000_u128);
+        let pool3 = Uint128::from(100_000_000_000_u128);
         let model = StableSwapModel::new(
             amp.u64().into(),
             vec![pool1.u128(), pool2.u128(), pool3.u128()],
