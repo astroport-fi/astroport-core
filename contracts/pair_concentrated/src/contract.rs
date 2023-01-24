@@ -450,7 +450,10 @@ pub fn provide_liquidity(
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
     let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
-    let mut old_price = config.pool_state.price_state.last_price;
+    let (mut old_price, mut old_real_price) = (
+        config.pool_state.price_state.last_price,
+        config.pool_state.price_state.last_price,
+    );
 
     let share = if total_share.is_zero() {
         let mint_amount = xcp
@@ -477,7 +480,7 @@ pub fn provide_liquidity(
     } else {
         let mut old_xp = pools.iter().map(|a| a.amount).collect_vec();
         println!("Initial pool volume: {} {}", old_xp[0], old_xp[1]);
-        old_price = calc_last_prices(&old_xp, &config, &env)?.0;
+        (old_price, old_real_price) = calc_last_prices(&old_xp, &config, &env)?;
         println!("Before provide price: {old_price}");
         old_xp[1] *= config.pool_state.price_state.price_scale;
         let old_d = calc_d(&old_xp, &amp_gamma)?;
@@ -509,10 +512,8 @@ pub fn provide_liquidity(
         new_xp[0],
         new_xp[1] / config.pool_state.price_state.price_scale,
     ];
-    let (new_price, new_real_price) = calc_last_prices(&tmp_xp, &config, &env)?;
+    let (new_price, _) = calc_last_prices(&tmp_xp, &config, &env)?;
     println!("After provide price: {new_price}");
-
-    accumulate_prices(&env, &mut config, new_real_price);
 
     // if assets_diff[1] is zero then deposits are balanced thus no need to update price
     if !assets_diff[1].is_zero() {
@@ -545,6 +546,8 @@ pub fn provide_liquidity(
         share_uint128,
         auto_stake,
     )?);
+
+    accumulate_prices(&env, &mut config, old_real_price);
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -603,6 +606,9 @@ fn withdraw_liquidity(
 
     // decrease XCP
     let mut xs = pools.into_iter().map(|a| a.amount).collect_vec();
+
+    let (_, old_real_price) = calc_last_prices(&xs, &config, &env)?;
+
     xs[0] -= refund_assets[0].amount;
     xs[1] -= refund_assets[1].amount;
     xs[1] *= config.pool_state.price_state.price_scale;
@@ -640,8 +646,7 @@ fn withdraw_liquidity(
         .into(),
     );
 
-    // TODO: accumulate prices only if imbalanced provide is allowed
-    // accumulate_prices(&env, &mut config);
+    accumulate_prices(&env, &mut config, old_real_price);
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -693,6 +698,7 @@ fn swap(
     before_swap_check(&pools, offer_asset_dec.amount)?;
 
     let mut xs = pools.iter().map(|asset| asset.amount).collect_vec();
+    let (_, old_real_price) = calc_last_prices(&xs, &config, &env)?;
 
     // Get fee info from the factory
     let fee_info = query_fee_info(
@@ -728,11 +734,9 @@ fn swap(
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
 
-    // last_price is used in repeg algo while last_real_price is a real price for an end user
-    let (last_price, last_real_price) =
-        swap_result.calc_last_prices(offer_asset_dec.amount, offer_ind);
+    let (last_price, _) = swap_result.calc_last_prices(offer_asset_dec.amount, offer_ind);
     println!(
-        "coin_{offer_ind}->coin_{ask_ind} ({}->{}) last price {last_price} last real price {last_real_price}",
+        "coin_{offer_ind}->coin_{ask_ind} ({}->{}) last price {last_price}",
         offer_asset_dec.amount,
         swap_result.dy + swap_result.maker_fee
     );
@@ -764,7 +768,7 @@ fn swap(
         }
     }
 
-    accumulate_prices(&env, &mut config, last_real_price);
+    accumulate_prices(&env, &mut config, old_real_price);
 
     CONFIG.save(deps.storage, &config)?;
 
