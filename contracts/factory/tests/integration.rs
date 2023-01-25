@@ -257,7 +257,7 @@ fn create_pair() {
         )
         .unwrap();
 
-    let asset_infos = [
+    let asset_infos = vec![
         AssetInfo::Token {
             contract_addr: token_instance0.clone(),
         },

@@ -1,32 +1,33 @@
+use std::collections::HashSet;
+
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
-
-use crate::error::ContractError;
-use crate::migration;
-use crate::querier::query_pair_info;
-
-use crate::state::{
-    pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS, PAIR_CONFIGS,
-    TMP_PAIR_INFO,
-};
-
-use crate::response::MsgInstantiateContractResponse;
+use cw2::{get_contract_version, set_contract_version};
+use protobuf::Message;
 
 use astroport::asset::{AssetInfo, PairInfo};
+use astroport::common::{
+    claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
+};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
     PairsResponse, QueryMsg,
 };
-
-use crate::migration::migrate_pair_configs_to_v120;
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::generator::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
-use cw2::{get_contract_version, set_contract_version};
-use protobuf::Message;
-use std::collections::HashSet;
+use itertools::Itertools;
+
+use crate::error::ContractError;
+use crate::migration;
+use crate::migration::migrate_pair_configs_to_v120;
+use crate::querier::query_pair_info;
+use crate::response::MsgInstantiateContractResponse;
+use crate::state::{
+    check_asset_infos, pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL,
+    PAIRS, PAIRS_TO_MIGRATE, PAIR_CONFIGS, TMP_PAIR_INFO,
+};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-factory";
@@ -141,6 +142,8 @@ pub struct UpdateConfig {
 /// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
 ///
 /// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership.
+///
+/// * **ExecuteMsg::MarkAsMigrated {}** Mark pairs as migrated.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -193,6 +196,13 @@ pub fn execute(
                 .map_err(|e| e.into())
         }
         ExecuteMsg::ClaimOwnership {} => {
+            let pairs = PAIRS
+                .range(deps.storage, None, None, Order::Ascending)
+                .map(|pair| -> StdResult<Addr> { Ok(pair?.1) })
+                .collect::<StdResult<Vec<_>>>()?;
+
+            PAIRS_TO_MIGRATE.save(deps.storage, &pairs)?;
+
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
                 CONFIG.update::<_, StdError>(deps.storage, |mut v| {
                     v.owner = new_owner;
@@ -203,6 +213,7 @@ pub fn execute(
             })
             .map_err(|e| e.into())
         }
+        ExecuteMsg::MarkAsMigrated { pairs } => execute_mark_pairs_as_migrated(deps, info, pairs),
     }
 }
 
@@ -312,22 +323,14 @@ pub fn execute_create_pair(
     deps: DepsMut,
     env: Env,
     pair_type: PairType,
-    asset_infos: [AssetInfo; 2],
+    asset_infos: Vec<AssetInfo>,
     init_params: Option<Binary>,
 ) -> Result<Response, ContractError> {
-    asset_infos[0].check(deps.api)?;
-    asset_infos[1].check(deps.api)?;
-
-    if asset_infos[0] == asset_infos[1] {
-        return Err(ContractError::DoublingAssets {});
-    }
+    check_asset_infos(deps.api, &asset_infos)?;
 
     let config = CONFIG.load(deps.storage)?;
 
-    if PAIRS
-        .may_load(deps.storage, &pair_key(&asset_infos))?
-        .is_some()
-    {
+    if PAIRS.has(deps.storage, &pair_key(&asset_infos)) {
         return Err(ContractError::PairWasCreated {});
     }
 
@@ -367,11 +370,37 @@ pub fn execute_create_pair(
         .add_submessages(sub_msg)
         .add_attributes(vec![
             attr("action", "create_pair"),
-            attr("pair", format!("{}-{}", asset_infos[0], asset_infos[1])),
+            attr("pair", asset_infos.iter().join("-")),
         ]))
 }
 
-/// ## Description
+/// Marks specified pairs as migrated to the new admin.
+///
+/// * **pairs** is a vector of pairs which should be marked as transferred.
+fn execute_mark_pairs_as_migrated(
+    deps: DepsMut,
+    info: MessageInfo,
+    pairs: Vec<String>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let pairs = validate_addresses(deps.api, &pairs)?;
+
+    let not_migrated: Vec<Addr> = PAIRS_TO_MIGRATE
+        .load(deps.storage)?
+        .into_iter()
+        .filter(|addr| !pairs.contains(addr))
+        .collect();
+
+    PAIRS_TO_MIGRATE.save(deps.storage, &not_migrated)?;
+
+    Ok(Response::new().add_attribute("action", "execute_mark_pairs_as_migrated"))
+}
+
 /// The entry point to the contract for processing replies from submessages.
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -382,7 +411,7 @@ pub fn execute_create_pair(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let tmp = TMP_PAIR_INFO.load(deps.storage)?;
-    if PAIRS.may_load(deps.storage, &tmp.pair_key)?.is_some() {
+    if PAIRS.has(deps.storage, &tmp.pair_key) {
         return Err(ContractError::PairWasRegistered {});
     }
 
@@ -418,7 +447,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 pub fn deregister(
     deps: DepsMut,
     info: MessageInfo,
-    asset_infos: [AssetInfo; 2],
+    asset_infos: Vec<AssetInfo>,
 ) -> Result<Response, ContractError> {
     asset_infos[0].check(deps.api)?;
     asset_infos[1].check(deps.api)?;
@@ -434,7 +463,7 @@ pub fn deregister(
 
     let mut messages: Vec<CosmosMsg> = vec![];
     if let Some(generator) = config.generator_address {
-        let pair_info = query_pair_info(deps.as_ref(), &pair_addr)?;
+        let pair_info = query_pair_info(&deps.querier, &pair_addr)?;
 
         // sets the allocation point to zero for the lp_token
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -471,7 +500,9 @@ pub fn deregister(
 ///
 /// * **QueryMsg::FeeInfo { pair_type }** Returns the fee structure (total and maker fees) for a specific pair type.
 ///
-/// * **QueryMsg::BlacklistedPairTypes {}** Returns a vector that contains blacklisted pair types
+/// * **QueryMsg::BlacklistedPairTypes {}** Returns a vector that contains blacklisted pair types (pair types that cannot get ASTRO emissions).
+///
+/// * **QueryMsg::PairsToMigrate {}** Returns a vector that contains pair addresses that are not migrated.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -482,6 +513,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::FeeInfo { pair_type } => to_binary(&query_fee_info(deps, pair_type)?),
         QueryMsg::BlacklistedPairTypes {} => to_binary(&query_blacklisted_pair_types(deps)?),
+        QueryMsg::PairsToMigrate {} => {
+            to_binary(&PAIRS_TO_MIGRATE.may_load(deps.storage)?.unwrap_or_default())
+        }
     }
 }
 
@@ -515,11 +549,8 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         token_code_id: config.token_code_id,
         pair_configs: PAIR_CONFIGS
             .range(deps.storage, None, None, Order::Ascending)
-            .map(|item| {
-                let (_, cfg) = item.unwrap();
-                cfg
-            })
-            .collect(),
+            .map(|item| Ok(item?.1))
+            .collect::<StdResult<Vec<_>>>()?,
         fee_address: config.fee_address,
         generator_address: config.generator_address,
         whitelist_code_id: config.whitelist_code_id,
@@ -528,35 +559,27 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(resp)
 }
 
-/// ## Description
 /// Returns a pair's data using the assets in `asset_infos` as input (those being the assets that are traded in the pair).
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the assets traded in the pair.
-pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
+/// * **asset_infos** is a vector with assets traded in the pair.
+pub fn query_pair(deps: Deps, asset_infos: Vec<AssetInfo>) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
-    query_pair_info(deps, &pair_addr)
+    query_pair_info(&deps.querier, &pair_addr)
 }
 
-/// ## Description
-/// Returns an array with pair data that contains items of type [`PairInfo`]. Querying starts at `start_after` and returns `limit` pairs.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// Returns a vector with pair data that contains items of type [`PairInfo`]. Querying starts at `start_after` and returns `limit` pairs.
+/// * **start_after** is a field which accepts a vector with items of type [`AssetInfo`].
+/// This is the pair from which we start a query.
 ///
-/// * **start_after** is an [`Option`] field which accepts an array with two items of type [`AssetInfo`].
-/// This is the pair from which we start to query.
-///
-/// * **limit** is a [`Option`] type. Sets the number of pairs to be retrieved.
+/// * **limit** sets the number of pairs to be retrieved.
 pub fn query_pairs(
     deps: Deps,
-    start_after: Option<[AssetInfo; 2]>,
+    start_after: Option<Vec<AssetInfo>>,
     limit: Option<u32>,
 ) -> StdResult<PairsResponse> {
-    let pairs: Vec<PairInfo> = read_pairs(deps, start_after, limit)
+    let pairs = read_pairs(deps, start_after, limit)?
         .iter()
-        .map(|pair_addr| query_pair_info(deps, pair_addr).unwrap())
-        .collect();
+        .map(|pair_addr| query_pair_info(&deps.querier, pair_addr))
+        .collect::<StdResult<Vec<_>>>()?;
 
     Ok(PairsResponse { pairs })
 }

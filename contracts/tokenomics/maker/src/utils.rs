@@ -73,6 +73,7 @@ pub fn build_swap_msg(
             contract_addr: pool.contract_addr.to_string(),
             msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
                 offer_asset,
+                ask_asset_info: None,
                 belief_price: None,
                 max_spread: Some(max_spread),
                 to: None,
@@ -89,6 +90,7 @@ pub fn build_swap_msg(
                     belief_price: None,
                     max_spread: Some(max_spread),
                     to: None,
+                    ask_asset_info: None,
                 })?,
             })?,
             funds: vec![],

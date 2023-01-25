@@ -65,7 +65,7 @@ fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
     let pair_contract_code_id = store_pair_code(&mut router);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -94,7 +94,7 @@ fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
     );
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -290,7 +290,7 @@ fn provide_liquidity_msg(
     receiver: Option<String>,
 ) -> (ExecuteMsg, [Coin; 2]) {
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
@@ -424,7 +424,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
     let msg = FactoryExecuteMsg::CreatePair {
         pair_type: PairType::Stable {},
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
@@ -439,7 +439,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .unwrap();
 
     let msg = FactoryQueryMsg::Pair {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
@@ -475,7 +475,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         .unwrap();
 
     let msg = ExecuteMsg::ProvideLiquidity {
-        assets: [
+        assets: vec![
             Asset {
                 info: AssetInfo::Token {
                     contract_addr: token_x_instance.clone(),
@@ -505,6 +505,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             belief_price: None,
             max_spread: None,
             to: Some(user.to_string()),
+            ask_asset_info: None,
         })
         .unwrap(),
         amount: x_offer,
@@ -604,7 +605,7 @@ fn create_pair_with_same_assets() {
     let pair_contract_code_id = store_pair_code(&mut router);
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -665,7 +666,7 @@ fn update_pair_config() {
         .unwrap();
 
     let msg = InstantiateMsg {
-        asset_infos: [
+        asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },

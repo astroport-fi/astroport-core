@@ -330,8 +330,8 @@ pub trait PairBonded<'a> {
     }
 
     /// Returns the total amount of assets in the pool.
-    fn pool_info(&self, config: &Config) -> StdResult<([Asset; 2], Uint128)> {
-        let pools = [
+    fn pool_info(&self, config: &Config) -> StdResult<(Vec<Asset>, Uint128)> {
+        let pools = vec![
             Asset {
                 amount: Uint128::zero(),
                 info: config.pair_info.asset_infos[0].clone(),

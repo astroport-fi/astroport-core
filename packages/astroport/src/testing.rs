@@ -5,6 +5,7 @@ use crate::querier::{
 };
 
 use crate::factory::PairType;
+use crate::DecimalCheckedOps;
 use cosmwasm_std::testing::MOCK_CONTRACT_ADDR;
 use cosmwasm_std::{to_binary, Addr, BankMsg, Coin, CosmosMsg, Decimal, Uint128, WasmMsg};
 use cw20::Cw20ExecuteMsg;
@@ -244,7 +245,7 @@ fn query_astroport_pair_contract() {
     deps.querier.with_astroport_pairs(&[(
         &"asset0000uusd".to_string(),
         &PairInfo {
-            asset_infos: [
+            asset_infos: vec![
                 AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
                 },
@@ -282,7 +283,7 @@ fn test_format_lp_token_name() {
     deps.querier.with_astroport_pairs(&[(
         &"asset0000uusd".to_string(),
         &PairInfo {
-            asset_infos: [
+            asset_infos: vec![
                 AssetInfo::Token {
                     contract_addr: Addr::unchecked("asset0000"),
                 },
@@ -317,7 +318,7 @@ fn test_format_lp_token_name() {
 
     deps.querier.with_cw20_query_handler();
 
-    let lp_name = format_lp_token_name(pair_info.asset_infos, &deps.as_ref().querier).unwrap();
+    let lp_name = format_lp_token_name(&pair_info.asset_infos, &deps.as_ref().querier).unwrap();
     assert_eq!(lp_name, "MAPP-UUSD-LP")
 }
 
@@ -336,13 +337,13 @@ fn test_decimal_checked_ops() {
     for i in 0u128..100u128 {
         let dec = Decimal::from_ratio(i, 1u128);
         assert_eq!(
-            Decimal::from_ratio(dec * Uint128::new(i), 1u8),
-            dec.checked_mul(Decimal::from_ratio(i, 1u8)).unwrap()
+            dec * Uint128::new(i),
+            dec.checked_mul_uint128(Uint128::from(i)).unwrap()
         );
     }
     assert!(
         Decimal::from_ratio(Uint128::MAX, Uint128::from(10u128.pow(18u32)))
-            .checked_mul(Decimal::from_ratio(10u128.pow(18u32) + 1, 1u8))
+            .checked_mul(Decimal::new(Uint128::from(10u128.pow(18u32) + 1u128)))
             .is_err()
     );
 }
