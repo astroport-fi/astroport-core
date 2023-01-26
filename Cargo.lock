@@ -33,7 +33,7 @@ name = "astro-satellite-package"
 version = "0.1.0"
 source = "git+https://github.com/astroport-fi/astroport_ibc.git?branch=release#c6ca81b347fc71fe0f520cf3ed704fb96b1c2f20"
 dependencies = [
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance?branch=feat/release_ibc)",
+ "astroport-governance",
  "cosmwasm-schema",
  "cosmwasm-std",
 ]
@@ -59,7 +59,6 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw-utils 0.15.1",
  "cw20 0.15.1",
- "itertools",
  "uint",
 ]
 
@@ -68,7 +67,7 @@ name = "astroport-escrow-fee-distributor"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/astroport-governance?branch=release#6072b7db2bd78c705d12ffb23b9ceac048e370c9"
 dependencies = [
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance?branch=release)",
+ "astroport-governance",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -90,7 +89,6 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
- "itertools",
  "protobuf",
  "thiserror",
 ]
@@ -102,7 +100,7 @@ dependencies = [
  "anyhow",
  "astroport 2.1.0",
  "astroport-factory",
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance?branch=release)",
+ "astroport-governance",
  "astroport-pair",
  "astroport-pair-stable",
  "astroport-staking",
@@ -129,18 +127,6 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.1.0"
-source = "git+https://github.com/astroport-fi/astroport-governance?branch=feat/release_ibc#033495ebfa79827c82e521f929117a1df14581bc"
-dependencies = [
- "astroport 2.0.0",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 0.15.1",
- "cw20 0.15.1",
-]
-
-[[package]]
-name = "astroport-governance"
-version = "1.1.0"
 source = "git+https://github.com/astroport-fi/astroport-governance?branch=release#6072b7db2bd78c705d12ffb23b9ceac048e370c9"
 dependencies = [
  "astroport 2.0.0",
@@ -158,7 +144,7 @@ dependencies = [
  "astroport 2.1.0",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance?branch=release)",
+ "astroport-governance",
  "astroport-pair",
  "astroport-pair-stable",
  "astroport-token",
@@ -236,27 +222,6 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
- "thiserror",
-]
-
-[[package]]
-name = "astroport-pair-concentrated"
-version = "1.0.0"
-dependencies = [
- "anyhow",
- "astroport 2.1.0",
- "astroport-factory",
- "astroport-token",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus 0.15.1",
- "cw-utils 0.15.1",
- "cw2 0.15.1",
- "cw20 0.15.1",
- "derivative",
- "itertools",
- "proptest",
  "thiserror",
 ]
 
@@ -932,7 +897,7 @@ name = "generator-controller"
 version = "1.1.0"
 source = "git+https://github.com/astroport-fi/astroport-governance?branch=release#6072b7db2bd78c705d12ffb23b9ceac048e370c9"
 dependencies = [
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance?branch=release)",
+ "astroport-governance",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -1763,7 +1728,7 @@ name = "voting-escrow"
 version = "1.2.0"
 source = "git+https://github.com/astroport-fi/astroport-governance?branch=release#6072b7db2bd78c705d12ffb23b9ceac048e370c9"
 dependencies = [
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance?branch=release)",
+ "astroport-governance",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
