@@ -15,8 +15,8 @@ use itertools::Itertools;
 use protobuf::Message;
 
 use astroport::asset::{
-    addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset,
-    AssetInfo, Decimal256Ext, DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
+    addr_opt_validate, check_swap_parameters, format_lp_token_name, Asset, AssetInfo, CoinsExt,
+    Decimal256Ext, DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::PairType;
@@ -80,7 +80,7 @@ pub fn instantiate(
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let factory_addr = addr_validate_to_lower(deps.api, msg.factory_addr)?;
+    let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
     let greatest_precision = store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
     // Initializing cumulative prices
@@ -142,24 +142,30 @@ pub fn instantiate(
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
+    match msg.id {
+        INSTANTIATE_TOKEN_REPLY_ID => {
+            let mut config: Config = CONFIG.load(deps.storage)?;
 
-    if config.pair_info.liquidity_token != Addr::unchecked("") {
-        return Err(ContractError::Unauthorized {});
+            if config.pair_info.liquidity_token != Addr::unchecked("") {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            let data = msg.result.unwrap().data.unwrap();
+            let res: MsgInstantiateContractResponse = Message::parse_from_bytes(data.as_slice())
+                .map_err(|_| {
+                    StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
+                })?;
+
+            config.pair_info.liquidity_token =
+                deps.api.addr_validate(res.get_contract_address())?;
+
+            CONFIG.save(deps.storage, &config)?;
+
+            Ok(Response::new()
+                .add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
+        }
+        _ => Err(StdError::generic_err(format!("Unknown reply ID: {}", msg.id)).into()),
     }
-
-    let data = msg.result.unwrap().data.unwrap();
-    let res: MsgInstantiateContractResponse =
-        Message::parse_from_bytes(data.as_slice()).map_err(|_| {
-            StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
-        })?;
-
-    config.pair_info.liquidity_token =
-        addr_validate_to_lower(deps.api, res.get_contract_address())?;
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new().add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
 }
 
 /// Exposes all the execute functions available in the contract.
@@ -215,7 +221,7 @@ pub fn execute(
         } => {
             offer_asset.info.check(deps.api)?;
             if !offer_asset.is_native_token() {
-                return Err(ContractError::Unauthorized {});
+                return Err(ContractError::Cw20DirectSwap {});
             }
             offer_asset.assert_sent_native_token_balance(&info)?;
 
@@ -295,7 +301,7 @@ pub fn receive_cw20(
             check_cw20_in_pool(&config, &info.sender)?;
 
             let to_addr = addr_opt_validate(deps.api, &to)?;
-            let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
+            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
             swap(
                 deps,
                 env,
@@ -313,7 +319,7 @@ pub fn receive_cw20(
             )
         }
         Cw20HookMsg::WithdrawLiquidity { assets } => {
-            let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
+            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
             withdraw_liquidity(deps, env, info, sender, cw20_msg.amount, assets)
         }
     }
@@ -341,6 +347,8 @@ pub fn provide_liquidity(
 
     let auto_stake = auto_stake.unwrap_or(false);
     let mut config = CONFIG.load(deps.storage)?;
+    info.funds
+        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
 
     if assets.len() > config.pair_info.asset_infos.len() {
         return Err(ContractError::InvalidNumberOfAssets {});
@@ -359,8 +367,6 @@ pub fn provide_liquidity(
         .clone()
         .into_iter()
         .map(|asset| {
-            asset.assert_sent_native_token_balance(&info)?;
-
             // Check that at least one asset is non-zero
             if !asset.amount.is_zero() {
                 non_zero_flag = true;
@@ -859,11 +865,15 @@ pub fn swap(
 
     let receiver = to.unwrap_or_else(|| sender.clone());
 
-    let mut messages = vec![Asset {
+    let return_asset = Asset {
         info: ask_pool.info.clone(),
         amount: return_amount,
+    };
+
+    let mut messages = vec![];
+    if !return_amount.is_zero() {
+        messages.push(return_asset.into_msg(&deps.querier, receiver.clone())?)
     }
-    .into_msg(&deps.querier, &receiver)?];
 
     // Compute the Maker fee
     let mut maker_fee_amount = Uint128::zero();

@@ -11,7 +11,7 @@ use cw20_base::allowances::{
 };
 
 use crate::state::{capture_total_supply_history, get_total_supply_at, BALANCES};
-use astroport::asset::{addr_opt_validate, addr_validate_to_lower};
+use astroport::asset::addr_opt_validate;
 use astroport::xastro_token::{InstantiateMsg, QueryMsg};
 use cw2::set_contract_version;
 use cw20_base::contract::{
@@ -125,7 +125,7 @@ pub fn instantiate(
 
     let mint = match msg.mint {
         Some(m) => Some(MinterData {
-            minter: addr_validate_to_lower(deps.api, &m.minter)?,
+            minter: deps.api.addr_validate(&m.minter)?,
             cap: m.cap,
         }),
         None => None,
@@ -160,7 +160,7 @@ pub fn instantiate(
             description: marketing.description,
             marketing: marketing
                 .marketing
-                .map(|addr| addr_validate_to_lower(deps.api, &addr))
+                .map(|addr| deps.api.addr_validate(&addr))
                 .transpose()?,
             logo,
         };
@@ -177,7 +177,7 @@ pub fn create_accounts(deps: &mut DepsMut, env: &Env, accounts: &[Cw20Coin]) -> 
     let mut total_supply = Uint128::zero();
 
     for row in accounts {
-        let address = addr_validate_to_lower(deps.api, &row.address)?;
+        let address = deps.api.addr_validate(&row.address)?;
         BALANCES.save(deps.storage, &address, &row.amount, env.block.height)?;
         total_supply += row.amount;
     }
@@ -255,7 +255,7 @@ pub fn execute(
             marketing,
         } => execute_update_marketing(deps, env, info, project, description, marketing),
         ExecuteMsg::UploadLogo(logo) => execute_upload_logo(deps, env, info, logo),
-        _ => Err(ContractError::Unauthorized {}),
+        _ => Err(StdError::generic_err("Unsupported execute message").into()),
     }
 }
 
@@ -271,7 +271,7 @@ pub fn execute_transfer(
         return Err(ContractError::InvalidZeroAmount {});
     }
 
-    let rcpt_addr = addr_validate_to_lower(deps.api, &recipient)?;
+    let rcpt_addr = deps.api.addr_validate(&recipient)?;
 
     BALANCES.update(
         deps.storage,
@@ -369,7 +369,7 @@ pub fn execute_mint(
     capture_total_supply_history(deps.storage, &env, config.total_supply)?;
 
     // Add amount to recipient balance
-    let rcpt_addr = addr_validate_to_lower(deps.api, &recipient)?;
+    let rcpt_addr = deps.api.addr_validate(&recipient)?;
     BALANCES.update(
         deps.storage,
         &rcpt_addr,
@@ -403,7 +403,7 @@ pub fn execute_send(
         return Err(ContractError::InvalidZeroAmount {});
     }
 
-    let rcpt_addr = addr_validate_to_lower(deps.api, &contract)?;
+    let rcpt_addr = deps.api.addr_validate(&contract)?;
 
     // Move the tokens to the contract
     BALANCES.update(
@@ -452,8 +452,8 @@ pub fn execute_transfer_from(
     recipient: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let rcpt_addr = addr_validate_to_lower(deps.api, &recipient)?;
-    let owner_addr = addr_validate_to_lower(deps.api, &owner)?;
+    let rcpt_addr = deps.api.addr_validate(&recipient)?;
+    let owner_addr = deps.api.addr_validate(&owner)?;
 
     // Deduct allowance before doing anything else
     deduct_allowance(deps.storage, &owner_addr, &info.sender, &env.block, amount)?;
@@ -493,7 +493,7 @@ pub fn execute_burn_from(
     owner: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let owner_addr = addr_validate_to_lower(deps.api, &owner)?;
+    let owner_addr = deps.api.addr_validate(&owner)?;
 
     // Deduct allowance before doing anything else
     deduct_allowance(deps.storage, &owner_addr, &info.sender, &env.block, amount)?;
@@ -541,8 +541,8 @@ pub fn execute_send_from(
     amount: Uint128,
     msg: Binary,
 ) -> Result<Response, ContractError> {
-    let rcpt_addr = addr_validate_to_lower(deps.api, &contract)?;
-    let owner_addr = addr_validate_to_lower(deps.api, &owner)?;
+    let rcpt_addr = deps.api.addr_validate(&contract)?;
+    let owner_addr = deps.api.addr_validate(&owner)?;
 
     // Deduct allowance before doing anything else
     deduct_allowance(deps.storage, &owner_addr, &info.sender, &env.block, amount)?;
@@ -639,7 +639,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 /// Returns the specified account's balance.
 pub fn query_balance(deps: Deps, address: String) -> StdResult<BalanceResponse> {
-    let address = addr_validate_to_lower(deps.api, &address)?;
+    let address = deps.api.addr_validate(&address)?;
     let balance = BALANCES
         .may_load(deps.storage, &address)?
         .unwrap_or_default();
@@ -648,7 +648,7 @@ pub fn query_balance(deps: Deps, address: String) -> StdResult<BalanceResponse> 
 
 /// Returns the balance of the given address at the given block.
 pub fn query_balance_at(deps: Deps, address: String, block: u64) -> StdResult<BalanceResponse> {
-    let address = addr_validate_to_lower(deps.api, &address)?;
+    let address = deps.api.addr_validate(&address)?;
     let balance = BALANCES
         .may_load_at_height(deps.storage, &address, block)?
         .unwrap_or_default();

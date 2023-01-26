@@ -860,7 +860,7 @@ fn try_token_to_native() {
     let env = mock_env_with_block_time(1000);
     let info = mock_info("addr0000", &[]);
     let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
-    assert_eq!(res, ContractError::Unauthorized {});
+    assert_eq!(res, ContractError::Cw20DirectSwap {});
 
     // Normal sell
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {

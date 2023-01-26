@@ -1,5 +1,5 @@
 use crate::state::CONFIG;
-use astroport::asset::{addr_validate_to_lower, token_asset_info, AssetInfo};
+use astroport::asset::{token_asset_info, AssetInfo};
 
 use astroport::generator::{Config, MigrateMsg};
 use cosmwasm_schema::cw_serde;
@@ -102,8 +102,7 @@ pub fn migrate_configs_from_v200(deps: &mut DepsMut, msg: &MigrateMsg) -> StdRes
     };
 
     if let Some(voting_escrow_delegation) = &msg.voting_escrow_delegation {
-        cfg.voting_escrow_delegation =
-            Some(addr_validate_to_lower(deps.api, voting_escrow_delegation)?);
+        cfg.voting_escrow_delegation = Some(deps.api.addr_validate(voting_escrow_delegation)?);
     }
 
     CONFIG.save(deps.storage, &cfg)

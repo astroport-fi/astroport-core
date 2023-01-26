@@ -81,6 +81,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
+ "cw-utils 0.15.1",
  "cw20 0.15.1",
  "itertools 0.10.5",
  "uint",

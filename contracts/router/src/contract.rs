@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;
 
-use astroport::asset::{addr_opt_validate, addr_validate_to_lower, Asset, AssetInfo};
+use astroport::asset::{addr_opt_validate, Asset, AssetInfo};
 use astroport::pair::{QueryMsg as PairQueryMsg, SimulationResponse};
 use astroport::querier::query_pair_info;
 use astroport::router::{
@@ -37,7 +37,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            astroport_factory: addr_validate_to_lower(deps.api, &msg.astroport_factory)?,
+            astroport_factory: deps.api.addr_validate(&msg.astroport_factory)?,
         },
     )?;
 
@@ -103,7 +103,7 @@ pub fn execute(
             asset_info,
             prev_balance,
             minimum_receive,
-            addr_validate_to_lower(deps.api, &receiver)?,
+            deps.api.addr_validate(&receiver)?,
         ),
     }
 }
@@ -116,7 +116,7 @@ pub fn receive_cw20(
     env: Env,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
+    let sender = deps.api.addr_validate(&cw20_msg.sender)?;
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::ExecuteSwapOperations {
             operations,
@@ -319,7 +319,7 @@ fn simulate_swap_operations(
 
     assert_operations(deps.api, &operations)?;
 
-    let mut offer_amount = offer_amount;
+    let mut return_amount = offer_amount;
     for operation in operations.into_iter() {
         match operation {
             SwapOperation::AstroSwap {
@@ -338,10 +338,10 @@ fn simulate_swap_operations(
                         info: AssetInfo::NativeToken {
                             denom: denom.to_string(),
                         },
-                        amount: offer_amount,
+                        amount: return_amount,
                     };
 
-                    offer_amount = offer_amount.checked_sub(asset.compute_tax(&deps.querier)?)?;
+                    return_amount = return_amount.checked_sub(asset.compute_tax(&deps.querier)?)?;
                 }
 
                 let mut res: SimulationResponse = deps.querier.query_wasm_smart(
@@ -349,7 +349,7 @@ fn simulate_swap_operations(
                     &PairQueryMsg::Simulation {
                         offer_asset: Asset {
                             info: offer_asset_info.clone(),
-                            amount: offer_amount,
+                            amount: return_amount,
                         },
                         ask_asset_info: Some(ask_asset_info.clone()),
                     },
@@ -367,7 +367,7 @@ fn simulate_swap_operations(
                         .checked_sub(asset.compute_tax(&deps.querier)?)?;
                 }
 
-                offer_amount = res.return_amount;
+                return_amount = res.return_amount;
             }
             SwapOperation::NativeSwap { .. } => {
                 return Err(ContractError::NativeSwapNotSupported {})
@@ -376,7 +376,7 @@ fn simulate_swap_operations(
     }
 
     Ok(SimulateSwapOperationsResponse {
-        amount: offer_amount,
+        amount: return_amount,
     })
 }
 

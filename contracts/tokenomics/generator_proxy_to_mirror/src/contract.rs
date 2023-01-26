@@ -42,11 +42,11 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
-        generator_contract_addr: addr_validate_to_lower(deps.api, &msg.generator_contract_addr)?,
-        pair_addr: addr_validate_to_lower(deps.api, &msg.pair_addr)?,
-        lp_token_addr: addr_validate_to_lower(deps.api, &msg.lp_token_addr)?,
-        reward_contract_addr: addr_validate_to_lower(deps.api, &msg.reward_contract_addr)?,
-        reward_token_addr: addr_validate_to_lower(deps.api, &msg.reward_token_addr)?,
+        generator_contract_addr: deps.api.addr_validate(&msg.generator_contract_addr)?,
+        pair_addr: deps.api.addr_validate(&msg.pair_addr)?,
+        lp_token_addr: deps.api.addr_validate(&msg.lp_token_addr)?,
+        reward_contract_addr: deps.api.addr_validate(&msg.reward_contract_addr)?,
+        reward_token_addr: deps.api.addr_validate(&msg.reward_token_addr)?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -181,7 +181,7 @@ fn send_rewards(
     account: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    addr_validate_to_lower(deps.api, &account)?;
+    deps.api.addr_validate(&account)?;
 
     let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
@@ -226,7 +226,7 @@ fn withdraw(
     account: String,
     _amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let account = addr_validate_to_lower(deps.api, &account)?;
+    let account = deps.api.addr_validate(&account)?;
 
     let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;

@@ -7,9 +7,7 @@ use crate::state::{read_vesting_infos, Config, CONFIG, OWNERSHIP_PROPOSAL, VESTI
 
 use crate::error::ContractError;
 use crate::migration::migrate_from_v100;
-use astroport::asset::{
-    addr_opt_validate, addr_validate_to_lower, token_asset_info, AssetInfo, AssetInfoExt,
-};
+use astroport::asset::{addr_opt_validate, token_asset_info, AssetInfo, AssetInfoExt};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::vesting::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg,
@@ -39,7 +37,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+            owner: deps.api.addr_validate(&msg.owner)?,
             vesting_token: msg.vesting_token,
         },
     )?;
@@ -147,7 +145,7 @@ pub fn register_vesting_accounts(
 
     for mut vesting_account in vesting_accounts {
         let mut released_amount = Uint128::zero();
-        let account_address = addr_validate_to_lower(deps.api, &vesting_account.address)?;
+        let account_address = deps.api.addr_validate(&vesting_account.address)?;
 
         assert_vesting_schedules(&account_address, &vesting_account.schedules)?;
 
@@ -348,7 +346,7 @@ pub fn query_timestamp(env: Env) -> StdResult<u64> {
 ///
 /// * **address** vesting recipient for which to return vesting data.
 pub fn query_vesting_account(deps: Deps, address: String) -> StdResult<VestingAccountResponse> {
-    let address = addr_validate_to_lower(deps.api, &address)?;
+    let address = deps.api.addr_validate(&address)?;
     let info = VESTING_INFO.load(deps.storage, &address)?;
 
     Ok(VestingAccountResponse { address, info })
@@ -383,7 +381,7 @@ pub fn query_vesting_accounts(
 ///
 /// * **address** vesting recipient for which to return the available amount of tokens to claim.
 pub fn query_vesting_available_amount(deps: Deps, env: Env, address: String) -> StdResult<Uint128> {
-    let address = addr_validate_to_lower(deps.api, &address)?;
+    let address = deps.api.addr_validate(&address)?;
 
     let info = VESTING_INFO.load(deps.storage, &address)?;
     let available_amount = compute_available_amount(env.block.time.seconds(), &info)?;

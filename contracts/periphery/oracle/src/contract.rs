@@ -4,7 +4,7 @@ use crate::querier::{query_cumulative_prices, query_prices};
 use crate::state::{
     get_precision, store_precisions, Config, PriceCumulativeLast, CONFIG, PRICE_LAST,
 };
-use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
+use astroport::asset::{Asset, AssetInfo};
 use astroport::oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use astroport::pair::TWAP_PRECISION;
 use astroport::querier::query_pair_info;
@@ -30,7 +30,7 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let factory_contract = addr_validate_to_lower(deps.api, &msg.factory_contract)?;
+    let factory_contract = deps.api.addr_validate(&msg.factory_contract)?;
 
     for asset_info in &msg.asset_infos {
         asset_info.check(deps.api)?;

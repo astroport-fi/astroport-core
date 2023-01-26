@@ -1,4 +1,3 @@
-use crate::asset::addr_validate_to_lower;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{attr, Addr, Api, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
 use cw_storage_plus::Item;
@@ -38,7 +37,7 @@ pub fn propose_new_owner(
         return Err(StdError::generic_err("Unauthorized"));
     }
 
-    let new_owner = addr_validate_to_lower(deps.api, new_owner.as_str())?;
+    let new_owner = deps.api.addr_validate(new_owner.as_str())?;
 
     // Check that the new owner is not the same as the current one
     if new_owner == owner {
@@ -127,8 +126,5 @@ pub fn claim_ownership(
 /// Bulk validation and conversion between [`String`] -> [`Addr`] for an array of addresses.
 /// If any address is invalid, the function returns [`StdError`].
 pub fn validate_addresses(api: &dyn Api, admins: &[String]) -> StdResult<Vec<Addr>> {
-    admins
-        .iter()
-        .map(|addr| addr_validate_to_lower(api, addr))
-        .collect()
+    admins.iter().map(|addr| api.addr_validate(addr)).collect()
 }
