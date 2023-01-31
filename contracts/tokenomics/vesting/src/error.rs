@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, OverflowError, StdError};
+use cosmwasm_std::{Addr, OverflowError, StdError, Uint128};
 use cw_utils::PaymentError;
 use thiserror::Error;
 
@@ -26,6 +26,15 @@ pub enum ContractError {
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
+
+    #[error("Failed to withdraw tokens due to multiple active schedules for account {0}")]
+    MultipleActiveSchedules(String),
+
+    #[error("Account {0} has no active vesting schedule")]
+    NoActiveVestingSchedule(String),
+
+    #[error("Failed to withdraw from active schedule: amount left {0}")]
+    NotEnoughTokens(Uint128),
 }
 
 impl From<OverflowError> for ContractError {
