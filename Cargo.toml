@@ -1,9 +1,11 @@
 [workspace]
+resolver = "2"
 members = [
     "packages/*",
     "contracts/factory",
     "contracts/pair",
     "contracts/pair_stable",
+    "contracts/pair_concentrated",
     "contracts/router",
     "contracts/token",
     "contracts/whitelist",
@@ -20,7 +22,7 @@ members = [
 astroport-governance = { git="https://github.com/astroport-fi/astroport-governance", branch="release" }
 
 [profile.release]
-opt-level = 3
+opt-level = "z"
 debug = false
 rpath = false
 lto = true
@@ -29,3 +31,4 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
+strip = true

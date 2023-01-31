@@ -120,7 +120,7 @@ impl FactoryHelper {
         tokens: [&Addr; 2],
         init_params: Option<Binary>,
     ) -> AnyResult<AppResponse> {
-        let asset_infos = [
+        let asset_infos = vec![
             AssetInfo::Token {
                 contract_addr: tokens[0].clone(),
             },
@@ -148,7 +148,7 @@ impl FactoryHelper {
     ) -> AnyResult<Addr> {
         self.create_pair(router, sender, pair_type, tokens, init_params)?;
 
-        let asset_infos = [
+        let asset_infos = vec![
             AssetInfo::Token {
                 contract_addr: tokens[0].clone(),
             },

@@ -366,6 +366,7 @@ fn execute_swap_operation() {
                     contract: String::from("pair"),
                     amount: Uint128::new(1000000u128),
                     msg: to_binary(&astroport::pair::Cw20HookMsg::Swap {
+                        ask_asset_info: None,
                         belief_price: None,
                         max_spread: None,
                         to: Some(String::from("addr0000")),

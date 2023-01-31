@@ -17,16 +17,19 @@ pub enum PairType {
     Xyk {},
     /// Stable pair type
     Stable {},
+    /// Concentrated liquidity pair type
+    Concentrated {},
     /// Custom pair type
     Custom(String),
 }
 
-// Return a raw encoded string representing the name of each pool type
+/// Returns a raw encoded string representing the name of each pool type
 impl Display for PairType {
     fn fmt(&self, fmt: &mut Formatter) -> Result {
         match self {
             PairType::Xyk {} => fmt.write_str("xyk"),
             PairType::Stable {} => fmt.write_str("stable"),
+            PairType::Concentrated {} => fmt.write_str("concentrated"),
             PairType::Custom(pair_type) => fmt.write_str(format!("custom-{}", pair_type).as_str()),
         }
     }
@@ -100,15 +103,15 @@ pub enum ExecuteMsg {
     CreatePair {
         /// The pair type (exposed in [`PairType`])
         pair_type: PairType,
-        /// The two assets to create the pool for
-        asset_infos: [AssetInfo; 2],
+        /// The assets to create the pool for
+        asset_infos: Vec<AssetInfo>,
         /// Optional binary serialised parameters for custom pool types
         init_params: Option<Binary>,
     },
     /// Deregister removes a previously created pair.
     Deregister {
         /// The assets for which we deregister a pool
-        asset_infos: [AssetInfo; 2],
+        asset_infos: Vec<AssetInfo>,
     },
     /// ProposeNewOwner creates a proposal to change contract ownership.
     /// The validity period for the proposal is set in the `expires_in` variable.
@@ -122,6 +125,8 @@ pub enum ExecuteMsg {
     DropOwnershipProposal {},
     /// Used to claim contract ownership.
     ClaimOwnership {},
+    /// MarkAsMigrated marks pairs as migrated
+    MarkAsMigrated { pairs: Vec<String> },
 }
 
 /// This structure describes the available query messages for the factory contract.
@@ -135,13 +140,13 @@ pub enum QueryMsg {
     #[returns(PairInfo)]
     Pair {
         /// The assets for which we return a pair
-        asset_infos: [AssetInfo; 2],
+        asset_infos: Vec<AssetInfo>,
     },
     /// Pairs returns an array of pairs and their information according to the specified parameters in `start_after` and `limit` variables.
     #[returns(PairsResponse)]
     Pairs {
-        /// The pair item to start reading from. It is an [`Option`] type that accepts two [`AssetInfo`] elements.
-        start_after: Option<[AssetInfo; 2]>,
+        /// The pair item to start reading from. It is an [`Option`] type that accepts [`AssetInfo`] elements.
+        start_after: Option<Vec<AssetInfo>>,
         /// The number of pairs to read and return. It is an [`Option`] type.
         limit: Option<u32>,
     },
@@ -154,6 +159,9 @@ pub enum QueryMsg {
     /// Returns a vector that contains blacklisted pair types
     #[returns(Vec<PairType>)]
     BlacklistedPairTypes {},
+    /// Returns a vector that contains pair addresses that are not migrated
+    #[returns(Vec<Addr>)]
+    PairsToMigrate {},
 }
 
 /// A custom struct for each query response that returns general contract settings/configs.

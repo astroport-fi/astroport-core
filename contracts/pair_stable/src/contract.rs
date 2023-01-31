@@ -102,7 +102,7 @@ pub fn instantiate(
 
     CONFIG.save(deps.storage, &config)?;
 
-    let token_name = format_lp_token_name(msg.asset_infos, &deps.querier)?;
+    let token_name = format_lp_token_name(&msg.asset_infos, &deps.querier)?;
 
     // Create LP token
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
@@ -220,6 +220,7 @@ pub fn execute(
             belief_price,
             max_spread,
             to,
+            ..
         } => {
             offer_asset.info.check(deps.api)?;
             if !offer_asset.is_native_token() {
@@ -243,6 +244,7 @@ pub fn execute(
                 to_addr,
             )
         }
+        _ => Err(StdError::generic_err("Operation not supported").into()),
     }
 }
 
@@ -270,6 +272,7 @@ pub fn receive_cw20(
             belief_price,
             max_spread,
             to,
+            ..
         }) => {
             // Only an asset (token) contract can execute this message
             let mut authorized: bool = false;
@@ -307,7 +310,7 @@ pub fn receive_cw20(
                 to_addr,
             )
         }
-        Ok(Cw20HookMsg::WithdrawLiquidity {}) => withdraw_liquidity(
+        Ok(Cw20HookMsg::WithdrawLiquidity { .. }) => withdraw_liquidity(
             deps,
             env,
             info,
@@ -343,7 +346,7 @@ pub fn provide_liquidity(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    assets: [Asset; 2],
+    assets: Vec<Asset>,
     auto_stake: Option<bool>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
@@ -355,7 +358,7 @@ pub fn provide_liquidity(
     let mut config = CONFIG.load(deps.storage)?;
     info.funds
         .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
-    let mut pools: [Asset; 2] = config
+    let mut pools = config
         .pair_info
         .query_pools(&deps.querier, env.contract.address.clone())?;
     let deposits: [Uint128; 2] = [
@@ -403,8 +406,8 @@ pub fn provide_liquidity(
         }
     }
 
-    let token_precision_0 = query_token_precision(&deps.querier, pools[0].info.clone())?;
-    let token_precision_1 = query_token_precision(&deps.querier, pools[1].info.clone())?;
+    let token_precision_0 = query_token_precision(&deps.querier, &pools[0].info)?;
+    let token_precision_1 = query_token_precision(&deps.querier, &pools[1].info)?;
 
     let greater_precision = token_precision_0.max(token_precision_1);
 
@@ -415,7 +418,7 @@ pub fn provide_liquidity(
     let share = if total_share.is_zero() {
         let liquidity_token_precision = query_token_precision(
             &deps.querier,
-            AssetInfo::Token {
+            &AssetInfo::Token {
                 contract_addr: config.pair_info.liquidity_token.clone(),
             },
         )?;
@@ -615,9 +618,9 @@ pub fn withdraw_liquidity(
         env,
         &mut config,
         pools[0].amount,
-        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        query_token_precision(&deps.querier, &pools[0].info)?,
         pools[1].amount,
-        query_token_precision(&deps.querier, pools[1].info.clone())?,
+        query_token_precision(&deps.querier, &pools[1].info)?,
     )? {
         CONFIG.save(deps.storage, &config)?;
     }
@@ -639,7 +642,7 @@ pub fn withdraw_liquidity(
     let attributes = vec![
         attr("action", "withdraw_liquidity"),
         attr("sender", sender.as_str()),
-        attr("withdrawn_share", &amount.to_string()),
+        attr("withdrawn_share", amount.to_string()),
         attr(
             "refund_assets",
             format!("{}, {}", refund_assets[0], refund_assets[1]),
@@ -659,11 +662,7 @@ pub fn withdraw_liquidity(
 /// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to calculate underlying amounts for.
 ///
 /// * **total_share** is an object of type [`Uint128`]. This is the total amount of LP tokens currently issued by the pool.
-pub fn get_share_in_assets(
-    pools: &[Asset; 2],
-    amount: Uint128,
-    total_share: Uint128,
-) -> [Asset; 2] {
+pub fn get_share_in_assets(pools: &[Asset], amount: Uint128, total_share: Uint128) -> [Asset; 2] {
     let mut share_ratio = Decimal::zero();
     if !total_share.is_zero() {
         share_ratio = Decimal::from_ratio(amount, total_share);
@@ -756,9 +755,9 @@ pub fn swap(
     let offer_amount = offer_asset.amount;
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
-        query_token_precision(&deps.querier, offer_pool.info)?,
+        query_token_precision(&deps.querier, &offer_pool.info)?,
         ask_pool.amount,
-        query_token_precision(&deps.querier, ask_pool.info.clone())?,
+        query_token_precision(&deps.querier, &ask_pool.info)?,
         offer_amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -806,9 +805,9 @@ pub fn swap(
         env,
         &mut config,
         pools[0].amount,
-        query_token_precision(&deps.querier, pools[0].info.clone())?,
+        query_token_precision(&deps.querier, &pools[0].info)?,
         pools[1].amount,
-        query_token_precision(&deps.querier, pools[1].info.clone())?,
+        query_token_precision(&deps.querier, &pools[1].info)?,
     )? {
         CONFIG.save(deps.storage, &config)?;
     }
@@ -964,14 +963,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Pair {} => to_binary(&query_pair_info(deps)?),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
         QueryMsg::Share { amount } => to_binary(&query_share(deps, amount)?),
-        QueryMsg::Simulation { offer_asset } => {
+        QueryMsg::Simulation { offer_asset, .. } => {
             to_binary(&query_simulation(deps, env, offer_asset)?)
         }
-        QueryMsg::ReverseSimulation { ask_asset } => {
+        QueryMsg::ReverseSimulation { ask_asset, .. } => {
             to_binary(&query_reverse_simulation(deps, env, ask_asset)?)
         }
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
+        _ => Err(StdError::generic_err("Query not supported")),
     }
 }
 
@@ -1028,7 +1028,7 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
     let config: Config = CONFIG.load(deps.storage)?;
     let contract_addr = config.pair_info.contract_addr.clone();
 
-    let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
+    let pools = config.pair_info.query_pools(&deps.querier, contract_addr)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;
@@ -1053,9 +1053,9 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
 
     let (return_amount, spread_amount, commission_amount) = compute_swap(
         offer_pool.amount,
-        query_token_precision(&deps.querier, offer_pool.info)?,
+        query_token_precision(&deps.querier, &offer_pool.info)?,
         ask_pool.amount,
-        query_token_precision(&deps.querier, ask_pool.info)?,
+        query_token_precision(&deps.querier, &ask_pool.info)?,
         offer_asset.amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -1085,7 +1085,7 @@ pub fn query_reverse_simulation(
     let config: Config = CONFIG.load(deps.storage)?;
     let contract_addr = config.pair_info.contract_addr.clone();
 
-    let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
+    let pools = config.pair_info.query_pools(&deps.querier, contract_addr)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;
@@ -1110,9 +1110,9 @@ pub fn query_reverse_simulation(
 
     let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
         offer_pool.amount,
-        query_token_precision(&deps.querier, offer_pool.info)?,
+        query_token_precision(&deps.querier, &offer_pool.info)?,
         ask_pool.amount,
-        query_token_precision(&deps.querier, ask_pool.info)?,
+        query_token_precision(&deps.querier, &ask_pool.info)?,
         ask_asset.amount,
         fee_info.total_fee_rate,
         compute_current_amp(&config, &env)?,
@@ -1139,9 +1139,9 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
         env,
         &mut config,
         assets[0].amount,
-        query_token_precision(&deps.querier, assets[0].info.clone())?,
+        query_token_precision(&deps.querier, &assets[0].info)?,
         assets[1].amount,
-        query_token_precision(&deps.querier, assets[1].info.clone())?,
+        query_token_precision(&deps.querier, &assets[1].info)?,
     )
     .map_err(|err| StdError::generic_err(format!("{err}")))?;
 
@@ -1397,9 +1397,9 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **config** is an object of type [`Config`].
-pub fn pool_info(deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)> {
+pub fn pool_info(deps: Deps, config: Config) -> StdResult<(Vec<Asset>, Uint128)> {
     let contract_addr = config.pair_info.contract_addr.clone();
-    let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
+    let pools = config.pair_info.query_pools(&deps.querier, contract_addr)?;
     let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;
 
     Ok((pools, total_share))

@@ -138,7 +138,7 @@ impl CompatibleLoader<(&Addr, &Addr), UserInfoV2> for Map<'_, (&Addr, &Addr), Us
 
             let current_reward = pool_info
                 .reward_global_index
-                .astro_checked_mul(old_user_info.amount)?
+                .checked_mul_uint128(old_user_info.amount)?
                 .checked_sub(old_user_info.reward_debt)?;
 
             let user_index = pool_info.reward_global_index
@@ -189,7 +189,7 @@ pub fn update_user_balance(
         .inner_ref()
         .iter()
         .map(|(proxy, rewards_per_share)| {
-            let rewards_debt = rewards_per_share.astro_checked_mul(user.amount)?;
+            let rewards_debt = rewards_per_share.checked_mul_uint128(user.amount)?;
             Ok((proxy.clone(), rewards_debt))
         })
         .collect::<StdResult<Vec<_>>>()?
@@ -217,7 +217,7 @@ pub fn accumulate_pool_proxy_rewards(
             .map(|(proxy, rewards_per_share)| {
                 let reward_debt = rewards_debt_map.get(proxy).cloned().unwrap_or_default();
                 let pending_proxy_rewards = rewards_per_share
-                    .astro_checked_mul(user.amount)?
+                    .checked_mul_uint128(user.amount)?
                     .saturating_sub(reward_debt);
 
                 Ok((proxy.clone(), pending_proxy_rewards))

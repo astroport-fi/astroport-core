@@ -59,6 +59,7 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw-utils 0.15.1",
  "cw20 0.15.1",
+ "itertools",
  "uint",
 ]
 
@@ -89,6 +90,7 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
+ "itertools",
  "protobuf",
  "thiserror",
 ]
@@ -222,6 +224,27 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-pair-concentrated"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "astroport 2.1.0",
+ "astroport-factory",
+ "astroport-token",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus 0.15.1",
+ "cw-utils 0.15.1",
+ "cw2 0.15.1",
+ "cw20 0.15.1",
+ "derivative",
+ "itertools",
+ "proptest",
  "thiserror",
 ]
 

@@ -52,6 +52,10 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    if msg.asset_infos.len() != 2 {
+        return Err(StdError::generic_err("asset_infos must contain exactly two elements").into());
+    }
+
     msg.asset_infos[0].check(deps.api)?;
     msg.asset_infos[1].check(deps.api)?;
 
@@ -76,7 +80,7 @@ pub fn instantiate(
 
     CONFIG.save(deps.storage, &config)?;
 
-    let token_name = format_lp_token_name(msg.asset_infos, &deps.querier)?;
+    let token_name = format_lp_token_name(&msg.asset_infos, &deps.querier)?;
 
     // Create the LP token contract
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
@@ -201,6 +205,7 @@ pub fn execute(
             belief_price,
             max_spread,
             to,
+            ..
         } => {
             offer_asset.info.check(deps.api)?;
             if !offer_asset.is_native_token() {
@@ -224,6 +229,7 @@ pub fn execute(
                 to_addr,
             )
         }
+        _ => Err(ContractError::NonSupported {}),
     }
 }
 
@@ -251,6 +257,7 @@ pub fn receive_cw20(
             belief_price,
             max_spread,
             to,
+            ..
         }) => {
             // Only asset contract can execute this message
             let mut authorized: bool = false;
@@ -288,7 +295,7 @@ pub fn receive_cw20(
                 to_addr,
             )
         }
-        Ok(Cw20HookMsg::WithdrawLiquidity {}) => withdraw_liquidity(
+        Ok(Cw20HookMsg::WithdrawLiquidity { .. }) => withdraw_liquidity(
             deps,
             env,
             info,
@@ -325,7 +332,7 @@ pub fn provide_liquidity(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    assets: [Asset; 2],
+    assets: Vec<Asset>,
     slippage_tolerance: Option<Decimal>,
     auto_stake: Option<bool>,
     receiver: Option<String>,
@@ -338,7 +345,7 @@ pub fn provide_liquidity(
     let mut config = CONFIG.load(deps.storage)?;
     info.funds
         .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
-    let mut pools: [Asset; 2] = config
+    let mut pools = config
         .pair_info
         .query_pools(&deps.querier, env.contract.address.clone())?;
     let deposits: [Uint128; 2] = [
@@ -573,7 +580,7 @@ pub fn withdraw_liquidity(
     let attributes = vec![
         attr("action", "withdraw_liquidity"),
         attr("sender", sender.as_str()),
-        attr("withdrawn_share", &amount.to_string()),
+        attr("withdrawn_share", amount.to_string()),
         attr(
             "refund_assets",
             format!("{}, {}", refund_assets[0], refund_assets[1]),
@@ -593,11 +600,7 @@ pub fn withdraw_liquidity(
 /// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to compute a corresponding amount of assets for.
 ///
 /// * **total_share** is an object of type [`Uint128`]. This is the total amount of LP tokens currently minted.
-pub fn get_share_in_assets(
-    pools: &[Asset; 2],
-    amount: Uint128,
-    total_share: Uint128,
-) -> Vec<Asset> {
+pub fn get_share_in_assets(pools: &[Asset], amount: Uint128, total_share: Uint128) -> Vec<Asset> {
     let mut share_ratio = Decimal::zero();
     if !total_share.is_zero() {
         share_ratio = Decimal::from_ratio(amount, total_share);
@@ -859,12 +862,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Pair {} => to_binary(&query_pair_info(deps)?),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
         QueryMsg::Share { amount } => to_binary(&query_share(deps, amount)?),
-        QueryMsg::Simulation { offer_asset } => to_binary(&query_simulation(deps, offer_asset)?),
-        QueryMsg::ReverseSimulation { ask_asset } => {
+        QueryMsg::Simulation { offer_asset, .. } => {
+            to_binary(&query_simulation(deps, offer_asset)?)
+        }
+        QueryMsg::ReverseSimulation { ask_asset, .. } => {
             to_binary(&query_reverse_simulation(deps, ask_asset)?)
         }
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        _ => Err(StdError::generic_err("Query is not supported")),
     }
 }
 
@@ -919,7 +925,7 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
     let config: Config = CONFIG.load(deps.storage)?;
     let contract_addr = config.pair_info.contract_addr.clone();
 
-    let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
+    let pools = config.pair_info.query_pools(&deps.querier, contract_addr)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;
@@ -970,7 +976,7 @@ pub fn query_reverse_simulation(
     let config: Config = CONFIG.load(deps.storage)?;
     let contract_addr = config.pair_info.contract_addr.clone();
 
-    let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
+    let pools = config.pair_info.query_pools(&deps.querier, contract_addr)?;
 
     let offer_pool: Asset;
     let ask_pool: Asset;
@@ -1207,7 +1213,7 @@ pub fn assert_max_spread(
 fn assert_slippage_tolerance(
     slippage_tolerance: Option<Decimal>,
     deposits: &[Uint128; 2],
-    pools: &[Asset; 2],
+    pools: &[Asset],
 ) -> Result<(), ContractError> {
     let default_slippage = Decimal::from_str(DEFAULT_SLIPPAGE)?;
     let max_allowed_slippage = Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?;
@@ -1274,9 +1280,9 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **config** is an object of type [`Config`].
-pub fn pool_info(deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)> {
+pub fn pool_info(deps: Deps, config: Config) -> StdResult<(Vec<Asset>, Uint128)> {
     let contract_addr = config.pair_info.contract_addr.clone();
-    let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
+    let pools = config.pair_info.query_pools(&deps.querier, contract_addr)?;
     let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;
 
     Ok((pools, total_share))

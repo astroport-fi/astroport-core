@@ -13,8 +13,13 @@ use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 
 #[cw_serde]
 pub enum QueryMsg {
-    Pair { asset_infos: [AssetInfo; 2] },
-    Simulation { offer_asset: Asset },
+    Pair {
+        asset_infos: Vec<AssetInfo>,
+    },
+    Simulation {
+        offer_asset: Asset,
+        ask_asset_info: Option<AssetInfo>,
+    },
 }
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies.
@@ -172,7 +177,7 @@ impl WasmMockQuerier {
                     Some(v) => SystemResult::Ok(ContractResult::from(to_binary(&PairInfo {
                         contract_addr: Addr::unchecked(v),
                         liquidity_token: Addr::unchecked("liquidity"),
-                        asset_infos: [
+                        asset_infos: vec![
                             AssetInfo::NativeToken {
                                 denom: "uusd".to_string(),
                             },
@@ -188,7 +193,7 @@ impl WasmMockQuerier {
                     }),
                 }
             }
-            QueryMsg::Simulation { offer_asset } => {
+            QueryMsg::Simulation { offer_asset, .. } => {
                 SystemResult::Ok(ContractResult::from(to_binary(&SimulationResponse {
                     return_amount: offer_asset.amount,
                     commission_amount: Uint128::zero(),
