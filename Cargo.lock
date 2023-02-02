@@ -31,7 +31,7 @@ dependencies = [
 [[package]]
 name = "astro-satellite-package"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/astroport_ibc.git?branch=release#c6ca81b347fc71fe0f520cf3ed704fb96b1c2f20"
+source = "git+https://github.com/astroport-fi/astroport_ibc.git?branch=release#9357231200f251fb80b625c33a5053aa2d5dfb97"
 dependencies = [
  "astroport-governance",
  "cosmwasm-schema",
