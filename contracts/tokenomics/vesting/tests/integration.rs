@@ -920,7 +920,7 @@ fn withdraw_from_active_schedule() {
         &user1,
         &vesting_instance,
         &astro_token,
-        65543017_979452,
+        65_543_017_979452,
     );
 
     let withdraw_amount = Uint128::new(10_000_000_000000);
@@ -954,7 +954,7 @@ fn withdraw_from_active_schedule() {
         &user1,
         &vesting_instance,
         &astro_token,
-        66_890_631_376055,
+        66_890_633_481478,
     );
 
     app.update_block(|b| b.time = Timestamp::from_seconds(end_time));
@@ -1049,7 +1049,7 @@ fn withdraw_overlapping_schedules() {
         .unwrap_err();
     // Impossible because last schedule has no end point thus all vested tokens are not available
     assert_eq!(
-        ContractError::NotEnoughTokens(Uint128::zero()),
+        ContractError::ScheduleWithoutEndPoint {},
         err.downcast().unwrap(),
     );
 

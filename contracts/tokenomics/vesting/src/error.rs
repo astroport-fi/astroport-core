@@ -30,6 +30,9 @@ pub enum ContractError {
     #[error("Failed to withdraw tokens due to multiple active schedules for account {0}")]
     MultipleActiveSchedules(String),
 
+    #[error("Failed to withdraw tokens from schedule without end point")]
+    ScheduleWithoutEndPoint {},
+
     #[error("Account {0} has no active vesting schedule")]
     NoActiveVestingSchedule(String),
 

@@ -397,36 +397,28 @@ fn withdraw_from_active_schedule(
             return Err(ContractError::MultipleActiveSchedules(account));
         }
 
+        // This is impossible to withdraw from schedule without end_point as all tokens are available
+        // from the beginning
+        let end_point = schedule
+            .end_point
+            .ok_or_else(|| ContractError::ScheduleWithoutEndPoint {})?;
+
         let sch_unlocked_amount = calc_schedule_unlocked_amount(schedule, block_time)?;
 
-        let amount_left = schedule
-            .end_point
-            .map(|point| point.amount)
-            .unwrap_or(schedule.start_point.amount)
-            .checked_sub(sch_unlocked_amount)?;
+        let amount_left = end_point.amount.checked_sub(sch_unlocked_amount)?;
         if amount >= amount_left {
             return Err(ContractError::NotEnoughTokens(amount_left));
         }
 
-        new_schedule = if let Some(end_point) = &schedule.end_point {
-            VestingSchedule {
-                start_point: VestingSchedulePoint {
-                    time: block_time + 1,
-                    amount: Uint128::zero(),
-                },
-                end_point: Some(VestingSchedulePoint {
-                    time: end_point.time,
-                    amount: end_point.amount - sch_unlocked_amount - amount,
-                }),
-            }
-        } else {
-            VestingSchedule {
-                start_point: VestingSchedulePoint {
-                    time: block_time + 1,
-                    amount: schedule.start_point.amount - sch_unlocked_amount - amount,
-                },
-                end_point: None,
-            }
+        new_schedule = VestingSchedule {
+            start_point: VestingSchedulePoint {
+                time: block_time,
+                amount: Uint128::zero(),
+            },
+            end_point: Some(VestingSchedulePoint {
+                time: end_point.time,
+                amount: end_point.amount - sch_unlocked_amount - amount,
+            }),
         };
 
         schedule.end_point = Some(VestingSchedulePoint {
