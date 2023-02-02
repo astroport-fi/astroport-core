@@ -361,6 +361,7 @@ fn calc_schedule_unlocked_amount(
 /// Withdraw tokens from active vesting schedule.
 ///
 /// Withdraw is possible if there is only one active vesting schedule.
+/// Only schedules with end_point are considered as active.
 /// Active schedule's remaining amount must be greater than withdraw amount.
 /// This function terminates current active schedule (updates end_point)
 /// and creates a new one with remaining amount minus withdrawn amount.
@@ -386,7 +387,7 @@ fn withdraw_from_active_schedule(
         if let Some(end_point) = schedule.end_point {
             block_time >= schedule.start_point.time && block_time < end_point.time
         } else {
-            block_time >= schedule.start_point.time
+            false
         }
     });
 
@@ -397,11 +398,8 @@ fn withdraw_from_active_schedule(
             return Err(ContractError::MultipleActiveSchedules(account));
         }
 
-        // This is impossible to withdraw from schedule without end_point as all tokens are available
-        // from the beginning
-        let end_point = schedule
-            .end_point
-            .ok_or_else(|| ContractError::ScheduleWithoutEndPoint {})?;
+        // It's safe to unwrap here because we checked that there is an end_point
+        let end_point = schedule.end_point.unwrap();
 
         let sch_unlocked_amount = calc_schedule_unlocked_amount(schedule, block_time)?;
 

@@ -1032,33 +1032,35 @@ fn withdraw_overlapping_schedules() {
         recipient: Some(recipient.to_string()),
         withdraw_amount,
     };
-    let err = app
-        .execute_contract(owner.clone(), vesting_instance.clone(), &withdraw_msg, &[])
-        .unwrap_err();
-    assert_eq!(
-        ContractError::MultipleActiveSchedules(user1.to_string()),
-        err.downcast().unwrap(),
-    );
 
-    // Go to the end of the 1st schedule
-    app.update_block(|b| b.time = Timestamp::from_seconds(end_time));
+    // Since we do not consider schedule without end point as active it is possible to withdraw from
+    // active schedule with end_point.
+    app.execute_contract(owner.clone(), vesting_instance.clone(), &withdraw_msg, &[])
+        .unwrap();
 
-    // Trying to withdraw again
-    let err = app
-        .execute_contract(owner.clone(), vesting_instance.clone(), &withdraw_msg, &[])
-        .unwrap_err();
-    // Impossible because last schedule has no end point thus all vested tokens are not available
-    assert_eq!(
-        ContractError::ScheduleWithoutEndPoint {},
-        err.downcast().unwrap(),
-    );
+    // Recipient received tokens
+    let recipient_bal = query_token_balance(&mut app, &astro_token, &recipient);
+    assert_eq!(recipient_bal, withdraw_amount);
 
+    // User1 did not receive tokens after withdraw event
     claim_and_check(
         &mut app,
         &user1,
         &vesting_instance,
         &astro_token,
-        vested_amount.u128(),
+        82_945_534_151445,
+    );
+
+    // Go to the end of the 1st schedule
+    app.update_block(|b| b.time = Timestamp::from_seconds(end_time));
+
+    // In the end of the schedule user1 receives all tokens minus withdrawn amount
+    claim_and_check(
+        &mut app,
+        &user1,
+        &vesting_instance,
+        &astro_token,
+        (vested_amount - withdraw_amount).u128(),
     );
 }
 
