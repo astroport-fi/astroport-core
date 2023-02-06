@@ -1,4 +1,3 @@
-use astroport_governance::astroport::DecimalCheckedOps;
 use std::collections::{HashMap, HashSet};
 
 use cosmwasm_std::{
@@ -31,6 +30,7 @@ use astroport::{
         Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
     },
     vesting::ExecuteMsg as VestingExecuteMsg,
+    DecimalCheckedOps,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -1185,7 +1185,7 @@ pub fn send_pending_rewards(
     let mut messages = vec![];
 
     let pending_rewards = (pool.reward_global_index - user.reward_user_index)
-        .astro_checked_mul(user.virtual_amount)?;
+        .checked_mul_uint128(user.virtual_amount)?;
 
     if !pending_rewards.is_zero() {
         messages.push(WasmMsg::Execute {
@@ -2104,7 +2104,7 @@ pub fn pending_token(
 
     // we should calculate rewards by virtual amount
     let pending = (acc_per_share - user_info.reward_user_index)
-        .astro_checked_mul(user_info.virtual_amount)?;
+        .checked_mul_uint128(user_info.virtual_amount)?;
 
     Ok(PendingTokenResponse {
         pending,

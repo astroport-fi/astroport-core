@@ -138,6 +138,7 @@ impl ControllerHelper {
             generator_addr: generator.to_string(),
             factory_addr: factory.to_string(),
             pools_limit: 5,
+            whitelisted_pools: vec![],
         };
 
         let controller = router
