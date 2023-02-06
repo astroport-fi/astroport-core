@@ -5,6 +5,7 @@ members = [
     "contracts/factory",
     "contracts/pair",
     "contracts/pair_stable",
+    "contracts/pair_concentrated",
     "contracts/pair_astro_xastro",
     "contracts/router",
     "contracts/token",
