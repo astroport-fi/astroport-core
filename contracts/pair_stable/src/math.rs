@@ -22,8 +22,8 @@ pub const TOL: Decimal256 = Decimal256::raw(1000000000000);
 ///
 pub(crate) fn compute_d(amp: Uint64, pools: &[Decimal256]) -> StdResult<Decimal256> {
     let leverage = Decimal256::from_ratio(amp, AMP_PRECISION) * N_COINS;
-    let amount_a_times_coins = (pools[0] * N_COINS).checked_add(Decimal256::raw(1000000000000))?;
-    let amount_b_times_coins = (pools[1] * N_COINS).checked_add(Decimal256::raw(1000000000000))?;
+    let amount_a_times_coins = pools[0] * N_COINS;
+    let amount_b_times_coins = pools[1] * N_COINS;
 
     let sum_x = pools[0].checked_add(pools[1])?; // sum(x_i), a.k.a S
     if sum_x.is_zero() {

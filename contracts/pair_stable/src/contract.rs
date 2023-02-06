@@ -159,7 +159,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             let init_response = parse_instantiate_response_data(data.as_slice())
                 .map_err(|e| StdError::generic_err(format!("{e}")))?;
             config.pair_info.liquidity_token =
-                addr_validate_to_lower(deps.api, &init_response.contract_address)?;
+                addr_validate_to_lower(deps.api, init_response.contract_address)?;
             CONFIG.save(deps.storage, &config)?;
             Ok(Response::new()
                 .add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
@@ -443,13 +443,6 @@ pub fn provide_liquidity(
 
     let amp = compute_current_amp(&config, &env)?;
 
-    // Initial invariant (D)
-    let old_balances = assets_collection
-        .iter()
-        .map(|(_, pool)| *pool)
-        .collect_vec();
-    let init_d = compute_d(amp, &old_balances)?;
-
     // Invariant (D) after deposit added
     let new_balances = assets_collection
         .iter()
@@ -480,6 +473,13 @@ pub fn provide_liquidity(
 
         share
     } else {
+        // Initial invariant (D)
+        let old_balances = assets_collection
+            .iter()
+            .map(|(_, pool)| *pool)
+            .collect_vec();
+        let init_d = compute_d(amp, &old_balances)?;
+
         let share = Decimal256::with_precision(total_share, config.greatest_precision)?
             .checked_multiply_ratio(deposit_d.saturating_sub(init_d), init_d)?
             .to_uint128_with_precision(config.greatest_precision)?;
@@ -940,7 +940,7 @@ pub fn query_reverse_simulation(
         compute_current_amp(&config, &env)?,
         ask_pool.amount - before_commission,
         &xp,
-        ask_precision,
+        config.greatest_precision,
     )?;
 
     let offer_amount = new_offer_pool_amount.checked_sub(
