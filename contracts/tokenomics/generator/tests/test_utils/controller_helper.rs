@@ -138,6 +138,7 @@ impl ControllerHelper {
             generator_addr: generator.to_string(),
             factory_addr: factory.to_string(),
             pools_limit: 5,
+            whitelisted_pools: vec![],
         };
 
         let controller = router
@@ -229,7 +230,7 @@ impl ControllerHelper {
     }
 
     pub fn create_pool(&self, router: &mut App, token1: &Addr, token2: &Addr) -> AnyResult<Addr> {
-        let asset_infos = [
+        let asset_infos = vec![
             AssetInfo::Token {
                 contract_addr: token1.clone(),
             },

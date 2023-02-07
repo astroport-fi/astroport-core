@@ -29,6 +29,7 @@ cw-storage-plus = "0.15"
 cw2 = "0.15"
 thiserror = { version = "1.0.20" }
 protobuf = { version = "2", features = ["with-bytes"] }
+itertools = "0.10"
 cosmwasm-schema = "1.1"
 
 [dev-dependencies]

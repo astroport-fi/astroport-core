@@ -14,11 +14,13 @@ use cosmwasm_std::{to_binary, Addr, QuerierWrapper, QueryRequest, StdResult, Was
 pub fn query_pair_info(
     querier: &QuerierWrapper,
     factory_contract: Addr,
-    asset_infos: [AssetInfo; 2],
+    asset_infos: &[AssetInfo],
 ) -> StdResult<PairInfo> {
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: factory_contract.to_string(),
-        msg: to_binary(&FactoryQueryMsg::Pair { asset_infos })?,
+        msg: to_binary(&FactoryQueryMsg::Pair {
+            asset_infos: asset_infos.to_vec(),
+        })?,
     }))
 }
 
@@ -53,6 +55,9 @@ pub fn query_prices(
 ) -> StdResult<SimulationResponse> {
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: pair_contract.to_string(),
-        msg: to_binary(&PairQueryMsg::Simulation { offer_asset: asset })?,
+        msg: to_binary(&PairQueryMsg::Simulation {
+            offer_asset: asset,
+            ask_asset_info: None,
+        })?,
     }))
 }

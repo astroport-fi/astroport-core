@@ -20,7 +20,6 @@ use astroport::factory::{PairConfig, PairType};
 use astroport::generator::PoolInfo;
 use astroport::generator::{StakerResponse, UserInfoV2};
 use astroport::querier::query_token_balance;
-use astroport::DecimalCheckedOps;
 use astroport::{
     factory::{ConfigResponse as FactoryConfigResponse, QueryMsg as FactoryQueryMsg},
     generator::{
@@ -31,6 +30,7 @@ use astroport::{
         Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
     },
     vesting::ExecuteMsg as VestingExecuteMsg,
+    DecimalCheckedOps,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -430,7 +430,7 @@ fn deactivate_blacklisted(
     // find active pools with blacklisted pair type
     for pool in &mut cfg.active_pools {
         if !pool.1.is_zero() {
-            let pair_info = pair_info_by_pool(deps.as_ref(), pool.0.clone())?;
+            let pair_info = pair_info_by_pool(&deps.querier, &pool.0)?;
             if pair_types.contains(&pair_info.pair_type) {
                 // recalculate total allocation point before resetting the allocation point of pool
                 cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
@@ -501,7 +501,7 @@ fn update_blocked_tokens_list(
 
                 // Find active pools with blacklisted tokens
                 for pool in &mut cfg.active_pools {
-                    let pair_info = pair_info_by_pool(deps.as_ref(), pool.0.clone())?;
+                    let pair_info = pair_info_by_pool(&deps.querier, &pool.0)?;
                     if pair_info.asset_infos.contains(&asset_info) {
                         // Recalculate total allocation points before resetting the pool allocation points
                         cfg.total_alloc_point = cfg.total_alloc_point.checked_sub(pool.1)?;
@@ -615,7 +615,7 @@ pub fn execute_setup_pools(
 
     for (addr, alloc_point) in pools {
         let pool_addr = deps.api.addr_validate(&addr)?;
-        let pair_info = pair_info_by_pool(deps.as_ref(), pool_addr.clone())?;
+        let pair_info = pair_info_by_pool(&deps.querier, &pool_addr)?;
 
         // check if assets in the blocked list
         for asset in pair_info.asset_infos.clone() {
@@ -1185,7 +1185,7 @@ pub fn send_pending_rewards(
     let mut messages = vec![];
 
     let pending_rewards = (pool.reward_global_index - user.reward_user_index)
-        .astro_checked_mul(user.virtual_amount)?;
+        .checked_mul_uint128(user.virtual_amount)?;
 
     if !pending_rewards.is_zero() {
         messages.push(WasmMsg::Execute {
@@ -2104,7 +2104,7 @@ pub fn pending_token(
 
     // we should calculate rewards by virtual amount
     let pending = (acc_per_share - user_info.reward_user_index)
-        .astro_checked_mul(user_info.virtual_amount)?;
+        .checked_mul_uint128(user_info.virtual_amount)?;
 
     Ok(PendingTokenResponse {
         pending,
@@ -2424,7 +2424,7 @@ pub fn create_pool(
     cfg: &Config,
     factory_cfg: &FactoryConfigResponse,
 ) -> Result<PoolInfo, ContractError> {
-    let pair_info = pair_info_by_pool(deps.as_ref(), lp_token.clone())?;
+    let pair_info = pair_info_by_pool(&deps.querier, lp_token)?;
 
     let mut pair_config: Option<PairConfig> = None;
     for factory_pair_config in &factory_cfg.pair_configs {

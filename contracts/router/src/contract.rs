@@ -428,6 +428,7 @@ fn simulate_swap_operations(
                                 info: offer_asset_info.clone(),
                                 amount: return_amount,
                             },
+                            ask_asset_info: None,
                         })?,
                     }))?;
 

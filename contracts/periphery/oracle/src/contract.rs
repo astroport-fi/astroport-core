@@ -44,11 +44,7 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let factory_contract = deps.api.addr_validate(msg.factory_contract.as_ref())?;
-    let pair_info = query_pair_info(
-        &deps.querier,
-        factory_contract.clone(),
-        msg.asset_infos.clone(),
-    )?;
+    let pair_info = query_pair_info(&deps.querier, factory_contract.clone(), &msg.asset_infos)?;
 
     let config = Config {
         owner: info.sender,
@@ -186,7 +182,7 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, Std
 
     Ok(if price_average.is_zero() {
         // Get the token's precision
-        let p = query_token_precision(&deps.querier, token.clone())?;
+        let p = query_token_precision(&deps.querier, &token)?;
         let one = Uint128::new(10_u128.pow(p.into()));
 
         let price = query_prices(

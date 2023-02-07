@@ -318,7 +318,7 @@ fn create_pair(
         }
     }
 
-    let asset_infos = [assets[0].info.clone(), assets[1].info.clone()];
+    let asset_infos = vec![assets[0].info.clone(), assets[1].info.clone()];
 
     // Create pair in factory
     let res = router
@@ -387,7 +387,7 @@ fn create_pair(
             user.clone(),
             pair_info.contract_addr.clone(),
             &astroport::pair::ExecuteMsg::ProvideLiquidity {
-                assets: [assets[0].clone(), assets[1].clone()],
+                assets: vec![assets[0].clone(), assets[1].clone()],
                 slippage_tolerance: None,
                 auto_stake: None,
                 receiver: None,
