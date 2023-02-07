@@ -18,6 +18,9 @@ members = [
     "contracts/periphery/oracle",
 ]
 
+[patch."https://github.com/astroport-fi/astroport-core.git"]
+astroport = { path = './packages/astroport' }
+
 [profile.release]
 opt-level = "z"
 debug = false
