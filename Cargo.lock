@@ -43,7 +43,7 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#bedca9e7736d76f7a57a25fa4d1d850696cd03c5"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#777772642d9896e66e65cc162113b166c4740ac4"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -56,7 +56,7 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git#bedca9e7736d76f7a57a25fa4d1d850696cd03c5"
+source = "git+https://github.com/astroport-fi/astroport-core.git#777772642d9896e66e65cc162113b166c4740ac4"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1554,9 +1554,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.92"
+version = "1.0.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7434af0dc1cbd59268aa98b4c22c131c0584d2232f6fb166efb993e2832e896a"
+checksum = "cad406b69c91885b5107daf2c29572f6c8cdb3c66826821e286c533490c0bc76"
 dependencies = [
  "itoa",
  "ryu",
@@ -1600,7 +1600,7 @@ dependencies = [
 [[package]]
 name = "sim"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/astroport-sims.git?branch=feat/update_deps#e94987b364a44750ad4b19120130ef4d7800ad63"
+source = "git+https://github.com/astroport-fi/astroport-sims.git?branch=main#744b25583373e964a9f9a1c51949a67bd68e6a17"
 dependencies = [
  "pyo3",
 ]
