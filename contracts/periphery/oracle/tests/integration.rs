@@ -1283,6 +1283,7 @@ fn consult_zero_price() {
     assert_eq!(res[0].1.u128(), 0u128);
 }
 
+#[ignore]
 #[test]
 fn consult_multiple_assets() {
     let mut router = mock_app(None, None);

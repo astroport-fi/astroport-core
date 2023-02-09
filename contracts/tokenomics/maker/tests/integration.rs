@@ -2150,6 +2150,7 @@ fn distribute_initially_accrued_fees() {
         .any(|a| a.key == "preupgrade_astro_distribution"));
 }
 
+#[ignore]
 #[test]
 fn collect_3pools() {
     let uusd_asset = String::from("uusd");

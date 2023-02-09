@@ -1,7 +1,9 @@
-use crate::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
-use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
 use cosmwasm_std::{CheckedMultiplyRatioError, ConversionOverflowError, OverflowError, StdError};
 use thiserror::Error;
+
+use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
+
+use crate::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
 
 /// This enum describes stableswap pair contract errors
 #[derive(Error, Debug, PartialEq)]
@@ -72,16 +74,17 @@ pub enum ContractError {
     #[error("Source and target assets are the same")]
     SameAssets {},
 
-    #[error(
-        "Invalid number of assets. The Astroport supports at least 2 and at most 5 assets within a stable pool"
-    )]
-    InvalidNumberOfAssets {},
+    #[error("Invalid number of assets. This pair support only {0} assets")]
+    InvalidNumberOfAssets(usize),
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
 
     #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
     MinimumLiquidityAmountError {},
+
+    #[error("Failed to parse or process reply message")]
+    FailedToParseReply {},
 }
 
 impl From<OverflowError> for ContractError {
