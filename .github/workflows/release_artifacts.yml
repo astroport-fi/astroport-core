@@ -19,4 +19,4 @@ jobs:
           files: cosmwasm-artifacts.tar.gz
           token: ${{ secrets.GH_TOKEN }}
         env:
-          GITHUB_REPOSITORY: epanchee/astroport-core
+          GITHUB_REPOSITORY: astroport-fi/astroport-core
