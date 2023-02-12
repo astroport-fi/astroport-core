@@ -42,10 +42,10 @@ astroport-pair = { path = "../../pair" }
 astroport-pair-stable = { path = "../../pair_stable" }
 astroport-whitelist = { path = "../../whitelist" }
 anyhow = "1"
-generator-controller = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
-voting-escrow = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
-voting-escrow-delegation = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
-astroport-nft = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
+generator-controller = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "feat/refactor_code_main" }
+voting-escrow = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "feat/refactor_code_main" }
+voting-escrow-delegation = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "feat/refactor_code_main" }
+astroport-nft = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "feat/refactor_code_main" }
 cw721-base = { version = "0.15", features = ["library"] }
 
 generator-proxy-to-vkr = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main" }

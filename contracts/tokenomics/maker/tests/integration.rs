@@ -235,6 +235,7 @@ fn instantiate_contracts(
         astro_token: token_asset_info(astro_token_instance.clone()),
         default_bridge: Some(native_asset_info("uluna".to_string())),
         max_spread,
+        second_receiver_params: None,
     };
     let maker_instance = router
         .instantiate_contract(
