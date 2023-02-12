@@ -1,7 +1,40 @@
 use crate::asset::{Asset, AssetInfo};
 use crate::factory::UpdateAddr;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
+use cosmwasm_std::{Addr, Decimal, Deps, StdError, StdResult, Uint128, Uint64};
+
+/// This structure stores the main parameters for the Maker contract.
+#[cw_serde]
+pub struct Config {
+    /// Address that's allowed to set contract parameters
+    pub owner: Addr,
+    /// The factory contract address
+    pub factory_contract: Addr,
+    /// The xASTRO staking contract address.
+    pub staking_contract: Option<Addr>,
+    /// Default bridge asset (Terra1 - LUNC, Terra2 - LUNA, etc.)
+    pub default_bridge: Option<AssetInfo>,
+    /// The vxASTRO fee distributor contract address
+    pub governance_contract: Option<Addr>,
+    /// The percentage of fees that go to the vxASTRO fee distributor
+    pub governance_percent: Uint64,
+    /// The ASTRO token asset info
+    pub astro_token: AssetInfo,
+    /// The max spread allowed when swapping fee tokens to ASTRO
+    pub max_spread: Decimal,
+    /// The flag which determines whether accrued ASTRO from fee swaps is being distributed or not
+    pub rewards_enabled: bool,
+    /// The number of blocks over which ASTRO that accrued pre-upgrade will be distributed
+    pub pre_upgrade_blocks: u64,
+    /// The last block until which pre-upgrade ASTRO will be distributed
+    pub last_distribution_block: u64,
+    /// The remainder of pre-upgrade ASTRO to distribute
+    pub remainder_reward: Uint128,
+    /// The amount of collected ASTRO before enabling rewards distribution
+    pub pre_upgrade_astro_amount: Uint128,
+    /// The second receiver config
+    pub second_receiver_cfg: Option<SecondReceiverConfig>,
+}
 
 /// This structure stores general parameters for the contract.
 #[cw_serde]
@@ -22,6 +55,8 @@ pub struct InstantiateMsg {
     pub governance_percent: Option<Uint64>,
     /// The maximum spread used when swapping fee tokens to ASTRO
     pub max_spread: Option<Decimal>,
+    /// The second fee receiver
+    pub second_receiver_params: Option<SecondReceiverParams>,
 }
 
 /// This structure describes the functions that can be executed in this contract.
@@ -129,4 +164,50 @@ pub struct AssetWithLimit {
     pub info: AssetInfo,
     /// The amount of tokens to swap
     pub limit: Option<Uint128>,
+}
+
+/// This structure stores the parameters for the second receiver contract.
+#[cw_serde]
+pub struct SecondReceiverParams {
+    /// The second fee receiver
+    pub second_fee_receiver: String,
+    /// The percentage of fees that go to the second fee receiver
+    pub second_receiver_cut: Uint64,
+}
+
+/// This structure stores the parameters for the second receiver contract.
+#[cw_serde]
+pub struct SecondReceiverConfig {
+    /// The second fee receiver
+    pub second_fee_receiver: Addr,
+    /// The percentage of fees that go to the second fee receiver
+    pub second_receiver_cut: Uint64,
+}
+
+/// The maximum allowed second receiver percent
+pub const MAX_SECOND_RECEIVER_CUT: Uint64 = Uint64::new(50);
+
+pub fn update_second_receiver_cfg(
+    deps: Deps,
+    cfg: &mut Config,
+    params: Option<SecondReceiverParams>,
+) -> StdResult<()> {
+    if let Some(params) = params {
+        if params.second_receiver_cut > MAX_SECOND_RECEIVER_CUT
+            || params.second_receiver_cut.is_zero()
+        {
+            return Err(StdError::generic_err(
+                "Incorrect second receiver percent of its share",
+            ));
+        };
+
+        cfg.second_receiver_cfg = Some(SecondReceiverConfig {
+            second_fee_receiver: deps
+                .api
+                .addr_validate(params.second_fee_receiver.as_str())?,
+            second_receiver_cut: params.second_receiver_cut,
+        });
+    }
+
+    Ok(())
 }

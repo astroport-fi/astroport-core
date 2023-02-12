@@ -549,7 +549,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 /// * **asset_infos** is a vector with assets traded in the pair.
 pub fn query_pair(deps: Deps, asset_infos: Vec<AssetInfo>) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
-    query_pair_info(&deps.querier, &pair_addr)
+    query_pair_info(&deps.querier, pair_addr)
 }
 
 /// Returns a vector with pair data that contains items of type [`PairInfo`]. Querying starts at `start_after` and returns `limit` pairs.

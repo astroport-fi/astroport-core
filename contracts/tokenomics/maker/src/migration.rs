@@ -3,9 +3,9 @@ use cosmwasm_std::{Addr, Decimal, DepsMut, StdResult, Uint128, Uint64};
 use cw_storage_plus::Item;
 
 use astroport::asset::token_asset_info;
-use astroport::maker::MigrateMsg;
+use astroport::maker::{Config, MigrateMsg};
 
-use crate::state::{Config, CONFIG};
+use crate::state::CONFIG;
 
 pub(crate) fn migrate_to_v120(deps: DepsMut, msg: MigrateMsg) -> StdResult<()> {
     #[cw_serde]
@@ -43,6 +43,7 @@ pub(crate) fn migrate_to_v120(deps: DepsMut, msg: MigrateMsg) -> StdResult<()> {
         last_distribution_block: old_config.last_distribution_block,
         remainder_reward: old_config.remainder_reward,
         pre_upgrade_astro_amount: old_config.pre_upgrade_astro_amount,
+        second_receiver_cfg: None,
     };
 
     CONFIG.save(deps.storage, &new_config)

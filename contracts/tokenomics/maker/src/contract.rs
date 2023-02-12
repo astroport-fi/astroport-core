@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::state::{Config, BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
+use crate::state::{BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
 use std::cmp::min;
 
 use crate::migration::migrate_to_v120;
@@ -11,8 +11,8 @@ use astroport::asset::{addr_opt_validate, Asset, AssetInfo, PairInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
 use astroport::maker::{
-    AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg,
-    QueryMsg,
+    update_second_receiver_cfg, AssetWithLimit, BalancesResponse, Config, ConfigResponse,
+    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
 use astroport::pair::MAX_ALLOWED_SLIPPAGE;
 use cosmwasm_std::{
@@ -68,7 +68,7 @@ pub fn instantiate(
         default_bridge.check(deps.api)?
     }
 
-    let cfg = Config {
+    let mut cfg = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
         default_bridge: msg.default_bridge,
         astro_token: msg.astro_token,
@@ -82,7 +82,10 @@ pub fn instantiate(
         governance_contract,
         governance_percent,
         max_spread,
+        second_receiver_cfg: None,
     };
+
+    update_second_receiver_cfg(deps.as_ref(), &mut cfg, msg.second_receiver_params)?;
 
     if cfg.staking_contract.is_none() && cfg.governance_contract.is_none() {
         return Err(

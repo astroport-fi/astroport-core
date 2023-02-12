@@ -134,7 +134,7 @@ fn receive_cw20(
     let mut total_deposit = query_token_balance(
         &deps.querier,
         &config.astro_token_addr,
-        &env.contract.address,
+        env.contract.address,
     )?;
     let total_shares = query_supply(&deps.querier, &config.xastro_token_addr)?;
 
@@ -217,7 +217,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::TotalDeposit {} => to_binary(&query_token_balance(
             &deps.querier,
             &config.astro_token_addr,
-            &env.contract.address,
+            env.contract.address,
         )?),
     }
 }

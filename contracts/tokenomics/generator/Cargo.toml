@@ -27,7 +27,7 @@ cw-storage-plus = "0.15"
 cw1-whitelist = { version = "0.15", features = ["library"] }
 thiserror = { version = "1.0" }
 astroport = { path = "../../../packages/astroport", default-features = false }
-astroport-governance = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
+astroport-governance = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "feat/refactor_code_main" }
 protobuf = { version = "2", features = ["with-bytes"] }
 cosmwasm-schema = { version = "1.1" }
 

@@ -1,7 +1,7 @@
 use crate::error::ContractError;
-use crate::state::{Config, BRIDGES};
+use crate::state::BRIDGES;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::maker::ExecuteMsg;
+use astroport::maker::{Config, ExecuteMsg};
 use astroport::pair::{Cw20HookMsg, SimulationResponse};
 use cosmwasm_std::{
     to_binary, Addr, Decimal, Deps, Env, QuerierWrapper, StdResult, SubMsg, Uint128, WasmMsg,
@@ -233,7 +233,7 @@ pub fn get_pool(
                 .unwrap();
 
             Ok((
-                querier.query_wasm_smart(&best_pair, &astroport::pair::QueryMsg::Pair {})?,
+                querier.query_wasm_smart(best_pair, &astroport::pair::QueryMsg::Pair {})?,
                 Some(sim_res.return_amount),
             ))
         }

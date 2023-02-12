@@ -762,8 +762,7 @@ fn imbalanced_withdraw(
 
     if burn_amount > provided_amount {
         return Err(StdError::generic_err(format!(
-            "Not enough LP tokens. You need {} LP tokens.",
-            burn_amount
+            "Not enough LP tokens. You need {burn_amount} LP tokens."
         ))
         .into());
     }

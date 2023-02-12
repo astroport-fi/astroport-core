@@ -37,7 +37,7 @@ cosmwasm-schema = "1.1"
 
 [dev-dependencies]
 proptest = "1.0.0"
-sim = { git = "https://github.com/astroport-fi/astroport-sims.git", rev = "d617510737ee2c529d3aaa7afbdac5ccb5a385c9", package = "sim" }
+sim = { git = "https://github.com/astroport-fi/astroport-sims.git", branch = "main", package = "sim" }
 astroport-token = {path = "../token"}
 cw-multi-test = "0.15"
 astroport-factory = {path = "../factory"}

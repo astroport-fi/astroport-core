@@ -198,8 +198,8 @@ pub enum AssetInfo {
 impl fmt::Display for AssetInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AssetInfo::NativeToken { denom } => write!(f, "{}", denom),
-            AssetInfo::Token { contract_addr } => write!(f, "{}", contract_addr),
+            AssetInfo::NativeToken { denom } => write!(f, "{denom}"),
+            AssetInfo::Token { contract_addr } => write!(f, "{contract_addr}"),
         }
     }
 }
@@ -256,8 +256,7 @@ impl AssetInfo {
                 Ok(decimals)
             } else {
                 Err(StdError::generic_err(format!(
-                    "The coin precision not found: {}",
-                    denom
+                    "The coin precision not found: {denom}"
                 )))
             }
         } else {
