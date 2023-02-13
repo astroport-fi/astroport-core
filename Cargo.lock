@@ -20,6 +20,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2cb2f989d18dd141ab8ae82f64d1a8cdd37e0840f73a406896cf5e99502fab61"
 
 [[package]]
+name = "ap-native-coin-registry"
+version = "1.0.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+]
+
+[[package]]
 name = "ap-valkyrie"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts.git?branch=release#186d9414de3a5506422475d8890146f9a56c6ec4"
@@ -66,6 +75,7 @@ dependencies = [
 name = "astroport"
 version = "2.1.0"
 dependencies = [
+ "ap-native-coin-registry",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -90,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-factory"
-version = "1.2.1"
+version = "1.3.1"
 dependencies = [
  "astroport 2.1.0",
  "astroport-pair",
@@ -110,9 +120,11 @@ name = "astroport-generator"
 version = "2.2.0"
 dependencies = [
  "anyhow",
+ "ap-native-coin-registry",
  "astroport 2.1.0",
  "astroport-factory",
  "astroport-governance",
+ "astroport-native-coin-registry",
  "astroport-pair",
  "astroport-pair-stable",
  "astroport-staking",
@@ -170,8 +182,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "astroport-oracle"
+name = "astroport-native-coin-registry"
 version = "1.0.1"
+dependencies = [
+ "ap-native-coin-registry",
+ "astroport 2.1.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 0.15.1",
+ "cw2 0.15.1",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-oracle"
+version = "1.0.2"
 dependencies = [
  "astroport 2.1.0",
  "astroport-factory",
@@ -239,10 +266,12 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-stable"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
+ "ap-native-coin-registry",
  "astroport 2.1.0",
  "astroport-factory",
+ "astroport-native-coin-registry",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",

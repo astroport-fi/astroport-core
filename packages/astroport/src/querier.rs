@@ -1,19 +1,16 @@
 use crate::asset::{Asset, AssetInfo, PairInfo};
 use crate::factory::{
-    ConfigResponse as FactoryConfigResponse, FeeInfoResponse, PairType, PairsResponse,
+    Config, ConfigResponse as FactoryConfigResponse, FeeInfoResponse, PairType, PairsResponse,
     QueryMsg as FactoryQueryMsg,
 };
 use crate::pair::{QueryMsg as PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
 
 use cosmwasm_std::{
-    to_binary, Addr, AllBalanceResponse, BalanceResponse, BankQuery, Coin, Decimal, QuerierWrapper,
-    QueryRequest, StdResult, Uint128, WasmQuery,
+    from_slice, to_binary, Addr, AllBalanceResponse, BalanceResponse, BankQuery, Coin, Decimal,
+    QuerierWrapper, QueryRequest, StdError, StdResult, Uint128, WasmQuery,
 };
 
 use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
-
-// It's defined at https://github.com/terra-money/core/blob/d8e277626e74f9d6417dcd598574686882f0274c/types/assets/assets.go#L15
-const NATIVE_TOKEN_PRECISION: u8 = 6;
 
 /// Returns a native token's balance for a specific account.
 /// ## Params
@@ -107,9 +104,32 @@ pub fn query_supply(querier: &QuerierWrapper, contract_addr: Addr) -> StdResult<
 /// * **querier** is an object of type [`QuerierWrapper`].
 ///
 /// * **asset_info** is an object of type [`AssetInfo`] and contains the asset details for a specific token.
-pub fn query_token_precision(querier: &QuerierWrapper, asset_info: AssetInfo) -> StdResult<u8> {
+pub fn query_token_precision(
+    querier: &QuerierWrapper,
+    asset_info: &AssetInfo,
+    factory_addr: &Addr,
+) -> StdResult<u8> {
     Ok(match asset_info {
-        AssetInfo::NativeToken { denom: _ } => NATIVE_TOKEN_PRECISION,
+        AssetInfo::NativeToken { denom } => {
+            if let Some(res) = querier.query_wasm_raw(factory_addr, b"config".as_slice())? {
+                let res: Config = from_slice(&res)?;
+                let result = ap_native_coin_registry::COINS_INFO.query(
+                    querier,
+                    res.coin_registry_address,
+                    denom.to_string(),
+                )?;
+
+                if let Some(decimals) = result {
+                    decimals
+                } else {
+                    return Err(StdError::generic_err(format!(
+                        "The {denom} precision was not found"
+                    )));
+                }
+            } else {
+                return Err(StdError::generic_err("The factory config not found!"));
+            }
+        }
         AssetInfo::Token { contract_addr } => {
             let res: TokenInfoResponse =
                 querier.query_wasm_smart(contract_addr, &Cw20QueryMsg::TokenInfo {})?;
