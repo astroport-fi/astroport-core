@@ -155,6 +155,7 @@ pub struct BalancesResponse {
 #[cw_serde]
 pub struct MigrateMsg {
     pub default_bridge: Option<AssetInfo>,
+    pub second_receiver_params: Option<SecondReceiverParams>,
 }
 
 /// This struct holds parameters to help with swapping a specific amount of a fee token to ASTRO.

@@ -31,7 +31,7 @@ dependencies = [
 [[package]]
 name = "ap-native-coin-registry"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker#859d382c1b873051fd064d328b5c350aa69471ca"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker#546fa751ebda99e93e95d3dc13e0e2264d5a0df7"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -87,7 +87,7 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.1.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker#859d382c1b873051fd064d328b5c350aa69471ca"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker#546fa751ebda99e93e95d3dc13e0e2264d5a0df7"
 dependencies = [
  "ap-native-coin-registry 1.0.0 (git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker)",
  "cosmwasm-schema",

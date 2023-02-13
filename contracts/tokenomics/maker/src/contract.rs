@@ -2,7 +2,7 @@ use crate::error::ContractError;
 use crate::state::{BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
 use std::cmp::min;
 
-use crate::migration::migrate_to_v120;
+use crate::migration::{migrate_to_v120, migrate_to_v130};
 use crate::utils::{
     build_distribute_msg, build_swap_msg, try_build_swap_msg, validate_bridge,
     BRIDGES_EXECUTION_MAX_DEPTH, BRIDGES_INITIAL_DEPTH,
@@ -827,7 +827,11 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
 
     match contract_version.contract.as_ref() {
         "astroport-maker" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.1" | "1.1.0" => migrate_to_v120(deps.branch(), msg)?,
+            "1.0.0" | "1.0.1" | "1.1.0" => {
+                migrate_to_v120(deps.branch(), &msg)?;
+                migrate_to_v130(deps.branch(), msg)?;
+            }
+            "1.2.0" => migrate_to_v130(deps.branch(), msg)?,
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
