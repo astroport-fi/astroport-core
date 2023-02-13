@@ -12,16 +12,14 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use astroport::factory::UpdateAddr;
 use astroport::maker::{
     update_second_receiver_cfg, AssetWithLimit, BalancesResponse, Config, ConfigResponse,
-    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, SecondReceiverParams,
 };
 use astroport::pair::MAX_ALLOWED_SLIPPAGE;
 use cosmwasm_std::{
-    attr, coins, entry_point, to_binary, wasm_execute, Addr, Attribute, Binary, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
-    WasmMsg,
+    attr, entry_point, to_binary, Addr, Attribute, Binary, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Order, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
 };
 use cw2::{get_contract_version, set_contract_version};
-use cw20::Cw20ExecuteMsg;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
@@ -85,7 +83,7 @@ pub fn instantiate(
         second_receiver_cfg: None,
     };
 
-    update_second_receiver_cfg(deps.as_ref(), &mut cfg, msg.second_receiver_params)?;
+    update_second_receiver_cfg(deps.as_ref(), &mut cfg, &msg.second_receiver_params)?;
 
     if cfg.staking_contract.is_none() && cfg.governance_contract.is_none() {
         return Err(
@@ -141,6 +139,7 @@ pub fn execute(
             governance_percent,
             basic_asset,
             max_spread,
+            second_receiver_params,
         } => update_config(
             deps,
             info,
@@ -150,6 +149,7 @@ pub fn execute(
             governance_percent,
             basic_asset,
             max_spread,
+            second_receiver_params,
         ),
         ExecuteMsg::UpdateBridges { add, remove } => update_bridges(deps, info, add, remove),
         ExecuteMsg::SwapBridgeAssets { assets, depth } => {
@@ -539,35 +539,52 @@ fn distribute(
         CONFIG.save(deps.storage, cfg)?;
     }
 
-    let governance_amount = if let Some(governance_contract) = &cfg.governance_contract {
-        let amount =
-            amount.multiply_ratio(Uint128::from(cfg.governance_percent), Uint128::new(100));
-        if amount.u128() > 0 {
-            let send_msg = match &cfg.astro_token {
-                AssetInfo::Token { contract_addr } => CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: contract_addr.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::Send {
-                        contract: governance_contract.to_string(),
-                        msg: Binary::default(),
-                        amount,
-                    })?,
-                    funds: vec![],
-                }),
-                AssetInfo::NativeToken { denom } => CosmosMsg::Wasm(wasm_execute(
-                    governance_contract,
-                    &astro_satellite_package::ExecuteMsg::TransferAstro {},
-                    coins(amount.u128(), denom),
-                )?),
+    let second_receiver_amount = if let Some(second_receiver_cfg) = &cfg.second_receiver_cfg {
+        let amount = amount.multiply_ratio(
+            Uint128::from(second_receiver_cfg.second_receiver_cut),
+            Uint128::new(100),
+        );
+
+        if !amount.is_zero() {
+            let to_second_receiver_asset = Asset {
+                info: cfg.astro_token.clone(),
+                amount,
             };
-            result.push(SubMsg::new(send_msg))
+
+            result.push(SubMsg::new(to_second_receiver_asset.into_send_msg(
+                second_receiver_cfg.second_fee_receiver.to_string(),
+                None,
+            )?))
         }
+
+        amount
+    } else {
+        Uint128::zero()
+    };
+
+    let governance_amount = if let Some(governance_contract) = &cfg.governance_contract {
+        let amount = amount
+            .checked_sub(second_receiver_amount)?
+            .multiply_ratio(Uint128::from(cfg.governance_percent), Uint128::new(100));
+
+        if !amount.is_zero() {
+            let to_governance_asset = Asset {
+                info: cfg.astro_token.clone(),
+                amount,
+            };
+
+            result.push(SubMsg::new(
+                to_governance_asset.into_send_msg(governance_contract.to_string(), None)?,
+            ))
+        }
+
         amount
     } else {
         Uint128::zero()
     };
 
     if let Some(staking_contract) = &cfg.staking_contract {
-        let amount = amount.checked_sub(governance_amount)?;
+        let amount = amount.checked_sub(governance_amount + second_receiver_amount)?;
         if !amount.is_zero() {
             let to_staking_asset = Asset {
                 info: cfg.astro_token.clone(),
@@ -617,6 +634,7 @@ fn update_config(
     governance_percent: Option<Uint64>,
     default_bridge_opt: Option<AssetInfo>,
     max_spread: Option<Decimal>,
+    second_receiver_params: Option<SecondReceiverParams>,
 ) -> Result<Response, ContractError> {
     let mut attributes = vec![attr("action", "set_config")];
 
@@ -679,6 +697,19 @@ fn update_config(
         config.max_spread = max_spread;
         attributes.push(attr("max_spread", max_spread.to_string()));
     };
+
+    update_second_receiver_cfg(deps.as_ref(), &mut config, &second_receiver_params)?;
+
+    if let Some(second_receiver_params) = second_receiver_params {
+        attributes.push(attr(
+            "second_receiver_config",
+            format!(
+                "second_fee_receiver: {}, second_receiver_cut: {}",
+                second_receiver_params.second_fee_receiver,
+                second_receiver_params.second_receiver_cut
+            ),
+        ));
+    }
 
     CONFIG.save(deps.storage, &config)?;
 

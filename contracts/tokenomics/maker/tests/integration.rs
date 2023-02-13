@@ -510,6 +510,7 @@ fn update_config() {
         factory_contract: Some(new_factory.to_string()),
         basic_asset: None,
         max_spread: Some(new_max_spread),
+        second_receiver_params: None,
     };
 
     // Assert cannot update with improper owner
@@ -547,6 +548,7 @@ fn update_config() {
         factory_contract: None,
         basic_asset: None,
         max_spread: None,
+        second_receiver_params: None,
     };
 
     router

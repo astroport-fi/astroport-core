@@ -85,7 +85,7 @@ pub(crate) fn migrate_to_v130(deps: DepsMut, msg: MigrateMsg) -> StdResult<()> {
         second_receiver_cfg: None,
     };
 
-    update_second_receiver_cfg(deps.as_ref(), &mut new_config, msg.second_receiver_params)?;
+    update_second_receiver_cfg(deps.as_ref(), &mut new_config, &msg.second_receiver_params)?;
 
     CONFIG.save(deps.storage, &new_config)
 }

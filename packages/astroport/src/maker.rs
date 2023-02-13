@@ -81,6 +81,8 @@ pub enum ExecuteMsg {
         basic_asset: Option<AssetInfo>,
         /// The maximum spread used when swapping fee tokens to ASTRO
         max_spread: Option<Decimal>,
+        /// The second receiver parameters of fees
+        second_receiver_params: Option<SecondReceiverParams>,
     },
     /// Add bridge tokens used to swap specific fee tokens to ASTRO (effectively declaring a swap route)
     UpdateBridges {
@@ -191,7 +193,7 @@ pub const MAX_SECOND_RECEIVER_CUT: Uint64 = Uint64::new(50);
 pub fn update_second_receiver_cfg(
     deps: Deps,
     cfg: &mut Config,
-    params: Option<SecondReceiverParams>,
+    params: &Option<SecondReceiverParams>,
 ) -> StdResult<()> {
     if let Some(params) = params {
         if params.second_receiver_cut > MAX_SECOND_RECEIVER_CUT
