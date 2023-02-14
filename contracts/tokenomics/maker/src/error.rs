@@ -29,9 +29,6 @@ pub enum ContractError {
     #[error("Incorrect governance percent of its share")]
     IncorrectGovernancePercent {},
 
-    #[error("Incorrect second receiver percent of its share")]
-    IncorrectSecondReceiverPercent {},
-
     #[error("Incorrect max spread")]
     IncorrectMaxSpread {},
 

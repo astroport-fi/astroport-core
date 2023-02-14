@@ -4,6 +4,7 @@ use astroport::asset::{
 use astroport::factory::{PairConfig, PairType, UpdateAddr};
 use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
+    SecondReceiverConfig, SecondReceiverParams,
 };
 use astroport::pair::StablePoolParams;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
@@ -548,7 +549,28 @@ fn update_config() {
         factory_contract: None,
         basic_asset: None,
         max_spread: None,
-        second_receiver_params: None,
+        second_receiver_params: Some(SecondReceiverParams {
+            second_fee_receiver: "second_fee_receiver".to_string(),
+            second_receiver_cut: Default::default(),
+        }),
+    };
+
+    let err = router
+        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!("Generic error: Incorrect second receiver percent of its share. Should be in range: 0 < 0 <= 50", err.root_cause().to_string());
+
+    let msg = ExecuteMsg::UpdateConfig {
+        governance_percent: None,
+        governance_contract: Some(UpdateAddr::Remove {}),
+        staking_contract: None,
+        factory_contract: None,
+        basic_asset: None,
+        max_spread: None,
+        second_receiver_params: Some(SecondReceiverParams {
+            second_fee_receiver: "second_fee_receiver".to_string(),
+            second_receiver_cut: Uint64::new(10),
+        }),
     };
 
     router
@@ -561,6 +583,13 @@ fn update_config() {
         .query_wasm_smart(&maker_instance, &msg)
         .unwrap();
     assert_eq!(res.governance_contract, None);
+    assert_eq!(
+        res.second_receiver_cfg,
+        Some(SecondReceiverConfig {
+            second_fee_receiver: Addr::unchecked("second_fee_receiver"),
+            second_receiver_cut: Uint64::new(10)
+        })
+    );
 }
 
 fn test_maker_collect(

@@ -32,7 +32,7 @@ pub struct Config {
     pub remainder_reward: Uint128,
     /// The amount of collected ASTRO before enabling rewards distribution
     pub pre_upgrade_astro_amount: Uint128,
-    /// The second receiver config
+    /// Parameters that describe the second receiver of fees
     pub second_receiver_cfg: Option<SecondReceiverConfig>,
 }
 
@@ -145,7 +145,7 @@ pub struct ConfigResponse {
     pub remainder_reward: Uint128,
     /// The amount of ASTRO tokens accrued before upgrading the Maker implementation and enabling reward distribution
     pub pre_upgrade_astro_amount: Uint128,
-    /// The second receiver config
+    /// Parameters that describe the second receiver of fees
     pub second_receiver_cfg: Option<SecondReceiverConfig>,
 }
 
@@ -171,7 +171,7 @@ pub struct AssetWithLimit {
     pub limit: Option<Uint128>,
 }
 
-/// This structure stores the parameters for the second receiver contract.
+/// This structure describes the parameters for updating the second receiver of fees.
 #[cw_serde]
 pub struct SecondReceiverParams {
     /// The second fee receiver
@@ -180,10 +180,10 @@ pub struct SecondReceiverParams {
     pub second_receiver_cut: Uint64,
 }
 
-/// This structure stores the parameters for the second receiver contract.
+/// This structure stores the parameters for the second receiver of fees.
 #[cw_serde]
 pub struct SecondReceiverConfig {
-    /// The second fee receiver
+    /// The second fee receiver contract address
     pub second_fee_receiver: Addr,
     /// The percentage of fees that go to the second fee receiver
     pub second_receiver_cut: Uint64,
@@ -192,6 +192,7 @@ pub struct SecondReceiverConfig {
 /// The maximum allowed second receiver percent
 pub const MAX_SECOND_RECEIVER_CUT: Uint64 = Uint64::new(50);
 
+/// Updates the parameters that describe the second receiver of fees
 pub fn update_second_receiver_cfg(
     deps: Deps,
     cfg: &mut Config,
