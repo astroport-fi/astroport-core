@@ -31,7 +31,7 @@ dependencies = [
 [[package]]
 name = "ap-native-coin-registry"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker#546fa751ebda99e93e95d3dc13e0e2264d5a0df7"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker#d1059099d7639898620d28043184d51d932e5801"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -72,10 +72,9 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "2.1.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker#546fa751ebda99e93e95d3dc13e0e2264d5a0df7"
+version = "2.2.0"
 dependencies = [
- "ap-native-coin-registry 1.0.0 (git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker)",
+ "ap-native-coin-registry 1.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -88,8 +87,9 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.2.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker#d1059099d7639898620d28043184d51d932e5801"
 dependencies = [
- "ap-native-coin-registry 1.0.0",
+ "ap-native-coin-registry 1.0.0 (git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -186,7 +186,7 @@ name = "astroport-governance"
 version = "1.2.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#026216745f417f5a5d9f6d654bda96792f3f0843"
 dependencies = [
- "astroport 2.1.0",
+ "astroport 2.2.0 (git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -993,9 +993,9 @@ dependencies = [
 
 [[package]]
 name = "fastrand"
-version = "1.8.0"
+version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7a407cfaa3385c4ae6b23e84623d48c2798d06e3e6a1878f7f59f17b3f86499"
+checksum = "e51093e27b0797c359783294ca4f0a911c270184cb10f85783b118614a1501be"
 dependencies = [
  "instant",
 ]
