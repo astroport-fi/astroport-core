@@ -55,7 +55,7 @@ pub struct InstantiateMsg {
     pub governance_percent: Option<Uint64>,
     /// The maximum spread used when swapping fee tokens to ASTRO
     pub max_spread: Option<Decimal>,
-    /// The second fee receiver
+    /// The second receiver parameters of fees
     pub second_receiver_params: Option<SecondReceiverParams>,
 }
 
