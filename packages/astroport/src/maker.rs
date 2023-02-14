@@ -145,6 +145,8 @@ pub struct ConfigResponse {
     pub remainder_reward: Uint128,
     /// The amount of ASTRO tokens accrued before upgrading the Maker implementation and enabling reward distribution
     pub pre_upgrade_astro_amount: Uint128,
+    /// The second receiver config
+    pub second_receiver_cfg: Option<SecondReceiverConfig>,
 }
 
 /// A custom struct used to return multiple asset balances.
@@ -199,9 +201,10 @@ pub fn update_second_receiver_cfg(
         if params.second_receiver_cut > MAX_SECOND_RECEIVER_CUT
             || params.second_receiver_cut.is_zero()
         {
-            return Err(StdError::generic_err(
-                "Incorrect second receiver percent of its share",
-            ));
+            return Err(StdError::generic_err(format!(
+                "Incorrect second receiver percent of its share. Should be in range: 0 < {} <= {}",
+                params.second_receiver_cut, MAX_SECOND_RECEIVER_CUT
+            )));
         };
 
         cfg.second_receiver_cfg = Some(SecondReceiverConfig {

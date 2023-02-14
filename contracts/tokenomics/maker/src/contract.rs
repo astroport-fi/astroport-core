@@ -806,6 +806,7 @@ fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
         remainder_reward: config.remainder_reward,
         pre_upgrade_astro_amount: config.pre_upgrade_astro_amount,
         default_bridge: config.default_bridge,
+        second_receiver_cfg: config.second_receiver_cfg,
     })
 }
 
