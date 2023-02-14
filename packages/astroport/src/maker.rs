@@ -1,7 +1,7 @@
 use crate::asset::{Asset, AssetInfo};
 use crate::factory::UpdateAddr;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Decimal, Deps, StdError, StdResult, Uint128, Uint64};
+use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
 
 /// This structure stores the main parameters for the Maker contract.
 #[cw_serde]
@@ -191,30 +191,3 @@ pub struct SecondReceiverConfig {
 
 /// The maximum allowed second receiver percent
 pub const MAX_SECOND_RECEIVER_CUT: Uint64 = Uint64::new(50);
-
-/// Updates the parameters that describe the second receiver of fees
-pub fn update_second_receiver_cfg(
-    deps: Deps,
-    cfg: &mut Config,
-    params: &Option<SecondReceiverParams>,
-) -> StdResult<()> {
-    if let Some(params) = params {
-        if params.second_receiver_cut > MAX_SECOND_RECEIVER_CUT
-            || params.second_receiver_cut.is_zero()
-        {
-            return Err(StdError::generic_err(format!(
-                "Incorrect second receiver percent of its share. Should be in range: 0 < {} <= {}",
-                params.second_receiver_cut, MAX_SECOND_RECEIVER_CUT
-            )));
-        };
-
-        cfg.second_receiver_cfg = Some(SecondReceiverConfig {
-            second_fee_receiver: deps
-                .api
-                .addr_validate(params.second_fee_receiver.as_str())?,
-            second_receiver_cut: params.second_receiver_cut,
-        });
-    }
-
-    Ok(())
-}

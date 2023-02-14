@@ -28,6 +28,7 @@ cw-storage-plus = "0.15"
 astroport = { path = "../../../packages/astroport", default-features = false }
 thiserror = { version = "1.0" }
 cosmwasm-schema = { version = "1.1" }
+astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc.git", branch = "main"}
 
 [dev-dependencies]
 astroport-token = { path = "../../token" }

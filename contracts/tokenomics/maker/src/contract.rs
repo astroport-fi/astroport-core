@@ -4,15 +4,16 @@ use std::cmp::min;
 
 use crate::migration::{migrate_to_v120, migrate_to_v130};
 use crate::utils::{
-    build_distribute_msg, build_swap_msg, try_build_swap_msg, validate_bridge,
-    BRIDGES_EXECUTION_MAX_DEPTH, BRIDGES_INITIAL_DEPTH,
+    build_distribute_msg, build_send_msg, build_swap_msg, try_build_swap_msg,
+    update_second_receiver_cfg, validate_bridge, BRIDGES_EXECUTION_MAX_DEPTH,
+    BRIDGES_INITIAL_DEPTH,
 };
 use astroport::asset::{addr_opt_validate, Asset, AssetInfo, PairInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
 use astroport::maker::{
-    update_second_receiver_cfg, AssetWithLimit, BalancesResponse, Config, ConfigResponse,
-    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, SecondReceiverParams,
+    AssetWithLimit, BalancesResponse, Config, ConfigResponse, ExecuteMsg, InstantiateMsg,
+    MigrateMsg, QueryMsg, SecondReceiverParams,
 };
 use astroport::pair::MAX_ALLOWED_SLIPPAGE;
 use cosmwasm_std::{
@@ -546,12 +547,11 @@ fn distribute(
         );
 
         if !amount.is_zero() {
-            let to_second_receiver_asset = Asset {
-                info: cfg.astro_token.clone(),
-                amount,
-            };
-
-            result.push(SubMsg::new(to_second_receiver_asset.into_send_msg(
+            result.push(SubMsg::new(build_send_msg(
+                &Asset {
+                    info: cfg.astro_token.clone(),
+                    amount,
+                },
                 second_receiver_cfg.second_fee_receiver.to_string(),
                 None,
             )?))
@@ -568,14 +568,14 @@ fn distribute(
             .multiply_ratio(Uint128::from(cfg.governance_percent), Uint128::new(100));
 
         if !amount.is_zero() {
-            let to_governance_asset = Asset {
-                info: cfg.astro_token.clone(),
-                amount,
-            };
-
-            result.push(SubMsg::new(
-                to_governance_asset.into_send_msg(governance_contract.to_string(), None)?,
-            ))
+            result.push(SubMsg::new(build_send_msg(
+                &Asset {
+                    info: cfg.astro_token.clone(),
+                    amount,
+                },
+                governance_contract.to_string(),
+                None,
+            )?))
         }
 
         amount

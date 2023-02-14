@@ -2,10 +2,10 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdResult, Uint128, Uint64};
 use cw_storage_plus::Item;
 
-use astroport::asset::{token_asset_info, AssetInfo};
-use astroport::maker::{update_second_receiver_cfg, Config, MigrateMsg};
-
 use crate::state::CONFIG;
+use crate::utils::update_second_receiver_cfg;
+use astroport::asset::{token_asset_info, AssetInfo};
+use astroport::maker::{Config, MigrateMsg};
 
 pub(crate) fn migrate_to_v120(deps: DepsMut, msg: &MigrateMsg) -> StdResult<()> {
     #[cw_serde]

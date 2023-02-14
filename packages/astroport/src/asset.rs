@@ -3,9 +3,9 @@ use std::fmt;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    coins, from_slice, to_binary, wasm_execute, Addr, Api, BankMsg, Binary, Coin,
-    ConversionOverflowError, CosmosMsg, Decimal256, Fraction, MessageInfo, QuerierWrapper,
-    StdError, StdResult, Uint128, Uint256, WasmMsg,
+    from_slice, to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError, CosmosMsg,
+    Decimal256, Fraction, MessageInfo, QuerierWrapper, StdError, StdResult, Uint128, Uint256,
+    WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
 use cw_utils::must_pay;
@@ -91,35 +91,6 @@ impl Asset {
                 to_address: recipient,
                 amount: vec![self.deduct_tax(querier)?],
             })),
-        }
-    }
-
-    /// For native tokens of type [`AssetInfo`] uses method [`astro_satellite_package::ExecuteMsg::TransferAstro`]
-    /// to send a token amount to a recipient.
-    ///
-    /// For a token of type [`AssetInfo`] we use the default method [`Cw20ExecuteMsg::Send`]
-    pub fn into_send_msg(
-        self,
-        recipient: impl Into<String>,
-        msg: Option<Binary>,
-    ) -> StdResult<CosmosMsg> {
-        let recipient = recipient.into();
-
-        match &self.info {
-            AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: contract_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: recipient,
-                    amount: self.amount,
-                    msg: msg.unwrap_or(Binary::default()),
-                })?,
-                funds: vec![],
-            })),
-            AssetInfo::NativeToken { denom } => Ok(CosmosMsg::Wasm(wasm_execute(
-                recipient,
-                &astro_satellite_package::ExecuteMsg::TransferAstro {},
-                coins(self.amount.u128(), denom),
-            )?)),
         }
     }
 
