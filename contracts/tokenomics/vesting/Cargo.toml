@@ -24,4 +24,4 @@ cw-utils = "0.15"
 
 [dev-dependencies]
 cw-multi-test = "0.15"
-astroport-token = {path = "../../token"}
+astroport-token = { path = "../../token" }

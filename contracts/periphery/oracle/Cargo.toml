@@ -1,6 +1,6 @@
 [package]
 name = "astroport-oracle"
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Astroport"]
 edition = "2021"
 
@@ -29,8 +29,8 @@ astroport = { path = "../../../packages/astroport", default-features = false }
 cosmwasm-schema = { version = "1.1" }
 
 [dev-dependencies]
-astroport-token = {path = "../../token" }
-astroport-factory = {path = "../../factory" }
-astroport-pair = {path = "../../pair" }
-astroport-pair-stable = {path = "../../pair_stable" }
+astroport-token = { path = "../../token" }
+astroport-factory = { path = "../../factory" }
+astroport-pair = { path = "../../pair" }
+astroport-pair-stable = { path = "../../pair_stable" }
 cw-multi-test = "0.15"

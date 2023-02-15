@@ -363,9 +363,13 @@ impl PoolState {
 }
 
 /// Store all token precisions.
-pub(crate) fn store_precisions(deps: DepsMut, asset_infos: &[AssetInfo]) -> StdResult<()> {
+pub(crate) fn store_precisions(
+    deps: DepsMut,
+    asset_infos: &[AssetInfo],
+    factory_addr: &Addr,
+) -> StdResult<()> {
     for asset_info in asset_infos {
-        let precision = asset_info.decimals(&deps.querier)?;
+        let precision = asset_info.decimals(&deps.querier, factory_addr)?;
         PRECISIONS.save(deps.storage, asset_info.to_string(), &precision)?;
     }
 

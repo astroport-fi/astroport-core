@@ -71,7 +71,9 @@ pub fn instantiate(
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    store_precisions(deps.branch(), &msg.asset_infos)?;
+    let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
+
+    store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
     // Initializing cumulative prices
     let mut cumulative_prices = vec![];
@@ -115,7 +117,7 @@ pub fn instantiate(
             asset_infos: msg.asset_infos.clone(),
             pair_type: PairType::Concentrated {},
         },
-        factory_addr: deps.api.addr_validate(&msg.factory_addr)?,
+        factory_addr,
         block_time_last: env.block.time.seconds(),
         cumulative_prices,
         pool_params,

@@ -5,13 +5,13 @@ use std::fmt;
 use crate::factory::PairType;
 use crate::pair::QueryMsg as PairQueryMsg;
 use crate::querier::{
-    query_balance, query_token_balance, query_token_symbol, NATIVE_TOKEN_PRECISION,
+    query_balance, query_token_balance, query_token_precision, query_token_symbol,
 };
 use cosmwasm_std::{
     to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError, CosmosMsg, Decimal256, Fraction,
     MessageInfo, QuerierWrapper, StdError, StdResult, Uint128, Uint256, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
+use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_utils::must_pay;
 use itertools::Itertools;
 
@@ -238,18 +238,8 @@ impl AssetInfo {
     }
 
     /// Returns the number of decimals that a token has.
-    pub fn decimals(&self, querier: &QuerierWrapper) -> StdResult<u8> {
-        let decimals = match &self {
-            AssetInfo::NativeToken { .. } => NATIVE_TOKEN_PRECISION,
-            AssetInfo::Token { contract_addr } => {
-                let res: TokenInfoResponse =
-                    querier.query_wasm_smart(contract_addr, &Cw20QueryMsg::TokenInfo {})?;
-
-                res.decimals
-            }
-        };
-
-        Ok(decimals)
+    pub fn decimals(&self, querier: &QuerierWrapper, factory_addr: &Addr) -> StdResult<u8> {
+        query_token_precision(querier, self, factory_addr)
     }
 
     /// Returns **true** if the calling token is the same as the token specified in the input parameters.
@@ -334,6 +324,7 @@ impl PairInfo {
         &self,
         querier: &QuerierWrapper,
         contract_addr: impl Into<String>,
+        factory_addr: &Addr,
     ) -> StdResult<Vec<DecimalAsset>> {
         let contract_addr = contract_addr.into();
         self.asset_infos
@@ -343,7 +334,7 @@ impl PairInfo {
                     info: asset_info.clone(),
                     amount: Decimal256::from_atomics(
                         asset_info.query_pool(querier, &contract_addr)?,
-                        asset_info.decimals(querier)?.into(),
+                        asset_info.decimals(querier, factory_addr)?.into(),
                     )
                     .map_err(|_| StdError::generic_err("Decimal256RangeExceeded"))?,
                 })

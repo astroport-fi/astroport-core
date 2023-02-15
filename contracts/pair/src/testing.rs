@@ -917,7 +917,7 @@ fn try_token_to_native() {
     // Store liquidity token
     store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
 
-    // Unauthorized access; can not execute swap directy for token swap
+    // Unauthorized access; can not execute swap directly for token swap
     let msg = ExecuteMsg::Swap {
         offer_asset: Asset {
             info: AssetInfo::Token {
