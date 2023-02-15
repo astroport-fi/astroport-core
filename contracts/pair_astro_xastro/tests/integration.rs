@@ -96,6 +96,7 @@ fn instantiate_factory_contract(app: &mut App, owner: Addr, pair_code_id: u64) -
         generator_address: None,
         owner: owner.to_string(),
         whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_owned(),
     };
 
     app.instantiate_contract(

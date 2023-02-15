@@ -12,8 +12,8 @@ use astroport::common::{
     claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
 };
 use astroport::factory::{
-    ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
-    PairsResponse, QueryMsg,
+    Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig,
+    PairType, PairsResponse, QueryMsg,
 };
 use astroport::generator::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
@@ -25,8 +25,8 @@ use crate::migration::migrate_pair_configs_to_v120;
 use crate::querier::query_pair_info;
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
-    check_asset_infos, pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL,
-    PAIRS, PAIRS_TO_MIGRATE, PAIR_CONFIGS, TMP_PAIR_INFO,
+    check_asset_infos, pair_key, read_pairs, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS,
+    PAIRS_TO_MIGRATE, PAIR_CONFIGS, TMP_PAIR_INFO,
 };
 
 /// Contract name that is used for migration.
@@ -62,6 +62,7 @@ pub fn instantiate(
         fee_address: None,
         generator_address: None,
         whitelist_code_id: msg.whitelist_code_id,
+        coin_registry_address: deps.api.addr_validate(&msg.coin_registry_address)?,
     };
 
     if let Some(generator_address) = msg.generator_address {
@@ -105,6 +106,7 @@ pub struct UpdateConfig {
     generator_address: Option<String>,
     /// CW1 whitelist contract code id used to store 3rd party staking rewards
     whitelist_code_id: Option<u64>,
+    coin_registry_address: Option<String>,
 }
 
 /// ## Description
@@ -157,6 +159,7 @@ pub fn execute(
             fee_address,
             generator_address,
             whitelist_code_id,
+            coin_registry_address,
         } => execute_update_config(
             deps,
             env,
@@ -166,6 +169,7 @@ pub fn execute(
                 fee_address,
                 generator_address,
                 whitelist_code_id,
+                coin_registry_address,
             },
         ),
         ExecuteMsg::UpdatePairConfig { config } => execute_update_pair_config(deps, info, config),
@@ -260,6 +264,10 @@ pub fn execute_update_config(
 
     if let Some(code_id) = param.whitelist_code_id {
         config.whitelist_code_id = code_id;
+    }
+
+    if let Some(coin_registry_address) = param.coin_registry_address {
+        config.coin_registry_address = deps.api.addr_validate(&coin_registry_address)?;
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -554,6 +562,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         fee_address: config.fee_address,
         generator_address: config.generator_address,
         whitelist_code_id: config.whitelist_code_id,
+        coin_registry_address: config.coin_registry_address,
     };
 
     Ok(resp)
@@ -616,7 +625,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
     match contract_version.contract.as_ref() {
         "astroport-factory" => match contract_version.version.as_ref() {
             "1.0.0" | "1.0.0-fix1" => {
-                let msg: migration::MigrationMsgV100 = from_binary(&msg.params)?;
+                let msg: migration::MigrationMsg = from_binary(&msg.params)?;
 
                 let config_v100 = migration::CONFIGV100.load(deps.storage)?;
 
@@ -626,13 +635,34 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
                     generator_address: config_v100.generator_address,
                     owner: config_v100.owner,
                     token_code_id: config_v100.token_code_id,
+                    coin_registry_address: deps
+                        .api
+                        .addr_validate(msg.coin_registry_address.as_str())?,
                 };
 
                 CONFIG.save(deps.storage, &new_config)?;
 
                 migrate_pair_configs_to_v120(deps.storage)?
             }
-            "1.2.0" => {}
+            "1.2.0" | "1.2.1" => {
+                let msg: migration::MigrationMsg = from_binary(&msg.params)?;
+
+                let config_v120 = migration::CONFIG_V120.load(deps.storage)?;
+
+                let new_config = Config {
+                    whitelist_code_id: config_v120.whitelist_code_id,
+                    fee_address: config_v120.fee_address,
+                    generator_address: config_v120.generator_address,
+                    owner: config_v120.owner,
+                    token_code_id: config_v120.token_code_id,
+                    coin_registry_address: deps
+                        .api
+                        .addr_validate(msg.coin_registry_address.as_str())?,
+                };
+
+                CONFIG.save(deps.storage, &new_config)?;
+            }
+            "1.3.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

@@ -16,6 +16,7 @@ members = [
     "contracts/tokenomics/xastro_token",
     "contracts/pair_astro_xastro",
     "contracts/periphery/oracle",
+    "contracts/periphery/native_coin_registry",
 ]
 
 [patch."https://github.com/astroport-fi/astroport-core.git"]
