@@ -64,4 +64,7 @@ pub enum ContractError {
 
     #[error("The asset {0} does not belong to the pair")]
     InvalidAsset(String),
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }

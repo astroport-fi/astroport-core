@@ -111,3 +111,6 @@ pub struct ConfigResponse {
     /// Pool's owner
     pub owner: Option<Addr>,
 }
+
+#[cw_serde]
+pub struct MigrateMsg {}
