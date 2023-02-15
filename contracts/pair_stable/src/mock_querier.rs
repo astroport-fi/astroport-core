@@ -5,8 +5,8 @@ use cosmwasm_std::{
 };
 use std::collections::HashMap;
 
-use astroport::factory::FeeInfoResponse;
-use astroport::factory::QueryMsg::FeeInfo;
+use astroport::factory::QueryMsg as FactoryQueryMsg;
+use astroport::factory::{Config as FactoryConfig, ConfigResponse, FeeInfoResponse};
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies.
@@ -106,11 +106,23 @@ impl WasmMockQuerier {
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if contract_addr == "factory" {
                     match from_binary(&msg).unwrap() {
-                        FeeInfo { .. } => SystemResult::Ok(
+                        FactoryQueryMsg::FeeInfo { .. } => SystemResult::Ok(
                             to_binary(&FeeInfoResponse {
                                 fee_address: Some(Addr::unchecked("fee_address")),
                                 total_fee_bps: 30,
                                 maker_fee_bps: 1660,
+                            })
+                            .into(),
+                        ),
+                        FactoryQueryMsg::Config {} => SystemResult::Ok(
+                            to_binary(&ConfigResponse {
+                                owner: Addr::unchecked("owner"),
+                                pair_configs: vec![],
+                                token_code_id: 0,
+                                fee_address: Some(Addr::unchecked("fee_address")),
+                                generator_address: None,
+                                whitelist_code_id: 0,
+                                coin_registry_address: Addr::unchecked("coin_registry"),
                             })
                             .into(),
                         ),
@@ -165,6 +177,31 @@ impl WasmMockQuerier {
                         }
                         _ => panic!("DO NOT ENTER HERE"),
                     }
+                }
+            }
+            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
+                if contract_addr == "factory" {
+                    if key.as_slice() == b"config".as_slice() {
+                        SystemResult::Ok(
+                            to_binary(&FactoryConfig {
+                                owner: Addr::unchecked("owner"),
+                                token_code_id: 0,
+                                fee_address: Some(Addr::unchecked("fee_address")),
+                                generator_address: None,
+                                whitelist_code_id: 0,
+                                coin_registry_address: Addr::unchecked("coin_registry"),
+                            })
+                            .into(),
+                        )
+                    } else if key.as_slice() == b"pairs_to_migrate".as_slice() {
+                        SystemResult::Ok(to_binary(&Vec::<Addr>::new()).into())
+                    } else {
+                        panic!("DO NOT ENTER HERE");
+                    }
+                } else if contract_addr == "coin_registry" {
+                    SystemResult::Ok(to_binary(&6).into())
+                } else {
+                    panic!("DO NOT ENTER HERE");
                 }
             }
             _ => self.base.handle_query(request),

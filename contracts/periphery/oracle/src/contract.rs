@@ -186,7 +186,7 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, Std
 
     Ok(if price_average.is_zero() {
         // Get the token's precision
-        let p = query_token_precision(&deps.querier, token.clone())?;
+        let p = query_token_precision(&deps.querier, &token, &config.factory)?;
         let one = Uint128::new(10_u128.pow(p.into()));
 
         let price = query_prices(
@@ -221,7 +221,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response
 
     match contract_version.contract.as_ref() {
         "astroport-oracle" => match contract_version.version.as_ref() {
-            "1.0.0" => {}
+            "1.0.0" | "1.0.1" => {}
             _ => return Err(StdError::generic_err("Invalid contract version")),
         },
         _ => return Err(StdError::generic_err("Invalid contract name")),

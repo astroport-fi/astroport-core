@@ -342,8 +342,16 @@ fn proper_deposit_and_withdraw() {
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+
+    let native_coins_registry = instantiate_coin_registry(&mut app, None);
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        None,
+        &native_coins_registry,
+    );
 
     let cny_eur_token_code_id = store_token_code(&mut app);
 
@@ -486,8 +494,15 @@ fn set_tokens_per_block() {
 
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+    let native_coins_registry = instantiate_coin_registry(&mut app, None);
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        None,
+        &native_coins_registry,
+    );
 
     let generator_instance = instantiate_generator(
         &mut app,
@@ -536,8 +551,15 @@ fn update_config() {
 
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+    let native_coins_registry = instantiate_coin_registry(&mut app, None);
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        None,
+        &native_coins_registry,
+    );
 
     let generator_instance = instantiate_generator(
         &mut app,
@@ -555,8 +577,8 @@ fn update_config() {
     assert_eq!(res.owner, OWNER);
     assert_eq!(res.generator_controller, Some(Addr::unchecked(OWNER)));
     assert_eq!(res.astro_token.to_string(), "contract0");
-    assert_eq!(res.factory.to_string(), "contract1");
-    assert_eq!(res.vesting_contract.to_string(), "contract2");
+    assert_eq!(res.factory.to_string(), "contract2");
+    assert_eq!(res.vesting_contract.to_string(), "contract3");
 
     let new_vesting = Addr::unchecked("new_vesting");
 
@@ -606,8 +628,15 @@ fn update_owner() {
     let factory_code_id = store_factory_code(&mut app);
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+    let native_coins_registry = instantiate_coin_registry(&mut app, None);
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        None,
+        &native_coins_registry,
+    );
 
     let generator_instance = instantiate_generator(
         &mut app,
@@ -701,8 +730,15 @@ fn disabling_pool() {
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+    let native_coins_registry = instantiate_coin_registry(&mut app, None);
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        None,
+        &native_coins_registry,
+    );
 
     let eur_usdt_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, eur_usdt_token_code_id, "EUR", None);
@@ -804,8 +840,15 @@ fn generator_update_proxy_balance_failed() {
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+    let native_coins_registry = instantiate_coin_registry(&mut app, None);
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        None,
+        &native_coins_registry,
+    );
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -1115,8 +1158,15 @@ fn generator_without_reward_proxies() {
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+    let native_coins_registry = instantiate_coin_registry(&mut app, None);
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        None,
+        &native_coins_registry,
+    );
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -1449,8 +1499,15 @@ fn generator_with_vkr_reward_proxy() {
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+    let native_coins_registry = instantiate_coin_registry(&mut app, None);
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        None,
+        &native_coins_registry,
+    );
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -1942,8 +1999,15 @@ fn move_to_proxy() {
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+    let native_coins_registry = instantiate_coin_registry(&mut app, None);
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        None,
+        &native_coins_registry,
+    );
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -2002,7 +2066,7 @@ fn move_to_proxy() {
         &vkr_staking_instance,
         &vkr_token_instance,
     );
-    assert_eq!(Addr::unchecked("contract11"), proxy_to_vkr_instance);
+    assert_eq!(Addr::unchecked("contract12"), proxy_to_vkr_instance);
 
     // Set the proxy for the pool
     let msg = ExecuteMsg::MoveToProxy {
@@ -2021,7 +2085,7 @@ fn move_to_proxy() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Some(Addr::unchecked("contract11")), reps.reward_proxy);
+    assert_eq!(Some(Addr::unchecked("contract12")), reps.reward_proxy);
 
     // Mint tokens, so user can deposit
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 10);
@@ -2048,7 +2112,7 @@ fn move_to_proxy() {
         .wrap()
         .query_wasm_smart(&proxy_to_vkr_instance, &QueryMsg::Config {})
         .unwrap();
-    assert_eq!("contract6".to_string(), reps.lp_token_addr);
+    assert_eq!("contract7".to_string(), reps.lp_token_addr);
 
     check_pending_rewards(
         &mut app,
@@ -2088,8 +2152,15 @@ fn query_all_stakers() {
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
 
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+    let native_coins_registry = instantiate_coin_registry(&mut app, None);
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        None,
+        &native_coins_registry,
+    );
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -2239,8 +2310,15 @@ fn query_pagination_stakers() {
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
 
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+    let native_coins_registry = instantiate_coin_registry(&mut app, None);
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        None,
+        &native_coins_registry,
+    );
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -2379,8 +2457,15 @@ fn update_tokens_blocked_list() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+    let native_coins_registry = instantiate_coin_registry(&mut app, None);
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        None,
+        &native_coins_registry,
+    );
 
     let generator_instance = instantiate_generator(
         &mut app,
@@ -2645,8 +2730,15 @@ fn setup_pools() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let factory_instance =
-        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+    let native_coins_registry = instantiate_coin_registry(&mut app, None);
+    let factory_instance = instantiate_factory(
+        &mut app,
+        factory_code_id,
+        token_code_id,
+        pair_code_id,
+        None,
+        &native_coins_registry,
+    );
 
     let generator_instance = instantiate_generator(
         &mut app,
@@ -2661,6 +2753,7 @@ fn setup_pools() {
         fee_address: None,
         generator_address: Some(generator_instance.to_string()),
         whitelist_code_id: None,
+        coin_registry_address: None,
     };
 
     app.execute_contract(Addr::unchecked(OWNER), factory_instance.clone(), &msg, &[])
@@ -2896,12 +2989,18 @@ fn deactivate_pools_by_pair_types() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
+    let native_coins_registry = instantiate_coin_registry(
+        &mut app,
+        Some(vec![("cny".to_string(), 6), ("uusd".to_string(), 6)]),
+    );
+
     let factory_instance = instantiate_factory(
         &mut app,
         factory_code_id,
         token_code_id,
         pair_code_id,
         Some(pair_stable_code_id),
+        &native_coins_registry,
     );
 
     let generator_instance = instantiate_generator(
@@ -2917,6 +3016,7 @@ fn deactivate_pools_by_pair_types() {
         fee_address: None,
         generator_address: Some(generator_instance.to_string()),
         whitelist_code_id: None,
+        coin_registry_address: None,
     };
 
     app.execute_contract(Addr::unchecked(OWNER), factory_instance.clone(), &msg, &[])
@@ -3471,6 +3571,7 @@ fn instantiate_factory(
     token_code_id: u64,
     pair_code_id: u64,
     pair_stable_code_id: Option<u64>,
+    native_coins_registry: &Addr,
 ) -> Addr {
     let mut msg = FactoryInstantiateMsg {
         pair_configs: vec![PairConfig {
@@ -3486,6 +3587,7 @@ fn instantiate_factory(
         generator_address: None,
         owner: String::from(OWNER),
         whitelist_code_id: 0,
+        coin_registry_address: native_coins_registry.to_string(),
     };
 
     if let Some(pair_stable_code_id) = pair_stable_code_id {
@@ -3851,4 +3953,44 @@ fn store_whitelist_code(app: &mut App) -> u64 {
     ));
 
     app.store_code(whitelist_contract)
+}
+
+fn store_coin_registry_code(app: &mut App) -> u64 {
+    let coin_registry_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_native_coin_registry::contract::execute,
+        astroport_native_coin_registry::contract::instantiate,
+        astroport_native_coin_registry::contract::query,
+    ));
+
+    app.store_code(coin_registry_contract)
+}
+
+pub fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>) -> Addr {
+    let coin_registry_id = store_coin_registry_code(&mut app);
+    let coin_registry_address = app
+        .instantiate_contract(
+            coin_registry_id,
+            Addr::unchecked(OWNER),
+            &ap_native_coin_registry::InstantiateMsg {
+                owner: OWNER.to_string(),
+            },
+            &[],
+            "Coin registry",
+            None,
+        )
+        .unwrap();
+
+    if let Some(coins) = coins {
+        app.execute_contract(
+            Addr::unchecked(OWNER),
+            coin_registry_address.clone(),
+            &ap_native_coin_registry::ExecuteMsg::Add {
+                native_coins: coins,
+            },
+            &[],
+        )
+        .unwrap();
+    }
+
+    coin_registry_address
 }

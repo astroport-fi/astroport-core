@@ -1,10 +1,8 @@
 [package]
-name = "astroport-factory"
-version = "1.3.1"
+name = "astroport-native-coin-registry"
+version = "1.0.1"
 authors = ["Astroport"]
 edition = "2021"
-description = "Astroport factory contract - pair contract generator and directory"
-license = "MIT"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -18,21 +16,20 @@ exclude = [
 crate-type = ["cdylib", "rlib"]
 
 [features]
-# for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
 
 [dependencies]
-astroport = { path = "../../packages/astroport", default-features = false }
+cosmwasm-schema = "1.1"
 cosmwasm-std = "1.1"
+cosmwasm-storage = "1.1"
 cw-storage-plus = "0.15"
 cw2 = "0.15"
-thiserror = { version = "1.0.20" }
-protobuf = { version = "2", features = ["with-bytes"] }
-cosmwasm-schema = "1.1"
+thiserror = { version = "1.0" }
+astroport = { path = "../../../packages/astroport" }
+ap-native-coin-registry = { path = "../../../packages/native_coin_registry" }
 
 [dev-dependencies]
 cw-multi-test = "0.15"
-astroport-token = { path = "../token" }
-astroport-pair = { path = "../pair" }
-cw20 = "0.15"
