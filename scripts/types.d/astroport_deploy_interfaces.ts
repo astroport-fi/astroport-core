@@ -89,7 +89,7 @@ interface Maker {
         owner: string,
         factory_contract: string,
         staking_contract: string,
-        astro_token_contract: string,
+        astro_token: NativeAsset | TokenAsset,
         governance_contract?: string,
         governance_percent?: string,
         max_spread: "0.5"
@@ -117,7 +117,7 @@ interface Vesting {
     admin: string,
     initMsg: {
         owner: string,
-        token_addr: string,
+        vesting_token: NativeAsset | TokenAsset,
     },
     label: string,
     registration: {
@@ -134,7 +134,7 @@ interface Generator {
     admin: string,
     initMsg: {
         owner: string,
-        astro_token: string,
+        astro_token: NativeAsset | TokenAsset,
         start_block: string,
         tokens_per_block: string,
         vesting_contract: string,
@@ -146,7 +146,8 @@ interface Generator {
     proposeNewOwner: {
         owner: string,
         expires_in: number
-    }
+    },
+    new_incentives_pools?: []
 }
 
 interface GeneratorProxy {

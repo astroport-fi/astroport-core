@@ -11,7 +11,7 @@ use cw_utils::parse_instantiate_response_data;
 use itertools::Itertools;
 
 use astroport::asset::{
-    addr_opt_validate, addr_validate_to_lower, format_lp_token_name, token_asset, Asset, AssetInfo,
+    addr_opt_validate, format_lp_token_name, token_asset, Asset, AssetInfo, CoinsExt,
     Decimal256Ext, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
@@ -71,7 +71,9 @@ pub fn instantiate(
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    store_precisions(deps.branch(), &msg.asset_infos)?;
+    let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
+
+    store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
     // Initializing cumulative prices
     let mut cumulative_prices = vec![];
@@ -115,7 +117,7 @@ pub fn instantiate(
             asset_infos: msg.asset_infos.clone(),
             pair_type: PairType::Concentrated {},
         },
-        factory_addr: addr_validate_to_lower(deps.api, &msg.factory_addr)?,
+        factory_addr,
         block_time_last: env.block.time.seconds(),
         cumulative_prices,
         pool_params,
@@ -171,7 +173,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             let init_response = parse_instantiate_response_data(data.as_slice())
                 .map_err(|e| StdError::generic_err(format!("{e}")))?;
             config.pair_info.liquidity_token =
-                addr_validate_to_lower(deps.api, init_response.contract_address)?;
+                deps.api.addr_validate(&init_response.contract_address)?;
             CONFIG.save(deps.storage, &config)?;
             Ok(Response::new()
                 .add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
@@ -321,7 +323,7 @@ fn receive_cw20(
             check_cw20_in_pool(&config, &info.sender)?;
 
             let to_addr = addr_opt_validate(deps.api, &to)?;
-            let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
+            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
             swap(
                 deps,
                 env,
@@ -333,7 +335,7 @@ fn receive_cw20(
             )
         }
         Cw20HookMsg::WithdrawLiquidity { assets } => {
-            let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
+            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
             withdraw_liquidity(deps, env, info, sender, cw20_msg.amount, assets)
         }
     }
@@ -364,11 +366,10 @@ pub fn provide_liquidity(
 ) -> Result<Response, ContractError> {
     check_assets(deps.api, &assets)?;
 
-    assets
-        .iter()
-        .try_for_each(|asset| asset.assert_sent_native_token_balance(&info))?;
-
     let mut config = CONFIG.load(deps.storage)?;
+
+    info.funds
+        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
 
     let precisions = Precisions::new(deps.storage)?;
     let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;

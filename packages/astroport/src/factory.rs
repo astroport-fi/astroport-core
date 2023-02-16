@@ -8,6 +8,23 @@ use std::fmt::{Display, Formatter, Result};
 const MAX_TOTAL_FEE_BPS: u16 = 10_000;
 const MAX_MAKER_FEE_BPS: u16 = 10_000;
 
+/// This structure holds the main contract parameters.
+#[cw_serde]
+pub struct Config {
+    /// Address allowed to change contract parameters
+    pub owner: Addr,
+    /// CW20 token contract code identifier
+    pub token_code_id: u64,
+    /// Generator contract address
+    pub generator_address: Option<Addr>,
+    /// Contract address to send governance fees to (the Maker contract)
+    pub fee_address: Option<Addr>,
+    /// CW1 whitelist contract code id used to store 3rd party generator staking rewards
+    pub whitelist_code_id: u64,
+    /// The address of the contract that contains the coins with their precision
+    pub coin_registry_address: Addr,
+}
+
 /// This enum describes available pair types.
 /// ## Available pool types
 /// ```
@@ -81,6 +98,8 @@ pub struct InstantiateMsg {
     pub owner: String,
     /// CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens
     pub whitelist_code_id: u64,
+    /// The address of the contract that contains the coins and their accuracy
+    pub coin_registry_address: String,
 }
 
 /// This structure describes the execute messages of the contract.
@@ -96,6 +115,8 @@ pub enum ExecuteMsg {
         generator_address: Option<String>,
         /// CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens
         whitelist_code_id: Option<u64>,
+        /// The address of the contract that contains the coins and their accuracy
+        coin_registry_address: Option<String>,
     },
     /// UpdatePairConfig updates the config for a pair type.
     UpdatePairConfig {
@@ -182,6 +203,8 @@ pub struct ConfigResponse {
     pub generator_address: Option<Addr>,
     /// CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens
     pub whitelist_code_id: u64,
+    /// The address of the contract that contains the coins and their accuracy
+    pub coin_registry_address: Addr,
 }
 
 /// This structure stores the parameters used in a migration message.

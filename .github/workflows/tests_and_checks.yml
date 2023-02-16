@@ -12,7 +12,7 @@ env:
 jobs:
   test_and_check:
     name: Test and check
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Cancel Previous Runs

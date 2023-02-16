@@ -8,19 +8,19 @@ use crate::migration;
 use crate::querier::query_pair_info;
 
 use crate::state::{
-    check_asset_infos, pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL,
-    PAIRS, PAIRS_TO_MIGRATE, PAIR_CONFIGS, TMP_PAIR_INFO,
+    check_asset_infos, pair_key, read_pairs, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS,
+    PAIRS_TO_MIGRATE, PAIR_CONFIGS, TMP_PAIR_INFO,
 };
 
 use crate::response::MsgInstantiateContractResponse;
 
-use astroport::asset::{addr_opt_validate, addr_validate_to_lower, AssetInfo, PairInfo};
+use astroport::asset::{addr_opt_validate, AssetInfo, PairInfo};
 use astroport::factory::{
-    ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
-    PairsResponse, QueryMsg, ROUTE,
+    Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig,
+    PairType, PairsResponse, QueryMsg, ROUTE,
 };
 
-use crate::migration::{migrate_pair_configs_to_v120, save_routes};
+use crate::migration::{migrate_config_to_v131, migrate_pair_configs_to_v120, save_routes};
 use astroport::common::{
     claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
 };
@@ -51,11 +51,12 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let mut config = Config {
-        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+        owner: deps.api.addr_validate(&msg.owner)?,
         token_code_id: msg.token_code_id,
         fee_address: None,
         generator_address: None,
         whitelist_code_id: msg.whitelist_code_id,
+        coin_registry_address: deps.api.addr_validate(&msg.coin_registry_address)?,
     };
 
     config.generator_address = addr_opt_validate(deps.api, &msg.generator_address)?;
@@ -94,6 +95,7 @@ pub struct UpdateConfig {
     generator_address: Option<String>,
     /// CW1 whitelist contract code id used to store 3rd party staking rewards
     whitelist_code_id: Option<u64>,
+    coin_registry_address: Option<String>,
 }
 
 /// Exposes all the execute functions available in the contract.
@@ -138,6 +140,7 @@ pub fn execute(
             fee_address,
             generator_address,
             whitelist_code_id,
+            coin_registry_address,
         } => execute_update_config(
             deps,
             info,
@@ -146,6 +149,7 @@ pub fn execute(
                 fee_address,
                 generator_address,
                 whitelist_code_id,
+                coin_registry_address,
             },
         ),
         ExecuteMsg::UpdatePairConfig { config } => execute_update_pair_config(deps, info, config),
@@ -217,12 +221,12 @@ pub fn execute_update_config(
 
     if let Some(fee_address) = param.fee_address {
         // Validate address format
-        config.fee_address = Some(addr_validate_to_lower(deps.api, &fee_address)?);
+        config.fee_address = Some(deps.api.addr_validate(&fee_address)?);
     }
 
     if let Some(generator_address) = param.generator_address {
         // Validate the address format
-        config.generator_address = Some(addr_validate_to_lower(deps.api, &generator_address)?);
+        config.generator_address = Some(deps.api.addr_validate(&generator_address)?);
     }
 
     if let Some(token_code_id) = param.token_code_id {
@@ -231,6 +235,10 @@ pub fn execute_update_config(
 
     if let Some(code_id) = param.whitelist_code_id {
         config.whitelist_code_id = code_id;
+    }
+
+    if let Some(coin_registry_address) = param.coin_registry_address {
+        config.coin_registry_address = deps.api.addr_validate(&coin_registry_address)?;
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -379,7 +387,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
         })?;
 
-    let pair_contract = addr_validate_to_lower(deps.api, res.get_contract_address())?;
+    let pair_contract = deps.api.addr_validate(res.get_contract_address())?;
 
     PAIRS.save(deps.storage, &tmp.pair_key, &pair_contract)?;
 
@@ -531,6 +539,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         fee_address: config.fee_address,
         generator_address: config.generator_address,
         whitelist_code_id: config.whitelist_code_id,
+        coin_registry_address: config.coin_registry_address,
     };
 
     Ok(resp)
@@ -582,8 +591,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
     match contract_version.contract.as_ref() {
         "astroport-factory" => match contract_version.version.as_ref() {
             "1.0.0" | "1.0.0-fix1" => {
-                let msg: migration::MigrationMsgV100 = from_binary(&msg.params)?;
-
+                let msg: migration::MigrationMsg = from_binary(&msg.params)?;
                 let config_v100 = migration::CONFIGV100.load(deps.storage)?;
 
                 let new_config = Config {
@@ -592,6 +600,9 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
                     generator_address: config_v100.generator_address,
                     owner: config_v100.owner,
                     token_code_id: config_v100.token_code_id,
+                    coin_registry_address: deps
+                        .api
+                        .addr_validate(msg.coin_registry_address.as_str())?,
                 };
 
                 CONFIG.save(deps.storage, &new_config)?;
@@ -600,10 +611,17 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
                 save_routes(deps.branch())?;
             }
             "1.1.0" => {
+                migrate_config_to_v131(&mut deps, &msg)?;
                 migrate_pair_configs_to_v120(deps.storage)?;
                 save_routes(deps.branch())?;
             }
-            "1.2.0" => save_routes(deps.branch())?,
+            "1.2.0" => {
+                migrate_config_to_v131(&mut deps, &msg)?;
+                save_routes(deps.branch())?
+            }
+            "1.3.0" => {
+                migrate_config_to_v131(&mut deps, &msg)?;
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

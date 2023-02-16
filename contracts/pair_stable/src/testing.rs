@@ -868,7 +868,7 @@ fn try_token_to_native() {
     let env = mock_env_with_block_time(1000);
     let info = mock_info("addr0000", &[]);
     let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
-    assert_eq!(res, ContractError::Unauthorized {});
+    assert_eq!(res, ContractError::Cw20DirectSwap {});
 
     // Normal sell
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -1223,7 +1223,12 @@ fn test_accumulate_prices() {
         let asset_x = native_asset_info("uusd".to_string());
         let asset_y = native_asset_info("uluna".to_string());
         let mut deps = mock_dependencies(&[]);
-        store_precisions(deps.as_mut(), &[asset_x.clone(), asset_y.clone()]).unwrap();
+        store_precisions(
+            deps.as_mut(),
+            &[asset_x.clone(), asset_y.clone()],
+            &Addr::unchecked("factory"),
+        )
+        .unwrap();
 
         let cumulative_prices = vec![
             (asset_x.clone(), asset_y.clone(), case.last0.into()),
@@ -1317,7 +1322,7 @@ proptest! {
         let config = CONFIG.load(deps.as_ref().storage).unwrap();
         let pools = config
             .pair_info
-            .query_pools_decimal(&deps.as_ref().querier, &env.contract.address)
+            .query_pools_decimal(&deps.as_ref().querier, &env.contract.address, &config.factory_addr)
             .unwrap();
         let (offer_pool, ask_pool) =
         select_pools(Some(&offer_asset.info), None, &pools).unwrap();
@@ -1326,7 +1331,7 @@ proptest! {
             deps.as_ref().storage,
             &env,
             &config,
-            &offer_asset.to_decimal_asset(offer_asset.info.decimals(&deps.as_ref().querier).unwrap()).unwrap(),
+            &offer_asset.to_decimal_asset(offer_asset.info.decimals(&deps.as_ref().querier, &config.factory_addr).unwrap()).unwrap(),
             &offer_pool,
             &ask_pool,
             &pools,

@@ -1,6 +1,6 @@
 [package]
 name = "astroport-maker"
-version = "1.1.0"
+version = "1.2.0"
 authors = ["Astroport"]
 edition = "2021"
 
@@ -27,13 +27,16 @@ cw20 = { version = "0.15" }
 cw-storage-plus = "0.15"
 astroport = { path = "../../../packages/astroport", default-features = false }
 thiserror = { version = "1.0" }
+astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc.git" }
 cosmwasm-schema = { version = "1.1" }
 
 [dev-dependencies]
-astroport-token = {path = "../../token"}
-astroport-factory = {path = "../../factory"}
-astroport-pair = {path = "../../pair"}
-astroport-pair-stable = {path = "../../pair_stable"}
+astroport-token = { path = "../../token" }
+astroport-factory = { path = "../../factory" }
+astroport-pair = { path = "../../pair" }
+astroport-pair-stable = { path = "../../pair_stable" }
 cw-multi-test = "0.15"
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main"  }
-astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main"  }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
+astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
+astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
+ap-native-coin-registry = { path = "../../../packages/native_coin_registry" }

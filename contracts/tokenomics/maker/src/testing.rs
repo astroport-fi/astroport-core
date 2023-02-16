@@ -3,6 +3,7 @@ use cosmwasm_std::{from_binary, Addr, Decimal, Uint128, Uint64};
 
 use crate::contract::{execute, instantiate, query};
 use crate::state::{Config, CONFIG};
+use astroport::asset::{native_asset_info, token_asset_info};
 use astroport::maker::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use std::str::FromStr;
 
@@ -22,10 +23,11 @@ fn proper_initialization() {
     let instantiate_msg = InstantiateMsg {
         owner: owner.to_string(),
         factory_contract: factory.to_string(),
-        staking_contract: staking.to_string(),
+        staking_contract: Some(staking.to_string()),
         governance_contract: Option::from(governance_contract.to_string()),
         governance_percent: Option::from(governance_percent),
-        astro_token_contract: astro_token_contract.to_string(),
+        astro_token: token_asset_info(astro_token_contract.clone()),
+        default_bridge: Some(native_asset_info("uluna".to_string())),
         max_spread: None,
     };
     let res = instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
@@ -37,10 +39,11 @@ fn proper_initialization() {
         Config {
             owner: Addr::unchecked("owner"),
             factory_contract: Addr::unchecked("factory"),
-            staking_contract: Addr::unchecked("staking"),
+            staking_contract: Some(Addr::unchecked("staking")),
+            default_bridge: Some(native_asset_info("uluna".to_string())),
             governance_contract: Option::from(governance_contract),
             governance_percent,
-            astro_token_contract: Addr::unchecked("astro-token"),
+            astro_token: token_asset_info(astro_token_contract),
             max_spread: Decimal::from_str("0.05").unwrap(),
             rewards_enabled: false,
             pre_upgrade_blocks: 0,
@@ -66,10 +69,11 @@ fn update_owner() {
     let msg = InstantiateMsg {
         owner: owner.to_string(),
         factory_contract: factory.to_string(),
-        staking_contract: staking.to_string(),
+        staking_contract: Some(staking.to_string()),
         governance_contract: Option::from(governance_contract.to_string()),
         governance_percent: Option::from(governance_percent),
-        astro_token_contract: astro_token_contract.to_string(),
+        astro_token: token_asset_info(astro_token_contract),
+        default_bridge: Some(native_asset_info("uluna".to_string())),
         max_spread: None,
     };
 

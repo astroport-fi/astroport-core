@@ -93,7 +93,7 @@ pub fn instantiate(
     let mut messages: Vec<SubMsg> = vec![get_bluna_reward_holder_instantiating_message(
         deps.as_ref(),
         &env,
-        &addr_validate_to_lower(deps.api, &msg.factory_addr)?,
+        &deps.api.addr_validate(&msg.factory_addr)?,
     )?];
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -105,7 +105,7 @@ pub fn instantiate(
             asset_infos: msg.asset_infos.clone(),
             pair_type: PairType::Stable {},
         },
-        factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr.as_str())?,
+        factory_addr: deps.api.addr_validate(msg.factory_addr.as_str())?,
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
@@ -113,8 +113,8 @@ pub fn instantiate(
         init_amp_time: env.block.time.seconds(),
         next_amp: params.amp * AMP_PRECISION,
         next_amp_time: env.block.time.seconds(),
-        bluna_rewarder: addr_validate_to_lower(deps.api, params.bluna_rewarder.as_str())?,
-        generator: addr_validate_to_lower(deps.api, params.generator.as_str())?,
+        bluna_rewarder: deps.api.addr_validate(params.bluna_rewarder.as_str())?,
+        generator: deps.api.addr_validate(params.generator.as_str())?,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -175,7 +175,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
                 return Err(ContractError::Unauthorized {});
             }
             config.pair_info.liquidity_token =
-                addr_validate_to_lower(deps.api, res.get_contract_address())?;
+                deps.api.addr_validate(res.get_contract_address())?;
 
             CONFIG.save(deps.storage, &config)?;
 
@@ -185,7 +185,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             ));
         }
         INSTANTIATE_BLUNA_REWARD_HOLDER_REPLY_ID => {
-            let addr = addr_validate_to_lower(deps.api, res.get_contract_address())?;
+            let addr = deps.api.addr_validate(res.get_contract_address())?;
             BLUNA_REWARD_HOLDER.save(deps.storage, &addr)?;
             response.attributes.push(attr("bluna_reward_holder", addr))
         }
@@ -286,7 +286,7 @@ pub fn execute(
             }
 
             let to_addr = if let Some(to_addr) = to {
-                Some(addr_validate_to_lower(deps.api, &to_addr)?)
+                Some(deps.api.addr_validate(&to_addr)?)
             } else {
                 None
             };
@@ -369,7 +369,7 @@ pub fn receive_cw20(
             }
 
             let to_addr = if let Some(to_addr) = to {
-                Some(addr_validate_to_lower(deps.api, to_addr.as_str())?)
+                Some(deps.api.addr_validate(to_addr.as_str())?)
             } else {
                 None
             };
@@ -552,7 +552,7 @@ pub fn provide_liquidity(
         deps.as_ref(),
         &config,
         env.clone(),
-        addr_validate_to_lower(deps.api, receiver.as_str())?,
+        deps.api.addr_validate(receiver.as_str())?,
         share,
         auto_stake,
     )?);
@@ -1254,7 +1254,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
 pub fn query_pending_reward(deps: Deps, env: Env, user: String) -> StdResult<Asset> {
     use cosmwasm_std::Decimal256;
 
-    let user = addr_validate_to_lower(deps.api, &user)?;
+    let user = deps.api.addr_validate(&user)?;
 
     let config = CONFIG.load(deps.storage)?;
 
@@ -1843,7 +1843,7 @@ fn claim_reward(
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
     let receiver = receiver
-        .map(|receiver| addr_validate_to_lower(deps.api, &receiver))
+        .map(|receiver| deps.api.addr_validate(&receiver))
         .transpose()?;
 
     let config: Config = CONFIG.load(deps.storage)?;
@@ -1907,7 +1907,7 @@ fn claim_reward_by_generator(
 ) -> Result<Response, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
 
-    let user = addr_validate_to_lower(deps.api, &user)?;
+    let user = deps.api.addr_validate(&user)?;
 
     if info.sender != config.generator {
         return Err(StdError::generic_err("Only the generator can use this method!").into());

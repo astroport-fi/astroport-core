@@ -1,5 +1,5 @@
 use crate::state::CONFIG;
-use astroport::asset::{addr_validate_to_lower, AssetInfo};
+use astroport::asset::{token_asset_info, AssetInfo};
 
 use astroport::generator::{Config, MigrateMsg};
 use cosmwasm_schema::cw_serde;
@@ -90,7 +90,7 @@ pub fn migrate_configs_from_v200(deps: &mut DepsMut, msg: &MigrateMsg) -> StdRes
         generator_controller: cfg_200.generator_controller,
         voting_escrow: cfg_200.voting_escrow,
         voting_escrow_delegation: None,
-        astro_token: cfg_200.astro_token,
+        astro_token: token_asset_info(cfg_200.astro_token),
         tokens_per_block: cfg_200.tokens_per_block,
         total_alloc_point: cfg_200.total_alloc_point,
         start_block: cfg_200.start_block,
@@ -102,8 +102,7 @@ pub fn migrate_configs_from_v200(deps: &mut DepsMut, msg: &MigrateMsg) -> StdRes
     };
 
     if let Some(voting_escrow_delegation) = &msg.voting_escrow_delegation {
-        cfg.voting_escrow_delegation =
-            Some(addr_validate_to_lower(deps.api, voting_escrow_delegation)?);
+        cfg.voting_escrow_delegation = Some(deps.api.addr_validate(voting_escrow_delegation)?);
     }
 
     CONFIG.save(deps.storage, &cfg)
@@ -119,7 +118,48 @@ pub fn migrate_configs_from_v_210(deps: &mut DepsMut) -> StdResult<()> {
         generator_controller: cfg_210.generator_controller,
         voting_escrow: cfg_210.voting_escrow,
         voting_escrow_delegation: cfg_210.voting_escrow_delegation,
-        astro_token: cfg_210.astro_token,
+        astro_token: token_asset_info(cfg_210.astro_token),
+        tokens_per_block: cfg_210.tokens_per_block,
+        total_alloc_point: cfg_210.total_alloc_point,
+        start_block: cfg_210.start_block,
+        vesting_contract: cfg_210.vesting_contract,
+        active_pools: cfg_210.active_pools,
+        blocked_tokens_list: cfg_210.blocked_tokens_list,
+        guardian: cfg_210.guardian,
+        checkpoint_generator_limit: cfg_210.checkpoint_generator_limit,
+    };
+
+    CONFIG.save(deps.storage, &cfg)
+}
+
+/// Migrate config from V2.2.0
+pub fn migrate_configs_from_v220(deps: &mut DepsMut) -> StdResult<()> {
+    #[cw_serde]
+    pub struct OldConfig {
+        pub owner: Addr,
+        pub factory: Addr,
+        pub generator_controller: Option<Addr>,
+        pub voting_escrow: Option<Addr>,
+        pub voting_escrow_delegation: Option<Addr>,
+        pub astro_token: Addr,
+        pub tokens_per_block: Uint128,
+        pub total_alloc_point: Uint128,
+        pub start_block: Uint64,
+        pub vesting_contract: Addr,
+        pub active_pools: Vec<(Addr, Uint128)>,
+        pub blocked_tokens_list: Vec<AssetInfo>,
+        pub guardian: Option<Addr>,
+        pub checkpoint_generator_limit: Option<u32>,
+    }
+    let cfg_210: OldConfig = Item::new("config").load(deps.storage)?;
+
+    let cfg = Config {
+        owner: cfg_210.owner,
+        factory: cfg_210.factory,
+        generator_controller: cfg_210.generator_controller,
+        voting_escrow: cfg_210.voting_escrow,
+        voting_escrow_delegation: cfg_210.voting_escrow_delegation,
+        astro_token: token_asset_info(cfg_210.astro_token),
         tokens_per_block: cfg_210.tokens_per_block,
         total_alloc_point: cfg_210.total_alloc_point,
         start_block: cfg_210.start_block,

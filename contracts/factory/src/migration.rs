@@ -1,15 +1,17 @@
 use crate::querier::query_pair_info;
-use crate::state::{PAIRS, PAIR_CONFIGS};
-use astroport::factory::{PairConfig, PairType, ROUTE};
+use crate::state::{CONFIG, PAIRS, PAIR_CONFIGS};
+use astroport::factory::{Config, MigrateMsg, PairConfig, PairType, ROUTE};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut, Order, StdError, StdResult, Storage};
+use cosmwasm_std::{from_binary, Addr, DepsMut, Order, StdError, StdResult, Storage};
 use cw_storage_plus::{Item, Map};
 
 /// This structure describes a contract migration message.
 #[cw_serde]
-pub struct MigrationMsgV100 {
+pub struct MigrationMsg {
     /// CW1 whitelist contract code ID used to store 3rd party staking rewards
     pub whitelist_code_id: u64,
+    /// The address of the contract that contains the coins and their accuracy
+    pub coin_registry_address: String,
 }
 
 /// This structure holds the main parameters for the factory contract.
@@ -26,6 +28,23 @@ pub struct ConfigV100 {
 }
 
 pub const CONFIGV100: Item<ConfigV100> = Item::new("config");
+
+/// This structure holds the main parameters for the factory contract.
+#[cw_serde]
+pub struct ConfigV110 {
+    /// Address allowed to change contract parameters
+    pub owner: Addr,
+    /// CW20 token contract code identifier
+    pub token_code_id: u64,
+    /// Generator contract address
+    pub generator_address: Option<Addr>,
+    /// Contract address to send governance fees to (the Maker contract)
+    pub fee_address: Option<Addr>,
+    /// CW1 whitelist contract code id used to store 3rd party generator staking rewards
+    pub whitelist_code_id: u64,
+}
+
+pub const CONFIG_V110: Item<ConfigV110> = Item::new("config");
 
 /// This structure describes a pair's configuration.
 #[cw_serde]
@@ -92,6 +111,25 @@ pub fn save_routes(deps: DepsMut) -> Result<(), StdError> {
             &vec![pair.clone()],
         )?;
     }
+
+    Ok(())
+}
+
+/// Migrate config to v.1.3.1
+pub fn migrate_config_to_v131(deps: &mut DepsMut, msg: &MigrateMsg) -> StdResult<()> {
+    let msg: MigrationMsg = from_binary(&msg.params)?;
+    let config_v110 = CONFIG_V110.load(deps.storage)?;
+
+    let new_config = Config {
+        whitelist_code_id: config_v110.whitelist_code_id,
+        fee_address: config_v110.fee_address,
+        generator_address: config_v110.generator_address,
+        owner: config_v110.owner,
+        token_code_id: config_v110.token_code_id,
+        coin_registry_address: deps.api.addr_validate(msg.coin_registry_address.as_str())?,
+    };
+
+    CONFIG.save(deps.storage, &new_config)?;
 
     Ok(())
 }

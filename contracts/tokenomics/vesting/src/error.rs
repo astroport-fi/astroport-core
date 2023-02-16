@@ -1,4 +1,5 @@
 use cosmwasm_std::{OverflowError, StdError};
+use cw_utils::PaymentError;
 use thiserror::Error;
 
 /// This enum describes generator vesting contract errors
@@ -6,6 +7,9 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
 
     #[error("Unauthorized")]
     Unauthorized {},
@@ -18,6 +22,9 @@ pub enum ContractError {
 
     #[error("Vesting schedule amount error. The total amount should be equal to the CW20 receive amount.")]
     VestingScheduleAmountError {},
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {

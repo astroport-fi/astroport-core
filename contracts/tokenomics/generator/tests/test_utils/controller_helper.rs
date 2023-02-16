@@ -2,7 +2,7 @@ use crate::test_utils::delegation_helper::DelegationHelper;
 use crate::test_utils::escrow_helper::EscrowHelper;
 use crate::{mint_tokens, store_whitelist_code};
 use anyhow::Result as AnyResult;
-use astroport::asset::{AssetInfo, PairInfo};
+use astroport::asset::{token_asset_info, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::vesting::{Cw20HookMsg as VestingHookMsg, VestingAccount};
 use astroport::vesting::{InstantiateMsg, VestingSchedule, VestingSchedulePoint};
@@ -64,6 +64,7 @@ impl ControllerHelper {
             generator_address: None,
             owner: owner.to_string(),
             whitelist_code_id: 0,
+            coin_registry_address: "coin_registry".to_string(),
         };
 
         let factory = router
@@ -88,7 +89,7 @@ impl ControllerHelper {
 
         let init_msg_vesting = InstantiateMsg {
             owner: owner.to_string(),
-            token_addr: escrow_helper.astro_token.to_string(),
+            vesting_token: token_asset_info(escrow_helper.astro_token.clone()),
         };
 
         let vesting_instance = router
@@ -112,7 +113,7 @@ impl ControllerHelper {
             voting_escrow_delegation: Some(delegation_helper.delegation_instance.to_string()),
             voting_escrow: Some(escrow_helper.escrow_instance.to_string()),
             guardian: None,
-            astro_token: escrow_helper.astro_token.to_string(),
+            astro_token: token_asset_info(escrow_helper.astro_token.clone()),
             tokens_per_block: Uint128::new(10_000000),
             start_block: Uint64::from(router.block_info().height),
             vesting_contract: vesting_instance.to_string(),

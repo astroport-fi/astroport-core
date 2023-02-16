@@ -135,8 +135,8 @@ fn provide_and_withdraw() {
     helper.give_me_money(&wrong_assets, &user1);
     let err = helper.provide_liquidity(&user1, &wrong_assets).unwrap_err();
     assert_eq!(
-        ContractError::InvalidNumberOfAssets(2usize),
-        err.downcast().unwrap()
+        "Generic error: Asset random_coin is not in the pool",
+        err.root_cause().to_string()
     );
 
     // Provide with asset which does not belong to the pair
@@ -150,16 +150,16 @@ fn provide_and_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::InvalidAsset("random_coin".to_string()),
-        err.downcast().unwrap()
+        "Generic error: Asset random_coin is not in the pool",
+        err.root_cause().to_string()
     );
 
     let err = helper
         .provide_liquidity(&user1, &[random_coin])
         .unwrap_err();
     assert_eq!(
-        ContractError::InvalidAsset("random_coin".to_string()),
-        err.downcast().unwrap()
+        "Generic error: Asset random_coin is not in the pool",
+        err.root_cause().to_string()
     );
 
     let err = helper.provide_liquidity(&user1, &[]).unwrap_err();
