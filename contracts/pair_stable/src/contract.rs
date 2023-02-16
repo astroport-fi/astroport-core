@@ -15,8 +15,8 @@ use cw_utils::parse_instantiate_response_data;
 use itertools::Itertools;
 
 use astroport::asset::{
-    addr_opt_validate, addr_validate_to_lower, check_swap_parameters, format_lp_token_name, Asset,
-    AssetInfo, Decimal256Ext, DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
+    addr_opt_validate, check_swap_parameters, format_lp_token_name, Asset, AssetInfo, CoinsExt,
+    Decimal256Ext, DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::PairType;
@@ -36,7 +36,7 @@ use crate::error::ContractError;
 use crate::math::{
     calc_y, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME,
 };
-use crate::migration::CONFIG_V100;
+use crate::migration::{is_native_registered, CONFIG_V100};
 use crate::state::{get_precision, store_precisions, Config, CONFIG, OWNERSHIP_PROPOSAL};
 use crate::utils::{
     accumulate_prices, adjust_precision, check_asset_infos, check_assets, check_cw20_in_pool,
@@ -81,7 +81,8 @@ pub fn instantiate(
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let greatest_precision = store_precisions(deps.branch(), &msg.asset_infos)?;
+    let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
+    let greatest_precision = store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
     // Initializing cumulative prices
     let mut cumulative_prices = vec![];
@@ -101,7 +102,7 @@ pub fn instantiate(
             asset_infos: msg.asset_infos.clone(),
             pair_type: PairType::Stable {},
         },
-        factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr)?,
+        factory_addr,
         block_time_last: 0,
         init_amp: params.amp * AMP_PRECISION,
         init_amp_time: env.block.time.seconds(),
@@ -159,7 +160,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             let init_response = parse_instantiate_response_data(data.as_slice())
                 .map_err(|e| StdError::generic_err(format!("{e}")))?;
             config.pair_info.liquidity_token =
-                addr_validate_to_lower(deps.api, init_response.contract_address)?;
+                deps.api.addr_validate(&init_response.contract_address)?;
             CONFIG.save(deps.storage, &config)?;
             Ok(Response::new()
                 .add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
@@ -221,7 +222,7 @@ pub fn execute(
         } => {
             offer_asset.info.check(deps.api)?;
             if !offer_asset.is_native_token() {
-                return Err(ContractError::Unauthorized {});
+                return Err(ContractError::Cw20DirectSwap {});
             }
             offer_asset.assert_sent_native_token_balance(&info)?;
 
@@ -301,7 +302,7 @@ pub fn receive_cw20(
             check_cw20_in_pool(&config, &info.sender)?;
 
             let to_addr = addr_opt_validate(deps.api, &to)?;
-            let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
+            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
             swap(
                 deps,
                 env,
@@ -319,7 +320,7 @@ pub fn receive_cw20(
             )
         }
         Cw20HookMsg::WithdrawLiquidity { .. } => {
-            let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
+            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
             withdraw_liquidity(deps, env, info, sender, cw20_msg.amount)
         }
     }
@@ -347,6 +348,8 @@ pub fn provide_liquidity(
 
     let auto_stake = auto_stake.unwrap_or(false);
     let mut config = CONFIG.load(deps.storage)?;
+    info.funds
+        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
 
     if assets.len() != config.pair_info.asset_infos.len() {
         return Err(ContractError::InvalidNumberOfAssets(
@@ -367,8 +370,6 @@ pub fn provide_liquidity(
         .clone()
         .into_iter()
         .map(|asset| {
-            asset.assert_sent_native_token_balance(&info)?;
-
             // Check that at least one asset is non-zero
             if !asset.amount.is_zero() {
                 non_zero_flag = true;
@@ -674,11 +675,15 @@ pub fn swap(
 
     let receiver = to.unwrap_or_else(|| sender.clone());
 
-    let mut messages = vec![Asset {
+    let return_asset = Asset {
         info: ask_pool.info.clone(),
         amount: return_amount,
+    };
+
+    let mut messages = vec![];
+    if !return_amount.is_zero() {
+        messages.push(return_asset.into_msg(&deps.querier, receiver.clone())?)
     }
-    .into_msg(&deps.querier, &receiver)?];
 
     // Compute the Maker fee
     let mut maker_fee_amount = Uint128::zero();
@@ -819,9 +824,11 @@ pub fn query_simulation(
     ask_asset_info: Option<AssetInfo>,
 ) -> StdResult<SimulationResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let pools = config
-        .pair_info
-        .query_pools_decimal(&deps.querier, &config.pair_info.contract_addr)?;
+    let pools = config.pair_info.query_pools_decimal(
+        &deps.querier,
+        &config.pair_info.contract_addr,
+        &config.factory_addr,
+    )?;
 
     let (offer_pool, ask_pool) =
         select_pools(Some(&offer_asset.info), ask_asset_info.as_ref(), &pools)
@@ -893,9 +900,11 @@ pub fn query_reverse_simulation(
     offer_asset_info: Option<AssetInfo>,
 ) -> StdResult<ReverseSimulationResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let pools = config
-        .pair_info
-        .query_pools_decimal(&deps.querier, &config.pair_info.contract_addr)?;
+    let pools = config.pair_info.query_pools_decimal(
+        &deps.querier,
+        &config.pair_info.contract_addr,
+        &config.factory_addr,
+    )?;
     let (offer_pool, ask_pool) =
         select_pools(offer_asset_info.as_ref(), Some(&ask_asset.info), &pools)
             .map_err(|err| StdError::generic_err(format!("{err}")))?;
@@ -1066,8 +1075,11 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
                         cfg_v100.price1_cumulative_last,
                     ),
                 ];
-                let greatest_precision =
-                    store_precisions(deps.branch(), &cfg_v100.pair_info.asset_infos)?;
+                let greatest_precision = store_precisions(
+                    deps.branch(),
+                    &cfg_v100.pair_info.asset_infos,
+                    &cfg_v100.factory_addr,
+                )?;
 
                 CONFIG.save(
                     deps.storage,
@@ -1083,6 +1095,14 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
                         greatest_precision,
                         cumulative_prices,
                     },
+                )?;
+            }
+            "2.0.0" => {
+                let cfg_v200 = CONFIG.load(deps.storage)?;
+                is_native_registered(
+                    &deps.querier,
+                    &cfg_v200.pair_info.asset_infos,
+                    &cfg_v200.factory_addr,
                 )?;
             }
             _ => return Err(ContractError::MigrationError {}),
@@ -1209,7 +1229,7 @@ fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint128> {
     let amp = compute_current_amp(&config, &env)?;
     let pools = config
         .pair_info
-        .query_pools_decimal(&deps.querier, env.contract.address)?
+        .query_pools_decimal(&deps.querier, env.contract.address, &config.factory_addr)?
         .into_iter()
         .map(|pool| pool.amount)
         .collect::<Vec<_>>();

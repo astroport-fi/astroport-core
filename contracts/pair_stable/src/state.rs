@@ -38,11 +38,15 @@ const PRECISIONS: Map<String, u8> = Map::new("precisions");
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
 /// Store all token precisions and return the greatest one.
-pub(crate) fn store_precisions(deps: DepsMut, asset_infos: &[AssetInfo]) -> StdResult<u8> {
+pub(crate) fn store_precisions(
+    deps: DepsMut,
+    asset_infos: &[AssetInfo],
+    factory_addr: &Addr,
+) -> StdResult<u8> {
     let mut max = 0u8;
 
     for asset_info in asset_infos {
-        let precision = asset_info.decimals(&deps.querier)?;
+        let precision = asset_info.decimals(&deps.querier, factory_addr)?;
         max = max.max(precision);
         PRECISIONS.save(deps.storage, asset_info.to_string(), &precision)?;
     }

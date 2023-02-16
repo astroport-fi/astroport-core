@@ -28,7 +28,7 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{next_block, App, ContractWrapper, Executor};
 
 use crate::test_utils::controller_helper::ControllerHelper;
-use crate::test_utils::{mock_app as mock_app_helper, AppExtension};
+use crate::test_utils::{mock_app as mock_app_helper, mock_app, AppExtension};
 
 #[cfg(test)]
 mod test_utils;
@@ -952,8 +952,8 @@ fn update_config() {
     assert_eq!(res.owner, OWNER);
     assert_eq!(res.generator_controller, Some(Addr::unchecked(OWNER)));
     assert_eq!(res.astro_token.to_string(), "contract0");
-    assert_eq!(res.factory.to_string(), "contract1");
-    assert_eq!(res.vesting_contract.to_string(), "contract2");
+    assert_eq!(res.factory.to_string(), "contract2");
+    assert_eq!(res.vesting_contract.to_string(), "contract3");
 
     let new_vesting = Addr::unchecked("new_vesting");
 
@@ -2400,7 +2400,7 @@ fn move_to_proxy() {
         &vkr_staking_instance,
         &vkr_token_instance,
     );
-    assert_eq!(Addr::unchecked("contract11"), proxy_to_vkr_instance);
+    assert_eq!(Addr::unchecked("contract12"), proxy_to_vkr_instance);
 
     // Set the proxy for the pool
     let msg = ExecuteMsg::MoveToProxy {
@@ -2419,7 +2419,7 @@ fn move_to_proxy() {
         .wrap()
         .query_wasm_smart(&generator_instance, &msg_cny_eur)
         .unwrap();
-    assert_eq!(Some(Addr::unchecked("contract11")), reps.reward_proxy);
+    assert_eq!(Some(Addr::unchecked("contract12")), reps.reward_proxy);
 
     // Mint tokens, so user can deposit
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 10);
@@ -2446,7 +2446,7 @@ fn move_to_proxy() {
         .wrap()
         .query_wasm_smart(&proxy_to_vkr_instance, &QueryMsg::Config {})
         .unwrap();
-    assert_eq!("contract6".to_string(), reps.lp_token_addr);
+    assert_eq!("contract7".to_string(), reps.lp_token_addr);
 
     check_pending_rewards(
         &mut app,
@@ -2883,9 +2883,21 @@ fn update_tokens_blocked_list() {
         .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(
-        "ASTRO or Terra native assets (UST, LUNA etc) cannot be blocked!",
-        err.root_cause().to_string()
+        ContractError::AssetCannotBeBlocked {
+            asset: "uusd".to_string()
+        },
+        err.downcast().unwrap()
     );
+
+    // IBC tokens are allowed to be blocked
+    let msg = ExecuteMsg::UpdateBlockedTokenslist {
+        add: Some(vec![native_asset_info(
+            "ibc/0E9C2DD45862E4BE5D15B73C2A0999E2A1163BF347645422A2A283524148C14D".to_string(),
+        )]),
+        remove: None,
+    };
+    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
 
     let msg = ExecuteMsg::UpdateBlockedTokenslist {
         add: Some(vec![token_asset_info(cny_token.clone())]),
@@ -3047,6 +3059,7 @@ fn setup_pools() {
         fee_address: None,
         generator_address: Some(generator_instance.to_string()),
         whitelist_code_id: None,
+        coin_registry_address: None,
     };
 
     app.execute_contract(Addr::unchecked(OWNER), factory_instance.clone(), &msg, &[])
@@ -3303,6 +3316,7 @@ fn deactivate_pools_by_pair_types() {
         fee_address: None,
         generator_address: Some(generator_instance.to_string()),
         whitelist_code_id: None,
+        coin_registry_address: None,
     };
 
     app.execute_contract(Addr::unchecked(OWNER), factory_instance.clone(), &msg, &[])
@@ -3386,7 +3400,7 @@ fn deactivate_pools_by_pair_types() {
     );
 
     // try to deactivate pools for not blacklisted pair types
-    let msg = GeneratorExecuteMsg::DeactivatePools {
+    let msg = GeneratorExecuteMsg::DeactivateBlacklistedPools {
         pair_types: vec![PairType::Xyk {}, PairType::Stable {}],
     };
     let err = app
@@ -3425,7 +3439,7 @@ fn deactivate_pools_by_pair_types() {
         .unwrap();
     assert_eq!(res, vec![PairType::Stable {}]);
 
-    let msg = GeneratorExecuteMsg::DeactivatePools {
+    let msg = GeneratorExecuteMsg::DeactivateBlacklistedPools {
         pair_types: vec![PairType::Stable {}],
     };
     app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
@@ -3572,8 +3586,221 @@ fn deactivate_pools_by_pair_types() {
     assert_eq!(Uint128::new(80), reps.alloc_point);
 }
 
-fn mock_app() -> App {
-    App::default()
+#[test]
+fn test_proxy_generator_incorrect_virtual_amount() {
+    let mut app = mock_app_helper();
+    let owner = Addr::unchecked("owner");
+    let helper_controller = ControllerHelper::init(&mut app, &owner);
+    let user1 = Addr::unchecked(USER1);
+    let token_code_id = store_token_code(&mut app);
+    // init cw20 tokens
+    let cny_token = instantiate_token(&mut app, token_code_id, "CNY", None);
+    let eur_token = instantiate_token(&mut app, token_code_id, "EUR", None);
+    let val_token = instantiate_token(&mut app, token_code_id, "VAL", None);
+    // create two lp pairs, one with proxy another without proxy
+    let (pair_cny_eur, lp_without_proxy) = create_pair(
+        &mut app,
+        &helper_controller.factory,
+        None,
+        None,
+        vec![
+            AssetInfo::Token {
+                contract_addr: cny_token.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: eur_token.clone(),
+            },
+        ],
+    );
+    let (pair_val_eur, lp_with_proxy) = create_pair(
+        &mut app,
+        &helper_controller.factory,
+        None,
+        None,
+        vec![
+            AssetInfo::Token {
+                contract_addr: val_token.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: eur_token.clone(),
+            },
+        ],
+    );
+    // register lp token to pool
+    register_lp_tokens_in_generator(
+        &mut app,
+        &helper_controller.generator,
+        vec![PoolWithProxy {
+            pool: (lp_without_proxy.to_string(), Uint128::from(100u32)),
+            proxy: None,
+        }],
+    );
+    // verify no proxy set
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &helper_controller.generator,
+            &QueryMsg::PoolInfo {
+                lp_token: lp_without_proxy.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(None, reps.reward_proxy);
+    // mint lp without proxy to user
+    mint_tokens(
+        &mut app,
+        pair_cny_eur.clone(),
+        &lp_without_proxy,
+        &user1,
+        10,
+    );
+    helper_controller
+        .escrow_helper
+        .mint_xastro(&mut app, USER1, 100);
+    helper_controller
+        .escrow_helper
+        .create_lock(&mut app, USER1, WEEK * 3, 100f32)
+        .unwrap();
+    // user deposits lp tokens
+    deposit_lp_tokens_to_generator(
+        &mut app,
+        &helper_controller.generator,
+        USER1,
+        &[(&lp_without_proxy, 10)],
+    );
+    // NOTE: user virtual amount should be calculated correctly when deposit
+    // first we try query the virtual amount and grab the value
+    // secondly we call CheckpointUserBoost to update the user's virtual amount
+    // to latest value
+    // third we query the virtual amount
+    // lastly we compare it, should be equal
+    // 1: query before checkpoint
+    let virtual_amount_before_checkpoint: Uint128 = app
+        .wrap()
+        .query_wasm_smart(
+            &helper_controller.generator,
+            &QueryMsg::UserVirtualAmount {
+                lp_token: lp_without_proxy.to_string(),
+                user: USER1.to_string(),
+            },
+        )
+        .unwrap();
+    // 2: perform checkpoint, user virtual amount will be updated
+    app.execute_contract(
+        Addr::unchecked(USER1),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::CheckpointUserBoost {
+            generators: vec![lp_without_proxy.to_string()],
+            user: Some(USER1.to_string()),
+        },
+        &[],
+    )
+    .unwrap();
+    // 3: query after checkpoint
+    let virtual_amount_after_checkpoint: Uint128 = app
+        .wrap()
+        .query_wasm_smart(
+            &helper_controller.generator,
+            &QueryMsg::UserVirtualAmount {
+                lp_token: lp_without_proxy.to_string(),
+                user: USER1.to_string(),
+            },
+        )
+        .unwrap();
+    // 4: amounts should be the same, correct!
+    assert_eq!(
+        virtual_amount_after_checkpoint,
+        virtual_amount_before_checkpoint
+    );
+    // let's see if its the same for a lp with proxy
+    // setup lp to use proxy
+    let vkr_staking_instance =
+        instantiate_valkyrie_protocol(&mut app, &val_token, &pair_val_eur, &lp_with_proxy);
+    let proxy_code_id = store_proxy_code(&mut app);
+    let proxy_instance = instantiate_proxy(
+        &mut app,
+        proxy_code_id,
+        &helper_controller.generator,
+        &pair_val_eur,
+        &lp_with_proxy,
+        &vkr_staking_instance,
+        &val_token,
+    );
+    let msg = GeneratorExecuteMsg::MoveToProxy {
+        lp_token: lp_with_proxy.to_string(),
+        proxy: proxy_instance.to_string(),
+    };
+    app.execute_contract(
+        Addr::unchecked(OWNER),
+        helper_controller.generator.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+    // verify proxy has been set
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &helper_controller.generator,
+            &QueryMsg::PoolInfo {
+                lp_token: lp_with_proxy.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Some(proxy_instance), reps.reward_proxy);
+    // mint lp tokens to user
+    mint_tokens(&mut app, pair_val_eur.clone(), &lp_with_proxy, &user1, 10);
+    // user deposits lp tokens
+    deposit_lp_tokens_to_generator(
+        &mut app,
+        &helper_controller.generator,
+        USER1,
+        &[(&lp_with_proxy, 10)],
+    );
+    // similar with lp without proxy, let's perform the same verification
+    // 1: query before checkpoint
+    let virtual_amount_before_checkpoint: Uint128 = app
+        .wrap()
+        .query_wasm_smart(
+            &helper_controller.generator,
+            &QueryMsg::UserVirtualAmount {
+                lp_token: lp_with_proxy.to_string(),
+                user: USER1.to_string(),
+            },
+        )
+        .unwrap();
+    // 2: perform checkpoint, user virtual amount will be updated
+    app.execute_contract(
+        Addr::unchecked(USER1),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::CheckpointUserBoost {
+            generators: vec![lp_with_proxy.to_string()],
+            user: Some(USER1.to_string()),
+        },
+        &[],
+    )
+    .unwrap();
+    // 3: query after checkpoint
+    let virtual_amount_after_checkpoint: Uint128 = app
+        .wrap()
+        .query_wasm_smart(
+            &helper_controller.generator,
+            &QueryMsg::UserVirtualAmount {
+                lp_token: lp_with_proxy.to_string(),
+                user: USER1.to_string(),
+            },
+        )
+        .unwrap();
+    /*
+        4: compare: error here
+        panicked at 'assertion failed: `(left == right)`
+            left: `Uint128(4)`,
+            right: `Uint128(10)`
+    */
+    assert_eq!(
+        virtual_amount_before_checkpoint,
+        virtual_amount_after_checkpoint
+    );
 }
 
 fn store_token_code(app: &mut App) -> u64 {
@@ -3625,6 +3852,16 @@ fn store_pair_stable_code_id(app: &mut App) -> u64 {
     app.store_code(pair_contract)
 }
 
+fn store_coin_registry_code(app: &mut App) -> u64 {
+    let coin_registry_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_native_coin_registry::contract::execute,
+        astroport_native_coin_registry::contract::instantiate,
+        astroport_native_coin_registry::contract::query,
+    ));
+
+    app.store_code(coin_registry_contract)
+}
+
 fn instantiate_token(app: &mut App, token_code_id: u64, name: &str, cap: Option<u128>) -> Addr {
     let name = String::from(name);
 
@@ -3644,13 +3881,48 @@ fn instantiate_token(app: &mut App, token_code_id: u64, name: &str, cap: Option<
         .unwrap()
 }
 
+fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>) -> Addr {
+    let coin_registry_id = store_coin_registry_code(&mut app);
+    let coin_registry_address = app
+        .instantiate_contract(
+            coin_registry_id,
+            Addr::unchecked(OWNER),
+            &ap_native_coin_registry::InstantiateMsg {
+                owner: OWNER.to_string(),
+            },
+            &[],
+            "Coin registry",
+            None,
+        )
+        .unwrap();
+
+    if let Some(coins) = coins {
+        app.execute_contract(
+            Addr::unchecked(OWNER),
+            coin_registry_address.clone(),
+            &ap_native_coin_registry::ExecuteMsg::Add {
+                native_coins: coins,
+            },
+            &[],
+        )
+        .unwrap();
+    }
+
+    coin_registry_address
+}
+
 fn instantiate_factory(
-    app: &mut App,
+    mut app: &mut App,
     factory_code_id: u64,
     token_code_id: u64,
     pair_code_id: u64,
     pair_stable_code_id: Option<u64>,
 ) -> Addr {
+    let coin_registry_address = instantiate_coin_registry(
+        &mut app,
+        Some(vec![("uusd".to_string(), 6), ("cny".to_string(), 6)]),
+    );
+
     let mut msg = FactoryInstantiateMsg {
         pair_configs: vec![PairConfig {
             code_id: pair_code_id,
@@ -3665,6 +3937,7 @@ fn instantiate_factory(
         generator_address: None,
         owner: String::from(OWNER),
         whitelist_code_id: 0,
+        coin_registry_address: coin_registry_address.to_string(),
     };
 
     if let Some(pair_stable_code_id) = pair_stable_code_id {
@@ -3706,7 +3979,7 @@ fn instantiate_generator(
 
     let init_msg = VestingInstantiateMsg {
         owner: owner.to_string(),
-        token_addr: astro_token_instance.to_string(),
+        vesting_token: token_asset_info(astro_token_instance.clone()),
     };
 
     let vesting_instance = app
@@ -3746,7 +4019,7 @@ fn instantiate_generator(
         factory: factory_instance.to_string(),
         guardian: None,
         start_block: Uint64::from(app.block_info().height),
-        astro_token: astro_token_instance.to_string(),
+        astro_token: token_asset_info(astro_token_instance.clone()),
         tokens_per_block: Uint128::new(10_000000),
         vesting_contract: vesting_instance.to_string(),
         generator_controller,

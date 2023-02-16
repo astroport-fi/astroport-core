@@ -37,8 +37,8 @@ pub enum ContractError {
     #[error("Pair is not registered in factory!")]
     PairNotRegistered {},
 
-    #[error("ASTRO or Terra native assets (UST, LUNA etc) cannot be blocked!")]
-    AssetCannotBeBlocked {},
+    #[error("ASTRO or native assets cannot be blocked! You are trying to block {asset}")]
+    AssetCannotBeBlocked { asset: String },
 
     #[error("Maximum generator limit exceeded!")]
     GeneratorsLimitExceeded {},

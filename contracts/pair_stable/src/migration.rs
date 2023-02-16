@@ -1,6 +1,6 @@
-use astroport::asset::PairInfo;
+use astroport::asset::{AssetInfo, PairInfo};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, QuerierWrapper, StdResult, Uint128};
 use cw_storage_plus::Item;
 
 /// This structure stores the main stableswap pair parameters.
@@ -27,3 +27,19 @@ pub struct ConfigV100 {
 }
 
 pub const CONFIG_V100: Item<ConfigV100> = Item::new("config");
+
+/// Validates array of assets. If asset is native coin then this function checks whether
+/// it has been registered in registry or not.
+pub(crate) fn is_native_registered(
+    querier: &QuerierWrapper,
+    asset_infos: &[AssetInfo],
+    factory_addr: &Addr,
+) -> StdResult<()> {
+    for asset_info in asset_infos {
+        if let AssetInfo::NativeToken { denom } = asset_info {
+            asset_info.query_native_precision(querier, denom, factory_addr)?;
+        }
+    }
+
+    Ok(())
+}

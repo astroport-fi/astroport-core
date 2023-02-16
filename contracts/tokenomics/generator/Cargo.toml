@@ -1,6 +1,6 @@
 [package]
 name = "astroport-generator"
-version = "2.2.1"
+version = "2.2.2"
 authors = ["Astroport"]
 edition = "2021"
 
@@ -24,31 +24,33 @@ cosmwasm-std = { version = "1.1" }
 cw2 = { version = "0.15" }
 cw20 = { version = "0.15" }
 cw-storage-plus = "0.15"
-cw1-whitelist =  { version = "0.15", features = ["library"] }
+cw1-whitelist = { version = "0.15", features = ["library"] }
 thiserror = { version = "1.0" }
-astroport = { path = "../../../packages/astroport", default-features = false}
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main"}
+astroport = { path = "../../../packages/astroport", default-features = false }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance", branch = "main" }
 protobuf = { version = "2", features = ["with-bytes"] }
 cosmwasm-schema = { version = "1.1" }
 
 [dev-dependencies]
 cw-multi-test = "0.15"
-astroport-token = {path = "../../token"}
-astroport-vesting = {path = "../vesting"}
-astroport-staking = {path = "../staking"}
+astroport-token = { path = "../../token" }
+astroport-vesting = { path = "../vesting" }
+astroport-staking = { path = "../staking" }
 
-astroport-factory = {path = "../../factory"}
-astroport-pair = {path = "../../pair"}
-astroport-pair-stable = {path = "../../pair_stable"}
+astroport-factory = { path = "../../factory" }
+astroport-pair = { path = "../../pair" }
+astroport-pair-stable = { path = "../../pair_stable" }
 astroport-whitelist = { path = "../../whitelist" }
-anyhow = "1.0"
-generator-controller = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
-voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
-voting-escrow-delegation = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
-astroport-nft = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
+anyhow = "1"
+generator-controller = { git = "https://github.com/astroport-fi/astroport-governance", branch = "main" }
+voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance", branch = "main" }
+voting-escrow-delegation = { git = "https://github.com/astroport-fi/astroport-governance", branch = "main" }
+astroport-nft = { git = "https://github.com/astroport-fi/astroport-governance", branch = "main" }
 cw721-base = { version = "0.15", features = ["library"] }
 
 generator-proxy-to-vkr = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main" }
-valkyrie = { git = "https://github.com/valkyrieprotocol/contracts.git", rev = "b5fcb666f17d7e291f40365756e50fc0d7b9bf54"  }
+valkyrie = { git = "https://github.com/valkyrieprotocol/contracts.git", rev = "b5fcb666f17d7e291f40365756e50fc0d7b9bf54" }
 valkyrie-lp-staking = { git = "https://github.com/valkyrieprotocol/contracts.git", rev = "b5fcb666f17d7e291f40365756e50fc0d7b9bf54" }
 valkyrie-vp = { git = "https://github.com/valkyrieprotocol/contracts.git", rev = "b5fcb666f17d7e291f40365756e50fc0d7b9bf54" }
+astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
+ap-native-coin-registry = { path = "../../../packages/native_coin_registry" }

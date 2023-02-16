@@ -1,5 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
+use crate::asset::AssetInfo;
 use cosmwasm_std::{Addr, Order, Uint128};
 use cw20::Cw20ReceiveMsg;
 
@@ -8,8 +9,8 @@ use cw20::Cw20ReceiveMsg;
 pub struct InstantiateMsg {
     /// Address allowed to change contract parameters
     pub owner: String,
-    /// The address of the token that's being vested
-    pub token_addr: String,
+    /// [`AssetInfo`] of the token that's being vested
+    pub vesting_token: AssetInfo,
 }
 
 /// This structure describes the execute messages available in the contract.
@@ -24,6 +25,10 @@ pub enum ExecuteMsg {
     },
     /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template
     Receive(Cw20ReceiveMsg),
+    /// RegisterVestingAccounts registers vesting targets/accounts
+    RegisterVestingAccounts {
+        vesting_accounts: Vec<VestingAccount>,
+    },
     /// Creates a request to change contract ownership
     /// ## Executor
     /// Only the current owner can execute this
@@ -109,8 +114,8 @@ pub enum QueryMsg {
 pub struct ConfigResponse {
     /// Address allowed to set contract parameters
     pub owner: Addr,
-    /// The address of the token being vested
-    pub token_addr: Addr,
+    /// [`AssetInfo`] of the token being vested
+    pub vesting_token: AssetInfo,
 }
 
 /// This structure describes a custom struct used to return vesting data about a specific vesting target.

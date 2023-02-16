@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-stable"
-version = "2.0.0"
+version = "2.1.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport stableswap pair contract implementation"
@@ -38,8 +38,10 @@ cw-utils = "1.0.1"
 anyhow = "1.0"
 proptest = "1.0.0"
 sim = { git = "https://github.com/astroport-fi/astroport-sims.git", branch = "main", package = "sim" }
-astroport-token = {path = "../token"}
+astroport-token = { path = "../token" }
 cw-multi-test = "0.15"
-astroport-factory = {path = "../factory"}
+astroport-factory = { path = "../factory" }
 derivative = "2.2"
 prost = "0.11.5"
+astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
+ap-native-coin-registry = { path = "../../packages/native_coin_registry" }

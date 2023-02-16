@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::state::CONFIG;
-use astroport::asset::{addr_opt_validate, addr_validate_to_lower, Asset, AssetInfo, PairInfo};
+use astroport::asset::{addr_opt_validate, Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
 use astroport::pair::{
     migration_check, ConfigResponse, CumulativePricesResponse, Cw20HookMsg, InstantiateMsg,
@@ -44,7 +44,7 @@ pub trait PairBonded<'a> {
                 asset_infos: msg.asset_infos.clone(),
                 pair_type: PairType::Custom(String::from("Bonded")),
             },
-            factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr)?,
+            factory_addr: deps.api.addr_validate(&msg.factory_addr)?,
         };
 
         CONFIG.save(deps.storage, &config)?;
@@ -193,7 +193,7 @@ pub trait PairBonded<'a> {
 
                 let to_addr = addr_opt_validate(deps.api, &to)?;
                 let contract_addr = info.sender.clone();
-                let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
+                let sender = deps.api.addr_validate(&cw20_msg.sender)?;
                 self.swap(
                     deps,
                     env,
@@ -240,7 +240,7 @@ pub trait PairBonded<'a> {
     ) -> Result<Response, ContractError> {
         offer_asset.info.check(deps.api)?;
         if !offer_asset.is_native_token() {
-            return Err(ContractError::Unauthorized {});
+            return Err(ContractError::Cw20DirectSwap {});
         }
 
         let to_addr = addr_opt_validate(deps.api, &to)?;
@@ -385,12 +385,13 @@ pub trait PairBonded<'a> {
         let return_amount = ask_asset_info.query_pool(&deps.querier, env.contract.address)?;
 
         // Compute the tax for the receiving asset (if it is a native one)
-        let return_asset = Asset {
+        let mut return_asset = Asset {
             info: ask_asset_info.clone(),
             amount: return_amount,
         };
 
         let tax_amount = return_asset.compute_tax(&deps.querier)?;
+        return_asset.amount -= tax_amount;
 
         Ok(Response::new()
             .add_message(return_asset.into_msg(&deps.querier, receiver.clone())?)

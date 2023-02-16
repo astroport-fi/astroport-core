@@ -22,6 +22,12 @@ exclude = [
     "contracts/pair_stable_bluna", # TODO: update this when bluna migrated to cosmwasm 1.0.0
 ]
 
+[patch.'https://github.com/astroport-fi/hidden_astroport_core.git']
+astroport = { path = "packages/astroport" }
+
+[patch.'https://github.com/astroport-fi/hidden_astroport_governance.git']
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git" }
+
 [profile.release]
 opt-level = "z"
 debug = false

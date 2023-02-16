@@ -100,7 +100,7 @@ pub(crate) fn mint_liquidity_token_message(
                     contract: generator.to_string(),
                     amount,
                     msg: to_binary(&astroport::generator::Cw20HookMsg::DepositFor(
-                        recipient.clone(),
+                        recipient.to_string(),
                     ))?,
                 },
                 vec![],
