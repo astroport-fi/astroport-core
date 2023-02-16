@@ -547,13 +547,14 @@ fn distribute(
         );
 
         if !amount.is_zero() {
-            result.push(SubMsg::new(build_send_msg(
-                &Asset {
-                    info: cfg.astro_token.clone(),
-                    amount,
-                },
+            let asset = Asset {
+                info: cfg.astro_token.clone(),
+                amount,
+            };
+
+            result.push(SubMsg::new(asset.into_msg(
+                &deps.querier,
                 second_receiver_cfg.second_fee_receiver.to_string(),
-                None,
             )?))
         }
 
@@ -702,12 +703,12 @@ fn update_config(
 
     if let Some(second_receiver_params) = second_receiver_params {
         attributes.push(attr(
-            "second_receiver_config",
-            format!(
-                "second_fee_receiver: {}, second_receiver_cut: {}",
-                second_receiver_params.second_fee_receiver,
-                second_receiver_params.second_receiver_cut
-            ),
+            "second_fee_receiver",
+            second_receiver_params.second_fee_receiver,
+        ));
+        attributes.push(attr(
+            "second_receiver_cut",
+            second_receiver_params.second_receiver_cut,
         ));
     }
 
