@@ -2471,17 +2471,59 @@ pub fn create_pool(
 pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
+    let mut messages = vec![];
+
     match contract_version.contract.as_ref() {
-        "astroport-generator" => match contract_version.version.as_ref() {
-            "2.0.0" => {
-                migration::migrate_configs_from_v200(&mut deps)?;
+        "astroport-generator" => {
+            match contract_version.version.as_ref() {
+                "2.0.0" => {
+                    migration::migrate_configs_from_v200(&mut deps)?;
+                }
+                "2.1.0" => {
+                    migration::migrate_configs_from_v210(&mut deps)?;
+                }
+                "2.1.1" => {}
+                "2.2.0" => {
+                    if env.block.chain_id == "phoenix-1" {
+                        // the orphaned rewards was calculated at block height 3690036
+
+                        // Transferring VKR rewards back
+                        messages.push(
+                            wasm_execute(
+                                "terra14ewvq39vg23j0hcesecv6hkzkwkvrnuxzd5sddmry9lx6qrhaxcqjdx6er",
+                                &ProxyExecuteMsg::SendRewards {
+                                    account: "terra1ntuxp79l68pjnj5q6ys8a0chwlu9sqd5zm47umvkcqv6ym06wghsp3qu7n".to_owned(),
+                                    amount: Uint128::new(2259215673492) },
+                                    vec![]
+                                )?
+                            );
+
+                        // Transferring TPT rewards back
+                        messages.push(
+                            wasm_execute(
+                                "terra15yuq64lp74df0d5pdcmwzep80j0aa4hs3fktqyupz4a82ayvdw2s4rdykv",
+                                &ProxyExecuteMsg::SendRewards {
+                                    account: "terra1cxuj2grxald0lvjgrdezhzm2wfh3kns2d8ysea2c50zrt656tq0qlxfvk8".to_owned(),
+                                    amount: Uint128::new(1466787983809) },
+                                    vec![]
+                                )?
+                            );
+
+                        // Transferring bLUNA rewards back
+                        messages.push(
+                            wasm_execute(
+                                "terra12jvzm2cy33zspvp8asn7ns98jmyk489es2cy2j8k926mr2n7metqha430q",
+                                &ProxyExecuteMsg::SendRewards {
+                                    account: "terra1tgpwsnndr7djj9smld3u57snyd5xacdgdsz6glr2nqhgu82hyz0sq644hz".to_owned(),
+                                    amount: Uint128::new(183676425) },
+                                    vec![]
+                                )?
+                            );
+                    }
+                }
+                _ => return Err(ContractError::MigrationError {}),
             }
-            "2.1.0" => {
-                migration::migrate_configs_from_v210(&mut deps)?;
-            }
-            "2.1.1" => {}
-            _ => return Err(ContractError::MigrationError {}),
-        },
+        }
         _ => return Err(ContractError::MigrationError {}),
     };
 
@@ -2500,6 +2542,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
     }
 
     Ok(response
+        .add_messages(messages)
         .add_attribute("previous_contract_name", &contract_version.contract)
         .add_attribute("previous_contract_version", &contract_version.version)
         .add_attribute("new_contract_name", CONTRACT_NAME)

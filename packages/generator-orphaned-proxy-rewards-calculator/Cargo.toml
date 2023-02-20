@@ -1,0 +1,17 @@
+[package]
+name = "generator-orphaned-proxy-rewards-calculator"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.25.0", features = ["full"] }
+astroport-generator = { git = "https://github.com/astroport-fi/astroport-core", package = "astroport-generator", rev = "f3f7723b3103be23c02f2cb0874e79254e83f4e2" }
+astroport = { git = "https://github.com/astroport-fi/astroport-core", package = "astroport", rev = "f3f7723b3103be23c02f2cb0874e79254e83f4e2" }
+cosmwasm-std = "1.1.9"
+cosmrs = { version = "0.8", features = ["cosmwasm", "grpc"] }
+cw-storage-plus = "0.15.1"
+cw20 = "1.0.1"
+tonic = { version = "0.7.2", features = ["tls-roots"] }
+serde = { version = "1.0.152", features = ["derive"] }
