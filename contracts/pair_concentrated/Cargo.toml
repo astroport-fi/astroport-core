@@ -21,10 +21,11 @@ crate-type = ["cdylib", "rlib"]
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
+library = []
 
 [dependencies]
 astroport = { path = "../../packages/astroport", default-features = false }
-astroport-factory = { path = "../factory" }
+astroport-factory = { path = "../factory", features = ["library"] }
 cw2 = "0.15"
 cw20 = "0.15"
 cosmwasm-std = "1.1"
