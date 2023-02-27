@@ -2485,7 +2485,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                 "2.1.1" => {}
                 "2.2.0" => {
                     if env.block.chain_id == "phoenix-1" {
-                        // the orphaned rewards was calculated at block height 3690036
+                        // the orphaned rewards was calculated at block height 3673414
 
                         // Transferring VKR rewards back
                         messages.push(
