@@ -92,6 +92,7 @@ fn instantiate_contracts(
     governance_percent: Uint64,
     max_spread: Option<Decimal>,
     pair_type: Option<PairType>,
+    second_receiver_params: Option<SecondReceiverParams>,
 ) -> (Addr, Addr, Addr, Addr) {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
@@ -236,7 +237,7 @@ fn instantiate_contracts(
         astro_token: token_asset_info(astro_token_instance.clone()),
         default_bridge: Some(native_asset_info("uluna".to_string())),
         max_spread,
-        second_receiver_params: None,
+        second_receiver_params,
     };
     let maker_instance = router
         .instantiate_contract(
@@ -480,6 +481,7 @@ fn update_config() {
             owner.clone(),
             staking.clone(),
             governance_percent,
+            None,
             None,
             None,
         );
@@ -748,6 +750,7 @@ fn collect_all() {
         governance_percent,
         Some(max_spread),
         None,
+        None,
     );
 
     let usdc_token_instance = instantiate_token(
@@ -908,6 +911,7 @@ fn collect_maxdepth_test() {
         governance_percent,
         Some(max_spread),
         None,
+        None,
     );
 
     let usdc_token_instance = instantiate_token(
@@ -1041,6 +1045,7 @@ fn collect_err_no_swap_pair() {
         governance_percent,
         None,
         None,
+        None,
     );
 
     let uusd_asset = String::from("uusd");
@@ -1164,6 +1169,7 @@ fn update_bridges() {
         owner.clone(),
         staking.clone(),
         governance_percent,
+        None,
         None,
         None,
     );
@@ -1326,6 +1332,7 @@ fn collect_with_asset_limit() {
             staking.clone(),
             governance_percent,
             Some(max_spread),
+            None,
             None,
         );
 
@@ -1607,6 +1614,301 @@ fn collect_with_asset_limit() {
     );
 }
 
+#[test]
+fn collect_with_second_receiver() {
+    let uusd_asset = String::from("uusd");
+    let uluna_asset = String::from("uluna");
+    let owner = Addr::unchecked("owner");
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: uusd_asset.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: uluna_asset.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ],
+    );
+    let user = Addr::unchecked("user0000");
+    let staking = Addr::unchecked("staking");
+    let governance_percent = Uint64::new(10);
+    let max_spread = Decimal::from_str("0.5").unwrap();
+
+    let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
+        instantiate_contracts(
+            &mut router,
+            owner.clone(),
+            staking.clone(),
+            governance_percent,
+            Some(max_spread),
+            None,
+            Some(SecondReceiverParams {
+                second_fee_receiver: "second_receiver".to_string(),
+                second_receiver_cut: Uint64::new(50),
+            }),
+        );
+
+    let usdc_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Usdc token".to_string(),
+        "USDC".to_string(),
+    );
+
+    let test_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Test token".to_string(),
+        "TEST".to_string(),
+    );
+
+    let bridge2_token_instance = instantiate_token(
+        &mut router,
+        owner.clone(),
+        "Bridge 2 depth token".to_string(),
+        "BRIDGE".to_string(),
+    );
+
+    // Create pairs
+    for t in vec![
+        vec![
+            token_asset(usdc_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        vec![
+            token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
+            native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
+        ],
+        vec![
+            native_asset(uluna_asset, Uint128::from(100_000_u128)),
+            native_asset(uusd_asset, Uint128::from(100_000_u128)),
+        ],
+        vec![
+            token_asset(test_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+        vec![
+            token_asset(bridge2_token_instance.clone(), Uint128::from(100_000_u128)),
+            token_asset(astro_token_instance.clone(), Uint128::from(100_000_u128)),
+        ],
+    ] {
+        create_pair(
+            &mut router,
+            owner.clone(),
+            user.clone(),
+            &factory_instance,
+            t,
+            None,
+        );
+    }
+
+    // Set assets to swap
+    let assets = vec![
+        AssetWithLimit {
+            info: token_asset(astro_token_instance.clone(), Uint128::zero()).info,
+            limit: Option::from(Uint128::new(5)),
+        },
+        AssetWithLimit {
+            info: token_asset(usdc_token_instance.clone(), Uint128::zero()).info,
+            limit: Option::from(Uint128::new(5)),
+        },
+        AssetWithLimit {
+            info: token_asset(test_token_instance.clone(), Uint128::zero()).info,
+            limit: Option::from(Uint128::new(5)),
+        },
+        AssetWithLimit {
+            info: token_asset(bridge2_token_instance.clone(), Uint128::zero()).info,
+            limit: Option::from(Uint128::new(5)),
+        },
+    ];
+
+    // Setup bridge to withdraw USDC via the USDC -> TEST -> UUSD -> ASTRO route
+    router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::UpdateBridges {
+                add: Some(vec![
+                    (
+                        token_asset_info(test_token_instance.clone()),
+                        token_asset_info(bridge2_token_instance.clone()),
+                    ),
+                    (
+                        token_asset_info(usdc_token_instance.clone()),
+                        token_asset_info(test_token_instance.clone()),
+                    ),
+                ]),
+                remove: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+    // Enable rewards distribution
+    router
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::EnableRewards { blocks: 1 },
+            &[],
+        )
+        .unwrap();
+
+    // Mint all tokens for Maker
+    for t in vec![
+        (astro_token_instance.clone(), 10u128),
+        (usdc_token_instance.clone(), 20u128),
+        (test_token_instance.clone(), 30u128),
+    ] {
+        let (token, amount) = t;
+        mint_some_token(
+            &mut router,
+            owner.clone(),
+            token.clone(),
+            maker_instance.clone(),
+            Uint128::from(amount),
+        );
+
+        // Check initial balance
+        check_balance(
+            &mut router,
+            maker_instance.clone(),
+            token,
+            Uint128::from(amount),
+        );
+    }
+
+    let expected_balances = vec![
+        token_asset(astro_token_instance.clone(), Uint128::new(10)),
+        token_asset(usdc_token_instance.clone(), Uint128::new(20)),
+        token_asset(test_token_instance.clone(), Uint128::new(30)),
+    ];
+
+    let balances_resp: BalancesResponse = router
+        .wrap()
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: maker_instance.to_string(),
+            msg: to_binary(&QueryMsg::Balances {
+                assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
+            })
+            .unwrap(),
+        }))
+        .unwrap();
+
+    for b in expected_balances {
+        let found = balances_resp
+            .balances
+            .iter()
+            .find(|n| n.info.equal(&b.info))
+            .unwrap();
+
+        assert_eq!(found, &b);
+    }
+
+    router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect {
+                assets: assets.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    // Check Maker's balance of ASTRO tokens
+    check_balance(
+        &mut router,
+        maker_instance.clone(),
+        astro_token_instance.clone(),
+        Uint128::zero(),
+    );
+
+    // Check Maker's balance of USDC tokens
+    check_balance(
+        &mut router,
+        maker_instance.clone(),
+        usdc_token_instance.clone(),
+        Uint128::new(15u128),
+    );
+
+    // Check Maker's balance of test tokens
+    check_balance(
+        &mut router,
+        maker_instance.clone(),
+        test_token_instance.clone(),
+        Uint128::new(0u128),
+    );
+
+    // Check balances
+    let amount = Uint128::new(40u128);
+    let second_receiver_amount = amount.multiply_ratio(Uint128::from(50u64), Uint128::new(100));
+    let governance_amount = amount
+        .checked_sub(second_receiver_amount)
+        .unwrap()
+        .multiply_ratio(Uint128::from(governance_percent), Uint128::new(100));
+    let staking_amount = amount - governance_amount - second_receiver_amount;
+
+    // Check the second receiver contract's balance for the ASTRO token
+    check_balance(
+        &mut router,
+        Addr::unchecked("second_receiver"),
+        astro_token_instance.clone(),
+        second_receiver_amount,
+    );
+
+    // Check the governance contract's balance for the ASTRO token
+    check_balance(
+        &mut router,
+        governance_instance.clone(),
+        astro_token_instance.clone(),
+        governance_amount,
+    );
+
+    // Check the governance contract's balance for the USDC token
+    check_balance(
+        &mut router,
+        governance_instance.clone(),
+        usdc_token_instance.clone(),
+        Uint128::zero(),
+    );
+
+    // Check the governance contract's balance for the test token
+    check_balance(
+        &mut router,
+        governance_instance.clone(),
+        test_token_instance.clone(),
+        Uint128::zero(),
+    );
+
+    // Check the staking contract's balance for the ASTRO token
+    check_balance(
+        &mut router,
+        staking.clone(),
+        astro_token_instance.clone(),
+        staking_amount,
+    );
+
+    // Check the staking contract's balance for the USDC token
+    check_balance(
+        &mut router,
+        staking.clone(),
+        usdc_token_instance.clone(),
+        Uint128::zero(),
+    );
+
+    // Check the staking contract's balance for the test token
+    check_balance(
+        &mut router,
+        staking.clone(),
+        test_token_instance.clone(),
+        Uint128::zero(),
+    );
+}
+
 struct CheckDistributedAstro {
     maker_amount: Uint128,
     governance_amount: Uint128,
@@ -1673,6 +1975,7 @@ fn distribute_initially_accrued_fees() {
             owner.clone(),
             staking.clone(),
             governance_percent,
+            None,
             None,
             None,
         );
@@ -2086,6 +2389,7 @@ fn collect_3pools() {
         Default::default(),
         Some(max_spread),
         Some(PairType::Stable {}),
+        None,
     );
 
     let usdc_token_instance = instantiate_token(
