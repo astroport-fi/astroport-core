@@ -33,7 +33,7 @@ pub(crate) fn migrate_to_v120(deps: DepsMut, msg: &MigrateMsg) -> StdResult<()> 
         owner: old_config.owner,
         factory_contract: old_config.factory_contract,
         staking_contract: Some(old_config.staking_contract),
-        default_bridge: msg.clone().default_bridge,
+        default_bridge: msg.default_bridge.clone(),
         governance_contract: old_config.governance_contract,
         governance_percent: old_config.governance_percent,
         astro_token: token_asset_info(old_config.astro_token_contract),

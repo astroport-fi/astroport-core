@@ -189,5 +189,5 @@ pub struct SecondReceiverConfig {
     pub second_receiver_cut: Uint64,
 }
 
-/// The maximum allowed second receiver percent
+/// The maximum allowed second receiver share (percents)
 pub const MAX_SECOND_RECEIVER_CUT: Uint64 = Uint64::new(50);
