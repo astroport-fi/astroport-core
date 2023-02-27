@@ -85,9 +85,13 @@ pub async fn query_contract_smart<T: Serialize, R: DeserializeOwned>(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut query_client = QueryClient::connect("https://terra-grpc.polkachu.com:11790").await?;
+    // Fill this with your gRPC endpoint before running
+    const GRPC_ENDPOINT: &str = "";
 
-    const BLOCK_HEIGHT: u64 = 3690036;
+    let mut query_client = QueryClient::connect(GRPC_ENDPOINT).await?;
+
+    // The block height when the bug was fixed
+    const BLOCK_HEIGHT: u64 = 3673414;
 
     let generator = "terra1ksvlfex49desf4c452j6dewdjs6c48nafemetuwjyj6yexd7x3wqvwa7j9";
 

@@ -2493,7 +2493,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                                 "terra14ewvq39vg23j0hcesecv6hkzkwkvrnuxzd5sddmry9lx6qrhaxcqjdx6er",
                                 &ProxyExecuteMsg::SendRewards {
                                     account: "terra1ntuxp79l68pjnj5q6ys8a0chwlu9sqd5zm47umvkcqv6ym06wghsp3qu7n".to_owned(),
-                                    amount: Uint128::new(2259215673492) },
+                                    amount: Uint128::new(2259215673491) },
                                     vec![]
                                 )?
                             );
@@ -2515,7 +2515,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                                 "terra12jvzm2cy33zspvp8asn7ns98jmyk489es2cy2j8k926mr2n7metqha430q",
                                 &ProxyExecuteMsg::SendRewards {
                                     account: "terra1tgpwsnndr7djj9smld3u57snyd5xacdgdsz6glr2nqhgu82hyz0sq644hz".to_owned(),
-                                    amount: Uint128::new(183676425) },
+                                    amount: Uint128::new(183676436) },
                                     vec![]
                                 )?
                             );
