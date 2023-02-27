@@ -7,7 +7,7 @@ use crate::utils::update_second_receiver_cfg;
 use astroport::asset::{token_asset_info, AssetInfo};
 use astroport::maker::{Config, MigrateMsg};
 
-pub(crate) fn migrate_to_v120(deps: DepsMut, msg: &MigrateMsg) -> StdResult<()> {
+pub(crate) fn migrate_from_v1(deps: DepsMut, msg: &MigrateMsg) -> StdResult<()> {
     #[cw_serde]
     struct OldConfig {
         pub owner: Addr,
