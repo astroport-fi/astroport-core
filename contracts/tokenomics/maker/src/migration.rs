@@ -29,7 +29,7 @@ pub(crate) fn migrate_from_v1(deps: DepsMut, msg: &MigrateMsg) -> StdResult<()> 
         default_bridge.check(deps.api)?
     }
 
-    let new_config = Config {
+    let mut new_config = Config {
         owner: old_config.owner,
         factory_contract: old_config.factory_contract,
         staking_contract: Some(old_config.staking_contract),
@@ -46,10 +46,12 @@ pub(crate) fn migrate_from_v1(deps: DepsMut, msg: &MigrateMsg) -> StdResult<()> 
         second_receiver_cfg: None,
     };
 
+    update_second_receiver_cfg(deps.as_ref(), &mut new_config, &msg.second_receiver_params)?;
+
     CONFIG.save(deps.storage, &new_config)
 }
 
-pub(crate) fn migrate_to_v130(deps: DepsMut, msg: MigrateMsg) -> StdResult<()> {
+pub(crate) fn migrate_from_v120(deps: DepsMut, msg: MigrateMsg) -> StdResult<()> {
     #[cw_serde]
     struct ConfigV120 {
         pub owner: Addr,

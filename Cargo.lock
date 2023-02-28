@@ -31,7 +31,7 @@ dependencies = [
 [[package]]
 name = "ap-native-coin-registry"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker#30fcf38c9b681e7d6084aa79e6d65e64d66c5f3a"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker#45921b964b3a186a1771ecb8e020bddc6f16b2a1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -99,7 +99,7 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.2.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker#30fcf38c9b681e7d6084aa79e6d65e64d66c5f3a"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker#45921b964b3a186a1771ecb8e020bddc6f16b2a1"
 dependencies = [
  "ap-native-coin-registry 1.0.0 (git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=feat/extended_maker)",
  "cosmwasm-schema",
@@ -952,9 +952,9 @@ checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
 name = "dyn-clone"
-version = "1.0.10"
+version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9b0705efd4599c15a38151f4721f7bc388306f61084d3bfd50bd07fbca5cb60"
+checksum = "68b0cf012f1230e43cd00ebb729c6bb58707ecfa8ad08b52ef3a4ccd2697fc30"
 
 [[package]]
 name = "ecdsa"
