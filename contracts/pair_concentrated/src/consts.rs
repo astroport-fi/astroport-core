@@ -28,7 +28,6 @@ pub const MAX_ITER: usize = 64;
 pub const TWAP_PRECISION_DEC: Decimal256 = Decimal256::raw((1e6 * 1e18) as u128);
 
 /// ## Validation constants
-// TODO: adjust validation constants
 /// 0.001
 pub const MIN_FEE: Decimal = Decimal::raw(1000000000000000);
 /// 0.5
@@ -49,10 +48,10 @@ pub const PRICE_SCALE_DELTA_MAX: Decimal = Decimal::one();
 
 pub const MA_HALF_TIME_LIMITS: RangeInclusive<u64> = 0..=(7 * 86400);
 
-/// 0.4
-pub const AMP_MIN: Decimal = Decimal::raw(4e17 as u128);
-/// 400000
-pub const AMP_MAX: Decimal = Decimal::raw(4e23 as u128);
+/// 0.1
+pub const AMP_MIN: Decimal = Decimal::raw(1e17 as u128);
+/// 100000
+pub const AMP_MAX: Decimal = Decimal::raw(1e23 as u128);
 
 /// 0.0000001
 pub const GAMMA_MIN: Decimal = Decimal::raw(100000000000);

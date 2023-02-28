@@ -1,7 +1,12 @@
-use astroport::asset::{AssetInfo, PairInfo};
+use astroport::{
+    asset::{AssetInfo, PairInfo},
+    querier::query_token_precision,
+};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, QuerierWrapper, StdResult, Uint128};
+use cosmwasm_std::{Addr, DepsMut, QuerierWrapper, StdResult, Uint128};
 use cw_storage_plus::Item;
+
+use crate::state::{store_precisions, Config, CONFIG};
 
 /// This structure stores the main stableswap pair parameters.
 #[cw_serde]
@@ -36,10 +41,53 @@ pub(crate) fn is_native_registered(
     factory_addr: &Addr,
 ) -> StdResult<()> {
     for asset_info in asset_infos {
-        if let AssetInfo::NativeToken { denom } = asset_info {
-            asset_info.query_native_precision(querier, denom, factory_addr)?;
-        }
+        query_token_precision(querier, asset_info, factory_addr)?;
     }
 
     Ok(())
+}
+
+pub fn migrate_config_to_v210(mut deps: DepsMut) -> StdResult<Config> {
+    let cfg_v100 = CONFIG_V100.load(deps.storage)?;
+
+    is_native_registered(
+        &deps.querier,
+        &cfg_v100.pair_info.asset_infos,
+        &cfg_v100.factory_addr,
+    )?;
+
+    let cumulative_prices = vec![
+        (
+            cfg_v100.pair_info.asset_infos[0].clone(),
+            cfg_v100.pair_info.asset_infos[1].clone(),
+            cfg_v100.price0_cumulative_last,
+        ),
+        (
+            cfg_v100.pair_info.asset_infos[1].clone(),
+            cfg_v100.pair_info.asset_infos[0].clone(),
+            cfg_v100.price1_cumulative_last,
+        ),
+    ];
+    let greatest_precision = store_precisions(
+        deps.branch(),
+        &cfg_v100.pair_info.asset_infos,
+        &cfg_v100.factory_addr,
+    )?;
+
+    let cfg = Config {
+        owner: None,
+        pair_info: cfg_v100.pair_info,
+        factory_addr: cfg_v100.factory_addr,
+        block_time_last: cfg_v100.block_time_last,
+        init_amp: cfg_v100.next_amp,
+        init_amp_time: cfg_v100.init_amp_time,
+        next_amp: cfg_v100.next_amp,
+        next_amp_time: cfg_v100.next_amp_time,
+        greatest_precision,
+        cumulative_prices,
+    };
+
+    CONFIG.save(deps.storage, &cfg)?;
+
+    Ok(cfg)
 }

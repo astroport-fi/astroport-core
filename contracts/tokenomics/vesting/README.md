@@ -81,6 +81,22 @@ Transfer vested tokens from all vesting schedules that have the same `VestingCon
 }
 ```
 
+### `withdraw_from_active_schedule`
+
+Withdraw tokens from active vesting schedule.  
+Withdraw is possible if there is only one active vesting schedule. Active schedule's remaining amount must be greater than withdraw amount.
+This endpoint terminates current active schedule (updates end_point) and creates a new one with remaining amount minus withdrawn amount.
+
+```json
+{
+  "withdraw_from_active_schedule": {
+    "account": "terra...",
+    "recipient": "terra...",
+    "withdraw_amount": "123"
+  }
+}
+```
+
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.

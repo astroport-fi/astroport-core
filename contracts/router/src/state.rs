@@ -1,7 +1,6 @@
 use cosmwasm_schema::cw_serde;
-use cw_storage_plus::Item;
-
 use cosmwasm_std::Addr;
+use cw_storage_plus::Item;
 
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");

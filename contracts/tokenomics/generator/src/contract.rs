@@ -22,7 +22,6 @@ use astroport::factory::PairType;
 use astroport::generator::{Config, ExecuteOnReply, PoolInfo};
 use astroport::generator::{StakerResponse, UserInfoV2};
 use astroport::querier::query_token_balance;
-use astroport::DecimalCheckedOps;
 use astroport::{
     factory::{ConfigResponse as FactoryConfigResponse, QueryMsg as FactoryQueryMsg},
     generator::{
@@ -33,6 +32,7 @@ use astroport::{
         Cw20HookMsg as ProxyCw20HookMsg, ExecuteMsg as ProxyExecuteMsg, QueryMsg as ProxyQueryMsg,
     },
     vesting::ExecuteMsg as VestingExecuteMsg,
+    DecimalCheckedOps,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -115,9 +115,6 @@ pub fn instantiate(
 ///
 /// * **ExecuteMsg::EmergencyWithdraw { lp_token }** Withdraw LP tokens without caring about reward claiming.
 /// TO BE USED IN EMERGENCY SITUATIONS ONLY.
-///
-/// * **ExecuteMsg::SetAllowedRewardProxies { proxies }** Sets the list of allowed reward proxy contracts
-/// that can interact with the Generator contract.
 ///
 /// * **ExecuteMsg::SendOrphanProxyReward {
 ///             recipient,
@@ -310,7 +307,6 @@ fn checkpoint_user_boost(
     } else {
         info.sender
     };
-
     if generators.len()
         > config
             .checkpoint_generator_limit
@@ -329,7 +325,6 @@ fn checkpoint_user_boost(
                 USER_INFO.compatible_load(deps.storage, (&lp_token, &recipient_addr))?;
 
             let mut pool = POOL_INFO.load(deps.storage, &lp_token)?;
-
             accumulate_rewards_per_share(&deps.querier, &env, &lp_token, &mut pool, &config)?;
 
             send_rewards_msg.append(&mut send_pending_rewards(
@@ -870,7 +865,6 @@ pub fn mass_update_pools(
 ) -> Result<(), ContractError> {
     for lp_token in lp_tokens {
         let mut pool = POOL_INFO.load(deps.storage, lp_token)?;
-
         accumulate_rewards_per_share(&deps.querier, env, lp_token, &mut pool, cfg)?;
         POOL_INFO.save(deps.storage, lp_token, &pool)?;
     }
@@ -967,7 +961,6 @@ pub fn accumulate_rewards_per_share(
     if env.block.height > pool.last_reward_block.u64() {
         if !lp_supply.is_zero() {
             let alloc_point = get_alloc_point(&cfg.active_pools, lp_token);
-
             let token_rewards = calculate_rewards(
                 env.block.height - pool.last_reward_block.u64(),
                 &alloc_point,
@@ -1001,19 +994,16 @@ fn receive_cw20(
     }
 
     match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::Deposit {} => {
-            let account = deps.api.addr_validate(&cw20_msg.sender)?;
-            update_rewards_and_execute(
-                deps,
-                env,
-                Some(vec![lp_token.clone()]),
-                ExecuteOnReply::Deposit {
-                    lp_token,
-                    account,
-                    amount,
-                },
-            )
-        }
+        Cw20HookMsg::Deposit {} => update_rewards_and_execute(
+            deps,
+            env,
+            Some(vec![lp_token.clone()]),
+            ExecuteOnReply::Deposit {
+                lp_token,
+                account: Addr::unchecked(cw20_msg.sender),
+                amount,
+            },
+        ),
         Cw20HookMsg::DepositFor(beneficiary) => {
             let account = deps.api.addr_validate(&beneficiary)?;
             update_rewards_and_execute(
@@ -1244,7 +1234,6 @@ pub fn withdraw(
         .add_attribute("action", "withdraw")
         .add_attribute("amount", amount))
 }
-
 /// Withdraw LP tokens without caring about rewards. TO BE USED IN EMERGENCY SITUATIONS ONLY.
 ///
 /// * **lp_token** LP token to withdraw.
@@ -1693,6 +1682,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
                 &cfg,
             )?)?)
         }
+        QueryMsg::BlockedTokensList {} => {
+            Ok(to_binary(&CONFIG.load(deps.storage)?.blocked_tokens_list)?)
+        }
         QueryMsg::PoolStakers {
             lp_token,
             start_after,
@@ -1703,9 +1695,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             start_after,
             limit,
         )?)?),
-        QueryMsg::BlockedTokensList {} => {
-            Ok(to_binary(&CONFIG.load(deps.storage)?.blocked_tokens_list)?)
-        }
         QueryMsg::RewardProxiesList {} => Ok(to_binary(
             &PROXY_REWARD_ASSET
                 .keys(deps.storage, None, None, Order::Ascending)
@@ -2089,11 +2078,11 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             "2.0.0" => {
                 migration::migrate_configs_from_v200(&mut deps, &msg)?;
             }
-            "2.1.0" => {
-                migration::migrate_configs_from_v_210(&mut deps)?;
+            "2.1.0" | "2.1.1" => {
+                migration::migrate_configs_from_v210(&mut deps, &msg)?;
             }
-            "2.2.1" => {
-                migration::migrate_configs_from_v220(&mut deps)?;
+            "2.2.0" | "2.2.0+togrb" => {
+                migration::migrate_configs_from_v220(&mut deps, &msg)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },

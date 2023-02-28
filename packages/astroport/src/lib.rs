@@ -9,7 +9,6 @@ pub mod oracle;
 pub mod pair;
 pub mod pair_bonded;
 pub mod pair_concentrated;
-pub mod pair_stable_bluna;
 pub mod querier;
 pub mod restricted_vector;
 pub mod router;
@@ -20,7 +19,6 @@ pub mod xastro_token;
 
 #[cfg(test)]
 mod mock_querier;
-
 #[cfg(test)]
 mod testing;
 

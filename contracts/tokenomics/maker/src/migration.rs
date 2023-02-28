@@ -7,7 +7,7 @@ use astroport::maker::MigrateMsg;
 
 use crate::state::{Config, CONFIG};
 
-pub(crate) fn migrate_to_v120(deps: DepsMut, msg: MigrateMsg) -> StdResult<()> {
+pub(crate) fn migrate_to_v110(deps: DepsMut, msg: MigrateMsg) -> StdResult<()> {
     #[cw_serde]
     struct OldConfig {
         pub owner: Addr,

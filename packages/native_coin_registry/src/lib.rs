@@ -2,7 +2,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 use cw_storage_plus::Map;
 
-/// This structure stores the main parameters for the generator vesting contract.
+/// This structure stores the main parameters for the native coin registry contract.
 #[cw_serde]
 pub struct Config {
     /// Address that's allowed to change contract parameters
@@ -19,7 +19,7 @@ pub struct InstantiateMsg {
 /// This structure describes the execute messages available in the contract.
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// Adds new native assets with specified precision
+    /// Adds or updates native assets with specified precisions
     /// ## Executor
     /// Only the current owner can execute this
     Add { native_coins: Vec<(String, u8)> },

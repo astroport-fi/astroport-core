@@ -162,25 +162,6 @@ fn test_provide_and_withdraw_liquidity() {
         ],
     );
 
-    // When dealing with native tokens the transfer should happen before the contract call, which cw-multitest doesn't support
-    // Set Alice's balances
-    router
-        .send_tokens(
-            owner.clone(),
-            pair_instance.clone(),
-            &[
-                Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::new(100_000_000u128),
-                },
-                Coin {
-                    denom: "uluna".to_string(),
-                    amount: Uint128::new(100_000_000u128),
-                },
-            ],
-        )
-        .unwrap();
-
     // Provide liquidity
     let (msg, coins) = provide_liquidity_msg(
         Uint128::new(100_000_000),
@@ -240,11 +221,11 @@ fn test_provide_and_withdraw_liquidity() {
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 50u128.to_string())
+        attr("share", 100u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "bob"));
-    assert_eq!(res.events[3].attributes[3], attr("amount", 50.to_string()));
+    assert_eq!(res.events[3].attributes[3], attr("amount", 100.to_string()));
 
     // Checking withdraw liquidity
     let token_contract_code_id = store_token_code(&mut router);
@@ -574,6 +555,20 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
         .unwrap();
+
+    let user = Addr::unchecked("user");
+
+    let swap_msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
+            belief_price: None,
+            max_spread: None,
+            to: Some(user.to_string()),
+        })
+        .unwrap(),
+        amount: x_offer,
+    };
 
     // try to swap after provide liquidity
     app.execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
