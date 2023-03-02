@@ -8,6 +8,7 @@ use itertools::Itertools;
 use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
 use astroport::cosmwasm_ext::AbsDiff;
 use astroport::querier::{query_factory_config, query_supply};
+use astroport_factory::state::pair_key;
 
 use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, OFFER_PERCENT, TWAP_PRECISION_DEC};
 use crate::error::ContractError;
@@ -436,6 +437,17 @@ pub fn assert_slippage_tolerance(
     }
 
     Ok(())
+}
+
+// Checks whether the pair is registered in the factory or not.
+pub fn check_pair_registered(
+    querier: QuerierWrapper,
+    factory: &Addr,
+    asset_infos: &[AssetInfo],
+) -> StdResult<bool> {
+    astroport_factory::state::PAIRS
+        .query(&querier, factory.clone(), &pair_key(asset_infos))
+        .map(|inner| inner.is_some())
 }
 
 #[cfg(test)]
