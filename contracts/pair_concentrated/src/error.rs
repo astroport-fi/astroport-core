@@ -38,7 +38,7 @@ pub enum ContractError {
     )]
     MinChangingTimeAssertion {},
 
-    #[error("Initial provide must not contain zero amount")]
+    #[error("Initial provide can not be one-sided")]
     InvalidZeroAmount {},
 
     #[error("Operation exceeds max spread limit")]
