@@ -75,14 +75,18 @@ pub fn instantiate(
     store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
     // Initializing cumulative prices
-    let mut cumulative_prices = vec![];
-    for from_pool in &msg.asset_infos {
-        for to_pool in &msg.asset_infos {
-            if !from_pool.eq(to_pool) {
-                cumulative_prices.push((from_pool.clone(), to_pool.clone(), Uint128::zero()))
-            }
-        }
-    }
+    let cumulative_prices = vec![
+        (
+            msg.asset_infos[0].clone(),
+            msg.asset_infos[1].clone(),
+            Uint128::zero(),
+        ),
+        (
+            msg.asset_infos[1].clone(),
+            msg.asset_infos[0].clone(),
+            Uint128::zero(),
+        ),
+    ];
 
     let mut pool_params = PoolParams::default();
     pool_params.update_params(UpdatePoolParams {
