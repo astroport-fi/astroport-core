@@ -258,7 +258,7 @@ impl PoolState {
 
     /// Calculates current amp and gamma.
     /// This function handles parameters upgrade as well as downgrade.
-    /// If block time > self.future_time then it returns self.future parameters.
+    /// If block time >= self.future_time then it returns self.future parameters.
     pub fn get_amp_gamma(&self, env: &Env) -> AmpGamma {
         let block_time = env.block.time.seconds();
         if block_time < self.future_time {
