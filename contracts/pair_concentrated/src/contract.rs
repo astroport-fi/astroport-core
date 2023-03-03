@@ -240,7 +240,7 @@ pub fn execute(
         } => {
             offer_asset.info.check(deps.api)?;
             if !offer_asset.is_native_token() {
-                return Err(ContractError::Unauthorized {});
+                return Err(ContractError::Cw20DirectSwap {});
             }
             offer_asset.assert_sent_native_token_balance(&info)?;
 
