@@ -53,11 +53,11 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    check_asset_infos(deps.api, &msg.asset_infos)?;
-
     if msg.asset_infos.len() != 2 {
         return Err(StdError::generic_err("asset_infos must contain exactly two elements").into());
     }
+
+    check_asset_infos(deps.api, &msg.asset_infos)?;
 
     let params: ConcentratedPoolParams = from_binary(
         &msg.init_params
@@ -363,15 +363,7 @@ pub fn provide_liquidity(
     auto_stake: Option<bool>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
-    check_assets(deps.api, &assets)?;
-
     let mut config = CONFIG.load(deps.storage)?;
-
-    info.funds
-        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
-
-    let precisions = Precisions::new(deps.storage)?;
-    let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
     match assets.len() {
         0 => {
@@ -379,12 +371,14 @@ pub fn provide_liquidity(
         }
         1 => {
             // Append omitted asset with explicit zero amount
-            let (given_ind, _) = pools
+            let (given_ind, _) = config
+                .pair_info
+                .asset_infos
                 .iter()
-                .find_position(|pool| pool.info.equal(&assets[0].info))
+                .find_position(|pool| pool.equal(&assets[0].info))
                 .ok_or_else(|| ContractError::InvalidAsset(assets[0].info.to_string()))?;
             assets.push(Asset {
-                info: pools[1 - given_ind].info.clone(),
+                info: config.pair_info.asset_infos[1 - given_ind].clone(),
                 amount: Uint128::zero(),
             });
         }
@@ -395,6 +389,14 @@ pub fn provide_liquidity(
             ))
         }
     }
+
+    check_assets(deps.api, &assets)?;
+
+    info.funds
+        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
+
+    let precisions = Precisions::new(deps.storage)?;
+    let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
     if pools[0].info.equal(&assets[1].info) {
         assets.swap(0, 1);
