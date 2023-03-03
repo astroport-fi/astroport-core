@@ -915,3 +915,29 @@ fn update_owner() {
     let config = helper.query_config().unwrap();
     assert_eq!(config.owner.unwrap().to_string(), new_owner)
 }
+
+#[test]
+fn query_d_test() {
+    let owner = Addr::unchecked("owner");
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("USDX")];
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::one(),
+        ma_half_time: 600,
+    };
+    // create pair with test_coins
+    let helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    // query current pool D value before providing any liquidity
+    let err = helper.query_d().unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Querier contract error: Generic error: Pools are empty"
+    );
+}
