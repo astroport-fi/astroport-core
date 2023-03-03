@@ -17,7 +17,6 @@ use astroport::asset::{
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
-use astroport::pair::migration_check;
 use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, MigrateMsg, UpdatePoolParams,
@@ -211,10 +210,6 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-
-    if migration_check(deps.querier, &config.factory_addr, &env.contract.address)? {
-        return Err(ContractError::PairIsNotMigrated {});
-    }
 
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
