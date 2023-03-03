@@ -450,6 +450,15 @@ mod test {
             price_state: Default::default(),
         };
 
+        // Trying to promote params with future time in the past
+        let promote_params = PromoteParams {
+            next_amp: f64_to_dec(110_f64),
+            next_gamma: f64_to_dec(0.00000011_f64),
+            future_time: env.block.time.seconds() - 10000,
+        };
+        let err = state.promote_params(&env, promote_params).unwrap_err();
+        assert_eq!(err, ContractError::MinChangingTimeAssertion {});
+
         // Increase values
         let promote_params = PromoteParams {
             next_amp: f64_to_dec(110_f64),
