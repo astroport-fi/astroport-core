@@ -683,7 +683,7 @@ fn swap(
         .iter()
         .find_position(|asset| asset.info == offer_asset_dec.info)
         .ok_or_else(|| ContractError::InvalidAsset(offer_asset_dec.info.to_string()))?;
-    let ask_ind = 1 - offer_ind;
+    let ask_ind = 1 ^ offer_ind;
     let ask_asset_prec = precisions.get_precision(&pools[ask_ind].info)?;
 
     pools[offer_ind].amount -= offer_asset_dec.amount;
