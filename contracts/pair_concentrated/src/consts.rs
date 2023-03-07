@@ -46,7 +46,7 @@ pub const REPEG_PROFIT_THRESHOLD_MAX: Decimal = Decimal::raw(10000000000000000);
 pub const PRICE_SCALE_DELTA_MIN: Decimal = Decimal::raw(10000000);
 pub const PRICE_SCALE_DELTA_MAX: Decimal = Decimal::one();
 
-pub const MA_HALF_TIME_LIMITS: RangeInclusive<u64> = 0..=(7 * 86400);
+pub const MA_HALF_TIME_LIMITS: RangeInclusive<u64> = 1..=(7 * 86400);
 
 /// 0.1
 pub const AMP_MIN: Decimal = Decimal::raw(1e17 as u128);

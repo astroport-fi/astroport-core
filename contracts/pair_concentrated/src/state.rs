@@ -258,7 +258,7 @@ impl PoolState {
 
     /// Calculates current amp and gamma.
     /// This function handles parameters upgrade as well as downgrade.
-    /// If block time > self.future_time then it returns self.future parameters.
+    /// If block time >= self.future_time then it returns self.future parameters.
     pub fn get_amp_gamma(&self, env: &Env) -> AmpGamma {
         let block_time = env.block.time.seconds();
         if block_time < self.future_time {
@@ -432,6 +432,43 @@ mod test {
     }
 
     #[test]
+    #[should_panic(expected = "attempt to subtract with overflow")]
+    fn test_validator_odd_behaviour() {
+        let mut env = mock_env();
+        env.block.time = Timestamp::from_seconds(86400);
+
+        let mut state = PoolState {
+            initial: AmpGamma {
+                amp: Decimal::zero(),
+                gamma: Decimal::zero(),
+            },
+            future: AmpGamma {
+                amp: f64_to_dec(100_f64),
+                gamma: f64_to_dec(0.0000001_f64),
+            },
+            future_time: 0,
+            initial_time: 0,
+            price_state: Default::default(),
+        };
+
+        // Increase values
+        let promote_params = PromoteParams {
+            next_amp: f64_to_dec(110_f64),
+            next_gamma: f64_to_dec(0.00000011_f64),
+            future_time: env.block.time.seconds() + 100_000,
+        };
+        state.promote_params(&env, promote_params).unwrap();
+
+        let AmpGamma { amp, gamma } = state.get_amp_gamma(&env);
+        assert_eq!(amp, f64_to_dec(100_f64));
+        assert_eq!(gamma, f64_to_dec(0.0000001_f64));
+
+        // Simulating validator odd behavior
+        env.block.time = env.block.time.minus_seconds(1000);
+        state.get_amp_gamma(&env);
+    }
+
+    #[test]
     fn test_pool_state() {
         let mut env = mock_env();
         env.block.time = Timestamp::from_seconds(86400);
@@ -449,6 +486,15 @@ mod test {
             initial_time: 0,
             price_state: Default::default(),
         };
+
+        // Trying to promote params with future time in the past
+        let promote_params = PromoteParams {
+            next_amp: f64_to_dec(110_f64),
+            next_gamma: f64_to_dec(0.00000011_f64),
+            future_time: env.block.time.seconds() - 10000,
+        };
+        let err = state.promote_params(&env, promote_params).unwrap_err();
+        assert_eq!(err, ContractError::MinChangingTimeAssertion {});
 
         // Increase values
         let promote_params = PromoteParams {
