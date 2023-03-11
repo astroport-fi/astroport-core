@@ -1068,8 +1068,10 @@ pub fn assert_max_spread(
     }
 
     if let Some(belief_price) = belief_price {
-        let expected_return =
-            offer_amount * belief_price.inv().expect("Belief price must not be zero!");
+        let expected_return = offer_amount
+            * belief_price
+                .inv()
+                .ok_or_else(|| StdError::generic_err("Belief price must not be zero!"))?;
         let spread_amount = expected_return.saturating_sub(return_amount);
 
         if return_amount < expected_return

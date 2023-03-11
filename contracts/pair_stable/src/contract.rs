@@ -25,7 +25,7 @@ use astroport::pair::{
     DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
 };
 
-use crate::migration::{is_native_registered, migrate_config_to_v210};
+use crate::migration::migrate_config_to_v210;
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse, StablePoolConfig,
@@ -950,7 +950,7 @@ pub fn query_reverse_simulation(
     let before_commission = (Decimal256::one()
         - Decimal256::new(fee_info.total_fee_rate.atomics().into()))
     .inv()
-    .expect("The pool must have less than 100% fee!")
+    .ok_or_else(|| StdError::generic_err("The pool must have less than 100% fee!"))?
     .checked_mul(Decimal256::with_precision(ask_asset.amount, ask_precision)?)?;
 
     let xp = pools.into_iter().map(|pool| pool.amount).collect_vec();
@@ -1069,11 +1069,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
 
     match contract_version.contract.as_ref() {
         "astroport-pair-stable" => match contract_version.version.as_ref() {
-            "1.0.0-fix1" | "1.1.0" => {
-                let cfg = migrate_config_to_v210(deps.branch())?;
-                is_native_registered(&deps.querier, &cfg.pair_info.asset_infos, &cfg.factory_addr)?;
-            }
-            "1.1.1" => {
+            "1.0.0-fix1" | "1.1.0" | "1.1.1" => {
                 migrate_config_to_v210(deps.branch())?;
             }
             _ => return Err(ContractError::MigrationError {}),
