@@ -24,7 +24,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 cw-storage-plus = "0.15"
 cw1-whitelist = { version = "0.15", features = ["library"] }
 thiserror = { version = "1.0" }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance", branch = "main" }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance", branch = "merge/release" }
 protobuf = { version = "2", features = ["with-bytes"] }
 cosmwasm-std = "1.1"
 cw2 = "0.15"
@@ -34,7 +34,7 @@ cosmwasm-schema = "1.1"
 [dev-dependencies]
 
 
-generator-controller = { git = "https://github.com/astroport-fi/astroport-governance", branch = "main" }
+generator-controller = { git = "https://github.com/astroport-fi/astroport-governance", branch = "merge/release" }
 cw-multi-test = "0.15"
 astroport-token = { path = "../../token" }
 astroport-vesting = { path = "../vesting" }
@@ -44,15 +44,15 @@ astroport-pair = { path = "../../pair" }
 astroport-pair-stable = { path = "../../pair_stable" }
 astroport-whitelist = { path = "../../whitelist" }
 anyhow = "1"
-voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance", branch = "main" }
-voting-escrow-delegation = { git = "https://github.com/astroport-fi/astroport-governance", branch = "main" }
-astroport-nft = { git = "https://github.com/astroport-fi/astroport-governance", branch = "main" }
+voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance", branch = "merge/release" }
+voting-escrow-delegation = { git = "https://github.com/astroport-fi/astroport-governance", branch = "merge/release" }
+astroport-nft = { git = "https://github.com/astroport-fi/astroport-governance", branch = "merge/release" }
 cw721-base = { version = "0.15", features = ["library"] }
 
 
-generator-proxy-to-vkr = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main" }
-valkyrie = { git = "https://github.com/valkyrieprotocol/contracts.git", rev = "b5fcb666f17d7e291f40365756e50fc0d7b9bf54" }
-valkyrie-lp-staking = { git = "https://github.com/valkyrieprotocol/contracts.git", rev = "b5fcb666f17d7e291f40365756e50fc0d7b9bf54" }
-valkyrie-vp = { git = "https://github.com/valkyrieprotocol/contracts.git", rev = "b5fcb666f17d7e291f40365756e50fc0d7b9bf54" }
+generator-proxy-to-vkr = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts", branch = "merge/release" }
+valkyrie = { git = "https://github.com/valkyrieprotocol/contracts", rev = "b5fcb666f17d7e291f40365756e50fc0d7b9bf54" }
+valkyrie-lp-staking = { git = "https://github.com/valkyrieprotocol/contracts", rev = "b5fcb666f17d7e291f40365756e50fc0d7b9bf54" }
+valkyrie-vp = { git = "https://github.com/valkyrieprotocol/contracts", rev = "b5fcb666f17d7e291f40365756e50fc0d7b9bf54" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
 ap-native-coin-registry = { path = "../../../packages/native_coin_registry" }
