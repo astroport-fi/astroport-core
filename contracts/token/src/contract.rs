@@ -189,8 +189,8 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
     ))
     .into());
     match contract_version.contract.as_ref() {
-        "astroport-token" => match contract_version.version.as_ref() {
-            "1.0.0" => {
+        "crates.io:cw20-base" => match contract_version.version.as_ref() {
+            "0.9.1" => {
                 let mut token_info = TOKEN_INFO.load(deps.storage)?;
                 if token_info.name == "Astroport" && token_info.symbol == "ASTRO" {
                     token_info.name = msg.name;

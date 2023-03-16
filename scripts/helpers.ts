@@ -21,6 +21,7 @@ import {
 } from 'fs'
 import path from 'path'
 import { CustomError } from 'ts-custom-error'
+import {APIParams} from "@terra-money/terra.js/dist/client/lcd/APIRequester";
 
 export const ARTIFACTS_PATH = '../artifacts'
 
@@ -82,6 +83,14 @@ export class TransactionError extends CustomError {
     ) {
         super("transaction failed")
     }
+}
+
+export async function queryCodeInfo(terra: LCDClient, codeID: number): Promise<any> {
+    return await terra.wasm.codeInfo(codeID)
+}
+
+export async function queryContractRaw(terra: LCDClient, end_point: string, params?: APIParams): Promise<any> {
+    return await terra.apiRequester.getRaw(end_point, params)
 }
 
 export async function createTransaction(wallet: Wallet, msg: Msg) {
@@ -167,6 +176,18 @@ export function initialize(terra: LCDClient) {
 
 export function toEncodedBinary(object: any) {
     return Buffer.from(JSON.stringify(object)).toString('base64');
+}
+
+export async function queryContractInfo(terra: LCDClient, contractAddress: string): Promise<any> {
+    return await terra.wasm.contractInfo(contractAddress)
+}
+
+export function strToEncodedBinary(data: string) {
+    return Buffer.from(data).toString('base64');
+}
+
+export function toDecodedBinary(data: string) {
+    return Buffer.from(data, 'base64')
 }
 
 export class NativeAsset {
