@@ -22,12 +22,13 @@ use astroport::pair::{
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
 };
-use astroport::querier::NATIVE_TOKEN_PRECISION;
 use astroport_pair_concentrated::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated::queries::query;
 use astroport_pair_concentrated::state::Config;
 use cosmwasm_schema::cw_serde;
 use derivative::Derivative;
+
+const NATIVE_TOKEN_PRECISION: u8 = 6;
 
 const INIT_BALANCE: u128 = 1_000_000_000000;
 

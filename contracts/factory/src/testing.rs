@@ -168,7 +168,7 @@ fn update_config() {
         fee_address: Some(String::from("new_fee_addr")),
         generator_address: Some(String::from("new_generator_addr")),
         whitelist_code_id: None,
-        coin_registry_address: Some("coin_registry".to_string()),
+        coin_registry_address: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -196,7 +196,7 @@ fn update_config() {
         fee_address: None,
         generator_address: None,
         whitelist_code_id: None,
-        coin_registry_address: Some("coin_registry".to_string()),
+        coin_registry_address: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();

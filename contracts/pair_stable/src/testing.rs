@@ -809,7 +809,6 @@ fn try_token_to_native() {
         denom: "uusd".to_string(),
         amount: collateral_pool_amount,
     }]);
-
     deps.querier.with_token_balances(&[
         (
             &String::from("liquidity0000"),
@@ -1289,17 +1288,17 @@ fn mock_env_with_block_time(time: u64) -> Env {
 }
 
 use crate::utils::{accumulate_prices, compute_swap, select_pools};
+pub const NATIVE_TOKEN_PRECISION: u8 = 6;
 use astroport::factory::PairType;
-use astroport::querier::NATIVE_TOKEN_PRECISION;
 use proptest::prelude::*;
 use sim::StableSwapModel;
 
 proptest! {
     #[test]
     fn constant_product_swap_no_fee(
-        balance_in in 100..1_000_000_000_000_000_000u128,
-        balance_out in 100..1_000_000_000_000_000_000u128,
-        amount_in in 100..100_000_000_000u128,
+        balance_in in 1000..1_000_000_000_000_000_000u128,
+        balance_out in 1000..1_000_000_000_000_000_000u128,
+        amount_in in 1000..100_000_000_000u128,
         amp in 1..150u64
     ) {
         prop_assume!(amount_in < balance_in && balance_out > balance_in);

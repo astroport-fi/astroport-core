@@ -8,6 +8,7 @@ use astroport::asset::{Asset, AssetInfo};
 use astroport::oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use astroport::pair::TWAP_PRECISION;
 use astroport::querier::query_pair_info;
+
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal256, Deps, DepsMut, Env, MessageInfo, Response,
     StdError, StdResult, Uint128, Uint256,
@@ -195,7 +196,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
 
     match contract_version.contract.as_ref() {
         "astroport-oracle" => match contract_version.version.as_ref() {
-            "1.0.0" => {
+            "1.0.0" | "1.0.1" | "1.0.2" => {
                 let config = CONFIG.load(deps.storage)?;
                 let price_last_v100 = PRICE_LAST_V100.load(deps.storage)?;
 
@@ -232,9 +233,6 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
                         block_timestamp_last: price_last_v100.block_timestamp_last,
                     },
                 )?;
-            }
-            "2.0.0" => {
-                let config = CONFIG.load(deps.branch().storage)?;
                 for asset_info in &config.asset_infos {
                     store_precisions(deps.branch(), asset_info, &config.factory)?;
                 }

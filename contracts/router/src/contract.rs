@@ -116,7 +116,6 @@ pub fn receive_cw20(
     env: Env,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    let sender = deps.api.addr_validate(&cw20_msg.sender)?;
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::ExecuteSwapOperations {
             operations,
@@ -126,7 +125,7 @@ pub fn receive_cw20(
         } => execute_swap_operations(
             deps,
             env,
-            sender,
+            Addr::unchecked(cw20_msg.sender),
             operations,
             minimum_receive,
             to,
@@ -278,7 +277,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     match contract_version.contract.as_ref() {
         "astroport-router" => match contract_version.version.as_ref() {
-            "1.0.0" => {}
+            "1.0.0" | "1.1.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
@@ -387,21 +386,13 @@ fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), 
     let mut ask_asset_map: HashSet<String> = HashSet::new();
     for operation in operations {
         let (offer_asset, ask_asset) = match operation {
-            SwapOperation::NativeSwap {
-                offer_denom,
-                ask_denom,
-            } => (
-                AssetInfo::NativeToken {
-                    denom: offer_denom.clone(),
-                },
-                AssetInfo::NativeToken {
-                    denom: ask_denom.clone(),
-                },
-            ),
             SwapOperation::AstroSwap {
                 offer_asset_info,
                 ask_asset_info,
             } => (offer_asset_info.clone(), ask_asset_info.clone()),
+            SwapOperation::NativeSwap { .. } => {
+                return Err(ContractError::NativeSwapNotSupported {})
+            }
         };
         offer_asset.check(api)?;
         ask_asset.check(api)?;
@@ -434,10 +425,6 @@ mod testing {
             assert_operations(
                 deps.as_ref().api,
                 &vec![
-                    SwapOperation::NativeSwap {
-                        offer_denom: "uusd".to_string(),
-                        ask_denom: "uluna".to_string(),
-                    },
                     SwapOperation::AstroSwap {
                         offer_asset_info: AssetInfo::NativeToken {
                             denom: "ukrw".to_string(),
@@ -465,10 +452,6 @@ mod testing {
             assert_operations(
                 deps.as_ref().api,
                 &vec![
-                    SwapOperation::NativeSwap {
-                        offer_denom: "uusd".to_string(),
-                        ask_denom: "uluna".to_string(),
-                    },
                     SwapOperation::AstroSwap {
                         offer_asset_info: AssetInfo::NativeToken {
                             denom: "ukrw".to_string(),
@@ -504,10 +487,6 @@ mod testing {
             assert_operations(
                 deps.as_ref().api,
                 &vec![
-                    SwapOperation::NativeSwap {
-                        offer_denom: "uusd".to_string(),
-                        ask_denom: "ukrw".to_string(),
-                    },
                     SwapOperation::AstroSwap {
                         offer_asset_info: AssetInfo::NativeToken {
                             denom: "ukrw".to_string(),

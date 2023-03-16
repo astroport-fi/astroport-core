@@ -82,7 +82,7 @@ pub enum Cw20HookMsg {
         operations: Vec<SwapOperation>,
         /// The minimum amount of tokens to get from a swap
         minimum_receive: Option<Uint128>,
-        ///
+        /// The recipient
         to: Option<String>,
         /// Max spread
         max_spread: Option<Decimal>,

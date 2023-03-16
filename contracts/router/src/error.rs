@@ -22,7 +22,7 @@ pub enum ContractError {
     #[error("Native swap operations are not supported!")]
     NativeSwapNotSupported {},
 
-    #[error("An error occurred during migration")]
+    #[error("Contract can't be migrated!")]
     MigrationError {},
 }
 

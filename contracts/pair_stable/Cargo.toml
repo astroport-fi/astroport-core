@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-stable"
-version = "2.1.0"
+version = "2.1.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport stableswap pair contract implementation"
@@ -37,7 +37,7 @@ cw-utils = "1.0.1"
 [dev-dependencies]
 anyhow = "1.0"
 proptest = "1.0.0"
-sim = { git = "https://github.com/astroport-fi/astroport-sims.git", branch = "main", package = "sim" }
+sim = { git = "https://github.com/astroport-fi/astroport-sims", branch = "main", package = "sim" }
 astroport-token = { path = "../token" }
 cw-multi-test = "0.15"
 astroport-factory = { path = "../factory" }

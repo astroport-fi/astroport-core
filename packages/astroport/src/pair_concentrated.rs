@@ -101,3 +101,6 @@ pub enum QueryMsg {
     #[returns(Decimal256)]
     LpPrice {},
 }
+
+#[cw_serde]
+pub struct MigrateMsg {}

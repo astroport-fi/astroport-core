@@ -139,6 +139,7 @@ impl ControllerHelper {
 
         let controller_code_id = router.store_code(controller_contract);
         let init_msg = astroport_governance::generator_controller::InstantiateMsg {
+            whitelisted_pools: vec![],
             owner: owner.to_string(),
             escrow_addr: escrow_helper.escrow_instance.to_string(),
             generator_addr: generator.to_string(),

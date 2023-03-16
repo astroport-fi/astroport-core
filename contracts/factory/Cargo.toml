@@ -1,6 +1,6 @@
 [package]
 name = "astroport-factory"
-version = "1.4.0"
+version = "1.5.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport factory contract - pair contract generator and directory"
@@ -27,14 +27,14 @@ cosmwasm-std = "1.1"
 astroport = { path = "../../packages/astroport", default-features = false }
 cw-storage-plus = "0.15"
 cw2 = "0.15"
-thiserror = { version = "1.0" }
+thiserror = "1.0"
 protobuf = { version = "2", features = ["with-bytes"] }
 itertools = "0.10"
 cosmwasm-schema = "1.1"
 
 [dev-dependencies]
 cw-multi-test = "0.15"
-astroport-token = {path = "../token"}
-astroport-pair = {path = "../pair"}
-cw20 = { version = "0.15" }
+astroport-token = { path = "../token" }
+astroport-pair = { path = "../pair" }
+cw20 = "0.15"
 anyhow = "1.0"

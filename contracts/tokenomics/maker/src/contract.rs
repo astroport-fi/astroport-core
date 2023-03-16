@@ -2,12 +2,12 @@ use crate::error::ContractError;
 use crate::state::{Config, BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
 use std::cmp::min;
 
-use crate::migration::migrate_to_v120;
+use crate::migration::migrate_to_v110;
 use crate::utils::{
     build_distribute_msg, build_swap_msg, try_build_swap_msg, validate_bridge,
     BRIDGES_EXECUTION_MAX_DEPTH, BRIDGES_INITIAL_DEPTH,
 };
-use astroport::asset::{addr_opt_validate, Asset, AssetInfo, PairInfo};
+use astroport::asset::{addr_opt_validate, Asset, AssetInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
 use astroport::maker::{
@@ -337,7 +337,6 @@ fn swap(
             &bridge_token,
             &cfg.astro_token,
             BRIDGES_INITIAL_DEPTH,
-            Some(amount_in),
         )?;
 
         let msg = build_swap_msg(
@@ -729,7 +728,6 @@ fn update_bridges(
                 &bridge,
                 &astro,
                 BRIDGES_INITIAL_DEPTH,
-                None,
             )?;
 
             BRIDGES.save(deps.storage, asset.to_string(), &bridge)?;
@@ -806,17 +804,6 @@ fn query_bridges(deps: Deps) -> StdResult<Vec<(String, String)>> {
         .collect()
 }
 
-/// Returns asset information for the specified pair.
-///
-/// * **contract_addr** Astroport pair contract address.
-pub fn query_pair(deps: Deps, contract_addr: Addr) -> StdResult<Vec<AssetInfo>> {
-    let res: PairInfo = deps
-        .querier
-        .query_wasm_smart(contract_addr, &astroport::pair::QueryMsg::Pair {})?;
-
-    Ok(res.asset_infos)
-}
-
 /// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
@@ -824,7 +811,8 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
 
     match contract_version.contract.as_ref() {
         "astroport-maker" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.1" | "1.1.0" => migrate_to_v120(deps.branch(), msg)?,
+            "1.0.1" => migrate_to_v110(deps.branch(), msg)?,
+            "1.2.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

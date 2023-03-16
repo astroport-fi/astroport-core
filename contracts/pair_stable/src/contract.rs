@@ -24,11 +24,15 @@ use astroport::pair::{
     migration_check, ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams,
     DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
 };
+
+use crate::migration::migrate_config_to_v210;
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse, StablePoolConfig,
 };
-use astroport::querier::{query_factory_config, query_fee_info, query_supply};
+use astroport::querier::{
+    query_factory_config, query_fee_info, query_supply, query_token_precision,
+};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport::DecimalCheckedOps;
 
@@ -36,7 +40,6 @@ use crate::error::ContractError;
 use crate::math::{
     calc_y, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME,
 };
-use crate::migration::{is_native_registered, CONFIG_V100};
 use crate::state::{get_precision, store_precisions, Config, CONFIG, OWNERSHIP_PROPOSAL};
 use crate::utils::{
     accumulate_prices, adjust_precision, check_asset_infos, check_assets, check_cw20_in_pool,
@@ -50,8 +53,6 @@ const CONTRACT_NAME: &str = "astroport-pair-stable";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// A `reply` call code ID of sub-message.
 const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
-/// An LP token precision.
-const LP_TOKEN_PRECISION: u8 = 6;
 /// Number of assets in the pool.
 const N_COINS: usize = 2;
 
@@ -77,6 +78,11 @@ pub fn instantiate(
 
     if params.amp == 0 || params.amp > MAX_AMP {
         return Err(ContractError::IncorrectAmp {});
+    }
+
+    let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
+    for asset_info in &msg.asset_infos {
+        query_token_precision(&deps.querier, asset_info, &factory_addr)?;
     }
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -123,7 +129,7 @@ pub fn instantiate(
             &TokenInstantiateMsg {
                 name: token_name,
                 symbol: "uLP".to_string(),
-                decimals: LP_TOKEN_PRECISION,
+                decimals: greatest_precision,
                 initial_balances: vec![],
                 mint: Some(MinterResponse {
                     minter: env.contract.address.to_string(),
@@ -219,6 +225,7 @@ pub fn execute(
             belief_price,
             max_spread,
             to,
+            ..
         } => {
             offer_asset.info.check(deps.api)?;
             if !offer_asset.is_native_token() {
@@ -302,11 +309,10 @@ pub fn receive_cw20(
             check_cw20_in_pool(&config, &info.sender)?;
 
             let to_addr = addr_opt_validate(deps.api, &to)?;
-            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
             swap(
                 deps,
                 env,
-                sender,
+                Addr::unchecked(cw20_msg.sender),
                 Asset {
                     info: AssetInfo::Token {
                         contract_addr: info.sender,
@@ -319,10 +325,13 @@ pub fn receive_cw20(
                 to_addr,
             )
         }
-        Cw20HookMsg::WithdrawLiquidity { .. } => {
-            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
-            withdraw_liquidity(deps, env, info, sender, cw20_msg.amount)
-        }
+        Cw20HookMsg::WithdrawLiquidity { .. } => withdraw_liquidity(
+            deps,
+            env,
+            info,
+            Addr::unchecked(cw20_msg.sender),
+            cw20_msg.amount,
+        ),
     }
 }
 
@@ -458,6 +467,11 @@ pub fn provide_liquidity(
             .checked_sub(MINIMUM_LIQUIDITY_AMOUNT)
             .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
 
+        // share cannot become zero after minimum liquidity subtraction
+        if share.is_zero() {
+            return Err(ContractError::MinimumLiquidityAmountError {});
+        }
+
         messages.extend(mint_liquidity_token_message(
             deps.querier,
             &config,
@@ -466,11 +480,6 @@ pub fn provide_liquidity(
             MINIMUM_LIQUIDITY_AMOUNT,
             false,
         )?);
-
-        // share cannot become zero after minimum liquidity subtraction
-        if share.is_zero() {
-            return Err(ContractError::MinimumLiquidityAmountError {});
-        }
 
         share
     } else {
@@ -669,8 +678,8 @@ pub fn swap(
         belief_price,
         max_spread,
         offer_asset.amount,
-        return_amount,
-        spread_amount + commission_amount,
+        return_amount + commission_amount,
+        spread_amount,
     )?;
 
     let receiver = to.unwrap_or_else(|| sender.clone());
@@ -932,7 +941,7 @@ pub fn query_reverse_simulation(
         });
     }
 
-    // Get fee info from factory
+    // Get fee info from the factory
     let fee_info = query_fee_info(
         &deps.querier,
         &config.factory_addr,
@@ -941,7 +950,7 @@ pub fn query_reverse_simulation(
     let before_commission = (Decimal256::one()
         - Decimal256::new(fee_info.total_fee_rate.atomics().into()))
     .inv()
-    .unwrap_or_else(Decimal256::one)
+    .ok_or_else(|| StdError::generic_err("The pool must have less than 100% fee!"))?
     .checked_mul(Decimal256::with_precision(ask_asset.amount, ask_precision)?)?;
 
     let xp = pools.into_iter().map(|pool| pool.amount).collect_vec();
@@ -1060,50 +1069,8 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
 
     match contract_version.contract.as_ref() {
         "astroport-pair-stable" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                let cfg_v100 = CONFIG_V100.load(deps.storage)?;
-
-                let cumulative_prices = vec![
-                    (
-                        cfg_v100.pair_info.asset_infos[0].clone(),
-                        cfg_v100.pair_info.asset_infos[1].clone(),
-                        cfg_v100.price0_cumulative_last,
-                    ),
-                    (
-                        cfg_v100.pair_info.asset_infos[1].clone(),
-                        cfg_v100.pair_info.asset_infos[0].clone(),
-                        cfg_v100.price1_cumulative_last,
-                    ),
-                ];
-                let greatest_precision = store_precisions(
-                    deps.branch(),
-                    &cfg_v100.pair_info.asset_infos,
-                    &cfg_v100.factory_addr,
-                )?;
-
-                CONFIG.save(
-                    deps.storage,
-                    &Config {
-                        owner: None,
-                        pair_info: cfg_v100.pair_info,
-                        factory_addr: cfg_v100.factory_addr,
-                        block_time_last: cfg_v100.block_time_last,
-                        init_amp: cfg_v100.next_amp,
-                        init_amp_time: cfg_v100.init_amp_time,
-                        next_amp: cfg_v100.next_amp,
-                        next_amp_time: cfg_v100.next_amp_time,
-                        greatest_precision,
-                        cumulative_prices,
-                    },
-                )?;
-            }
-            "2.0.0" => {
-                let cfg_v200 = CONFIG.load(deps.storage)?;
-                is_native_registered(
-                    &deps.querier,
-                    &cfg_v200.pair_info.asset_infos,
-                    &cfg_v200.factory_addr,
-                )?;
+            "1.0.0-fix1" | "1.1.0" | "1.1.1" => {
+                migrate_config_to_v210(deps.branch())?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },
@@ -1118,7 +1085,6 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
         .add_attribute("new_contract_name", CONTRACT_NAME)
         .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
-
 /// Returns the total amount of assets in the pool as well as the total amount of LP tokens currently minted.
 pub fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<(Vec<Asset>, Uint128)> {
     let pools = config
@@ -1221,7 +1187,6 @@ fn stop_changing_amp(mut config: Config, deps: DepsMut, env: Env) -> StdResult<(
 
     Ok(())
 }
-
 /// Compute the current pool D value.
 fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
