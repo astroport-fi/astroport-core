@@ -138,7 +138,7 @@ pub fn accumulate_pool_proxy_rewards(
             let reward_debt = rewards_debt_map.get(proxy).cloned().unwrap_or_default();
             let pending_proxy_rewards = rewards_per_share
                 .checked_mul_uint128(user.amount)?
-                .checked_sub(reward_debt)?;
+                .saturating_sub(reward_debt);
 
             Ok((proxy.clone(), pending_proxy_rewards))
         })

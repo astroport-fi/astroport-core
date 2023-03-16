@@ -265,13 +265,12 @@ pub(crate) fn compute_swap(
     pools: &[DecimalAsset],
 ) -> Result<SwapResult, ContractError> {
     let token_precision = get_precision(storage, &ask_pool.info)?;
+    let xp = pools.iter().map(|p| p.amount).collect_vec();
 
     let new_ask_pool = calc_y(
-        offer_asset,
-        &ask_pool.info,
-        offer_pool.amount + offer_asset.amount,
-        pools,
         compute_current_amp(config, env)?,
+        offer_pool.amount + offer_asset.amount,
+        &xp,
         token_precision,
     )?;
 

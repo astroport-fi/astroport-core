@@ -3,7 +3,7 @@ use cosmwasm_std::{
 };
 use cw20::{EmbeddedLogo, Logo, LogoInfo, MarketingInfoResponse};
 
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20_base::contract::{create_accounts, execute as cw20_execute, query as cw20_query};
 use cw20_base::msg::{ExecuteMsg, QueryMsg};
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
@@ -89,11 +89,9 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    // Check valid token info
+    // check valid token info
     msg.validate()?;
-
-    // Create initial accounts
+    // create initial accounts
     let total_supply = create_accounts(&mut deps, &msg.initial_balances)?;
 
     // Check supply cap
@@ -119,7 +117,6 @@ pub fn instantiate(
         total_supply,
         mint,
     };
-
     TOKEN_INFO.save(deps.storage, &data)?;
 
     if let Some(marketing) = msg.marketing {
@@ -165,6 +162,31 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// Manages contract migration.
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::default())
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-token" => match contract_version.version.as_ref() {
+            "1.0.0" | "1.1.0" => {}
+            _ => {
+                return Err(StdError::generic_err(
+                    "Cannot migrate. Unsupported contract version",
+                ))
+            }
+        },
+        _ => {
+            return Err(StdError::generic_err(
+                "Cannot migrate. Unsupported contract name",
+            ))
+        }
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

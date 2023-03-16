@@ -77,7 +77,10 @@ pub enum Cw20HookMsg {
         to: Option<String>,
     },
     /// Withdraw liquidity from the pool
-    WithdrawLiquidity { assets: Vec<Asset> },
+    WithdrawLiquidity {
+        #[serde(default)]
+        assets: Vec<Asset>,
+    },
 }
 
 /// This structure describes the query messages available in the contract.
@@ -263,5 +266,11 @@ mod tests {
         .unwrap();
 
         let _: ConfigResponse = from_binary(&ser_msg).unwrap();
+    }
+
+    #[test]
+    fn check_empty_vec_deserialization() {
+        let variant: Cw20HookMsg = from_slice(br#"{"withdraw_liquidity": {} }"#).unwrap();
+        assert_eq!(variant, Cw20HookMsg::WithdrawLiquidity { assets: vec![] });
     }
 }

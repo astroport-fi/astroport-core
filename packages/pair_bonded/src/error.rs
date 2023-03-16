@@ -33,6 +33,9 @@ pub enum ContractError {
 
     #[error("Operation is not supported for this pool.")]
     NotSupported {},
+
+    #[error("Failed to migrate the contract")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {

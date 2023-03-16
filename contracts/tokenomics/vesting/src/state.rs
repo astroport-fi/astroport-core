@@ -44,7 +44,6 @@ pub fn read_vesting_infos(
 ) -> StdResult<Vec<(Addr, VestingInfo)>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start_after = start_after.as_ref().map(Bound::exclusive);
-
     let (start, end) = match &order_by {
         Some(OrderBy::Asc) => (start_after, None),
         _ => (None, start_after),

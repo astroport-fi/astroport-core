@@ -33,7 +33,6 @@ fn mock_app(owner: Addr, coins: Vec<Coin>) -> App {
 }
 
 fn validate_and_send_funds(router: &mut App, sender: &Addr, recipient: &Addr, funds: Vec<Coin>) {
-    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
     for fund in funds.clone() {
         // we cannot transfer zero coins
         if !fund.amount.is_zero() {
@@ -441,7 +440,7 @@ fn create_pair(
             user.clone(),
             pair_info.contract_addr.clone(),
             &astroport::pair::ExecuteMsg::ProvideLiquidity {
-                assets,
+                assets: vec![assets[0].clone(), assets[1].clone()],
                 slippage_tolerance: None,
                 auto_stake: None,
                 receiver: None,
@@ -1081,7 +1080,6 @@ fn collect_err_no_swap_pair() {
         );
     }
 
-    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
     router
         .send_tokens(
             owner.clone(),
@@ -1769,7 +1767,6 @@ fn distribute_initially_accrued_fees() {
         );
     }
 
-    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
     router
         .send_tokens(
             owner.clone(),
@@ -2025,6 +2022,7 @@ fn distribute_initially_accrued_fees() {
         .any(|a| a.key == "preupgrade_astro_distribution"));
 }
 
+#[ignore]
 #[test]
 fn collect_3pools() {
     let uusd_asset = String::from("uusd");

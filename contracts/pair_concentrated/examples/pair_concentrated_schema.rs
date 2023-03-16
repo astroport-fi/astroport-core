@@ -1,6 +1,6 @@
+use astroport::pair::{ExecuteMsg, InstantiateMsg, MigrateMsg};
+use astroport::pair_concentrated::QueryMsg;
 use cosmwasm_schema::write_api;
-
-use astroport::generator_proxy::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 fn main() {
     write_api! {

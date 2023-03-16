@@ -958,7 +958,6 @@ fn try_token_to_native() {
         denom: "uusd".to_string(),
         amount: collateral_pool_amount,
     }]);
-
     deps.querier.with_token_balances(&[
         (
             &String::from("liquidity0000"),
@@ -1200,6 +1199,36 @@ fn test_max_spread() {
         Uint128::zero(),
     )
     .unwrap_err();
+}
+
+#[test]
+#[ignore]
+fn test_deduct() {
+    let deps = mock_dependencies(&[]);
+
+    let tax_rate = Decimal::percent(2);
+    let tax_cap = Uint128::from(1_000_000u128);
+    // deps.querier.with_tax(
+    //     Decimal::percent(2),
+    //     &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
+    // );
+
+    let amount = Uint128::new(1000_000_000u128);
+    let expected_after_amount = std::cmp::max(
+        amount.checked_sub(amount * tax_rate).unwrap(),
+        amount.checked_sub(tax_cap).unwrap(),
+    );
+
+    let after_amount = (Asset {
+        info: AssetInfo::NativeToken {
+            denom: "uusd".to_string(),
+        },
+        amount,
+    })
+    .deduct_tax(&deps.as_ref().querier)
+    .unwrap();
+
+    assert_eq!(expected_after_amount, after_amount.amount);
 }
 
 #[test]

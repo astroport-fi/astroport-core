@@ -35,6 +35,9 @@ pub enum ContractError {
     #[error("Asset mismatch between the requested and the stored asset in contract")]
     AssetMismatch {},
 
+    #[error("Pair type mismatch. Check factory pair configs")]
+    PairTypeMismatch {},
+
     #[error("Generator address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
 
@@ -43,6 +46,9 @@ pub enum ContractError {
 
     #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
     MinimumLiquidityAmountError {},
+
+    #[error("Failed to migrate the contract")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {

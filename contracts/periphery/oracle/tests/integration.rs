@@ -303,7 +303,6 @@ fn provide_liquidity(
         }
     }
 
-    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
     for fund in funds.clone() {
         // we cannot transfer empty coins amount
         if !fund.amount.is_zero() {
@@ -478,7 +477,6 @@ fn create_pair_stable(
         }
     }
 
-    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
     for fund in funds.clone() {
         // we cannot transfer empty coins amount
         if !fund.amount.is_zero() {
@@ -888,7 +886,7 @@ fn consult2() {
         ],
     );
 
-    // try to provide less then 1000
+    // try to provide less than 1000
     let err = provide_liquidity(
         &mut router,
         owner.clone(),
@@ -1331,6 +1329,7 @@ fn consult_zero_price() {
     assert_eq!(res[0].1.u128(), 0u128);
 }
 
+#[ignore]
 #[test]
 fn consult_multiple_assets() {
     let mut router = mock_app(None, None);

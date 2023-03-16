@@ -3,17 +3,18 @@ use std::fmt;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    from_slice, to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError, CosmosMsg,
-    Decimal256, Fraction, MessageInfo, QuerierWrapper, StdError, StdResult, Uint128, Uint256,
-    WasmMsg,
+    to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError, CosmosMsg, Decimal256, Fraction,
+    MessageInfo, QuerierWrapper, StdError, StdResult, Uint128, Uint256, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
+use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_utils::must_pay;
 use itertools::Itertools;
 
-use crate::factory::{Config, PairType};
+use crate::factory::PairType;
 use crate::pair::QueryMsg as PairQueryMsg;
-use crate::querier::{query_balance, query_token_balance, query_token_symbol};
+use crate::querier::{
+    query_balance, query_token_balance, query_token_precision, query_token_symbol,
+};
 
 /// UST token denomination
 pub const UUSD_DENOM: &str = "uusd";
@@ -237,49 +238,9 @@ impl AssetInfo {
         }
     }
 
-    /// Returns the number of decimals that a native token has.
-    pub fn query_native_precision(
-        &self,
-        querier: &QuerierWrapper,
-        denom: &String,
-        factory_addr: &Addr,
-    ) -> StdResult<u8> {
-        if let Some(res) = querier.query_wasm_raw(factory_addr, b"config".as_slice())? {
-            let res: Config = from_slice(&res)?;
-            let result = ap_native_coin_registry::COINS_INFO.query(
-                querier,
-                res.coin_registry_address,
-                denom.to_string(),
-            )?;
-
-            if let Some(decimals) = result {
-                Ok(decimals)
-            } else {
-                Err(StdError::generic_err(format!(
-                    "The coin precision not found: {}",
-                    denom
-                )))
-            }
-        } else {
-            Err(StdError::generic_err("The factory config not found!"))
-        }
-    }
-
     /// Returns the number of decimals that a token has.
     pub fn decimals(&self, querier: &QuerierWrapper, factory_addr: &Addr) -> StdResult<u8> {
-        let decimals = match &self {
-            AssetInfo::NativeToken { denom } => {
-                self.query_native_precision(querier, denom, factory_addr)?
-            }
-            AssetInfo::Token { contract_addr } => {
-                let res: TokenInfoResponse =
-                    querier.query_wasm_smart(contract_addr, &Cw20QueryMsg::TokenInfo {})?;
-
-                res.decimals
-            }
-        };
-
-        Ok(decimals)
+        query_token_precision(querier, self, factory_addr)
     }
 
     /// Returns **true** if the calling token is the same as the token specified in the input parameters.
@@ -363,7 +324,6 @@ impl PairInfo {
         factory_addr: &Addr,
     ) -> StdResult<Vec<DecimalAsset>> {
         let contract_addr = contract_addr.into();
-
         self.asset_infos
             .iter()
             .map(|asset_info| {
