@@ -39,6 +39,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ap-native-coin-wrapper"
+version = "1.0.0"
+dependencies = [
+ "astroport 2.4.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw20 0.15.1",
+]
+
+[[package]]
 name = "ap-valkyrie"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts?branch=merge/release#d9444be9ec71be8f7aa8130d0c8ee4ddf6be69d6"
@@ -215,6 +225,23 @@ dependencies = [
  "cw-multi-test",
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-native-coin-wrapper"
+version = "0.1.0"
+dependencies = [
+ "ap-native-coin-wrapper",
+ "astroport 2.4.0",
+ "astroport-token",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus 0.15.1",
+ "cw-utils 0.15.1",
+ "cw2 0.15.1",
+ "cw20 0.15.1",
  "thiserror",
 ]
 
