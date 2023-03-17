@@ -50,7 +50,7 @@ impl<'a> PairBonded<'a> for Contract<'a> {
         // We should subtract the user deposit from the pool offer asset amount
         let pools = config
             .pair_info
-            .query_pools(&deps.querier, env.contract.address.clone())?
+            .query_pools(&deps.querier, &env.contract.address)?
             .into_iter()
             .map(|mut p| {
                 if p.info.equal(&offer_asset.info) {
@@ -138,12 +138,9 @@ impl<'a> PairBonded<'a> for Contract<'a> {
 
         let params = self.params.load(deps.storage)?;
 
-        let total_deposit = query_token_balance(
-            &deps.querier,
-            params.astro_addr.clone(),
-            params.staking_addr,
-        )?;
-        let total_shares = query_supply(&deps.querier, params.xastro_addr)?;
+        let total_deposit =
+            query_token_balance(&deps.querier, &params.astro_addr, &params.staking_addr)?;
+        let total_shares = query_supply(&deps.querier, &params.xastro_addr)?;
 
         let return_amount = if offer_asset.info.equal(&AssetInfo::Token {
             contract_addr: params.astro_addr,
@@ -188,12 +185,9 @@ impl<'a> PairBonded<'a> for Contract<'a> {
 
         let params = self.params.load(deps.storage)?;
 
-        let total_deposit = query_token_balance(
-            &deps.querier,
-            params.astro_addr.clone(),
-            params.staking_addr,
-        )?;
-        let total_shares = query_supply(&deps.querier, params.xastro_addr)?;
+        let total_deposit =
+            query_token_balance(&deps.querier, &params.astro_addr, &params.staking_addr)?;
+        let total_shares = query_supply(&deps.querier, &params.xastro_addr)?;
 
         let offer_amount = if ask_asset.info.equal(&AssetInfo::Token {
             contract_addr: params.astro_addr,

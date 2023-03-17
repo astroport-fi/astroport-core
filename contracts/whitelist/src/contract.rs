@@ -1,7 +1,8 @@
 use cosmwasm_std::{
-    entry_point, Addr, Api, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
+    entry_point, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
 };
 
+use astroport::common::validate_addresses;
 use cw1_whitelist::contract::{execute as cw1_execute, query as cw1_query};
 use cw1_whitelist::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use cw1_whitelist::state::{AdminList, ADMIN_LIST};
@@ -27,10 +28,6 @@ pub fn instantiate(
     };
     ADMIN_LIST.save(deps.storage, &cfg)?;
     Ok(Response::default())
-}
-
-pub fn validate_addresses(api: &dyn Api, admins: &[String]) -> StdResult<Vec<Addr>> {
-    admins.iter().map(|addr| api.addr_validate(addr)).collect()
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

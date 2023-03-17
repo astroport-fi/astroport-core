@@ -1,11 +1,9 @@
 use crate::contract::{execute, instantiate, query_balance, query_balance_at};
 use crate::state::get_total_supply_at;
 use astroport::xastro_token::InstantiateMsg;
-use cosmwasm_std::testing::{
-    mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info, MOCK_CONTRACT_ADDR,
-};
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    coins, Addr, Binary, BlockInfo, ContractInfo, CosmosMsg, Deps, DepsMut, Env, StdError, SubMsg,
+    Addr, Binary, BlockInfo, ContractInfo, CosmosMsg, Deps, DepsMut, Env, StdError, SubMsg,
     Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20Coin, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
@@ -348,7 +346,7 @@ fn instantiate_multiple_accounts() {
 
 #[test]
 fn transfer() {
-    let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+    let mut deps = mock_dependencies();
     let addr1 = String::from("addr0001");
     let addr2 = String::from("addr0002");
     let amount1 = Uint128::from(12340000u128);
@@ -423,7 +421,7 @@ fn transfer() {
 
 #[test]
 fn burn() {
-    let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+    let mut deps = mock_dependencies();
     let addr1 = String::from("addr0001");
     let amount1 = Uint128::from(12340000u128);
     let burn = Uint128::from(76543u128);
@@ -484,7 +482,7 @@ fn burn() {
 
 #[test]
 fn send() {
-    let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+    let mut deps = mock_dependencies();
     let addr1 = String::from("addr0001");
     let contract = String::from("addr0002");
     let amount1 = Uint128::from(12340000u128);

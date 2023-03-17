@@ -1,5 +1,6 @@
 use cosmwasm_std::{Addr, Decimal};
 use cw_multi_test::{next_block, Executor};
+use itertools::Itertools;
 
 use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::pair::ExecuteMsg;
@@ -791,8 +792,21 @@ fn check_prices() {
     let check_prices = |helper: &Helper| {
         let prices = helper.query_prices().unwrap();
 
-        assert!(!prices.price0_cumulative_last.is_zero());
-        assert!(!prices.price1_cumulative_last.is_zero());
+        test_coins
+            .iter()
+            .cartesian_product(test_coins.iter())
+            .filter(|(a, b)| a != b)
+            .for_each(|(from_coin, to_coin)| {
+                let price = prices
+                    .cumulative_prices
+                    .iter()
+                    .filter(|(from, to, _)| {
+                        from.eq(&helper.assets[from_coin]) && to.eq(&helper.assets[to_coin])
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(price.len(), 1);
+                assert!(!price[0].2.is_zero());
+            });
     };
 
     let assets = vec![

@@ -9,9 +9,10 @@ use crate::utils::{
 use astroport::asset::Asset;
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::pair::{
-    CumulativePricesResponse, PoolResponse, ReverseSimulationResponse, SimulationResponse,
+    ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
+    SimulationResponse,
 };
-use astroport::pair_concentrated::{ConcentratedPoolParams, ConfigResponse, QueryMsg};
+use astroport::pair_concentrated::{ConcentratedPoolParams, QueryMsg};
 use astroport::querier::{query_fee_info, query_supply};
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal, Decimal256, Deps, Env, StdError, StdResult, Uint128,
@@ -210,8 +211,7 @@ fn query_cumulative_prices(
     Ok(CumulativePricesResponse {
         assets,
         total_share,
-        price0_cumulative_last: config.cumulative_prices[0].2,
-        price1_cumulative_last: config.cumulative_prices[1].2,
+        cumulative_prices: config.cumulative_prices,
     })
 }
 

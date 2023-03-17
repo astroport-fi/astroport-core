@@ -11,7 +11,9 @@ use cw20_base::allowances::{
 };
 
 use crate::state::{capture_total_supply_history, get_total_supply_at, BALANCES};
-use cw2::set_contract_version;
+use astroport::asset::addr_opt_validate;
+use astroport::xastro_token::{InstantiateMsg, MigrateMsg, QueryMsg};
+use cw2::{get_contract_version, set_contract_version};
 use cw20_base::contract::{
     execute_update_marketing, execute_upload_logo, query_download_logo, query_marketing_info,
     query_minter, query_token_info,
@@ -21,8 +23,6 @@ use cw20_base::msg::ExecuteMsg;
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw20_base::ContractError;
 use cw_storage_plus::Bound;
-
-use astroport::xastro_token::{InstantiateMsg, QueryMsg};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-xastro-token";
@@ -96,17 +96,7 @@ fn verify_logo(logo: &Logo) -> Result<(), ContractError> {
     }
 }
 
-/// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns a default object of type [`Response`] if the operation was successful,
-/// or a [`ContractError`] if the contract was not created.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_info** is an object of type [`MessageInfo`].
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the parameterss for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     mut deps: DepsMut,
@@ -179,14 +169,9 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-/// ## Description
 /// Mints tokens for specific accounts.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **accounts** is the array of objects of type [`Cw20Coin`]. These are the accounts for which to mint tokens.
+/// * **accounts** array with accounts for which to mint tokens.
 pub fn create_accounts(deps: &mut DepsMut, env: &Env, accounts: &[Cw20Coin]) -> StdResult<Uint128> {
     let mut total_supply = Uint128::zero();
 
@@ -199,18 +184,9 @@ pub fn create_accounts(deps: &mut DepsMut, env: &Env, accounts: &[Cw20Coin]) -> 
     Ok(total_supply)
 }
 
-/// ## Description
 /// Exposes execute functions available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **msg** is an object of type [`ExecuteMsg`].
-///
-/// ## Queries
+/// ## Variants
 /// * **ExecuteMsg::Transfer { recipient, amount }** Transfers tokens to recipient.
 ///
 /// * **ExecuteMsg::Burn { amount }** Burns tokens.
@@ -282,19 +258,7 @@ pub fn execute(
     }
 }
 
-/// ## Description
-/// Executes a token transfer. Returns a [`ContractError`] on
-/// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **recipient** is an object of type [`String`]. This is the transfer recipient.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount to transfer.
+/// Executes a token transfer.
 pub fn execute_transfer(
     deps: DepsMut,
     env: Env,
@@ -312,36 +276,26 @@ pub fn execute_transfer(
         deps.storage,
         &info.sender,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_sub(amount)?) },
     )?;
     BALANCES.update(
         deps.storage,
         &rcpt_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
     )?;
 
-    let res = Response::new()
-        .add_attribute("action", "transfer")
-        .add_attribute("from", info.sender)
-        .add_attribute("to", recipient)
-        .add_attribute("amount", amount);
-    Ok(res)
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "transfer"),
+        attr("from", info.sender),
+        attr("to", rcpt_addr),
+        attr("amount", amount),
+    ]))
 }
 
-/// ## Description
-/// Executes a token burn. Returns a [`ContractError`] on
-/// failure, otherwise returns tahe [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Burns a token.
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of tokens that the function caller wants to burn from their own account.
+/// * **amount** amount of tokens that the function caller wants to burn from their own account.
 pub fn execute_burn(
     deps: DepsMut,
     env: Env,
@@ -357,9 +311,7 @@ pub fn execute_burn(
         deps.storage,
         &info.sender,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_sub(amount)?) },
     )?;
 
     // Reduce total_supply
@@ -370,26 +322,15 @@ pub fn execute_burn(
 
     capture_total_supply_history(deps.storage, &env, token_info.total_supply)?;
 
-    let res = Response::new()
-        .add_attribute("action", "burn")
-        .add_attribute("from", info.sender)
-        .add_attribute("amount", amount);
+    let res = Response::new().add_attributes(vec![
+        attr("action", "burn"),
+        attr("from", info.sender),
+        attr("amount", amount),
+    ]);
     Ok(res)
 }
 
-/// ## Description
-/// Executes a token mint. Returns a [`ContractError`] on
-/// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **recipient** is an object of type [`String`]. This is the mint recipient.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of tokens to mint.
+/// Mints a token.
 pub fn execute_mint(
     deps: DepsMut,
     env: Env,
@@ -412,7 +353,10 @@ pub fn execute_mint(
     }
 
     // Update supply and enforce cap
-    config.total_supply += amount;
+    config.total_supply = config
+        .total_supply
+        .checked_add(amount)
+        .map_err(StdError::from)?;
     if let Some(limit) = config.get_cap() {
         if config.total_supply > limit {
             return Err(ContractError::CannotExceedCap {});
@@ -429,31 +373,23 @@ pub fn execute_mint(
         deps.storage,
         &rcpt_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
     )?;
 
-    let res = Response::new()
-        .add_attribute("action", "mint")
-        .add_attribute("to", recipient)
-        .add_attribute("amount", amount);
-    Ok(res)
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "mint"),
+        attr("to", rcpt_addr),
+        attr("amount", amount),
+    ]))
 }
 
-/// ## Description
-/// Executes a token send. Returns a [`ContractError`] on
-/// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Executes a token send.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **contract** token contract.
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * **amount** amount of tokens to send.
 ///
-/// * **contract** is an object of type [`String`]. Token contract to call.
-///
-/// * **amount** is an object of type [`Uint128`]. Amount of tokens to send.
-///
-/// * **msg** is an object of type [`Binary`].
+/// * **msg** internal serialized message.
 pub fn execute_send(
     deps: DepsMut,
     env: Env,
@@ -473,22 +409,22 @@ pub fn execute_send(
         deps.storage,
         &info.sender,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_sub(amount)?) },
     )?;
     BALANCES.update(
         deps.storage,
         &rcpt_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
     )?;
 
     let res = Response::new()
-        .add_attribute("action", "send")
-        .add_attribute("from", &info.sender)
-        .add_attribute("to", &contract)
-        .add_attribute("amount", amount)
+        .add_attributes(vec![
+            attr("action", "send"),
+            attr("from", &info.sender),
+            attr("to", &rcpt_addr),
+            attr("amount", amount),
+        ])
         .add_message(
             Cw20ReceiveMsg {
                 sender: info.sender.into(),
@@ -500,21 +436,13 @@ pub fn execute_send(
     Ok(res)
 }
 
-/// ## Description
-/// Executes a transfer from. Returns a [`ContractError`] on
-/// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Executes a transfer from.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **owner** account from which to transfer tokens.
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * **recipient** transfer recipient.
 ///
-/// * **owner** is an object of type [`String`]. This is the account from which to transfer tokens.
-///
-/// * **recipient** is an object of type [`String`]. This is the transfer recipient.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount to transfer.
+/// * **amount** amount to transfer.
 pub fn execute_transfer_from(
     deps: DepsMut,
     env: Env,
@@ -533,15 +461,13 @@ pub fn execute_transfer_from(
         deps.storage,
         &owner_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_sub(amount)?) },
     )?;
     BALANCES.update(
         deps.storage,
         &rcpt_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_add(amount)?) },
     )?;
 
     let res = Response::new().add_attributes(vec![
@@ -554,19 +480,11 @@ pub fn execute_transfer_from(
     Ok(res)
 }
 
-/// ## Description
-/// Executes a burn from. Returns a [`ContractError`] on
-/// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Executes a burn from.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **owner** account from which to burn tokens.
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **owner** is an object of type [`String`]. This is the account from which to burn tokens.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of tokens to burn.
+/// * **amount** amount of tokens to burn.
 pub fn execute_burn_from(
     deps: DepsMut,
     env: Env,
@@ -584,9 +502,7 @@ pub fn execute_burn_from(
         deps.storage,
         &owner_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_sub(amount)?) },
     )?;
 
     // Reduce total_supply
@@ -606,23 +522,15 @@ pub fn execute_burn_from(
     Ok(res)
 }
 
-/// ## Description
-/// Executes a send from. Returns a [`ContractError`] on
-/// failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Executes a send from.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **owner** account from which to send tokens.
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * **contract** token contract address.
 ///
-/// * **owner** is an object of type [`String`]. This is the account from which to send tokens.
+/// * **amount** amount of tokens to send.
 ///
-/// * **contract** is an object of type [`String`]. This is the token contract address.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of tokens to send.
-///
-/// * **msg** is an object of type [`Binary`].
+/// * **msg** internal serialized message.
 pub fn execute_send_from(
     deps: DepsMut,
     env: Env,
@@ -643,45 +551,35 @@ pub fn execute_send_from(
         deps.storage,
         &owner_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_sub(amount)?) },
     )?;
     BALANCES.update(
         deps.storage,
         &rcpt_addr,
         env.block.height,
-        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+        |balance| -> StdResult<_> { Ok(balance.unwrap_or_default().checked_add(amount)?) },
     )?;
 
-    let attrs = vec![
-        attr("action", "send_from"),
-        attr("from", &owner),
-        attr("to", &contract),
-        attr("by", &info.sender),
-        attr("amount", amount),
-    ];
-
-    // Create a send message
-    let msg = Cw20ReceiveMsg {
-        sender: info.sender.into(),
-        amount,
-        msg,
-    }
-    .into_cosmos_msg(contract)?;
-
-    let res = Response::new().add_message(msg).add_attributes(attrs);
+    let res = Response::new()
+        .add_attributes(vec![
+            attr("action", "send_from"),
+            attr("from", &owner),
+            attr("to", &contract),
+            attr("by", &info.sender),
+            attr("amount", amount),
+        ])
+        .add_message(
+            Cw20ReceiveMsg {
+                sender: info.sender.into(),
+                amount,
+                msg,
+            }
+            .into_cosmos_msg(contract)?,
+        );
     Ok(res)
 }
 
-/// ## Description
 /// Exposes all the queries available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
 /// * **Balance { address: String }** Returns the current balance of the given address, 0 if unset.
@@ -738,12 +636,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// ## Description
-/// Returns an [`StdError`] on failure, otherwise returns the specified account's balance.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **address** is an object of type [`String`]. The address for which we query the balance.
+/// Returns the specified account's balance.
 pub fn query_balance(deps: Deps, address: String) -> StdResult<BalanceResponse> {
     let address = deps.api.addr_validate(&address)?;
     let balance = BALANCES
@@ -752,14 +645,7 @@ pub fn query_balance(deps: Deps, address: String) -> StdResult<BalanceResponse> 
     Ok(BalanceResponse { balance })
 }
 
-/// ## Description
-/// Returns a [`StdError`] on failure, otherwise returns the balance of the given address at the given block.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **address** is an object of type [`String`]. The address for which to return the balance.
-///
-/// * **block** is an object of type [`u64`]. The block at which to query the address' balance.
+/// Returns the balance of the given address at the given block.
 pub fn query_balance_at(deps: Deps, address: String, block: u64) -> StdResult<BalanceResponse> {
     let address = deps.api.addr_validate(&address)?;
     let balance = BALANCES
@@ -768,30 +654,54 @@ pub fn query_balance_at(deps: Deps, address: String, block: u64) -> StdResult<Ba
     Ok(BalanceResponse { balance })
 }
 
-/// ## Description
-/// Returns a [`StdError`] on failure, otherwise returns the current balances of multiple accounts.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// Returns the current balances of multiple accounts.
 ///
-/// * **start_after** is an [`Option`] field object of type [`String`]. The account from which to start querying for balances.
+/// * **start_after** account from which to start querying for balances.
 ///
-/// * **limit** is an [`Option`] field object of type [`u32`]. This is the amount of account balances to return.
+/// * **limit** amount of account balances to return.
 pub fn query_all_accounts(
     deps: Deps,
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> StdResult<AllAccountsResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after
-        .map(|addr_str| deps.api.addr_validate(&addr_str))
-        .transpose()?;
+    let start = addr_opt_validate(deps.api, &start_after)?;
     let start = start.as_ref().map(Bound::exclusive);
 
     let accounts = BALANCES
         .keys(deps.storage, start, None, Order::Ascending)
         .take(limit)
-        .map(|addr| addr.map(String::from))
-        .collect::<StdResult<Vec<_>>>()?;
+        .map(|addr| addr.map(Into::into))
+        .collect::<StdResult<_>>()?;
 
     Ok(AllAccountsResponse { accounts })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-xastro-token" => match contract_version.version.as_ref() {
+            "1.0.0" | "1.0.1" => {}
+            _ => {
+                return Err(StdError::generic_err(
+                    "Cannot migrate. Unsupported contract version",
+                ))
+            }
+        },
+        _ => {
+            return Err(StdError::generic_err(
+                "Cannot migrate. Unsupported contract name",
+            ))
+        }
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

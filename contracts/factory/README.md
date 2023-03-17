@@ -161,6 +161,19 @@ Used to claim contract ownership.
 }
 ```
 
+
+### `mark_as_migrated`
+
+Mark pairs as migrated.
+
+```json
+  {
+    "mark_as_migrated": {
+      "pairs": ["terra...", "terra..."]
+    }
+  }
+```
+
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.
@@ -241,5 +254,15 @@ Returns a vector that contains blacklisted pair types.
 ```json
 {
   "blacklisted_pair_types": {}
+}
+```
+
+### `pairs_to_migrate`
+
+Returns a vector that contains pair addresses that are not migrated.
+
+```json
+{
+  "pairs_to_migrate": {}
 }
 ```

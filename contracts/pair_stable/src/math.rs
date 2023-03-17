@@ -1,138 +1,80 @@
-use std::convert::TryFrom;
+use cosmwasm_std::{Decimal256, StdError, StdResult, Uint128, Uint64};
 
-use astroport::U256;
+use astroport::asset::Decimal256Ext;
 
-const N_COINS_SQUARED: u8 = 4;
-const ITERATIONS: u8 = 32;
+/// The maximum number of calculation steps for Newton's method.
+const ITERATIONS: u8 = 64;
 
-pub const N_COINS: u8 = 2;
 pub const MAX_AMP: u64 = 1_000_000;
 pub const MAX_AMP_CHANGE: u64 = 10;
 pub const MIN_AMP_CHANGING_TIME: u64 = 86400;
 pub const AMP_PRECISION: u64 = 100;
+/// N = 2
+pub const N_COINS: Decimal256 = Decimal256::raw(2000000000000000000);
+/// 1e-6
+pub const TOL: Decimal256 = Decimal256::raw(1000000000000);
 
-/// ## Description
-/// Calculates the ask amount (the amount of tokens swapped to).
-/// ## Params
-/// * **offer_pool** is an object of type [`u128`]. This is the amount of offer tokens currently in a stableswap pool.
-///
-/// * **ask_pool** is an object of type [`u128`]. This is the amount of ask tokens currently in a stableswap pool.
-///
-/// * **offer_amount** is an object of type [`u128`]. This is the amount of offer tokens to swap.
-///
-/// * **amp** is an object of type [`u64`]. This is the pool's amplification parameter.
-pub fn calc_ask_amount(
-    offer_pool: u128,
-    ask_pool: u128,
-    offer_amount: u128,
-    amp: u64,
-) -> Option<u128> {
-    let leverage = amp.checked_mul(u64::from(N_COINS)).unwrap();
-    let new_offer_pool = offer_pool + offer_amount;
-
-    let d = compute_d(leverage, offer_pool, ask_pool).unwrap();
-
-    let new_ask_pool = compute_new_balance(leverage, new_offer_pool, d)?;
-
-    let amount_swapped = ask_pool - new_ask_pool;
-    Some(amount_swapped)
-}
-
-/// ## Description
-/// Calculates the amount to be swapped (the offer amount).
-/// ## Params
-/// * **offer_pool** is an object of type [`u128`]. This is the amount of offer tokens currently in a stableswap pool.
-///
-/// * **ask_pool** is an object of type [`u128`]. This is the amount of ask tokens currently in a stableswap pool.
-///
-/// * **ask_amount** is an object of type [`u128`]. This is the amount of ask tokens to swap.
-///
-/// * **amp** is an object of type [`u64`]. This is the pool's amplification parameter.
-pub fn calc_offer_amount(
-    offer_pool: u128,
-    ask_pool: u128,
-    ask_amount: u128,
-    amp: u64,
-) -> Option<u128> {
-    let leverage = amp.checked_mul(u64::from(N_COINS)).unwrap();
-    let new_ask_pool = ask_pool - ask_amount;
-
-    let d = compute_d(leverage, offer_pool, ask_pool).unwrap();
-
-    let new_offer_pool = compute_new_balance(leverage, new_ask_pool, d)?;
-
-    let amount_swapped = new_offer_pool - offer_pool;
-    Some(amount_swapped)
-}
-
-/// ## Description
 /// Computes the stableswap invariant (D).
 ///
 /// * **Equation**
 ///
 /// A * sum(x_i) * n**n + D = A * D * n**n + D**(n+1) / (n**n * prod(x_i))
 ///
-/// ## Params
-/// * **leverage** is an object of type [`u128`].
-///
-/// * **amount_a** is an object of type [`u128`].
-///
-/// * **amount_b** is an object of type [`u128`].
-pub fn compute_d(leverage: u64, amount_a: u128, amount_b: u128) -> Option<u128> {
-    let amount_a_times_coins =
-        checked_u8_mul(&U256::from(amount_a), N_COINS)?.checked_add(U256::one())?;
-    let amount_b_times_coins =
-        checked_u8_mul(&U256::from(amount_b), N_COINS)?.checked_add(U256::one())?;
-    let sum_x = amount_a.checked_add(amount_b)?; // sum(x_i), a.k.a S
-    if sum_x == 0 {
-        Some(0)
+pub(crate) fn compute_d(amp: Uint64, pools: &[Decimal256]) -> StdResult<Decimal256> {
+    let leverage = Decimal256::from_ratio(amp, AMP_PRECISION) * N_COINS;
+    let amount_a_times_coins = pools[0] * N_COINS;
+    let amount_b_times_coins = pools[1] * N_COINS;
+
+    let sum_x = pools[0].checked_add(pools[1])?; // sum(x_i), a.k.a S
+    if sum_x.is_zero() {
+        Ok(Decimal256::zero())
     } else {
-        let mut d_previous: U256;
-        let mut d: U256 = sum_x.into();
+        let mut d_previous: Decimal256;
+        let mut d: Decimal256 = sum_x;
 
         // Newton's method to approximate D
         for _ in 0..ITERATIONS {
-            let mut d_product = d;
-            d_product = d_product
-                .checked_mul(d)?
-                .checked_div(amount_a_times_coins)?;
-            d_product = d_product
-                .checked_mul(d)?
-                .checked_div(amount_b_times_coins)?;
+            let d_product = d.pow(3) / (amount_a_times_coins * amount_b_times_coins);
             d_previous = d;
-            // d = (leverage * sum_x + d_p * n_coins) * d / ((leverage - 1) * d + (n_coins + 1) * d_p);
-            d = calculate_step(&d, leverage, sum_x, &d_product)?;
-            // Equality with the precision of 1
-            if d == d_previous {
-                break;
+            d = calculate_step(d, leverage, sum_x, d_product)?;
+            // Equality with the precision of 1e-6
+            if d.abs_diff(d_previous) <= TOL {
+                return Ok(d);
             }
         }
-        u128::try_from(d).ok()
+
+        Err(StdError::generic_err(
+            "Newton method for D failed to converge",
+        ))
     }
 }
 
-/// ## Description
 /// Helper function used to calculate the D invariant as a last step in the `compute_d` public function.
 ///
 /// * **Equation**:
 ///
 /// d = (leverage * sum_x + d_product * n_coins) * initial_d / ((leverage - 1) * initial_d + (n_coins + 1) * d_product)
-fn calculate_step(initial_d: &U256, leverage: u64, sum_x: u128, d_product: &U256) -> Option<U256> {
-    let leverage_mul = U256::from(leverage).checked_mul(sum_x.into())? / AMP_PRECISION;
-    let d_p_mul = checked_u8_mul(d_product, N_COINS)?;
+fn calculate_step(
+    initial_d: Decimal256,
+    leverage: Decimal256,
+    sum_x: Decimal256,
+    d_product: Decimal256,
+) -> StdResult<Decimal256> {
+    let leverage_mul = leverage.checked_mul(sum_x)?;
+    let d_p_mul = d_product.checked_mul(N_COINS)?;
 
-    let l_val = leverage_mul.checked_add(d_p_mul)?.checked_mul(*initial_d)?;
+    let l_val = leverage_mul.checked_add(d_p_mul)?.checked_mul(initial_d)?;
 
-    let leverage_sub =
-        initial_d.checked_mul((leverage.checked_sub(AMP_PRECISION)?).into())? / AMP_PRECISION;
-    let n_coins_sum = checked_u8_mul(d_product, N_COINS.checked_add(1)?)?;
+    let leverage_sub = initial_d.checked_mul(leverage - Decimal256::one())?;
+    let n_coins_sum = d_product.checked_mul(N_COINS.checked_add(Decimal256::one())?)?;
 
     let r_val = leverage_sub.checked_add(n_coins_sum)?;
 
-    l_val.checked_div(r_val)
+    l_val
+        .checked_div(r_val)
+        .map_err(|e| StdError::generic_err(e.to_string()))
 }
 
-/// ## Description
 /// Compute the swap amount `y` in proportion to `x`.
 ///
 /// * **Solve for y**
@@ -140,55 +82,38 @@ fn calculate_step(initial_d: &U256, leverage: u64, sum_x: u128, d_product: &U256
 /// y**2 + y * (sum' - (A*n**n - 1) * D / (A * n**n)) = D ** (n + 1) / (n ** (2 * n) * prod' * A)
 ///
 /// y**2 + b*y = c
-fn compute_new_balance(leverage: u64, new_source_amount: u128, d_val: u128) -> Option<u128> {
-    // Upscale to U256
-    let leverage: U256 = leverage.into();
-    let new_source_amount: U256 = new_source_amount.into();
-    let d_val: U256 = d_val.into();
+pub(crate) fn calc_y(
+    amp: Uint64,
+    new_amount: Decimal256,
+    xp: &[Decimal256],
+    target_precision: u8,
+) -> StdResult<Uint128> {
+    let d = compute_d(amp, xp)?;
+    let leverage = Decimal256::from_ratio(amp, 1u8) * N_COINS;
+    let amp_prec = Decimal256::from_ratio(AMP_PRECISION, 1u8);
 
-    // sum' = prod' = x
-    // c =  D ** (n + 1) / (n ** (2 * n) * prod' * A)
-    let c = checked_u8_power(&d_val, N_COINS.checked_add(1)?)?
-        .checked_mul(U256::from(AMP_PRECISION))?
-        .checked_div(checked_u8_mul(&new_source_amount, N_COINS_SQUARED)?.checked_mul(leverage)?)?;
+    let c = d.checked_pow(3)?.checked_mul(amp_prec)?
+        / new_amount
+            .checked_mul(N_COINS * N_COINS)?
+            .checked_mul(leverage)?;
 
-    // b = sum' - (A*n**n - 1) * D / (A * n**n)
-    let b = new_source_amount.checked_add(
-        d_val
-            .checked_mul(U256::from(AMP_PRECISION))?
-            .checked_div(leverage)?,
-    )?;
+    let b = new_amount.checked_add(d.checked_mul(amp_prec)? / leverage)?;
 
     // Solve for y by approximating: y**2 + b*y = c
-    let mut y_prev: U256;
-    let mut y = d_val;
+    let mut y_prev;
+    let mut y = d;
     for _ in 0..ITERATIONS {
         y_prev = y;
-        y = (checked_u8_power(&y, 2)?.checked_add(c)?)
-            .checked_div(checked_u8_mul(&y, 2)?.checked_add(b)?.checked_sub(d_val)?)?;
-        if y == y_prev {
-            break;
+        y = y
+            .checked_pow(2)?
+            .checked_add(c)?
+            .checked_div(y.checked_mul(N_COINS)?.checked_add(b)?.checked_sub(d)?)
+            .map_err(|e| StdError::generic_err(e.to_string()))?;
+        if y.abs_diff(y_prev) <= TOL {
+            return y.to_uint128_with_precision(target_precision);
         }
     }
-    u128::try_from(y).ok()
-}
 
-/// ## Description
-/// Returns self to the power of b.
-fn checked_u8_power(a: &U256, b: u8) -> Option<U256> {
-    let mut result = *a;
-    for _ in 1..b {
-        result = result.checked_mul(*a)?;
-    }
-    Some(result)
-}
-
-/// ## Description
-/// Returns self multiplied by b.
-fn checked_u8_mul(a: &U256, b: u8) -> Option<U256> {
-    let mut result = *a;
-    for _ in 1..b {
-        result = result.checked_add(*a)?;
-    }
-    Some(result)
+    // Should definitely converge in 64 iterations.
+    Err(StdError::generic_err("y is not converging"))
 }

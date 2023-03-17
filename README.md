@@ -1,6 +1,6 @@
 # Astroport Core
 
-[![codecov](https://codecov.io/gh/astroport-fi/astroport-core/branch/release/graph/badge.svg?token=ROOLZTGZMM)](https://codecov.io/gh/astroport-fi/astroport-core)
+[![codecov](https://codecov.io/gh/astroport-fi/astroport-core/branch/main/graph/badge.svg?token=ROOLZTGZMM)](https://codecov.io/gh/astroport-fi/astroport-core)
 
 Multi pool type automated market-maker (AMM) protocol powered by smart contracts on the [Terra](https://terra.money) blockchain.
 
@@ -64,9 +64,9 @@ Run the following from the repository root
 
 The optimized contracts are generated in the artifacts/ directory.
 
-## Branches
+## Deployment
 
-We use [main](https://github.com/astroport-fi/astroport-core/tree/main) branch for new feature development and [release](https://github.com/astroport-fi/astroport-core/tree/release) one for collecting features which are ready for deployment. You can find the version and commit for actually deployed contracts [here](https://github.com/astroport-fi/astroport-changelog).
+You can find versions and commits for actually deployed contracts [here](https://github.com/astroport-fi/astroport-changelog).
 
 ## Docs
 

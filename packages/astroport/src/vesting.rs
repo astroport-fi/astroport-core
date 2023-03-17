@@ -2,7 +2,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use crate::asset::AssetInfo;
 use cosmwasm_std::{Addr, Order, Uint128};
-use cw20::{BalanceResponse, Cw20ReceiveMsg};
+use cw20::Cw20ReceiveMsg;
 
 /// This structure describes the parameters used for creating a contract.
 #[cw_serde]
@@ -28,6 +28,15 @@ pub enum ExecuteMsg {
     /// RegisterVestingAccounts registers vesting targets/accounts
     RegisterVestingAccounts {
         vesting_accounts: Vec<VestingAccount>,
+    },
+    /// Withdraws from current active schedule. Setups a new schedule with the remaining amount.
+    WithdrawFromActiveSchedule {
+        /// The account from which tokens will be withdrawn
+        account: String,
+        /// The address that receives the vested tokens
+        recipient: Option<String>,
+        /// The amount of tokens to withdraw
+        withdraw_amount: Uint128,
     },
     /// Creates a request to change contract ownership
     /// ## Executor
@@ -77,6 +86,7 @@ pub struct VestingSchedule {
 
 /// This structure stores the parameters used to create a vesting schedule.
 #[cw_serde]
+#[derive(Copy)]
 pub struct VestingSchedulePoint {
     /// The start time for the vesting schedule
     pub time: u64,
@@ -88,28 +98,24 @@ pub struct VestingSchedulePoint {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    /// ## Description
     /// Returns the configuration for the contract using a [`ConfigResponse`] object.
     #[returns(ConfigResponse)]
     Config {},
-    /// ## Description
     /// Returns information about an address vesting tokens using a [`VestingAccountResponse`] object.
     #[returns(VestingAccountResponse)]
     VestingAccount { address: String },
-    /// ## Description
     /// Returns a list of addresses that are vesting tokens using a [`VestingAccountsResponse`] object.
-    #[returns(BalanceResponse)]
+    #[returns(VestingAccountsResponse)]
     VestingAccounts {
         start_after: Option<String>,
         limit: Option<u32>,
         order_by: Option<OrderBy>,
     },
-    /// ## Description
     /// Returns the total unvested amount of tokens for a specific address.
-    #[returns(BalanceResponse)]
+    #[returns(Uint128)]
     AvailableAmount { address: String },
     /// Timestamp returns the current timestamp
-    #[returns(BalanceResponse)]
+    #[returns(u64)]
     Timestamp {},
 }
 
@@ -140,11 +146,8 @@ pub struct VestingAccountsResponse {
 
 /// This enum describes the types of sorting that can be applied to some piece of data
 #[cw_serde]
-
 pub enum OrderBy {
-    /// Ascending
     Asc,
-    /// Descending
     Desc,
 }
 
@@ -168,7 +171,6 @@ pub struct MigrateMsg {}
 
 /// This structure describes a CW20 hook message.
 #[cw_serde]
-
 pub enum Cw20HookMsg {
     /// RegisterVestingAccounts registers vesting targets/accounts
     RegisterVestingAccounts {

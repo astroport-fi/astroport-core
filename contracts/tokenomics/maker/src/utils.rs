@@ -1,12 +1,17 @@
 use crate::error::ContractError;
-use crate::state::{Config, BRIDGES};
+use crate::state::BRIDGES;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::maker::ExecuteMsg;
+use astroport::maker::{
+    Config, ExecuteMsg, SecondReceiverConfig, SecondReceiverParams, MAX_SECOND_RECEIVER_CUT,
+};
 use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_pair_info;
+
 use cosmwasm_std::{
-    to_binary, Addr, Decimal, Deps, Env, QuerierWrapper, StdResult, SubMsg, Uint128, WasmMsg,
+    coins, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Deps, Env, QuerierWrapper,
+    StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
+use cw20::Cw20ExecuteMsg;
 
 /// The default bridge depth for a fee token
 pub const BRIDGES_INITIAL_DEPTH: u64 = 0;
@@ -15,19 +20,13 @@ pub const BRIDGES_MAX_DEPTH: u64 = 2;
 /// Swap execution depth limit
 pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 3;
 
-/// # Description
 /// The function checks from<>to pool exists and creates swap message.
 ///
-/// # Params
-/// * **querier** is an object of type [`QuerierWrapper`].
+/// * **from** asset we want to swap.
 ///
-/// * **cfg** is an object of type [`Config`]. This is the contracts' configuration.
+/// * **to** asset we want to swap to.
 ///
-/// * **from** is an object of type [`AssetInfo`] which represents the asset we want to swap.
-///
-/// * **to** is an object of type [`AssetInfo`] which represents the asset we want to swap to.
-///
-/// * **amount_in** is an object of type [`Uint128`]. This is the amount of tokens to swap.
+/// * **amount_in** amount of tokens to swap.
 pub fn try_build_swap_msg(
     querier: &QuerierWrapper,
     cfg: &Config,
@@ -36,28 +35,27 @@ pub fn try_build_swap_msg(
     amount_in: Uint128,
 ) -> Result<SubMsg, ContractError> {
     let pool = get_pool(querier, &cfg.factory_contract, from, to)?;
-    let msg = build_swap_msg(querier, cfg.max_spread, &pool, from, amount_in)?;
+    let msg = build_swap_msg(querier, cfg.max_spread, &pool, from, Some(to), amount_in)?;
     Ok(msg)
 }
 
-/// # Description
 /// This function creates swap message.
 ///
-/// # Params
-/// * **querier** is an object of type [`QuerierWrapper`].
+/// * **max_spread** max allowed spread.
 ///
-/// * **max_spread** is a value of type [`Decimal`]. This is max allowed spread.
+/// * **pool** pool's information.
 ///
-/// * **pool** is an object of type [`PairInfo`]. This is the pool's information.
+/// * **from**  asset we want to swap.
 ///
-/// * **from** is an object of type [`AssetInfo`] which represents the asset we want to swap.
+/// * **to** asset we want to swap to.
 ///
-/// * **amount_in** is an object of type [`Uint128`]. This is the amount of tokens to swap.
+/// * **amount_in** amount of tokens to swap.
 pub fn build_swap_msg(
     querier: &QuerierWrapper,
     max_spread: Decimal,
     pool: &PairInfo,
     from: &AssetInfo,
+    to: Option<&AssetInfo>,
     amount_in: Uint128,
 ) -> Result<SubMsg, ContractError> {
     if from.is_native_token() {
@@ -73,7 +71,7 @@ pub fn build_swap_msg(
             contract_addr: pool.contract_addr.to_string(),
             msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
                 offer_asset,
-                ask_asset_info: None,
+                ask_asset_info: to.cloned(),
                 belief_price: None,
                 max_spread: Some(max_spread),
                 to: None,
@@ -87,10 +85,10 @@ pub fn build_swap_msg(
                 contract: pool.contract_addr.to_string(),
                 amount: amount_in,
                 msg: to_binary(&Cw20HookMsg::Swap {
+                    ask_asset_info: to.cloned(),
                     belief_price: None,
                     max_spread: Some(max_spread),
                     to: None,
-                    ask_asset_info: None,
                 })?,
             })?,
             funds: vec![],
@@ -98,17 +96,11 @@ pub fn build_swap_msg(
     }
 }
 
-/// # Description
 /// This function builds distribute messages. It swap all assets through bridges if needed.
 ///
-/// # Params
-/// * **env** is an object of type [`Env`].
+/// * **bridge_assets** array with assets we want to swap and then to distribute.
 ///
-/// * **bridge_assets** is an array of objects of type [`AssetInfo`].
-/// This is the assets we want to swap and then to distribute.
-///
-/// * **depth** is a value of type [`Uint128`]. This is the current depth of the swap.
-/// It is intended to prevent dead loops in recursive calls.
+/// * **depth** current depth of the swap. It is intended to prevent dead loops in recursive calls.
 pub fn build_distribute_msg(
     env: Env,
     bridge_assets: Vec<AssetInfo>,
@@ -136,22 +128,18 @@ pub fn build_distribute_msg(
     Ok(msg)
 }
 
-/// # Description
 /// This function checks that there is a direct pool to swap to $ASTRO.
 /// Otherwise it looks for an intermediate token to swap to $ASTRO.
 ///
-/// # Params
-/// * **deps** is an object of type [`Deps`].
+/// * **from_token** asset we want to swap.
 ///
-/// * **factory_contract** is a value of type [`Addr`]. This is the factory contract address.
+/// * **bridge_token** asset we want to swap through.
 ///
-/// * **from_token** is an object of type [`AssetInfo`] which represents the asset we want to swap.
+/// * **astro_token** represents $ASTRO.
 ///
-/// * **to_token** is an object of type [`AssetInfo`] which represents the asset we want to swap to.
+/// * **depth** current recursion depth of the validation.
 ///
-/// * **astro_token** is an object of type [`AssetInfo`] which represents $ASTRO.
-///
-/// * **depth** is a value of type [`Uint128`]. This is the current recursion depth of the validation.
+/// * **amount** is an amount of from_token.
 pub fn validate_bridge(
     deps: Deps,
     factory_contract: &Addr,
@@ -188,17 +176,12 @@ pub fn validate_bridge(
     Ok(bridge_pool)
 }
 
-/// # Description
-/// This function checks that there a pool to swap between `from` and `to`.
+/// This function checks that there is a pool to swap between `from` and `to`. In case of success
+/// returns [`PairInfo`] of selected pool.
 ///
-/// # Params
-/// * **querier** is an object of type [`QuerierWrapper`].
+/// * **from** source asset.
 ///
-/// * **factory_contract** is an object of type [`Addr`] which is the factory contract.
-///
-/// * **from** is an object of type [`AssetInfo`] which is the source asset.
-///
-/// * **to** is an object of type [`AssetInfo`] which is the destination asset.
+/// * **to** destination asset.
 pub fn get_pool(
     querier: &QuerierWrapper,
     factory_contract: &Addr,
@@ -211,4 +194,60 @@ pub fn get_pool(
         &[from.clone(), to.clone()],
     )
     .map_err(|_| ContractError::InvalidBridgeNoPool(from.to_string(), to.to_string()))
+}
+
+/// For native tokens of type [`AssetInfo`] uses method [`astro_satellite_package::ExecuteMsg::TransferAstro`]
+/// to send a token amount to a recipient.
+///
+/// For a token of type [`AssetInfo`] we use the default method [`Cw20ExecuteMsg::Send`]
+pub fn build_send_msg(
+    asset: &Asset,
+    recipient: impl Into<String>,
+    msg: Option<Binary>,
+) -> StdResult<CosmosMsg> {
+    let recipient = recipient.into();
+
+    match &asset.info {
+        AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: contract_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: recipient,
+                amount: asset.amount,
+                msg: msg.unwrap_or_default(),
+            })?,
+            funds: vec![],
+        })),
+        AssetInfo::NativeToken { denom } => Ok(CosmosMsg::Wasm(wasm_execute(
+            recipient,
+            &astro_satellite_package::ExecuteMsg::TransferAstro {},
+            coins(asset.amount.u128(), denom),
+        )?)),
+    }
+}
+
+/// Updates the parameters that describe the second receiver of fees
+pub fn update_second_receiver_cfg(
+    deps: Deps,
+    cfg: &mut Config,
+    params: &Option<SecondReceiverParams>,
+) -> StdResult<()> {
+    if let Some(params) = params {
+        if params.second_receiver_cut > MAX_SECOND_RECEIVER_CUT
+            || params.second_receiver_cut.is_zero()
+        {
+            return Err(StdError::generic_err(format!(
+                "Incorrect second receiver percent of its share. Should be in range: 0 < {} <= {}",
+                params.second_receiver_cut, MAX_SECOND_RECEIVER_CUT
+            )));
+        };
+
+        cfg.second_receiver_cfg = Some(SecondReceiverConfig {
+            second_fee_receiver: deps
+                .api
+                .addr_validate(params.second_fee_receiver.as_str())?,
+            second_receiver_cut: params.second_receiver_cut,
+        });
+    }
+
+    Ok(())
 }

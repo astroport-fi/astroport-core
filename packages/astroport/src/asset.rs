@@ -1,19 +1,20 @@
-use cosmwasm_schema::cw_serde;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use crate::factory::PairType;
-use crate::pair::QueryMsg as PairQueryMsg;
-use crate::querier::{
-    query_balance, query_token_balance, query_token_symbol, NATIVE_TOKEN_PRECISION,
-};
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError, CosmosMsg, Decimal256, Fraction,
     MessageInfo, QuerierWrapper, StdError, StdResult, Uint128, Uint256, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
+use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_utils::must_pay;
 use itertools::Itertools;
+
+use crate::factory::PairType;
+use crate::pair::QueryMsg as PairQueryMsg;
+use crate::querier::{
+    query_balance, query_token_balance, query_token_precision, query_token_symbol,
+};
 
 /// UST token denomination
 pub const UUSD_DENOM: &str = "uusd";
@@ -198,8 +199,8 @@ pub enum AssetInfo {
 impl fmt::Display for AssetInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AssetInfo::NativeToken { denom } => write!(f, "{}", denom),
-            AssetInfo::Token { contract_addr } => write!(f, "{}", contract_addr),
+            AssetInfo::NativeToken { denom } => write!(f, "{denom}"),
+            AssetInfo::Token { contract_addr } => write!(f, "{contract_addr}"),
         }
     }
 }
@@ -238,18 +239,8 @@ impl AssetInfo {
     }
 
     /// Returns the number of decimals that a token has.
-    pub fn decimals(&self, querier: &QuerierWrapper) -> StdResult<u8> {
-        let decimals = match &self {
-            AssetInfo::NativeToken { .. } => NATIVE_TOKEN_PRECISION,
-            AssetInfo::Token { contract_addr } => {
-                let res: TokenInfoResponse =
-                    querier.query_wasm_smart(contract_addr, &Cw20QueryMsg::TokenInfo {})?;
-
-                res.decimals
-            }
-        };
-
-        Ok(decimals)
+    pub fn decimals(&self, querier: &QuerierWrapper, factory_addr: &Addr) -> StdResult<u8> {
+        query_token_precision(querier, self, factory_addr)
     }
 
     /// Returns **true** if the calling token is the same as the token specified in the input parameters.
@@ -279,11 +270,7 @@ impl AssetInfo {
         }
     }
 
-    /// Returns [`Ok`] if the token of type [`AssetInfo`] is in lowercase and valid. Otherwise returns [`Err`].
-    /// ## Params
-    /// * **self** is the type of the caller object.
-    ///
-    /// * **api** is a object of type [`Api`]
+    /// Checks that the tokens' denom or contract addr is lowercased and valid.
     pub fn check(&self, api: &dyn Api) -> StdResult<()> {
         if let AssetInfo::Token { contract_addr } = self {
             api.addr_validate(contract_addr.as_str())?;
@@ -334,6 +321,7 @@ impl PairInfo {
         &self,
         querier: &QuerierWrapper,
         contract_addr: impl Into<String>,
+        factory_addr: &Addr,
     ) -> StdResult<Vec<DecimalAsset>> {
         let contract_addr = contract_addr.into();
         self.asset_infos
@@ -343,7 +331,7 @@ impl PairInfo {
                     info: asset_info.clone(),
                     amount: Decimal256::from_atomics(
                         asset_info.query_pool(querier, &contract_addr)?,
-                        asset_info.decimals(querier)?.into(),
+                        asset_info.decimals(querier, factory_addr)?.into(),
                     )
                     .map_err(|_| StdError::generic_err("Decimal256RangeExceeded"))?,
                 })
@@ -353,6 +341,7 @@ impl PairInfo {
 }
 
 /// Returns a lowercased, validated address upon success if present.
+#[inline]
 pub fn addr_opt_validate(api: &dyn Api, addr: &Option<String>) -> StdResult<Option<Addr>> {
     addr.as_ref()
         .map(|addr| api.addr_validate(addr))

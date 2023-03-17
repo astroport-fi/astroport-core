@@ -9,13 +9,13 @@ use cosmwasm_std::{
 use cw2::{get_contract_version, set_contract_version};
 use protobuf::Message;
 
-use astroport::asset::{AssetInfo, PairInfo};
+use astroport::asset::{addr_opt_validate, AssetInfo, PairInfo};
 use astroport::common::{
     claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
 };
 use astroport::factory::{
-    ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig, PairType,
-    PairsResponse, QueryMsg,
+    Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig,
+    PairType, PairsResponse, QueryMsg,
 };
 use astroport::generator::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
@@ -23,12 +23,11 @@ use itertools::Itertools;
 
 use crate::error::ContractError;
 use crate::migration;
-use crate::migration::migrate_pair_configs_to_v120;
 use crate::querier::query_pair_info;
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
-    check_asset_infos, pair_key, read_pairs, Config, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL,
-    PAIRS, PAIRS_TO_MIGRATE, PAIR_CONFIGS, TMP_PAIR_INFO,
+    check_asset_infos, pair_key, read_pairs, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS,
+    PAIRS_TO_MIGRATE, PAIR_CONFIGS, TMP_PAIR_INFO,
 };
 
 /// Contract name that is used for migration.
@@ -38,17 +37,9 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// A `reply` call code ID used in a sub-message.
 const INSTANTIATE_PAIR_REPLY_ID: u64 = 1;
 
-/// ## Description
 /// Creates a new contract with the specified parameters packed in the `msg` variable.
-/// Returns a [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if the contract was not created
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_info** is an object of type [`MessageInfo`].
-///
-/// * **msg**  is a message of type [`InstantiateMsg`] which contains the parameters used for creating the contract.
+/// * **msg**  is message which contains the parameters used for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -64,15 +55,12 @@ pub fn instantiate(
         fee_address: None,
         generator_address: None,
         whitelist_code_id: msg.whitelist_code_id,
+        coin_registry_address: deps.api.addr_validate(&msg.coin_registry_address)?,
     };
 
-    if let Some(generator_address) = msg.generator_address {
-        config.generator_address = Some(deps.api.addr_validate(generator_address.as_str())?);
-    }
+    config.generator_address = addr_opt_validate(deps.api, &msg.generator_address)?;
 
-    if let Some(fee_address) = msg.fee_address {
-        config.fee_address = Some(deps.api.addr_validate(fee_address.as_str())?);
-    }
+    config.fee_address = addr_opt_validate(deps.api, &msg.fee_address)?;
 
     let config_set: HashSet<String> = msg
         .pair_configs
@@ -89,14 +77,13 @@ pub fn instantiate(
         if !pc.valid_fee_bps() {
             return Err(ContractError::PairConfigInvalidFeeBps {});
         }
-        PAIR_CONFIGS.save(deps.storage, pc.clone().pair_type.to_string(), pc)?;
+        PAIR_CONFIGS.save(deps.storage, pc.pair_type.to_string(), pc)?;
     }
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new())
 }
 
-/// ## Description
 /// Data structure used to update general contract parameters.
 pub struct UpdateConfig {
     /// This is the CW20 token contract code identifier
@@ -107,20 +94,13 @@ pub struct UpdateConfig {
     generator_address: Option<String>,
     /// CW1 whitelist contract code id used to store 3rd party staking rewards
     whitelist_code_id: Option<u64>,
+    coin_registry_address: Option<String>,
 }
 
-/// ## Description
 /// Exposes all the execute functions available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
 /// * **msg** is an object of type [`ExecuteMsg`].
 ///
-/// ## Queries
+/// ## Variants
 /// * **ExecuteMsg::UpdateConfig {
 ///             token_code_id,
 ///             fee_address,
@@ -159,15 +139,16 @@ pub fn execute(
             fee_address,
             generator_address,
             whitelist_code_id,
+            coin_registry_address,
         } => execute_update_config(
             deps,
-            env,
             info,
             UpdateConfig {
                 token_code_id,
                 fee_address,
                 generator_address,
                 whitelist_code_id,
+                coin_registry_address,
             },
         ),
         ExecuteMsg::UpdatePairConfig { config } => execute_update_pair_config(deps, info, config),
@@ -178,7 +159,7 @@ pub fn execute(
         } => execute_create_pair(deps, env, pair_type, asset_infos, init_params),
         ExecuteMsg::Deregister { asset_infos } => deregister(deps, info, asset_infos),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
-            let config: Config = CONFIG.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
 
             propose_new_owner(
                 deps,
@@ -189,13 +170,13 @@ pub fn execute(
                 config.owner,
                 OWNERSHIP_PROPOSAL,
             )
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
         ExecuteMsg::DropOwnershipProposal {} => {
-            let config: Config = CONFIG.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
 
             drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
-                .map_err(|e| e.into())
+                .map_err(Into::into)
         }
         ExecuteMsg::ClaimOwnership {} => {
             let pairs = PAIRS
@@ -206,40 +187,31 @@ pub fn execute(
             PAIRS_TO_MIGRATE.save(deps.storage, &pairs)?;
 
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
-                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
-                    v.owner = new_owner;
-                    Ok(v)
-                })?;
-
-                Ok(())
+                CONFIG
+                    .update::<_, StdError>(deps.storage, |mut v| {
+                        v.owner = new_owner;
+                        Ok(v)
+                    })
+                    .map(|_| ())
             })
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
         ExecuteMsg::MarkAsMigrated { pairs } => execute_mark_pairs_as_migrated(deps, info, pairs),
     }
 }
 
-/// ## Description
-/// Updates general contract settings. Returns a [`ContractError`] on failure.
-///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
+/// Updates general contract settings.
 ///
 /// * **param** is an object of type [`UpdateConfig`] that contains the parameters to update.
 ///
-/// ##Executor
+/// ## Executor
 /// Only the owner can execute this.
 pub fn execute_update_config(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     param: UpdateConfig,
 ) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     // Permission check
     if info.sender != config.owner {
@@ -248,12 +220,12 @@ pub fn execute_update_config(
 
     if let Some(fee_address) = param.fee_address {
         // Validate address format
-        config.fee_address = Some(deps.api.addr_validate(fee_address.as_str())?);
+        config.fee_address = Some(deps.api.addr_validate(&fee_address)?);
     }
 
     if let Some(generator_address) = param.generator_address {
         // Validate the address format
-        config.generator_address = Some(deps.api.addr_validate(generator_address.as_str())?);
+        config.generator_address = Some(deps.api.addr_validate(&generator_address)?);
     }
 
     if let Some(token_code_id) = param.token_code_id {
@@ -264,18 +236,16 @@ pub fn execute_update_config(
         config.whitelist_code_id = code_id;
     }
 
+    if let Some(coin_registry_address) = param.coin_registry_address {
+        config.coin_registry_address = deps.api.addr_validate(&coin_registry_address)?;
+    }
+
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_attribute("action", "update_config"))
 }
 
-/// ## Description
-/// Updates a pair type's configuration. Returns [`ContractError`] on failure.
-///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **info** is an object of type [`MessageInfo`]
+/// Updates a pair type's configuration.
 ///
 /// * **pair_config** is an object of type [`PairConfig`] that contains the pair type information to update.
 ///
@@ -307,20 +277,13 @@ pub fn execute_update_pair_config(
     Ok(Response::new().add_attribute("action", "update_pair_config"))
 }
 
-/// ## Description
-/// Creates a new pair of `pair_type` with the assets specified in `asset_infos`. Returns a [`ContractError`] on failure or
-/// returns the address of the pair contract if the transaction was successful.
+/// Creates a new pair of `pair_type` with the assets specified in `asset_infos`.
 ///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// * **pair_type** is the pair type of the newly created pair.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **asset_infos** is a vector with assets for which we create a pair.
 ///
-/// * **pair_type** is an object of type [`PairType`]. This is the pair type of the newly created pair.
-///
-/// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the assets for which we create a pair.
-///
-/// * **init_params** is an [`Option`] type. These are packed params used for custom pair types that need extra data to be instantiated.
+/// * **init_params** These are packed params used for custom pair types that need extra data to be instantiated.
 pub fn execute_create_pair(
     deps: DepsMut,
     env: Env,
@@ -404,12 +367,6 @@ fn execute_mark_pairs_as_migrated(
 }
 
 /// The entry point to the contract for processing replies from submessages.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let tmp = TMP_PAIR_INFO.load(deps.storage)?;
@@ -433,16 +390,9 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     ]))
 }
 
-/// ## Description
-/// Removes an existing pair from the factory. Returns an [`ContractError`] on failure or returns a [`Response`]
-/// with the specified attributes if the operation was successful.
+/// Removes an existing pair from the factory.
 ///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **asset_infos** is an array with two items of type [`AssetInfo`]. These are the asets for which we deregister the pair.
+/// * **asset_infos** is a vector with assets for which we deregister the pair.
 ///
 /// ## Executor
 /// Only the owner can execute this.
@@ -451,8 +401,7 @@ pub fn deregister(
     info: MessageInfo,
     asset_infos: Vec<AssetInfo>,
 ) -> Result<Response, ContractError> {
-    asset_infos[0].check(deps.api)?;
-    asset_infos[1].check(deps.api)?;
+    check_asset_infos(deps.api, &asset_infos)?;
 
     let config = CONFIG.load(deps.storage)?;
 
@@ -460,7 +409,7 @@ pub fn deregister(
         return Err(ContractError::Unauthorized {});
     }
 
-    let pair_addr: Addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
+    let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     PAIRS.remove(deps.storage, &pair_key(&asset_infos));
 
     let mut messages: Vec<CosmosMsg> = vec![];
@@ -483,14 +432,7 @@ pub fn deregister(
     ]))
 }
 
-/// ## Description
 /// Exposes all the queries available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
 /// * **QueryMsg::Config {}** Returns general contract parameters using a custom [`ConfigResponse`] structure.
@@ -521,7 +463,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// ## Description
 /// Returns a vector that contains blacklisted pair types
 pub fn query_blacklisted_pair_types(deps: Deps) -> StdResult<Vec<PairType>> {
     PAIR_CONFIGS
@@ -539,11 +480,7 @@ pub fn query_blacklisted_pair_types(deps: Deps) -> StdResult<Vec<PairType>> {
         .collect()
 }
 
-/// ## Description
 /// Returns general contract parameters using a custom [`ConfigResponse`] structure.
-///
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
@@ -556,6 +493,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         fee_address: config.fee_address,
         generator_address: config.generator_address,
         whitelist_code_id: config.whitelist_code_id,
+        coin_registry_address: config.coin_registry_address,
     };
 
     Ok(resp)
@@ -565,7 +503,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 /// * **asset_infos** is a vector with assets traded in the pair.
 pub fn query_pair(deps: Deps, asset_infos: Vec<AssetInfo>) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
-    query_pair_info(&deps.querier, &pair_addr)
+    query_pair_info(&deps.querier, pair_addr)
 }
 
 /// Returns a vector with pair data that contains items of type [`PairInfo`]. Querying starts at `start_after` and returns `limit` pairs.
@@ -586,12 +524,8 @@ pub fn query_pairs(
     Ok(PairsResponse { pairs })
 }
 
-/// ## Description
 /// Returns the fee setup for a specific pair type using a [`FeeInfoResponse`] struct.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **pair_type** is a [`PairType`] struct that returns the fee information (total and maker fees) for a specific pair type.
+/// * **pair_type** is a struct that represents the fee information (total and maker fees) for a specific pair type.
 pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoResponse> {
     let config = CONFIG.load(deps.storage)?;
     let pair_config = PAIR_CONFIGS.load(deps.storage, pair_type.to_string())?;
@@ -603,38 +537,33 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
     })
 }
 
-/// ## Description
-/// Used for contract migration. Returns a default object of type [`Response`].
-/// ## Params
-/// * **_deps** is an object of type [`Deps`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_msg** is an object of type [`MigrateMsg`].
+/// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-factory" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.0-fix1" => {
-                let msg: migration::MigrationMsgV100 = from_binary(&msg.params)?;
+            "1.2.0" | "1.2.1" => {
+                let msg: migration::MigrationMsg = from_binary(&msg.params)?;
 
-                let config_v100 = migration::CONFIGV100.load(deps.storage)?;
+                let config_v120 = migration::CONFIG_V120.load(deps.storage)?;
 
                 let new_config = Config {
-                    whitelist_code_id: msg.whitelist_code_id,
-                    fee_address: config_v100.fee_address,
-                    generator_address: config_v100.generator_address,
-                    owner: config_v100.owner,
-                    token_code_id: config_v100.token_code_id,
+                    whitelist_code_id: config_v120.whitelist_code_id,
+                    fee_address: config_v120.fee_address,
+                    generator_address: config_v120.generator_address,
+                    owner: config_v120.owner,
+                    token_code_id: config_v120.token_code_id,
+                    coin_registry_address: deps
+                        .api
+                        .addr_validate(msg.coin_registry_address.as_str())?,
                 };
 
                 CONFIG.save(deps.storage, &new_config)?;
-
-                migrate_pair_configs_to_v120(deps.storage)?
             }
-            "1.2.0" => {}
+            "1.3.0" => {}
+            "1.3.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

@@ -1,6 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 use crate::asset::AssetInfo;
@@ -53,7 +53,7 @@ pub enum ExecuteMsg {
     ExecuteSwapOperations {
         operations: Vec<SwapOperation>,
         minimum_receive: Option<Uint128>,
-        to: Option<Addr>,
+        to: Option<String>,
         max_spread: Option<Decimal>,
     },
 

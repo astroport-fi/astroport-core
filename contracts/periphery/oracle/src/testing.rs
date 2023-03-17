@@ -2,7 +2,7 @@ use crate::contract::{execute, instantiate};
 use crate::mock_querier::mock_dependencies;
 use astroport::asset::{Asset, AssetInfo};
 use astroport::oracle::{ExecuteMsg, InstantiateMsg};
-use cosmwasm_std::testing::{mock_env, mock_info};
+use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{Addr, Decimal256, Uint128, Uint256};
 use std::ops::Mul;
 
@@ -33,6 +33,17 @@ fn oracle_overflow() {
     let astro_token_contract = Addr::unchecked("astro-token");
     let usdc_token_contract = Addr::unchecked("usdc-token");
 
+    deps.querier.with_token_balances(&[
+        (
+            &astro_token_contract.to_string(),
+            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(10000))],
+        ),
+        (
+            &usdc_token_contract.to_string(),
+            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(10000))],
+        ),
+    ]);
+
     let astro_asset_info = AssetInfo::Token {
         contract_addr: astro_token_contract.clone(),
     };
@@ -60,18 +71,38 @@ fn oracle_overflow() {
         Addr::unchecked("pair"),
         asset.clone(),
         Uint128::from(192738282u128),
-        Uint128::from(192738282u128),
-        Uint128::from(192738282u128),
+        vec![
+            (
+                asset[0].info.clone(),
+                asset[1].info.clone(),
+                Uint128::from(192738282u128),
+            ),
+            (
+                asset[1].info.clone(),
+                asset[0].info.clone(),
+                Uint128::from(192738282u128),
+            ),
+        ],
     );
     let res = instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
     // Set cumulative price to 100 (overflow)
     deps.querier.set_cumulative_price(
         Addr::unchecked("pair"),
-        asset,
+        asset.clone(),
         Uint128::from(100u128),
-        Uint128::from(100u128),
-        Uint128::from(100u128),
+        vec![
+            (
+                asset[0].info.clone(),
+                asset[1].info.clone(),
+                Uint128::from(100u128),
+            ),
+            (
+                asset[1].info.clone(),
+                asset[0].info.clone(),
+                Uint128::from(100u128),
+            ),
+        ],
     );
     env.block.time = env.block.time.plus_seconds(86400);
     execute(deps.as_mut(), env, info, ExecuteMsg::Update {}).unwrap();

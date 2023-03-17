@@ -4,10 +4,11 @@ on:
   pull_request:
   push:
     branches:
-      - release
+      - main
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
 
 jobs:
   test_and_check:
@@ -20,9 +21,15 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
+      - uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.GOV_PRIVATE_KEY }}
+            ${{ secrets.IBC_PRIVATE_KEY }}
+
       - name: Checkout sources
         uses: actions/checkout@v2
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/bin
@@ -32,12 +39,15 @@ jobs:
             ~/.cargo/registry/index
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - run: |
+          git config url."ssh://git@github.com/astroport-fi/hidden_astroport_governance.git".insteadOf "https://github.com/astroport-fi/hidden_astroport_governance"
+      #          git config url."ssh://git@github.com/astroport-fi/astroport_ibc.git".insteadOf "https://github.com/astroport-fi/astroport_ibc"
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.64.0
+          toolchain: 1.65.0
           override: true
           components: rustfmt, clippy
 
@@ -59,7 +69,7 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
-          
+
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:

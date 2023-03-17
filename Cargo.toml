@@ -6,20 +6,18 @@ members = [
     "contracts/pair",
     "contracts/pair_stable",
     "contracts/pair_concentrated",
+    "contracts/pair_astro_xastro",
     "contracts/router",
     "contracts/token",
     "contracts/whitelist",
+    "templates/*",
     "contracts/tokenomics/generator",
     "contracts/tokenomics/maker",
     "contracts/tokenomics/staking",
     "contracts/tokenomics/vesting",
     "contracts/tokenomics/xastro_token",
-    "contracts/pair_astro_xastro",
-    "contracts/periphery/oracle",
+    "contracts/periphery/*",
 ]
-
-[patch."https://github.com/astroport-fi/hidden_astroport_governance.git"]
-astroport-governance = { git="https://github.com/astroport-fi/astroport-governance", branch="release" }
 
 [profile.release]
 opt-level = "z"

@@ -16,18 +16,19 @@ use anyhow::Result as AnyResult;
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, ReverseSimulationResponse,
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, ReverseSimulationResponse,
     SimulationResponse,
 };
 use astroport::pair_concentrated::{
-    ConcentratedPoolParams, ConcentratedPoolUpdateParams, ConfigResponse, QueryMsg,
+    ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
 };
-use astroport::querier::NATIVE_TOKEN_PRECISION;
 use astroport_pair_concentrated::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated::queries::query;
 use astroport_pair_concentrated::state::Config;
 use cosmwasm_schema::cw_serde;
 use derivative::Derivative;
+
+const NATIVE_TOKEN_PRECISION: u8 = 6;
 
 const INIT_BALANCE: u128 = 1_000_000_000000;
 
@@ -102,6 +103,13 @@ fn pair_contract() -> Box<dyn Contract<Empty>> {
     Box::new(ContractWrapper::new_with_empty(execute, instantiate, query).with_reply_empty(reply))
 }
 
+fn coin_registry_contract() -> Box<dyn Contract<Empty>> {
+    Box::new(ContractWrapper::new_with_empty(
+        astroport_native_coin_registry::contract::execute,
+        astroport_native_coin_registry::contract::instantiate,
+        astroport_native_coin_registry::contract::query,
+    ))
+}
 fn factory_contract() -> Box<dyn Contract<Empty>> {
     Box::new(
         ContractWrapper::new_with_empty(
@@ -160,6 +168,30 @@ impl Helper {
 
         let fake_maker = Addr::unchecked("fake_maker");
 
+        let coin_registry_id = app.store_code(coin_registry_contract());
+
+        let coin_registry_address = app
+            .instantiate_contract(
+                coin_registry_id,
+                owner.clone(),
+                &ap_native_coin_registry::InstantiateMsg {
+                    owner: owner.to_string(),
+                },
+                &[],
+                "Coin registry",
+                None,
+            )
+            .unwrap();
+
+        app.execute_contract(
+            owner.clone(),
+            coin_registry_address.clone(),
+            &ap_native_coin_registry::ExecuteMsg::Add {
+                native_coins: vec![("uluna".to_owned(), 6), ("uusd".to_owned(), 6)],
+            },
+            &[],
+        )
+        .unwrap();
         let init_msg = astroport::factory::InstantiateMsg {
             fee_address: Some(fake_maker.to_string()),
             pair_configs: vec![PairConfig {
@@ -174,6 +206,7 @@ impl Helper {
             generator_address: None,
             owner: owner.to_string(),
             whitelist_code_id: 234u64,
+            coin_registry_address: coin_registry_address.to_string(),
         };
 
         let factory = app.instantiate_contract(

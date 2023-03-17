@@ -3,29 +3,10 @@ use cosmwasm_std::{Addr, Api, Deps, Order, StdResult};
 use cw_storage_plus::{Bound, Item, Map};
 use itertools::Itertools;
 
+use crate::error::ContractError;
 use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
-use astroport::factory::PairConfig;
-
-use crate::error::ContractError;
-
-/// ## Description
-/// This structure holds the main contract parameters.
-#[cw_serde]
-pub struct Config {
-    /// Address allowed to change contract parameters
-    pub owner: Addr,
-    /// CW20 token contract code identifier
-    pub token_code_id: u64,
-    /// Generator contract address
-    pub generator_address: Option<Addr>,
-    /// Contract address to send governance fees to (the Maker contract)
-    pub fee_address: Option<Addr>,
-    /// CW1 whitelist contract code id used to store 3rd party generator staking rewards
-    pub whitelist_code_id: u64,
-}
-
-/// ## Description
+use astroport::factory::{Config, PairConfig};
 /// This is an intermediate structure for storing a pair's key. It is used in a submessage response.
 #[cw_serde]
 pub struct TmpPairInfo {
