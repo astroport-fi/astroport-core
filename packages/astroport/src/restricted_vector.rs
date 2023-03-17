@@ -30,7 +30,7 @@ where
             .filter(|(k, _)| k == key)
             .map(|(_, v)| v)
             .cloned()
-            .ok_or_else(|| StdError::generic_err(format!("Key {} not found", key)))
+            .ok_or_else(|| StdError::generic_err(format!("Key {key} not found")))
     }
 
     pub fn update(&mut self, key: &K, value: V) -> StdResult<V> {

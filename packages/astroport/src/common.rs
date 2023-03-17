@@ -46,8 +46,7 @@ pub fn propose_new_owner(
 
     if MAX_PROPOSAL_TTL < expires_in {
         return Err(StdError::generic_err(format!(
-            "Parameter expires_in cannot be higher than {}",
-            MAX_PROPOSAL_TTL
+            "Parameter expires_in cannot be higher than {MAX_PROPOSAL_TTL}"
         )));
     }
 

@@ -389,8 +389,7 @@ fn deactivate_blacklisted(
     for pair_type in &pair_types {
         if !blacklisted_pair_types.contains(pair_type) {
             return Err(ContractError::Std(StdError::generic_err(format!(
-                "Pair type ({}) is not blacklisted!",
-                pair_type
+                "Pair type ({pair_type}) is not blacklisted!"
             ))));
         }
     }
@@ -581,7 +580,7 @@ pub fn execute_setup_pools(
         // check if assets in the blocked list
         for asset in &pair_info.asset_infos {
             if cfg.blocked_tokens_list.contains(asset) {
-                return Err(StdError::generic_err(format!("Token {} is blocked!", asset)).into());
+                return Err(StdError::generic_err(format!("Token {asset} is blocked!")).into());
             }
         }
 
@@ -1841,7 +1840,7 @@ fn query_reward_info(deps: Deps, lp_token: String) -> Result<RewardInfoResponse,
         .reward_proxy
         .map(|proxy| {
             deps.querier
-                .query_wasm_smart(&proxy, &ProxyQueryMsg::RewardInfo {})
+                .query_wasm_smart(proxy, &ProxyQueryMsg::RewardInfo {})
         })
         .transpose()?;
 

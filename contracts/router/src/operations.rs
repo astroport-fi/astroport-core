@@ -38,7 +38,7 @@ pub fn execute_swap_operation(
             let config = CONFIG.load(deps.storage)?;
             let pair_info = query_pair_info(
                 &deps.querier,
-                &config.astroport_factory,
+                config.astroport_factory,
                 &[offer_asset_info.clone(), ask_asset_info.clone()],
             )?;
 
