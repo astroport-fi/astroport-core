@@ -6,7 +6,6 @@ use cw20::{
     DownloadLogoResponse, Logo, MarketingInfoResponse, MinterResponse, TokenInfoResponse,
 };
 
-/// ## Description
 /// This structure describes the marketing info settings such as project, description, and token logo.
 #[cw_serde]
 pub struct InstantiateMarketingInfo {
@@ -20,9 +19,7 @@ pub struct InstantiateMarketingInfo {
     pub logo: Option<Logo>,
 }
 
-/// ## Description
-/// This structure describes the basic settings for creating a token contract.
-/// TokenContract InstantiateMsg
+/// This structure describes the parameters used for creating a xASTRO token contract.
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Token name
@@ -84,7 +81,6 @@ pub enum QueryMsg {
 }
 
 /// This structure describes a migration message.
-/// We currently take no arguments for migrations.
 #[cw_serde]
 pub struct MigrateMsg {}
 
@@ -113,8 +109,6 @@ impl InstantiateMsg {
 }
 
 /// Checks the validity of a token's name.
-/// ## Params
-/// * **name** is an object of type [`str`]. It is the token name to check.
 fn is_valid_name(name: &str) -> bool {
     let bytes = name.as_bytes();
     if bytes.len() < 3 || bytes.len() > 50 {
@@ -124,8 +118,6 @@ fn is_valid_name(name: &str) -> bool {
 }
 
 /// Checks the validity of a token's symbol.
-/// ## Params
-/// * **symbol** is an object of type [`str`]. It is the token symbol to check.
 fn is_valid_symbol(symbol: &str) -> bool {
     let bytes = symbol.as_bytes();
     if bytes.len() < 3 || bytes.len() > 12 {

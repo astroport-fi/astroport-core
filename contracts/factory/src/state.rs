@@ -3,13 +3,10 @@ use cosmwasm_std::{Addr, Api, Deps, Order, StdResult};
 use cw_storage_plus::{Bound, Item, Map};
 use itertools::Itertools;
 
+use crate::error::ContractError;
 use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
 use astroport::factory::{Config, PairConfig};
-
-use crate::error::ContractError;
-
-/// ## Description
 /// This is an intermediate structure for storing a pair's key. It is used in a submessage response.
 #[cw_serde]
 pub struct TmpPairInfo {

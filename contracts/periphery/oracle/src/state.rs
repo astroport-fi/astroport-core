@@ -1,32 +1,25 @@
 use cosmwasm_schema::cw_serde;
 
 use astroport::asset::{AssetInfo, PairInfo};
-use cosmwasm_std::{Addr, Decimal256, Uint128};
-use cw_storage_plus::Item;
+use cosmwasm_std::{Addr, Decimal256, DepsMut, StdResult, Storage, Uint128};
+use cw_storage_plus::{Item, Map};
 
-/// ## Description
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
 /// Stores the latest cumulative and average prices at the given key
 pub const PRICE_LAST: Item<PriceCumulativeLast> = Item::new("price_last");
 
-/// ## Description
 /// This structure stores the latest cumulative and average token prices for the target pool
 #[cw_serde]
 pub struct PriceCumulativeLast {
-    /// The last cumulative price 0 asset in pool
-    pub price0_cumulative_last: Uint128,
-    /// The last cumulative price 1 asset in pool
-    pub price1_cumulative_last: Uint128,
-    /// The average price 0 asset in pool
-    pub price_0_average: Decimal256,
-    /// The average price 1 asset in pool
-    pub price_1_average: Decimal256,
+    /// The vector contains last cumulative prices for each pair of assets in the pool
+    pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
+    /// The vector contains average prices for each pair of assets in the pool
+    pub average_prices: Vec<(AssetInfo, AssetInfo, Decimal256)>,
     /// The last timestamp block in pool
     pub block_timestamp_last: u64,
 }
 
-/// ## Description
 /// Global configuration for the contract
 #[cw_serde]
 pub struct Config {
@@ -38,4 +31,24 @@ pub struct Config {
     pub asset_infos: Vec<AssetInfo>,
     /// Information about the pair (LP token address, pair type etc)
     pub pair: PairInfo,
+}
+
+/// Stores map of AssetInfo (as String) -> precision
+const PRECISIONS: Map<String, u8> = Map::new("precisions");
+
+/// Store all token precisions and return the greatest one.
+pub(crate) fn store_precisions(
+    deps: DepsMut,
+    asset_info: &AssetInfo,
+    factory_contract: &Addr,
+) -> StdResult<()> {
+    let precision = asset_info.decimals(&deps.querier, factory_contract)?;
+    PRECISIONS.save(deps.storage, asset_info.to_string(), &precision)?;
+
+    Ok(())
+}
+
+/// Loads precision of the given asset info.
+pub(crate) fn get_precision(storage: &dyn Storage, asset_info: &AssetInfo) -> StdResult<u8> {
+    PRECISIONS.load(storage, asset_info.to_string())
 }

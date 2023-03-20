@@ -315,3 +315,21 @@ export function checkParams(network: any, required_params: any) {
         }
     }
 }
+
+export async function getLPTokenName(terra: LCDClient | LocalTerra, pool: any) {
+    let minter = await queryContract(terra, pool[0], { minter: {} }).then(res => res.minter);
+    let assetInfos = await queryContract(terra, minter, { pair: {} }).then(res => res.asset_infos);
+    let lpTokenName: string[] = [];
+
+    for (const asset of assetInfos) {
+        if (asset.hasOwnProperty("token")) {
+            lpTokenName.push(await queryContract(terra, asset.token.contract_addr, { token_info: {} }).then(res => res.symbol));
+        } else if (asset.hasOwnProperty("native_token")) {
+            lpTokenName.push(asset.native_token.denom.substring(0, 8));
+        } else {
+            throw "Incompatible type of Asset!"
+        }
+    }
+
+    return lpTokenName.join("-").substring(0, 17);
+}

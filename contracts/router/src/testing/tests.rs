@@ -1,16 +1,17 @@
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{from_binary, to_binary, Addr, Coin, ReplyOn, SubMsg, Uint128, WasmMsg};
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-
-use astroport::asset::AssetInfo;
-use astroport::router::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
-    SimulateSwapOperationsResponse, SwapOperation, MAX_SWAP_OPERATIONS,
-};
 
 use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError;
 use crate::testing::mock_querier::mock_dependencies;
+
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+
+use astroport::asset::{native_asset_info, AssetInfo};
+use astroport::router::{
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
+    SimulateSwapOperationsResponse, SwapOperation, MAX_SWAP_OPERATIONS,
+};
 
 #[test]
 fn proper_initialization() {
@@ -366,7 +367,7 @@ fn execute_swap_operation() {
                     contract: String::from("pair"),
                     amount: Uint128::new(1000000u128),
                     msg: to_binary(&astroport::pair::Cw20HookMsg::Swap {
-                        ask_asset_info: None,
+                        ask_asset_info: Some(native_asset_info("uusd".to_string())),
                         belief_price: None,
                         max_spread: None,
                         to: Some(String::from("addr0000")),

@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-astro-xastro"
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport ASTRO-xASTRO pair contract implementation"
@@ -34,8 +34,8 @@ thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
 
 [dev-dependencies]
-astroport-token = {path = "../token"}
-astroport-factory = {path = "../factory"}
+astroport-token = { path = "../token" }
+astroport-factory = { path = "../factory" }
 cw-multi-test = "0.15"
-astroport-staking = {path = "../tokenomics/staking"}
-astroport-xastro-token = {path = "../tokenomics/xastro_token"}
+astroport-staking = { path = "../tokenomics/staking" }
+astroport-xastro-token = { path = "../tokenomics/xastro_token" }

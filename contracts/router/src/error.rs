@@ -1,8 +1,7 @@
 use cosmwasm_std::{OverflowError, StdError, Uint128};
 use thiserror::Error;
 
-/// ## Description
-/// This enum describes oracle contract errors!
+/// This enum describes oracle contract errors
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]

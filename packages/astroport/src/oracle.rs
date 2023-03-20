@@ -23,7 +23,7 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     /// Calculates a new TWAP with updated precision
-    #[returns(Uint256)]
+    #[returns(Vec<(AssetInfo, Uint256)>)]
     Consult {
         /// The asset for which to compute a new TWAP value
         token: AssetInfo,

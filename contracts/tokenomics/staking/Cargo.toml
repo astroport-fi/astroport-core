@@ -1,6 +1,6 @@
 [package]
 name = "astroport-staking"
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Astroport"]
 edition = "2021"
 
@@ -30,5 +30,5 @@ protobuf = { version = "2", features = ["with-bytes"] }
 cosmwasm-schema = { version = "1.1" }
 
 [dev-dependencies]
-astroport-token = {path = "../../token"}
+astroport-token = { path = "../../token" }
 cw-multi-test = "0.15"

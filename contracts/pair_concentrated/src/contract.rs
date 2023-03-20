@@ -819,7 +819,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     match contract_version.contract.as_ref() {
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
-            "1.0.0" => {}
+            "1.0.0" | "1.1.0" | "1.1.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

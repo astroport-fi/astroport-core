@@ -2,18 +2,17 @@ use astroport::staking::{ConfigResponse, Cw20HookMsg, InstantiateMsg as xInstati
 use astroport::token::InstantiateMsg;
 use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
+use cw_multi_test::{App, ContractWrapper, Executor};
 
 const ALICE: &str = "alice";
 const BOB: &str = "bob";
 const CAROL: &str = "carol";
 
-type TerraApp = App;
-fn mock_app() -> TerraApp {
-    BasicApp::default()
+fn mock_app() -> App {
+    App::default()
 }
 
-fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Addr) {
+fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
@@ -82,10 +81,10 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Add
         }))
         .unwrap();
 
-    // in multitest, contract names are named in the order in which contracts are created.
-    assert_eq!(Addr::unchecked("contract0"), astro_token_instance);
-    assert_eq!(Addr::unchecked("contract1"), staking_instance);
-    assert_eq!(Addr::unchecked("contract2"), res.share_token_addr);
+    // In multitest, contract names are named in the order in which contracts are created.
+    assert_eq!("contract0", astro_token_instance);
+    assert_eq!("contract1", staking_instance);
+    assert_eq!("contract2", res.share_token_addr);
 
     let x_astro_token_instance = res.share_token_addr;
 
@@ -96,7 +95,7 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Add
     )
 }
 
-fn mint_some_astro(router: &mut TerraApp, owner: Addr, astro_token_instance: Addr, to: &str) {
+fn mint_some_astro(router: &mut App, owner: Addr, astro_token_instance: Addr, to: &str) {
     let msg = cw20::Cw20ExecuteMsg::Mint {
         recipient: String::from(to),
         amount: Uint128::from(100u128),

@@ -1,10 +1,11 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Binary, Decimal, Decimal256, Uint128};
+use cosmwasm_std::{Decimal, Decimal256, Uint128};
 
 use crate::asset::PairInfo;
 use crate::asset::{Asset, AssetInfo};
 use crate::pair::{
-    CumulativePricesResponse, PoolResponse, ReverseSimulationResponse, SimulationResponse,
+    ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
+    SimulationResponse,
 };
 
 /// This structure holds concentrated pool parameters.
@@ -99,17 +100,6 @@ pub enum QueryMsg {
     /// Query LP token virtual price
     #[returns(Decimal256)]
     LpPrice {},
-}
-
-/// This struct is used to return a query result with the general contract configuration.
-#[cw_serde]
-pub struct ConfigResponse {
-    /// Last timestamp when the cumulative prices in the pool were updated
-    pub block_time_last: u64,
-    /// The pool's parameters
-    pub params: Option<Binary>,
-    /// Pool's owner
-    pub owner: Option<Addr>,
 }
 
 #[cw_serde]

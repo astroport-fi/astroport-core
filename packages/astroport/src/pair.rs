@@ -135,6 +135,8 @@ pub struct ConfigResponse {
     pub block_time_last: u64,
     /// The pool's parameters
     pub params: Option<Binary>,
+    /// The contract owner
+    pub owner: Option<Addr>,
 }
 
 /// This structure holds the parameters that are returned from a swap simulation response
@@ -162,14 +164,12 @@ pub struct ReverseSimulationResponse {
 /// This structure is used to return a cumulative prices query response.
 #[cw_serde]
 pub struct CumulativePricesResponse {
-    /// The two assets in the pool to query
+    /// The assets in the pool to query
     pub assets: Vec<Asset>,
     /// The total amount of LP tokens currently issued
     pub total_share: Uint128,
-    /// The last value for the token0 cumulative price
-    pub price0_cumulative_last: Uint128,
-    /// The last value for the token1 cumulative price
-    pub price1_cumulative_last: Uint128,
+    /// The vector contains cumulative prices for each pair of assets in the pool
+    pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
 }
 
 /// This structure describes a migration message.
@@ -182,6 +182,8 @@ pub struct MigrateMsg {}
 pub struct StablePoolParams {
     /// The current stableswap pool amplification
     pub amp: u64,
+    /// The contract owner
+    pub owner: Option<String>,
 }
 
 /// This structure stores a stableswap pool's configuration.

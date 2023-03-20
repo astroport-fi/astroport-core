@@ -1,5 +1,6 @@
 use cosmwasm_std::{Addr, Decimal};
 use cw_multi_test::{next_block, Executor};
+use itertools::Itertools;
 
 use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::pair::ExecuteMsg;
@@ -298,11 +299,15 @@ fn check_imbalanced_provide() {
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
         helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
     ];
+    // Making two provides just to check that both if-branches are covered (initial and usual provide)
+    helper.give_me_money(&assets, &user1);
+    helper.provide_liquidity(&user1, &assets).unwrap();
+
     helper.give_me_money(&assets, &user1);
     helper.provide_liquidity(&user1, &assets).unwrap();
 
     assert_eq!(
-        100285_256937,
+        200495_366531,
         helper.token_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
@@ -320,8 +325,11 @@ fn check_imbalanced_provide() {
     helper.give_me_money(&assets, &user1);
     helper.provide_liquidity(&user1, &assets).unwrap();
 
+    helper.give_me_money(&assets, &user1);
+    helper.provide_liquidity(&user1, &assets).unwrap();
+
     assert_eq!(
-        100285_256937,
+        200495_366531,
         helper.token_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
@@ -786,8 +794,21 @@ fn check_prices() {
     let check_prices = |helper: &Helper| {
         let prices = helper.query_prices().unwrap();
 
-        assert!(!prices.price0_cumulative_last.is_zero());
-        assert!(!prices.price1_cumulative_last.is_zero());
+        test_coins
+            .iter()
+            .cartesian_product(test_coins.iter())
+            .filter(|(a, b)| a != b)
+            .for_each(|(from_coin, to_coin)| {
+                let price = prices
+                    .cumulative_prices
+                    .iter()
+                    .filter(|(from, to, _)| {
+                        from.eq(&helper.assets[from_coin]) && to.eq(&helper.assets[to_coin])
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(price.len(), 1);
+                assert!(!price[0].2.is_zero());
+            });
     };
 
     let assets = vec![
