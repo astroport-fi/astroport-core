@@ -42,7 +42,7 @@ dependencies = [
 name = "ap-native-coin-wrapper"
 version = "1.0.0"
 dependencies = [
- "astroport 2.4.0",
+ "astroport 2.5.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw20 0.15.1",
@@ -233,7 +233,7 @@ name = "astroport-native-coin-wrapper"
 version = "0.1.0"
 dependencies = [
  "ap-native-coin-wrapper",
- "astroport 2.4.0",
+ "astroport 2.5.0",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",

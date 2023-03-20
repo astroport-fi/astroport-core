@@ -297,11 +297,15 @@ fn check_imbalanced_provide() {
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
         helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
     ];
+    // Making two provides just to check that both if-branches are covered (initial and usual provide)
+    helper.give_me_money(&assets, &user1);
+    helper.provide_liquidity(&user1, &assets).unwrap();
+
     helper.give_me_money(&assets, &user1);
     helper.provide_liquidity(&user1, &assets).unwrap();
 
     assert_eq!(
-        100285_256937,
+        200495_366531,
         helper.token_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
@@ -319,8 +323,11 @@ fn check_imbalanced_provide() {
     helper.give_me_money(&assets, &user1);
     helper.provide_liquidity(&user1, &assets).unwrap();
 
+    helper.give_me_money(&assets, &user1);
+    helper.provide_liquidity(&user1, &assets).unwrap();
+
     assert_eq!(
-        100285_256937,
+        200495_366531,
         helper.token_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
@@ -928,4 +935,65 @@ fn update_owner() {
 
     let config = helper.query_config().unwrap();
     assert_eq!(config.owner.unwrap().to_string(), new_owner)
+}
+
+#[test]
+fn deregistered_pair() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("USDX")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::one(),
+        ma_half_time: 600,
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    let deregister_msg = astroport::factory::ExecuteMsg::Deregister {
+        asset_infos: helper.assets.values().cloned().collect(),
+    };
+    helper
+        .app
+        .execute_contract(owner.clone(), helper.factory.clone(), &deregister_msg, &[])
+        .unwrap();
+
+    let err = helper
+        .swap(
+            &owner,
+            &helper.assets[&test_coins[0]].with_balance(100u128),
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::PairIsNotRegistered {},
+        err.downcast().unwrap(),
+    );
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100u128),
+        helper.assets[&test_coins[1]].with_balance(100u128),
+    ];
+    let err = helper.provide_liquidity(&owner, &assets).unwrap_err();
+    assert_eq!(
+        ContractError::PairIsNotRegistered {},
+        err.downcast().unwrap(),
+    );
+
+    helper
+        .withdraw_liquidity(&owner, 99999999000u128, vec![])
+        .unwrap();
 }
