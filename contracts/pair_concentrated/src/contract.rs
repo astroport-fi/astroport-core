@@ -33,7 +33,7 @@ use crate::state::{
 use crate::utils::{
     accumulate_prices, assert_max_spread, assert_slippage_tolerance, before_swap_check,
     calc_last_prices, calc_provide_fee, check_asset_infos, check_assets, check_cw20_in_pool,
-    compute_swap, get_share_in_assets, mint_liquidity_token_message, query_pools,
+    compute_swap, get_share_in_assets, mint_liquidity_token_message, query_pools, check_pair_registered,
 };
 
 /// Contract name that is used for migration.
@@ -364,6 +364,14 @@ pub fn provide_liquidity(
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
+
+    if !check_pair_registered(
+        deps.querier,
+        &config.factory_addr,
+        &config.pair_info.asset_infos,
+    )? {
+        return Err(ContractError::PairIsNotRegistered {});
+    }
 
     match assets.len() {
         0 => {
