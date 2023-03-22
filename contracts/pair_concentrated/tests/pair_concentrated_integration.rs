@@ -125,11 +125,10 @@ fn provide_and_withdraw() {
 
     let user1 = Addr::unchecked("user1");
 
-    // Try to provide with additional wrong asset
+    // Try to provide with wrong asset
     let random_coin = native_asset_info("random_coin".to_string()).with_balance(100u8);
     let wrong_assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
-        helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
         random_coin.clone(),
     ];
     helper.give_me_money(&wrong_assets, &user1);
@@ -158,7 +157,7 @@ fn provide_and_withdraw() {
         .provide_liquidity(&user1, &[random_coin])
         .unwrap_err();
     assert_eq!(
-        "Generic error: Asset random_coin is not in the pool",
+        "The asset random_coin does not belong to the pair",
         err.root_cause().to_string()
     );
 
@@ -184,7 +183,10 @@ fn provide_and_withdraw() {
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
         helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
     ];
-
+    helper.give_me_money(
+        &[helper.assets[&test_coins[1]].with_balance(50_000_000000u128)],
+        &user1,
+    );
     helper.provide_liquidity(&user1, &assets).unwrap();
 
     assert_eq!(70710_677118, helper.token_balance(&helper.lp_token, &user1));
@@ -938,11 +940,9 @@ fn update_owner() {
 }
 
 #[test]
-fn deregistered_pair() {
+fn query_d_test() {
     let owner = Addr::unchecked("owner");
-
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("USDX")];
-
     let params = ConcentratedPoolParams {
         amp: f64_to_dec(40f64),
         gamma: f64_to_dec(0.000145),
@@ -954,46 +954,13 @@ fn deregistered_pair() {
         price_scale: Decimal::one(),
         ma_half_time: 600,
     };
+    // create pair with test_coins
+    let helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
-
-    let assets = vec![
-        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
-        helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
-    ];
-    helper.provide_liquidity(&owner, &assets).unwrap();
-
-    let deregister_msg = astroport::factory::ExecuteMsg::Deregister {
-        asset_infos: helper.assets.values().cloned().collect(),
-    };
-    helper
-        .app
-        .execute_contract(owner.clone(), helper.factory.clone(), &deregister_msg, &[])
-        .unwrap();
-
-    let err = helper
-        .swap(
-            &owner,
-            &helper.assets[&test_coins[0]].with_balance(100u128),
-            None,
-        )
-        .unwrap_err();
+    // query current pool D value before providing any liquidity
+    let err = helper.query_d().unwrap_err();
     assert_eq!(
-        ContractError::PairIsNotRegistered {},
-        err.downcast().unwrap(),
+        err.to_string(),
+        "Generic error: Querier contract error: Generic error: Pools are empty"
     );
-
-    let assets = vec![
-        helper.assets[&test_coins[0]].with_balance(100u128),
-        helper.assets[&test_coins[1]].with_balance(100u128),
-    ];
-    let err = helper.provide_liquidity(&owner, &assets).unwrap_err();
-    assert_eq!(
-        ContractError::PairIsNotRegistered {},
-        err.downcast().unwrap(),
-    );
-
-    helper
-        .withdraw_liquidity(&owner, 99999999000u128, vec![])
-        .unwrap();
 }

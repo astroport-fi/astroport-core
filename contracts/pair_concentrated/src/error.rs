@@ -18,6 +18,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
+    #[error("CW20 tokens can be swapped via Cw20::Send message only")]
+    Cw20DirectSwap {},
+
     #[error("You need to provide init params")]
     InitParamsNotFound {},
 
@@ -35,7 +38,7 @@ pub enum ContractError {
     )]
     MinChangingTimeAssertion {},
 
-    #[error("Initial provide must not contain zero amount")]
+    #[error("Initial provide can not be one-sided")]
     InvalidZeroAmount {},
 
     #[error("Operation exceeds max spread limit")]
@@ -50,16 +53,13 @@ pub enum ContractError {
     #[error("Generator address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
 
-    #[error("Pair is not migrated to the new admin!")]
-    PairIsNotMigrated {},
-
     #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
     MinimumLiquidityAmountError {},
 
     #[error("Failed to parse or process reply message")]
     FailedToParseReply {},
 
-    #[error("Pair is not registered in the factory. Only withdraw is allowed")]
+    #[error("Pair is not registered in the factory. Only swap and withdraw are allowed")]
     PairIsNotRegistered {},
 
     #[error("Invalid number of assets. This pair supports only {0} assets")]

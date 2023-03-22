@@ -266,6 +266,11 @@ pub fn query_compute_d(deps: Deps, env: Env) -> StdResult<Decimal256> {
         .into_iter()
         .map(|a| a.amount)
         .collect_vec();
+
+    if xs[0].is_zero() || xs[1].is_zero() {
+        return Err(StdError::generic_err("Pools are empty"));
+    }
+
     xs[1] *= config.pool_state.price_state.price_scale;
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);

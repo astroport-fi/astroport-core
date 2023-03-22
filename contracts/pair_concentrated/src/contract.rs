@@ -17,7 +17,6 @@ use astroport::asset::{
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
-use astroport::pair::migration_check;
 use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, MigrateMsg, UpdatePoolParams,
@@ -55,11 +54,11 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    check_asset_infos(deps.api, &msg.asset_infos)?;
-
     if msg.asset_infos.len() != 2 {
         return Err(StdError::generic_err("asset_infos must contain exactly two elements").into());
     }
+
+    check_asset_infos(deps.api, &msg.asset_infos)?;
 
     let params: ConcentratedPoolParams = from_binary(
         &msg.init_params
@@ -77,14 +76,18 @@ pub fn instantiate(
     store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
     // Initializing cumulative prices
-    let mut cumulative_prices = vec![];
-    for from_pool in &msg.asset_infos {
-        for to_pool in &msg.asset_infos {
-            if !from_pool.eq(to_pool) {
-                cumulative_prices.push((from_pool.clone(), to_pool.clone(), Uint128::zero()))
-            }
-        }
-    }
+    let cumulative_prices = vec![
+        (
+            msg.asset_infos[0].clone(),
+            msg.asset_infos[1].clone(),
+            Uint128::zero(),
+        ),
+        (
+            msg.asset_infos[1].clone(),
+            msg.asset_infos[0].clone(),
+            Uint128::zero(),
+        ),
+    ];
 
     let mut pool_params = PoolParams::default();
     pool_params.update_params(UpdatePoolParams {
@@ -213,10 +216,6 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    if migration_check(deps.querier, &config.factory_addr, &env.contract.address)? {
-        return Err(ContractError::PairIsNotMigrated {});
-    }
-
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ProvideLiquidity {
@@ -242,7 +241,7 @@ pub fn execute(
         } => {
             offer_asset.info.check(deps.api)?;
             if !offer_asset.is_native_token() {
-                return Err(ContractError::Unauthorized {});
+                return Err(ContractError::Cw20DirectSwap {});
             }
             offer_asset.assert_sent_native_token_balance(&info)?;
 
@@ -365,8 +364,6 @@ pub fn provide_liquidity(
     auto_stake: Option<bool>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
-    check_assets(deps.api, &assets)?;
-
     let mut config = CONFIG.load(deps.storage)?;
 
     if !check_pair_registered(
@@ -377,24 +374,20 @@ pub fn provide_liquidity(
         return Err(ContractError::PairIsNotRegistered {});
     }
 
-    info.funds
-        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
-
-    let precisions = Precisions::new(deps.storage)?;
-    let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
-
     match assets.len() {
         0 => {
             return Err(StdError::generic_err("Nothing to provide").into());
         }
         1 => {
             // Append omitted asset with explicit zero amount
-            let (given_ind, _) = pools
+            let (given_ind, _) = config
+                .pair_info
+                .asset_infos
                 .iter()
-                .find_position(|pool| pool.info.equal(&assets[0].info))
+                .find_position(|pool| pool.equal(&assets[0].info))
                 .ok_or_else(|| ContractError::InvalidAsset(assets[0].info.to_string()))?;
             assets.push(Asset {
-                info: pools[1 - given_ind].info.clone(),
+                info: config.pair_info.asset_infos[1 - given_ind].clone(),
                 amount: Uint128::zero(),
             });
         }
@@ -405,6 +398,14 @@ pub fn provide_liquidity(
             ))
         }
     }
+
+    check_assets(deps.api, &assets)?;
+
+    info.funds
+        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
+
+    let precisions = Precisions::new(deps.storage)?;
+    let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
     if pools[0].info.equal(&assets[1].info) {
         assets.swap(0, 1);
@@ -685,21 +686,13 @@ fn swap(
     let offer_asset_dec = offer_asset.to_decimal_asset(offer_asset_prec)?;
     let mut config = CONFIG.load(deps.storage)?;
 
-    if !check_pair_registered(
-        deps.querier,
-        &config.factory_addr,
-        &config.pair_info.asset_infos,
-    )? {
-        return Err(ContractError::PairIsNotRegistered {});
-    }
-
     let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
     let (offer_ind, _) = pools
         .iter()
         .find_position(|asset| asset.info == offer_asset_dec.info)
         .ok_or_else(|| ContractError::InvalidAsset(offer_asset_dec.info.to_string()))?;
-    let ask_ind = 1 - offer_ind;
+    let ask_ind = 1 ^ offer_ind;
     let ask_asset_prec = precisions.get_precision(&pools[ask_ind].info)?;
 
     pools[offer_ind].amount -= offer_asset_dec.amount;
@@ -835,8 +828,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     match contract_version.contract.as_ref() {
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
-            "1.0.0" => {}
-            "1.1.0" => {}
+            "1.0.0" | "1.1.0" | "1.1.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

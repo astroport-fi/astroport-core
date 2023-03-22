@@ -346,7 +346,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "anyhow",
  "ap-native-coin-registry 1.0.0",

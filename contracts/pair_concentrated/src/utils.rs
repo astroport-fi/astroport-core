@@ -289,7 +289,7 @@ pub fn compute_swap(
     env: &Env,
     maker_fee_share: Decimal256,
 ) -> StdResult<SwapResult> {
-    let offer_ind = 1 - ask_ind;
+    let offer_ind = 1 ^ ask_ind;
 
     let mut ixs = xs.to_vec();
     ixs[1] *= config.pool_state.price_state.price_scale;
@@ -339,7 +339,7 @@ pub fn compute_offer_amount(
     config: &Config,
     env: &Env,
 ) -> StdResult<(Decimal256, Decimal256, Decimal256)> {
-    let offer_ind = 1 - ask_ind;
+    let offer_ind = 1 ^ ask_ind;
 
     if ask_ind == 1 {
         want_amount *= config.pool_state.price_state.price_scale
@@ -413,9 +413,8 @@ pub fn calc_provide_fee(
 ) -> Decimal256 {
     let sum = deposits[0] + deposits[1];
     let avg = sum / N;
-    let deviation = deposits[0].diff(avg) + deposits[1].diff(avg);
 
-    deviation * params.fee(xp) / (sum * N)
+    deposits[0].diff(avg) * params.fee(xp) / sum
 }
 
 /// This is an internal function that enforces slippage tolerance for swaps.
