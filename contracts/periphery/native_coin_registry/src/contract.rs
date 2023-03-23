@@ -9,10 +9,10 @@ use std::collections::HashSet;
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL};
-use ap_native_coin_registry::{
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::native_coin_registry::{
     CoinResponse, Config, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, COINS_INFO,
 };
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 
 /// version info for migration info
 const CONTRACT_NAME: &str = "astroport-native-coin-registry";

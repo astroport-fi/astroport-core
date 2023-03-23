@@ -99,7 +99,7 @@ pub fn query_token_precision(
         AssetInfo::NativeToken { denom } => {
             if let Some(res) = querier.query_wasm_raw(factory_addr, b"config".as_slice())? {
                 let res: Config = from_slice(&res)?;
-                let result = ap_native_coin_registry::COINS_INFO.query(
+                let result = crate::native_coin_registry::COINS_INFO.query(
                     querier,
                     res.coin_registry_address,
                     denom.to_string(),

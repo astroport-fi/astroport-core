@@ -49,4 +49,3 @@ valkyrie = { git = "https://github.com/valkyrieprotocol/contracts.git", rev = "b
 valkyrie-lp-staking = { git = "https://github.com/valkyrieprotocol/contracts.git", rev = "b5fcb666f17d7e291f40365756e50fc0d7b9bf54" }
 valkyrie-vp = { git = "https://github.com/valkyrieprotocol/contracts.git", rev = "b5fcb666f17d7e291f40365756e50fc0d7b9bf54" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
-ap-native-coin-registry = { path = "../../../packages/native_coin_registry" }
