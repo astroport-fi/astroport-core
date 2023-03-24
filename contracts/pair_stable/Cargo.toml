@@ -40,4 +40,3 @@ astroport-token = { path = "../token" }
 cw-multi-test = "0.15"
 astroport-factory = { path = "../factory" }
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
-ap-native-coin-registry = { path = "../../packages/native_coin_registry" }
