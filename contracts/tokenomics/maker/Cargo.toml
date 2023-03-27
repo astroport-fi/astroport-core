@@ -26,7 +26,7 @@ cw2 = "0.15"
 cw20 = "0.15"
 cw-storage-plus = "0.15"
 astroport = { path = "../../../packages/astroport", default-features = false }
-astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc", branch = "merge/release" }
+astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc", branch = "main" }
 thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
 
@@ -36,6 +36,6 @@ astroport-factory = { path = "../../factory" }
 astroport-pair = { path = "../../pair" }
 cw-multi-test = "0.15"
 astroport-pair-stable = { path = "../../pair_stable" }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance", branch = "merge/release" }
-astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance", branch = "merge/release" }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance", branch = "main" }
+astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance", branch = "main" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
