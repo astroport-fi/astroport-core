@@ -4,8 +4,8 @@ use cosmwasm_std::{
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
 
-use ap_native_coin_wrapper::{Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg};
 use astroport::asset::{native_asset_info, token_asset_info, AssetInfo};
+use astroport::native_coin_wrapper::{Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg};
 use astroport::token::InstantiateMsg as AstroInstantiateMsg;
 use cw_multi_test::{App, ContractWrapper, Executor};
 

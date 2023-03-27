@@ -11,7 +11,7 @@ use cw_utils::{must_pay, parse_instantiate_response_data};
 
 use crate::error::ContractError;
 use crate::state::CONFIG;
-use ap_native_coin_wrapper::{Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::native_coin_wrapper::{Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 // version info for migration info

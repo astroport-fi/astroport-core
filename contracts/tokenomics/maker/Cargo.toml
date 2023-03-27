@@ -39,4 +39,3 @@ astroport-pair-stable = { path = "../../pair_stable" }
 astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance", branch = "merge/release" }
 astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance", branch = "merge/release" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
-ap-native-coin-registry = { path = "../../../packages/native_coin_registry" }

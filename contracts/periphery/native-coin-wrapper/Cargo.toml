@@ -32,7 +32,6 @@ cw20 = "0.15"
 cw-utils = "0.15"
 thiserror = { version = "1.0" }
 astroport = { path = "../../../packages/astroport" }
-ap-native-coin-wrapper = { path = "../../../packages/native-coin-wrapper" }
 
 [dev-dependencies]
 cw-multi-test = "0.15"

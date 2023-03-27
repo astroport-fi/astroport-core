@@ -77,7 +77,7 @@ fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>
         .instantiate_contract(
             coin_registry_id,
             Addr::unchecked(OWNER),
-            &ap_native_coin_registry::InstantiateMsg {
+            &astroport::native_coin_registry::InstantiateMsg {
                 owner: OWNER.to_string(),
             },
             &[],
@@ -90,7 +90,7 @@ fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>
         app.execute_contract(
             Addr::unchecked(OWNER),
             coin_registry_address.clone(),
-            &ap_native_coin_registry::ExecuteMsg::Add {
+            &astroport::native_coin_registry::ExecuteMsg::Add {
                 native_coins: coins,
             },
             &[],

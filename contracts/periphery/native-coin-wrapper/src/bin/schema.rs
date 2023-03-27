@@ -1,6 +1,6 @@
 use cosmwasm_schema::write_api;
 
-use ap_native_coin_wrapper::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::native_coin_wrapper::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {
     write_api! {

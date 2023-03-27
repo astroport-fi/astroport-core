@@ -37,4 +37,3 @@ cw-multi-test = "0.15"
 itertools = "0.10"
 anyhow = "1.0"
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
-ap-native-coin-registry = { path = "../../../packages/native_coin_registry" }
