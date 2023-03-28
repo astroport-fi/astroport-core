@@ -174,7 +174,7 @@ impl Helper {
             .instantiate_contract(
                 coin_registry_id,
                 owner.clone(),
-                &ap_native_coin_registry::InstantiateMsg {
+                &astroport::native_coin_registry::InstantiateMsg {
                     owner: owner.to_string(),
                 },
                 &[],
@@ -186,7 +186,7 @@ impl Helper {
         app.execute_contract(
             owner.clone(),
             coin_registry_address.clone(),
-            &ap_native_coin_registry::ExecuteMsg::Add {
+            &astroport::native_coin_registry::ExecuteMsg::Add {
                 native_coins: vec![("uluna".to_owned(), 6), ("uusd".to_owned(), 6)],
             },
             &[],

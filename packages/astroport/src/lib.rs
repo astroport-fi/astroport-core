@@ -5,6 +5,8 @@ pub mod factory;
 pub mod generator;
 pub mod generator_proxy;
 pub mod maker;
+pub mod native_coin_registry;
+pub mod native_coin_wrapper;
 pub mod oracle;
 pub mod pair;
 pub mod pair_bonded;
@@ -70,8 +72,7 @@ use cosmwasm_std::{Decimal, Decimal256, StdError, StdResult, Uint128};
 pub fn decimal2decimal256(dec_value: Decimal) -> StdResult<Decimal256> {
     Decimal256::from_atomics(dec_value.atomics(), dec_value.decimal_places()).map_err(|_| {
         StdError::generic_err(format!(
-            "Failed to convert Decimal {} to Decimal256",
-            dec_value
+            "Failed to convert Decimal {dec_value} to Decimal256"
         ))
     })
 }

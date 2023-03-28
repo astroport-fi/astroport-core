@@ -1,12 +1,17 @@
 use crate::error::ContractError;
-use crate::state::{Config, BRIDGES};
+use crate::state::BRIDGES;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::maker::ExecuteMsg;
+use astroport::maker::{
+    Config, ExecuteMsg, SecondReceiverConfig, SecondReceiverParams, MAX_SECOND_RECEIVER_CUT,
+};
 use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_pair_info;
+
 use cosmwasm_std::{
-    to_binary, Addr, Decimal, Deps, Env, QuerierWrapper, StdResult, SubMsg, Uint128, WasmMsg,
+    coins, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Deps, Env, QuerierWrapper,
+    StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
+use cw20::Cw20ExecuteMsg;
 
 /// The default bridge depth for a fee token
 pub const BRIDGES_INITIAL_DEPTH: u64 = 0;
@@ -189,4 +194,60 @@ pub fn get_pool(
         &[from.clone(), to.clone()],
     )
     .map_err(|_| ContractError::InvalidBridgeNoPool(from.to_string(), to.to_string()))
+}
+
+/// For native tokens of type [`AssetInfo`] uses method [`astro_satellite_package::ExecuteMsg::TransferAstro`]
+/// to send a token amount to a recipient.
+///
+/// For a token of type [`AssetInfo`] we use the default method [`Cw20ExecuteMsg::Send`]
+pub fn build_send_msg(
+    asset: &Asset,
+    recipient: impl Into<String>,
+    msg: Option<Binary>,
+) -> StdResult<CosmosMsg> {
+    let recipient = recipient.into();
+
+    match &asset.info {
+        AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: contract_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: recipient,
+                amount: asset.amount,
+                msg: msg.unwrap_or_default(),
+            })?,
+            funds: vec![],
+        })),
+        AssetInfo::NativeToken { denom } => Ok(CosmosMsg::Wasm(wasm_execute(
+            recipient,
+            &astro_satellite_package::ExecuteMsg::TransferAstro {},
+            coins(asset.amount.u128(), denom),
+        )?)),
+    }
+}
+
+/// Updates the parameters that describe the second receiver of fees
+pub fn update_second_receiver_cfg(
+    deps: Deps,
+    cfg: &mut Config,
+    params: &Option<SecondReceiverParams>,
+) -> StdResult<()> {
+    if let Some(params) = params {
+        if params.second_receiver_cut > MAX_SECOND_RECEIVER_CUT
+            || params.second_receiver_cut.is_zero()
+        {
+            return Err(StdError::generic_err(format!(
+                "Incorrect second receiver percent of its share. Should be in range: 0 < {} <= {}",
+                params.second_receiver_cut, MAX_SECOND_RECEIVER_CUT
+            )));
+        };
+
+        cfg.second_receiver_cfg = Some(SecondReceiverConfig {
+            second_fee_receiver: deps
+                .api
+                .addr_validate(params.second_fee_receiver.as_str())?,
+            second_receiver_cut: params.second_receiver_cut,
+        });
+    }
+
+    Ok(())
 }

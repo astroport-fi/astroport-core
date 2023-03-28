@@ -1,6 +1,6 @@
 use cosmwasm_std::Addr;
 
-use ap_native_coin_registry::{CoinResponse, Config, ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::native_coin_registry::{CoinResponse, Config, ExecuteMsg, InstantiateMsg, QueryMsg};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 fn mock_app() -> App {

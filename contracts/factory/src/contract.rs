@@ -1,8 +1,10 @@
 use std::collections::HashSet;
 
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
+    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order,
+    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use protobuf::Message;
@@ -501,7 +503,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 /// * **asset_infos** is a vector with assets traded in the pair.
 pub fn query_pair(deps: Deps, asset_infos: Vec<AssetInfo>) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
-    query_pair_info(&deps.querier, &pair_addr)
+    query_pair_info(&deps.querier, pair_addr)
 }
 
 /// Returns a vector with pair data that contains items of type [`PairInfo`]. Querying starts at `start_after` and returns `limit` pairs.
