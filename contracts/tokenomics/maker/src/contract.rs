@@ -14,7 +14,7 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use astroport::factory::UpdateAddr;
 use astroport::maker::{
     AssetWithLimit, BalancesResponse, Config, ConfigResponse, ExecuteMsg, InstantiateMsg,
-    MigrateMsg, QueryMsg, SecondReceiverParams,
+    MigrateMsg, QueryMsg, SecondReceiverConfig, SecondReceiverParams,
 };
 use astroport::pair::MAX_ALLOWED_SLIPPAGE;
 use cosmwasm_std::{
@@ -52,8 +52,12 @@ pub fn instantiate(
         Uint64::zero()
     };
 
+    if msg.staking_contract.is_none() && governance_percent != Uint64::new(100) {
+        return Err(ContractError::GovernancePercentMustBe100 {});
+    }
+
     let max_spread = if let Some(max_spread) = msg.max_spread {
-        if max_spread.gt(&Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?) {
+        if max_spread.is_zero() || max_spread.gt(&Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?) {
             return Err(ContractError::IncorrectMaxSpread {});
         };
 
@@ -95,7 +99,43 @@ pub fn instantiate(
 
     CONFIG.save(deps.storage, &cfg)?;
 
-    Ok(Response::default())
+    let (second_fee_receiver, second_receiver_cut) = if let Some(SecondReceiverConfig {
+        second_fee_receiver,
+        second_receiver_cut,
+    }) = cfg.second_receiver_cfg
+    {
+        (
+            second_fee_receiver.to_string(),
+            second_receiver_cut.to_string(),
+        )
+    } else {
+        (String::from("none"), String::from("0"))
+    };
+
+    Ok(Response::default().add_attributes([
+        attr("owner", msg.owner),
+        attr(
+            "default_bridge",
+            cfg.default_bridge
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| String::from("none")),
+        ),
+        attr("astro_token", cfg.astro_token.to_string()),
+        attr("factory_contract", msg.factory_contract),
+        attr(
+            "staking_contract",
+            msg.staking_contract.unwrap_or_else(|| String::from("none")),
+        ),
+        attr(
+            "governance_contract",
+            msg.governance_contract
+                .unwrap_or_else(|| String::from("none")),
+        ),
+        attr("governance_percent", governance_percent),
+        attr("max_spread", max_spread.to_string()),
+        attr("second_fee_receiver", second_fee_receiver),
+        attr("second_receiver_cut", second_receiver_cut),
+    ]))
 }
 
 /// Exposes execute functions available in the contract.
@@ -110,6 +150,7 @@ pub fn instantiate(
 ///             governance_contract,
 ///             governance_percent,
 ///             max_spread,
+///             second_receiver_params,
 ///         }** Updates general contract settings stores in the [`Config`].
 ///
 /// * **ExecuteMsg::UpdateBridges { add, remove }** Adds or removes bridge assets used to swap fee tokens to ASTRO.
@@ -621,7 +662,11 @@ fn distribute(
 ///
 /// * **governance_percent** percentage of ASTRO that goes to the vxASTRO fee distributor.
 ///
+/// * **default_bridge_opt** default bridge asset used for intermediate swaps to ASTRO.
+///
 /// * **max_spread** max spread used when swapping fee tokens to ASTRO.
+///
+/// * **second_receiver_params** describes the second receiver of fees
 ///
 /// ## Executor
 /// Only the owner can execute this.
@@ -679,6 +724,9 @@ fn update_config(
         if governance_percent > Uint64::new(100) {
             return Err(ContractError::IncorrectGovernancePercent {});
         };
+        if config.staking_contract.is_none() && governance_percent != Uint64::new(100) {
+            return Err(ContractError::GovernancePercentMustBe100 {});
+        }
 
         config.governance_percent = governance_percent;
         attributes.push(attr("governance_percent", governance_percent));
@@ -691,7 +739,7 @@ fn update_config(
     }
 
     if let Some(max_spread) = max_spread {
-        if max_spread > Decimal::from_str(MAX_ALLOWED_SLIPPAGE)? {
+        if max_spread.is_zero() || max_spread > Decimal::from_str(MAX_ALLOWED_SLIPPAGE)? {
             return Err(ContractError::IncorrectMaxSpread {});
         };
 
@@ -852,6 +900,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
                 migrate_from_v1(deps.branch(), &msg)?;
             }
             "1.2.0" => migrate_from_v120(deps.branch(), msg)?,
+            "1.3.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

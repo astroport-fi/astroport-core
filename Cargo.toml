@@ -30,3 +30,7 @@ panic = 'abort'
 incremental = false
 overflow-checks = true
 strip = true
+
+[patch.'https://github.com/astroport-fi/hidden_astroport_core']
+astroport = { path = "packages/astroport" }
+
