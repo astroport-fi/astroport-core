@@ -4,7 +4,9 @@ use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::maker::{
     Config, ExecuteMsg, SecondReceiverConfig, SecondReceiverParams, MAX_SECOND_RECEIVER_CUT,
 };
-use astroport::pair::{Cw20HookMsg, SimulationResponse};
+use astroport::pair::Cw20HookMsg;
+use astroport::querier::query_pair_info;
+
 use cosmwasm_std::{
     coins, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Deps, Env, QuerierWrapper,
     StdError, StdResult, SubMsg, Uint128, WasmMsg,
@@ -17,9 +19,6 @@ pub const BRIDGES_INITIAL_DEPTH: u64 = 0;
 pub const BRIDGES_MAX_DEPTH: u64 = 2;
 /// Swap execution depth limit
 pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 3;
-/// This amount of tokens is used in get_pool swap simulations.
-/// TODO: adjust according to token's precision?
-pub const SWAP_SIMULATION_AMOUNT: Uint128 = Uint128::new(1_000_000u128);
 
 /// The function checks from<>to pool exists and creates swap message.
 ///
@@ -35,7 +34,7 @@ pub fn try_build_swap_msg(
     to: &AssetInfo,
     amount_in: Uint128,
 ) -> Result<SubMsg, ContractError> {
-    let (pool, _) = get_pool(querier, &cfg.factory_contract, from, to, Some(amount_in))?;
+    let pool = get_pool(querier, &cfg.factory_contract, from, to)?;
     let msg = build_swap_msg(querier, cfg.max_spread, &pool, from, Some(to), amount_in)?;
     Ok(msg)
 }
@@ -132,9 +131,11 @@ pub fn build_distribute_msg(
 /// This function checks that there is a direct pool to swap to $ASTRO.
 /// Otherwise it looks for an intermediate token to swap to $ASTRO.
 ///
+/// * **factory_contract** address of the factory contract.
+///
 /// * **from_token** asset we want to swap.
 ///
-/// * **to_token** asset we want to swap to.
+/// * **bridge_token** asset we want to swap through.
 ///
 /// * **astro_token** represents $ASTRO.
 ///
@@ -148,25 +149,12 @@ pub fn validate_bridge(
     bridge_token: &AssetInfo,
     astro_token: &AssetInfo,
     depth: u64,
-    amount: Option<Uint128>,
 ) -> Result<PairInfo, ContractError> {
     // Check if the bridge pool exists
-    let (bridge_pool, ret_amount) = get_pool(
-        &deps.querier,
-        factory_contract,
-        from_token,
-        bridge_token,
-        amount,
-    )?;
+    let bridge_pool = get_pool(&deps.querier, factory_contract, from_token, bridge_token)?;
 
     // Check if the bridge token - ASTRO pool exists
-    let astro_pool = get_pool(
-        &deps.querier,
-        factory_contract,
-        bridge_token,
-        astro_token,
-        ret_amount,
-    );
+    let astro_pool = get_pool(&deps.querier, factory_contract, bridge_token, astro_token);
     if astro_pool.is_err() {
         if depth >= BRIDGES_MAX_DEPTH {
             return Err(ContractError::MaxBridgeDepth(depth));
@@ -184,68 +172,32 @@ pub fn validate_bridge(
             &next_bridge_token,
             astro_token,
             depth + 1,
-            ret_amount,
         )?;
     }
 
     Ok(bridge_pool)
 }
 
-/// This function checks that there a pool to swap between `from` and `to`. In case of success
-/// returns [`PairInfo`] of selected pool and simulated return amount.
+/// This function checks that there is a pool to swap between `from` and `to`. In case of success
+/// returns [`PairInfo`] of selected pool.
+///
+/// * **factory_contract** address of the factory contract.
 ///
 /// * **from** source asset.
 ///
 /// * **to** destination asset.
-///
-/// * **amount** optional. The value is used in swap simulations to select the best pool.
 pub fn get_pool(
     querier: &QuerierWrapper,
     factory_contract: &Addr,
     from: &AssetInfo,
     to: &AssetInfo,
-    amount: Option<Uint128>,
-) -> Result<(PairInfo, Option<Uint128>), ContractError> {
-    // We use raw query to save gas
-    let result = astroport::factory::ROUTE.query(
+) -> Result<PairInfo, ContractError> {
+    query_pair_info(
         querier,
         factory_contract.clone(),
-        (from.to_string(), to.to_string()),
-    )?;
-    match result {
-        Some(pairs) if !pairs.is_empty() => {
-            let (best_pair, sim_res) = pairs
-                .into_iter()
-                .map(|pair_contract| {
-                    let sim_res: SimulationResponse = querier.query_wasm_smart(
-                        &pair_contract,
-                        &astroport::pair::QueryMsg::Simulation {
-                            offer_asset: Asset {
-                                info: from.clone(),
-                                amount: amount.unwrap_or(SWAP_SIMULATION_AMOUNT),
-                            },
-                            ask_asset_info: Some(to.clone()),
-                        },
-                    )?;
-                    Ok((pair_contract, sim_res))
-                })
-                .collect::<StdResult<Vec<_>>>()?
-                .into_iter()
-                .max_by(|(_, sim_res1), (_, sim_res2)| {
-                    sim_res1.return_amount.cmp(&sim_res2.return_amount)
-                })
-                .unwrap();
-
-            Ok((
-                querier.query_wasm_smart(best_pair, &astroport::pair::QueryMsg::Pair {})?,
-                Some(sim_res.return_amount),
-            ))
-        }
-        _ => Err(ContractError::InvalidBridgeNoPool(
-            from.to_string(),
-            to.to_string(),
-        )),
-    }
+        &[from.clone(), to.clone()],
+    )
+    .map_err(|_| ContractError::InvalidBridgeNoPool(from.to_string(), to.to_string()))
 }
 
 /// For native tokens of type [`AssetInfo`] uses method [`astro_satellite_package::ExecuteMsg::TransferAstro`]
@@ -265,7 +217,7 @@ pub fn build_send_msg(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: recipient,
                 amount: asset.amount,
-                msg: msg.unwrap_or(Binary::default()),
+                msg: msg.unwrap_or_default(),
             })?,
             funds: vec![],
         })),
