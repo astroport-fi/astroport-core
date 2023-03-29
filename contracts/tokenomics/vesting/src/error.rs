@@ -12,16 +12,21 @@ pub enum ContractError {
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
 
+    #[error("Withdrawn amount must not be zero")]
+    ZeroAmountWithdrawal {},
+
     #[error("Unauthorized")]
     Unauthorized {},
 
     #[error("Amount is not available!")]
     AmountIsNotAvailable {},
 
-    #[error("Vesting schedule error on addr: {0}. Should satisfy: (start < end and at_start < total) or (start = end and at_start = total)")]
+    #[error("Vesting schedule error on addr: {0}. Should satisfy: (start < end, end > current_time and start_amount < end_amount)")]
     VestingScheduleError(Addr),
 
-    #[error("Vesting schedule amount error. The total amount should be equal to the CW20 receive amount.")]
+    #[error(
+        "Vesting schedule amount error. The total amount should be equal to the received amount."
+    )]
     VestingScheduleAmountError {},
 
     #[error("Contract can't be migrated!")]
@@ -32,6 +37,9 @@ pub enum ContractError {
 
     #[error("Account {0} has no active vesting schedule")]
     NoActiveVestingSchedule(String),
+
+    #[error("For account {0} number of schedules exceeds maximum limit")]
+    ExceedSchedulesMaximumLimit(String),
 
     #[error("Failed to withdraw from active schedule: amount left {0}")]
     NotEnoughTokens(Uint128),
