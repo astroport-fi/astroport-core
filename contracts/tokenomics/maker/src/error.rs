@@ -29,6 +29,9 @@ pub enum ContractError {
     #[error("Incorrect governance percent of its share")]
     IncorrectGovernancePercent {},
 
+    #[error("Governance percent must be 100% when staking contract is not set")]
+    GovernancePercentMustBe100 {},
+
     #[error("Incorrect max spread")]
     IncorrectMaxSpread {},
 
