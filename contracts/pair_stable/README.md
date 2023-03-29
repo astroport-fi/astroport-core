@@ -128,14 +128,6 @@ __NOTE__: you should increase your token allowance for the pool before providing
             }
           },
           "amount": "1000000"
-        },
-        {
-          "info": {
-            "token": {
-              "contract_addr": "terra..."
-            }
-          },
-          "amount": "0"
         }
       ],
       "auto_stake": false,
@@ -281,5 +273,15 @@ Returns the cumulative prices for the assets in the pair.
 ```json
 {
   "cumulative_prices": {}
+}
+```
+
+### `query_compute_d`
+
+Returns current D value for the pool.
+
+```json
+{
+  "query_compute_d": {}
 }
 ```

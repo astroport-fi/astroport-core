@@ -8,6 +8,7 @@ use itertools::Itertools;
 use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
 use astroport::cosmwasm_ext::AbsDiff;
 use astroport::querier::{query_factory_config, query_supply};
+use astroport_factory::state::pair_key;
 
 use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, OFFER_PERCENT, TWAP_PRECISION_DEC};
 use crate::error::ContractError;
@@ -288,7 +289,7 @@ pub fn compute_swap(
     env: &Env,
     maker_fee_share: Decimal256,
 ) -> StdResult<SwapResult> {
-    let offer_ind = 1 - ask_ind;
+    let offer_ind = 1 ^ ask_ind;
 
     let mut ixs = xs.to_vec();
     ixs[1] *= config.pool_state.price_state.price_scale;
@@ -338,7 +339,7 @@ pub fn compute_offer_amount(
     config: &Config,
     env: &Env,
 ) -> StdResult<(Decimal256, Decimal256, Decimal256)> {
-    let offer_ind = 1 - ask_ind;
+    let offer_ind = 1 ^ ask_ind;
 
     if ask_ind == 1 {
         want_amount *= config.pool_state.price_state.price_scale
@@ -412,9 +413,8 @@ pub fn calc_provide_fee(
 ) -> Decimal256 {
     let sum = deposits[0] + deposits[1];
     let avg = sum / N;
-    let deviation = deposits[0].diff(avg) + deposits[1].diff(avg);
 
-    deviation * params.fee(xp) / (sum * N)
+    deposits[0].diff(avg) * params.fee(xp) / sum
 }
 
 /// This is an internal function that enforces slippage tolerance for swaps.
@@ -436,6 +436,17 @@ pub fn assert_slippage_tolerance(
     }
 
     Ok(())
+}
+
+// Checks whether the pair is registered in the factory or not.
+pub fn check_pair_registered(
+    querier: QuerierWrapper,
+    factory: &Addr,
+    asset_infos: &[AssetInfo],
+) -> StdResult<bool> {
+    astroport_factory::state::PAIRS
+        .query(&querier, factory.clone(), &pair_key(asset_infos))
+        .map(|inner| inner.is_some())
 }
 
 #[cfg(test)]

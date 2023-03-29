@@ -1,9 +1,12 @@
 use crate::asset::{AssetInfo, PairInfo};
+
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Binary};
 use std::fmt::{Display, Formatter, Result};
 
-/// ## Description
+const MAX_TOTAL_FEE_BPS: u16 = 10_000;
+const MAX_MAKER_FEE_BPS: u16 = 10_000;
+
 /// This structure holds the main contract parameters.
 #[cw_serde]
 pub struct Config {
@@ -74,10 +77,8 @@ pub struct PairConfig {
 
 impl PairConfig {
     /// This method is used to check fee bps.
-    /// ## Params
-    /// `&self` is the type of the caller object.
     pub fn valid_fee_bps(&self) -> bool {
-        self.total_fee_bps <= 10_000 && self.maker_fee_bps <= 10_000
+        self.total_fee_bps <= MAX_TOTAL_FEE_BPS && self.maker_fee_bps <= MAX_MAKER_FEE_BPS
     }
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "astroport-whitelist"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>", "Astroport"]
 edition = "2021"
 description = "Implementation of an proxy contract using a whitelist"
@@ -16,12 +16,11 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
-test-utils = []
 
 [dependencies]
+astroport = { path = "../../packages/astroport", default-features = false }
+cw1-whitelist = { version = "0.15", features = ["library"] }
 cw2 = "0.15"
-cw1-whitelist =  { version = "0.15", features = ["library"] }
 cosmwasm-std = "1.1"
 thiserror = { version = "1.0" }
-astroport = { path = "../../packages/astroport", default-features = false }
 cosmwasm-schema = { version = "1.1" }

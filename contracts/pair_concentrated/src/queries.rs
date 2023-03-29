@@ -9,9 +9,10 @@ use crate::utils::{
 use astroport::asset::Asset;
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::pair::{
-    CumulativePricesResponse, PoolResponse, ReverseSimulationResponse, SimulationResponse,
+    ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
+    SimulationResponse,
 };
-use astroport::pair_concentrated::{ConcentratedPoolParams, ConfigResponse, QueryMsg};
+use astroport::pair_concentrated::{ConcentratedPoolParams, QueryMsg};
 use astroport::querier::{query_fee_info, query_supply};
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal, Decimal256, Deps, Env, StdError, StdResult, Uint128,
@@ -210,8 +211,7 @@ fn query_cumulative_prices(
     Ok(CumulativePricesResponse {
         assets,
         total_share,
-        price0_cumulative_last: config.cumulative_prices[0].2,
-        price1_cumulative_last: config.cumulative_prices[1].2,
+        cumulative_prices: config.cumulative_prices,
     })
 }
 
@@ -266,6 +266,11 @@ pub fn query_compute_d(deps: Deps, env: Env) -> StdResult<Decimal256> {
         .into_iter()
         .map(|a| a.amount)
         .collect_vec();
+
+    if xs[0].is_zero() || xs[1].is_zero() {
+        return Err(StdError::generic_err("Pools are empty"));
+    }
+
     xs[1] *= config.pool_state.price_state.price_scale;
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);

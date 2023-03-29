@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-concentrated"
-version = "1.1.0"
+version = "1.1.2"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport concentrated liquidity pair"
@@ -21,9 +21,11 @@ crate-type = ["cdylib", "rlib"]
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
+library = []
 
 [dependencies]
 astroport = { path = "../../packages/astroport", default-features = false }
+astroport-factory = { path = "../factory", features = ["library"] }
 cw2 = "0.15"
 cw20 = "0.15"
 cosmwasm-std = "1.1"
@@ -41,4 +43,3 @@ proptest = "1.0"
 anyhow = "1.0"
 derivative = "2.2"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
-ap-native-coin-registry = { path = "../../packages/native_coin_registry" }

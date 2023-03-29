@@ -1,14 +1,18 @@
-use crate::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
-use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
-use cosmwasm_std::{OverflowError, StdError};
+use cosmwasm_std::{CheckedMultiplyRatioError, ConversionOverflowError, OverflowError, StdError};
 use thiserror::Error;
 
-/// ## Description
-/// This enum describes stableswap pair contract errors!
+use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
+
+use crate::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
+
+/// This enum describes stableswap pair contract errors
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("{0}")]
+    CheckedMultiplyRatioError(#[from] CheckedMultiplyRatioError),
 
     #[error("Unauthorized")]
     Unauthorized {},
@@ -31,14 +35,8 @@ pub enum ContractError {
     #[error("Operation exceeds max spread limit")]
     MaxSpreadAssertion {},
 
-    #[error("Operation exceeds max splippage tolerance")]
-    MaxSlippageAssertion {},
-
     #[error("Native token balance mismatch between the argument and the transferred")]
     AssetMismatch {},
-
-    #[error("Pair type mismatch. Check factory pair configs")]
-    PairTypeMismatch {},
 
     #[error(
         "Amp coefficient must be greater than 0 and less than or equal to {}",
@@ -67,15 +65,39 @@ pub enum ContractError {
     #[error("It is not possible to provide liquidity with one token for an empty pool")]
     InvalidProvideLPsWithSingleToken {},
 
-    #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
-    MinimumLiquidityAmountError {},
+    #[error("Pair is not migrated to the new admin!")]
+    PairIsNotMigrated {},
+
+    #[error("The asset {0} does not belong to the pair")]
+    InvalidAsset(String),
+
+    #[error("Ask or offer asset is missed")]
+    VariableAssetMissed {},
+
+    #[error("Source and target assets are the same")]
+    SameAssets {},
+
+    #[error("Invalid number of assets. This pair support only {0} assets")]
+    InvalidNumberOfAssets(usize),
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
+
+    #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
+    MinimumLiquidityAmountError {},
+
+    #[error("Failed to parse or process reply message")]
+    FailedToParseReply {},
 }
 
 impl From<OverflowError> for ContractError {
     fn from(o: OverflowError) -> Self {
+        StdError::from(o).into()
+    }
+}
+
+impl From<ConversionOverflowError> for ContractError {
+    fn from(o: ConversionOverflowError) -> Self {
         StdError::from(o).into()
     }
 }

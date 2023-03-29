@@ -1,9 +1,8 @@
-use cosmwasm_std::{Addr, OverflowError, StdError, Uint128};
+use cosmwasm_std::{OverflowError, StdError, Uint128};
 use cw_utils::PaymentError;
 use thiserror::Error;
 
-/// ## Description
-/// This enum describes generator vesting contract errors!
+/// This enum describes generator vesting contract errors
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
@@ -22,7 +21,7 @@ pub enum ContractError {
     AmountIsNotAvailable {},
 
     #[error("Vesting schedule error on addr: {0}. Should satisfy: (start < end, end > current_time and start_amount < end_amount)")]
-    VestingScheduleError(Addr),
+    VestingScheduleError(String),
 
     #[error(
         "Vesting schedule amount error. The total amount should be equal to the received amount."

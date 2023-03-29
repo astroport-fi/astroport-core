@@ -3,7 +3,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::Item;
 
-/// ## Description
 /// This structure stores the main config parameters for a constant product pair contract.
 #[cw_serde]
 pub struct Config {
@@ -19,6 +18,5 @@ pub struct Config {
     pub price1_cumulative_last: Uint128,
 }
 
-/// ## Description
 /// Stores the config struct at the given key
 pub const CONFIG: Item<Config> = Item::new("config");

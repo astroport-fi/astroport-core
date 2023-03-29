@@ -3,7 +3,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{StdError, StdResult, Uint128};
 use cw20::{Cw20Coin, Logo, MinterResponse};
 
-/// ## Description
 /// This structure describes the marketing info settings such as project, description, and token logo.
 #[cw_serde]
 pub struct InstantiateMarketingInfo {
@@ -18,7 +17,6 @@ pub struct InstantiateMarketingInfo {
 }
 
 /// This structure describes the parameters used for creating a token contract.
-/// TokenContract InstantiateMsg
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Token name
@@ -36,7 +34,6 @@ pub struct InstantiateMsg {
 }
 
 /// This structure describes a migration message.
-/// We currently take no arguments for migrations.
 #[cw_serde]
 pub struct MigrateMsg {}
 
@@ -65,8 +62,6 @@ impl InstantiateMsg {
 }
 
 /// Checks the validity of the token name
-/// ## Params
-/// * **name** is an object of type [`str`]. It is the token name to check
 fn is_valid_name(name: &str) -> bool {
     let bytes = name.as_bytes();
     if bytes.len() < 3 || bytes.len() > 50 {
@@ -76,15 +71,17 @@ fn is_valid_name(name: &str) -> bool {
 }
 
 /// Checks the validity of the token symbol
-/// ## Params
-/// * **symbol** is an object of type [`str`]. It is the token symbol to check
 fn is_valid_symbol(symbol: &str) -> bool {
     let bytes = symbol.as_bytes();
     if bytes.len() < 3 || bytes.len() > 12 {
         return false;
     }
     for byte in bytes.iter() {
-        if (*byte != 45) && (*byte < 65 || *byte > 90) && (*byte < 97 || *byte > 122) {
+        if (*byte != 45)
+            && (*byte < 47 || *byte > 57)
+            && (*byte < 65 || *byte > 90)
+            && (*byte < 97 || *byte > 122)
+        {
             return false;
         }
     }

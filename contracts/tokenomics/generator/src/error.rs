@@ -1,7 +1,7 @@
 use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
-/// This enum describes generator contract errors!
+/// This enum describes generator contract errors
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
@@ -12,9 +12,6 @@ pub enum ContractError {
 
     #[error("Insufficient balance in contract to process claim")]
     BalanceTooSmall {},
-
-    #[error("Pool with the LP token already exists!")]
-    TokenPoolAlreadyExists {},
 
     #[error("Reward proxy not allowed!")]
     RewardProxyNotAllowed {},

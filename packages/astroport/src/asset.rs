@@ -1,12 +1,7 @@
-use cosmwasm_schema::cw_serde;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use crate::factory::PairType;
-use crate::pair::QueryMsg as PairQueryMsg;
-use crate::querier::{
-    query_balance, query_token_balance, query_token_precision, query_token_symbol,
-};
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError, CosmosMsg, Decimal256, Fraction,
     MessageInfo, QuerierWrapper, StdError, StdResult, Uint128, Uint256, WasmMsg,
@@ -14,6 +9,12 @@ use cosmwasm_std::{
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_utils::must_pay;
 use itertools::Itertools;
+
+use crate::factory::PairType;
+use crate::pair::QueryMsg as PairQueryMsg;
+use crate::querier::{
+    query_balance, query_token_balance, query_token_precision, query_token_symbol,
+};
 
 /// UST token denomination
 pub const UUSD_DENOM: &str = "uusd";
@@ -198,8 +199,8 @@ pub enum AssetInfo {
 impl fmt::Display for AssetInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AssetInfo::NativeToken { denom } => write!(f, "{}", denom),
-            AssetInfo::Token { contract_addr } => write!(f, "{}", contract_addr),
+            AssetInfo::NativeToken { denom } => write!(f, "{denom}"),
+            AssetInfo::Token { contract_addr } => write!(f, "{contract_addr}"),
         }
     }
 }
@@ -269,11 +270,7 @@ impl AssetInfo {
         }
     }
 
-    /// Returns [`Ok`] if the token of type [`AssetInfo`] is in lowercase and valid. Otherwise returns [`Err`].
-    /// ## Params
-    /// * **self** is the type of the caller object.
-    ///
-    /// * **api** is a object of type [`Api`]
+    /// Checks that the tokens' denom or contract addr is lowercased and valid.
     pub fn check(&self, api: &dyn Api) -> StdResult<()> {
         if let AssetInfo::Token { contract_addr } = self {
             api.addr_validate(contract_addr.as_str())?;
@@ -344,6 +341,7 @@ impl PairInfo {
 }
 
 /// Returns a lowercased, validated address upon success if present.
+#[inline]
 pub fn addr_opt_validate(api: &dyn Api, addr: &Option<String>) -> StdResult<Option<Addr>> {
     addr.as_ref()
         .map(|addr| api.addr_validate(addr))

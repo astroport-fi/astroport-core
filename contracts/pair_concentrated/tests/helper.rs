@@ -16,11 +16,11 @@ use anyhow::Result as AnyResult;
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, ReverseSimulationResponse,
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, ReverseSimulationResponse,
     SimulationResponse,
 };
 use astroport::pair_concentrated::{
-    ConcentratedPoolParams, ConcentratedPoolUpdateParams, ConfigResponse, QueryMsg,
+    ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
 };
 use astroport_pair_concentrated::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated::queries::query;
@@ -110,7 +110,6 @@ fn coin_registry_contract() -> Box<dyn Contract<Empty>> {
         astroport_native_coin_registry::contract::query,
     ))
 }
-
 fn factory_contract() -> Box<dyn Contract<Empty>> {
     Box::new(
         ContractWrapper::new_with_empty(
@@ -175,7 +174,7 @@ impl Helper {
             .instantiate_contract(
                 coin_registry_id,
                 owner.clone(),
-                &ap_native_coin_registry::InstantiateMsg {
+                &astroport::native_coin_registry::InstantiateMsg {
                     owner: owner.to_string(),
                 },
                 &[],
@@ -187,13 +186,12 @@ impl Helper {
         app.execute_contract(
             owner.clone(),
             coin_registry_address.clone(),
-            &ap_native_coin_registry::ExecuteMsg::Add {
+            &astroport::native_coin_registry::ExecuteMsg::Add {
                 native_coins: vec![("uluna".to_owned(), 6), ("uusd".to_owned(), 6)],
             },
             &[],
         )
         .unwrap();
-
         let init_msg = astroport::factory::InstantiateMsg {
             fee_address: Some(fake_maker.to_string()),
             pair_configs: vec![PairConfig {

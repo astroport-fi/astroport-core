@@ -1,5 +1,6 @@
 use cosmwasm_std::{Addr, Decimal};
 use cw_multi_test::{next_block, Executor};
+use itertools::Itertools;
 
 use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::pair::ExecuteMsg;
@@ -124,11 +125,10 @@ fn provide_and_withdraw() {
 
     let user1 = Addr::unchecked("user1");
 
-    // Try to provide with additional wrong asset
+    // Try to provide with wrong asset
     let random_coin = native_asset_info("random_coin".to_string()).with_balance(100u8);
     let wrong_assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
-        helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
         random_coin.clone(),
     ];
     helper.give_me_money(&wrong_assets, &user1);
@@ -157,7 +157,7 @@ fn provide_and_withdraw() {
         .provide_liquidity(&user1, &[random_coin])
         .unwrap_err();
     assert_eq!(
-        "Generic error: Asset random_coin is not in the pool",
+        "The asset random_coin does not belong to the pair",
         err.root_cause().to_string()
     );
 
@@ -183,7 +183,10 @@ fn provide_and_withdraw() {
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
         helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
     ];
-
+    helper.give_me_money(
+        &[helper.assets[&test_coins[1]].with_balance(50_000_000000u128)],
+        &user1,
+    );
     helper.provide_liquidity(&user1, &assets).unwrap();
 
     assert_eq!(70710_677118, helper.token_balance(&helper.lp_token, &user1));
@@ -296,11 +299,15 @@ fn check_imbalanced_provide() {
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
         helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
     ];
+    // Making two provides just to check that both if-branches are covered (initial and usual provide)
+    helper.give_me_money(&assets, &user1);
+    helper.provide_liquidity(&user1, &assets).unwrap();
+
     helper.give_me_money(&assets, &user1);
     helper.provide_liquidity(&user1, &assets).unwrap();
 
     assert_eq!(
-        100285_256937,
+        200495_366531,
         helper.token_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
@@ -318,8 +325,11 @@ fn check_imbalanced_provide() {
     helper.give_me_money(&assets, &user1);
     helper.provide_liquidity(&user1, &assets).unwrap();
 
+    helper.give_me_money(&assets, &user1);
+    helper.provide_liquidity(&user1, &assets).unwrap();
+
     assert_eq!(
-        100285_256937,
+        200495_366531,
         helper.token_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
@@ -784,8 +794,21 @@ fn check_prices() {
     let check_prices = |helper: &Helper| {
         let prices = helper.query_prices().unwrap();
 
-        assert!(!prices.price0_cumulative_last.is_zero());
-        assert!(!prices.price1_cumulative_last.is_zero());
+        test_coins
+            .iter()
+            .cartesian_product(test_coins.iter())
+            .filter(|(a, b)| a != b)
+            .for_each(|(from_coin, to_coin)| {
+                let price = prices
+                    .cumulative_prices
+                    .iter()
+                    .filter(|(from, to, _)| {
+                        from.eq(&helper.assets[from_coin]) && to.eq(&helper.assets[to_coin])
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(price.len(), 1);
+                assert!(!price[0].2.is_zero());
+            });
     };
 
     let assets = vec![
@@ -914,4 +937,30 @@ fn update_owner() {
 
     let config = helper.query_config().unwrap();
     assert_eq!(config.owner.unwrap().to_string(), new_owner)
+}
+
+#[test]
+fn query_d_test() {
+    let owner = Addr::unchecked("owner");
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("USDX")];
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::one(),
+        ma_half_time: 600,
+    };
+    // create pair with test_coins
+    let helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    // query current pool D value before providing any liquidity
+    let err = helper.query_d().unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Querier contract error: Generic error: Pools are empty"
+    );
 }

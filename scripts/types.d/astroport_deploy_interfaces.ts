@@ -146,7 +146,8 @@ interface Generator {
     proposeNewOwner: {
         owner: string,
         expires_in: number
-    }
+    },
+    new_incentives_pools?: []
 }
 
 interface GeneratorProxy {

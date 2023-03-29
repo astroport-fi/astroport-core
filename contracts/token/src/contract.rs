@@ -9,6 +9,7 @@ use cw20_base::msg::{ExecuteMsg, QueryMsg};
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw20_base::ContractError;
 
+use astroport::asset::addr_opt_validate;
 use astroport::token::{InstantiateMsg, MigrateMsg};
 
 /// Contract name that is used for migration.
@@ -79,17 +80,7 @@ fn verify_logo(logo: &Logo) -> Result<(), ContractError> {
     }
 }
 
-/// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns a default object of type [`Response`] if the operation was successful,
-/// or a [`ContractError`] if the contract was not created.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_info** is an object of type [`MessageInfo`].
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters used for creating a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     mut deps: DepsMut,
@@ -103,6 +94,7 @@ pub fn instantiate(
     // create initial accounts
     let total_supply = create_accounts(&mut deps, &msg.initial_balances)?;
 
+    // Check supply cap
     if let Some(limit) = msg.get_cap() {
         if total_supply > limit {
             return Err(StdError::generic_err("Initial supply greater than cap").into());
@@ -143,10 +135,7 @@ pub fn instantiate(
         let data = MarketingInfoResponse {
             project: marketing.project,
             description: marketing.description,
-            marketing: marketing
-                .marketing
-                .map(|addr| deps.api.addr_validate(&addr))
-                .transpose()?,
+            marketing: addr_opt_validate(deps.api, &marketing.marketing)?,
             logo,
         };
         MARKETING_INFO.save(deps.storage, &data)?;
@@ -155,16 +144,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-/// ## Description
 /// Exposes execute functions available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **msg** is an object of type [`ExecuteMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -175,34 +155,20 @@ pub fn execute(
     cw20_execute(deps, env, info, msg)
 }
 
-/// ## Description
 /// Exposes queries available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`QueryMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     cw20_query(deps, env, msg)
 }
 
-/// ## Description
-/// Used for contract migration. Returns a default object of type [`Response`].
-/// ## Params
-/// * **_deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_msg** is an object of type [`MigrateMsg`].
+/// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-token" => match contract_version.version.as_ref() {
-            "1.0.0" => {}
+            "1.0.0" | "1.1.0" => {}
             _ => {
                 return Err(StdError::generic_err(
                     "Cannot migrate. Unsupported contract version",

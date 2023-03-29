@@ -1,19 +1,19 @@
 use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
+use astroport::restricted_vector::RestrictedVector;
+use astroport::DecimalCheckedOps;
 use astroport::{
-    generator::{PoolInfo, RestrictedVector, UserInfo, UserInfoV2},
+    generator::{PoolInfo, UserInfo, UserInfoV2},
     generator_proxy::QueryMsg as ProxyQueryMsg,
-    DecimalCheckedOps,
 };
 use astroport_governance::voting_escrow::{get_total_voting_power, get_voting_power};
+use astroport_governance::voting_escrow_delegation::get_adjusted_balance;
+use cosmwasm_std::{Addr, Decimal, Deps, DepsMut, QuerierWrapper, StdResult, Storage, Uint128};
 
-use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128, Uint64};
-
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Decimal, Deps};
+use astroport::generator::Config;
 use cw20::BalanceResponse;
 use cw_storage_plus::{Item, Map};
-use std::cmp::min;
+
 use std::collections::HashMap;
 
 /// Constants to update user's virtual amount. For more info see update_virtual_amount() documentation.
@@ -22,87 +22,12 @@ const REAL_SHARE: Decimal = Decimal::raw(400000000000000000);
 /// 0.6 of the user's voting power aka vxASTRO balance.
 const VXASTRO_SHARE: Decimal = Decimal::raw(600000000000000000);
 
-/// This structure stores the core parameters for the Generator contract.
-#[cw_serde]
-pub struct Config {
-    /// Address allowed to change contract parameters
-    pub owner: Addr,
-    /// The Factory address
-    pub factory: Addr,
-    /// Contract address which can only set active generators and their alloc points
-    pub generator_controller: Option<Addr>,
-    /// The voting escrow contract address
-    pub voting_escrow: Option<Addr>,
-    /// [`AssetInfo`] of the ASTRO token
-    pub astro_token: AssetInfo,
-    /// Total amount of ASTRO rewards per block
-    pub tokens_per_block: Uint128,
-    /// Total allocation points. Must be the sum of all allocation points in all active generators
-    pub total_alloc_point: Uint128,
-    /// The block number when the ASTRO distribution starts
-    pub start_block: Uint64,
-    /// The vesting contract from which rewards are distributed
-    pub vesting_contract: Addr,
-    /// The list of active pools with allocation points
-    pub active_pools: Vec<(Addr, Uint128)>,
-    /// The list of blocked tokens
-    pub blocked_tokens_list: Vec<AssetInfo>,
-    /// The guardian address which can add or remove tokens from blacklist
-    pub guardian: Option<Addr>,
-    /// The amount of generators
-    pub checkpoint_generator_limit: Option<u32>,
-}
-
-#[cw_serde]
-pub enum ExecuteOnReply {
-    /// Updates reward and returns it to user.
-    ClaimRewards {
-        /// The list of LP tokens contract
-        lp_tokens: Vec<Addr>,
-        /// The rewards recipient
-        account: Addr,
-    },
-    /// Stake LP tokens in the Generator to receive token emissions
-    Deposit {
-        /// The LP token to stake
-        lp_token: Addr,
-        /// The account that receives ownership of the staked tokens
-        account: Addr,
-        /// The amount of tokens to deposit
-        amount: Uint128,
-    },
-    /// Withdraw LP tokens from the Generator
-    Withdraw {
-        /// The LP tokens to withdraw
-        lp_token: Addr,
-        /// The account that receives the withdrawn LP tokens
-        account: Addr,
-        /// The amount of tokens to withdraw
-        amount: Uint128,
-    },
-    /// Sets a new amount of ASTRO to distribute per block between all active generators
-    SetTokensPerBlock {
-        /// The new amount of ASTRO to distribute per block
-        amount: Uint128,
-    },
-    /// Migrate LP tokens and collected rewards to new proxy
-    MigrateProxy { lp_addr: Addr, new_proxy_addr: Addr },
-    /// Stake LP tokens into new reward proxy
-    MigrateProxyDepositLP {
-        lp_addr: Addr,
-        prev_proxy_addr: Addr,
-        amount: Uint128,
-    },
-}
-
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
 /// This is a map that contains information about all generators.
 ///
 /// The first key is the address of a LP token, the second key is an object of type [`PoolInfo`].
 pub const POOL_INFO: Map<&Addr, PoolInfo> = Map::new("pool_info");
-
-pub const TMP_USER_ACTION: Item<Option<ExecuteOnReply>> = Item::new("tmp_user_action");
 
 /// This is a map that contains information about all stakers.
 ///
@@ -170,12 +95,6 @@ pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_pro
 pub const CHECKPOINT_GENERATORS_LIMIT: u32 = 24;
 
 /// Update user balance.
-/// ## Params
-/// * **user** is an object of type [`UserInfo`].
-///
-/// * **pool** is an object of type [`PoolInfo`].
-///
-/// * **amount** is an object of type [`Uint128`].
 pub fn update_user_balance(
     mut user: UserInfoV2,
     pool: &PoolInfo,
@@ -198,37 +117,34 @@ pub fn update_user_balance(
     Ok(user)
 }
 
-/// ### Description
 /// Returns the vector of reward amount per proxy taking into account the amount of debited rewards.
 pub fn accumulate_pool_proxy_rewards(
     pool: &PoolInfo,
     user: &UserInfoV2,
 ) -> StdResult<Vec<(Addr, Uint128)>> {
-    if !pool
+    if pool
         .accumulated_proxy_rewards_per_share
         .inner_ref()
         .is_empty()
     {
-        let rewards_debt_map: HashMap<_, _> =
-            user.reward_debt_proxy.inner_ref().iter().cloned().collect();
-        pool.accumulated_proxy_rewards_per_share
-            .inner_ref()
-            .iter()
-            .map(|(proxy, rewards_per_share)| {
-                let reward_debt = rewards_debt_map.get(proxy).cloned().unwrap_or_default();
-                let pending_proxy_rewards = rewards_per_share
-                    .checked_mul_uint128(user.amount)?
-                    .saturating_sub(reward_debt);
-
-                Ok((proxy.clone(), pending_proxy_rewards))
-            })
-            .collect()
-    } else {
-        Ok(vec![])
+        return Ok(vec![]);
     }
+    let rewards_debt_map: HashMap<_, _> =
+        user.reward_debt_proxy.inner_ref().iter().cloned().collect();
+    pool.accumulated_proxy_rewards_per_share
+        .inner_ref()
+        .iter()
+        .map(|(proxy, rewards_per_share)| {
+            let reward_debt = rewards_debt_map.get(proxy).cloned().unwrap_or_default();
+            let pending_proxy_rewards = rewards_per_share
+                .checked_mul_uint128(user.amount)?
+                .saturating_sub(reward_debt);
+
+            Ok((proxy.clone(), pending_proxy_rewards))
+        })
+        .collect()
 }
 
-/// ### Description
 /// Saves map between a proxy and an asset info if it is not saved yet.
 pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
     if !PROXY_REWARD_ASSET.has(deps.storage, proxy_addr) {
@@ -244,7 +160,6 @@ pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
     Ok(())
 }
 
-/// ### Description
 /// Updates virtual amount for specified user and generator
 ///
 /// **b_u = min(0.4 * b_u + 0.6 * S * (w_i / W), b_u)**
@@ -255,7 +170,7 @@ pub fn update_proxy_asset(deps: DepsMut, proxy_addr: &Addr) -> StdResult<()> {
 /// - w_i is a user’s current vxASTRO balance
 /// - W is the total amount of vxASTRO
 pub(crate) fn update_virtual_amount(
-    deps: Deps,
+    querier: QuerierWrapper,
     cfg: &Config,
     pool: &mut PoolInfo,
     user_info: &mut UserInfoV2,
@@ -266,8 +181,18 @@ pub(crate) fn update_virtual_amount(
     let mut total_vp = Uint128::zero();
 
     if let Some(voting_escrow) = &cfg.voting_escrow {
-        user_vp = get_voting_power(deps.querier, voting_escrow, account)?;
-        total_vp = get_total_voting_power(deps.querier, voting_escrow)?;
+        if let Some(voting_delegation) = &cfg.voting_escrow_delegation {
+            user_vp = get_adjusted_balance(
+                &querier,
+                voting_delegation.to_string(),
+                account.to_string(),
+                None,
+            )?;
+        } else {
+            user_vp = get_voting_power(&querier, voting_escrow, account.to_string())?;
+        }
+
+        total_vp = get_total_voting_power(&querier, voting_escrow)?;
     }
 
     let user_virtual_share = user_info.amount * REAL_SHARE;
@@ -280,10 +205,9 @@ pub(crate) fn update_virtual_amount(
         Decimal::zero()
     };
 
-    let current_virtual_amount = min(
-        user_virtual_share + vx_share_emission * total_virtual_share,
-        user_info.amount,
-    );
+    let current_virtual_amount = user_info
+        .amount
+        .min(user_virtual_share + vx_share_emission * total_virtual_share);
 
     pool.total_virtual_supply = pool
         .total_virtual_supply

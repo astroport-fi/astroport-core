@@ -1,13 +1,16 @@
+// Delete this after changing all todo macros
+#![allow(unused_variables, unreachable_code, clippy::diverging_sub_expression)]
+
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    Response, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 use astroport::generator_proxy::{
-    CallbackMsg, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+    CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
 use cw2::set_contract_version;
 
@@ -16,17 +19,7 @@ const CONTRACT_NAME: &str = "astroport-generator-proxy-template";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// ## Description
-/// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns the default object of type [`Response`] if the operation was successful,
-/// or a [`ContractError`] if the contract was not created.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_info** is an object of type [`MessageInfo`].
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract.
+/// Creates a new contract with the specified parameters (in [`InstantiateMsg`]).
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -37,45 +30,32 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
-        generator_contract_addr: deps
-            .api
-            .addr_validate(deps.api, &msg.generator_contract_addr)?,
-        pair_addr: deps.api.addr_validate(deps.api, &msg.pair_addr)?,
-        lp_token_addr: deps.api.addr_validate(deps.api, &msg.lp_token_addr)?,
-        reward_contract_addr: deps
-            .api
-            .addr_validate(deps.api, &msg.reward_contract_addr)?,
-        reward_token_addr: deps.api.addr_validate(deps.api, &msg.reward_token_addr)?,
+        generator_contract_addr: deps.api.addr_validate(&msg.generator_contract_addr)?,
+        pair_addr: deps.api.addr_validate(&msg.pair_addr)?,
+        lp_token_addr: deps.api.addr_validate(&msg.lp_token_addr)?,
+        reward_contract_addr: deps.api.addr_validate(&msg.reward_contract_addr)?,
+        reward_token_addr: deps.api.addr_validate(&msg.reward_token_addr)?,
     };
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default())
 }
 
-/// ## Description
-/// Execute a function in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// Exposes execute functions available in the contract.
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **_info** is an object of type [`MessageInfo`].
-///
-/// * **msg** is an object of type [`ExecuteMsg`].
-///
-/// ## Queries
+/// ## Variants
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
 /// it depending on the received template.
 ///
 /// * **ExecuteMsg::UpdateRewards {}** Withdraw pending 3rd party rewards from the 3rd party staking contract.
 ///
-/// * **ExecuteMsg::SendRewards { account, amount }** Sends token rewards to the recipient.
+/// * **ExecuteMsg::SendRewards { account, amount }** Sends accrued rewards to the recipient.
 ///
-/// * **ExecuteMsg::Withdraw { account, amount }** Withdraw token rewards and send them to the recipient.
+/// * **ExecuteMsg::Withdraw { account, amount }** Withdraw LP tokens and claim pending rewards.
 ///
-/// * **ExecuteMsg::EmergencyWithdraw { account, amount }** Withdraw LP tokens without withdrawing token rewards.
+/// * **ExecuteMsg::EmergencyWithdraw { account, amount }** Withdraw LP tokens without caring about pending rewards.
 ///
-/// * **ExecuteMsg::Callback(msg)** Handles the callbacks described in the [`CallbackMsg`].
+/// * **ExecuteMsg::Callback(msg)** Handles callbacks described in the [`CallbackMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -84,7 +64,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, info, msg),
         ExecuteMsg::UpdateRewards {} => update_rewards(deps, info),
         ExecuteMsg::SendRewards { account, amount } => send_rewards(deps, info, account, amount),
         ExecuteMsg::Withdraw { account, amount } => withdraw(deps, env, info, account, amount),
@@ -95,45 +75,29 @@ pub fn execute(
     }
 }
 
-/// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// If the template is not found in the received message, then an [`ContractError`] is returned,
-/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`].
+/// * **cw20_msg** CW20 message to process.
 fn receive_cw20(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::new();
+    let response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
 
     if let Ok(Cw20HookMsg::Deposit {}) = from_binary(&cw20_msg.msg) {
         if cw20_msg.sender != cfg.generator_contract_addr || info.sender != cfg.lp_token_addr {
             return Err(ContractError::Unauthorized {});
         }
-        // deposit tokens in the end reward contract
-        unimplemented!()
+        todo!("Deposit tokens in the end reward contract here");
     } else {
         return Err(ContractError::IncorrectCw20HookMessageVariant {});
     }
     Ok(response)
 }
 
-/// ## Description
-/// Withdraw pending rewards. Returns [`ContractError`] on failure,
-/// otherwise returns a [`Response`] object with the specified submessages.
-///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Withdraw pending rewards.
 fn update_rewards(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
@@ -147,34 +111,28 @@ fn update_rewards(deps: DepsMut, info: MessageInfo) -> Result<Response, Contract
         .push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.reward_contract_addr.to_string(),
             funds: vec![],
-            // specify a withdraw rewards message that withdraws rewards from the end reward contract
-            msg: unimplemented!(),
+            msg: todo!("Specify a withdraw rewards message that withdraws rewards from the end reward contract here"),
         })));
 
     Ok(response)
 }
 
-/// ## Description
-/// Sends rewards to the recipient. Returns [`ContractError`] on failure,
-/// otherwise returns a [`Response`] object with the specified submessages.
+/// Sends rewards to a recipient.
 ///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// * **account** account that receives the rewards.
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **account** is an object of type [`Addr`]. This is the address that will receive rewards.
-///
-/// * **amount** is an object of type [`Uint128`].
+/// * **amount** amount of rewards to send.
 ///
 /// ## Executor
-/// Only the generator contract can execute this.
+/// Only the Generator contract can execute this.
 fn send_rewards(
     deps: DepsMut,
     info: MessageInfo,
-    account: Addr,
+    account: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
+    deps.api.addr_validate(&account)?;
+
     let mut response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.generator_contract_addr {
@@ -186,7 +144,7 @@ fn send_rewards(
         .push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.reward_token_addr.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: account.to_string(),
+                recipient: account,
                 amount,
             })?,
             funds: vec![],
@@ -194,30 +152,24 @@ fn send_rewards(
     Ok(response)
 }
 
-/// ## Description
-/// Withdraw LP tokens alongside any outstanding rewards. Returns [`ContractError`] on
-/// failure, otherwise returns a [`Response`] object with the specified submessages if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Withdraws/unstakes LP tokens and claims pending rewards.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **account** account for which we withdraw LP tokens and claim rewards.
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **account** is an object of type [`Addr`]. This is the withdrawal recipient.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to withdraw.
+/// * **amount** amount of LP tokens to withdraw.
 ///
 /// ## Executor
-/// Only the generator contract can execute this.
+/// Only the Generator contract can execute this.
 fn withdraw(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    account: Addr,
-    amount: Uint128,
+    account: String,
+    _amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::new();
+    let account = deps.api.addr_validate(&account)?;
+
+    let response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.generator_contract_addr {
         return Err(ContractError::Unauthorized {});
@@ -233,8 +185,7 @@ fn withdraw(
         res.balance
     };
 
-    // withdraw from the 3rd party reward contract
-    unimplemented!();
+    todo!("Withdraw from the 3rd party reward contract here");
 
     response.messages.push(SubMsg::new(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
@@ -250,30 +201,24 @@ fn withdraw(
     Ok(response)
 }
 
-/// ## Description
-/// Withdraw LP tokens without withdrawing rewards. Returns [`ContractError`] on
-/// failure, otherwise returns a [`Response`] object with the specified submessages if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Withdraw/unstakes LP tokens without withdrawing rewards.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **account** account for which we withdraw LP tokens.
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **account** is an object of type [`Addr`]. This is the withdrawal recipient.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of LP tokens to withdraw.
+/// * **amount** amount of LP tokens to withdraw.
 ///
 /// ## Executor
-/// Only the generator contract can execute this.
+/// Only the Generator contract can execute this.
 fn emergency_withdraw(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    account: Addr,
-    amount: Uint128,
+    account: String,
+    _amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::new();
+    let account = deps.api.addr_validate(&account)?;
+
+    let response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
     if info.sender != cfg.generator_contract_addr {
         return Err(ContractError::Unauthorized {});
@@ -289,8 +234,7 @@ fn emergency_withdraw(
         res.balance
     };
 
-    // emergency withdraw from the 3rd party rewards contract
-    unimplemented!();
+    todo!("Emergency withdraw from the 3rd party rewards contract here");
 
     response.messages.push(SubMsg::new(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
@@ -306,20 +250,10 @@ fn emergency_withdraw(
     Ok(response)
 }
 
-/// ## Description
-/// Handle the callbacks described in the [`CallbackMsg`]. Returns [`ContractError`] on failure, otherwise returns a [`Response`]
-/// object with the specified submessages if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **msg** is an object of type [`CallbackMsg`]. This is the callback action.
+/// Handles callbacks described in [`CallbackMsg`].
 ///
 /// ## Executor
-/// Callback functions can only be specified/called by this contract.
+/// Callback functions can only be called by this contract.
 pub fn handle_callback(
     deps: DepsMut,
     env: Env,
@@ -338,17 +272,12 @@ pub fn handle_callback(
     }
 }
 
-/// ## Description
-/// Transfers LP tokens after withdrawal to the recipient. Returns [`ContractError`] on failure,
-/// otherwise returns a [`Response`] object with the specified submessages if the operation was successful.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
+/// Transfers LP tokens after withdrawal (from the 3rd party staking contract) to a recipient.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **account** account that receives the LP tokens.
 ///
-/// * **account** is an object of type [`MessageInfo`]. This address receives the LP tokens.
-///
-/// * **prev_lp_balance** is an object of type [`CallbackMsg`]. This is the previous LP token balance that the account had.
+/// * **prev_lp_balance** previous total amount of LP tokens that were being staked.
+/// It is used for calculating the withdrawal amount.
 pub fn transfer_lp_tokens_after_withdraw(
     deps: DepsMut,
     env: Env,
@@ -377,23 +306,16 @@ pub fn transfer_lp_tokens_after_withdraw(
     }))
 }
 
-/// ## Description
-/// Exposes queries that can be performed to read contract data.
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`QueryMsg`].
+/// Exposes all the queries available in the contract.
 ///
 /// ## Queries
-/// * **QueryMsg::Deposit {}** returns the amount of LP tokens deposited in a third party rewards contract.
+/// * **QueryMsg::Deposit {}** Returns the total amount of deposited LP tokens.
 ///
-/// * **QueryMsg::Reward {}** returns the amount of rewards held by the proxy contract.
+/// * **QueryMsg::Reward {}** Returns the total amount of reward tokens.
 ///
-/// * **QueryMsg::PendingToken {}** returns the amount of pending rewards that can be claimed from the third party rewards contract.
+/// * **QueryMsg::PendingToken {}** Returns the total amount of pending rewards.
 ///
-/// * **QueryMsg::RewardInfo {}** returns the reward token contract address.
+/// * **QueryMsg::RewardInfo {}** Returns the reward token contract address.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cfg = CONFIG.load(deps.storage)?;
@@ -406,25 +328,28 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             reward_token_addr: cfg.reward_token_addr.to_string(),
         }),
         QueryMsg::Deposit {} => {
-            // query the 3rd party reward contract to retrieve the amount of staked LP tokens or implement local storage and retrieve from it
-            // the returned value must be a Uint128
-            unimplemented!();
+            todo!(
+                "Query the 3rd party reward contract to retrieve the amount of staked LP tokens
+            or implement local storage and retrieve from it here.
+            The returned value must be a Uint128"
+            );
         }
         QueryMsg::Reward {} => {
-            let res: Result<BalanceResponse, StdError> = deps.querier.query_wasm_smart(
+            let res: BalanceResponse = deps.querier.query_wasm_smart(
                 cfg.reward_token_addr,
                 &Cw20QueryMsg::Balance {
                     address: env.contract.address.into_string(),
                 },
-            );
-            let reward_amount = res?.balance;
+            )?;
+            let reward_amount = res.balance;
 
             to_binary(&reward_amount)
         }
-        QueryMsg::PendingToken { .. } => {
-            // query the 3rd party reward contract and retrieve the pending token amount
-            // the returned value must be a Uint128
-            unimplemented!();
+        QueryMsg::PendingToken {} => {
+            todo!(
+                "Query the 3rd party reward contract and retrieve the pending token amount here.
+            the returned value must be a Uint128"
+            );
         }
         QueryMsg::RewardInfo {} => {
             let config = CONFIG.load(deps.storage)?;
@@ -433,14 +358,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// ## Description
-/// Used for contract migration. Returns a default object of type [`Response`].
-/// ## Params
-/// * **_deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_msg** is an object of type [`MigrateMsg`].
+/// Manages contract migration
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())

@@ -4,6 +4,7 @@ use cw_multi_test::App;
 #[allow(clippy::all)]
 #[allow(dead_code)]
 pub mod controller_helper;
+pub mod delegation_helper;
 #[allow(clippy::all)]
 #[allow(dead_code)]
 pub mod escrow_helper;

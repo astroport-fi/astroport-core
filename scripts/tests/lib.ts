@@ -25,7 +25,8 @@ export class Astroport {
 
     async getNativeBalance(address: string, denom: string) {
         let balances = await this.terra.bank.balance(address)
-        return balances.get(denom)
+        let coins: Coins = (<Coins><unknown>balances)
+        return coins.get(denom)
     }
 
     async getTokenBalance(token: string, address: string) {

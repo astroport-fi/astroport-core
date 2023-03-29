@@ -2,31 +2,30 @@ use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, Pa
 use astroport::generator::{ExecuteMsg, QueryMsg, StakerResponse};
 use astroport_governance::utils::WEEK;
 
-use astroport::generator_proxy::{ConfigResponse, ExecuteMsg as ProxyExecuteMsg};
-use astroport::pair::StablePoolParams;
 use astroport::{
     factory::{
         ConfigResponse as FactoryConfigResponse, ExecuteMsg as FactoryExecuteMsg,
         InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType, QueryMsg as FactoryQueryMsg,
     },
     generator::{
-        Cw20HookMsg as GeneratorHookMsg, ExecuteMsg as GeneratorExecuteMsg,
+        Config, Cw20HookMsg as GeneratorHookMsg, ExecuteMsg as GeneratorExecuteMsg,
         InstantiateMsg as GeneratorInstantiateMsg, PendingTokenResponse, PoolInfoResponse,
         QueryMsg as GeneratorQueryMsg,
     },
-    generator_proxy::InstantiateMsg as ProxyInstantiateMsg,
+    generator_proxy::{ExecuteMsg as ProxyExecuteMsg, InstantiateMsg as ProxyInstantiateMsg},
     token::InstantiateMsg as TokenInstantiateMsg,
     vesting::{
         Cw20HookMsg as VestingHookMsg, InstantiateMsg as VestingInstantiateMsg, VestingAccount,
         VestingSchedule, VestingSchedulePoint,
     },
 };
+
+use astroport::generator_proxy::ConfigResponse;
+use astroport::pair::StablePoolParams;
 use astroport_generator::error::ContractError;
-use astroport_generator::state::Config;
 use cosmwasm_std::{to_binary, Addr, Binary, StdResult, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{next_block, App, ContractWrapper, Executor};
-use valkyrie::lp_staking::execute_msgs::InstantiateMsg as ValkyrieInstantiateMsg;
 
 use crate::test_utils::controller_helper::ControllerHelper;
 use crate::test_utils::{mock_app as mock_app_helper, mock_app, AppExtension};
@@ -48,6 +47,404 @@ const USER9: &str = "user9";
 struct PoolWithProxy {
     pool: (String, Uint128),
     proxy: Option<Addr>,
+}
+
+#[test]
+fn test_boost_checkpoints_with_delegation() {
+    let mut app = mock_app_helper();
+    let owner = Addr::unchecked("owner");
+    let helper_controller = ControllerHelper::init(&mut app, &owner);
+
+    let user1 = Addr::unchecked(USER1);
+    let user2 = Addr::unchecked(USER2);
+
+    let cny_eur_token_code_id = store_token_code(&mut app);
+
+    let cny_token = instantiate_token(&mut app, cny_eur_token_code_id, "CNY", None);
+    let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
+
+    let (pair_cny_eur, lp_cny_eur) = create_pair(
+        &mut app,
+        &helper_controller.factory,
+        None,
+        None,
+        vec![
+            AssetInfo::Token {
+                contract_addr: cny_token.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: eur_token.clone(),
+            },
+        ],
+    );
+
+    register_lp_tokens_in_generator(
+        &mut app,
+        &helper_controller.generator,
+        vec![PoolWithProxy {
+            pool: (lp_cny_eur.to_string(), Uint128::from(100u32)),
+            proxy: None,
+        }],
+    );
+
+    // Mint tokens, so user can deposit
+    mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 10);
+
+    // Create short lock user1
+    helper_controller
+        .escrow_helper
+        .mint_xastro(&mut app, USER1, 100);
+
+    helper_controller
+        .escrow_helper
+        .create_lock(&mut app, USER1, WEEK * 10, 100f32)
+        .unwrap();
+
+    deposit_lp_tokens_to_generator(
+        &mut app,
+        &helper_controller.generator,
+        USER1,
+        &[(&lp_cny_eur, 10)],
+    );
+
+    check_token_balance(&mut app, &lp_cny_eur, &helper_controller.generator, 10);
+
+    // check if virtual amount equal to 10
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user1,
+        10,
+    );
+
+    // Mint tokens, so user2 can deposit
+    mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user2, 10);
+
+    // Create short lock user2
+    helper_controller
+        .escrow_helper
+        .mint_xastro(&mut app, USER2, 100);
+
+    helper_controller
+        .escrow_helper
+        .create_lock(&mut app, USER2, WEEK * 10, 100f32)
+        .unwrap();
+
+    deposit_lp_tokens_to_generator(
+        &mut app,
+        &helper_controller.generator,
+        USER2,
+        &[(&lp_cny_eur, 10)],
+    );
+
+    check_token_balance(&mut app, &lp_cny_eur, &helper_controller.generator, 20);
+
+    // check if virtual amount equal to 10
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user2,
+        10,
+    );
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked(USER1),
+            helper_controller.generator.clone(),
+            &ExecuteMsg::CheckpointUserBoost {
+                generators: vec![lp_cny_eur.to_string(); 26],
+                user: Some(USER1.to_string()),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Maximum generator limit exceeded!",
+        err.root_cause().to_string()
+    );
+
+    app.execute_contract(
+        Addr::unchecked(USER1),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::CheckpointUserBoost {
+            generators: vec![lp_cny_eur.to_string()],
+            user: Some(USER1.to_string()),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // check user1's ASTRO balance
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user1,
+        0,
+    );
+
+    // check user2's ASTRO balance
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user2,
+        0,
+    );
+
+    // check user1's adjusted balance
+    let user1_ad_balance_before = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user1.as_str(), None)
+        .unwrap();
+
+    // check user2's adjusted balance
+    let user2_ad_balance_before = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user2.as_str(), None)
+        .unwrap();
+
+    // create delegation for user2
+    helper_controller
+        .delegation_helper
+        .create_delegation(
+            &mut app,
+            user1.as_str(),
+            5000,
+            WEEK * 2,
+            "token_1".to_string(),
+            user2.to_string(),
+        )
+        .unwrap();
+
+    // check user1's adjusted balance
+    let user1_ad_balance_after = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user1.as_str(), None)
+        .unwrap();
+
+    // check user1's delegated balance
+    let user1_delegated_balance = helper_controller
+        .delegation_helper
+        .delegated_balance(&mut app, user1.as_str(), None)
+        .unwrap();
+    assert_eq!(
+        user1_ad_balance_after,
+        user1_ad_balance_before - user1_delegated_balance
+    );
+
+    // check user2's adjusted balance
+    let user2_ad_balance_after = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user2.as_str(), None)
+        .unwrap();
+    assert_eq!(
+        user2_ad_balance_after,
+        user2_ad_balance_before + user1_delegated_balance
+    );
+
+    app.next_block(WEEK);
+
+    app.execute_contract(
+        Addr::unchecked(USER1),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::Withdraw {
+            lp_token: lp_cny_eur.to_string(),
+            amount: Uint128::new(5),
+        },
+        &[],
+    )
+    .unwrap();
+
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user1,
+        5,
+    );
+
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user2,
+        10,
+    );
+
+    // recalculate virtual amount for user2
+    app.execute_contract(
+        Addr::unchecked(USER2),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::CheckpointUserBoost {
+            generators: vec![lp_cny_eur.to_string()],
+            user: Some(USER2.to_string()),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // check virtual amount for user2
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user2,
+        9,
+    );
+
+    // check user1's ASTRO balance after withdraw
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user1,
+        5_000_000,
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        USER1,
+        (0, None),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        USER2,
+        (0, None),
+    );
+
+    app.next_block(WEEK);
+
+    // try to extend delegation for user2
+    let err = helper_controller
+        .delegation_helper
+        .extend_delegation(
+            &mut app,
+            user1.as_str(),
+            5000,
+            WEEK * 20,
+            "token_1".to_string(),
+        )
+        .unwrap_err();
+    assert_eq!(
+        "The delegation period must be at least a week and not more than a user lock period.",
+        err.root_cause().to_string()
+    );
+
+    // check user1's adjusted balance
+    let user1_balance_before_extend = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user1.as_str(), None)
+        .unwrap();
+
+    // check user2's adjusted balance
+    let user2_balance_before_extend = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user2.as_str(), None)
+        .unwrap();
+
+    // extend delegation for user2
+    helper_controller
+        .delegation_helper
+        .extend_delegation(
+            &mut app,
+            user1.as_str(),
+            5000,
+            WEEK * 5,
+            "token_1".to_string(),
+        )
+        .unwrap();
+
+    // check user1's adjusted balance
+    let user1_balance_after_extend = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user1.as_str(), None)
+        .unwrap();
+
+    // check user1's delegated balance
+    let user1_delegated_balance = helper_controller
+        .delegation_helper
+        .delegated_balance(&mut app, user1.as_str(), None)
+        .unwrap();
+    assert_eq!(
+        user1_balance_after_extend,
+        user1_balance_before_extend - user1_delegated_balance
+    );
+
+    // check user2's adjusted balance
+    let user2_balance_after_extend = helper_controller
+        .delegation_helper
+        .adjusted_balance(&mut app, user2.as_str(), None)
+        .unwrap();
+
+    assert_eq!(
+        user2_balance_after_extend,
+        user2_balance_before_extend + user1_delegated_balance
+    );
+
+    app.execute_contract(
+        Addr::unchecked(USER2),
+        helper_controller.generator.clone(),
+        &ExecuteMsg::Withdraw {
+            lp_token: lp_cny_eur.to_string(),
+            amount: Uint128::new(5),
+        },
+        &[],
+    )
+    .unwrap();
+
+    check_pending_rewards(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        USER2,
+        (0, None),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        USER1,
+        (3_571_428, None),
+    );
+
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user1,
+        5_000_000,
+    );
+
+    // check user2's ASTRO balance after withdraw and checkpoint
+    check_token_balance(
+        &mut app,
+        &helper_controller.escrow_helper.astro_token,
+        &user2,
+        11_428_571,
+    );
+
+    // check virtual amount for user2 after withdraw
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user2,
+        5,
+    );
+
+    // check virtual amount for user1
+    check_emission_balance(
+        &mut app,
+        &helper_controller.generator,
+        &lp_cny_eur,
+        &user1,
+        5,
+    );
 }
 
 #[test]
@@ -342,16 +739,8 @@ fn proper_deposit_and_withdraw() {
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-
-    let native_coins_registry = instantiate_coin_registry(&mut app, None);
-    let factory_instance = instantiate_factory(
-        &mut app,
-        factory_code_id,
-        token_code_id,
-        pair_code_id,
-        None,
-        &native_coins_registry,
-    );
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let cny_eur_token_code_id = store_token_code(&mut app);
 
@@ -494,15 +883,8 @@ fn set_tokens_per_block() {
 
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
-    let native_coins_registry = instantiate_coin_registry(&mut app, None);
-    let factory_instance = instantiate_factory(
-        &mut app,
-        factory_code_id,
-        token_code_id,
-        pair_code_id,
-        None,
-        &native_coins_registry,
-    );
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let generator_instance = instantiate_generator(
         &mut app,
@@ -551,15 +933,8 @@ fn update_config() {
 
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
-    let native_coins_registry = instantiate_coin_registry(&mut app, None);
-    let factory_instance = instantiate_factory(
-        &mut app,
-        factory_code_id,
-        token_code_id,
-        pair_code_id,
-        None,
-        &native_coins_registry,
-    );
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let generator_instance = instantiate_generator(
         &mut app,
@@ -586,6 +961,7 @@ fn update_config() {
         vesting_contract: Some(new_vesting.to_string()),
         generator_controller: None,
         guardian: None,
+        voting_escrow_delegation: None,
         voting_escrow: None,
         checkpoint_generator_limit: None,
     };
@@ -628,15 +1004,8 @@ fn update_owner() {
     let factory_code_id = store_factory_code(&mut app);
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-    let native_coins_registry = instantiate_coin_registry(&mut app, None);
-    let factory_instance = instantiate_factory(
-        &mut app,
-        factory_code_id,
-        token_code_id,
-        pair_code_id,
-        None,
-        &native_coins_registry,
-    );
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let generator_instance = instantiate_generator(
         &mut app,
@@ -730,15 +1099,8 @@ fn disabling_pool() {
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-    let native_coins_registry = instantiate_coin_registry(&mut app, None);
-    let factory_instance = instantiate_factory(
-        &mut app,
-        factory_code_id,
-        token_code_id,
-        pair_code_id,
-        None,
-        &native_coins_registry,
-    );
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let eur_usdt_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, eur_usdt_token_code_id, "EUR", None);
@@ -827,324 +1189,6 @@ fn disabling_pool() {
 }
 
 #[test]
-fn generator_update_proxy_balance_failed() {
-    let mut app = mock_app();
-
-    let owner = Addr::unchecked(OWNER);
-    let user1 = Addr::unchecked(USER1);
-    let user2 = Addr::unchecked(USER2);
-
-    let token_code_id = store_token_code(&mut app);
-    let factory_code_id = store_factory_code(&mut app);
-    let pair_code_id = store_pair_code_id(&mut app);
-
-    let astro_token_instance =
-        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-    let native_coins_registry = instantiate_coin_registry(&mut app, None);
-    let factory_instance = instantiate_factory(
-        &mut app,
-        factory_code_id,
-        token_code_id,
-        pair_code_id,
-        None,
-        &native_coins_registry,
-    );
-
-    let cny_eur_token_code_id = store_token_code(&mut app);
-    let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
-    let val_token = instantiate_token(&mut app, token_code_id, "VAL", None);
-
-    let (pair_val_eur, lp_val_eur) = create_pair(
-        &mut app,
-        &factory_instance,
-        None,
-        None,
-        vec![
-            AssetInfo::Token {
-                contract_addr: val_token.clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: eur_token.clone(),
-            },
-        ],
-    );
-
-    let generator_instance =
-        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
-
-    let vkr_staking_instance =
-        instantiate_valkyrie_protocol(&mut app, &val_token, &pair_val_eur, &lp_val_eur);
-
-    let proxy_code_id = store_proxy_code(&mut app);
-
-    let proxy_to_vkr_instance = instantiate_proxy(
-        &mut app,
-        proxy_code_id,
-        &generator_instance,
-        &pair_val_eur,
-        &lp_val_eur,
-        &vkr_staking_instance,
-        &val_token,
-    );
-
-    let msg = GeneratorExecuteMsg::SetupPools {
-        pools: vec![(lp_val_eur.to_string(), Uint128::from(50u64))],
-    };
-
-    app.execute_contract(
-        Addr::unchecked(OWNER),
-        generator_instance.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
-
-    let msg = GeneratorExecuteMsg::MoveToProxy {
-        lp_token: lp_val_eur.to_string(),
-        proxy: proxy_to_vkr_instance.to_string(),
-    };
-
-    app.execute_contract(
-        Addr::unchecked(OWNER),
-        generator_instance.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
-
-    // Mint tokens, so user can deposit
-    mint_tokens(&mut app, pair_val_eur.clone(), &lp_val_eur, &user1, 10);
-    deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER1, &[(&lp_val_eur, 10)]);
-
-    // With the proxy, the Generator contract doesn't have the deposited LP tokens
-    check_token_balance(&mut app, &lp_val_eur, &generator_instance, 0);
-    // The LP tokens are in the 3rd party contract now
-    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 10);
-
-    // Mint tokens on staking for distributing
-    mint_tokens(
-        &mut app,
-        owner.clone(),
-        &val_token,
-        &vkr_staking_instance,
-        200_000_000,
-    );
-
-    app.update_block(|bi| next_block(bi));
-
-    // User 2
-    mint_tokens(&mut app, pair_val_eur.clone(), &lp_val_eur, &user2, 10);
-    deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER2, &[(&lp_val_eur, 10)]);
-
-    check_token_balance(&mut app, &lp_val_eur, &generator_instance, 0);
-    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 20);
-
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_val_eur,
-        USER1,
-        (10_000000, Some(vec![50_000000])),
-    );
-
-    // New deposits can't receive already calculated rewards
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_val_eur,
-        USER2,
-        (0, Some(vec![0])),
-    );
-
-    // Change pool alloc points
-    app.execute_contract(
-        owner.clone(),
-        generator_instance.clone(),
-        &GeneratorExecuteMsg::SetupPools {
-            pools: vec![(lp_val_eur.to_string(), Uint128::new(60))],
-        },
-        &[],
-    )
-    .unwrap();
-
-    app.update_block(|bi| next_block(bi));
-
-    // check pending rewards for user1
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_val_eur,
-        USER1,
-        (15_000000, Some(vec![80_000_000])),
-    );
-
-    // check pending rewards for user2
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_val_eur,
-        USER2,
-        (5_000000, Some(vec![30000000])),
-    );
-
-    // check staking balance
-    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 20);
-
-    // Check user1, user2 and proxy balances
-    check_token_balance(&mut app, &val_token, &user1, 0);
-    check_token_balance(&mut app, &val_token, &user2, 0);
-    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 50_000_000);
-
-    // Let's try withdraw for user1
-    let msg = GeneratorExecuteMsg::Withdraw {
-        lp_token: lp_val_eur.to_string(),
-        amount: Uint128::new(5),
-    };
-    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap();
-
-    // check pending rewards for user1 after withdraw
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_val_eur,
-        USER1,
-        (0, Some(vec![0])),
-    );
-
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_val_eur,
-        USER2,
-        (5_000_000, Some(vec![30_000_000])),
-    );
-
-    // Check user1, user2 and proxy balances
-    check_token_balance(&mut app, &val_token, &user1, 80_000_000);
-    check_token_balance(&mut app, &val_token, &user2, 0);
-    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 30_000_000);
-
-    // Compare rewards on proxy and generator
-    let reps: PoolInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &generator_instance,
-            &QueryMsg::PoolInfo {
-                lp_token: lp_val_eur.to_string(),
-            },
-        )
-        .unwrap();
-
-    // Generator proxy reward balance before update is 110_000_000
-    assert_eq!(
-        Uint128::new(110_000_000),
-        reps.proxy_reward_balance_before_update
-    );
-
-    // Let's try checkpoint user boost
-    app.execute_contract(
-        user1.clone(),
-        generator_instance.clone(),
-        &GeneratorExecuteMsg::CheckpointUserBoost {
-            generators: vec![lp_val_eur.to_string()],
-            user: None,
-        },
-        &[],
-    )
-    .unwrap();
-
-    // Compare rewards on proxy and generator
-    let reps: PoolInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &generator_instance,
-            &QueryMsg::PoolInfo {
-                lp_token: lp_val_eur.to_string(),
-            },
-        )
-        .unwrap();
-
-    // Proxies val_token balance is 30_000_000
-    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 30_000_000);
-
-    // Generator proxy reward balance before update is 30_000_000
-    assert_eq!(
-        Uint128::new(30_000_000),
-        reps.proxy_reward_balance_before_update
-    );
-
-    // Let's try claim rewards for user2
-    let msg = GeneratorExecuteMsg::ClaimRewards {
-        lp_tokens: vec![lp_val_eur.to_string()],
-    };
-    app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap();
-
-    // Check user1, user2 and proxy balances
-    check_token_balance(&mut app, &val_token, &user1, 80_000_000);
-    check_token_balance(&mut app, &val_token, &user2, 30_000_000);
-    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 0);
-
-    // Let's try deactivate pool
-    app.execute_contract(
-        factory_instance.clone(),
-        generator_instance.clone(),
-        &GeneratorExecuteMsg::DeactivatePool {
-            lp_token: lp_val_eur.to_string(),
-        },
-        &[],
-    )
-    .unwrap();
-
-    app.update_block(|bi| next_block(bi));
-
-    // Let's try claim rewards for user1
-    let msg = GeneratorExecuteMsg::ClaimRewards {
-        lp_tokens: vec![lp_val_eur.to_string()],
-    };
-    app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap();
-
-    // Let's try checkpoint user boost
-    app.execute_contract(
-        factory_instance.clone(),
-        generator_instance.clone(),
-        &GeneratorExecuteMsg::CheckpointUserBoost {
-            generators: vec![lp_val_eur.to_string()],
-            user: None,
-        },
-        &[],
-    )
-    .unwrap();
-
-    // check pending rewards for user1 after withdraw
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_val_eur,
-        USER1,
-        (0, Some(vec![0])),
-    );
-
-    check_pending_rewards(
-        &mut app,
-        &generator_instance,
-        &lp_val_eur,
-        USER2,
-        (0, Some(vec![0])),
-    );
-
-    // check staking balance
-    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 15);
-
-    // Check user1, user2 and proxy balances
-    check_token_balance(&mut app, &val_token, &user1, 80_000_000);
-    check_token_balance(&mut app, &val_token, &user2, 30_000_000);
-    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 0);
-}
-
-#[test]
 fn generator_without_reward_proxies() {
     let mut app = mock_app();
 
@@ -1158,15 +1202,8 @@ fn generator_without_reward_proxies() {
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-    let native_coins_registry = instantiate_coin_registry(&mut app, None);
-    let factory_instance = instantiate_factory(
-        &mut app,
-        factory_code_id,
-        token_code_id,
-        pair_code_id,
-        None,
-        &native_coins_registry,
-    );
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -1486,6 +1523,317 @@ fn generator_without_reward_proxies() {
 }
 
 #[test]
+fn generator_update_proxy_balance_failed() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked(OWNER);
+    let user1 = Addr::unchecked(USER1);
+    let user2 = Addr::unchecked(USER2);
+
+    let token_code_id = store_token_code(&mut app);
+    let factory_code_id = store_factory_code(&mut app);
+    let pair_code_id = store_pair_code_id(&mut app);
+
+    let astro_token_instance =
+        instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
+
+    let cny_eur_token_code_id = store_token_code(&mut app);
+    let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
+    let val_token = instantiate_token(&mut app, token_code_id, "VAL", None);
+
+    let (pair_val_eur, lp_val_eur) = create_pair(
+        &mut app,
+        &factory_instance,
+        None,
+        None,
+        vec![
+            AssetInfo::Token {
+                contract_addr: val_token.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: eur_token.clone(),
+            },
+        ],
+    );
+
+    let generator_instance =
+        instantiate_generator(&mut app, &factory_instance, &astro_token_instance, None);
+
+    let vkr_staking_instance =
+        instantiate_valkyrie_protocol(&mut app, &val_token, &pair_val_eur, &lp_val_eur);
+
+    let proxy_code_id = store_proxy_code(&mut app);
+
+    let proxy_to_vkr_instance = instantiate_proxy(
+        &mut app,
+        proxy_code_id,
+        &generator_instance,
+        &pair_val_eur,
+        &lp_val_eur,
+        &vkr_staking_instance,
+        &val_token,
+    );
+
+    let msg = GeneratorExecuteMsg::SetupPools {
+        pools: vec![(lp_val_eur.to_string(), Uint128::from(50u64))],
+    };
+
+    app.execute_contract(
+        Addr::unchecked(OWNER),
+        generator_instance.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    let msg = GeneratorExecuteMsg::MoveToProxy {
+        lp_token: lp_val_eur.to_string(),
+        proxy: proxy_to_vkr_instance.to_string(),
+    };
+
+    app.execute_contract(
+        Addr::unchecked(OWNER),
+        generator_instance.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    // Mint tokens, so user can deposit
+    mint_tokens(&mut app, pair_val_eur.clone(), &lp_val_eur, &user1, 10);
+    deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER1, &[(&lp_val_eur, 10)]);
+
+    // With the proxy, the Generator contract doesn't have the deposited LP tokens
+    check_token_balance(&mut app, &lp_val_eur, &generator_instance, 0);
+    // The LP tokens are in the 3rd party contract now
+    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 10);
+
+    // Mint tokens on staking for distributing
+    mint_tokens(
+        &mut app,
+        owner.clone(),
+        &val_token,
+        &vkr_staking_instance,
+        200_000_000,
+    );
+
+    app.update_block(|bi| next_block(bi));
+
+    // User 2
+    mint_tokens(&mut app, pair_val_eur.clone(), &lp_val_eur, &user2, 10);
+    deposit_lp_tokens_to_generator(&mut app, &generator_instance, USER2, &[(&lp_val_eur, 10)]);
+
+    check_token_balance(&mut app, &lp_val_eur, &generator_instance, 0);
+    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 20);
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER1,
+        (10_000000, Some(vec![50_000000])),
+    );
+
+    // New deposits can't receive already calculated rewards
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER2,
+        (0, Some(vec![0])),
+    );
+
+    // Change pool alloc points
+    app.execute_contract(
+        owner.clone(),
+        generator_instance.clone(),
+        &GeneratorExecuteMsg::SetupPools {
+            pools: vec![(lp_val_eur.to_string(), Uint128::new(60))],
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.update_block(|bi| next_block(bi));
+
+    // check pending rewards for user1
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER1,
+        (15_000000, Some(vec![80_000_000])),
+    );
+
+    // check pending rewards for user2
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER2,
+        (5_000000, Some(vec![30000000])),
+    );
+
+    // check staking balance
+    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 20);
+
+    // Check user1, user2 and proxy balances
+    check_token_balance(&mut app, &val_token, &user1, 0);
+    check_token_balance(&mut app, &val_token, &user2, 0);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 50_000_000);
+
+    // Let's try withdraw for user1
+    let msg = GeneratorExecuteMsg::Withdraw {
+        lp_token: lp_val_eur.to_string(),
+        amount: Uint128::new(5),
+    };
+    app.execute_contract(user1.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // check pending rewards for user1 after withdraw
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER1,
+        (0, Some(vec![0])),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER2,
+        (5_000_000, Some(vec![30_000_000])),
+    );
+
+    // Check user1, user2 and proxy balances
+    check_token_balance(&mut app, &val_token, &user1, 80_000_000);
+    check_token_balance(&mut app, &val_token, &user2, 0);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 30_000_000);
+
+    // Compare rewards on proxy and generator
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &generator_instance,
+            &QueryMsg::PoolInfo {
+                lp_token: lp_val_eur.to_string(),
+            },
+        )
+        .unwrap();
+
+    // Generator proxy reward balance before update is 110_000_000
+    assert_eq!(
+        Uint128::new(110_000_000),
+        reps.proxy_reward_balance_before_update
+    );
+
+    // Let's try checkpoint user boost
+    app.execute_contract(
+        user1.clone(),
+        generator_instance.clone(),
+        &GeneratorExecuteMsg::CheckpointUserBoost {
+            generators: vec![lp_val_eur.to_string()],
+            user: None,
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Compare rewards on proxy and generator
+    let reps: PoolInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &generator_instance,
+            &QueryMsg::PoolInfo {
+                lp_token: lp_val_eur.to_string(),
+            },
+        )
+        .unwrap();
+
+    // Proxies val_token balance is 30_000_000
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 30_000_000);
+
+    // Generator proxy reward balance before update is 30_000_000
+    assert_eq!(
+        Uint128::new(30_000_000),
+        reps.proxy_reward_balance_before_update
+    );
+
+    // Let's try claim rewards for user2
+    let msg = GeneratorExecuteMsg::ClaimRewards {
+        lp_tokens: vec![lp_val_eur.to_string()],
+    };
+    app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Check user1, user2 and proxy balances
+    check_token_balance(&mut app, &val_token, &user1, 80_000_000);
+    check_token_balance(&mut app, &val_token, &user2, 30_000_000);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 0);
+
+    // Let's try deactivate pool
+    app.execute_contract(
+        factory_instance.clone(),
+        generator_instance.clone(),
+        &GeneratorExecuteMsg::DeactivatePool {
+            lp_token: lp_val_eur.to_string(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.update_block(|bi| next_block(bi));
+
+    // Let's try claim rewards for user1
+    let msg = GeneratorExecuteMsg::ClaimRewards {
+        lp_tokens: vec![lp_val_eur.to_string()],
+    };
+    app.execute_contract(user2.clone(), generator_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Let's try checkpoint user boost
+    app.execute_contract(
+        factory_instance.clone(),
+        generator_instance.clone(),
+        &GeneratorExecuteMsg::CheckpointUserBoost {
+            generators: vec![lp_val_eur.to_string()],
+            user: None,
+        },
+        &[],
+    )
+    .unwrap();
+
+    // check pending rewards for user1 after withdraw
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER1,
+        (0, Some(vec![0])),
+    );
+
+    check_pending_rewards(
+        &mut app,
+        &generator_instance,
+        &lp_val_eur,
+        USER2,
+        (0, Some(vec![0])),
+    );
+
+    // check staking balance
+    check_token_balance(&mut app, &lp_val_eur, &vkr_staking_instance, 15);
+
+    // Check user1, user2 and proxy balances
+    check_token_balance(&mut app, &val_token, &user1, 80_000_000);
+    check_token_balance(&mut app, &val_token, &user2, 30_000_000);
+    check_token_balance(&mut app, &val_token, &proxy_to_vkr_instance, 0);
+}
+
+#[test]
 fn generator_with_vkr_reward_proxy() {
     let mut app = mock_app();
 
@@ -1499,15 +1847,8 @@ fn generator_with_vkr_reward_proxy() {
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-    let native_coins_registry = instantiate_coin_registry(&mut app, None);
-    let factory_instance = instantiate_factory(
-        &mut app,
-        factory_code_id,
-        token_code_id,
-        pair_code_id,
-        None,
-        &native_coins_registry,
-    );
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -1999,15 +2340,8 @@ fn move_to_proxy() {
 
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
-    let native_coins_registry = instantiate_coin_registry(&mut app, None);
-    let factory_instance = instantiate_factory(
-        &mut app,
-        factory_code_id,
-        token_code_id,
-        pair_code_id,
-        None,
-        &native_coins_registry,
-    );
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -2152,15 +2486,8 @@ fn query_all_stakers() {
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
 
-    let native_coins_registry = instantiate_coin_registry(&mut app, None);
-    let factory_instance = instantiate_factory(
-        &mut app,
-        factory_code_id,
-        token_code_id,
-        pair_code_id,
-        None,
-        &native_coins_registry,
-    );
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -2310,15 +2637,8 @@ fn query_pagination_stakers() {
     let factory_code_id = store_factory_code(&mut app);
     let pair_code_id = store_pair_code_id(&mut app);
 
-    let native_coins_registry = instantiate_coin_registry(&mut app, None);
-    let factory_instance = instantiate_factory(
-        &mut app,
-        factory_code_id,
-        token_code_id,
-        pair_code_id,
-        None,
-        &native_coins_registry,
-    );
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let cny_eur_token_code_id = store_token_code(&mut app);
     let eur_token = instantiate_token(&mut app, cny_eur_token_code_id, "EUR", None);
@@ -2457,15 +2777,8 @@ fn update_tokens_blocked_list() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let native_coins_registry = instantiate_coin_registry(&mut app, None);
-    let factory_instance = instantiate_factory(
-        &mut app,
-        factory_code_id,
-        token_code_id,
-        pair_code_id,
-        None,
-        &native_coins_registry,
-    );
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let generator_instance = instantiate_generator(
         &mut app,
@@ -2730,15 +3043,8 @@ fn setup_pools() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let native_coins_registry = instantiate_coin_registry(&mut app, None);
-    let factory_instance = instantiate_factory(
-        &mut app,
-        factory_code_id,
-        token_code_id,
-        pair_code_id,
-        None,
-        &native_coins_registry,
-    );
+    let factory_instance =
+        instantiate_factory(&mut app, factory_code_id, token_code_id, pair_code_id, None);
 
     let generator_instance = instantiate_generator(
         &mut app,
@@ -2861,14 +3167,14 @@ fn setup_pools() {
     assert_eq!(Uint128::zero(), res.alloc_point);
 
     // Check pool length
-    // let res: usize = app
-    //     .wrap()
-    //     .query_wasm_smart(
-    //         generator_instance.to_owned(),
-    //         &GeneratorQueryMsg::ActivePoolLength {},
-    //     )
-    //     .unwrap();
-    // assert_eq!(3, res);
+    let res: usize = app
+        .wrap()
+        .query_wasm_smart(
+            generator_instance.to_owned(),
+            &GeneratorQueryMsg::ActivePoolLength {},
+        )
+        .unwrap();
+    assert_eq!(3, res);
 
     // Change pool alloc points
     let msg = GeneratorExecuteMsg::SetupPools {
@@ -2883,7 +3189,7 @@ fn setup_pools() {
         .execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(
-        "Generic error: The pair aren't registered: cny-eur",
+        "Generic error: The pair is not registered: cny-eur",
         err.root_cause().to_string()
     );
 
@@ -2989,18 +3295,12 @@ fn deactivate_pools_by_pair_types() {
     let astro_token_instance =
         instantiate_token(&mut app, token_code_id, "ASTRO", Some(1_000_000_000_000000));
 
-    let native_coins_registry = instantiate_coin_registry(
-        &mut app,
-        Some(vec![("cny".to_string(), 6), ("uusd".to_string(), 6)]),
-    );
-
     let factory_instance = instantiate_factory(
         &mut app,
         factory_code_id,
         token_code_id,
         pair_code_id,
         Some(pair_stable_code_id),
-        &native_coins_registry,
     );
 
     let generator_instance = instantiate_generator(
@@ -3033,7 +3333,13 @@ fn deactivate_pools_by_pair_types() {
         &mut app,
         &factory_instance,
         Some(PairType::Stable {}),
-        Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: None,
+            })
+            .unwrap(),
+        ),
         vec![
             AssetInfo::NativeToken {
                 denom: "cny".to_string(),
@@ -3546,6 +3852,16 @@ fn store_pair_stable_code_id(app: &mut App) -> u64 {
     app.store_code(pair_contract)
 }
 
+fn store_coin_registry_code(app: &mut App) -> u64 {
+    let coin_registry_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_native_coin_registry::contract::execute,
+        astroport_native_coin_registry::contract::instantiate,
+        astroport_native_coin_registry::contract::query,
+    ));
+
+    app.store_code(coin_registry_contract)
+}
+
 fn instantiate_token(app: &mut App, token_code_id: u64, name: &str, cap: Option<u128>) -> Addr {
     let name = String::from(name);
 
@@ -3565,14 +3881,48 @@ fn instantiate_token(app: &mut App, token_code_id: u64, name: &str, cap: Option<
         .unwrap()
 }
 
+fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>) -> Addr {
+    let coin_registry_id = store_coin_registry_code(&mut app);
+    let coin_registry_address = app
+        .instantiate_contract(
+            coin_registry_id,
+            Addr::unchecked(OWNER),
+            &astroport::native_coin_registry::InstantiateMsg {
+                owner: OWNER.to_string(),
+            },
+            &[],
+            "Coin registry",
+            None,
+        )
+        .unwrap();
+
+    if let Some(coins) = coins {
+        app.execute_contract(
+            Addr::unchecked(OWNER),
+            coin_registry_address.clone(),
+            &astroport::native_coin_registry::ExecuteMsg::Add {
+                native_coins: coins,
+            },
+            &[],
+        )
+        .unwrap();
+    }
+
+    coin_registry_address
+}
+
 fn instantiate_factory(
-    app: &mut App,
+    mut app: &mut App,
     factory_code_id: u64,
     token_code_id: u64,
     pair_code_id: u64,
     pair_stable_code_id: Option<u64>,
-    native_coins_registry: &Addr,
 ) -> Addr {
+    let coin_registry_address = instantiate_coin_registry(
+        &mut app,
+        Some(vec![("uusd".to_string(), 6), ("cny".to_string(), 6)]),
+    );
+
     let mut msg = FactoryInstantiateMsg {
         pair_configs: vec![PairConfig {
             code_id: pair_code_id,
@@ -3587,7 +3937,7 @@ fn instantiate_factory(
         generator_address: None,
         owner: String::from(OWNER),
         whitelist_code_id: 0,
-        coin_registry_address: native_coins_registry.to_string(),
+        coin_registry_address: coin_registry_address.to_string(),
     };
 
     if let Some(pair_stable_code_id) = pair_stable_code_id {
@@ -3673,6 +4023,7 @@ fn instantiate_generator(
         tokens_per_block: Uint128::new(10_000000),
         vesting_contract: vesting_instance.to_string(),
         generator_controller,
+        voting_escrow_delegation: None,
         voting_escrow: None,
         whitelist_code_id,
     };
@@ -3732,7 +4083,7 @@ fn instantiate_valkyrie_protocol(
 
     let valkyrie_staking_code_id = app.store_code(valkyrie_staking_contract);
 
-    let init_msg = ValkyrieInstantiateMsg {
+    let init_msg = valkyrie::lp_staking::execute_msgs::InstantiateMsg {
         token: valkyrie_token.to_string(),
         pair: pair.to_string(),
         lp_token: lp_token.to_string(),
@@ -3953,44 +4304,4 @@ fn store_whitelist_code(app: &mut App) -> u64 {
     ));
 
     app.store_code(whitelist_contract)
-}
-
-fn store_coin_registry_code(app: &mut App) -> u64 {
-    let coin_registry_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_native_coin_registry::contract::execute,
-        astroport_native_coin_registry::contract::instantiate,
-        astroport_native_coin_registry::contract::query,
-    ));
-
-    app.store_code(coin_registry_contract)
-}
-
-pub fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>) -> Addr {
-    let coin_registry_id = store_coin_registry_code(&mut app);
-    let coin_registry_address = app
-        .instantiate_contract(
-            coin_registry_id,
-            Addr::unchecked(OWNER),
-            &ap_native_coin_registry::InstantiateMsg {
-                owner: OWNER.to_string(),
-            },
-            &[],
-            "Coin registry",
-            None,
-        )
-        .unwrap();
-
-    if let Some(coins) = coins {
-        app.execute_contract(
-            Addr::unchecked(OWNER),
-            coin_registry_address.clone(),
-            &ap_native_coin_registry::ExecuteMsg::Add {
-                native_coins: coins,
-            },
-            &[],
-        )
-        .unwrap();
-    }
-
-    coin_registry_address
 }

@@ -92,8 +92,8 @@ async function setupPools(terra: LCDClient, wallet: any, pools: string[][]) {
     }
 
     if (pools.length > 0) {
-        let active_pools = await queryContract(terra, network.generatorAddress, { active_pool_length: {} })
-        if (active_pools.length == 0) {
+        let active_pool_length = await queryContract(terra, network.generatorAddress, { active_pool_length: {} })
+        if (active_pool_length == 0) {
             console.log("Setup pools for the generator...")
             await executeContract(terra, wallet, network.generatorAddress, {
                 setup_pools: {
@@ -101,7 +101,7 @@ async function setupPools(terra: LCDClient, wallet: any, pools: string[][]) {
                 }
             })
         } else {
-            console.log("You are cannot setup new pools because the generator has %s active pools already.", active_pools.length)
+            console.log("You are cannot setup new pools because the generator has %s active pools already.", active_pool_length)
         }
     }
 }

@@ -8,7 +8,7 @@
     "start": "npm run build-env && npm run build-app",
     "build-app": "bash build_app.sh",
     "build-env": "bash build_env.sh",
-    "build-release": "bash build_release.sh",
+    "build-artifacts": "bash build_release.sh",
     "migrate": "bash migrate.sh"
   },
   "dependencies": {
@@ -16,6 +16,7 @@
     "bignumber.js": "^9.0.1",
     "dotenv": "^8.2.0",
     "isomorphic-fetch": "^3.0.0",
+    "slack-notify": "^2.0.2",
     "ts-custom-error": "^3.2.0"
   },
   "devDependencies": {

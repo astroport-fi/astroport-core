@@ -2,9 +2,9 @@ use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{from_binary, Addr, Decimal, Uint128, Uint64};
 
 use crate::contract::{execute, instantiate, query};
-use crate::state::{Config, CONFIG};
+use crate::state::CONFIG;
 use astroport::asset::{native_asset_info, token_asset_info};
-use astroport::maker::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::maker::{Config, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use std::str::FromStr;
 
 #[test]
@@ -29,6 +29,7 @@ fn proper_initialization() {
         astro_token: token_asset_info(astro_token_contract.clone()),
         default_bridge: Some(native_asset_info("uluna".to_string())),
         max_spread: None,
+        second_receiver_params: None,
     };
     let res = instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -50,6 +51,7 @@ fn proper_initialization() {
             last_distribution_block: 0,
             remainder_reward: Uint128::zero(),
             pre_upgrade_astro_amount: Uint128::zero(),
+            second_receiver_cfg: None
         }
     )
 }
@@ -75,6 +77,7 @@ fn update_owner() {
         astro_token: token_asset_info(astro_token_contract),
         default_bridge: Some(native_asset_info("uluna".to_string())),
         max_spread: None,
+        second_receiver_params: None,
     };
 
     let env = mock_env();

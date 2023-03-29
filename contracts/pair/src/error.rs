@@ -2,8 +2,7 @@ use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
 use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
-/// ## Description
-/// This enum describes pair contract errors!
+/// This enum describes pair contract errors
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
@@ -41,6 +40,9 @@ pub enum ContractError {
 
     #[error("Generator address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
+
+    #[error("Pair is not migrated to the new admin!")]
+    PairIsNotMigrated {},
 
     #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
     MinimumLiquidityAmountError {},

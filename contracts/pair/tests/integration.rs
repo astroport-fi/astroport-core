@@ -127,15 +127,15 @@ fn test_provide_and_withdraw_liquidity() {
             &[
                 Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::new(233000u128),
+                    amount: Uint128::new(233_000_000u128),
                 },
                 Coin {
                     denom: "uluna".to_string(),
-                    amount: Uint128::new(200000u128),
+                    amount: Uint128::new(2_00_000_000u128),
                 },
                 Coin {
                     denom: "cny".to_string(),
-                    amount: Uint128::from(1000000u128),
+                    amount: Uint128::from(100_000_000u128),
                 },
             ],
         )
@@ -162,28 +162,13 @@ fn test_provide_and_withdraw_liquidity() {
         ],
     );
 
-    // When dealing with native tokens the transfer should happen before the contract call, which cw-multitest doesn't support
-    // Set Alice's balances
-    router
-        .send_tokens(
-            owner.clone(),
-            pair_instance.clone(),
-            &[
-                Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::new(100000u128),
-                },
-                Coin {
-                    denom: "uluna".to_string(),
-                    amount: Uint128::new(100000u128),
-                },
-            ],
-        )
-        .unwrap();
-
     // Provide liquidity
-    let (msg, coins) =
-        provide_liquidity_msg(Uint128::new(100000), Uint128::new(100000), None, None);
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(100_000_000),
+        Uint128::new(100_000_000),
+        None,
+        None,
+    );
     let res = router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
@@ -195,11 +180,11 @@ fn test_provide_and_withdraw_liquidity() {
     assert_eq!(res.events[1].attributes[3], attr("receiver", "alice"),);
     assert_eq!(
         res.events[1].attributes[4],
-        attr("assets", "100000uusd, 100000uluna")
+        attr("assets", "100000000uusd, 100000000uluna")
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 99000u128.to_string())
+        attr("share", 99999000u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "contract0"));
@@ -211,13 +196,13 @@ fn test_provide_and_withdraw_liquidity() {
     assert_eq!(res.events[5].attributes[2], attr("to", "alice"));
     assert_eq!(
         res.events[5].attributes[3],
-        attr("amount", 99000.to_string())
+        attr("amount", 99999000.to_string())
     );
 
     // Provide liquidity for receiver
     let (msg, coins) = provide_liquidity_msg(
-        Uint128::new(100000),
-        Uint128::new(100000),
+        Uint128::new(100),
+        Uint128::new(100),
         Some("bob".to_string()),
         None,
     );
@@ -232,18 +217,15 @@ fn test_provide_and_withdraw_liquidity() {
     assert_eq!(res.events[1].attributes[3], attr("receiver", "bob"),);
     assert_eq!(
         res.events[1].attributes[4],
-        attr("assets", "100000uusd, 100000uluna")
+        attr("assets", "100uusd, 100uluna")
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 50000u128.to_string())
+        attr("share", 100u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "bob"));
-    assert_eq!(
-        res.events[3].attributes[3],
-        attr("amount", 50000.to_string())
-    );
+    assert_eq!(res.events[3].attributes[3], attr("amount", 100.to_string()));
 
     // Checking withdraw liquidity
     let token_contract_code_id = store_token_code(&mut router);
@@ -319,7 +301,8 @@ fn test_provide_and_withdraw_liquidity() {
         config,
         ConfigResponse {
             block_time_last: router.block_info().time.seconds(),
-            params: None
+            params: None,
+            owner: None
         }
     )
 }
@@ -528,6 +511,28 @@ fn test_compatibility_of_tokens_with_different_precision() {
     app.execute_contract(owner.clone(), token_y_instance.clone(), &msg, &[])
         .unwrap();
 
+    let user = Addr::unchecked("user");
+
+    let swap_msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
+            belief_price: None,
+            max_spread: None,
+            to: Some(user.to_string()),
+        })
+        .unwrap(),
+        amount: x_offer,
+    };
+
+    let err = app
+        .execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        "Generic error: One of the pools is empty",
+        err.root_cause().to_string()
+    );
+
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: vec![
             Asset {
@@ -667,8 +672,8 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
     let cpr_new: CumulativePricesResponse =
         app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
 
-    let twap0 = cpr_new.price0_cumulative_last - cpr_old.price0_cumulative_last;
-    let twap1 = cpr_new.price1_cumulative_last - cpr_old.price1_cumulative_last;
+    let twap0 = cpr_new.cumulative_prices[0].2 - cpr_old.cumulative_prices[0].2;
+    let twap1 = cpr_new.cumulative_prices[1].2 - cpr_old.cumulative_prices[1].2;
 
     // Prices weren't changed for the last day, uusd amount in pool = 3000000_000000, uluna = 2000000_000000
     // In accumulators we don't have any precision so we rely on elapsed time so we don't need to consider it

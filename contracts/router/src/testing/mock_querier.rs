@@ -118,44 +118,6 @@ pub enum MockQueryMsg {
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<Empty>) -> QuerierResult {
         match &request {
-            // QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
-            //     if route == &TerraRoute::Treasury {
-            //         match query_data {
-            //             TerraQuery::TaxRate {} => {
-            //                 let res = TaxRateResponse {
-            //                     rate: self.tax_querier.rate,
-            //                 };
-            //                 SystemResult::Ok(ContractResult::from(to_binary(&res)))
-            //             }
-            //             TerraQuery::TaxCap { denom } => {
-            //                 let cap = self
-            //                     .tax_querier
-            //                     .caps
-            //                     .get(denom)
-            //                     .copied()
-            //                     .unwrap_or_default();
-            //                 let res = TaxCapResponse { cap };
-            //                 SystemResult::Ok(ContractResult::from(to_binary(&res)))
-            //             }
-            //             _ => panic!("DO NOT ENTER HERE"),
-            //         }
-            //     } else if route == &TerraRoute::Market {
-            //         match query_data {
-            //             TerraQuery::Swap {
-            //                 offer_coin,
-            //                 ask_denom: _,
-            //             } => {
-            //                 let res = SwapResponse {
-            //                     receive: offer_coin.clone(),
-            //                 };
-            //                 SystemResult::Ok(ContractResult::from(to_binary(&res)))
-            //             }
-            //             _ => panic!("DO NOT ENTER HERE"),
-            //         }
-            //     } else {
-            //         panic!("DO NOT ENTER HERE")
-            //     }
-            // }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if contract_addr.to_string().starts_with("token")
                     || contract_addr.to_string().starts_with("asset")

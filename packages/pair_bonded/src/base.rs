@@ -3,8 +3,8 @@ use crate::state::CONFIG;
 use astroport::asset::{addr_opt_validate, Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
 use astroport::pair::{
-    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, InstantiateMsg, PoolResponse,
-    ReverseSimulationResponse, SimulationResponse,
+    migration_check, ConfigResponse, CumulativePricesResponse, Cw20HookMsg, InstantiateMsg,
+    PoolResponse, ReverseSimulationResponse, SimulationResponse,
 };
 use astroport::pair_bonded::{Config, ExecuteMsg, QueryMsg};
 use cosmwasm_std::{
@@ -89,6 +89,12 @@ pub trait PairBonded<'a> {
         info: MessageInfo,
         msg: ExecuteMsg,
     ) -> Result<Response, ContractError> {
+        let cfg = CONFIG.load(deps.storage)?;
+
+        if migration_check(deps.querier, &cfg.factory_addr, &env.contract.address)? {
+            return Err(ContractError::PairIsNotMigrated {});
+        }
+
         match msg {
             ExecuteMsg::UpdateConfig { .. } => Err(ContractError::NotSupported {}),
             ExecuteMsg::Receive(msg) => self.receive_cw20(deps, env, info, msg),
@@ -314,8 +320,7 @@ pub trait PairBonded<'a> {
         let resp = CumulativePricesResponse {
             assets,
             total_share,
-            price0_cumulative_last: Uint128::zero(),
-            price1_cumulative_last: Uint128::zero(),
+            cumulative_prices: vec![],
         };
 
         Ok(resp)
@@ -326,6 +331,7 @@ pub trait PairBonded<'a> {
         Ok(ConfigResponse {
             block_time_last: 0u64,
             params: None,
+            owner: None,
         })
     }
 

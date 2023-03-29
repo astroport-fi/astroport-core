@@ -321,13 +321,13 @@ fn claim_native() {
     assert_eq!(user1_vesting_amount.clone(), Uint128::new(300u128));
 
     // Check owner balance
-    let bal = query_balance(&app.wrap(), owner.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &owner, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, TOKEN_INITIAL_AMOUNT - 300u128);
 
     // Check vesting balance
-    let bal = query_balance(&app.wrap(), vesting_instance.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &vesting_instance, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, 300u128);
@@ -351,19 +351,19 @@ fn claim_native() {
     assert_eq!(vesting_res.info.released_amount, Uint128::from(300u128));
 
     // Check vesting balance
-    let bal = query_balance(&app.wrap(), vesting_instance.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &vesting_instance, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, 0);
 
     // Check user balance
-    let bal = query_balance(&app.wrap(), user1.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &user1, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, 300);
 
     // Owner balance mustn't change after claim
-    let bal = query_balance(&app.wrap(), owner.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &owner, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, TOKEN_INITIAL_AMOUNT - 300u128);
@@ -785,12 +785,12 @@ fn register_vesting_accounts_native() {
         .unwrap();
     assert_eq!(user1_vesting_amount.u128(), 100u128);
 
-    let bal = query_balance(&app.wrap(), owner.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &owner, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, TOKEN_INITIAL_AMOUNT - 100u128);
 
-    let bal = query_balance(&app.wrap(), vesting_instance.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &vesting_instance, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, 100);
@@ -836,11 +836,11 @@ fn register_vesting_accounts_native() {
         .query_wasm_smart(vesting_instance.clone(), &msg)
         .unwrap();
 
-    let bal = query_balance(&app.wrap(), owner.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &owner, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, TOKEN_INITIAL_AMOUNT - 300u128);
-    let bal = query_balance(&app.wrap(), vesting_instance.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &vesting_instance, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, 300u128);
@@ -892,11 +892,11 @@ fn register_vesting_accounts_native() {
         .unwrap();
     assert_eq!(vesting_res, Uint128::new(110u128));
 
-    let bal = query_balance(&app.wrap(), owner.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &owner, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, TOKEN_INITIAL_AMOUNT - 310u128);
-    let bal = query_balance(&app.wrap(), vesting_instance.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &vesting_instance, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, 310u128);
@@ -919,16 +919,16 @@ fn register_vesting_accounts_native() {
         .unwrap();
     assert_eq!(vesting_res.info.released_amount, Uint128::from(110u128));
 
-    let bal = query_balance(&app.wrap(), vesting_instance.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &vesting_instance, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, 200);
-    let bal = query_balance(&app.wrap(), user1.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &user1, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, 110u128);
 
-    let bal = query_balance(&app.wrap(), owner.clone(), IBC_ASTRO.to_string())
+    let bal = query_balance(&app.wrap(), &owner, IBC_ASTRO)
         .unwrap()
         .u128();
     assert_eq!(bal, TOKEN_INITIAL_AMOUNT - 310u128);
