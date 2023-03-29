@@ -32,7 +32,7 @@ dependencies = [
 [[package]]
 name = "ap-valkyrie"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts?branch=merge/release#d9444be9ec71be8f7aa8130d0c8ee4ddf6be69d6"
+source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts?branch=main#e573a8f8542b99015cac910f024a5f20fd793f3c"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -66,6 +66,20 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.5.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw-utils 0.15.1",
+ "cw20 0.15.1",
+ "itertools",
+ "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "2.5.0"
+source = "git+https://github.com/astroport-fi/astroport-core?branch=main#65ce7d1879cc5d95b09fa14202f0423bba52ae0e"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -116,7 +130,7 @@ dependencies = [
  "anyhow",
  "astroport 2.5.0",
  "astroport-factory",
- "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance?branch=merge/release)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
  "astroport-native-coin-registry",
  "astroport-nft",
  "astroport-pair",
@@ -236,9 +250,9 @@ dependencies = [
 [[package]]
 name = "astroport-nft"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance?branch=merge/release#f7381bb095c15a34c8cb4ba51911506f4d216462"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#e6b4fbefcdbce95ea0c6aa793051151097dd4f76"
 dependencies = [
- "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance?branch=merge/release)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2 0.15.1",
@@ -1114,9 +1128,9 @@ checksum = "c8cbd1169bd7b4a0a20d92b9af7a7e0422888bd38a6f5ec29c1fd8c1558a272e"
 [[package]]
 name = "generator-controller"
 version = "1.3.0"
-source = "git+https://github.com/astroport-fi/astroport-governance?branch=merge/release#f7381bb095c15a34c8cb4ba51911506f4d216462"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#e6b4fbefcdbce95ea0c6aa793051151097dd4f76"
 dependencies = [
- "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance?branch=merge/release)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -1129,10 +1143,10 @@ dependencies = [
 [[package]]
 name = "generator-proxy-to-vkr"
 version = "0.0.0"
-source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts?branch=merge/release#d9444be9ec71be8f7aa8130d0c8ee4ddf6be69d6"
+source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts?branch=main#e573a8f8542b99015cac910f024a5f20fd793f3c"
 dependencies = [
  "ap-valkyrie",
- "astroport 2.4.0",
+ "astroport 2.5.0 (git+https://github.com/astroport-fi/astroport-core?branch=main)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -1920,7 +1934,7 @@ checksum = "e1766d682d402817b5ac4490b3c3002d91dfa0d22812f341609f97b08757359c"
 [[package]]
 name = "valkyrie"
 version = "1.0.8-beta.1"
-source = "git+https://github.com/valkyrieprotocol/contracts?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
+source = "git+https://github.com/astroport-fi/valkyrieprotocol?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
 dependencies = [
  "bigint",
  "cosmwasm-std",
@@ -1935,7 +1949,7 @@ dependencies = [
 [[package]]
 name = "valkyrie-lp-staking"
 version = "1.0.8-beta.1"
-source = "git+https://github.com/valkyrieprotocol/contracts?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
+source = "git+https://github.com/astroport-fi/valkyrieprotocol?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.11.1",
@@ -1948,7 +1962,7 @@ dependencies = [
 [[package]]
 name = "valkyrie-vp"
 version = "1.0.8-beta.1"
-source = "git+https://github.com/valkyrieprotocol/contracts?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
+source = "git+https://github.com/astroport-fi/valkyrieprotocol?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.11.1",
@@ -1969,9 +1983,9 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "voting-escrow"
 version = "1.3.0"
-source = "git+https://github.com/astroport-fi/astroport-governance?branch=merge/release#f7381bb095c15a34c8cb4ba51911506f4d216462"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#e6b4fbefcdbce95ea0c6aa793051151097dd4f76"
 dependencies = [
- "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance?branch=merge/release)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -1984,9 +1998,9 @@ dependencies = [
 [[package]]
 name = "voting-escrow-delegation"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance?branch=merge/release#f7381bb095c15a34c8cb4ba51911506f4d216462"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#e6b4fbefcdbce95ea0c6aa793051151097dd4f76"
 dependencies = [
- "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance?branch=merge/release)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
