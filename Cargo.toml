@@ -5,6 +5,7 @@ members = [
     "contracts/factory",
     "contracts/pair",
     "contracts/pair_stable",
+    "contracts/pair_concentrated",
     "contracts/pair_astro_xastro",
     "contracts/router",
     "contracts/token",
@@ -16,10 +17,6 @@ members = [
     "contracts/tokenomics/vesting",
     "contracts/tokenomics/xastro_token",
     "contracts/periphery/*",
-]
-exclude = [
-    "contracts/pair_stable_bluna", # TODO: update this when bluna migrated to cosmwasm 1.0.0
-    "contracts/tokenomics/generator_proxy_to_mirror", # TODO: update this when mirror-protocol migrated to cosmwasm 1.0.0
 ]
 
 [profile.release]

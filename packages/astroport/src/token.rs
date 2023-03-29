@@ -77,7 +77,11 @@ fn is_valid_symbol(symbol: &str) -> bool {
         return false;
     }
     for byte in bytes.iter() {
-        if (*byte != 45) && (*byte < 65 || *byte > 90) && (*byte < 97 || *byte > 122) {
+        if (*byte != 45)
+            && (*byte < 47 || *byte > 57)
+            && (*byte < 65 || *byte > 90)
+            && (*byte < 97 || *byte > 122)
+        {
             return false;
         }
     }

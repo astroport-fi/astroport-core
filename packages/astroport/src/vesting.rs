@@ -29,6 +29,15 @@ pub enum ExecuteMsg {
     RegisterVestingAccounts {
         vesting_accounts: Vec<VestingAccount>,
     },
+    /// Withdraws from current active schedule. Setups a new schedule with the remaining amount.
+    WithdrawFromActiveSchedule {
+        /// The account from which tokens will be withdrawn
+        account: String,
+        /// The address that receives the vested tokens
+        recipient: Option<String>,
+        /// The amount of tokens to withdraw
+        withdraw_amount: Uint128,
+    },
     /// Creates a request to change contract ownership
     /// ## Executor
     /// Only the current owner can execute this
@@ -77,6 +86,7 @@ pub struct VestingSchedule {
 
 /// This structure stores the parameters used to create a vesting schedule.
 #[cw_serde]
+#[derive(Copy)]
 pub struct VestingSchedulePoint {
     /// The start time for the vesting schedule
     pub time: u64,

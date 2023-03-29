@@ -875,6 +875,325 @@ fn register_vesting_accounts_native() {
     assert_eq!(bal, TOKEN_INITIAL_AMOUNT - 310u128);
 }
 
+#[test]
+fn withdraw_from_active_schedule() {
+    let owner = Addr::unchecked(OWNER1);
+    let mut app = mock_app(&owner);
+    let token_code_id = store_token_code(&mut app);
+    let astro_token = instantiate_token(&mut app, token_code_id, "Astro", None);
+    let vesting_instance = instantiate_vesting(&mut app, &astro_token);
+
+    let user1 = Addr::unchecked("user1");
+    let vested_amount = Uint128::new(100_000_000_000000);
+    let start_time = 1654599600;
+    let end_time = 1686135600;
+    let now_ts = 1675159485;
+
+    app.update_block(|b| b.time = Timestamp::from_seconds(now_ts));
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: vesting_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::RegisterVestingAccounts {
+            vesting_accounts: vec![VestingAccount {
+                address: user1.to_string(),
+                schedules: vec![VestingSchedule {
+                    start_point: VestingSchedulePoint {
+                        time: start_time,
+                        amount: Uint128::new(1_000_000_000000),
+                    },
+                    end_point: Some(VestingSchedulePoint {
+                        time: end_time,
+                        amount: Uint128::new(100_000_000_000000),
+                    }),
+                }],
+            }],
+        })
+        .unwrap(),
+        amount: vested_amount,
+    };
+    app.execute_contract(owner.clone(), astro_token.clone(), &msg, &[])
+        .unwrap();
+
+    // Claim and check current amount
+    claim_and_check(
+        &mut app,
+        &user1,
+        &vesting_instance,
+        &astro_token,
+        65_543_017_979452,
+    );
+
+    let withdraw_amount = Uint128::new(10_000_000_000000);
+    let recipient = Addr::unchecked("recipient");
+    let withdraw_msg = ExecuteMsg::WithdrawFromActiveSchedule {
+        account: user1.to_string(),
+        recipient: Some(recipient.to_string()),
+        withdraw_amount,
+    };
+    app.execute_contract(owner.clone(), vesting_instance.clone(), &withdraw_msg, &[])
+        .unwrap();
+
+    // Recipient received tokens
+    let recipient_bal = query_token_balance(&mut app, &astro_token, &recipient);
+    assert_eq!(recipient_bal, withdraw_amount);
+
+    // User1 did not receive tokens after withdraw event
+    claim_and_check(
+        &mut app,
+        &user1,
+        &vesting_instance,
+        &astro_token,
+        65_543_017_979452,
+    );
+
+    app.update_block(|b| b.time = b.time.plus_seconds(86400 * 7));
+
+    // User1 available amount is still being increased but now with reduced slope
+    claim_and_check(
+        &mut app,
+        &user1,
+        &vesting_instance,
+        &astro_token,
+        66_890_633_481478,
+    );
+
+    app.update_block(|b| b.time = Timestamp::from_seconds(end_time));
+
+    // In the end of the schedule user1 receives all tokens minus withdrawn amount
+    claim_and_check(
+        &mut app,
+        &user1,
+        &vesting_instance,
+        &astro_token,
+        (vested_amount - withdraw_amount).u128(),
+    );
+}
+
+#[test]
+fn withdraw_overlapping_schedules() {
+    let owner = Addr::unchecked(OWNER1);
+    let mut app = mock_app(&owner);
+    let token_code_id = store_token_code(&mut app);
+    let astro_token = instantiate_token(&mut app, token_code_id, "Astro", None);
+    let vesting_instance = instantiate_vesting(&mut app, &astro_token);
+
+    let user1 = Addr::unchecked("user1");
+    let vested_amount = Uint128::new(100_000_000_000000);
+    let start_time = 1654599600;
+    let end_time = 1686135600;
+    let now_ts = 1675159485;
+
+    app.update_block(|b| b.time = Timestamp::from_seconds(now_ts));
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: vesting_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::RegisterVestingAccounts {
+            vesting_accounts: vec![VestingAccount {
+                address: user1.to_string(),
+                schedules: vec![
+                    VestingSchedule {
+                        start_point: VestingSchedulePoint {
+                            time: start_time,
+                            amount: Uint128::new(1_000_000_000000),
+                        },
+                        end_point: Some(VestingSchedulePoint {
+                            time: end_time,
+                            amount: Uint128::new(50_000_000_000000),
+                        }),
+                    },
+                    VestingSchedule {
+                        start_point: VestingSchedulePoint {
+                            time: now_ts - 86400 * 7,
+                            amount: Uint128::new(50_000_000_000000),
+                        },
+                        end_point: None,
+                    },
+                ],
+            }],
+        })
+        .unwrap(),
+        amount: vested_amount,
+    };
+    app.execute_contract(owner.clone(), astro_token.clone(), &msg, &[])
+        .unwrap();
+
+    claim_and_check(
+        &mut app,
+        &user1,
+        &vesting_instance,
+        &astro_token,
+        82_945_534_151445,
+    );
+
+    let withdraw_amount = Uint128::new(10_000_000_000000);
+    let recipient = Addr::unchecked("recipient");
+    let withdraw_msg = ExecuteMsg::WithdrawFromActiveSchedule {
+        account: user1.to_string(),
+        recipient: Some(recipient.to_string()),
+        withdraw_amount,
+    };
+
+    // Since we do not consider schedule without end point as active it is possible to withdraw from
+    // active schedule with end_point.
+    app.execute_contract(owner.clone(), vesting_instance.clone(), &withdraw_msg, &[])
+        .unwrap();
+
+    // Recipient received tokens
+    let recipient_bal = query_token_balance(&mut app, &astro_token, &recipient);
+    assert_eq!(recipient_bal, withdraw_amount);
+
+    // User1 did not receive tokens after withdraw event
+    claim_and_check(
+        &mut app,
+        &user1,
+        &vesting_instance,
+        &astro_token,
+        82_945_534_151445,
+    );
+
+    // Go to the end of the 1st schedule
+    app.update_block(|b| b.time = Timestamp::from_seconds(end_time));
+
+    // In the end of the schedule user1 receives all tokens minus withdrawn amount
+    claim_and_check(
+        &mut app,
+        &user1,
+        &vesting_instance,
+        &astro_token,
+        (vested_amount - withdraw_amount).u128(),
+    );
+}
+
+#[test]
+fn withdraw_overlapping_schedules2() {
+    let owner = Addr::unchecked(OWNER1);
+    let mut app = mock_app(&owner);
+    let token_code_id = store_token_code(&mut app);
+    let astro_token = instantiate_token(&mut app, token_code_id, "Astro", None);
+    let vesting_instance = instantiate_vesting(&mut app, &astro_token);
+
+    let user1 = Addr::unchecked("user1");
+    let vested_amount = Uint128::new(100_000_000_000000);
+    let start_time = 1654599600;
+    let end_time = 1686135600;
+    let now_ts = 1675159485;
+
+    app.update_block(|b| b.time = Timestamp::from_seconds(now_ts));
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: vesting_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::RegisterVestingAccounts {
+            vesting_accounts: vec![VestingAccount {
+                address: user1.to_string(),
+                schedules: vec![
+                    VestingSchedule {
+                        start_point: VestingSchedulePoint {
+                            time: start_time,
+                            amount: Uint128::new(1_000_000_000000),
+                        },
+                        end_point: Some(VestingSchedulePoint {
+                            time: end_time,
+                            amount: Uint128::new(50_000_000_000000),
+                        }),
+                    },
+                    VestingSchedule {
+                        start_point: VestingSchedulePoint {
+                            time: now_ts - 86400 * 7,
+                            amount: Uint128::new(1_000_000_000000),
+                        },
+                        end_point: Some(VestingSchedulePoint {
+                            time: end_time + 86400 * 7,
+                            amount: Uint128::new(50_000_000_000000),
+                        }),
+                    },
+                ],
+            }],
+        })
+        .unwrap(),
+        amount: vested_amount,
+    };
+    app.execute_contract(owner.clone(), astro_token.clone(), &msg, &[])
+        .unwrap();
+
+    claim_and_check(
+        &mut app,
+        &user1,
+        &vesting_instance,
+        &astro_token,
+        36_377_496_494237,
+    );
+
+    let recipient = Addr::unchecked("recipient");
+    let withdraw_msg = ExecuteMsg::WithdrawFromActiveSchedule {
+        account: user1.to_string(),
+        recipient: Some(recipient.to_string()),
+        withdraw_amount: Uint128::new(10_000_000_000000),
+    };
+    let err = app
+        .execute_contract(owner.clone(), vesting_instance.clone(), &withdraw_msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        ContractError::MultipleActiveSchedules(user1.to_string()),
+        err.downcast().unwrap(),
+    );
+
+    // Go to the end of the 1st schedule
+    app.update_block(|b| b.time = Timestamp::from_seconds(end_time));
+
+    // Trying to withdraw again
+    let err = app
+        .execute_contract(owner.clone(), vesting_instance.clone(), &withdraw_msg, &[])
+        .unwrap_err();
+    // There is no 10M ASTRO available for withdrawal
+    assert_eq!(
+        ContractError::NotEnoughTokens(Uint128::new(2_431_962_342793)),
+        err.downcast().unwrap(),
+    );
+
+    claim_and_check(
+        &mut app,
+        &user1,
+        &vesting_instance,
+        &astro_token,
+        97_568_037_657_207,
+    );
+
+    // Withdrawing 1M ASTRO
+    let withdraw_amount = Uint128::new(1_000_000_000000);
+    let withdraw_msg = ExecuteMsg::WithdrawFromActiveSchedule {
+        account: user1.to_string(),
+        recipient: Some(recipient.to_string()),
+        withdraw_amount,
+    };
+    app.execute_contract(owner.clone(), vesting_instance.clone(), &withdraw_msg, &[])
+        .unwrap();
+
+    // Recipient received tokens
+    let recipient_bal = query_token_balance(&mut app, &astro_token, &recipient);
+    assert_eq!(recipient_bal, withdraw_amount);
+
+    // user1's amount was not changed
+    claim_and_check(
+        &mut app,
+        &user1,
+        &vesting_instance,
+        &astro_token,
+        97_568_037_657_207,
+    );
+
+    // Go to the end of the 2nd schedule
+    app.update_block(|b| b.time = Timestamp::from_seconds(end_time + 86400 * 7));
+
+    // user1 received all tokens except 1M ASTRO
+    claim_and_check(
+        &mut app,
+        &user1,
+        &vesting_instance,
+        &astro_token,
+        (vested_amount - withdraw_amount).u128(),
+    );
+}
+
 fn mock_app(owner: &Addr) -> App {
     App::new(|app, _, storage| {
         app.bank
@@ -1018,4 +1337,34 @@ fn check_token_balance(app: &mut App, token: &Addr, address: &Addr, expected: u1
     };
     let res: StdResult<BalanceResponse> = app.wrap().query_wasm_smart(token, &msg);
     assert_eq!(res.unwrap().balance, Uint128::from(expected));
+}
+
+fn query_token_balance(app: &mut App, token: &Addr, address: &Addr) -> Uint128 {
+    let msg = Cw20QueryMsg::Balance {
+        address: address.to_string(),
+    };
+    let res: BalanceResponse = app.wrap().query_wasm_smart(token, &msg).unwrap();
+
+    res.balance
+}
+
+fn claim_and_check(
+    app: &mut App,
+    who: &Addr,
+    vesting: &Addr,
+    astro_token: &Addr,
+    expected_amount: u128,
+) {
+    app.execute_contract(
+        who.clone(),
+        vesting.clone(),
+        &ExecuteMsg::Claim {
+            recipient: None,
+            amount: None,
+        },
+        &[],
+    )
+    .unwrap();
+    let astro_amount = query_token_balance(app, &astro_token, &who);
+    assert_eq!(astro_amount.u128(), expected_amount);
 }

@@ -1,6 +1,6 @@
 [package]
 name = "astroport-native-coin-registry"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Astroport"]
 edition = "2021"
 
@@ -29,7 +29,6 @@ cw-storage-plus = "0.15"
 cw2 = "0.15"
 thiserror = { version = "1.0" }
 astroport = { path = "../../../packages/astroport" }
-ap-native-coin-registry = { path = "../../../packages/native_coin_registry" }
 
 [dev-dependencies]
 cw-multi-test = "0.15"

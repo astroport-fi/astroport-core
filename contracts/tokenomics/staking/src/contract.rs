@@ -5,13 +5,15 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
-use astroport::staking::{ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg};
-use cw2::set_contract_version;
+use astroport::staking::{
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+};
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 
 use crate::response::MsgInstantiateContractResponse;
 use astroport::querier::{query_supply, query_token_balance};
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport::xastro_token::InstantiateMsg as TokenInstantiateMsg;
 use protobuf::Message;
 
 /// Contract name that is used for migration.
@@ -59,7 +61,7 @@ pub fn instantiate(
                     minter: env.contract.address.to_string(),
                     cap: None,
                 }),
-                marketing: None,
+                marketing: msg.marketing,
             })?,
             funds: vec![],
             label: String::from("Staked Astroport Token"),
@@ -220,4 +222,33 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             env.contract.address,
         )?),
     }
+}
+
+/// ## Description
+/// Used for migration of contract. Returns the default object of type [`Response`].
+/// ## Params
+/// * **_deps** is the object of type [`DepsMut`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **_msg** is the object of type [`MigrateMsg`].
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-staking" => match contract_version.version.as_ref() {
+            "1.0.0" | "1.0.1" => {}
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

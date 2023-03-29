@@ -1,35 +1,34 @@
+use std::collections::HashSet;
+
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
+    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order,
+    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
+use cw2::{get_contract_version, set_contract_version};
+use protobuf::Message;
+
+use astroport::asset::{addr_opt_validate, AssetInfo, PairInfo};
+use astroport::common::{
+    claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
+};
+use astroport::factory::{
+    Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig,
+    PairType, PairsResponse, QueryMsg,
+};
+use astroport::generator::ExecuteMsg::DeactivatePool;
+use astroport::pair::InstantiateMsg as PairInstantiateMsg;
+use itertools::Itertools;
 
 use crate::error::ContractError;
 use crate::migration;
 use crate::querier::query_pair_info;
-
+use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
     check_asset_infos, pair_key, read_pairs, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS,
     PAIRS_TO_MIGRATE, PAIR_CONFIGS, TMP_PAIR_INFO,
 };
-
-use crate::response::MsgInstantiateContractResponse;
-
-use astroport::asset::{addr_opt_validate, AssetInfo, PairInfo};
-use astroport::factory::{
-    Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig,
-    PairType, PairsResponse, QueryMsg, ROUTE,
-};
-
-use crate::migration::{migrate_config_to_v131, migrate_pair_configs_to_v120, save_routes};
-use astroport::common::{
-    claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
-};
-use astroport::generator::ExecuteMsg::DeactivatePool;
-use astroport::pair::InstantiateMsg as PairInstantiateMsg;
-use cw2::{get_contract_version, set_contract_version};
-use itertools::Itertools;
-use protobuf::Message;
-use std::collections::HashSet;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-factory";
@@ -311,13 +310,7 @@ pub fn execute_create_pair(
     }
 
     let pair_key = pair_key(&asset_infos);
-    TMP_PAIR_INFO.save(
-        deps.storage,
-        &TmpPairInfo {
-            pair_key,
-            asset_infos: asset_infos.clone(),
-        },
-    )?;
+    TMP_PAIR_INFO.save(deps.storage, &TmpPairInfo { pair_key })?;
 
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         id: INSTANTIATE_PAIR_REPLY_ID,
@@ -391,25 +384,6 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 
     PAIRS.save(deps.storage, &tmp.pair_key, &pair_contract)?;
 
-    for asset_info in &tmp.asset_infos {
-        for asset_info_2 in &tmp.asset_infos {
-            if asset_info != asset_info_2 {
-                ROUTE.update::<_, StdError>(
-                    deps.storage,
-                    (asset_info.to_string(), asset_info_2.to_string()),
-                    |maybe_contracts| {
-                        if let Some(mut contracts) = maybe_contracts {
-                            contracts.push(pair_contract.clone());
-                            Ok(contracts)
-                        } else {
-                            Ok(vec![pair_contract.clone()])
-                        }
-                    },
-                )?;
-            }
-        }
-    }
-
     Ok(Response::new().add_attributes(vec![
         attr("action", "register"),
         attr("pair_contract_addr", pair_contract),
@@ -427,8 +401,7 @@ pub fn deregister(
     info: MessageInfo,
     asset_infos: Vec<AssetInfo>,
 ) -> Result<Response, ContractError> {
-    asset_infos[0].check(deps.api)?;
-    asset_infos[1].check(deps.api)?;
+    check_asset_infos(deps.api, &asset_infos)?;
 
     let config = CONFIG.load(deps.storage)?;
 
@@ -439,31 +412,12 @@ pub fn deregister(
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     PAIRS.remove(deps.storage, &pair_key(&asset_infos));
 
-    for asset_info1 in &asset_infos {
-        for asset_info2 in &asset_infos {
-            if asset_info1 != asset_info2 {
-                ROUTE.update::<_, StdError>(
-                    deps.storage,
-                    (asset_info1.to_string(), asset_info2.to_string()),
-                    |pairs| {
-                        Ok(pairs
-                            .unwrap_or_default()
-                            .iter()
-                            .cloned()
-                            .filter(|pair| pair != &pair_addr)
-                            .collect::<Vec<_>>())
-                    },
-                )?;
-            }
-        }
-    }
-
-    let mut response = Response::new();
+    let mut messages: Vec<CosmosMsg> = vec![];
     if let Some(generator) = config.generator_address {
         let pair_info = query_pair_info(&deps.querier, &pair_addr)?;
 
         // sets the allocation point to zero for the lp_token
-        response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: generator.to_string(),
             msg: to_binary(&DeactivatePool {
                 lp_token: pair_info.liquidity_token.to_string(),
@@ -472,7 +426,7 @@ pub fn deregister(
         }));
     }
 
-    Ok(response.add_attributes(vec![
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "deregister"),
         attr("pair_contract_addr", pair_addr),
     ]))
@@ -585,43 +539,31 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-factory" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.0-fix1" => {
+            "1.2.0" | "1.2.1" => {
                 let msg: migration::MigrationMsg = from_binary(&msg.params)?;
-                let config_v100 = migration::CONFIGV100.load(deps.storage)?;
+
+                let config_v120 = migration::CONFIG_V120.load(deps.storage)?;
 
                 let new_config = Config {
-                    whitelist_code_id: msg.whitelist_code_id,
-                    fee_address: config_v100.fee_address,
-                    generator_address: config_v100.generator_address,
-                    owner: config_v100.owner,
-                    token_code_id: config_v100.token_code_id,
+                    whitelist_code_id: config_v120.whitelist_code_id,
+                    fee_address: config_v120.fee_address,
+                    generator_address: config_v120.generator_address,
+                    owner: config_v120.owner,
+                    token_code_id: config_v120.token_code_id,
                     coin_registry_address: deps
                         .api
                         .addr_validate(msg.coin_registry_address.as_str())?,
                 };
 
                 CONFIG.save(deps.storage, &new_config)?;
-
-                migrate_pair_configs_to_v120(deps.storage)?;
-                save_routes(deps.branch())?;
             }
-            "1.1.0" => {
-                migrate_config_to_v131(&mut deps, &msg)?;
-                migrate_pair_configs_to_v120(deps.storage)?;
-                save_routes(deps.branch())?;
-            }
-            "1.2.0" => {
-                migrate_config_to_v131(&mut deps, &msg)?;
-                save_routes(deps.branch())?
-            }
-            "1.3.0" => {
-                migrate_config_to_v131(&mut deps, &msg)?;
-            }
+            "1.3.0" => {}
+            "1.3.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

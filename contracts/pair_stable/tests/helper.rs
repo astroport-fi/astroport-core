@@ -13,7 +13,7 @@ use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, QueryMsg, ReverseSimulationResponse,
     SimulationResponse, StablePoolParams,
 };
-use astroport::querier::NATIVE_TOKEN_PRECISION;
+pub const NATIVE_TOKEN_PRECISION: u8 = 6;
 use astroport_pair_stable::contract::{execute, instantiate, query, reply};
 
 const INIT_BALANCE: u128 = 1_000_000_000000;
@@ -145,7 +145,7 @@ impl Helper {
             .instantiate_contract(
                 coin_registry_id,
                 Addr::unchecked(owner.to_string()),
-                &ap_native_coin_registry::InstantiateMsg {
+                &astroport::native_coin_registry::InstantiateMsg {
                     owner: owner.to_string(),
                 },
                 &[],
@@ -157,7 +157,7 @@ impl Helper {
         app.execute_contract(
             Addr::unchecked(owner.to_string()),
             coin_registry_address.clone(),
-            &ap_native_coin_registry::ExecuteMsg::Add {
+            &astroport::native_coin_registry::ExecuteMsg::Add {
                 native_coins: vec![
                     ("one".to_string(), 6),
                     ("three".to_string(), 6),

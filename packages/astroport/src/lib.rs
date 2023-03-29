@@ -1,13 +1,16 @@
 pub mod asset;
 pub mod common;
+pub mod cosmwasm_ext;
 pub mod factory;
 pub mod generator;
 pub mod generator_proxy;
 pub mod maker;
+pub mod native_coin_registry;
+pub mod native_coin_wrapper;
 pub mod oracle;
 pub mod pair;
 pub mod pair_bonded;
-pub mod pair_stable_bluna;
+pub mod pair_concentrated;
 pub mod querier;
 pub mod restricted_vector;
 pub mod router;
@@ -18,7 +21,6 @@ pub mod xastro_token;
 
 #[cfg(test)]
 mod mock_querier;
-
 #[cfg(test)]
 mod testing;
 
@@ -34,10 +36,16 @@ mod decimal_checked_ops {
     use cosmwasm_std::{Decimal, Fraction, OverflowError, Uint128, Uint256};
     use std::convert::TryInto;
     pub trait DecimalCheckedOps {
+        fn checked_add(self, other: Decimal) -> Result<Decimal, OverflowError>;
         fn checked_mul_uint128(self, other: Uint128) -> Result<Uint128, OverflowError>;
     }
 
     impl DecimalCheckedOps for Decimal {
+        fn checked_add(self, other: Decimal) -> Result<Decimal, OverflowError> {
+            self.numerator()
+                .checked_add(other.numerator())
+                .map(|_| self + other)
+        }
         fn checked_mul_uint128(self, other: Uint128) -> Result<Uint128, OverflowError> {
             if self.is_zero() || other.is_zero() {
                 return Ok(Uint128::zero());
@@ -57,14 +65,23 @@ mod decimal_checked_ops {
     }
 }
 
-use cosmwasm_std::{Decimal, Decimal256, StdError, StdResult};
+use cosmwasm_std::{Decimal, Decimal256, StdError, StdResult, Uint128};
 
 /// Converts [`Decimal`] to [`Decimal256`].
+/// TODO: can be safely removed as there is Decimal256::from(v: Decimal)
 pub fn decimal2decimal256(dec_value: Decimal) -> StdResult<Decimal256> {
     Decimal256::from_atomics(dec_value.atomics(), dec_value.decimal_places()).map_err(|_| {
         StdError::generic_err(format!(
             "Failed to convert Decimal {dec_value} to Decimal256"
         ))
+    })
+}
+
+/// Converts [`Decimal256`] to [`Decimal`].
+pub fn to_decimal(value: Decimal256) -> StdResult<Decimal> {
+    let atomics = Uint128::try_from(value.atomics())?;
+    Decimal::from_atomics(atomics, value.decimal_places()).map_err(|_| {
+        StdError::generic_err(format!("Failed to convert Decimal256 {} to Decimal", value))
     })
 }
 

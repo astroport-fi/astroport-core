@@ -3,16 +3,16 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw_storage_plus::Bound;
 use std::collections::HashSet;
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL};
-use ap_native_coin_registry::{
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::native_coin_registry::{
     CoinResponse, Config, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, COINS_INFO,
 };
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 
 /// version info for migration info
 const CONTRACT_NAME: &str = "astroport-native-coin-registry";
@@ -85,7 +85,7 @@ pub fn execute(
     }
 }
 
-/// Adds an native asset to the registry.
+/// Adds or updates a native asset in the registry.
 ///
 /// * **native_coins** is a vector with the assets we are adding to the registry.
 ///
@@ -185,16 +185,12 @@ pub fn query_native_tokens(
 
 /// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    // let contract_version = get_contract_version(deps.storage)?;
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
 
-    Err(ContractError::MigrationError {})
-
-    /* match contract_version.contract.as_ref() {
+    match contract_version.contract.as_ref() {
         "astroport-native-coin-registry" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                todo!()
-            }
+            "1.0.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
@@ -206,5 +202,5 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, 
         .add_attribute("previous_contract_name", &contract_version.contract)
         .add_attribute("previous_contract_version", &contract_version.version)
         .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION)) */
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

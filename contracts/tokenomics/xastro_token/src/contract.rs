@@ -12,8 +12,8 @@ use cw20_base::allowances::{
 
 use crate::state::{capture_total_supply_history, get_total_supply_at, BALANCES};
 use astroport::asset::addr_opt_validate;
-use astroport::xastro_token::{InstantiateMsg, QueryMsg};
-use cw2::set_contract_version;
+use astroport::xastro_token::{InstantiateMsg, MigrateMsg, QueryMsg};
+use cw2::{get_contract_version, set_contract_version};
 use cw20_base::contract::{
     execute_update_marketing, execute_upload_logo, query_download_logo, query_marketing_info,
     query_minter, query_token_info,
@@ -139,7 +139,6 @@ pub fn instantiate(
         total_supply,
         mint,
     };
-
     TOKEN_INFO.save(deps.storage, &data)?;
 
     if let Some(marketing) = msg.marketing {
@@ -676,4 +675,33 @@ pub fn query_all_accounts(
         .collect::<StdResult<_>>()?;
 
     Ok(AllAccountsResponse { accounts })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-xastro-token" => match contract_version.version.as_ref() {
+            "1.0.0" | "1.0.1" => {}
+            _ => {
+                return Err(StdError::generic_err(
+                    "Cannot migrate. Unsupported contract version",
+                ))
+            }
+        },
+        _ => {
+            return Err(StdError::generic_err(
+                "Cannot migrate. Unsupported contract name",
+            ))
+        }
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

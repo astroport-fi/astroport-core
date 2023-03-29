@@ -34,7 +34,6 @@ fn mock_app(owner: Addr, coins: Vec<Coin>) -> App {
 }
 
 fn validate_and_send_funds(router: &mut App, sender: &Addr, recipient: &Addr, funds: Vec<Coin>) {
-    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
     for fund in funds.clone() {
         // we cannot transfer zero coins
         if !fund.amount.is_zero() {
@@ -61,7 +60,7 @@ fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>
         .instantiate_contract(
             coin_registry_id,
             Addr::unchecked(OWNER),
-            &ap_native_coin_registry::InstantiateMsg {
+            &astroport::native_coin_registry::InstantiateMsg {
                 owner: OWNER.to_string(),
             },
             &[],
@@ -74,7 +73,7 @@ fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>
         app.execute_contract(
             Addr::unchecked(OWNER),
             coin_registry_address.clone(),
-            &ap_native_coin_registry::ExecuteMsg::Add {
+            &astroport::native_coin_registry::ExecuteMsg::Add {
                 native_coins: coins,
             },
             &[],
@@ -444,7 +443,7 @@ fn create_pair(
             user.clone(),
             pair_info.contract_addr.clone(),
             &astroport::pair::ExecuteMsg::ProvideLiquidity {
-                assets,
+                assets: vec![assets[0].clone(), assets[1].clone()],
                 slippage_tolerance: None,
                 auto_stake: None,
                 receiver: None,
@@ -1118,7 +1117,6 @@ fn collect_err_no_swap_pair() {
         );
     }
 
-    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
     router
         .send_tokens(
             owner.clone(),
@@ -2104,7 +2102,6 @@ fn distribute_initially_accrued_fees() {
         );
     }
 
-    // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
     router
         .send_tokens(
             owner.clone(),

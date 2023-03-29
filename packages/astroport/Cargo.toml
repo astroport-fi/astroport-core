@@ -1,6 +1,6 @@
 [package]
 name = "astroport"
-version = "2.2.0"
+version = "2.5.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Common Astroport types, queriers and other utils"
@@ -22,5 +22,4 @@ uint = "0.9"
 cw-storage-plus = "0.15"
 itertools = "0.10"
 cosmwasm-schema = "1.1"
-ap-native-coin-registry = { path = "../../packages/native_coin_registry" }
 cw-utils = "0.15"

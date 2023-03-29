@@ -78,7 +78,7 @@ Update rewards and return it to user.
 ```json
 {
   "claim_rewards": {
-      "lp_token": "terra..."
+      "lp_tokens": ["terra...", "terra...", "terra..."]
   }
 }
 ```

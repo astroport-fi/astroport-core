@@ -64,9 +64,9 @@ Run the following from the repository root
 
 The optimized contracts are generated in the artifacts/ directory.
 
-## Branches
+## Deployment
 
-We use [main](https://github.com/astroport-fi/astroport-core/tree/main) branch for new feature development and [release](https://github.com/astroport-fi/astroport-core/tree/release) one for collecting features which are ready for deployment. You can find the version and commit for actually deployed contracts [here](https://github.com/astroport-fi/astroport-changelog).
+You can find versions and commits for actually deployed contracts [here](https://github.com/astroport-fi/astroport-changelog).
 
 ## Docs
 

@@ -14,7 +14,7 @@ use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 #[cw_serde]
 pub enum QueryMsg {
     Pair {
-        asset_infos: [AssetInfo; 2],
+        asset_infos: Vec<AssetInfo>,
     },
     Simulation {
         offer_asset: Asset,
@@ -122,9 +122,9 @@ impl WasmMockQuerier {
                 if contract_addr.to_string().starts_with("token")
                     || contract_addr.to_string().starts_with("asset")
                 {
-                    self.handle_cw20(contract_addr, msg)
+                    self.handle_cw20(&contract_addr, &msg)
                 } else {
-                    self.handle_default(msg)
+                    self.handle_default(&msg)
                 }
             }
             _ => self.base.handle_query(request),

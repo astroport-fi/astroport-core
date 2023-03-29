@@ -77,7 +77,7 @@ fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>
         .instantiate_contract(
             coin_registry_id,
             Addr::unchecked(OWNER),
-            &ap_native_coin_registry::InstantiateMsg {
+            &astroport::native_coin_registry::InstantiateMsg {
                 owner: OWNER.to_string(),
             },
             &[],
@@ -90,7 +90,7 @@ fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>
         app.execute_contract(
             Addr::unchecked(OWNER),
             coin_registry_address.clone(),
-            &ap_native_coin_registry::ExecuteMsg::Add {
+            &astroport::native_coin_registry::ExecuteMsg::Add {
                 native_coins: coins,
             },
             &[],
@@ -267,26 +267,28 @@ fn test_provide_and_withdraw_liquidity() {
         ],
     );
 
-    // When dealing with native tokens, the transfer should happen before the contract call, which cw-multitest doesn't support
-    router
-        .send_tokens(
-            owner.clone(),
-            pair_instance.clone(),
-            &[
-                Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::new(100_000u128),
-                },
-                Coin {
-                    denom: "uluna".to_string(),
-                    amount: Uint128::new(100_000u128),
-                },
-            ],
-        )
-        .unwrap();
+    // Try to provide liquidity less then MINIMUM_LIQUIDITY_AMOUNT
+    let (msg, coins) = provide_liquidity_msg(Uint128::new(100), Uint128::new(100), None);
+    let err = router
+        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap_err();
+    assert_eq!(
+        "Initial liquidity must be more than 1000",
+        err.root_cause().to_string()
+    );
+
+    // Try to provide liquidity equal to MINIMUM_LIQUIDITY_AMOUNT
+    let (msg, coins) = provide_liquidity_msg(Uint128::new(500), Uint128::new(500), None);
+    let err = router
+        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap_err();
+    assert_eq!(
+        "Initial liquidity must be more than 1000",
+        err.root_cause().to_string()
+    );
 
     // Provide liquidity
-    let (msg, coins) = provide_liquidity_msg(Uint128::new(100), Uint128::new(100), None);
+    let (msg, coins) = provide_liquidity_msg(Uint128::new(100000), Uint128::new(100000), None);
     let res = router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
@@ -298,11 +300,11 @@ fn test_provide_and_withdraw_liquidity() {
     assert_eq!(res.events[1].attributes[3], attr("receiver", "alice"),);
     assert_eq!(
         res.events[1].attributes[4],
-        attr("assets", "100uusd, 100uluna")
+        attr("assets", "100000uusd, 100000uluna")
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 199200u128.to_string())
+        attr("share", 199000u128.to_string())
     );
 
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
@@ -316,13 +318,13 @@ fn test_provide_and_withdraw_liquidity() {
     assert_eq!(res.events[5].attributes[2], attr("to", "alice"));
     assert_eq!(
         res.events[5].attributes[3],
-        attr("amount", 199200u128.to_string())
+        attr("amount", 199000u128.to_string())
     );
 
     // Provide liquidity for a custom receiver
     let (msg, coins) = provide_liquidity_msg(
-        Uint128::new(100),
-        Uint128::new(100),
+        Uint128::new(100000),
+        Uint128::new(100000),
         Some("bob".to_string()),
     );
     let res = router
@@ -336,15 +338,18 @@ fn test_provide_and_withdraw_liquidity() {
     assert_eq!(res.events[1].attributes[3], attr("receiver", "bob"),);
     assert_eq!(
         res.events[1].attributes[4],
-        attr("assets", "100uusd, 100uluna")
+        attr("assets", "100000uusd, 100000uluna")
     );
     assert_eq!(
         res.events[1].attributes[5],
-        attr("share", 200u128.to_string())
+        attr("share", 200000u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[3].attributes[2], attr("to", "bob"));
-    assert_eq!(res.events[3].attributes[3], attr("amount", 200.to_string()));
+    assert_eq!(
+        res.events[3].attributes[3],
+        attr("amount", 200000.to_string())
+    );
 }
 
 fn provide_liquidity_msg(

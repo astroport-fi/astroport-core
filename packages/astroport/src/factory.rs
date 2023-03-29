@@ -2,7 +2,6 @@ use crate::asset::{AssetInfo, PairInfo};
 
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Binary};
-use cw_storage_plus::Map;
 use std::fmt::{Display, Formatter, Result};
 
 const MAX_TOTAL_FEE_BPS: u16 = 10_000;
@@ -39,6 +38,8 @@ pub enum PairType {
     Xyk {},
     /// Stable pair type
     Stable {},
+    /// Concentrated liquidity pair type
+    Concentrated {},
     /// Custom pair type
     Custom(String),
 }
@@ -49,7 +50,8 @@ impl Display for PairType {
         match self {
             PairType::Xyk {} => fmt.write_str("xyk"),
             PairType::Stable {} => fmt.write_str("stable"),
-            PairType::Custom(pair_type) => fmt.write_str(format!("custom-{pair_type}").as_str()),
+            PairType::Concentrated {} => fmt.write_str("concentrated"),
+            PairType::Custom(pair_type) => fmt.write_str(format!("custom-{}", pair_type).as_str()),
         }
     }
 }
@@ -236,14 +238,3 @@ pub enum UpdateAddr {
     /// Removes a contract address.
     Remove {},
 }
-
-/// Map which contains a list of all pairs which are able to convert X <> Y assets.
-/// Example: given 3 pools (X, Y), (X,Y,Z) and (X,Y,Z,W), the map will contain the following entries
-/// (pair addresses):  
-/// `ROUTE[X][Y] = [(X,Y), (X,Y,Z), (X,Y,Z,W)]`  
-/// `ROUTE[X][Z] = [(X,Y,Z), (X,Y,Z,W)]`  
-/// `ROUTE[X][W] = [(X,Y,Z,W)]`  
-/// ...  
-///
-/// Notice that `ROUTE[X][Y] = ROUTE[Y][X]`
-pub const ROUTE: Map<(String, String), Vec<Addr>> = Map::new("routes");
