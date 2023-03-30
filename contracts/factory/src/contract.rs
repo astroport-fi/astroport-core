@@ -23,6 +23,7 @@ use itertools::Itertools;
 
 use crate::error::ContractError;
 use crate::migration;
+use crate::migration::migrate_pair_configs;
 use crate::querier::query_pair_info;
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
@@ -562,7 +563,10 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
 
                 CONFIG.save(deps.storage, &new_config)?;
             }
-            "1.3.0" | "1.3.1" | "1.5.0" => {}
+            "1.3.0" | "1.3.1" => {}
+            "1.5.0" => {
+                migrate_pair_configs(deps.storage)?;
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
