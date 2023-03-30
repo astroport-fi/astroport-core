@@ -562,8 +562,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
 
                 CONFIG.save(deps.storage, &new_config)?;
             }
-            "1.3.0" => {}
-            "1.3.1" => {}
+            "1.3.0" | "1.3.1" | "1.5.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
