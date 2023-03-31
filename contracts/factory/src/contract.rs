@@ -549,11 +549,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
                 let msg: migration::MigrationMsg = from_binary(&msg.params)?;
                 migrate_configs(&mut deps, &msg)?;
             }
-            "1.3.0" => {
-                let msg: migration::MigrationMsg = from_binary(&msg.params)?;
-                migrate_configs(&mut deps, &msg)?;
-                migrate_pair_configs(deps.storage)?;
-            }
+            "1.3.0" => {}
             "1.3.1" | "1.5.0" => {
                 migrate_pair_configs(deps.storage)?;
             }
