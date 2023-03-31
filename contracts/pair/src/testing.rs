@@ -1441,6 +1441,7 @@ fn test_accumulate_prices() {
                 block_time_last: case.block_time_last,
                 price0_cumulative_last: Uint128::new(case.last0),
                 price1_cumulative_last: Uint128::new(case.last1),
+                track_asset_balances: false,
             },
             Uint128::new(case.x_amount),
             Uint128::new(case.y_amount),

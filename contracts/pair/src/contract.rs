@@ -1,11 +1,11 @@
 use crate::error::ContractError;
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, BALANCES, CONFIG};
 use std::convert::TryInto;
 
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps,
     DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError,
-    StdResult, SubMsg, Uint128, Uint256, WasmMsg,
+    StdResult, SubMsg, Uint128, Uint256, Uint64, WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -16,7 +16,10 @@ use astroport::asset::{
 use astroport::decimal2decimal256;
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
-use astroport::pair::{migration_check, ConfigResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
+use astroport::pair::{
+    migration_check, ConfigResponse, XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams,
+    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
+};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
     QueryMsg, ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
@@ -55,6 +58,13 @@ pub fn instantiate(
         return Err(ContractError::DoublingAssets {});
     }
 
+    let mut track_asset_balances = false;
+
+    if let Some(init_params) = msg.init_params {
+        let params: XYKPoolParams = from_binary(&init_params)?;
+        track_asset_balances = params.track_asset_balances.unwrap_or_default();
+    }
+
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
@@ -68,7 +78,14 @@ pub fn instantiate(
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
+        track_asset_balances,
     };
+
+    if track_asset_balances {
+        for asset in &config.pair_info.asset_infos {
+            BALANCES.save(deps.storage, asset, &Uint128::zero(), env.block.height)?;
+        }
+    }
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -99,7 +116,15 @@ pub fn instantiate(
         reply_on: ReplyOn::Success,
     }];
 
-    Ok(Response::new().add_submessages(sub_msg))
+    Ok(Response::new().add_submessages(sub_msg).add_attribute(
+        "asset_balances_tracking".to_owned(),
+        if config.track_asset_balances {
+            "enabled"
+        } else {
+            "disabled"
+        }
+        .to_owned(),
+    ))
 }
 
 /// The entry point to the contract for processing replies from submessages.
@@ -206,6 +231,7 @@ pub fn execute(
                 to_addr,
             )
         }
+        ExecuteMsg::UpdateConfig { params } => update_config(deps, env, info, params),
         _ => Err(ContractError::NonSupported {}),
     }
 }
@@ -395,6 +421,17 @@ pub fn provide_liquidity(
         auto_stake,
     )?);
 
+    if config.track_asset_balances {
+        for (i, pool) in pools.iter().enumerate() {
+            BALANCES.save(
+                deps.storage,
+                &pool.info,
+                &pool.amount.checked_add(deposits[i])?,
+                env.block.height,
+            )?;
+        }
+    }
+
     // Accumulate prices for the assets in the pool
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
         accumulate_prices(env, &config, pools[0].amount, pools[1].amount)?
@@ -491,6 +528,17 @@ pub fn withdraw_liquidity(
 
     let (pools, total_share) = pool_info(deps.querier, &config)?;
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
+
+    if config.track_asset_balances {
+        for (i, pool) in pools.iter().enumerate() {
+            BALANCES.save(
+                deps.storage,
+                &pool.info,
+                &(pool.amount - refund_assets[i].amount),
+                env.block.height,
+            )?;
+        }
+    }
 
     // Accumulate prices for the pair assets
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
@@ -654,6 +702,21 @@ pub fn swap(
         }
     }
 
+    if config.track_asset_balances {
+        BALANCES.save(
+            deps.storage,
+            &offer_pool.info,
+            &(offer_pool.amount + offer_amount),
+            env.block.height,
+        )?;
+        BALANCES.save(
+            deps.storage,
+            &ask_pool.info,
+            &(ask_pool.amount - return_amount - maker_fee_amount),
+            env.block.height,
+        )?;
+    }
+
     // Accumulate prices for the assets in the pool
     if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
         accumulate_prices(env, &config, pools[0].amount, pools[1].amount)?
@@ -683,6 +746,51 @@ pub fn swap(
             attr("commission_amount", commission_amount),
             attr("maker_fee_amount", maker_fee_amount),
         ]))
+}
+
+/// Updates the pool configuration with the specified parameters in the `params` variable.
+///
+/// * **params** new parameter values.
+pub fn update_config(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    params: Binary,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
+
+    if info.sender != factory_config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut response = Response::default();
+
+    match from_binary::<XYKPoolUpdateParams>(&params)? {
+        XYKPoolUpdateParams::EnableAssetBalancesTracking => {
+            if config.track_asset_balances {
+                return Err(ContractError::AssetBalancesTrackingIsAlreadyEnabled {});
+            }
+            config.track_asset_balances = true;
+
+            let pools = config
+                .pair_info
+                .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
+
+            for pool in pools.iter() {
+                BALANCES.save(deps.storage, &pool.info, &pool.amount, env.block.height)?;
+            }
+
+            CONFIG.save(deps.storage, &config)?;
+
+            response.attributes.push(attr(
+                "asset_balances_tracking".to_owned(),
+                "enabled".to_owned(),
+            ));
+        }
+    }
+
+    Ok(response)
 }
 
 /// Accumulate token prices for the assets in the pool.
@@ -770,6 +878,9 @@ pub fn calculate_maker_fee(
 /// pool using a [`CumulativePricesResponse`] object.
 ///
 /// * **QueryMsg::Config {}** Returns the configuration for the pair contract using a [`ConfigResponse`] object.
+///
+/// * **QueryMsg::AssetBalanceAt { asset_info, block_height }** Returns the balance of the specified asset that was in the pool
+/// just preceeding the moment of the specified block height creation.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -784,6 +895,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::AssetBalanceAt {
+            asset_info,
+            block_height,
+        } => to_binary(&query_asset_balances_at(deps, asset_info, block_height)?),
         _ => Err(StdError::generic_err("Query is not supported")),
     }
 }
@@ -950,9 +1065,22 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
-        params: None,
+        params: Some(to_binary(&XYKPoolConfig {
+            track_asset_balances: config.track_asset_balances,
+        })?),
         owner: None,
     })
+}
+
+/// Returns the balance of the specified asset that was in the pool
+/// just preceeding the moment of the specified block height creation.
+/// It will return None (null) if the balance was not tracked up to the specified block height
+pub fn query_asset_balances_at(
+    deps: Deps,
+    asset_info: AssetInfo,
+    block_height: Uint64,
+) -> StdResult<Option<Uint128>> {
+    BALANCES.may_load_at_height(deps.storage, &asset_info, block_height.u64())
 }
 
 /// Returns the result of a swap.
@@ -1126,13 +1254,14 @@ fn assert_slippage_tolerance(
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    use crate::migration;
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-pair" => match contract_version.version.as_ref() {
-            "1.0.0" => {}
-            "1.0.1" => {}
-            "1.1.0" => {}
+            "1.0.0" | "1.0.1" | "1.1.0" | "1.2.0" => {
+                migration::add_asset_balances_tracking_flag(deps.storage)?;
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
