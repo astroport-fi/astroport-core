@@ -22,6 +22,8 @@ use cw_utils::must_pay;
 const CONTRACT_NAME: &str = "astroport-vesting";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Maximum limit of schedules per user
+const SCHEDULES_LIMIT: usize = 8;
 
 /// Creates a new contract with the specified parameters in [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -48,11 +50,23 @@ pub fn instantiate(
 
 /// Exposes execute functions available in the contract.
 ///
-/// ## Variants
 /// * **ExecuteMsg::Claim { recipient, amount }** Claims vested tokens and transfers them to the vesting recipient.
 ///
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes it
 /// depending on the received template.
+///
+/// * **ExecuteMsg::RegisterVestingAccounts { vesting_accounts }** Registers vesting accounts
+/// using the provided vector of [`VestingAccount`] structures.
+///
+/// * **ExecuteMsg::WithdrawFromActiveSchedule { account, recipient, withdraw_amount }**
+/// Withdraws tokens from the only one active vesting schedule of the specified account.
+///
+/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change contract ownership.
+///
+/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
+///
+/// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership.
+///
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -62,14 +76,14 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Claim { recipient, amount } => claim(deps, env, info, recipient, amount),
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, info, msg),
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::RegisterVestingAccounts { vesting_accounts } => {
             let config = CONFIG.load(deps.storage)?;
 
             match &config.vesting_token {
                 AssetInfo::NativeToken { denom } if info.sender == config.owner => {
                     let amount = must_pay(&info, denom)?;
-                    register_vesting_accounts(deps, vesting_accounts, amount)
+                    register_vesting_accounts(deps, env, vesting_accounts, amount)
                 }
                 _ => Err(ContractError::Unauthorized {}),
             }
@@ -118,6 +132,7 @@ pub fn execute(
 /// * **cw20_msg** CW20 message to process.
 fn receive_cw20(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
@@ -130,7 +145,7 @@ fn receive_cw20(
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::RegisterVestingAccounts { vesting_accounts } => {
-            register_vesting_accounts(deps, vesting_accounts, cw20_msg.amount)
+            register_vesting_accounts(deps, env, vesting_accounts, cw20_msg.amount)
         }
     }
 }
@@ -142,6 +157,7 @@ fn receive_cw20(
 /// * **cw20_amount** sets the amount that confirms the total amount of all accounts to register.
 pub fn register_vesting_accounts(
     deps: DepsMut,
+    env: Env,
     vesting_accounts: Vec<VestingAccount>,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
@@ -153,7 +169,7 @@ pub fn register_vesting_accounts(
         let mut released_amount = Uint128::zero();
         let account_address = deps.api.addr_validate(&vesting_account.address)?;
 
-        assert_vesting_schedules(&account_address, &vesting_account.schedules)?;
+        assert_vesting_schedules(&env, &account_address, &vesting_account.schedules)?;
 
         for sch in &vesting_account.schedules {
             let amount = if let Some(end_point) = &sch.end_point {
@@ -165,6 +181,11 @@ pub fn register_vesting_accounts(
         }
 
         if let Some(mut old_info) = VESTING_INFO.may_load(deps.storage, &account_address)? {
+            if old_info.schedules.len() + 1 > SCHEDULES_LIMIT {
+                return Err(ContractError::ExceedSchedulesMaximumLimit(
+                    vesting_account.address,
+                ));
+            };
             released_amount = old_info.released_amount;
             vesting_account.schedules.append(&mut old_info.schedules);
         }
@@ -197,12 +218,15 @@ pub fn register_vesting_accounts(
 ///
 /// * **vesting_schedules** vesting schedules to validate.
 fn assert_vesting_schedules(
+    env: &Env,
     addr: &Addr,
     vesting_schedules: &[VestingSchedule],
 ) -> Result<(), ContractError> {
     for sch in vesting_schedules {
         if let Some(end_point) = &sch.end_point {
-            if !(sch.start_point.time < end_point.time && sch.start_point.amount < end_point.amount)
+            if !(sch.start_point.time < end_point.time
+                && end_point.time > env.block.time.seconds()
+                && sch.start_point.amount < end_point.amount)
             {
                 return Err(ContractError::VestingScheduleError(addr.to_string()));
             }
@@ -294,7 +318,7 @@ fn calc_schedule_unlocked_amount(
     if let Some(end_point) = &schedule.end_point {
         let passed_time = current_time.min(end_point.time) - schedule.start_point.time;
         let time_period = end_point.time - schedule.start_point.time;
-        if passed_time != 0 && time_period != 0 {
+        if passed_time != 0 {
             let release_amount = Uint128::from(passed_time).multiply_ratio(
                 end_point.amount.checked_sub(schedule.start_point.amount)?,
                 time_period,
@@ -311,9 +335,17 @@ fn calc_schedule_unlocked_amount(
 /// Withdraw is possible if there is only one active vesting schedule.
 /// Only schedules with end_point are considered as active.
 /// Active schedule's remaining amount must be greater than withdraw amount.
-/// This function terminates current active schedule (updates end_point)
-/// and creates a new one with remaining amount minus withdrawn amount.
-/// Withdrawn amount receiver is either `receiver` or `info.sender`.
+/// This function changes the current active schedule
+/// setting current block time and already unlocked amount for start point
+/// and reducing end point amount by the withdrawn amount.
+///
+/// * **account** whose schedule to withdraw from.
+///
+/// * **receiver** who will receive the withdrawn amount.
+/// **info.sender** is used if it is not specified.
+///
+/// * **amount** amount to withdraw from the only one active schedule.
+///
 fn withdraw_from_active_schedule(
     deps: DepsMut,
     env: Env,
@@ -322,6 +354,10 @@ fn withdraw_from_active_schedule(
     receiver: Option<String>,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
+    if amount.is_zero() {
+        return Err(ContractError::ZeroAmountWithdrawal {});
+    }
+
     let config = CONFIG.load(deps.storage)?;
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
@@ -339,7 +375,6 @@ fn withdraw_from_active_schedule(
         }
     });
 
-    let new_schedule;
     if let Some(schedule) = active_schedules.next() {
         // Withdraw is not allowed if there are multiple active schedules
         if active_schedules.next().is_some() {
@@ -347,7 +382,7 @@ fn withdraw_from_active_schedule(
         }
 
         // It's safe to unwrap here because we checked that there is an end_point
-        let end_point = schedule.end_point.unwrap();
+        let mut end_point = schedule.end_point.unwrap();
 
         let sch_unlocked_amount = calc_schedule_unlocked_amount(schedule, block_time)?;
 
@@ -356,26 +391,17 @@ fn withdraw_from_active_schedule(
             return Err(ContractError::NotEnoughTokens(amount_left));
         }
 
-        new_schedule = VestingSchedule {
-            start_point: VestingSchedulePoint {
-                time: block_time,
-                amount: Uint128::zero(),
-            },
-            end_point: Some(VestingSchedulePoint {
-                time: end_point.time,
-                amount: end_point.amount - sch_unlocked_amount - amount,
-            }),
-        };
-
-        schedule.end_point = Some(VestingSchedulePoint {
+        schedule.start_point = VestingSchedulePoint {
             time: block_time,
             amount: sch_unlocked_amount,
-        });
+        };
+
+        end_point.amount -= amount;
+        schedule.end_point = Some(end_point);
     } else {
         return Err(ContractError::NoActiveVestingSchedule(account));
     };
 
-    vesting_info.schedules.push(new_schedule);
     VESTING_INFO.save(deps.storage, &acc, &vesting_info)?;
 
     let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or(info.sender);
@@ -500,7 +526,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
     match contract_version.contract.as_ref() {
         "astroport-vesting" => match contract_version.version.as_ref() {
             "1.0.0" => migrate_from_v100(deps.branch())?,
-            "1.1.0" | "1.2.0" => {}
+            "1.1.0" | "1.2.0" | "1.3.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

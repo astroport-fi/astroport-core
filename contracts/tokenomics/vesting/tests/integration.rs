@@ -35,6 +35,8 @@ fn claim() {
 
     let vesting_instance = instantiate_vesting(&mut app, &astro_token_instance);
 
+    let current_time = app.block_info().time.seconds();
+
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::RegisterVestingAccounts {
@@ -43,31 +45,31 @@ fn claim() {
                 schedules: vec![
                     VestingSchedule {
                         start_point: VestingSchedulePoint {
-                            time: Timestamp::from_seconds(100).seconds(),
+                            time: current_time + 100,
                             amount: Uint128::zero(),
                         },
                         end_point: Some(VestingSchedulePoint {
-                            time: Timestamp::from_seconds(101).seconds(),
+                            time: current_time + 101,
                             amount: Uint128::new(200),
                         }),
                     },
                     VestingSchedule {
                         start_point: VestingSchedulePoint {
-                            time: Timestamp::from_seconds(100).seconds(),
+                            time: current_time + 100,
                             amount: Uint128::zero(),
                         },
                         end_point: Some(VestingSchedulePoint {
-                            time: Timestamp::from_seconds(110).seconds(),
+                            time: current_time + 110,
                             amount: Uint128::new(100),
                         }),
                     },
                     VestingSchedule {
                         start_point: VestingSchedulePoint {
-                            time: Timestamp::from_seconds(100).seconds(),
+                            time: current_time + 100,
                             amount: Uint128::zero(),
                         },
                         end_point: Some(VestingSchedulePoint {
-                            time: Timestamp::from_seconds(200).seconds(),
+                            time: current_time + 200,
                             amount: Uint128::new(100),
                         }),
                     },
@@ -81,7 +83,10 @@ fn claim() {
     let res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(res.root_cause().to_string(), "Vesting schedule amount error. The total amount should be equal to the CW20 receive amount.");
+    assert_eq!(
+        res.root_cause().to_string(),
+        "Vesting schedule amount error. The total amount should be equal to the received amount."
+    );
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
@@ -91,31 +96,31 @@ fn claim() {
                 schedules: vec![
                     VestingSchedule {
                         start_point: VestingSchedulePoint {
-                            time: Timestamp::from_seconds(100).seconds(),
+                            time: current_time + 100,
                             amount: Uint128::zero(),
                         },
                         end_point: Some(VestingSchedulePoint {
-                            time: Timestamp::from_seconds(101).seconds(),
+                            time: current_time + 101,
                             amount: Uint128::new(100),
                         }),
                     },
                     VestingSchedule {
                         start_point: VestingSchedulePoint {
-                            time: Timestamp::from_seconds(100).seconds(),
+                            time: current_time + 100,
                             amount: Uint128::zero(),
                         },
                         end_point: Some(VestingSchedulePoint {
-                            time: Timestamp::from_seconds(110).seconds(),
+                            time: current_time + 110,
                             amount: Uint128::new(100),
                         }),
                     },
                     VestingSchedule {
                         start_point: VestingSchedulePoint {
-                            time: Timestamp::from_seconds(100).seconds(),
+                            time: current_time + 100,
                             amount: Uint128::zero(),
                         },
                         end_point: Some(VestingSchedulePoint {
-                            time: Timestamp::from_seconds(200).seconds(),
+                            time: current_time + 200,
                             amount: Uint128::new(100),
                         }),
                     },
@@ -128,6 +133,11 @@ fn claim() {
 
     app.execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap();
+
+    app.update_block(|b| {
+        b.time = b.time.plus_seconds(200);
+        b.height += 200 / 5
+    });
 
     let msg = QueryMsg::AvailableAmount {
         address: user1.to_string(),
@@ -221,6 +231,8 @@ fn claim_native() {
 
     let vesting_instance = instantiate_vesting_remote_chain(&mut app);
 
+    let current_time = app.block_info().time.seconds();
+
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::RegisterVestingAccounts {
@@ -228,11 +240,11 @@ fn claim_native() {
                 address: user1.to_string(),
                 schedules: vec![VestingSchedule {
                     start_point: VestingSchedulePoint {
-                        time: Timestamp::from_seconds(100).seconds(),
+                        time: current_time + 100,
                         amount: Uint128::zero(),
                     },
                     end_point: Some(VestingSchedulePoint {
-                        time: Timestamp::from_seconds(101).seconds(),
+                        time: current_time + 101,
                         amount: Uint128::new(200),
                     }),
                 }],
@@ -253,31 +265,31 @@ fn claim_native() {
             schedules: vec![
                 VestingSchedule {
                     start_point: VestingSchedulePoint {
-                        time: Timestamp::from_seconds(100).seconds(),
+                        time: current_time + 100,
                         amount: Uint128::zero(),
                     },
                     end_point: Some(VestingSchedulePoint {
-                        time: Timestamp::from_seconds(101).seconds(),
+                        time: current_time + 101,
                         amount: Uint128::new(100),
                     }),
                 },
                 VestingSchedule {
                     start_point: VestingSchedulePoint {
-                        time: Timestamp::from_seconds(100).seconds(),
+                        time: current_time + 100,
                         amount: Uint128::zero(),
                     },
                     end_point: Some(VestingSchedulePoint {
-                        time: Timestamp::from_seconds(110).seconds(),
+                        time: current_time + 110,
                         amount: Uint128::new(100),
                     }),
                 },
                 VestingSchedule {
                     start_point: VestingSchedulePoint {
-                        time: Timestamp::from_seconds(100).seconds(),
+                        time: current_time + 100,
                         amount: Uint128::zero(),
                     },
                     end_point: Some(VestingSchedulePoint {
-                        time: Timestamp::from_seconds(200).seconds(),
+                        time: current_time + 200,
                         amount: Uint128::new(100),
                     }),
                 },
@@ -292,6 +304,11 @@ fn claim_native() {
         &coins(300, IBC_ASTRO),
     )
     .unwrap();
+
+    app.update_block(|b| {
+        b.time = b.time.plus_seconds(200);
+        b.height += 200 / 5
+    });
 
     let msg = QueryMsg::AvailableAmount {
         address: user1.to_string(),
@@ -393,6 +410,8 @@ fn register_vesting_accounts() {
 
     let vesting_instance = instantiate_vesting(&mut app, &astro_token_instance);
 
+    let current_time = app.block_info().time.seconds();
+
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::RegisterVestingAccounts {
@@ -400,11 +419,11 @@ fn register_vesting_accounts() {
                 address: user1.to_string(),
                 schedules: vec![VestingSchedule {
                     start_point: VestingSchedulePoint {
-                        time: Timestamp::from_seconds(150).seconds(),
+                        time: current_time + 150,
                         amount: Uint128::zero(),
                     },
                     end_point: Some(VestingSchedulePoint {
-                        time: Timestamp::from_seconds(100).seconds(),
+                        time: current_time + 100,
                         amount: Uint128::new(100),
                     }),
                 }],
@@ -417,7 +436,7 @@ fn register_vesting_accounts() {
     let res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap_err();
-    assert_eq!(res.root_cause().to_string(), "Vesting schedule error on addr: user1. Should satisfy: (start < end and at_start < total) or (start = end and at_start = total)");
+    assert_eq!(res.root_cause().to_string(), "Vesting schedule error on addr: user1. Should satisfy: (start < end, end > current_time and start_amount < end_amount)");
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
@@ -426,11 +445,11 @@ fn register_vesting_accounts() {
                 address: user1.to_string(),
                 schedules: vec![VestingSchedule {
                     start_point: VestingSchedulePoint {
-                        time: Timestamp::from_seconds(100).seconds(),
+                        time: current_time + 100,
                         amount: Uint128::zero(),
                     },
                     end_point: Some(VestingSchedulePoint {
-                        time: Timestamp::from_seconds(150).seconds(),
+                        time: current_time + 150,
                         amount: Uint128::new(100),
                     }),
                 }],
@@ -461,11 +480,11 @@ fn register_vesting_accounts() {
             address: user1.to_string(),
             schedules: vec![VestingSchedule {
                 start_point: VestingSchedulePoint {
-                    time: Timestamp::from_seconds(100).seconds(),
+                    time: current_time + 100,
                     amount: Uint128::zero(),
                 },
                 end_point: Some(VestingSchedulePoint {
-                    time: Timestamp::from_seconds(150).seconds(),
+                    time: current_time + 150,
                     amount: Uint128::new(100),
                 }),
             }],
@@ -485,6 +504,11 @@ fn register_vesting_accounts() {
     let _res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap();
+
+    app.update_block(|b| {
+        b.time = b.time.plus_seconds(150);
+        b.height += 150 / 5
+    });
 
     let msg = QueryMsg::AvailableAmount {
         address: user1.to_string(),
@@ -509,6 +533,8 @@ fn register_vesting_accounts() {
         100u128,
     );
 
+    let current_time = app.block_info().time.seconds();
+
     // Let's check user1's final vesting amount after add schedule for a new one
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
@@ -517,11 +543,11 @@ fn register_vesting_accounts() {
                 address: user2.to_string(),
                 schedules: vec![VestingSchedule {
                     start_point: VestingSchedulePoint {
-                        time: Timestamp::from_seconds(100).seconds(),
+                        time: current_time + 100,
                         amount: Uint128::zero(),
                     },
                     end_point: Some(VestingSchedulePoint {
-                        time: Timestamp::from_seconds(150).seconds(),
+                        time: current_time + 150,
                         amount: Uint128::new(200),
                     }),
                 }],
@@ -534,6 +560,11 @@ fn register_vesting_accounts() {
     let _res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap();
+
+    app.update_block(|b| {
+        b.time = b.time.plus_seconds(150);
+        b.height += 150 / 5
+    });
 
     let msg = QueryMsg::AvailableAmount {
         address: user2.to_string(),
@@ -561,6 +592,8 @@ fn register_vesting_accounts() {
     assert_eq!(user2_vesting_amount, Uint128::new(200u128));
     assert_eq!(user1_vesting_amount, Uint128::from(100u128));
 
+    let current_time = app.block_info().time.seconds();
+
     // Add one more vesting schedule; final amount to vest must increase
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
@@ -569,11 +602,11 @@ fn register_vesting_accounts() {
                 address: user1.to_string(),
                 schedules: vec![VestingSchedule {
                     start_point: VestingSchedulePoint {
-                        time: Timestamp::from_seconds(100).seconds(),
+                        time: current_time + 100,
                         amount: Uint128::zero(),
                     },
                     end_point: Some(VestingSchedulePoint {
-                        time: Timestamp::from_seconds(200).seconds(),
+                        time: current_time + 200,
                         amount: Uint128::new(10),
                     }),
                 }],
@@ -586,6 +619,11 @@ fn register_vesting_accounts() {
     let _res = app
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap();
+
+    app.update_block(|b| {
+        b.time = b.time.plus_seconds(200);
+        b.height += 200 / 5
+    });
 
     let msg = QueryMsg::AvailableAmount {
         address: user1.to_string(),
@@ -666,6 +704,8 @@ fn register_vesting_accounts_native() {
 
     let vesting_instance = instantiate_vesting_remote_chain(&mut app);
 
+    let current_time = app.block_info().time.seconds();
+
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::RegisterVestingAccounts {
@@ -673,11 +713,11 @@ fn register_vesting_accounts_native() {
                 address: user1.to_string(),
                 schedules: vec![VestingSchedule {
                     start_point: VestingSchedulePoint {
-                        time: Timestamp::from_seconds(100).seconds(),
+                        time: current_time + 100,
                         amount: Uint128::zero(),
                     },
                     end_point: Some(VestingSchedulePoint {
-                        time: Timestamp::from_seconds(150).seconds(),
+                        time: current_time + 150,
                         amount: Uint128::new(100),
                     }),
                 }],
@@ -698,11 +738,11 @@ fn register_vesting_accounts_native() {
             address: user1.to_string(),
             schedules: vec![VestingSchedule {
                 start_point: VestingSchedulePoint {
-                    time: Timestamp::from_seconds(100).seconds(),
+                    time: current_time + 100,
                     amount: Uint128::zero(),
                 },
                 end_point: Some(VestingSchedulePoint {
-                    time: Timestamp::from_seconds(150).seconds(),
+                    time: current_time + 150,
                     amount: Uint128::new(100),
                 }),
             }],
@@ -730,6 +770,11 @@ fn register_vesting_accounts_native() {
     )
     .unwrap();
 
+    app.update_block(|b| {
+        b.time = b.time.plus_seconds(150);
+        b.height += 150 / 5
+    });
+
     let msg = QueryMsg::AvailableAmount {
         address: user1.to_string(),
     };
@@ -750,17 +795,19 @@ fn register_vesting_accounts_native() {
         .u128();
     assert_eq!(bal, 100);
 
+    let current_time = app.block_info().time.seconds();
+
     // Let's check user1's final vesting amount after add schedule for a new one
     let msg = ExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![VestingAccount {
             address: user2.to_string(),
             schedules: vec![VestingSchedule {
                 start_point: VestingSchedulePoint {
-                    time: Timestamp::from_seconds(100).seconds(),
+                    time: current_time + 100,
                     amount: Uint128::zero(),
                 },
                 end_point: Some(VestingSchedulePoint {
-                    time: Timestamp::from_seconds(150).seconds(),
+                    time: current_time + 150,
                     amount: Uint128::new(200),
                 }),
             }],
@@ -774,6 +821,11 @@ fn register_vesting_accounts_native() {
         &coins(200, IBC_ASTRO),
     )
     .unwrap();
+
+    app.update_block(|b| {
+        b.time = b.time.plus_seconds(150);
+        b.height += 150 / 5
+    });
 
     let msg = QueryMsg::AvailableAmount {
         address: user2.to_string(),
@@ -798,17 +850,19 @@ fn register_vesting_accounts_native() {
     assert_eq!(user2_vesting_amount, Uint128::new(200u128));
     assert_eq!(user1_vesting_amount, Uint128::from(100u128));
 
+    let current_time = app.block_info().time.seconds();
+
     // Add one more vesting schedule; final amount to vest must increase
     let msg = ExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![VestingAccount {
             address: user1.to_string(),
             schedules: vec![VestingSchedule {
                 start_point: VestingSchedulePoint {
-                    time: Timestamp::from_seconds(100).seconds(),
+                    time: current_time + 100,
                     amount: Uint128::zero(),
                 },
                 end_point: Some(VestingSchedulePoint {
-                    time: Timestamp::from_seconds(200).seconds(),
+                    time: current_time + 200,
                     amount: Uint128::new(10),
                 }),
             }],
@@ -822,6 +876,11 @@ fn register_vesting_accounts_native() {
         &coins(10, IBC_ASTRO),
     )
     .unwrap();
+
+    app.update_block(|b| {
+        b.time = b.time.plus_seconds(200);
+        b.height += 200 / 5
+    });
 
     let msg = QueryMsg::AvailableAmount {
         address: user1.to_string(),
@@ -889,7 +948,7 @@ fn withdraw_from_active_schedule() {
     let end_time = 1686135600;
     let now_ts = 1675159485;
 
-    app.update_block(|b| b.time = Timestamp::from_seconds(now_ts));
+    app.update_block(|b| b.time = Timestamp::from_seconds(start_time));
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
@@ -913,6 +972,8 @@ fn withdraw_from_active_schedule() {
     };
     app.execute_contract(owner.clone(), astro_token.clone(), &msg, &[])
         .unwrap();
+
+    app.update_block(|b| b.time = Timestamp::from_seconds(now_ts));
 
     // Claim and check current amount
     claim_and_check(
@@ -983,7 +1044,7 @@ fn withdraw_overlapping_schedules() {
     let end_time = 1686135600;
     let now_ts = 1675159485;
 
-    app.update_block(|b| b.time = Timestamp::from_seconds(now_ts));
+    app.update_block(|b| b.time = Timestamp::from_seconds(start_time));
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
@@ -1016,6 +1077,8 @@ fn withdraw_overlapping_schedules() {
     };
     app.execute_contract(owner.clone(), astro_token.clone(), &msg, &[])
         .unwrap();
+
+    app.update_block(|b| b.time = Timestamp::from_seconds(now_ts));
 
     claim_and_check(
         &mut app,
@@ -1078,7 +1141,7 @@ fn withdraw_overlapping_schedules2() {
     let end_time = 1686135600;
     let now_ts = 1675159485;
 
-    app.update_block(|b| b.time = Timestamp::from_seconds(now_ts));
+    app.update_block(|b| b.time = Timestamp::from_seconds(start_time));
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
@@ -1114,6 +1177,8 @@ fn withdraw_overlapping_schedules2() {
     };
     app.execute_contract(owner.clone(), astro_token.clone(), &msg, &[])
         .unwrap();
+
+    app.update_block(|b| b.time = Timestamp::from_seconds(now_ts));
 
     claim_and_check(
         &mut app,

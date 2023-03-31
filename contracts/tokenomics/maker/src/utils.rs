@@ -131,6 +131,8 @@ pub fn build_distribute_msg(
 /// This function checks that there is a direct pool to swap to $ASTRO.
 /// Otherwise it looks for an intermediate token to swap to $ASTRO.
 ///
+/// * **factory_contract** address of the factory contract.
+///
 /// * **from_token** asset we want to swap.
 ///
 /// * **bridge_token** asset we want to swap through.
@@ -178,6 +180,8 @@ pub fn validate_bridge(
 
 /// This function checks that there is a pool to swap between `from` and `to`. In case of success
 /// returns [`PairInfo`] of selected pool.
+///
+/// * **factory_contract** address of the factory contract.
 ///
 /// * **from** source asset.
 ///
