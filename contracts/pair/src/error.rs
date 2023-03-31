@@ -49,6 +49,9 @@ pub enum ContractError {
 
     #[error("Failed to migrate the contract")]
     MigrationError {},
+
+    #[error("Asset balances tracking is already enabled")]
+    AssetBalancesTrackingIsAlreadyEnabled {},
 }
 
 impl From<OverflowError> for ContractError {

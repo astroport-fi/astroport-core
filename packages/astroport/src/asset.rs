@@ -3,10 +3,12 @@ use std::fmt;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError, CosmosMsg, Decimal256, Fraction,
-    MessageInfo, QuerierWrapper, StdError, StdResult, Uint128, Uint256, WasmMsg,
+    from_slice, to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError, CosmosMsg,
+    Decimal256, Fraction, MessageInfo, QuerierWrapper, StdError, StdResult, Uint128, Uint256,
+    WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use cw_utils::must_pay;
 use itertools::Itertools;
 
@@ -194,6 +196,35 @@ pub enum AssetInfo {
     Token { contract_addr: Addr },
     /// Native token
     NativeToken { denom: String },
+}
+
+impl<'a> PrimaryKey<'a> for &AssetInfo {
+    type Prefix = ();
+
+    type SubPrefix = ();
+
+    type Suffix = Self;
+
+    type SuperSuffix = Self;
+
+    fn key(&self) -> Vec<Key> {
+        vec![Key::Ref(self.as_bytes())]
+    }
+}
+
+impl<'a> Prefixer<'a> for &AssetInfo {
+    fn prefix(&self) -> Vec<Key> {
+        vec![Key::Ref(self.as_bytes())]
+    }
+}
+
+impl KeyDeserialize for &AssetInfo {
+    type Output = AssetInfo;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        from_slice(&value)
+    }
 }
 
 impl fmt::Display for AssetInfo {
