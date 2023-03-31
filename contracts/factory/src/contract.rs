@@ -23,7 +23,7 @@ use itertools::Itertools;
 
 use crate::error::ContractError;
 use crate::migration;
-use crate::migration::migrate_pair_configs;
+use crate::migration::{migrate_configs, migrate_pair_configs};
 use crate::querier::query_pair_info;
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
@@ -540,31 +540,21 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-factory" => match contract_version.version.as_ref() {
             "1.2.0" | "1.2.1" => {
                 let msg: migration::MigrationMsg = from_binary(&msg.params)?;
-
-                let config_v120 = migration::CONFIG_V120.load(deps.storage)?;
-
-                let new_config = Config {
-                    whitelist_code_id: config_v120.whitelist_code_id,
-                    fee_address: config_v120.fee_address,
-                    generator_address: config_v120.generator_address,
-                    owner: config_v120.owner,
-                    token_code_id: config_v120.token_code_id,
-                    coin_registry_address: deps
-                        .api
-                        .addr_validate(msg.coin_registry_address.as_str())?,
-                };
-
-                CONFIG.save(deps.storage, &new_config)?;
+                migrate_configs(&mut deps, &msg)?;
             }
-            "1.3.0" | "1.3.1" => {}
-            "1.5.0" => {
+            "1.3.0" => {
+                let msg: migration::MigrationMsg = from_binary(&msg.params)?;
+                migrate_configs(&mut deps, &msg)?;
+                migrate_pair_configs(deps.storage)?;
+            }
+            "1.3.1" | "1.5.0" => {
                 migrate_pair_configs(deps.storage)?;
             }
             _ => return Err(ContractError::MigrationError {}),

@@ -1,7 +1,7 @@
-use crate::state::PAIR_CONFIGS;
-use astroport::factory::{PairConfig, PairType};
+use crate::state::{CONFIG, PAIR_CONFIGS};
+use astroport::factory::{Config, PairConfig, PairType};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, StdError, Storage};
+use cosmwasm_std::{Addr, DepsMut, StdError, StdResult, Storage};
 use cw_storage_plus::{Item, Map};
 
 /// This structure describes a contract migration message.
@@ -29,6 +29,22 @@ pub struct ConfigV120 {
 }
 
 pub const CONFIG_V120: Item<ConfigV120> = Item::new("config");
+
+/// Migrate config
+pub fn migrate_configs(deps: &mut DepsMut, msg: &MigrationMsg) -> StdResult<()> {
+    let old_cfg = CONFIG_V120.load(deps.storage)?;
+
+    let new_config = Config {
+        owner: old_cfg.owner,
+        token_code_id: old_cfg.token_code_id,
+        generator_address: old_cfg.generator_address,
+        fee_address: old_cfg.fee_address,
+        whitelist_code_id: old_cfg.whitelist_code_id,
+        coin_registry_address: deps.api.addr_validate(msg.coin_registry_address.as_str())?,
+    };
+
+    CONFIG.save(deps.storage, &new_config)
+}
 
 #[cw_serde]
 pub enum OldPairType {
