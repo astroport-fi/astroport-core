@@ -900,7 +900,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
                 migrate_from_v1(deps.branch(), &msg)?;
             }
             "1.2.0" => migrate_from_v120(deps.branch(), msg)?,
-            "1.3.0" | "1.3.1" => {}
+            "1.3.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
