@@ -119,7 +119,7 @@ pub fn instantiate(
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
             asset_infos: msg.asset_infos.clone(),
-            pair_type: PairType::Concentrated {},
+            pair_type: PairType::Custom("concentrated".to_string()),
         },
         factory_addr,
         block_time_last: env.block.time.seconds(),
@@ -828,7 +828,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     match contract_version.contract.as_ref() {
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.1.0" | "1.1.1" => {}
+            "1.0.0" | "1.1.0" | "1.1.1" | "1.1.2" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
