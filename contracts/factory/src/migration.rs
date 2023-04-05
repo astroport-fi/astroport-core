@@ -78,7 +78,7 @@ pub fn migrate_pair_configs(storage: &mut dyn Storage) -> Result<(), StdError> {
 
     for key in keys {
         let old_pair_configs = OLD_PAIR_CONFIGS.load(storage, key.clone())?;
-        let pair_type = match old_pair_configs.pair_type {
+        let pair_type = match old_pair_configs.pair_type.clone() {
             OldPairType::Xyk {} => PairType::Xyk {},
             OldPairType::Stable {} => PairType::Stable {},
             OldPairType::Concentrated {} => PairType::Custom("concentrated".to_string()),
@@ -87,14 +87,19 @@ pub fn migrate_pair_configs(storage: &mut dyn Storage) -> Result<(), StdError> {
 
         let pair_config = PairConfig {
             code_id: old_pair_configs.code_id,
-            pair_type,
+            pair_type: pair_type.clone(),
             total_fee_bps: old_pair_configs.total_fee_bps,
             maker_fee_bps: old_pair_configs.maker_fee_bps,
             is_disabled: old_pair_configs.is_disabled,
             is_generator_disabled: old_pair_configs.is_generator_disabled,
         };
 
-        PAIR_CONFIGS.save(storage, key, &pair_config)?;
+        if key != pair_type.to_string() {
+            PAIR_CONFIGS.remove(storage, key);
+            PAIR_CONFIGS.save(storage, pair_type.to_string(), &pair_config)?;
+        } else {
+            PAIR_CONFIGS.save(storage, key, &pair_config)?;
+        }
     }
 
     Ok(())
