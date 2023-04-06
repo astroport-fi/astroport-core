@@ -282,3 +282,20 @@ Returns the cumulative prices for the assets in the pair.
   "cumulative_prices": {}
 }
 ```
+
+### `asset_balance_at`
+
+Returns the balance of the specified asset that was in the pool just preceeding the moment of the specified block height creation. It will return None (null) if the balance was not tracked up to the specified block height.
+
+```json
+{
+  "asset_balance_at": {
+    "asset_info": {
+      "native_token": {
+        "denom": "stake"
+      }
+    },
+    "block_height": "12345678"
+  }
+}
+

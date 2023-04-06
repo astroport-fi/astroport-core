@@ -32,7 +32,7 @@ dependencies = [
 [[package]]
 name = "ap-valkyrie"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts?branch=main#6c0c875cda42818c4772ad480d478385150c1d96"
+source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts?branch=main#e573a8f8542b99015cac910f024a5f20fd793f3c"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -66,6 +66,20 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.6.0"
+source = "git+https://github.com/astroport-fi/astroport-core?branch=main#e79dc1213cd7535d8e09b713c9d259d5e8564a58"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw-utils 0.15.1",
+ "cw20 0.15.1",
+ "itertools",
+ "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "2.7.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -92,10 +106,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-factory"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "anyhow",
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "astroport-pair",
  "astroport-token",
  "cosmwasm-schema",
@@ -114,7 +128,7 @@ name = "astroport-generator"
 version = "2.3.0"
 dependencies = [
  "anyhow",
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "astroport-factory",
  "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance?branch=main)",
  "astroport-native-coin-registry",
@@ -137,7 +151,7 @@ dependencies = [
  "generator-proxy-to-vkr",
  "protobuf",
  "thiserror",
- "valkyrie 1.0.8-beta.1 (git+https://github.com/astroport-fi/valkyrieprotocol?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54)",
+ "valkyrie",
  "valkyrie-lp-staking",
  "valkyrie-vp",
  "voting-escrow",
@@ -148,7 +162,7 @@ dependencies = [
 name = "astroport-generator-proxy-template"
 version = "0.0.0"
 dependencies = [
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -186,7 +200,7 @@ name = "astroport-maker"
 version = "1.3.1"
 dependencies = [
  "astro-satellite-package",
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
  "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance?branch=main)",
@@ -207,7 +221,7 @@ dependencies = [
 name = "astroport-native-coin-registry"
 version = "1.0.1"
 dependencies = [
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
@@ -221,7 +235,7 @@ dependencies = [
 name = "astroport-native-coin-wrapper"
 version = "0.1.0"
 dependencies = [
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -251,7 +265,7 @@ name = "astroport-oracle"
 version = "2.1.1"
 dependencies = [
  "anyhow",
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "astroport-factory",
  "astroport-native-coin-registry",
  "astroport-pair",
@@ -269,9 +283,9 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "astroport-factory",
  "astroport-token",
  "cosmwasm-schema",
@@ -290,7 +304,7 @@ dependencies = [
 name = "astroport-pair-astro-xastro"
 version = "1.0.2"
 dependencies = [
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "astroport-factory",
  "astroport-pair-bonded",
  "astroport-staking",
@@ -309,7 +323,7 @@ dependencies = [
 name = "astroport-pair-bonded"
 version = "1.0.0"
 dependencies = [
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
@@ -321,7 +335,7 @@ dependencies = [
 name = "astroport-pair-bonded-template"
 version = "1.0.0"
 dependencies = [
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "astroport-pair-bonded",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -333,10 +347,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated"
-version = "1.1.2"
+version = "1.1.4"
 dependencies = [
  "anyhow",
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "astroport-factory",
  "astroport-native-coin-registry",
  "astroport-token",
@@ -358,7 +372,7 @@ name = "astroport-pair-stable"
 version = "2.1.1"
 dependencies = [
  "anyhow",
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "astroport-factory",
  "astroport-native-coin-registry",
  "astroport-token",
@@ -382,7 +396,7 @@ name = "astroport-router"
 version = "1.1.1"
 dependencies = [
  "anyhow",
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "astroport-factory",
  "astroport-pair",
  "astroport-token",
@@ -400,7 +414,7 @@ dependencies = [
 name = "astroport-staking"
 version = "1.0.2"
 dependencies = [
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -416,7 +430,7 @@ dependencies = [
 name = "astroport-token"
 version = "1.1.1"
 dependencies = [
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2 0.15.1",
@@ -429,7 +443,7 @@ dependencies = [
 name = "astroport-vesting"
 version = "1.3.1"
 dependencies = [
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -445,7 +459,7 @@ dependencies = [
 name = "astroport-whitelist"
 version = "1.0.1"
 dependencies = [
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw1-whitelist",
@@ -457,7 +471,7 @@ dependencies = [
 name = "astroport-xastro-token"
 version = "1.0.2"
 dependencies = [
- "astroport 2.6.0",
+ "astroport 2.7.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -1061,13 +1075,13 @@ dependencies = [
 
 [[package]]
 name = "errno"
-version = "0.2.8"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f639046355ee4f37944e44f60642c6f3a7efa3cf6b78c78a0d989a8ce6c396a1"
+checksum = "50d6a0976c999d473fe89ad888d5a284e55366d9dc9038b1ba2aa15128c4afa0"
 dependencies = [
  "errno-dragonfly",
  "libc",
- "winapi",
+ "windows-sys",
 ]
 
 [[package]]
@@ -1129,24 +1143,24 @@ dependencies = [
 [[package]]
 name = "generator-proxy-to-vkr"
 version = "0.0.0"
-source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts?branch=main#6c0c875cda42818c4772ad480d478385150c1d96"
+source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts?branch=main#e573a8f8542b99015cac910f024a5f20fd793f3c"
 dependencies = [
  "ap-valkyrie",
- "astroport 2.4.0",
+ "astroport 2.6.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
  "thiserror",
- "valkyrie 1.0.8-beta.1 (git+https://github.com/valkyrieprotocol/contracts?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54)",
+ "valkyrie",
 ]
 
 [[package]]
 name = "generic-array"
-version = "0.14.6"
+version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bff49e947297f3312447abdca79f45f4738097cc82b06e72054d2223f601f1b9"
+checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
 dependencies = [
  "typenum",
  "version_check",
@@ -1236,7 +1250,7 @@ checksum = "09270fd4fa1111bc614ed2246c7ef56239a3063d5be0d1ec3b589c505d400aeb"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.45.0",
+ "windows-sys",
 ]
 
 [[package]]
@@ -1274,9 +1288,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.140"
+version = "0.2.141"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99227334921fae1a979cf0bfdfcc6b3e5ce376ef57e16fb6fb3ea2ed6095f80c"
+checksum = "3304a64d199bb964be99741b7a14d26972741915b3649639149b2479bb46f4b5"
 
 [[package]]
 name = "libm"
@@ -1286,9 +1300,9 @@ checksum = "348108ab3fba42ec82ff6e9564fc4ca0247bdccdc68dd8af9764bbc79c3c8ffb"
 
 [[package]]
 name = "linux-raw-sys"
-version = "0.1.4"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f051f77a7c8e6957c0696eac88f26b0117e54f52d3fc682ab19397a8812846a4"
+checksum = "d59d8c75012853d2e872fb56bc8a2e53718e2cafe1a4c823143141c6d90c322f"
 
 [[package]]
 name = "lock_api"
@@ -1349,9 +1363,9 @@ checksum = "9069cbb9f99e3a5083476ccb29ceb1de18b9118cafa53e90c9551235de2b9521"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall",
+ "redox_syscall 0.2.16",
  "smallvec",
- "windows-sys 0.45.0",
+ "windows-sys",
 ]
 
 [[package]]
@@ -1372,9 +1386,9 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.54"
+version = "1.0.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e472a104799c74b514a57226160104aa483546de37e839ec50e3c2e41dd87534"
+checksum = "2b63bdb0cd06f1f4dedf69b254734f9b45af66e4a031e42a7480257d9898b435"
 dependencies = [
  "unicode-ident",
 ]
@@ -1591,6 +1605,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "redox_syscall"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "567664f262709473930a4bf9e51bf2ebf3348f2e748ccc50dea20646858f8f29"
+dependencies = [
+ "bitflags",
+]
+
+[[package]]
 name = "regex-syntax"
 version = "0.6.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1609,16 +1632,16 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.36.11"
+version = "0.37.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db4165c9963ab29e422d6c26fbc1d37f15bace6b2810221f9d925023480fcf0e"
+checksum = "2aae838e49b3d63e9274e1c01833cc8139d3fec468c3b84688c628f44b1ae11d"
 dependencies = [
  "bitflags",
  "errno",
  "io-lifetimes",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.45.0",
+ "windows-sys",
 ]
 
 [[package]]
@@ -1691,9 +1714,9 @@ checksum = "bebd363326d05ec3e2f532ab7660680f3b02130d780c299bca73469d521bc0ed"
 
 [[package]]
 name = "serde"
-version = "1.0.158"
+version = "1.0.159"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "771d4d9c4163ee138805e12c710dd365e4f44be8be0503cb1bb9eb989425d9c9"
+checksum = "3c04e8343c3daeec41f58990b9d77068df31209f2af111e059e9fe9646693065"
 dependencies = [
  "serde_derive",
 ]
@@ -1709,13 +1732,13 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.158"
+version = "1.0.159"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e801c1712f48475582b7696ac71e0ca34ebb30e09338425384269d9717c62cad"
+checksum = "4c614d17805b093df4b147b51339e7e44bf05ef59fba1e45d83500bcfb4d8585"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.10",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -1731,9 +1754,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.94"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c533a59c9d8a93a09c6ab31f0fd5e5f4dd1b8fc9434804029839884765d04ea"
+checksum = "d721eca97ac802aa7777b701877c8004d950fc142651367300d21c1cc0194744"
 dependencies = [
  "itoa",
  "ryu",
@@ -1844,9 +1867,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.10"
+version = "2.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5aad1363ed6d37b84299588d62d3a7d95b5a5c2d9aad5c85609fda12afaa1f40"
+checksum = "4c9da457c5285ac1f936ebd076af6dac17a61cfe7826f2076b4d015cf47bc8ec"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1861,15 +1884,15 @@ checksum = "8ae9980cab1db3fceee2f6c6f643d5d8de2997c58ee8d25fb0cc8a9e9e7348e5"
 
 [[package]]
 name = "tempfile"
-version = "3.4.0"
+version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af18f7ae1acd354b992402e9ec5864359d693cd8a79dcbef59f76891701c1e95"
+checksum = "b9fbec84f381d5795b08656e4912bec604d162bff9291d6189a78f4c8ab87998"
 dependencies = [
  "cfg-if",
  "fastrand",
- "redox_syscall",
+ "redox_syscall 0.3.5",
  "rustix",
- "windows-sys 0.42.0",
+ "windows-sys",
 ]
 
 [[package]]
@@ -1889,7 +1912,7 @@ checksum = "f9456a42c5b0d803c8cd86e73dd7cc9edd429499f37a3550d286d5e86720569f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.10",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -1944,21 +1967,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "valkyrie"
-version = "1.0.8-beta.1"
-source = "git+https://github.com/valkyrieprotocol/contracts?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
-dependencies = [
- "bigint",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 0.11.1",
- "cw20 0.11.1",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "valkyrie-lp-staking"
 version = "1.0.8-beta.1"
 source = "git+https://github.com/astroport-fi/valkyrieprotocol?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54#b5fcb666f17d7e291f40365756e50fc0d7b9bf54"
@@ -1968,7 +1976,7 @@ dependencies = [
  "cw20 0.11.1",
  "schemars",
  "serde",
- "valkyrie 1.0.8-beta.1 (git+https://github.com/astroport-fi/valkyrieprotocol?rev=b5fcb666f17d7e291f40365756e50fc0d7b9bf54)",
+ "valkyrie",
 ]
 
 [[package]]
@@ -2037,43 +2045,6 @@ name = "wasi"
 version = "0.11.0+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
-
-[[package]]
-name = "winapi"
-version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c839a674fcd7a98952e593242ea400abe93992746761e38641405d28b00f419"
-dependencies = [
- "winapi-i686-pc-windows-gnu",
- "winapi-x86_64-pc-windows-gnu",
-]
-
-[[package]]
-name = "winapi-i686-pc-windows-gnu"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
-
-[[package]]
-name = "winapi-x86_64-pc-windows-gnu"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
-
-[[package]]
-name = "windows-sys"
-version = "0.42.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a3e1820f08b8513f676f7ab6c1f99ff312fb97b553d30ff4dd86f9f15728aa7"
-dependencies = [
- "windows_aarch64_gnullvm",
- "windows_aarch64_msvc",
- "windows_i686_gnu",
- "windows_i686_msvc",
- "windows_x86_64_gnu",
- "windows_x86_64_gnullvm",
- "windows_x86_64_msvc",
-]
 
 [[package]]
 name = "windows-sys"

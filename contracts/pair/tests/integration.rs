@@ -5,9 +5,10 @@ use astroport::factory::{
 };
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
-    TWAP_PRECISION,
+    XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams, TWAP_PRECISION,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_pair::error::ContractError;
 use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, ContractWrapper, Executor};
@@ -301,7 +302,12 @@ fn test_provide_and_withdraw_liquidity() {
         config,
         ConfigResponse {
             block_time_last: router.block_info().time.seconds(),
-            params: None,
+            params: Some(
+                to_binary(&XYKPoolConfig {
+                    track_asset_balances: false
+                })
+                .unwrap()
+            ),
             owner: None
         }
     )
@@ -791,4 +797,543 @@ fn wrong_number_of_assets() {
         err.root_cause().to_string(),
         "Generic error: asset_infos must contain exactly two elements"
     );
+}
+
+#[test]
+fn asset_balances_tracking_works_correctly() {
+    let owner = Addr::unchecked("owner");
+    let mut app = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "test1".to_owned(),
+                amount: Uint128::new(5_000000),
+            },
+            Coin {
+                denom: "test2".to_owned(),
+                amount: Uint128::new(5_000000),
+            },
+            Coin {
+                denom: "uluna".to_owned(),
+                amount: Uint128::new(1000_000000),
+            },
+            Coin {
+                denom: "uusd".to_owned(),
+                amount: Uint128::new(1000_000000),
+            },
+        ],
+    );
+    let token_code_id = store_token_code(&mut app);
+    let pair_code_id = store_pair_code(&mut app);
+    let factory_code_id = store_factory_code(&mut app);
+
+    let init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![PairConfig {
+            code_id: pair_code_id,
+            maker_fee_bps: 0,
+            pair_type: PairType::Xyk {},
+            total_fee_bps: 0,
+            is_disabled: false,
+            is_generator_disabled: false,
+        }],
+        token_code_id,
+        generator_address: Some(String::from("generator")),
+        owner: owner.to_string(),
+        whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
+    };
+
+    let factory_instance = app
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
+
+    // Instantiate pair without asset balances tracking
+    let msg = FactoryExecuteMsg::CreatePair {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "test1".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "test2".to_string(),
+            },
+        ],
+        pair_type: PairType::Xyk {},
+        init_params: None,
+    };
+
+    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = FactoryQueryMsg::Pair {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "test1".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "test2".to_string(),
+            },
+        ],
+    };
+
+    let res: PairInfo = app
+        .wrap()
+        .query_wasm_smart(&factory_instance, &msg)
+        .unwrap();
+
+    let pair_instance = res.contract_addr;
+
+    // Check that asset balances are not tracked
+    // The query AssetBalanceAt returns None for this case
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "test1".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert!(res.is_none());
+
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "test2".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert!(res.is_none());
+
+    // Enable asset balances tracking
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&XYKPoolUpdateParams::EnableAssetBalancesTracking).unwrap(),
+    };
+    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
+        .unwrap();
+
+    // Check that asset balances were not tracked before this was enabled
+    // The query AssetBalanceAt returns None for this case
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "test1".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert!(res.is_none());
+
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "test2".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert!(res.is_none());
+
+    // Check that asset balances had zero balances before next block upon tracking enabing
+    app.update_block(|b| b.height += 1);
+
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "test1".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert!(res.unwrap().is_zero());
+
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "test2".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert!(res.unwrap().is_zero());
+
+    // Provide liquidity
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: vec![
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "test1".to_string(),
+                },
+                amount: Uint128::new(5_000000),
+            },
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "test2".to_string(),
+                },
+                amount: Uint128::new(5_000000),
+            },
+        ],
+        slippage_tolerance: None,
+        auto_stake: None,
+        receiver: None,
+    };
+
+    let send_funds = [
+        Coin {
+            denom: "test1".to_string(),
+            amount: Uint128::new(5_000000),
+        },
+        Coin {
+            denom: "test2".to_string(),
+            amount: Uint128::new(5_000000),
+        },
+    ];
+
+    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &send_funds)
+        .unwrap();
+
+    // Check that asset balances changed after providing liqudity
+    app.update_block(|b| b.height += 1);
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "test1".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(5_000000));
+
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "test2".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(5_000000));
+
+    // Instantiate new pair with asset balances tracking starting from instantiation
+    let msg = FactoryExecuteMsg::CreatePair {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+        ],
+        pair_type: PairType::Xyk {},
+        init_params: Some(
+            to_binary(&XYKPoolParams {
+                track_asset_balances: Some(true),
+            })
+            .unwrap(),
+        ),
+    };
+
+    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = FactoryQueryMsg::Pair {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+        ],
+    };
+
+    let res: PairInfo = app
+        .wrap()
+        .query_wasm_smart(&factory_instance, &msg)
+        .unwrap();
+
+    let pair_instance = res.contract_addr;
+    let lp_token_address = res.liquidity_token;
+
+    // Check that asset balances were not tracked before instantiation
+    // The query AssetBalanceAt returns None for this case
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "uluna".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert!(res.is_none());
+
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "uusd".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert!(res.is_none());
+
+    // Check that enabling asset balances tracking can not be done if it is already enabled
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&XYKPoolUpdateParams::EnableAssetBalancesTracking).unwrap(),
+    };
+    assert_eq!(
+        app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
+            .unwrap_err()
+            .downcast_ref::<ContractError>()
+            .unwrap(),
+        &ContractError::AssetBalancesTrackingIsAlreadyEnabled {}
+    );
+
+    // Check that asset balances were not tracked before instantiation
+    // The query AssetBalanceAt returns None for this case
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "uluna".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert!(res.is_none());
+
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "uusd".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert!(res.is_none());
+
+    // Check that asset balances had zero balances before next block upon instantiation
+    app.update_block(|b| b.height += 1);
+
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "uluna".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert!(res.unwrap().is_zero());
+
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "uusd".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert!(res.unwrap().is_zero());
+
+    // Provide liquidity
+    let (msg, send_funds) = provide_liquidity_msg(
+        Uint128::new(999_000000),
+        Uint128::new(1000_000000),
+        None,
+        None,
+    );
+    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &send_funds)
+        .unwrap();
+
+    let msg = Cw20QueryMsg::Balance {
+        address: owner.to_string(),
+    };
+    let owner_lp_balance: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(&lp_token_address, &msg)
+        .unwrap();
+    assert_eq!(owner_lp_balance.balance, Uint128::new(999498874));
+
+    // Check that asset balances changed after providing liqudity
+    app.update_block(|b| b.height += 1);
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "uluna".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(1000_000000));
+
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "uusd".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(999_000000));
+
+    // Swap
+
+    let msg = ExecuteMsg::Swap {
+        offer_asset: Asset {
+            info: AssetInfo::NativeToken {
+                denom: "uusd".to_owned(),
+            },
+            amount: Uint128::new(1_000000),
+        },
+        ask_asset_info: None,
+        belief_price: None,
+        max_spread: None,
+        to: None,
+    };
+    let send_funds = vec![Coin {
+        denom: "uusd".to_owned(),
+        amount: Uint128::new(1_000000),
+    }];
+    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &send_funds)
+        .unwrap();
+
+    // Check that asset balances changed after swaping
+    app.update_block(|b| b.height += 1);
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "uluna".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(999_000000));
+
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "uusd".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(1000_000000));
+
+    // Withdraw liqudity
+    let msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        amount: Uint128::new(500_000000),
+        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
+    };
+
+    app.execute_contract(owner.clone(), lp_token_address, &msg, &[])
+        .unwrap();
+
+    // Check that asset balances changed after withdrawing
+    app.update_block(|b| b.height += 1);
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "uluna".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(499_250063));
+
+    let res: Option<Uint128> = app
+        .wrap()
+        .query_wasm_smart(
+            &pair_instance,
+            &QueryMsg::AssetBalanceAt {
+                asset_info: AssetInfo::NativeToken {
+                    denom: "uusd".to_owned(),
+                },
+                block_height: app.block_info().height.into(),
+            },
+        )
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(499_749812));
 }

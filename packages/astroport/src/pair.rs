@@ -2,7 +2,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use crate::asset::{Asset, AssetInfo, PairInfo};
 
-use cosmwasm_std::{from_slice, Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128};
+use cosmwasm_std::{from_slice, Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
@@ -117,6 +117,12 @@ pub enum QueryMsg {
     /// Returns current D invariant in as a [`u128`] value
     #[returns(Uint128)]
     QueryComputeD {},
+    /// Returns the balance of the specified asset that was in the pool just preceeding the moment of the specified block height creation.
+    #[returns(Option<Uint128>)]
+    AssetBalanceAt {
+        asset_info: AssetInfo,
+        block_height: Uint64,
+    },
 }
 
 /// This struct is used to return a query result with the total amount of LP tokens and assets in a specific pool.
@@ -176,6 +182,29 @@ pub struct CumulativePricesResponse {
 /// We currently take no arguments for migrations.
 #[cw_serde]
 pub struct MigrateMsg {}
+
+/// This structure holds XYK pool parameters.
+#[cw_serde]
+pub struct XYKPoolParams {
+    /// Whether asset balances are tracked over blocks or not.
+    /// They will not be tracked if the parameter is ignored.
+    /// It can not be disabled later once enabled.
+    pub track_asset_balances: Option<bool>,
+}
+
+/// This structure stores a XYK pool's configuration.
+#[cw_serde]
+pub struct XYKPoolConfig {
+    /// Whether asset balances are tracked over blocks or not.
+    pub track_asset_balances: bool,
+}
+
+/// This enum stores the option available to enable asset balances tracking over blocks.
+#[cw_serde]
+pub enum XYKPoolUpdateParams {
+    /// Enables asset balances tracking over blocks.
+    EnableAssetBalancesTracking,
+}
 
 /// This structure holds stableswap pool parameters.
 #[cw_serde]
