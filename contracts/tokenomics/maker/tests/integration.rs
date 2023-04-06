@@ -6,7 +6,6 @@ use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
     SecondReceiverConfig, SecondReceiverParams,
 };
-use astroport::pair::StablePoolParams;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_governance::utils::EPOCH_START;
 use cosmwasm_std::{
@@ -378,13 +377,7 @@ fn create_pair(
             &astroport::factory::ExecuteMsg::CreatePair {
                 pair_type: pair_type.unwrap_or(PairType::Xyk {}),
                 asset_infos: asset_infos.clone(),
-                init_params: Some(
-                    to_binary(&StablePoolParams {
-                        amp: 100,
-                        owner: None,
-                    })
-                    .unwrap(),
-                ),
+                init_params: None,
             },
             &[],
         )

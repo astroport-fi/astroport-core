@@ -164,7 +164,7 @@ impl Helper {
 
         let pair_code_id = app.store_code(pair_contract());
         let factory_code_id = app.store_code(factory_contract());
-        let pair_type = PairType::Concentrated {};
+        let pair_type = PairType::Custom("concentrated".to_string());
 
         let fake_maker = Addr::unchecked("fake_maker");
 
