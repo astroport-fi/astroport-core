@@ -93,7 +93,7 @@ fn test_boost_checkpoints_with_delegation() {
     // Create short lock user1
     helper_controller
         .escrow_helper
-        .mint_xastro(&mut app, USER1, 100);
+        .mint_xastro(&mut app, USER1, 200);
 
     helper_controller
         .escrow_helper
@@ -491,7 +491,7 @@ fn test_boost_checkpoints() {
     // Create short lock user1
     helper_controller
         .escrow_helper
-        .mint_xastro(&mut app, USER1, 100);
+        .mint_xastro(&mut app, USER1, 200);
 
     helper_controller
         .escrow_helper
@@ -3656,7 +3656,7 @@ fn test_proxy_generator_incorrect_virtual_amount() {
     );
     helper_controller
         .escrow_helper
-        .mint_xastro(&mut app, USER1, 100);
+        .mint_xastro(&mut app, USER1, 200);
     helper_controller
         .escrow_helper
         .create_lock(&mut app, USER1, WEEK * 3, 100f32)

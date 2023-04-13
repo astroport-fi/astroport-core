@@ -1,6 +1,7 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    attr, entry_point, from_binary, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Deps,
+    DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
+    WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -27,6 +28,9 @@ const TOKEN_SYMBOL: &str = "xASTRO";
 
 /// A `reply` call code ID used for sub-messages.
 const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
+
+/// Minimum initial xastro share
+pub(crate) const MINIMUM_STAKE_AMOUNT: Uint128 = Uint128::new(1_000);
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -131,41 +135,72 @@ fn receive_cw20(
     let config: Config = CONFIG.load(deps.storage)?;
 
     let recipient = cw20_msg.sender;
-    let amount = cw20_msg.amount;
+    let mut amount = cw20_msg.amount;
 
     let mut total_deposit = query_token_balance(
         &deps.querier,
         &config.astro_token_addr,
-        env.contract.address,
+        env.contract.address.clone(),
     )?;
     let total_shares = query_supply(&deps.querier, &config.xastro_token_addr)?;
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::Enter {} => {
+            let mut messages = vec![];
             if info.sender != config.astro_token_addr {
                 return Err(ContractError::Unauthorized {});
             }
+
             // In a CW20 `send`, the total balance of the recipient is already increased.
             // To properly calculate the total amount of ASTRO deposited in staking, we should subtract the user deposit from the pool
             total_deposit -= amount;
             let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
+                amount = amount
+                    .checked_sub(MINIMUM_STAKE_AMOUNT)
+                    .map_err(|_| ContractError::MinimumStakeAmountError {})?;
+
+                // amount cannot become zero after minimum stake subtraction
+                if amount.is_zero() {
+                    return Err(ContractError::MinimumStakeAmountError {});
+                }
+
+                messages.push(wasm_execute(
+                    config.xastro_token_addr.clone(),
+                    &Cw20ExecuteMsg::Mint {
+                        recipient: env.contract.address.to_string(),
+                        amount: MINIMUM_STAKE_AMOUNT,
+                    },
+                    vec![],
+                )?);
+
                 amount
             } else {
-                amount
+                amount = amount
                     .checked_mul(total_shares)?
-                    .checked_div(total_deposit)?
+                    .checked_div(total_deposit)?;
+
+                if amount.is_zero() {
+                    return Err(ContractError::StakeAmountTooSmall {});
+                }
+
+                amount
             };
 
-            let res = Response::new().add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: config.xastro_token_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Mint {
-                    recipient,
+            messages.push(wasm_execute(
+                config.xastro_token_addr,
+                &Cw20ExecuteMsg::Mint {
+                    recipient: recipient.clone(),
                     amount: mint_amount,
-                })?,
-                funds: vec![],
-            }));
+                },
+                vec![],
+            )?);
 
-            Ok(res)
+            Ok(Response::new().add_messages(messages).add_attributes(vec![
+                attr("action", "enter"),
+                attr("recipient", recipient),
+                attr("astro_amount", cw20_msg.amount),
+                attr("xastro_amount", mint_amount),
+            ]))
         }
         Cw20HookMsg::Leave {} => {
             if info.sender != config.xastro_token_addr {
@@ -186,13 +221,18 @@ fn receive_cw20(
                 .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: config.astro_token_addr.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                        recipient,
+                        recipient: recipient.clone(),
                         amount: what,
                     })?,
                     funds: vec![],
                 }));
 
-            Ok(res)
+            Ok(res.add_attributes(vec![
+                attr("action", "leave"),
+                attr("recipient", recipient),
+                attr("xastro_amount", cw20_msg.amount),
+                attr("astro_amount", what),
+            ]))
         }
     }
 }
@@ -238,7 +278,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     match contract_version.contract.as_ref() {
         "astroport-staking" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.1" => {}
+            "1.0.0" | "1.0.1" | "1.0.2" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
