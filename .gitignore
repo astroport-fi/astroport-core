@@ -19,3 +19,7 @@ target/
 #/scripts/package-lock.json
 /artifacts/
 /contracts/**/schema/
+
+# wasmKit
+/build/
+/node_modules/
