@@ -189,30 +189,7 @@ fn test_asset() {
     };
 
     assert_eq!(
-        token_asset.compute_tax(&deps.as_ref().querier).unwrap(),
-        Uint128::zero()
-    );
-    assert_eq!(
-        native_token_asset
-            .compute_tax(&deps.as_ref().querier)
-            .unwrap(),
-        Uint128::zero()
-    );
-
-    assert_eq!(
-        native_token_asset
-            .deduct_tax(&deps.as_ref().querier)
-            .unwrap(),
-        Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::new(123123u128),
-        }
-    );
-
-    assert_eq!(
-        token_asset
-            .into_msg(&deps.as_ref().querier, Addr::unchecked("addr0000"))
-            .unwrap(),
+        token_asset.into_msg(Addr::unchecked("addr0000")).unwrap(),
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: String::from("asset0000"),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
@@ -226,7 +203,7 @@ fn test_asset() {
 
     assert_eq!(
         native_token_asset
-            .into_msg(&deps.as_ref().querier, Addr::unchecked("addr0000"))
+            .into_msg(Addr::unchecked("addr0000"))
             .unwrap(),
         CosmosMsg::Bank(BankMsg::Send {
             to_address: String::from("addr0000"),

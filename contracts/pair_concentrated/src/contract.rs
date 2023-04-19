@@ -635,7 +635,7 @@ fn withdraw_liquidity(
         refund_assets
             .iter()
             .cloned()
-            .map(|asset| asset.into_msg(&deps.querier, &sender))
+            .map(|asset| asset.into_msg(&sender))
             .collect::<StdResult<Vec<_>>>()?,
     );
     messages.push(
@@ -752,7 +752,7 @@ fn swap(
         info: pools[ask_ind].info.clone(),
         amount: return_amount,
     }
-    .into_msg(&deps.querier, &receiver)?];
+    .into_msg(&receiver)?];
 
     let mut maker_fee = Uint128::zero();
     if let Some(fee_address) = fee_info.fee_address {
@@ -762,7 +762,7 @@ fn swap(
                 info: pools[ask_ind].info.clone(),
                 amount: maker_fee,
             };
-            messages.push(fee.into_msg(&deps.querier, fee_address)?);
+            messages.push(fee.into_msg(fee_address)?);
         }
     }
 
