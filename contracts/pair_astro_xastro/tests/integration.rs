@@ -17,6 +17,7 @@ use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 struct AstroportContracts {
+    factory_instance: Addr,
     pair_instance: Addr,
     astro_instance: Addr,
     xastro_instance: Addr,
@@ -211,6 +212,7 @@ fn instantiate_astroport(mut router: &mut App, owner: &Addr) -> AstroportContrac
         pair_instance,
         astro_instance: token_instance,
         xastro_instance,
+        factory_instance,
     }
 }
 
@@ -686,7 +688,8 @@ fn test_queries() {
         ConfigResponse {
             block_time_last: 0u64,
             params: None,
-            owner: None
+            owner,
+            factory_addr: contracts.factory_instance
         }
     );
 

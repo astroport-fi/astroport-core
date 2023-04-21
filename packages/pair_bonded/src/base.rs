@@ -7,6 +7,7 @@ use astroport::pair::{
     PoolResponse, ReverseSimulationResponse, SimulationResponse,
 };
 use astroport::pair_bonded::{Config, ExecuteMsg, QueryMsg};
+use astroport::querier::query_factory_config;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
     StdResult, Uint128,
@@ -327,11 +328,16 @@ pub trait PairBonded<'a> {
     }
 
     /// Returns the pair contract configuration in a [`ConfigResponse`] object.
-    fn query_config(&self, _deps: Deps) -> StdResult<ConfigResponse> {
+    fn query_config(&self, deps: Deps) -> StdResult<ConfigResponse> {
+        let config = CONFIG.load(deps.storage)?;
+
+        let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
+
         Ok(ConfigResponse {
             block_time_last: 0u64,
             params: None,
-            owner: None,
+            owner: factory_config.owner,
+            factory_addr: config.factory_addr,
         })
     }
 
