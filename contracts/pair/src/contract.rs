@@ -1114,7 +1114,7 @@ pub fn compute_swap(
 
     // Calculate spread & commission
     let spread_amount: Uint256 =
-        (offer_amount * Decimal256::from_ratio(ask_pool, offer_pool)) - return_amount;
+        (offer_amount * Decimal256::from_ratio(ask_pool, offer_pool)).saturating_sub(return_amount);
     let commission_amount: Uint256 = return_amount * commission_rate;
 
     // The commision (minus the part that goes to the Maker contract) will be absorbed by the pool
