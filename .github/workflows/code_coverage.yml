@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - release
 
 jobs:
   code-coverage:
@@ -43,8 +42,8 @@ jobs:
           version: '0.15.0'
           args: '-- --test-threads 1'
 
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v2
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
         with:
           token: ${{secrets.CODECOV_TOKEN}}
           fail_ci_if_error: true
