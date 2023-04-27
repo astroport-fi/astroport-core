@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   code-coverage:
@@ -45,8 +48,11 @@ jobs:
 
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
+        with:
+          version: '0.22.0'
 
       - name: Upload coverage reports to Codecov
+        if: github.ref == 'refs/heads/main'
         uses: codecov/codecov-action@v3
         with:
           token: ${{secrets.CODECOV_TOKEN}}
