@@ -7,7 +7,7 @@ use crate::consts::{HALFPOW_TOL, MAX_ITER, N, N_POW2, TOL};
 use crate::math::signed_decimal::SignedDecimal256;
 
 /// Internal constant to increase calculation accuracy. (100.0)
-const PADDING: Decimal256 = Decimal256::raw(100000000000000000000);
+const PADDING: Decimal256 = Decimal256::raw(1000000000000000000000);
 
 pub fn geometric_mean(x: &[Decimal256]) -> Decimal256 {
     (x[0] * x[1]).sqrt()

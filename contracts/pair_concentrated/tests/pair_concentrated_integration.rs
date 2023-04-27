@@ -1,11 +1,15 @@
-use cosmwasm_std::{Addr, Decimal};
+use cosmwasm_std::{Addr, Decimal, Uint128};
+
 use cw_multi_test::{next_block, Executor};
 use itertools::Itertools;
 
-use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
-use astroport::pair::ExecuteMsg;
+use astroport::asset::{
+    native_asset_info, Asset, AssetInfo, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT,
+};
+
+use astroport::pair::{ExecuteMsg, PoolResponse};
 use astroport::pair_concentrated::{
-    ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, UpdatePoolParams,
+    ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, QueryMsg, UpdatePoolParams,
 };
 use astroport_pair_concentrated::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use astroport_pair_concentrated::error::ContractError;
@@ -28,6 +32,7 @@ fn check_wrong_initialization() {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::from_ratio(2u8, 1u8),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
 
     let err = Helper::new(&owner, vec![TestCoin::native("uluna")], params.clone()).unwrap_err();
@@ -115,6 +120,7 @@ fn provide_and_withdraw() {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::from_ratio(2u8, 1u8),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -290,6 +296,7 @@ fn check_imbalanced_provide() {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::from_ratio(2u8, 1u8),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params.clone()).unwrap();
@@ -355,6 +362,7 @@ fn provide_with_different_precision() {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::one(),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -414,6 +422,7 @@ fn swap_different_precisions() {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::one(),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -469,6 +478,7 @@ fn check_reverse_swap() {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::one(),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -509,6 +519,7 @@ fn check_swaps_simple() {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::one(),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
@@ -542,6 +553,7 @@ fn check_swaps_simple() {
     let d = helper.query_d().unwrap();
     assert_eq!(dec_to_f64(d), 200000f64);
 
+    assert_eq!(0, helper.coin_balance(&test_coins[1], &user));
     helper.swap(&user, &offer_asset, None).unwrap();
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
     assert_eq!(99_737929, helper.coin_balance(&test_coins[1], &user));
@@ -582,6 +594,7 @@ fn check_swaps_with_price_update() {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::one(),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
@@ -635,6 +648,7 @@ fn provides_and_swaps() {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::one(),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
@@ -690,6 +704,7 @@ fn check_amp_gamma_change() {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::one(),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
     let mut helper = Helper::new(&owner, test_coins, params).unwrap();
 
@@ -786,6 +801,7 @@ fn check_prices() {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::one(),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -862,6 +878,7 @@ fn update_owner() {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::one(),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins, params).unwrap();
@@ -953,6 +970,7 @@ fn query_d_test() {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::one(),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
     // create pair with test_coins
     let helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -963,4 +981,308 @@ fn query_d_test() {
         err.to_string(),
         "Generic error: Querier contract error: Generic error: Pools are empty"
     );
+}
+
+#[test]
+fn asset_balances_tracking_without_in_params() {
+    let owner = Addr::unchecked("owner");
+    let user1 = Addr::unchecked("user1");
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusd")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::one(),
+        ma_half_time: 600,
+        track_asset_balances: None,
+    };
+
+    // Instantiate pair without asset balances tracking
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(5_000000u128),
+        helper.assets[&test_coins[1]].with_balance(5_000000u128),
+    ];
+
+    // Check that asset balances are not tracked
+    // The query AssetBalanceAt returns None for this case
+    let res = helper
+        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
+        .unwrap();
+    assert!(res.is_none());
+
+    let res = helper
+        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
+        .unwrap();
+    assert!(res.is_none());
+
+    // Enable asset balances tracking
+    helper
+        .update_config(
+            &owner,
+            &ConcentratedPoolUpdateParams::EnableAssetBalancesTracking {},
+        )
+        .unwrap();
+
+    // Check that asset balances were not tracked before this was enabled
+    // The query AssetBalanceAt returns None for this case
+    let res = helper
+        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
+        .unwrap();
+    assert!(res.is_none());
+
+    let res = helper
+        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
+        .unwrap();
+    assert!(res.is_none());
+
+    // Check that asset balances had zero balances before next block upon tracking enabling
+    helper.app.update_block(|b| b.height += 1);
+
+    let res = helper
+        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
+        .unwrap();
+    assert!(res.unwrap().is_zero());
+
+    let res = helper
+        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
+        .unwrap();
+    assert!(res.unwrap().is_zero());
+
+    helper.give_me_money(&assets, &user1);
+    helper.provide_liquidity(&user1, &assets).unwrap();
+
+    // Check that asset balances changed after providing liqudity
+    helper.app.update_block(|b| b.height += 1);
+    let res = helper
+        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(5_000000));
+
+    let res = helper
+        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(5_000000));
+}
+
+#[test]
+fn asset_balances_tracking_with_in_params() {
+    let owner = Addr::unchecked("owner");
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusd")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::one(),
+        ma_half_time: 600,
+        track_asset_balances: Some(true),
+    };
+
+    // Instantiate pair without asset balances tracking
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(5_000000u128),
+        helper.assets[&test_coins[1]].with_balance(5_000000u128),
+    ];
+
+    // Check that enabling asset balances tracking can not be done if it is already enabled
+    let err = helper
+        .update_config(
+            &owner,
+            &ConcentratedPoolUpdateParams::EnableAssetBalancesTracking {},
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::AssetBalancesTrackingIsAlreadyEnabled {}
+    );
+    // Check that asset balances were not tracked before instantiation
+    // The query AssetBalanceAt returns None for this case
+    let res = helper
+        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
+        .unwrap();
+    assert!(res.is_none());
+
+    let res = helper
+        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
+        .unwrap();
+    assert!(res.is_none());
+
+    // Check that asset balances were not tracked before instantiation
+    // The query AssetBalanceAt returns None for this case
+    let res = helper
+        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
+        .unwrap();
+    assert!(res.is_none());
+
+    let res = helper
+        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
+        .unwrap();
+    assert!(res.is_none());
+
+    // Check that asset balances had zero balances before next block upon instantiation
+    helper.app.update_block(|b| b.height += 1);
+
+    let res = helper
+        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
+        .unwrap();
+    assert!(res.unwrap().is_zero());
+
+    let res = helper
+        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
+        .unwrap();
+    assert!(res.unwrap().is_zero());
+
+    // Provide liquidity
+    helper
+        .provide_liquidity(
+            &owner,
+            &[
+                assets[0].info.with_balance(999_000000u128),
+                assets[1].info.with_balance(1000_000000u128),
+            ],
+        )
+        .unwrap();
+
+    assert_eq!(
+        helper.token_balance(&helper.lp_token, &owner),
+        999_498998u128
+    );
+
+    // Check that asset balances changed after providing liquidity
+    helper.app.update_block(|b| b.height += 1);
+    let res = helper
+        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(999_000000));
+
+    let res = helper
+        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(1000_000000));
+
+    // Swap
+    helper
+        .swap(
+            &owner,
+            &Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_owned(),
+                },
+                amount: Uint128::new(1_000000),
+            },
+            None,
+        )
+        .unwrap();
+
+    // Check that asset balances changed after swapping
+    helper.app.update_block(|b| b.height += 1);
+    let res = helper
+        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(998_001335));
+
+    let res = helper
+        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(1001_000000));
+
+    // Withdraw liquidity
+    helper
+        .withdraw_liquidity(&owner, 500_000000, vec![])
+        .unwrap();
+
+    // Check that asset balances changed after withdrawing
+    helper.app.update_block(|b| b.height += 1);
+    let res = helper
+        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(498_751042));
+
+    let res = helper
+        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
+        .unwrap();
+    assert_eq!(res.unwrap(), Uint128::new(500_249624));
+}
+
+#[test]
+fn provides_and_swaps_and_withdraw() {
+    let owner = Addr::unchecked("owner");
+    let half = Decimal::from_ratio(1u8, 2u8);
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::from_ratio(1u8, 2u8),
+        ma_half_time: 600,
+        track_asset_balances: None,
+    };
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    helper.app.next_block(1000);
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(200_000_000000u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    // swap uluna
+    let user = Addr::unchecked("user");
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(1000_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, Some(half)).unwrap();
+
+    helper.app.next_block(1000);
+
+    // swap usdc
+    let offer_asset = helper.assets[&test_coins[1]].with_balance(1000_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, Some(half)).unwrap();
+
+    let offer_asset = helper.assets[&test_coins[1]].with_balance(100_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, Some(half)).unwrap();
+
+    // swap uluna
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, Some(half)).unwrap();
+    let res: PoolResponse = helper
+        .app
+        .wrap()
+        .query_wasm_smart(helper.pair_addr.to_string(), &QueryMsg::Pool {})
+        .unwrap();
+
+    assert_eq!(res.total_share.u128(), 141_421_356_237u128);
+    let owner_balance = helper.token_balance(&helper.lp_token, &owner);
+
+    helper
+        .withdraw_liquidity(&owner, owner_balance, vec![])
+        .unwrap();
+    let res: PoolResponse = helper
+        .app
+        .wrap()
+        .query_wasm_smart(helper.pair_addr.to_string(), &QueryMsg::Pool {})
+        .unwrap();
+
+    assert_eq!(res.total_share.u128(), 1000u128);
 }
