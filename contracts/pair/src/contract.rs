@@ -1289,3 +1289,23 @@ pub fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<(Vec<Ass
 
     Ok((pools, total_share))
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::contract::compute_swap;
+    use cosmwasm_std::{Decimal, Uint128};
+
+    #[test]
+    fn compute_swap_does_not_panic_on_spread_calc() {
+        let offer_pool = Uint128::from(u128::MAX / 2);
+        let ask_pool = Uint128::from(u128::MAX / 1000000000);
+        let offer_amount = Uint128::from(1000000000u128);
+        let commission_rate = Decimal::permille(3);
+
+        let (return_amount, spread_amount, commission_amount) =
+            compute_swap(offer_pool, ask_pool, offer_amount, commission_rate).unwrap();
+        assert_eq!(return_amount, Uint128::from(2u128));
+        assert_eq!(spread_amount, Uint128::zero());
+        assert_eq!(commission_amount, Uint128::zero());
+    }
+}
