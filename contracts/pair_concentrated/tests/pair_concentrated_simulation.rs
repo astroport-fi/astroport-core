@@ -28,6 +28,7 @@ fn simulate_case(case: Vec<(usize, u128, u64)>) {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::one(),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
 
     let balances = vec![100_000_000_000000u128, 100_000_000_000000u128];
@@ -86,6 +87,7 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128, u64)>) {
         min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::one(),
         ma_half_time: 600,
+        track_asset_balances: None,
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();

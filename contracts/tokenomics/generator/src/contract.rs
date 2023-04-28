@@ -1080,7 +1080,7 @@ pub fn send_pending_rewards(
                                 info: asset_info,
                                 amount: pending_proxy_rewards,
                             }
-                            .into_msg(&deps.querier, to.clone())?],
+                            .into_msg(to.clone())?],
                         })?,
                     });
                 }
@@ -1349,7 +1349,7 @@ fn send_orphan_proxy_rewards(
                                 info: asset_info,
                                 amount: *amount,
                             }
-                            .into_msg(&deps.querier, &recipient)?],
+                            .into_msg(&recipient)?],
                         })?,
                     })
                 }

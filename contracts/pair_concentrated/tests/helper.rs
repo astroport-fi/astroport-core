@@ -455,6 +455,20 @@ impl Helper {
         Ok(dec_to_f64(res))
     }
 
+    pub fn query_asset_balance_at(
+        &self,
+        asset_info: &AssetInfo,
+        block_height: u64,
+    ) -> StdResult<Option<Uint128>> {
+        self.app.wrap().query_wasm_smart(
+            &self.pair_addr.clone(),
+            &QueryMsg::AssetBalanceAt {
+                asset_info: asset_info.clone(),
+                block_height: block_height.into(),
+            },
+        )
+    }
+
     pub fn update_config(
         &mut self,
         user: &Addr,

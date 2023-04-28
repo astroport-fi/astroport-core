@@ -559,7 +559,7 @@ pub fn withdraw_liquidity(
     let mut messages = refund_assets
         .clone()
         .into_iter()
-        .map(|asset| asset.into_msg(&deps.querier, &sender))
+        .map(|asset| asset.into_msg(&sender))
         .collect::<StdResult<Vec<_>>>()?;
     messages.push(
         wasm_execute(
@@ -691,7 +691,7 @@ pub fn swap(
 
     let mut messages = vec![];
     if !return_amount.is_zero() {
-        messages.push(return_asset.into_msg(&deps.querier, receiver.clone())?)
+        messages.push(return_asset.into_msg(receiver.clone())?)
     }
 
     // Compute the Maker fee
@@ -701,7 +701,7 @@ pub fn swap(
             calculate_maker_fee(&ask_pool.info, commission_amount, fee_info.maker_fee_rate)
         {
             maker_fee_amount = f.amount;
-            messages.push(f.into_msg(&deps.querier, fee_address)?);
+            messages.push(f.into_msg(fee_address)?);
         }
     }
 
@@ -1005,12 +1005,14 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
 /// Returns the pair contract configuration in a [`ConfigResponse`] object.
 pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
+    let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
         params: Some(to_binary(&StablePoolConfig {
             amp: Decimal::from_ratio(compute_current_amp(&config, &env)?, AMP_PRECISION),
         })?),
-        owner: config.owner,
+        owner: config.owner.unwrap_or(factory_config.owner),
+        factory_addr: config.factory_addr,
     })
 }
 
@@ -1073,6 +1075,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
             "1.0.0-fix1" | "1.1.0" | "1.1.1" => {
                 migrate_config_to_v210(deps.branch())?;
             }
+            "2.1.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

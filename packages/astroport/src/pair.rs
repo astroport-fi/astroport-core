@@ -142,7 +142,9 @@ pub struct ConfigResponse {
     /// The pool's parameters
     pub params: Option<Binary>,
     /// The contract owner
-    pub owner: Option<Addr>,
+    pub owner: Addr,
+    /// The factory contract address
+    pub factory_addr: Addr,
 }
 
 /// This structure holds the parameters that are returned from a swap simulation response
@@ -262,6 +264,8 @@ mod tests {
     pub struct LegacyConfigResponse {
         pub block_time_last: u64,
         pub params: Option<Binary>,
+        pub factory_addr: Addr,
+        pub owner: Addr,
     }
 
     #[test]
@@ -291,6 +295,8 @@ mod tests {
                 })
                 .unwrap(),
             ),
+            factory_addr: Addr::unchecked(""),
+            owner: Addr::unchecked(""),
         })
         .unwrap();
 

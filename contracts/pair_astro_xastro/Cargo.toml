@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-astro-xastro"
-version = "1.0.2"
+version = "1.0.3"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport ASTRO-xASTRO pair contract implementation"

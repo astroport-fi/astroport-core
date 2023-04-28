@@ -1,21 +1,22 @@
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
 use crate::math::calc_d;
-use crate::state::{Precisions, CONFIG};
+use crate::state::{Precisions, BALANCES, CONFIG};
 use crate::utils::{
     accumulate_prices, before_swap_check, calc_last_prices, compute_offer_amount, compute_swap,
     get_share_in_assets, pool_info, query_pools,
 };
-use astroport::asset::Asset;
+use astroport::asset::{Asset, AssetInfo};
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
     SimulationResponse,
 };
-use astroport::pair_concentrated::{ConcentratedPoolParams, QueryMsg};
-use astroport::querier::{query_fee_info, query_supply};
+use astroport::pair_concentrated::{ConcentratedPoolConfig, QueryMsg};
+use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal, Decimal256, Deps, Env, StdError, StdResult, Uint128,
+    Uint64,
 };
 use itertools::Itertools;
 
@@ -39,6 +40,9 @@ use itertools::Itertools;
 /// pool using a [`CumulativePricesResponse`] object.
 ///
 /// * **QueryMsg::Config {}** Returns the configuration for the pair contract using a [`ConfigResponse`] object.
+///
+/// * **QueryMsg::AssetBalanceAt { asset_info, block_height }** Returns the balance of the specified
+/// asset that was in the pool just preceding the moment of the specified block height creation.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -62,6 +66,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
         QueryMsg::LpPrice {} => to_binary(&query_lp_price(deps)?),
         QueryMsg::ComputeD {} => to_binary(&query_compute_d(deps, env)?),
+        QueryMsg::AssetBalanceAt {
+            asset_info,
+            block_height,
+        } => to_binary(&query_asset_balances_at(deps, asset_info, block_height)?),
     }
 }
 
@@ -239,9 +247,12 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
         dec256_price_scale.decimal_places(),
     )
     .map_err(|e| StdError::generic_err(format!("{e}")))?;
+
+    let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
+
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
-        params: Some(to_binary(&ConcentratedPoolParams {
+        params: Some(to_binary(&ConcentratedPoolConfig {
             amp: amp_gamma.amp,
             gamma: amp_gamma.gamma,
             mid_fee: config.pool_params.mid_fee,
@@ -251,8 +262,10 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
             min_price_scale_delta: config.pool_params.min_price_scale_delta,
             price_scale,
             ma_half_time: config.pool_params.ma_half_time,
+            track_asset_balances: config.track_asset_balances,
         })?),
-        owner: config.owner,
+        owner: config.owner.unwrap_or(factory_config.owner),
+        factory_addr: config.factory_addr,
     })
 }
 
@@ -275,4 +288,15 @@ pub fn query_compute_d(deps: Deps, env: Env) -> StdResult<Decimal256> {
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     calc_d(&xs, &amp_gamma)
+}
+
+/// Returns the balance of the specified asset that was in the pool
+/// just preceding the moment of the specified block height creation.
+/// It will return None (null) if the balance was not tracked up to the specified block height
+pub fn query_asset_balances_at(
+    deps: Deps,
+    asset_info: AssetInfo,
+    block_height: Uint64,
+) -> StdResult<Option<Uint128>> {
+    BALANCES.may_load_at_height(deps.storage, &asset_info, block_height.u64())
 }

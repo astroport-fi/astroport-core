@@ -35,7 +35,7 @@ pub fn try_build_swap_msg(
     amount_in: Uint128,
 ) -> Result<SubMsg, ContractError> {
     let pool = get_pool(querier, &cfg.factory_contract, from, to)?;
-    let msg = build_swap_msg(querier, cfg.max_spread, &pool, from, Some(to), amount_in)?;
+    let msg = build_swap_msg(cfg.max_spread, &pool, from, Some(to), amount_in)?;
     Ok(msg)
 }
 
@@ -51,7 +51,6 @@ pub fn try_build_swap_msg(
 ///
 /// * **amount_in** amount of tokens to swap.
 pub fn build_swap_msg(
-    querier: &QuerierWrapper,
     max_spread: Decimal,
     pool: &PairInfo,
     from: &AssetInfo,
@@ -59,24 +58,21 @@ pub fn build_swap_msg(
     amount_in: Uint128,
 ) -> Result<SubMsg, ContractError> {
     if from.is_native_token() {
-        let mut offer_asset = Asset {
+        let offer_asset = Asset {
             info: from.clone(),
             amount: amount_in,
         };
-        // Deduct tax
-        let coin = offer_asset.deduct_tax(querier)?;
-        offer_asset.amount = coin.amount;
 
         Ok(SubMsg::new(WasmMsg::Execute {
             contract_addr: pool.contract_addr.to_string(),
             msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
-                offer_asset,
+                offer_asset: offer_asset.clone(),
                 ask_asset_info: to.cloned(),
                 belief_price: None,
                 max_spread: Some(max_spread),
                 to: None,
             })?,
-            funds: vec![coin],
+            funds: vec![offer_asset.to_coin()?],
         }))
     } else {
         Ok(SubMsg::new(WasmMsg::Execute {
