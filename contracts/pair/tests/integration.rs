@@ -62,6 +62,35 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
     let token_contract_code_id = store_token_code(&mut router);
 
     let pair_contract_code_id = store_pair_code(&mut router);
+    let factory_code_id = store_factory_code(&mut router);
+
+    let init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![PairConfig {
+            code_id: pair_contract_code_id,
+            maker_fee_bps: 0,
+            pair_type: PairType::Xyk {},
+            total_fee_bps: 0,
+            is_disabled: false,
+            is_generator_disabled: false,
+        }],
+        token_code_id: token_contract_code_id,
+        generator_address: Some(String::from("generator")),
+        owner: owner.to_string(),
+        whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
+    };
+
+    let factory_instance = router
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
 
     let msg = InstantiateMsg {
         asset_infos: vec![
@@ -73,7 +102,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
             },
         ],
         token_code_id: token_contract_code_id,
-        factory_addr: String::from("factory"),
+        factory_addr: factory_instance.to_string(),
         init_params: None,
     };
 
@@ -92,8 +121,8 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         .wrap()
         .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
         .unwrap();
-    assert_eq!("contract0", res.contract_addr);
-    assert_eq!("contract1", res.liquidity_token);
+    assert_eq!("contract1", res.contract_addr);
+    assert_eq!("contract2", res.liquidity_token);
 
     pair
 }
@@ -188,7 +217,7 @@ fn test_provide_and_withdraw_liquidity() {
         attr("share", 99999000u128.to_string())
     );
     assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
-    assert_eq!(res.events[3].attributes[2], attr("to", "contract0"));
+    assert_eq!(res.events[3].attributes[2], attr("to", "contract1"));
     assert_eq!(
         res.events[3].attributes[3],
         attr("amount", 1000.to_string())
@@ -299,7 +328,7 @@ fn test_provide_and_withdraw_liquidity() {
         .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Config {})
         .unwrap();
     assert_eq!(
-        config,
+        config.clone(),
         ConfigResponse {
             block_time_last: router.block_info().time.seconds(),
             params: Some(
@@ -308,7 +337,8 @@ fn test_provide_and_withdraw_liquidity() {
                 })
                 .unwrap()
             ),
-            owner: None
+            owner,
+            factory_addr: config.factory_addr
         }
     )
 }

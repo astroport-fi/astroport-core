@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-bonded"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport pair-bonded package"

@@ -1,7 +1,6 @@
 use crate::asset::{Asset, AssetInfo, PairInfo};
 use crate::factory::{
-    Config, ConfigResponse as FactoryConfigResponse, FeeInfoResponse, PairType, PairsResponse,
-    QueryMsg as FactoryQueryMsg,
+    Config as FactoryConfig, FeeInfoResponse, PairType, PairsResponse, QueryMsg as FactoryQueryMsg,
 };
 use crate::pair::{QueryMsg as PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
 
@@ -97,23 +96,19 @@ pub fn query_token_precision(
 ) -> StdResult<u8> {
     Ok(match asset_info {
         AssetInfo::NativeToken { denom } => {
-            if let Some(res) = querier.query_wasm_raw(factory_addr, b"config".as_slice())? {
-                let res: Config = from_slice(&res)?;
-                let result = crate::native_coin_registry::COINS_INFO.query(
-                    querier,
-                    res.coin_registry_address,
-                    denom.to_string(),
-                )?;
+            let res = query_factory_config(querier, factory_addr)?;
+            let result = crate::native_coin_registry::COINS_INFO.query(
+                querier,
+                res.coin_registry_address,
+                denom.to_string(),
+            )?;
 
-                if let Some(decimals) = result {
-                    decimals
-                } else {
-                    return Err(StdError::generic_err(format!(
-                        "The {denom} precision was not found"
-                    )));
-                }
+            if let Some(decimals) = result {
+                decimals
             } else {
-                return Err(StdError::generic_err("The factory config not found!"));
+                return Err(StdError::generic_err(format!(
+                    "The {denom} precision was not found"
+                )));
             }
         }
         AssetInfo::Token { contract_addr } => {
@@ -129,8 +124,13 @@ pub fn query_token_precision(
 pub fn query_factory_config(
     querier: &QuerierWrapper,
     factory_contract: impl Into<String>,
-) -> StdResult<FactoryConfigResponse> {
-    querier.query_wasm_smart(factory_contract, &FactoryQueryMsg::Config {})
+) -> StdResult<FactoryConfig> {
+    if let Some(res) = querier.query_wasm_raw(factory_contract, b"config".as_slice())? {
+        let res = from_slice(&res)?;
+        Ok(res)
+    } else {
+        Err(StdError::generic_err("The factory config not found!"))
+    }
 }
 
 /// This structure holds parameters that describe the fee structure for a pool.

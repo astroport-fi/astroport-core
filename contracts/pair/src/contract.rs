@@ -13,7 +13,6 @@ use astroport::asset::{
     addr_opt_validate, check_swap_parameters, format_lp_token_name, Asset, AssetInfo, CoinsExt,
     PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
-use astroport::decimal2decimal256;
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::{
@@ -331,7 +330,7 @@ pub fn provide_liquidity(
         .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
     let mut pools = config
         .pair_info
-        .query_pools(&deps.querier, &env.contract.address)?;
+        .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
     let deposits = [
         assets
             .iter()
@@ -626,7 +625,7 @@ pub fn swap(
     // If the asset balance is already increased, we should subtract the user deposit from the pool amount
     let pools = config
         .pair_info
-        .query_pools(&deps.querier, &env.contract.address)?
+        .query_pools(&deps.querier, &config.pair_info.contract_addr)?
         .into_iter()
         .map(|mut p| {
             if p.info.equal(&offer_asset.info) {
@@ -1056,12 +1055,16 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
 /// Returns the pair contract configuration in a [`ConfigResponse`] object.
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
+
+    let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
+
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
         params: Some(to_binary(&XYKPoolConfig {
             track_asset_balances: config.track_asset_balances,
         })?),
-        owner: None,
+        owner: factory_config.owner,
+        factory_addr: config.factory_addr,
     })
 }
 
@@ -1097,7 +1100,7 @@ pub fn compute_swap(
     let offer_pool: Uint256 = offer_pool.into();
     let ask_pool: Uint256 = ask_pool.into();
     let offer_amount: Uint256 = offer_amount.into();
-    let commission_rate = decimal2decimal256(commission_rate)?;
+    let commission_rate = Decimal256::from(commission_rate);
 
     // ask_amount = (ask_pool - cp / (offer_pool + offer_amount))
     let cp: Uint256 = offer_pool * ask_pool;
@@ -1139,7 +1142,7 @@ pub fn compute_offer_amount(
 
     // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
     let cp = Uint256::from(offer_pool) * Uint256::from(ask_pool);
-    let one_minus_commission = Decimal256::one() - decimal2decimal256(commission_rate)?;
+    let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
     let inv_one_minus_commission = Decimal256::one() / one_minus_commission;
 
     let offer_amount: Uint128 = cp
@@ -1157,7 +1160,7 @@ pub fn compute_offer_amount(
     let before_commission_deduction = Uint256::from(ask_amount) * inv_one_minus_commission;
     let spread_amount = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool))
         .saturating_sub(before_commission_deduction.try_into()?);
-    let commission_amount = before_commission_deduction * decimal2decimal256(commission_rate)?;
+    let commission_amount = before_commission_deduction * Decimal256::from(commission_rate);
     Ok((offer_amount, spread_amount, commission_amount.try_into()?))
 }
 
@@ -1227,7 +1230,7 @@ fn assert_slippage_tolerance(
         return Err(ContractError::AllowedSpreadAssertion {});
     }
 
-    let slippage_tolerance: Decimal256 = decimal2decimal256(slippage_tolerance)?;
+    let slippage_tolerance: Decimal256 = Decimal256::from(slippage_tolerance);
     let one_minus_slippage_tolerance = Decimal256::one() - slippage_tolerance;
     let deposits: [Uint256; 2] = [deposits[0].into(), deposits[1].into()];
     let pools: [Uint256; 2] = [pools[0].amount.into(), pools[1].amount.into()];
@@ -1255,6 +1258,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
             "1.0.0" | "1.0.1" | "1.1.0" | "1.2.0" => {
                 migration::add_asset_balances_tracking_flag(deps.storage)?;
             }
+            "1.3.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

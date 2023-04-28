@@ -67,16 +67,6 @@ mod decimal_checked_ops {
 
 use cosmwasm_std::{Decimal, Decimal256, StdError, StdResult, Uint128};
 
-/// Converts [`Decimal`] to [`Decimal256`].
-/// TODO: can be safely removed as there is Decimal256::from(v: Decimal)
-pub fn decimal2decimal256(dec_value: Decimal) -> StdResult<Decimal256> {
-    Decimal256::from_atomics(dec_value.atomics(), dec_value.decimal_places()).map_err(|_| {
-        StdError::generic_err(format!(
-            "Failed to convert Decimal {dec_value} to Decimal256"
-        ))
-    })
-}
-
 /// Converts [`Decimal256`] to [`Decimal`].
 pub fn to_decimal(value: Decimal256) -> StdResult<Decimal> {
     let atomics = Uint128::try_from(value.atomics())?;

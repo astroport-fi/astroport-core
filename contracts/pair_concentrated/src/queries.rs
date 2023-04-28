@@ -13,7 +13,7 @@ use astroport::pair::{
     SimulationResponse,
 };
 use astroport::pair_concentrated::{ConcentratedPoolConfig, QueryMsg};
-use astroport::querier::{query_fee_info, query_supply};
+use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal, Decimal256, Deps, Env, StdError, StdResult, Uint128,
     Uint64,
@@ -247,6 +247,9 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
         dec256_price_scale.decimal_places(),
     )
     .map_err(|e| StdError::generic_err(format!("{e}")))?;
+
+    let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
+
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
         params: Some(to_binary(&ConcentratedPoolConfig {
@@ -261,7 +264,8 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
             ma_half_time: config.pool_params.ma_half_time,
             track_asset_balances: config.track_asset_balances,
         })?),
-        owner: config.owner,
+        owner: config.owner.unwrap_or(factory_config.owner),
+        factory_addr: config.factory_addr,
     })
 }
 
