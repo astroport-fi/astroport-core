@@ -331,19 +331,7 @@ fn simulate_swap_operations(
                     &[offer_asset_info.clone(), ask_asset_info.clone()],
                 )?;
 
-                // Deduct tax
-                if let AssetInfo::NativeToken { denom } = &offer_asset_info {
-                    let asset = Asset {
-                        info: AssetInfo::NativeToken {
-                            denom: denom.to_string(),
-                        },
-                        amount: return_amount,
-                    };
-
-                    return_amount = return_amount.checked_sub(asset.compute_tax(&deps.querier)?)?;
-                }
-
-                let mut res: SimulationResponse = deps.querier.query_wasm_smart(
+                let res: SimulationResponse = deps.querier.query_wasm_smart(
                     pair_info.contract_addr,
                     &PairQueryMsg::Simulation {
                         offer_asset: Asset {
@@ -353,18 +341,6 @@ fn simulate_swap_operations(
                         ask_asset_info: Some(ask_asset_info.clone()),
                     },
                 )?;
-
-                // Deduct tax
-                if let AssetInfo::NativeToken { denom } = ask_asset_info {
-                    let asset = Asset {
-                        info: AssetInfo::NativeToken { denom },
-                        amount: res.return_amount,
-                    };
-
-                    res.return_amount = res
-                        .return_amount
-                        .checked_sub(asset.compute_tax(&deps.querier)?)?;
-                }
 
                 return_amount = res.return_amount;
             }

@@ -164,7 +164,7 @@ impl Helper {
 
         let pair_code_id = app.store_code(pair_contract());
         let factory_code_id = app.store_code(factory_contract());
-        let pair_type = PairType::Concentrated {};
+        let pair_type = PairType::Custom("concentrated".to_string());
 
         let fake_maker = Addr::unchecked("fake_maker");
 
@@ -453,6 +453,20 @@ impl Helper {
             .wrap()
             .query_wasm_smart(&self.pair_addr, &QueryMsg::LpPrice {})?;
         Ok(dec_to_f64(res))
+    }
+
+    pub fn query_asset_balance_at(
+        &self,
+        asset_info: &AssetInfo,
+        block_height: u64,
+    ) -> StdResult<Option<Uint128>> {
+        self.app.wrap().query_wasm_smart(
+            &self.pair_addr.clone(),
+            &QueryMsg::AssetBalanceAt {
+                asset_info: asset_info.clone(),
+                block_height: block_height.into(),
+            },
+        )
     }
 
     pub fn update_config(

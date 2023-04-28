@@ -390,17 +390,13 @@ pub trait PairBonded<'a> {
         let offer_amount = offer_asset.amount;
         let return_amount = ask_asset_info.query_pool(&deps.querier, env.contract.address)?;
 
-        // Compute the tax for the receiving asset (if it is a native one)
-        let mut return_asset = Asset {
+        let return_asset = Asset {
             info: ask_asset_info.clone(),
             amount: return_amount,
         };
 
-        let tax_amount = return_asset.compute_tax(&deps.querier)?;
-        return_asset.amount -= tax_amount;
-
         Ok(Response::new()
-            .add_message(return_asset.into_msg(&deps.querier, receiver.clone())?)
+            .add_message(return_asset.into_msg(receiver.clone())?)
             .add_attribute("action", "swap")
             .add_attribute("sender", sender.to_string())
             .add_attribute("receiver", receiver.to_string())
@@ -408,7 +404,6 @@ pub trait PairBonded<'a> {
             .add_attribute("ask_asset", ask_asset_info.to_string())
             .add_attribute("offer_amount", offer_amount.to_string())
             .add_attribute("return_amount", return_amount.to_string())
-            .add_attribute("tax_amount", tax_amount.to_string())
             .add_attribute("spread_amount", "0")
             .add_attribute("commission_amount", "0")
             .add_attribute("maker_fee_amount", "0"))

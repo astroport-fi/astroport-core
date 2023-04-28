@@ -7,6 +7,115 @@ use cw_multi_test::{App, ContractWrapper, Executor};
 const ALICE: &str = "alice";
 const BOB: &str = "bob";
 const CAROL: &str = "carol";
+const ATTACKER: &str = "attacker";
+const VICTIM: &str = "victim";
+
+#[test]
+fn check_deflate_liquidity() {
+    let mut router = mock_app();
+
+    let owner = Addr::unchecked("owner");
+
+    let (astro_token_instance, staking_instance, _) =
+        instantiate_contracts(&mut router, owner.clone());
+
+    mint_some_astro(
+        &mut router,
+        owner.clone(),
+        astro_token_instance.clone(),
+        ATTACKER,
+    );
+
+    mint_some_astro(
+        &mut router,
+        owner.clone(),
+        astro_token_instance.clone(),
+        VICTIM,
+    );
+
+    let attacker_address = Addr::unchecked(ATTACKER);
+    let victim_address = Addr::unchecked(VICTIM);
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        amount: Uint128::from(1000u128),
+    };
+
+    let err = router
+        .execute_contract(
+            attacker_address.clone(),
+            astro_token_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Initial stake amount must be more than 1000"
+    );
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        amount: Uint128::from(1001u128),
+    };
+
+    router
+        .execute_contract(
+            attacker_address.clone(),
+            astro_token_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
+
+    let msg = Cw20ExecuteMsg::Transfer {
+        recipient: staking_instance.to_string(),
+        amount: Uint128::from(5000u128),
+    };
+
+    router
+        .execute_contract(
+            attacker_address.clone(),
+            astro_token_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        amount: Uint128::from(2u128),
+    };
+
+    let err = router
+        .execute_contract(
+            victim_address.clone(),
+            astro_token_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(err.root_cause().to_string(), "Insufficient amount of Stake");
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        amount: Uint128::from(10u128),
+    };
+
+    router
+        .execute_contract(
+            victim_address.clone(),
+            astro_token_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
+}
 
 fn mock_app() -> App {
     App::default()
@@ -98,7 +207,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
 fn mint_some_astro(router: &mut App, owner: Addr, astro_token_instance: Addr, to: &str) {
     let msg = cw20::Cw20ExecuteMsg::Mint {
         recipient: String::from(to),
-        amount: Uint128::from(100u128),
+        amount: Uint128::from(10000u128),
     };
     let res = router
         .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
@@ -107,7 +216,7 @@ fn mint_some_astro(router: &mut App, owner: Addr, astro_token_instance: Addr, to
     assert_eq!(res.events[1].attributes[2], attr("to", String::from(to)));
     assert_eq!(
         res.events[1].attributes[3],
-        attr("amount", Uint128::from(100u128))
+        attr("amount", Uint128::from(10000u128))
     );
 }
 
@@ -120,7 +229,7 @@ fn cw20receive_enter_and_leave() {
     let (astro_token_instance, staking_instance, x_astro_token_instance) =
         instantiate_contracts(&mut router, owner.clone());
 
-    // Mint 100 ASTRO for Alice
+    // Mint 10000 ASTRO for Alice
     mint_some_astro(
         &mut router,
         owner.clone(),
@@ -142,7 +251,7 @@ fn cw20receive_enter_and_leave() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(100u128)
+            balance: Uint128::from(10000u128)
         }
     );
 
@@ -163,11 +272,11 @@ fn cw20receive_enter_and_leave() {
         .unwrap_err();
     assert_eq!(resp.root_cause().to_string(), "Unauthorized");
 
-    // Tru to stake Alice's 100 ASTRO for 100 xASTRO
+    // Tru to stake Alice's 1100 ASTRO for 1100 xASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
-        amount: Uint128::from(100u128),
+        amount: Uint128::from(1100u128),
     };
 
     router
@@ -179,7 +288,7 @@ fn cw20receive_enter_and_leave() {
         )
         .unwrap();
 
-    // Check if Alice's xASTRO balance is 100
+    // Check if Alice's xASTRO balance is 1100
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -195,7 +304,7 @@ fn cw20receive_enter_and_leave() {
         }
     );
 
-    // Check if Alice's ASTRO balance is 0
+    // Check if Alice's ASTRO balance is 8900
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -207,11 +316,11 @@ fn cw20receive_enter_and_leave() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(0u128)
+            balance: Uint128::from(8900u128)
         }
     );
 
-    // Check if the staking contract's ASTRO balance is 100
+    // Check if the staking contract's ASTRO balance is 1100
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
@@ -223,7 +332,7 @@ fn cw20receive_enter_and_leave() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(100u128)
+            balance: Uint128::from(1100u128)
         }
     );
 
@@ -276,7 +385,7 @@ fn cw20receive_enter_and_leave() {
         }
     );
 
-    // Check if Alice's ASTRO balance is 10
+    // Check if Alice's ASTRO balance is 8910
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -288,11 +397,11 @@ fn cw20receive_enter_and_leave() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(10u128)
+            balance: Uint128::from(8910u128)
         }
     );
 
-    // Check if the staking contract's ASTRO balance is 90
+    // Check if the staking contract's ASTRO balance is 1090
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
@@ -304,11 +413,11 @@ fn cw20receive_enter_and_leave() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(90u128)
+            balance: Uint128::from(1090u128)
         }
     );
 
-    // Check if the staking contract's xASTRO balance is 0
+    // Check if the staking contract's xASTRO balance is 1000
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
@@ -320,7 +429,7 @@ fn cw20receive_enter_and_leave() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(0u128)
+            balance: Uint128::from(1000u128)
         }
     );
 
@@ -328,12 +437,12 @@ fn cw20receive_enter_and_leave() {
         .wrap()
         .query_wasm_smart(staking_instance.clone(), &QueryMsg::TotalDeposit {})
         .unwrap();
-    assert_eq!(res.u128(), 90);
+    assert_eq!(res.u128(), 1090);
     let res: Uint128 = router
         .wrap()
         .query_wasm_smart(staking_instance, &QueryMsg::TotalShares {})
         .unwrap();
-    assert_eq!(res.u128(), 90);
+    assert_eq!(res.u128(), 1090);
 }
 
 #[test]
@@ -345,7 +454,7 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
     let (astro_token_instance, staking_instance, x_astro_token_instance) =
         instantiate_contracts(&mut router, owner.clone());
 
-    // Mint 100 ASTRO for Alice
+    // Mint 10000 ASTRO for Alice
     mint_some_astro(
         &mut router,
         owner.clone(),
@@ -354,11 +463,11 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
     );
     let alice_address = Addr::unchecked(ALICE);
 
-    // enter Alice's 100 ASTRO for 100 xASTRO
+    // enter Alice's 2000 ASTRO for 1000 xASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
-        amount: Uint128::from(100u128),
+        amount: Uint128::from(2000u128),
     };
 
     router
@@ -370,7 +479,7 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
         )
         .unwrap();
 
-    // Check if Alice's xASTRO balance is 100
+    // Check if Alice's xASTRO balance is 1000
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -382,15 +491,15 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(100u128)
+            balance: Uint128::from(1000u128)
         }
     );
 
-    // Try to burn Alice's 200 xASTRO and unstake
+    // Try to burn Alice's 2000 xASTRO and unstake
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
-        amount: Uint128::from(200u128),
+        amount: Uint128::from(2000u128),
     };
 
     let res = router
@@ -402,7 +511,10 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
         )
         .unwrap_err();
 
-    assert_eq!(res.root_cause().to_string(), "Cannot Sub with 100 and 200");
+    assert_eq!(
+        res.root_cause().to_string(),
+        "Cannot Sub with 1000 and 2000"
+    );
 }
 
 #[test]
@@ -414,7 +526,7 @@ fn should_work_with_more_than_one_participant() {
     let (astro_token_instance, staking_instance, x_astro_token_instance) =
         instantiate_contracts(&mut router, owner.clone());
 
-    // Mint 100 ASTRO for Alice
+    // Mint 10000 ASTRO for Alice
     mint_some_astro(
         &mut router,
         owner.clone(),
@@ -423,7 +535,7 @@ fn should_work_with_more_than_one_participant() {
     );
     let alice_address = Addr::unchecked(ALICE);
 
-    // Mint 100 ASTRO for Bob
+    // Mint 10000 ASTRO for Bob
     mint_some_astro(
         &mut router,
         owner.clone(),
@@ -432,7 +544,7 @@ fn should_work_with_more_than_one_participant() {
     );
     let bob_address = Addr::unchecked(BOB);
 
-    // Mint 100 ASTRO for Carol
+    // Mint 10000 ASTRO for Carol
     mint_some_astro(
         &mut router,
         owner.clone(),
@@ -441,11 +553,11 @@ fn should_work_with_more_than_one_participant() {
     );
     let carol_address = Addr::unchecked(CAROL);
 
-    // Stake Alice's 20 ASTRO for 20 xASTRO
+    // Stake Alice's 2000 ASTRO for 1000 xASTRO (subtract min liquid amount)
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
-        amount: Uint128::from(20u128),
+        amount: Uint128::from(2000u128),
     };
 
     router
@@ -468,7 +580,7 @@ fn should_work_with_more_than_one_participant() {
         .execute_contract(bob_address.clone(), astro_token_instance.clone(), &msg, &[])
         .unwrap();
 
-    // Check if Alice's xASTRO balance is 20
+    // Check if Alice's xASTRO balance is 1000
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -480,7 +592,7 @@ fn should_work_with_more_than_one_participant() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(20u128)
+            balance: Uint128::from(1000u128)
         }
     );
 
@@ -500,7 +612,7 @@ fn should_work_with_more_than_one_participant() {
         }
     );
 
-    // Check if staking contract's ASTRO balance is 30
+    // Check if staking contract's ASTRO balance is 2010
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
@@ -512,7 +624,7 @@ fn should_work_with_more_than_one_participant() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(30u128)
+            balance: Uint128::from(2010u128)
         }
     );
 
@@ -540,7 +652,7 @@ fn should_work_with_more_than_one_participant() {
         attr("amount", Uint128::from(20u128))
     );
 
-    // Stake Alice's 10 ASTRO for 6 xASTRO: 10*30/50 = 6
+    // Stake Alice's 10 ASTRO for 9 xASTRO: 10*2010/2030 = 9
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
@@ -556,7 +668,7 @@ fn should_work_with_more_than_one_participant() {
         )
         .unwrap();
 
-    // Check if Alice's xASTRO balance is 26
+    // Check if Alice's xASTRO balance is 1009
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -568,7 +680,7 @@ fn should_work_with_more_than_one_participant() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(26u128)
+            balance: Uint128::from(1009u128)
         }
     );
 
@@ -588,7 +700,7 @@ fn should_work_with_more_than_one_participant() {
         }
     );
 
-    // Burn Bob's 5 xASTRO and unstake: gets 5*60/36 = 8 ASTRO
+    // Burn Bob's 5 xASTRO and unstake: gets 5*2040/2019 = 5 ASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
         msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
@@ -604,7 +716,7 @@ fn should_work_with_more_than_one_participant() {
         )
         .unwrap();
 
-    // Check if Alice's xASTRO balance is 26
+    // Check if Alice's xASTRO balance is 1009
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -616,7 +728,7 @@ fn should_work_with_more_than_one_participant() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(26u128)
+            balance: Uint128::from(1009u128)
         }
     );
 
@@ -648,11 +760,11 @@ fn should_work_with_more_than_one_participant() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(52u128)
+            balance: Uint128::from(2035u128)
         }
     );
 
-    // Check if Alice's ASTRO balance is 70 (100 minted - 20 entered - 10 entered)
+    // Check if Alice's ASTRO balance is 7990 (10000 minted - 2000 entered - 10 entered)
     let msg = Cw20QueryMsg::Balance {
         address: alice_address.to_string(),
     };
@@ -664,11 +776,11 @@ fn should_work_with_more_than_one_participant() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(70u128)
+            balance: Uint128::from(7990u128)
         }
     );
 
-    // Check if Bob's ASTRO balance is 98 (100 minted - 10 entered + 8 by leaving)
+    // Check if Bob's ASTRO balance is 9995 (10000 minted - 10 entered + 5 by leaving)
     let msg = Cw20QueryMsg::Balance {
         address: bob_address.to_string(),
     };
@@ -680,7 +792,7 @@ fn should_work_with_more_than_one_participant() {
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
-            balance: Uint128::from(98u128)
+            balance: Uint128::from(9995u128)
         }
     );
 }

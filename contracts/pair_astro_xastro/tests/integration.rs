@@ -418,7 +418,7 @@ fn test_pair_swap() {
             &[],
         )
         .unwrap();
-    assert_user_balance(&mut router, &contracts.xastro_instance, &user1, 10_000u64);
+    assert_user_balance(&mut router, &contracts.xastro_instance, &user1, 9_000u64);
 
     router
         .execute_contract(
@@ -539,7 +539,7 @@ fn test_pair_swap() {
             contracts.xastro_instance.clone(),
             &Cw20ExecuteMsg::Send {
                 contract: contracts.pair_instance.clone().to_string(),
-                amount: Uint128::from(10_000u64),
+                amount: Uint128::from(9_000u64),
                 msg: to_binary(&Cw20HookMsg::Swap {
                     ask_asset_info: None,
                     belief_price: None,
@@ -551,7 +551,7 @@ fn test_pair_swap() {
             &[],
         )
         .unwrap();
-    assert_user_balance(&mut router, &contracts.astro_instance, &user1, 10_000u64);
+    assert_user_balance(&mut router, &contracts.astro_instance, &user1, 9_000u64);
 
     router
         .execute_contract(

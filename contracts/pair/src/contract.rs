@@ -551,12 +551,8 @@ pub fn withdraw_liquidity(
 
     // Update the pool info
     let messages: Vec<CosmosMsg> = vec![
-        refund_assets[0]
-            .clone()
-            .into_msg(&deps.querier, sender.clone())?,
-        refund_assets[1]
-            .clone()
-            .into_msg(&deps.querier, sender.clone())?,
+        refund_assets[0].clone().into_msg(sender.clone())?,
+        refund_assets[1].clone().into_msg(sender.clone())?,
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: config.pair_info.liquidity_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
@@ -677,17 +673,15 @@ pub fn swap(
         spread_amount,
     )?;
 
-    // Compute the tax for the receiving asset (if it is a native one)
     let return_asset = Asset {
         info: ask_pool.info.clone(),
         amount: return_amount,
     };
 
-    let tax_amount = return_asset.compute_tax(&deps.querier)?;
     let receiver = to.unwrap_or_else(|| sender.clone());
     let mut messages = vec![];
     if !return_amount.is_zero() {
-        messages.push(return_asset.into_msg(&deps.querier, receiver.clone())?)
+        messages.push(return_asset.into_msg(receiver.clone())?)
     }
 
     // Compute the Maker fee
@@ -697,7 +691,7 @@ pub fn swap(
             calculate_maker_fee(&ask_pool.info, commission_amount, fee_info.maker_fee_rate)
         {
             maker_fee_amount = f.amount;
-            messages.push(f.into_msg(&deps.querier, fee_address)?);
+            messages.push(f.into_msg(fee_address)?);
         }
     }
 
@@ -740,7 +734,6 @@ pub fn swap(
             attr("ask_asset", ask_pool.info.to_string()),
             attr("offer_amount", offer_amount),
             attr("return_amount", return_amount),
-            attr("tax_amount", tax_amount),
             attr("spread_amount", spread_amount),
             attr("commission_amount", commission_amount),
             attr("maker_fee_amount", maker_fee_amount),

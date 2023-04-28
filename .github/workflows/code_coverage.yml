@@ -4,7 +4,9 @@ on:
   push:
     branches:
       - main
-      - release
+  pull_request:
+    branches:
+      - main
 
 jobs:
   code-coverage:
@@ -17,9 +19,14 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
+      - uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.GOV_PRIVATE_KEY }}
+
       - name: Checkout repository
         uses: actions/checkout@v2
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/bin
@@ -29,6 +36,8 @@ jobs:
             ~/.cargo/registry/index
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - run: |
+          git config url."ssh://git@github.com/astroport-fi/hidden_astroport_governance.git".insteadOf "https://github.com/astroport-fi/hidden_astroport_governance"
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -40,11 +49,11 @@ jobs:
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
         with:
-          version: '0.15.0'
-          args: '-- --test-threads 1'
+          version: '0.22.0'
 
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v2
+      - name: Upload coverage reports to Codecov
+        if: github.ref == 'refs/heads/main'
+        uses: codecov/codecov-action@v3
         with:
           token: ${{secrets.CODECOV_TOKEN}}
           fail_ci_if_error: true

@@ -4,7 +4,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     Addr, Decimal, Decimal256, DepsMut, Env, Order, StdError, StdResult, Storage, Uint128,
 };
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::{Item, Map, SnapshotMap};
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::common::OwnershipProposal;
@@ -36,6 +36,8 @@ pub struct Config {
     pub pool_state: PoolState,
     /// Pool's owner
     pub owner: Option<Addr>,
+    /// Whether asset balances are tracked over blocks or not.
+    pub track_asset_balances: bool,
 }
 
 /// This structure stores the pool parameters which may be adjusted via the `update_pool_params`.
@@ -409,6 +411,14 @@ const PRECISIONS: Map<String, u8> = Map::new("precisions");
 
 /// Stores the latest contract ownership transfer proposal
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
+
+/// Stores asset balances to query them later at any block height
+pub const BALANCES: SnapshotMap<&AssetInfo, Uint128> = SnapshotMap::new(
+    "balances",
+    "balances_check",
+    "balances_change",
+    cw_storage_plus::Strategy::EveryBlock,
+);
 
 #[cfg(test)]
 mod test {

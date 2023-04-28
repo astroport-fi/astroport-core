@@ -429,8 +429,7 @@ fn query_buy_with_routes() {
     assert_eq!(
         res,
         SimulateSwapOperationsResponse {
-            amount: Uint128::from(1000000u128) // tax rate in Terra is set to zero https://terrawiki.org/en/developers/tx-fees
-                                               // amount: Uint128::from(952380u128), // tax charged 1 times uusd => ukrw, ukrw => asset0000, asset0000 => uluna
+            amount: Uint128::from(1000000u128)
         }
     );
 
@@ -438,8 +437,6 @@ fn query_buy_with_routes() {
         res,
         SimulateSwapOperationsResponse {
             amount: Uint128::from(1000000u128),
-            // tax rate in Terra is set to zero https://terrawiki.org/en/developers/tx-fees
-            // amount: Uint128::from(952380u128), // tax charged 1 times uusd => ukrw, ukrw => uluna
         }
     );
 }
