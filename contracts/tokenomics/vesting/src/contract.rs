@@ -266,7 +266,6 @@ pub fn claim(
 
     if !claim_amount.is_zero() {
         let transfer_msg = config.vesting_token.with_balance(claim_amount).into_msg(
-            &deps.querier,
             addr_opt_validate(deps.api, &recipient)?.unwrap_or_else(|| info.sender.clone()),
         )?;
         response = response.add_submessage(SubMsg::new(transfer_msg));
@@ -408,7 +407,7 @@ fn withdraw_from_active_schedule(
     let transfer_msg = config
         .vesting_token
         .with_balance(amount)
-        .into_msg(&deps.querier, receiver.clone())?;
+        .into_msg(receiver.clone())?;
 
     Ok(Response::new().add_message(transfer_msg).add_attributes([
         attr("action", "withdraw_from_active_schedule"),

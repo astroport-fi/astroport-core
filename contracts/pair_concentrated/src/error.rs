@@ -70,4 +70,7 @@ pub enum ContractError {
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
+
+    #[error("Asset balances tracking is already enabled")]
+    AssetBalancesTrackingIsAlreadyEnabled {},
 }

@@ -386,7 +386,6 @@ fn swap(
         )?;
 
         let msg = build_swap_msg(
-            &deps.querier,
             cfg.max_spread,
             &bridge_pool,
             &from_token,
@@ -593,10 +592,9 @@ fn distribute(
                 amount,
             };
 
-            result.push(SubMsg::new(asset.into_msg(
-                &deps.querier,
-                second_receiver_cfg.second_fee_receiver.to_string(),
-            )?))
+            result.push(SubMsg::new(
+                asset.into_msg(second_receiver_cfg.second_fee_receiver.to_string())?,
+            ))
         }
 
         amount
@@ -632,9 +630,7 @@ fn distribute(
                 info: cfg.astro_token.clone(),
                 amount,
             };
-            result.push(SubMsg::new(
-                to_staking_asset.into_msg(&deps.querier, staking_contract)?,
-            ));
+            result.push(SubMsg::new(to_staking_asset.into_msg(staking_contract)?));
         }
     }
 

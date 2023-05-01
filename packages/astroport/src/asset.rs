@@ -53,33 +53,23 @@ impl Asset {
         self.info.is_native_token()
     }
 
-    /// Calculates and returns a tax for a chain's native token. For other tokens it returns zero.
-    pub fn compute_tax(&self, _querier: &QuerierWrapper) -> StdResult<Uint128> {
-        // tax rate in Terra is set to zero https://terrawiki.org/en/developers/tx-fees
-        Ok(Uint128::zero())
-    }
-
-    /// Calculates and returns a deducted tax for transferring the native token from the chain. For other tokens it returns an [`Err`].
-    pub fn deduct_tax(&self, querier: &QuerierWrapper) -> StdResult<Coin> {
+    /// Convert a native token of type [`AssetInfo`] to a coin of type [`Coin`].
+    /// For other tokens it returns an [`Err`].
+    pub fn to_coin(&self) -> StdResult<Coin> {
         if let AssetInfo::NativeToken { denom } = &self.info {
             Ok(Coin {
                 denom: denom.to_string(),
-                amount: self.amount.checked_sub(self.compute_tax(querier)?)?,
+                amount: self.amount,
             })
         } else {
-            Err(StdError::generic_err("cannot deduct tax from token asset"))
+            Err(StdError::generic_err("Cannot convert token asset to Coin"))
         }
     }
 
-    /// For native tokens of type [`AssetInfo`] uses the default method [`BankMsg::Send`] to send a token amount to a recipient.
-    /// Before the token is sent, we need to deduct a tax.
-    ///
-    /// For a token of type [`AssetInfo`] we use the default method [`Cw20ExecuteMsg::Transfer`] and so there's no need to deduct any other tax.
-    pub fn into_msg(
-        self,
-        querier: &QuerierWrapper,
-        recipient: impl Into<String>,
-    ) -> StdResult<CosmosMsg> {
+    /// For native tokens of type [`AssetInfo`] uses the default method [`BankMsg::Send`] to send a
+    /// token amount to a recipient.
+    /// For a token of type [`AssetInfo`] we use the default method [`Cw20ExecuteMsg::Transfer`].
+    pub fn into_msg(self, recipient: impl Into<String>) -> StdResult<CosmosMsg> {
         let recipient = recipient.into();
         match &self.info {
             AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -92,7 +82,7 @@ impl Asset {
             })),
             AssetInfo::NativeToken { .. } => Ok(CosmosMsg::Bank(BankMsg::Send {
                 to_address: recipient,
-                amount: vec![self.deduct_tax(querier)?],
+                amount: vec![self.to_coin()?],
             })),
         }
     }

@@ -26,10 +26,10 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use crate::error::ContractError;
 use crate::math::{calc_d, get_xcp};
-use crate::migration::migrate_config;
+use crate::migration::{migrate_config, migrate_config_from_v140};
 use crate::state::{
-    store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, CONFIG,
-    OWNERSHIP_PROPOSAL,
+    store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, BALANCES,
+    CONFIG, OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
     accumulate_prices, assert_max_spread, assert_slippage_tolerance, before_swap_check,
@@ -128,7 +128,14 @@ pub fn instantiate(
         pool_params,
         pool_state,
         owner: None,
+        track_asset_balances: params.track_asset_balances.unwrap_or_default(),
     };
+
+    if config.track_asset_balances {
+        for asset in &config.pair_info.asset_infos {
+            BALANCES.save(deps.storage, asset, &Uint128::zero(), env.block.height)?;
+        }
+    }
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -155,7 +162,15 @@ pub fn instantiate(
         INSTANTIATE_TOKEN_REPLY_ID,
     );
 
-    Ok(Response::new().add_submessage(sub_msg))
+    Ok(Response::new().add_submessage(sub_msg).add_attribute(
+        "asset_balances_tracking".to_owned(),
+        if config.track_asset_balances {
+            "enabled"
+        } else {
+            "disabled"
+        }
+        .to_owned(),
+    ))
 }
 
 /// The entry point to the contract for processing replies from submessages.
@@ -550,6 +565,20 @@ pub fn provide_liquidity(
         auto_stake,
     )?);
 
+    if config.track_asset_balances {
+        for (i, pool) in pools.iter().enumerate() {
+            BALANCES.save(
+                deps.storage,
+                &pool.info,
+                &pool
+                    .amount
+                    .checked_add(deposits[i])?
+                    .to_uint(precisions.get_precision(&pool.info)?)?,
+                env.block.height,
+            )?;
+        }
+    }
+
     accumulate_prices(&env, &mut config, old_real_price);
 
     CONFIG.save(deps.storage, &config)?;
@@ -608,7 +637,7 @@ fn withdraw_liquidity(
     }
 
     // decrease XCP
-    let mut xs = pools.into_iter().map(|a| a.amount).collect_vec();
+    let mut xs = pools.iter().map(|a| a.amount).collect_vec();
 
     let (_, old_real_price) = calc_last_prices(&xs, &config, &env)?;
 
@@ -635,7 +664,7 @@ fn withdraw_liquidity(
         refund_assets
             .iter()
             .cloned()
-            .map(|asset| asset.into_msg(&deps.querier, &sender))
+            .map(|asset| asset.into_msg(&sender))
             .collect::<StdResult<Vec<_>>>()?,
     );
     messages.push(
@@ -650,6 +679,20 @@ fn withdraw_liquidity(
     );
 
     accumulate_prices(&env, &mut config, old_real_price);
+
+    if config.track_asset_balances {
+        for (i, pool) in pools.iter().enumerate() {
+            BALANCES.save(
+                deps.storage,
+                &pool.info,
+                &pool
+                    .amount
+                    .to_uint(precisions.get_precision(&pool.info)?)?
+                    .checked_sub(refund_assets[i].amount)?,
+                env.block.height,
+            )?;
+        }
+    }
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -752,7 +795,7 @@ fn swap(
         info: pools[ask_ind].info.clone(),
         amount: return_amount,
     }
-    .into_msg(&deps.querier, &receiver)?];
+    .into_msg(&receiver)?];
 
     let mut maker_fee = Uint128::zero();
     if let Some(fee_address) = fee_info.fee_address {
@@ -762,13 +805,28 @@ fn swap(
                 info: pools[ask_ind].info.clone(),
                 amount: maker_fee,
             };
-            messages.push(fee.into_msg(&deps.querier, fee_address)?);
+            messages.push(fee.into_msg(fee_address)?);
         }
     }
 
     accumulate_prices(&env, &mut config, old_real_price);
 
     CONFIG.save(deps.storage, &config)?;
+
+    if config.track_asset_balances {
+        BALANCES.save(
+            deps.storage,
+            &pools[offer_ind].info,
+            &(pools[offer_ind].amount + offer_asset_dec.amount).to_uint(offer_asset_prec)?,
+            env.block.height,
+        )?;
+        BALANCES.save(
+            deps.storage,
+            &pools[ask_ind].info,
+            &(pools[ask_ind].amount.to_uint(ask_asset_prec)? - return_amount - maker_fee),
+            env.block.height,
+        )?;
+    }
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "swap"),
@@ -817,10 +875,26 @@ fn update_config(
             config.pool_state.stop_promotion(&env);
             "stop_changing_amp_gamma"
         }
+        ConcentratedPoolUpdateParams::EnableAssetBalancesTracking {} => {
+            if config.track_asset_balances {
+                return Err(ContractError::AssetBalancesTrackingIsAlreadyEnabled {});
+            }
+            config.track_asset_balances = true;
+
+            let pools = config
+                .pair_info
+                .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
+
+            for pool in pools.iter() {
+                BALANCES.save(deps.storage, &pool.info, &pool.amount, env.block.height)?;
+            }
+
+            "enable_asset_balances_tracking"
+        }
     };
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::default().add_attribute("action", action))
+    Ok(Response::new().add_attribute("action", action))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -830,6 +904,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
     match contract_version.contract.as_ref() {
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
             "1.0.0" | "1.1.0" | "1.1.1" | "1.1.2" => migrate_config(deps.storage)?,
+            "1.1.4" => migrate_config_from_v140(deps.storage)?,
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

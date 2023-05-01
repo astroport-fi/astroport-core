@@ -56,7 +56,6 @@ pub fn execute_swap_operation(
             };
 
             asset_into_swap_msg(
-                deps,
                 pair_info.contract_addr.to_string(),
                 offer_asset,
                 ask_asset_info,
@@ -85,7 +84,6 @@ pub fn execute_swap_operation(
 ///
 /// * **single** defines whether this swap is single or part of a multi hop route.
 pub fn asset_into_swap_msg(
-    deps: DepsMut,
     pair_contract: String,
     offer_asset: Asset,
     ask_asset_info: AssetInfo,
@@ -97,29 +95,23 @@ pub fn asset_into_swap_msg(
     let belief_price = if single { None } else { Some(Decimal::MAX) };
 
     match &offer_asset.info {
-        AssetInfo::NativeToken { denom } => {
-            // Deduct tax first
-            let amount = offer_asset
-                .amount
-                .checked_sub(offer_asset.compute_tax(&deps.querier)?)?;
-            Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: pair_contract,
-                funds: vec![Coin {
-                    denom: denom.to_string(),
-                    amount,
-                }],
-                msg: to_binary(&PairExecuteMsg::Swap {
-                    offer_asset: Asset {
-                        amount,
-                        ..offer_asset
-                    },
-                    ask_asset_info: Some(ask_asset_info),
-                    belief_price,
-                    max_spread,
-                    to,
-                })?,
-            }))
-        }
+        AssetInfo::NativeToken { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: pair_contract,
+            funds: vec![Coin {
+                denom: denom.to_string(),
+                amount: offer_asset.amount,
+            }],
+            msg: to_binary(&PairExecuteMsg::Swap {
+                offer_asset: Asset {
+                    amount: offer_asset.amount,
+                    ..offer_asset
+                },
+                ask_asset_info: Some(ask_asset_info),
+                belief_price,
+                max_spread,
+                to,
+            })?,
+        })),
         AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: contract_addr.to_string(),
             funds: vec![],
