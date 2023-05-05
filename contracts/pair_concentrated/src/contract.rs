@@ -858,7 +858,7 @@ fn update_config(
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
     let owner = config.owner.as_ref().unwrap_or(&factory_config.owner);
-    if &info.sender != owner {
+    if info.sender != owner {
         return Err(ContractError::Unauthorized {});
     }
 

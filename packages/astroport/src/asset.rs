@@ -17,6 +17,7 @@ use crate::pair::QueryMsg as PairQueryMsg;
 use crate::querier::{
     query_balance, query_token_balance, query_token_precision, query_token_symbol,
 };
+use crate::token::is_valid_symbol;
 
 /// UST token denomination
 pub const UUSD_DENOM: &str = "uusd";
@@ -24,6 +25,8 @@ pub const UUSD_DENOM: &str = "uusd";
 pub const ULUNA_DENOM: &str = "uluna";
 /// Minimum initial LP share
 pub const MINIMUM_LIQUIDITY_AMOUNT: Uint128 = Uint128::new(1_000);
+/// Maximum denom length
+pub const DENOM_MAX_LENGTH: usize = 60;
 
 /// This enum describes a Terra asset (native or CW20).
 #[cw_serde]
@@ -291,10 +294,19 @@ impl AssetInfo {
         }
     }
 
-    /// Checks that the tokens' denom or contract addr is lowercased and valid.
+    /// Checks that the tokens' denom or contract addr is valid.
     pub fn check(&self, api: &dyn Api) -> StdResult<()> {
-        if let AssetInfo::Token { contract_addr } = self {
-            api.addr_validate(contract_addr.as_str())?;
+        match self {
+            AssetInfo::Token { contract_addr } => {
+                api.addr_validate(contract_addr.as_str())?;
+            }
+            AssetInfo::NativeToken { denom } => {
+                if !is_valid_symbol(denom, Some(DENOM_MAX_LENGTH)) {
+                    return Err(StdError::generic_err(format!(
+                        "Native denom is not in expected format [a-zA-Z\\-][3,{DENOM_MAX_LENGTH}]: {denom}",
+                    )));
+                }
+            }
         }
 
         Ok(())

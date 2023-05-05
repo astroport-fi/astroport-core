@@ -1059,7 +1059,7 @@ pub fn send_pending_rewards(
     for (proxy, pending_proxy_rewards) in proxy_rewards {
         if !pending_proxy_rewards.is_zero() {
             match &pool.reward_proxy {
-                Some(reward_proxy) if reward_proxy == &proxy => {
+                Some(reward_proxy) if reward_proxy == proxy => {
                     messages.push(WasmMsg::Execute {
                         contract_addr: proxy.to_string(),
                         funds: vec![],
@@ -1419,7 +1419,7 @@ fn migrate_proxy(
     // Check the pool has reward proxy
     let pool_info = POOL_INFO.load(deps.storage, &lp_addr)?;
     if let Some(proxy) = &pool_info.reward_proxy {
-        if proxy == &new_proxy_addr {
+        if proxy == new_proxy_addr {
             return Err(StdError::generic_err("Can not migrate to the same proxy").into());
         }
     } else {

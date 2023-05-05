@@ -182,7 +182,7 @@ pub trait PairBonded<'a> {
 
                 for pool in config.pair_info.asset_infos {
                     if let AssetInfo::Token { contract_addr, .. } = &pool {
-                        if contract_addr == &info.sender {
+                        if contract_addr == info.sender {
                             authorized = true;
                         }
                     }

@@ -19,7 +19,7 @@ const OWNER1: &str = "owner1";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
 const TOKEN_INITIAL_AMOUNT: u128 = 1_000_000_000_000000;
-const IBC_ASTRO: &str = "ibc/ASTRO_TOKEN";
+const IBC_ASTRO: &str = "ibc/ASTRO-TOKEN";
 
 #[test]
 fn claim() {
@@ -496,7 +496,7 @@ fn register_vesting_accounts() {
             owner.clone(),
             vesting_instance.clone(),
             &native_msg,
-            &coins(100u128, "random_coin"),
+            &coins(100u128, "random-coin"),
         )
         .unwrap_err();
     assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
@@ -754,11 +754,11 @@ fn register_vesting_accounts_native() {
             owner.clone(),
             vesting_instance.clone(),
             &native_msg,
-            &coins(100u128, "random_coin"),
+            &coins(100u128, "random-coin"),
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::PaymentError(PaymentError::MissingDenom("ibc/ASTRO_TOKEN".to_string())),
+        ContractError::PaymentError(PaymentError::MissingDenom("ibc/ASTRO-TOKEN".to_string())),
         err.downcast().unwrap()
     );
 
@@ -1267,7 +1267,7 @@ fn mock_app(owner: &Addr) -> App {
                 owner,
                 vec![
                     coin(TOKEN_INITIAL_AMOUNT, IBC_ASTRO),
-                    coin(1_000_0000000u128, "random_coin"),
+                    coin(1_000_0000000u128, "random-coin"),
                 ],
             )
             .unwrap()
