@@ -52,6 +52,13 @@
     },
     "label": "Astroport Staking"
   },
+  "nativeCoinRegistry": {
+    "admin": null,
+    "initMsg": {
+      "owner": null
+    },
+    "label": "Astroport Native Coin Registry"
+  },
   "factory": {
     "admin": null,
     "initMsg": {
@@ -81,7 +88,8 @@
       "token_code_id": null,
       "fee_address": null,
       "generator_address": null,
-      "whitelist_code_id": null
+      "whitelist_code_id": null,
+      "coin_registry_address": null
     },
     "label": "Astroport Factory",
     "change_owner": false,
@@ -130,7 +138,7 @@
                     "amount": "100"
                   },
                   "end_point": {
-                    "time": 1672401600,
+                    "time": 1746537626,
                     "amount": "10000"
                   }
                 }

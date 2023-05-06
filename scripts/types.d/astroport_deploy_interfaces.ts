@@ -48,6 +48,14 @@ interface Staking {
     label: string
 }
 
+interface NativeCoinRegistry {
+    admin: string,
+    initMsg: {
+        owner: string
+    },
+    label: string
+}
+
 interface PairConfig {
     code_id: number,
     pair_type: { xyk: {} } | { stable: {} },
@@ -65,7 +73,8 @@ interface Factory {
         token_code_id: number,
         fee_address?: string,
         generator_address?: string,
-        whitelist_code_id: number
+        whitelist_code_id: number,
+        coin_registry_address: string
     },
     label: string,
     change_owner: boolean,
@@ -202,6 +211,7 @@ interface Config {
     token: Token,
     treasury: Treasury,
     staking: Staking,
+    nativeCoinRegistry: NativeCoinRegistry,
     factory: Factory,
     router: Router,
     maker: Maker,
