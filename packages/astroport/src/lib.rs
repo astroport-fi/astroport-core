@@ -14,6 +14,7 @@ pub mod pair_concentrated;
 pub mod querier;
 pub mod restricted_vector;
 pub mod router;
+pub mod shared_multisig;
 pub mod staking;
 pub mod token;
 pub mod vesting;
