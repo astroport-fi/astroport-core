@@ -2,7 +2,8 @@ use std::ops;
 
 use crate::asset::Decimal256Ext;
 use cosmwasm_std::{
-    ConversionOverflowError, Decimal, Decimal256, Fraction, StdResult, Uint128, Uint256, Uint64,
+    ConversionOverflowError, Decimal, Decimal256, Fraction, StdError, StdResult, Uint128, Uint256,
+    Uint64,
 };
 
 pub trait AbsDiff
@@ -48,5 +49,23 @@ impl DecimalToInteger<Uint128> for Decimal256 {
     fn to_uint(self, precision: impl Into<u32>) -> Result<Uint128, ConversionOverflowError> {
         let multiplier = Uint256::from(10u8).pow(precision.into());
         (multiplier * self.numerator() / self.denominator()).try_into()
+    }
+}
+
+pub trait ConvertInto<T>
+where
+    Self: Sized,
+{
+    type Error: Into<StdError>;
+    fn conv(self) -> Result<T, Self::Error>;
+}
+
+impl ConvertInto<Decimal> for Decimal256 {
+    type Error = StdError;
+
+    fn conv(self) -> Result<Decimal, Self::Error> {
+        let numerator: Uint128 = self.numerator().try_into()?;
+        Decimal::from_atomics(numerator, self.decimal_places())
+            .map_err(|err| StdError::generic_err(err.to_string()))
     }
 }

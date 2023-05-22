@@ -1,49 +1,54 @@
 use std::vec;
 
 use cosmwasm_std::{
-    attr, from_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
-    Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
+    attr, entry_point, from_binary, wasm_execute, wasm_instantiate, Addr, Binary, CustomMsg,
+    Decimal, Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
     SubMsgResponse, SubMsgResult, Uint128,
 };
-use cw2::{get_contract_version, set_contract_version};
+use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use cw_utils::parse_instantiate_response_data;
+use injective_cosmwasm::{InjectiveMsgWrapper, InjectiveQuerier, InjectiveQueryWrapper};
 use itertools::Itertools;
 
+use crate::consts::OBSERVATIONS_SIZE;
 use astroport::asset::{
-    addr_opt_validate, format_lp_token_name, token_asset, Asset, AssetInfo, CoinsExt,
+    addr_opt_validate, format_lp_token_name, Asset, AssetInfo, AssetInfoExt, CoinsExt,
     Decimal256Ext, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
-use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg};
-use astroport::pair_concentrated::{
-    ConcentratedPoolParams, ConcentratedPoolUpdateParams, MigrateMsg, UpdatePoolParams,
+use astroport::pair::{Cw20HookMsg, InstantiateMsg};
+use astroport::pair_concentrated::UpdatePoolParams;
+use astroport::pair_concentrated_inj::{
+    ConcentratedInjObParams, ConcentratedObPoolUpdateParams, ExecuteMsg,
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-#[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
+use astroport_circular_buffer::BufferManager;
 
 use crate::error::ContractError;
 use crate::math::{calc_d, get_xcp};
-use crate::migration::{migrate_config, migrate_config_from_v140};
+use crate::orderbook::state::OrderbookState;
+use crate::orderbook::utils::{
+    get_subaccount_balances, is_contract_active, leave_orderbook, process_cumulative_trade,
+};
 use crate::state::{
-    store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, BALANCES,
-    CONFIG, OWNERSHIP_PROPOSAL,
+    store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, CONFIG,
+    OBSERVATIONS, OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
-    accumulate_prices, assert_max_spread, assert_slippage_tolerance, before_swap_check,
-    calc_last_prices, calc_provide_fee, check_asset_infos, check_assets, check_cw20_in_pool,
-    check_pair_registered, compute_swap, get_share_in_assets, mint_liquidity_token_message,
+    accumulate_swap_sizes, assert_max_spread, assert_slippage_tolerance, before_swap_check,
+    calc_last_prices, calc_provide_fee, check_asset_infos, check_assets, check_pair_registered,
+    compute_swap, get_share_in_assets, mint_liquidity_token_message, query_contract_balances,
     query_pools,
 };
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+pub(crate) const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 /// Contract version that is used for migration.
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub(crate) const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// A `reply` call code ID used for sub-messages.
 const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 /// An LP token's precision.
@@ -52,21 +57,23 @@ pub(crate) const LP_TOKEN_PRECISION: u8 = 6;
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    mut deps: DepsMut,
+    mut deps: DepsMut<InjectiveQueryWrapper>,
     env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
+    check_asset_infos(&msg.asset_infos)?;
+
     if msg.asset_infos.len() != 2 {
         return Err(StdError::generic_err("asset_infos must contain exactly two elements").into());
     }
 
-    check_asset_infos(deps.api, &msg.asset_infos)?;
-
-    let params: ConcentratedPoolParams = from_binary(
+    let orderbook_params: ConcentratedInjObParams = from_binary(
         &msg.init_params
             .ok_or(ContractError::InitParamsNotFound {})?,
     )?;
+
+    let params = &orderbook_params.main_params;
 
     if params.price_scale.is_zero() {
         return Err(StdError::generic_err("Initial price scale can not be zero").into());
@@ -78,19 +85,17 @@ pub fn instantiate(
 
     store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
-    // Initializing cumulative prices
-    let cumulative_prices = vec![
-        (
-            msg.asset_infos[0].clone(),
-            msg.asset_infos[1].clone(),
-            Uint128::zero(),
-        ),
-        (
-            msg.asset_infos[1].clone(),
-            msg.asset_infos[0].clone(),
-            Uint128::zero(),
-        ),
-    ];
+    let ob_state = OrderbookState::new(
+        deps.querier,
+        &env,
+        &orderbook_params.orderbook_config.market_id,
+        orderbook_params.orderbook_config.orders_number,
+        orderbook_params.orderbook_config.min_trades_to_avg,
+        &msg.asset_infos,
+    )?;
+    ob_state.save(deps.storage)?;
+
+    BufferManager::init(deps.storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
 
     let mut pool_params = PoolParams::default();
     pool_params.update_params(UpdatePoolParams {
@@ -122,22 +127,14 @@ pub fn instantiate(
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
             asset_infos: msg.asset_infos.clone(),
-            pair_type: PairType::Custom("concentrated".to_string()),
+            pair_type: PairType::Custom("concentrated_inj_orderbook".to_string()),
         },
         factory_addr,
         block_time_last: env.block.time.seconds(),
-        cumulative_prices,
         pool_params,
         pool_state,
         owner: None,
-        track_asset_balances: params.track_asset_balances.unwrap_or_default(),
     };
-
-    if config.track_asset_balances {
-        for asset in &config.pair_info.asset_infos {
-            BALANCES.save(deps.storage, asset, &Uint128::zero(), env.block.height)?;
-        }
-    }
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -164,20 +161,16 @@ pub fn instantiate(
         INSTANTIATE_TOKEN_REPLY_ID,
     );
 
-    Ok(Response::new().add_submessage(sub_msg).add_attribute(
-        "asset_balances_tracking".to_owned(),
-        if config.track_asset_balances {
-            "enabled"
-        } else {
-            "disabled"
-        }
-        .to_owned(),
-    ))
+    Ok(Response::new().add_submessage(sub_msg))
 }
 
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(
+    deps: DepsMut<InjectiveQueryWrapper>,
+    _env: Env,
+    msg: Reply,
+) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
     match msg {
         Reply {
             id: INSTANTIATE_TOKEN_REPLY_ID,
@@ -207,7 +200,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 /// Exposes all the execute functions available in the contract.
 ///
 /// ## Variants
-/// * **ExecuteMsg::UpdateConfig { params: Binary }** Not supported.
+/// * **ExecuteMsg::UpdateConfig { params: Binary }** Updates contract parameters.
 ///
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
 /// it depending on the received template.
@@ -227,11 +220,11 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///         }** Performs a swap operation with the specified parameters.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    deps: DepsMut<InjectiveQueryWrapper>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     match msg {
@@ -258,14 +251,10 @@ pub fn execute(
             ..
         } => {
             offer_asset.info.check(deps.api)?;
-            if !offer_asset.is_native_token() {
-                return Err(ContractError::Cw20DirectSwap {});
-            }
-            offer_asset.assert_sent_native_token_balance(&info)?;
-
             if !config.pair_info.asset_infos.contains(&offer_asset.info) {
                 return Err(ContractError::InvalidAsset(offer_asset.info.to_string()));
             }
+            offer_asset.assert_sent_native_token_balance(&info)?;
 
             let to_addr = addr_opt_validate(deps.api, &to)?;
 
@@ -316,6 +305,7 @@ pub fn execute(
             })
             .map_err(Into::into)
         }
+        ExecuteMsg::WithdrawFromOrderbook {} => orderbook_emergency_withdraw(deps, env),
     }
 }
 
@@ -323,39 +313,17 @@ pub fn execute(
 ///
 /// * **cw20_msg** CW20 receive message to process.
 fn receive_cw20(
-    deps: DepsMut,
+    deps: DepsMut<InjectiveQueryWrapper>,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
     match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::Swap {
-            belief_price,
-            max_spread,
-            to,
-            ..
-        } => {
-            let config = CONFIG.load(deps.storage)?;
-
-            // Only asset contract can execute this message
-            check_cw20_in_pool(&config, &info.sender)?;
-
-            let to_addr = addr_opt_validate(deps.api, &to)?;
-            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
-            swap(
-                deps,
-                env,
-                sender,
-                token_asset(info.sender, cw20_msg.amount),
-                belief_price,
-                max_spread,
-                to_addr,
-            )
-        }
         Cw20HookMsg::WithdrawLiquidity { assets } => {
             let sender = deps.api.addr_validate(&cw20_msg.sender)?;
             withdraw_liquidity(deps, env, info, sender, cw20_msg.amount, assets)
         }
+        _ => Err(ContractError::NotSupported {}),
     }
 }
 
@@ -373,15 +341,18 @@ fn receive_cw20(
 /// If no custom receiver is specified, the pair will mint LP tokens for the function caller.
 ///
 /// NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
-pub fn provide_liquidity(
-    deps: DepsMut,
+pub fn provide_liquidity<T>(
+    deps: DepsMut<InjectiveQueryWrapper>,
     env: Env,
     info: MessageInfo,
     mut assets: Vec<Asset>,
     slippage_tolerance: Option<Decimal>,
     auto_stake: Option<bool>,
     receiver: Option<String>,
-) -> Result<Response, ContractError> {
+) -> Result<Response<T>, ContractError>
+where
+    T: CustomMsg,
+{
     let mut config = CONFIG.load(deps.storage)?;
 
     if !check_pair_registered(
@@ -405,7 +376,7 @@ pub fn provide_liquidity(
                 .find_position(|pool| pool.equal(&assets[0].info))
                 .ok_or_else(|| ContractError::InvalidAsset(assets[0].info.to_string()))?;
             assets.push(Asset {
-                info: config.pair_info.asset_infos[1 - given_ind].clone(),
+                info: config.pair_info.asset_infos[1 ^ given_ind].clone(),
                 amount: Uint128::zero(),
             });
         }
@@ -417,13 +388,21 @@ pub fn provide_liquidity(
         }
     }
 
-    check_assets(deps.api, &assets)?;
+    check_assets(&assets)?;
 
     info.funds
         .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
 
+    let mut ob_state = OrderbookState::load(deps.storage)?;
     let precisions = Precisions::new(deps.storage)?;
-    let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
+    let mut pools = query_pools(
+        deps.querier,
+        &env.contract.address,
+        &config,
+        &ob_state,
+        &precisions,
+        None,
+    )?;
 
     if pools[0].info.equal(&assets[1].info) {
         assets.swap(0, 1);
@@ -443,24 +422,9 @@ pub fn provide_liquidity(
         return Err(ContractError::InvalidZeroAmount {});
     }
 
-    let mut messages = vec![];
     for (i, pool) in pools.iter_mut().enumerate() {
-        // If the asset is a token contract, then we need to execute a TransferFrom msg to receive assets
         match &pool.info {
-            AssetInfo::Token { contract_addr } => {
-                if !deposits[i].is_zero() {
-                    messages.push(CosmosMsg::Wasm(wasm_execute(
-                        contract_addr,
-                        &Cw20ExecuteMsg::TransferFrom {
-                            owner: info.sender.to_string(),
-                            recipient: env.contract.address.to_string(),
-                            amount: deposits[i]
-                                .to_uint(precisions.get_precision(&assets[i].info)?)?,
-                        },
-                        vec![],
-                    )?))
-                }
-            }
+            AssetInfo::Token { .. } => unreachable!("CW20 tokens are prohibited"),
             AssetInfo::NativeToken { .. } => {
                 // If the asset is native token, the pool balance is already increased
                 // To calculate the total amount of deposits properly, we should subtract the user deposit from the pool
@@ -469,17 +433,46 @@ pub fn provide_liquidity(
         }
     }
 
-    let mut new_xp = pools
+    let mut xs = pools.iter().map(|asset| asset.amount).collect_vec();
+
+    let mut messages = vec![];
+    let subacc_balances = get_subaccount_balances(
+        &config.pair_info.asset_infos,
+        &InjectiveQuerier::new(&deps.querier),
+        &ob_state.subaccount,
+    )?;
+    // In case begin blocker logic wasn't executed, we need to update price and send maker fees
+    if ob_state.last_balances != subacc_balances {
+        let base_asset_precision = precisions.get_precision(&config.pair_info.asset_infos[0])?;
+        let quote_asset_precision = precisions.get_precision(&config.pair_info.asset_infos[1])?;
+        let maker_fee_message = process_cumulative_trade(
+            deps.querier,
+            &env,
+            &ob_state,
+            &mut config,
+            &mut xs,
+            &subacc_balances,
+            base_asset_precision,
+            quote_asset_precision,
+        )
+        .map_err(StdError::from)?;
+
+        ob_state.last_balances = subacc_balances;
+
+        messages.extend(maker_fee_message);
+    }
+
+    let mut new_xp = xs
         .iter()
         .enumerate()
-        .map(|(ind, pool)| pool.amount + deposits[ind])
+        .map(|(ind, pool)| pool + deposits[ind])
         .collect_vec();
     new_xp[1] *= config.pool_state.price_state.price_scale;
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
     let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
-    let (mut old_price, mut old_real_price) = (
+    let (mut old_price, _) = (
         config.pool_state.price_state.last_price,
         config.pool_state.price_state.last_price,
     );
@@ -507,8 +500,8 @@ pub fn provide_liquidity(
 
         mint_amount
     } else {
-        let mut old_xp = pools.iter().map(|a| a.amount).collect_vec();
-        (old_price, old_real_price) = calc_last_prices(&old_xp, &config, &env)?;
+        let mut old_xp = xs.clone();
+        old_price = calc_last_prices(&old_xp, &config, &env)?.0;
         old_xp[1] *= config.pool_state.price_state.price_scale;
         let old_d = calc_d(&old_xp, &amp_gamma)?;
         let share = (total_share * new_d / old_d).saturating_sub(total_share);
@@ -567,22 +560,7 @@ pub fn provide_liquidity(
         auto_stake,
     )?);
 
-    if config.track_asset_balances {
-        for (i, pool) in pools.iter().enumerate() {
-            BALANCES.save(
-                deps.storage,
-                &pool.info,
-                &pool
-                    .amount
-                    .checked_add(deposits[i])?
-                    .to_uint(precisions.get_precision(&pool.info)?)?,
-                env.block.height,
-            )?;
-        }
-    }
-
-    accumulate_prices(&env, &mut config, old_real_price);
-
+    ob_state.reconcile(deps.storage)?;
     CONFIG.save(deps.storage, &config)?;
 
     let attrs = vec![
@@ -604,13 +582,13 @@ pub fn provide_liquidity(
 ///
 /// * **assets** defines number of coins a user wants to withdraw per each asset.
 fn withdraw_liquidity(
-    deps: DepsMut,
+    deps: DepsMut<InjectiveQueryWrapper>,
     env: Env,
     info: MessageInfo,
     sender: Addr,
     amount: Uint128,
     assets: Vec<Asset>,
-) -> Result<Response, ContractError> {
+) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.pair_info.liquidity_token {
@@ -618,16 +596,20 @@ fn withdraw_liquidity(
     }
 
     let precisions = Precisions::new(deps.storage)?;
+    let ob_state = OrderbookState::load(deps.storage)?;
     let pools = query_pools(
         deps.querier,
         &config.pair_info.contract_addr,
         &config,
+        &ob_state,
         &precisions,
+        None,
     )?;
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
 
     let burn_amount;
     let refund_assets;
+    let mut response = Response::new();
     let mut messages = vec![];
 
     if assets.is_empty() {
@@ -638,10 +620,24 @@ fn withdraw_liquidity(
         return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
     }
 
-    // decrease XCP
-    let mut xs = pools.iter().map(|a| a.amount).collect_vec();
+    let contract_balances =
+        query_contract_balances(deps.querier, &env.contract.address, &config, &precisions)?;
 
-    let (_, old_real_price) = calc_last_prices(&xs, &config, &env)?;
+    // If contract does not have enough liquidity - withdraw all from orderbook
+    if refund_assets[0].amount > contract_balances[0].amount
+        || refund_assets[1].amount > contract_balances[1].amount
+    {
+        let querier = InjectiveQuerier::new(&deps.querier);
+        let orderbook_balances = get_subaccount_balances(
+            &config.pair_info.asset_infos,
+            &querier,
+            &ob_state.subaccount,
+        )?;
+        response = leave_orderbook(&ob_state, orderbook_balances, &env).map_err(StdError::from)?;
+    }
+
+    // decrease XCP
+    let mut xs = pools.into_iter().map(|a| a.amount).collect_vec();
 
     xs[0] -= refund_assets[0].amount;
     xs[1] -= refund_assets[1].amount;
@@ -680,25 +676,10 @@ fn withdraw_liquidity(
         .into(),
     );
 
-    accumulate_prices(&env, &mut config, old_real_price);
-
-    if config.track_asset_balances {
-        for (i, pool) in pools.iter().enumerate() {
-            BALANCES.save(
-                deps.storage,
-                &pool.info,
-                &pool
-                    .amount
-                    .to_uint(precisions.get_precision(&pool.info)?)?
-                    .checked_sub(refund_assets[i].amount)?,
-                env.block.height,
-            )?;
-        }
-    }
-
     CONFIG.save(deps.storage, &config)?;
+    ob_state.reconcile(deps.storage)?;
 
-    Ok(Response::new().add_messages(messages).add_attributes(vec![
+    Ok(response.add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),
         attr("sender", sender),
         attr("withdrawn_share", amount),
@@ -718,21 +699,32 @@ fn withdraw_liquidity(
 /// * **max_spread** sets the maximum spread of the swap operation.
 ///
 /// * **to** sets the recipient of the swap operation.
-fn swap(
-    deps: DepsMut,
+fn swap<T>(
+    deps: DepsMut<InjectiveQueryWrapper>,
     env: Env,
     sender: Addr,
     offer_asset: Asset,
     belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
     to: Option<Addr>,
-) -> Result<Response, ContractError> {
+) -> Result<Response<T>, ContractError>
+where
+    T: CustomMsg,
+{
     let precisions = Precisions::new(deps.storage)?;
     let offer_asset_prec = precisions.get_precision(&offer_asset.info)?;
     let offer_asset_dec = offer_asset.to_decimal_asset(offer_asset_prec)?;
     let mut config = CONFIG.load(deps.storage)?;
+    let mut ob_state = OrderbookState::load(deps.storage)?;
 
-    let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
+    let mut pools = query_pools(
+        deps.querier,
+        &env.contract.address,
+        &config,
+        &ob_state,
+        &precisions,
+        None,
+    )?;
 
     let (offer_ind, _) = pools
         .iter()
@@ -746,7 +738,6 @@ fn swap(
     before_swap_check(&pools, offer_asset_dec.amount)?;
 
     let mut xs = pools.iter().map(|asset| asset.amount).collect_vec();
-    let (_, old_real_price) = calc_last_prices(&xs, &config, &env)?;
 
     // Get fee info from the factory
     let fee_info = query_fee_info(
@@ -757,6 +748,34 @@ fn swap(
     let mut maker_fee_share = Decimal256::zero();
     if fee_info.fee_address.is_some() {
         maker_fee_share = fee_info.maker_fee_rate.into();
+    }
+
+    let mut messages = vec![];
+
+    let subacc_balances = get_subaccount_balances(
+        &config.pair_info.asset_infos,
+        &InjectiveQuerier::new(&deps.querier),
+        &ob_state.subaccount,
+    )?;
+    // In case begin blocker logic wasn't executed, we need to update price and send maker fees
+    if ob_state.last_balances != subacc_balances {
+        let base_asset_precision = precisions.get_precision(&config.pair_info.asset_infos[0])?;
+        let quote_asset_precision = precisions.get_precision(&config.pair_info.asset_infos[1])?;
+        let maker_fee_message = process_cumulative_trade(
+            deps.querier,
+            &env,
+            &ob_state,
+            &mut config,
+            &mut xs,
+            &subacc_balances,
+            base_asset_precision,
+            quote_asset_precision,
+        )
+        .map_err(StdError::from)?;
+
+        ob_state.last_balances = subacc_balances;
+
+        messages.extend(maker_fee_message);
     }
 
     let swap_result = compute_swap(
@@ -793,11 +812,12 @@ fn swap(
     let receiver = to.unwrap_or_else(|| sender.clone());
 
     let return_amount = swap_result.dy.to_uint(ask_asset_prec)?;
-    let mut messages = vec![Asset {
-        info: pools[ask_ind].info.clone(),
-        amount: return_amount,
-    }
-    .into_msg(&receiver)?];
+    messages.push(
+        pools[ask_ind]
+            .info
+            .with_balance(return_amount)
+            .into_msg(&receiver)?,
+    );
 
     let mut maker_fee = Uint128::zero();
     if let Some(fee_address) = fee_info.fee_address {
@@ -811,24 +831,16 @@ fn swap(
         }
     }
 
-    accumulate_prices(&env, &mut config, old_real_price);
+    // Store time series data
+    let (base_amount, quote_amount) = if offer_ind == 0 {
+        (offer_asset.amount, return_amount)
+    } else {
+        (return_amount, offer_asset.amount)
+    };
+    accumulate_swap_sizes(deps.storage, &env, &mut ob_state, base_amount, quote_amount)?;
 
     CONFIG.save(deps.storage, &config)?;
-
-    if config.track_asset_balances {
-        BALANCES.save(
-            deps.storage,
-            &pools[offer_ind].info,
-            &(pools[offer_ind].amount + offer_asset_dec.amount).to_uint(offer_asset_prec)?,
-            env.block.height,
-        )?;
-        BALANCES.save(
-            deps.storage,
-            &pools[ask_ind].info,
-            &(pools[ask_ind].amount.to_uint(ask_asset_prec)? - return_amount - maker_fee),
-            env.block.height,
-        )?;
-    }
+    ob_state.reconcile(deps.storage)?;
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "swap"),
@@ -850,12 +862,12 @@ fn swap(
 /// Updates the pool configuration with the specified parameters in the `params` variable.
 ///
 /// * **params** new parameter values in [`Binary`] form.
-fn update_config(
-    deps: DepsMut,
+fn update_config<T>(
+    deps: DepsMut<InjectiveQueryWrapper>,
     env: Env,
     info: MessageInfo,
     params: Binary,
-) -> Result<Response, ContractError> {
+) -> Result<Response<T>, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
@@ -864,59 +876,96 @@ fn update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    let action = match from_binary::<ConcentratedPoolUpdateParams>(&params)? {
-        ConcentratedPoolUpdateParams::Update(update_params) => {
+    let action = match from_binary::<ConcentratedObPoolUpdateParams>(&params)? {
+        ConcentratedObPoolUpdateParams::Update(update_params) => {
             config.pool_params.update_params(update_params)?;
             "update_params"
         }
-        ConcentratedPoolUpdateParams::Promote(promote_params) => {
+        ConcentratedObPoolUpdateParams::Promote(promote_params) => {
             config.pool_state.promote_params(&env, promote_params)?;
             "promote_params"
         }
-        ConcentratedPoolUpdateParams::StopChangingAmpGamma {} => {
+        ConcentratedObPoolUpdateParams::StopChangingAmpGamma {} => {
             config.pool_state.stop_promotion(&env);
             "stop_changing_amp_gamma"
         }
-        ConcentratedPoolUpdateParams::EnableAssetBalancesTracking {} => {
-            if config.track_asset_balances {
-                return Err(ContractError::AssetBalancesTrackingIsAlreadyEnabled {});
-            }
-            config.track_asset_balances = true;
-
-            let pools = config
-                .pair_info
-                .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
-
-            for pool in pools.iter() {
-                BALANCES.save(deps.storage, &pool.info, &pool.amount, env.block.height)?;
-            }
-
-            "enable_asset_balances_tracking"
+        ConcentratedObPoolUpdateParams::UpdateOrderbookParams { orders_number } => {
+            let mut ob_config = OrderbookState::load(deps.storage)?;
+            ob_config.orders_number = orders_number;
+            ob_config.save(deps.storage)?;
+            "update_orderbook_params"
         }
     };
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::new().add_attribute("action", action))
+    Ok(Response::default().add_attribute("action", action))
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    let contract_version = get_contract_version(deps.storage)?;
+/// In case for some reason orderbook was disabled and liquidity left in the subaccount
+/// this permissionless endpoint can be used to withdraw whole balance to the contract address.
+pub fn orderbook_emergency_withdraw(
+    deps: DepsMut<InjectiveQueryWrapper>,
+    env: Env,
+) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
+    let querier = InjectiveQuerier::new(&deps.querier);
 
-    match contract_version.contract.as_ref() {
-        "astroport-pair-concentrated" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.1.0" | "1.1.1" | "1.1.2" => migrate_config(deps.storage)?,
-            "1.1.4" => migrate_config_from_v140(deps.storage)?,
-            _ => return Err(ContractError::MigrationError {}),
-        },
-        _ => return Err(ContractError::MigrationError {}),
+    // Ask chain whether the pair contract is still active in begin blocker
+    if is_contract_active(&querier, &env.contract.address)? {
+        return Err(StdError::generic_err(
+            "Failed to withdraw liquidity from orderbook: contract is active",
+        )
+        .into());
     }
 
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let ob_state = OrderbookState::load(deps.storage)?;
+    let balances = get_subaccount_balances(&ob_state.asset_infos, &querier, &ob_state.subaccount)?;
 
-    Ok(Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version)
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+    let mut response = if !(balances[0].amount + balances[1].amount).is_zero() {
+        leave_orderbook(&ob_state, balances.clone(), &env).map_err(StdError::from)?
+    } else {
+        Response::new()
+    };
+
+    if ob_state.last_balances != balances {
+        let mut config = CONFIG.load(deps.storage)?;
+        let precisions = Precisions::new(deps.storage)?;
+        let mut pools = query_pools(
+            deps.querier,
+            &env.contract.address,
+            &config,
+            &ob_state,
+            &precisions,
+            None,
+        )?
+        .iter()
+        .map(|asset| asset.amount)
+        .collect_vec();
+        let base_asset_precision = precisions.get_precision(&config.pair_info.asset_infos[0])?;
+        let quote_asset_precision = precisions.get_precision(&config.pair_info.asset_infos[1])?;
+        let maker_fee_message = process_cumulative_trade(
+            deps.querier,
+            &env,
+            &ob_state,
+            &mut config,
+            &mut pools,
+            &balances,
+            base_asset_precision,
+            quote_asset_precision,
+        )
+        .map_err(StdError::from)?;
+        CONFIG.save(deps.storage, &config)?;
+
+        response = response.add_messages(maker_fee_message);
+    }
+
+    let new_balances = vec![
+        ob_state.asset_infos[0].with_balance(0u8),
+        ob_state.asset_infos[1].with_balance(0u8),
+    ];
+    ob_state.reconciliation_done(deps.storage, new_balances)?;
+
+    Ok(response.add_attributes(vec![
+        attr("action", "emergency_withdraw"),
+        attr("pair", env.contract.address),
+    ]))
 }

@@ -1,11 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
+use crate::cosmwasm_ext::DecimalToInteger;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    from_slice, to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError, CosmosMsg,
-    Decimal256, Fraction, MessageInfo, QuerierWrapper, StdError, StdResult, Uint128, Uint256,
-    WasmMsg,
+    coin, from_slice, to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError, CosmosMsg,
+    CustomMsg, CustomQuery, Decimal256, Fraction, MessageInfo, QuerierWrapper, StdError, StdResult,
+    Uint128, Uint256, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
@@ -44,6 +45,15 @@ pub struct DecimalAsset {
     pub amount: Decimal256,
 }
 
+impl DecimalAsset {
+    pub fn into_asset(self, precision: impl Into<u32> + Sized) -> StdResult<Asset> {
+        Ok(Asset {
+            info: self.info,
+            amount: self.amount.to_uint(precision)?,
+        })
+    }
+}
+
 impl fmt::Display for Asset {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}{}", self.amount, self.info)
@@ -56,23 +66,13 @@ impl Asset {
         self.info.is_native_token()
     }
 
-    /// Convert a native token of type [`AssetInfo`] to a coin of type [`Coin`].
-    /// For other tokens it returns an [`Err`].
-    pub fn to_coin(&self) -> StdResult<Coin> {
-        if let AssetInfo::NativeToken { denom } = &self.info {
-            Ok(Coin {
-                denom: denom.to_string(),
-                amount: self.amount,
-            })
-        } else {
-            Err(StdError::generic_err("Cannot convert token asset to Coin"))
-        }
-    }
-
     /// For native tokens of type [`AssetInfo`] uses the default method [`BankMsg::Send`] to send a
     /// token amount to a recipient.
     /// For a token of type [`AssetInfo`] we use the default method [`Cw20ExecuteMsg::Transfer`].
-    pub fn into_msg(self, recipient: impl Into<String>) -> StdResult<CosmosMsg> {
+    pub fn into_msg<T>(self, recipient: impl Into<String>) -> StdResult<CosmosMsg<T>>
+    where
+        T: CustomMsg,
+    {
         let recipient = recipient.into();
         match &self.info {
             AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -85,7 +85,7 @@ impl Asset {
             })),
             AssetInfo::NativeToken { .. } => Ok(CosmosMsg::Bank(BankMsg::Send {
                 to_address: recipient,
-                amount: vec![self.to_coin()?],
+                amount: vec![self.as_coin()?],
             })),
         }
     }
@@ -112,6 +112,15 @@ impl Asset {
             info: self.info.clone(),
             amount: Decimal256::with_precision(self.amount, precision.into())?,
         })
+    }
+
+    pub fn as_coin(&self) -> StdResult<Coin> {
+        match &self.info {
+            AssetInfo::Token { .. } => {
+                Err(StdError::generic_err("Cannot convert token asset to coin"))
+            }
+            AssetInfo::NativeToken { denom } => Ok(coin(self.amount.u128(), denom)),
+        }
     }
 }
 
@@ -249,11 +258,14 @@ impl AssetInfo {
     /// Returns the balance of token in a pool.
     ///
     /// * **pool_addr** is the address of the contract whose token balance we check.
-    pub fn query_pool(
+    pub fn query_pool<C>(
         &self,
-        querier: &QuerierWrapper,
+        querier: &QuerierWrapper<C>,
         pool_addr: impl Into<String>,
-    ) -> StdResult<Uint128> {
+    ) -> StdResult<Uint128>
+    where
+        C: CustomQuery,
+    {
         match self {
             AssetInfo::Token { contract_addr, .. } => {
                 query_token_balance(querier, contract_addr, pool_addr)
@@ -263,7 +275,10 @@ impl AssetInfo {
     }
 
     /// Returns the number of decimals that a token has.
-    pub fn decimals(&self, querier: &QuerierWrapper, factory_addr: &Addr) -> StdResult<u8> {
+    pub fn decimals<C>(&self, querier: &QuerierWrapper<C>, factory_addr: &Addr) -> StdResult<u8>
+    where
+        C: CustomQuery,
+    {
         query_token_precision(querier, self, factory_addr)
     }
 
@@ -330,11 +345,14 @@ impl PairInfo {
     /// Returns the balance for each asset in the pool.
     ///
     /// * **contract_addr** is pair's pool address.
-    pub fn query_pools(
+    pub fn query_pools<C>(
         &self,
-        querier: &QuerierWrapper,
+        querier: &QuerierWrapper<C>,
         contract_addr: impl Into<String>,
-    ) -> StdResult<Vec<Asset>> {
+    ) -> StdResult<Vec<Asset>>
+    where
+        C: CustomQuery,
+    {
         let contract_addr = contract_addr.into();
         self.asset_infos
             .iter()
@@ -384,10 +402,13 @@ pub fn addr_opt_validate(api: &dyn Api, addr: &Option<String>) -> StdResult<Opti
 const TOKEN_SYMBOL_MAX_LENGTH: usize = 4;
 
 /// Returns a formatted LP token name
-pub fn format_lp_token_name(
+pub fn format_lp_token_name<C>(
     asset_infos: &[AssetInfo],
-    querier: &QuerierWrapper,
-) -> StdResult<String> {
+    querier: &QuerierWrapper<C>,
+) -> StdResult<String>
+where
+    C: CustomQuery,
+{
     let mut short_symbols: Vec<String> = vec![];
     for asset_info in asset_infos {
         let short_symbol = match &asset_info {
@@ -470,6 +491,7 @@ pub fn check_swap_parameters(pools: Vec<Uint128>, swap_amount: Uint128) -> StdRe
 /// Trait extension for AssetInfo to produce [`Asset`] objects from [`AssetInfo`].
 pub trait AssetInfoExt {
     fn with_balance(&self, balance: impl Into<Uint128>) -> Asset;
+    fn with_dec_balance(&self, balance: Decimal256) -> DecimalAsset;
 }
 
 impl AssetInfoExt for AssetInfo {
@@ -477,6 +499,13 @@ impl AssetInfoExt for AssetInfo {
         Asset {
             info: self.clone(),
             amount: balance.into(),
+        }
+    }
+
+    fn with_dec_balance(&self, balance: Decimal256) -> DecimalAsset {
+        DecimalAsset {
+            info: self.clone(),
+            amount: balance,
         }
     }
 }

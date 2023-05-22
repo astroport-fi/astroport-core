@@ -7,7 +7,7 @@ use crate::querier::{
 use crate::factory::PairType;
 use crate::DecimalCheckedOps;
 use cosmwasm_std::testing::MOCK_CONTRACT_ADDR;
-use cosmwasm_std::{to_binary, Addr, BankMsg, Coin, CosmosMsg, Decimal, Uint128, WasmMsg};
+use cosmwasm_std::{to_binary, Addr, BankMsg, Coin, CosmosMsg, Decimal, Empty, Uint128, WasmMsg};
 use cw20::Cw20ExecuteMsg;
 
 #[test]
@@ -190,7 +190,7 @@ fn test_asset() {
 
     assert_eq!(
         token_asset.into_msg(Addr::unchecked("addr0000")).unwrap(),
-        CosmosMsg::Wasm(WasmMsg::Execute {
+        CosmosMsg::<Empty>::Wasm(WasmMsg::Execute {
             contract_addr: String::from("asset0000"),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: String::from("addr0000"),
@@ -205,7 +205,7 @@ fn test_asset() {
         native_token_asset
             .into_msg(Addr::unchecked("addr0000"))
             .unwrap(),
-        CosmosMsg::Bank(BankMsg::Send {
+        CosmosMsg::<Empty>::Bank(BankMsg::Send {
             to_address: String::from("addr0000"),
             amount: vec![Coin {
                 denom: "uusd".to_string(),
