@@ -7,6 +7,8 @@ on:
 jobs:
   release-artifacts:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v3
       - name: Build Artifacts
@@ -17,6 +19,4 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: cosmwasm-artifacts.tar.gz
-          token: ${{ secrets.GH_TOKEN }}
-        env:
-          GITHUB_REPOSITORY: astroport-fi/astroport-core
+          token: ${{ secrets.GITHUB_TOKEN }}
