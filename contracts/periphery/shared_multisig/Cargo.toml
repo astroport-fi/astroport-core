@@ -1,0 +1,26 @@
+[package]
+name = "astroport-shared-multisig"
+version = "0.1.0"
+authors = ["Astroport, Ethan Frey <ethanfrey@users.noreply.github.com>"]
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+cosmwasm-schema = "1.1"
+cw-utils = "1.0"
+cw2 = "1.0"
+cw3 = "1.0"
+cw-storage-plus = "0.15"
+cosmwasm-std = "1.1"
+thiserror = "1.0"
+astroport = { path = "../../../packages/astroport" }
+
+[dev-dependencies]
+cw-multi-test = "0.15"

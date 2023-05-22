@@ -72,7 +72,7 @@ pub fn build_swap_msg(
                 max_spread: Some(max_spread),
                 to: None,
             })?,
-            funds: vec![offer_asset.to_coin()?],
+            funds: vec![offer_asset.as_coin()?],
         }))
     } else {
         Ok(SubMsg::new(WasmMsg::Execute {

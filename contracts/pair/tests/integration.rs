@@ -1367,3 +1367,132 @@ fn asset_balances_tracking_works_correctly() {
         .unwrap();
     assert_eq!(res.unwrap(), Uint128::new(499_749812));
 }
+
+#[test]
+fn update_pair_config() {
+    let owner = Addr::unchecked(OWNER);
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ],
+    );
+
+    let token_contract_code_id = store_token_code(&mut router);
+    let pair_contract_code_id = store_pair_code(&mut router);
+
+    let factory_code_id = store_factory_code(&mut router);
+
+    let init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![],
+        token_code_id: token_contract_code_id,
+        generator_address: Some(String::from("generator")),
+        owner: owner.to_string(),
+        whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
+    };
+
+    let factory_instance = router
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
+
+    let msg = InstantiateMsg {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        ],
+        token_code_id: token_contract_code_id,
+        factory_addr: factory_instance.to_string(),
+        init_params: None,
+    };
+
+    let pair = router
+        .instantiate_contract(
+            pair_contract_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("PAIR"),
+            None,
+        )
+        .unwrap();
+
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+        .unwrap();
+
+    assert_eq!(
+        res,
+        ConfigResponse {
+            block_time_last: 0,
+            params: Some(
+                to_binary(&XYKPoolConfig {
+                    track_asset_balances: false
+                })
+                .unwrap()
+            ),
+            owner: Addr::unchecked("owner"),
+            factory_addr: Addr::unchecked("contract0")
+        }
+    );
+
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&XYKPoolUpdateParams::EnableAssetBalancesTracking).unwrap(),
+    };
+    assert_eq!(
+        router
+            .execute_contract(
+                Addr::unchecked("not_owner").clone(),
+                pair.clone(),
+                &msg,
+                &[]
+            )
+            .unwrap_err()
+            .downcast_ref::<ContractError>()
+            .unwrap(),
+        &ContractError::Unauthorized {}
+    );
+
+    router
+        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
+        .unwrap();
+
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(
+        res,
+        ConfigResponse {
+            block_time_last: 0,
+            params: Some(
+                to_binary(&XYKPoolConfig {
+                    track_asset_balances: true
+                })
+                .unwrap()
+            ),
+            owner: Addr::unchecked("owner"),
+            factory_addr: Addr::unchecked("contract0")
+        }
+    );
+}

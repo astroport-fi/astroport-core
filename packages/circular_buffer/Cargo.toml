@@ -1,0 +1,12 @@
+[package]
+name = "astroport-circular-buffer"
+version = "0.1.0"
+edition = "2021"
+authors = ["Timofei Epanchintsev <5527315+epanchee@users.noreply.github.com>", "Astroport"]
+description = "Circular buffer to store time series data in CosmWasm contracts"
+
+[dependencies]
+cw-storage-plus = "0.15"
+cosmwasm-schema = "1.1"
+cosmwasm-std = "1.1"
+thiserror = "1.0"

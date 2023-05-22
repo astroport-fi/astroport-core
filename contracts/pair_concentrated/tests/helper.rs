@@ -86,7 +86,7 @@ pub fn init_native_coins(test_coins: &[TestCoin]) -> Vec<Coin> {
             _ => None,
         })
         .collect();
-    test_coins.push(coin(INIT_BALANCE, "random_coin"));
+    test_coins.push(coin(INIT_BALANCE, "random-coin"));
 
     test_coins
 }

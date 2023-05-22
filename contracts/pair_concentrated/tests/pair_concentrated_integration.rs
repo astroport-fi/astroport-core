@@ -105,6 +105,35 @@ fn check_wrong_initialization() {
 }
 
 #[test]
+fn check_create_pair_with_unsupported_denom() {
+    let owner = Addr::unchecked("owner");
+
+    let wrong_coins = vec![TestCoin::native("random_coin"), TestCoin::cw20("USDC")];
+    let valid_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::from_ratio(2u8, 1u8),
+        ma_half_time: 600,
+        track_asset_balances: None,
+    };
+
+    let err = Helper::new(&owner, wrong_coins.clone(), params.clone()).unwrap_err();
+    assert_eq!(
+        "Generic error: Native denom is not in expected format [a-zA-Z\\-][3,60]: random_coin",
+        err.root_cause().to_string()
+    );
+
+    Helper::new(&owner, valid_coins.clone(), params.clone()).unwrap();
+}
+
+#[test]
 fn provide_and_withdraw() {
     let owner = Addr::unchecked("owner");
 
@@ -131,8 +160,7 @@ fn provide_and_withdraw() {
 
     let user1 = Addr::unchecked("user1");
 
-    // Try to provide with wrong asset
-    let random_coin = native_asset_info("random_coin".to_string()).with_balance(100u8);
+    let random_coin = native_asset_info("random-coin".to_string()).with_balance(100u8);
     let wrong_assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
         random_coin.clone(),
@@ -140,7 +168,7 @@ fn provide_and_withdraw() {
     helper.give_me_money(&wrong_assets, &user1);
     let err = helper.provide_liquidity(&user1, &wrong_assets).unwrap_err();
     assert_eq!(
-        "Generic error: Asset random_coin is not in the pool",
+        "Generic error: Asset random-coin is not in the pool",
         err.root_cause().to_string()
     );
 
@@ -155,7 +183,7 @@ fn provide_and_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        "Generic error: Asset random_coin is not in the pool",
+        "Generic error: Asset random-coin is not in the pool",
         err.root_cause().to_string()
     );
 
@@ -163,7 +191,7 @@ fn provide_and_withdraw() {
         .provide_liquidity(&user1, &[random_coin])
         .unwrap_err();
     assert_eq!(
-        "The asset random_coin does not belong to the pair",
+        "The asset random-coin does not belong to the pair",
         err.root_cause().to_string()
     );
 
@@ -535,7 +563,7 @@ fn check_swaps_simple() {
     );
 
     // Try to swap a wrong asset
-    let wrong_coin = native_asset_info("random_coin".to_string());
+    let wrong_coin = native_asset_info("random-coin".to_string());
     let wrong_asset = wrong_coin.with_balance(100_000000u128);
     helper.give_me_money(&[wrong_asset.clone()], &user);
     let err = helper.swap(&user, &wrong_asset, None).unwrap_err();

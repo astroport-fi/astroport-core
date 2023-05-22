@@ -1,5 +1,7 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{attr, Addr, Api, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
+use cosmwasm_std::{
+    attr, Addr, Api, CustomQuery, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+};
 use cw_storage_plus::Item;
 
 const MAX_PROPOSAL_TTL: u64 = 1209600;
@@ -23,15 +25,18 @@ pub struct OwnershipProposal {
 ///
 /// ## Executor
 /// Only the current contract owner can execute this.
-pub fn propose_new_owner(
-    deps: DepsMut,
+pub fn propose_new_owner<C, T>(
+    deps: DepsMut<C>,
     info: MessageInfo,
     env: Env,
     new_owner: String,
     expires_in: u64,
     owner: Addr,
     proposal: Item<OwnershipProposal>,
-) -> StdResult<Response> {
+) -> StdResult<Response<T>>
+where
+    C: CustomQuery,
+{
     // Permission check
     if info.sender != owner {
         return Err(StdError::generic_err("Unauthorized"));
@@ -69,12 +74,15 @@ pub fn propose_new_owner(
 ///
 /// ## Executor
 /// Only the current owner can execute this.
-pub fn drop_ownership_proposal(
-    deps: DepsMut,
+pub fn drop_ownership_proposal<C, T>(
+    deps: DepsMut<C>,
     info: MessageInfo,
     owner: Addr,
     proposal: Item<OwnershipProposal>,
-) -> StdResult<Response> {
+) -> StdResult<Response<T>>
+where
+    C: CustomQuery,
+{
     // Permission check
     if info.sender != owner {
         return Err(StdError::generic_err("Unauthorized"));
@@ -91,13 +99,16 @@ pub fn drop_ownership_proposal(
 ///
 /// ## Executor
 /// Only the newly proposed owner can execute this.
-pub fn claim_ownership(
-    deps: DepsMut,
+pub fn claim_ownership<C, T>(
+    deps: DepsMut<C>,
     info: MessageInfo,
     env: Env,
     proposal: Item<OwnershipProposal>,
-    cb: fn(DepsMut, Addr) -> StdResult<()>,
-) -> StdResult<Response> {
+    cb: fn(DepsMut<C>, Addr) -> StdResult<()>,
+) -> StdResult<Response<T>>
+where
+    C: CustomQuery,
+{
     let p = proposal
         .load(deps.storage)
         .map_err(|_| StdError::generic_err("Ownership proposal not found"))?;
