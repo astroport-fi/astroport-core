@@ -11,16 +11,22 @@ pub mod oracle;
 pub mod pair;
 pub mod pair_bonded;
 pub mod pair_concentrated;
+pub mod pair_concentrated_inj;
 pub mod querier;
 pub mod restricted_vector;
 pub mod router;
+pub mod shared_multisig;
 pub mod staking;
 pub mod token;
 pub mod vesting;
 pub mod xastro_token;
 
+#[cfg(feature = "injective")]
+pub mod injective_ext;
+
 #[cfg(test)]
 mod mock_querier;
+
 #[cfg(test)]
 mod testing;
 

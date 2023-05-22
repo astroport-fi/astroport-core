@@ -1,8 +1,8 @@
 use std::vec;
 
 use cosmwasm_std::{
-    attr, entry_point, from_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg,
-    Decimal, Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
+    attr, from_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
+    Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
     SubMsgResponse, SubMsgResult, Uint128,
 };
 use cw2::{get_contract_version, set_contract_version};
@@ -23,6 +23,8 @@ use astroport::pair_concentrated::{
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 
 use crate::error::ContractError;
 use crate::math::{calc_d, get_xcp};
@@ -858,7 +860,7 @@ fn update_config(
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
     let owner = config.owner.as_ref().unwrap_or(&factory_config.owner);
-    if &info.sender != owner {
+    if info.sender != *owner {
         return Err(ContractError::Unauthorized {});
     }
 

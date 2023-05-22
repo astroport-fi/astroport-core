@@ -1,0 +1,53 @@
+[package]
+name = "astroport-pair-concentrated-injective"
+version = "1.0.0"
+authors = ["Astroport"]
+edition = "2021"
+description = "The Astroport concentrated liquidity pair which supports Injective orderbook integration"
+license = "MIT"
+
+exclude = [
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+library = []
+
+[dependencies]
+astroport = { path = "../../packages/astroport", default-features = false, features = ["injective"] }
+astroport-factory = { path = "../factory", features = ["library"] }
+astroport-pair-concentrated = { path = "../pair_concentrated", features = ["library"] }
+astroport-circular-buffer = { path = "../../packages/circular_buffer" }
+cw2 = "0.15"
+cw20 = "0.15"
+cosmwasm-std = "1.1"
+cw-storage-plus = "0.15"
+thiserror = "1.0"
+cosmwasm-schema = "1.1"
+itertools = "0.10"
+cw-utils = "0.15"
+injective-cosmwasm = "0.1"
+tiny-keccak = { version="2.0.2", features = ["keccak"] }
+hex = "0.4.3"
+
+[dev-dependencies]
+astroport-token = { path = "../token" }
+cw-multi-test = "0.16.2"
+astroport-factory = { path = "../factory" }
+proptest = "1.0"
+anyhow = "1.0"
+derivative = "2.2"
+astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
+injective-math = { version = "0.1.14" }
+injective-testing = "0.1.1"
+rand = "0.8"
