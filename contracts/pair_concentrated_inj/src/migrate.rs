@@ -74,7 +74,6 @@ impl From<CLConfig> for Config {
                 ..val.pair_info
             },
             factory_addr: val.factory_addr,
-            block_time_last: val.block_time_last,
             pool_params: PoolParams {
                 mid_fee: val.pool_params.mid_fee,
                 out_fee: val.pool_params.out_fee,

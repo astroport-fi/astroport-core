@@ -28,8 +28,6 @@ pub struct Config {
     pub pair_info: PairInfo,
     /// The factory contract address
     pub factory_addr: Addr,
-    /// The last timestamp when the pair contract updated the asset cumulative prices
-    pub block_time_last: u64,
     /// Pool parameters
     pub pool_params: PoolParams,
     /// Pool state

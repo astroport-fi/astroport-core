@@ -2,6 +2,7 @@ pub mod asset;
 pub mod common;
 pub mod cosmwasm_ext;
 pub mod factory;
+pub mod fee_granter;
 pub mod generator;
 pub mod generator_proxy;
 pub mod maker;

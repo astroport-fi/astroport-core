@@ -262,42 +262,26 @@ impl SwapResult {
     /// Calculates **last price** and **last real price**.
     /// Returns (last_price, last_real_price) where:
     /// - last_price is a price for repeg algo,
-    /// - last_real_price is a real price occurred for user.
-    pub fn calc_last_prices(
-        &self,
-        offer_amount: Decimal256,
-        offer_ind: usize,
-    ) -> (Decimal256, Decimal256) {
+    pub fn calc_last_price(&self, offer_amount: Decimal256, offer_ind: usize) -> Decimal256 {
         if offer_ind == 0 {
-            (
-                offer_amount / (self.dy + self.maker_fee),
-                offer_amount / (self.dy + self.total_fee),
-            )
+            offer_amount / (self.dy + self.maker_fee)
         } else {
-            (
-                (self.dy + self.maker_fee) / offer_amount,
-                (self.dy + self.total_fee) / offer_amount,
-            )
+            (self.dy + self.maker_fee) / offer_amount
         }
     }
 }
 
-/// Performs swap simulation to calculate price.
-pub fn calc_last_prices(
-    xs: &[Decimal256],
-    config: &Config,
-    env: &Env,
-) -> StdResult<(Decimal256, Decimal256)> {
+/// Performs swap simulation to calculate a price.
+pub fn calc_last_prices(xs: &[Decimal256], config: &Config, env: &Env) -> StdResult<Decimal256> {
     let mut offer_amount = Decimal256::one().min(xs[0] * OFFER_PERCENT);
     if offer_amount.is_zero() {
         offer_amount = Decimal256::raw(1u128);
     }
 
-    let (last_price, last_real_price) =
-        compute_swap(xs, offer_amount, 1, config, env, Decimal256::zero())?
-            .calc_last_prices(offer_amount, 0);
+    let last_price = compute_swap(xs, offer_amount, 1, config, env, Decimal256::zero())?
+        .calc_last_price(offer_amount, 0);
 
-    Ok((last_price, last_real_price))
+    Ok(last_price)
 }
 
 /// Calculate swap result.
@@ -593,6 +577,7 @@ mod tests {
             orders_number: 0,
             min_trades_to_avg: *MIN_TRADES_TO_AVG_LIMITS.start(),
             ready: false,
+            enabled: true,
         };
         BufferManager::init(&mut store, OBSERVATIONS, 10).unwrap();
 

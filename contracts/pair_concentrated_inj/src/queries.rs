@@ -275,7 +275,7 @@ where
 
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
     Ok(ConfigResponse {
-        block_time_last: config.block_time_last,
+        block_time_last: 0, // keeping this field for backwards compatibility
         params: Some(to_binary(&ConcentratedPoolParams {
             amp: amp_gamma.amp,
             gamma: amp_gamma.gamma,

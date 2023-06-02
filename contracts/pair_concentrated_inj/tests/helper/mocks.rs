@@ -5,7 +5,6 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Result as AnyResult};
-use astroport::cosmwasm_ext::ConvertInto;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::schemars::JsonSchema;
 use cosmwasm_schema::serde::de::DeserializeOwned;
@@ -21,19 +20,22 @@ use cw_multi_test::{
 };
 use cw_utils::parse_instantiate_response_data;
 use injective_cosmwasm::{
-    Deposit, InjectiveMsg, InjectiveMsgWrapper, InjectiveQuery, InjectiveQueryWrapper, MarketId,
-    OrderType, SpotMarket, SpotMarketResponse, SpotOrder, SubaccountDepositResponse, SubaccountId,
+    Deposit, FundingMode, InjectiveMsg, InjectiveMsgWrapper, InjectiveQuery, InjectiveQueryWrapper,
+    MarketId, OrderType, QueryContractRegistrationInfoResponse, RegisteredContract, SpotMarket,
+    SpotMarketResponse, SpotOrder, SubaccountDepositResponse, SubaccountId,
     TraderSpotOrdersResponse, TrimmedSpotLimitOrder,
 };
 use injective_math::FPDecimal;
 use injective_testing::{generate_inj_address, InjectiveAddressGenerator};
 use itertools::Itertools;
 
-use crate::helper::f64_to_dec;
+use astroport::cosmwasm_ext::ConvertInto;
 use astroport_factory::error::ContractError;
 use astroport_factory::state::{PAIRS, TMP_PAIR_INFO};
 use astroport_pair_concentrated_injective::orderbook::msg::SudoMsg;
 use astroport_pair_concentrated_injective::orderbook::utils::{calc_hash, get_subaccount};
+
+use crate::helper::f64_to_dec;
 
 // This is dirty workaround cuz we can't simulate real gas in cw_multitest
 const GAS_PER_BEGIN_BLOCK: u128 = 100_000;
@@ -102,18 +104,23 @@ where
     }
 }
 
-// Both these structs are private in injective_cosmwasm thus we need to copy them here
 #[cw_serde]
-struct QueryContractRegistrationInfoResponse {
-    contract: Option<RegisteredContract>,
+pub enum MockFundingMode {
+    Unspecified,
+    SelfFunded,
+    GrantOnly(Addr),
+    Dual(Addr),
 }
-#[cw_serde]
-pub struct RegisteredContract {
-    pub gas_limit: u64,
-    pub gas_price: u64,
-    pub is_executable: bool,
-    pub code_id: u64,
-    pub admin_address: String,
+
+impl From<MockFundingMode> for FundingMode {
+    fn from(value: MockFundingMode) -> Self {
+        match value {
+            MockFundingMode::Unspecified => FundingMode::Unspecified,
+            MockFundingMode::SelfFunded => FundingMode::SelfFunded,
+            MockFundingMode::GrantOnly(_) => FundingMode::GrantOnly,
+            MockFundingMode::Dual(_) => FundingMode::Dual,
+        }
+    }
 }
 
 pub type InjApp = App<
@@ -150,7 +157,11 @@ where
 
 pub trait InjAppExt {
     fn create_market(&mut self, base_denom: &str, quote_denom: &str) -> AnyResult<String>;
-    fn enable_contract(&mut self, contract_addr: Addr) -> AnyResult<()>;
+    fn enable_contract(
+        &mut self,
+        contract_addr: Addr,
+        funding_mode: MockFundingMode,
+    ) -> AnyResult<()>;
     fn deactivate_contract(&mut self, contract_addr: Addr) -> AnyResult<AppResponse>;
     fn begin_blocker(&mut self, block: &BlockInfo, gas_free: bool) -> AnyResult<()>;
 }
@@ -175,13 +186,17 @@ impl InjAppExt for InjApp {
         })
     }
 
-    fn enable_contract(&mut self, contract_addr: Addr) -> AnyResult<()> {
+    fn enable_contract(
+        &mut self,
+        contract_addr: Addr,
+        funding_mode: MockFundingMode,
+    ) -> AnyResult<()> {
         self.init_modules(|router, _, _| {
             router
                 .custom
                 .enabled_contracts
                 .borrow_mut()
-                .insert(contract_addr, true);
+                .insert(contract_addr, (funding_mode, true));
 
             Ok(())
         })
@@ -193,34 +208,53 @@ impl InjAppExt for InjApp {
                 .custom
                 .enabled_contracts
                 .borrow_mut()
-                .insert(contract_addr.clone(), false);
+                .entry(contract_addr.clone())
+                .and_modify(|(_, enabled)| *enabled = false);
         });
 
         self.wasm_sudo(contract_addr, &SudoMsg::Deactivate {})
     }
 
     fn begin_blocker(&mut self, block: &BlockInfo, gas_free: bool) -> AnyResult<()> {
-        let contracts = self.init_modules(|router, _, _| {
+        let contracts: HashMap<_, _> = self.init_modules(|router, _, _| {
             router
                 .custom
                 .enabled_contracts
                 .borrow()
                 .iter()
-                .filter_map(|(addr, enabled)| if *enabled { Some(addr) } else { None })
-                .cloned()
-                .collect_vec()
+                .filter_map(|(addr, (fund_mode, enabled))| {
+                    if *enabled {
+                        Some((addr.clone(), fund_mode.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .collect()
         });
 
-        for contract in contracts {
+        for (contract, funding_mode) in contracts {
             self.wasm_sudo(contract.clone(), &SudoMsg::BeginBlocker {})?;
             if !gas_free {
                 self.init_modules(|router, api, storage| {
+                    let payer = match funding_mode {
+                        MockFundingMode::SelfFunded => contract.clone(),
+                        MockFundingMode::GrantOnly(payer) => payer,
+                        MockFundingMode::Dual(_) => {
+                            unimplemented!("Dual funding mode not supported in our mocks")
+                        }
+                        MockFundingMode::Unspecified => {
+                            return Err(anyhow!(
+                                "Contract {} has unspecified funding mode",
+                                contract.clone()
+                            ))
+                        }
+                    };
                     router
                         .execute(
                             api,
                             storage,
                             block,
-                            contract.clone(),
+                            payer.clone(),
                             BankMsg::Send {
                                 to_address: router.custom.gas_fee_receiver.to_string(),
                                 amount: coins(GAS_PER_BEGIN_BLOCK * GAS_PRICE, "inj"),
@@ -252,7 +286,7 @@ pub struct InjMockModule {
     pub gas_fee_receiver: Addr,
     pub orderbook: RefCell<HashMap<MarketId, Vec<(Addr, SpotOrder)>>>,
     pub markets: RefCell<HashMap<MarketId, (String, String)>>,
-    pub enabled_contracts: RefCell<HashMap<Addr, bool>>,
+    pub enabled_contracts: RefCell<HashMap<Addr, (MockFundingMode, bool)>>,
 }
 
 impl InjMockModule {
@@ -659,20 +693,30 @@ impl Module for InjMockModule {
                 Ok(to_binary(&TraderSpotOrdersResponse { orders })?)
             }
             InjectiveQuery::WasmxRegisteredContractInfo { contract_address } => {
-                let is_executable = self
+                let contract = self
                     .enabled_contracts
                     .borrow()
                     .get(&Addr::unchecked(contract_address))
                     .cloned()
-                    .ok_or(StdError::generic_err("contract not found"))?;
+                    .map(|(fund_mode, is_executable)| {
+                        let granter_address = match &fund_mode {
+                            MockFundingMode::GrantOnly(addr) | MockFundingMode::Dual(addr) => {
+                                Some(addr.to_string())
+                            }
+                            _ => None,
+                        };
+                        RegisteredContract {
+                            gas_limit: 0,
+                            gas_price: 0,
+                            is_executable,
+                            code_id: Some(0),
+                            admin_address: None,
+                            granter_address,
+                            fund_mode: fund_mode.into(),
+                        }
+                    });
                 Ok(to_binary(&QueryContractRegistrationInfoResponse {
-                    contract: Some(RegisteredContract {
-                        gas_limit: 0,
-                        gas_price: 0,
-                        is_executable,
-                        code_id: 0,
-                        admin_address: "".to_string(),
-                    }),
+                    contract,
                 })?)
             }
             _ => unimplemented!("not implemented"),

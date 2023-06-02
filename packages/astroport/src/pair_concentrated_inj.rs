@@ -132,6 +132,8 @@ pub struct OrderbookStateResponse {
     pub min_trades_to_avg: u32,
     /// Whether the pool is ready to integrate with the orderbook (MIN_TRADES_TO_AVG is reached)
     pub ready: bool,
+    /// Whether the begin blocker execution is allowed or not. Default: true
+    pub enabled: bool,
 }
 
 #[cw_serde]
@@ -141,9 +143,9 @@ pub struct OracleObservation {
 }
 
 #[cw_serde]
+#[non_exhaustive]
 pub enum MigrateMsg {
     MigrateToOrderbook { params: OrderbookConfig },
-    NormalMigration {}, // this is placeholder for future migrations. Must be adjusted when new migrations are added.
 }
 
 /// This enum is intended for parameters update.

@@ -52,6 +52,8 @@ pub struct OrderbookState {
     pub min_trades_to_avg: u32,
     /// Whether the pool is ready to integrate with the orderbook (MIN_TRADES_TO_AVG is reached)
     pub ready: bool,
+    /// Whether the begin blocker execution is allowed or not. Default: true
+    pub enabled: bool,
 }
 
 const OB_CONFIG: Item<OrderbookState> = Item::new("orderbook_config");
@@ -89,6 +91,7 @@ impl OrderbookState {
             orders_number,
             min_trades_to_avg,
             ready: false,
+            enabled: true,
         };
 
         state.set_ticks(querier)?;
@@ -165,7 +168,7 @@ impl OrderbookState {
         Ok(())
     }
 
-    /// Set flag to trigger reconciliation on next begin blocker
+    /// Set flag to trigger reconciliation on the next begin blocker
     pub fn reconcile(self, storage: &mut dyn Storage) -> StdResult<()> {
         OB_CONFIG.save(
             storage,
@@ -210,6 +213,7 @@ impl From<OrderbookState> for OrderbookStateResponse {
             orders_number: value.orders_number,
             min_trades_to_avg: value.min_trades_to_avg,
             ready: value.ready,
+            enabled: value.enabled,
         }
     }
 }

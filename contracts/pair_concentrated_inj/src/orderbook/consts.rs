@@ -11,3 +11,6 @@ pub const MIN_TRADES_TO_AVG_LIMITS: RangeInclusive<u32> = 1..=(OBSERVATIONS_SIZE
 /// Starting from v1.10 injective uses default subaccount (nonce = 0) to automatically transfer
 /// funds from bank module when creating an order. We need to avoid it.
 pub const SUBACC_NONCE: u32 = 1;
+
+/// Gas fee denom used on chain. Currently it's `inj` for Injective chain.
+pub const GAS_FEE_DENOM: &str = "inj";

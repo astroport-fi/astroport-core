@@ -14,7 +14,7 @@ use astroport_pair_concentrated_injective::consts::{AMP_MAX, AMP_MIN, MA_HALF_TI
 use astroport_pair_concentrated_injective::error::ContractError;
 use astroport_pair_concentrated_injective::orderbook::consts::MIN_TRADES_TO_AVG_LIMITS;
 
-use crate::helper::mocks::{mock_inj_app, InjAppExt};
+use crate::helper::mocks::{mock_inj_app, InjAppExt, MockFundingMode};
 use crate::helper::{
     dec_to_f64, f64_to_dec, orderbook_pair_contract, AppExtension, Helper, TestCoin,
 };
@@ -978,7 +978,7 @@ fn check_orderbook_integration() {
     // Enabling contract with empty inj balance
     helper
         .app
-        .enable_contract(helper.pair_addr.clone())
+        .enable_contract(helper.pair_addr.clone(), MockFundingMode::SelfFunded)
         .unwrap();
 
     let err = helper
@@ -987,6 +987,15 @@ fn check_orderbook_integration() {
         .root_cause()
         .to_string();
     assert!(err.contains("failed to pay gas fees on begin blocker"));
+
+    // Enabling contract with GrantOnly funding mode
+    helper
+        .app
+        .enable_contract(
+            helper.pair_addr.clone(),
+            MockFundingMode::GrantOnly(helper.owner.clone()),
+        )
+        .unwrap();
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance((500_000f64 * 1e18) as u128),
@@ -1002,7 +1011,7 @@ fn check_orderbook_integration() {
                 None,
             )
             .unwrap();
-        helper.next_block(true).unwrap();
+        helper.next_block(false).unwrap();
         helper
             .swap(
                 &owner,
@@ -1118,7 +1127,10 @@ fn check_last_withdraw() {
     // Enabling contract with empty inj balance
     helper
         .app
-        .enable_contract(helper.pair_addr.clone())
+        .enable_contract(
+            helper.pair_addr.clone(),
+            MockFundingMode::GrantOnly(helper.owner.clone()),
+        )
         .unwrap();
 
     let assets = vec![
@@ -1185,7 +1197,10 @@ fn check_deactivate_orderbook() {
 
     helper
         .app
-        .enable_contract(helper.pair_addr.clone())
+        .enable_contract(
+            helper.pair_addr.clone(),
+            MockFundingMode::GrantOnly(helper.owner.clone()),
+        )
         .unwrap();
 
     let ob_config = helper.query_ob_config().unwrap();
@@ -1255,7 +1270,8 @@ fn check_deactivate_orderbook() {
             .custom
             .enabled_contracts
             .borrow_mut()
-            .insert(helper.pair_addr.clone(), false);
+            .entry(helper.pair_addr.clone())
+            .and_modify(|(_, enabled)| *enabled = false);
     });
 
     // Check that liquidity is still sits on orderbook
@@ -1376,7 +1392,10 @@ fn check_deactivate_orderbook() {
     // Enable contract again. Checking that FIRST swap after failed deactivation will run CL logic and send maker fees
     helper
         .app
-        .enable_contract(helper.pair_addr.clone())
+        .enable_contract(
+            helper.pair_addr.clone(),
+            MockFundingMode::GrantOnly(helper.owner.clone()),
+        )
         .unwrap();
     helper
         .swap(
@@ -1393,7 +1412,8 @@ fn check_deactivate_orderbook() {
             .custom
             .enabled_contracts
             .borrow_mut()
-            .insert(helper.pair_addr.clone(), false);
+            .entry(helper.pair_addr.clone())
+            .and_modify(|(_, enabled)| *enabled = false);
     });
 
     // Simulate trade after contract was kicked out
@@ -1464,7 +1484,10 @@ fn check_deactivate_orderbook() {
     // Enable contract again. Checking that FIRST provide after failed deactivation will run CL logic and send maker fees
     helper
         .app
-        .enable_contract(helper.pair_addr.clone())
+        .enable_contract(
+            helper.pair_addr.clone(),
+            MockFundingMode::GrantOnly(helper.owner.clone()),
+        )
         .unwrap();
     helper
         .swap(
@@ -1481,7 +1504,8 @@ fn check_deactivate_orderbook() {
             .custom
             .enabled_contracts
             .borrow_mut()
-            .insert(helper.pair_addr.clone(), false);
+            .entry(helper.pair_addr.clone())
+            .and_modify(|(_, enabled)| *enabled = false);
     });
 
     // Simulate trade after contract was kicked out
@@ -1646,7 +1670,10 @@ fn test_migrate_cl_to_orderbook_cl() {
 
     helper
         .app
-        .enable_contract(helper.pair_addr.clone())
+        .enable_contract(
+            helper.pair_addr.clone(),
+            MockFundingMode::GrantOnly(helper.owner.clone()),
+        )
         .unwrap();
 
     for _ in 0..50 {
@@ -1763,4 +1790,130 @@ fn test_wrong_assets_order() {
     )
     .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Generic error: Pair asset infos have different order than market: inj-astro while market has astro-inj");
+}
+
+#[test]
+fn test_feegrant_mode() {
+    let owner = generate_inj_address();
+
+    let test_coins = vec![TestCoin::native("inj"), TestCoin::native("astro")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: f64_to_dec(0.5),
+        ma_half_time: 600,
+        track_asset_balances: None,
+    };
+    let mut app = mock_inj_app(|_, _, _| {});
+    app.create_market(
+        &test_coins[0].denom().unwrap(),
+        &test_coins[1].denom().unwrap(),
+    )
+    .unwrap();
+    let mut helper =
+        Helper::new_with_app(app, &owner, test_coins.clone(), params.clone(), true, None).unwrap();
+
+    helper
+        .app
+        .enable_contract(helper.pair_addr.clone(), MockFundingMode::SelfFunded)
+        .unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(500_000e18 as u128),
+        helper.assets[&test_coins[1]].with_balance(1_000_000e6 as u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    // BB should be disabled since pool has inj and SelfFunded mode.
+    let ob_config = helper.query_ob_config().unwrap();
+    assert!(!ob_config.enabled);
+
+    // Make some swaps
+    for _ in 0..10 {
+        helper
+            .swap(
+                &owner,
+                &helper.assets[&test_coins[1]].with_balance(1000e6 as u128),
+                None,
+            )
+            .unwrap();
+        helper.next_block(true).unwrap();
+        helper
+            .swap(
+                &owner,
+                &helper.assets[&test_coins[0]].with_balance(500e18 as u128),
+                None,
+            )
+            .unwrap();
+    }
+
+    // After swaps contract must not deploy any liquidity because it is disabled
+    let querier_wrapper = helper.app.wrap();
+    let inj_querier = InjectiveQuerier::new(&querier_wrapper);
+    let inj_deposit: u128 = inj_querier
+        .query_subaccount_deposit(&ob_config.subaccount, &"inj".to_string())
+        .unwrap()
+        .deposits
+        .total_balance
+        .into();
+    let astro_deposit: u128 = inj_querier
+        .query_subaccount_deposit(&ob_config.subaccount, &"astro".to_string())
+        .unwrap()
+        .deposits
+        .total_balance
+        .into();
+    assert_eq!(inj_deposit, 0);
+    assert_eq!(astro_deposit, 0);
+
+    // Register contract with proper funding mode
+    helper
+        .app
+        .enable_contract(
+            helper.pair_addr.clone(),
+            MockFundingMode::GrantOnly(helper.owner.clone()),
+        )
+        .unwrap();
+
+    // Make some swaps
+    for _ in 0..10 {
+        helper
+            .swap(
+                &owner,
+                &helper.assets[&test_coins[1]].with_balance(1000e6 as u128),
+                None,
+            )
+            .unwrap();
+        helper.next_block(true).unwrap();
+        helper
+            .swap(
+                &owner,
+                &helper.assets[&test_coins[0]].with_balance(500e18 as u128),
+                None,
+            )
+            .unwrap();
+    }
+
+    // Contract must start deploying its liquidity in the order book
+    let querier_wrapper = helper.app.wrap();
+    let inj_querier = InjectiveQuerier::new(&querier_wrapper);
+    let inj_deposit: u128 = inj_querier
+        .query_subaccount_deposit(&ob_config.subaccount, &"inj".to_string())
+        .unwrap()
+        .deposits
+        .total_balance
+        .into();
+    let astro_deposit: u128 = inj_querier
+        .query_subaccount_deposit(&ob_config.subaccount, &"astro".to_string())
+        .unwrap()
+        .deposits
+        .total_balance
+        .into();
+    assert!(inj_deposit > 0, "subaccount inj deposit is zero");
+    assert!(astro_deposit > 0, "subaccount astro deposit is zero");
 }
