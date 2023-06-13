@@ -1,3 +1,4 @@
+use crate::observation::OracleObservation;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use crate::asset::{Asset, AssetInfo, PairInfo};
@@ -123,6 +124,9 @@ pub enum QueryMsg {
         asset_info: AssetInfo,
         block_height: Uint64,
     },
+    /// Query price from observations
+    #[returns(OracleObservation)]
+    Observe { seconds_ago: u64 },
 }
 
 /// This struct is used to return a query result with the total amount of LP tokens and assets in a specific pool.

@@ -285,3 +285,15 @@ Returns current D value for the pool.
   "query_compute_d": {}
 }
 ```
+
+`observe`
+
+Query price from stored observations. If observation was not found at exact time then it is interpolated using surrounding observations.
+
+```json
+{
+  "observe": {
+    "seconds_ago": 3600
+  }
+}
+```

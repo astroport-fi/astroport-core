@@ -1,7 +1,9 @@
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::common::OwnershipProposal;
+use astroport::observation::Observation;
+use astroport_circular_buffer::CircularBuffer;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, DepsMut, StdResult, Storage};
 use cw_storage_plus::{Item, Map};
 
 /// This structure stores the main stableswap pair parameters.
@@ -25,9 +27,11 @@ pub struct Config {
     pub next_amp_time: u64,
     /// The greatest precision of assets in the pool
     pub greatest_precision: u8,
-    /// The vector contains cumulative prices for each pair of assets in the pool
-    pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
 }
+
+/// Circular buffer to store trade size observations
+pub const OBSERVATIONS: CircularBuffer<Observation> =
+    CircularBuffer::new("observations_state", "observations_buffer");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 

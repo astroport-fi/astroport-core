@@ -1,4 +1,4 @@
-use crate::consts::OBSERVATIONS_SIZE;
+use astroport::observation::OBSERVATIONS_SIZE;
 use std::ops::RangeInclusive;
 
 /// Validation limits for order size.

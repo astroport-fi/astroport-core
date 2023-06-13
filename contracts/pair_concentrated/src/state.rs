@@ -9,7 +9,9 @@ use cw_storage_plus::{Item, Map, SnapshotMap};
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::common::OwnershipProposal;
 use astroport::cosmwasm_ext::{AbsDiff, IntegerToDecimal};
+use astroport::observation::Observation;
 use astroport::pair_concentrated::{PromoteParams, UpdatePoolParams};
+use astroport_circular_buffer::CircularBuffer;
 
 use crate::consts::{
     AMP_MAX, AMP_MIN, FEE_GAMMA_MAX, FEE_GAMMA_MIN, FEE_TOL, GAMMA_MAX, GAMMA_MIN, MAX_CHANGE,
@@ -28,8 +30,6 @@ pub struct Config {
     pub factory_addr: Addr,
     /// The last timestamp when the pair contract updated the asset cumulative prices
     pub block_time_last: u64,
-    /// The vector contains cumulative prices for each pair of assets in the pool
-    pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
     /// Pool parameters
     pub pool_params: PoolParams,
     /// Pool state
@@ -411,6 +411,10 @@ const PRECISIONS: Map<String, u8> = Map::new("precisions");
 
 /// Stores the latest contract ownership transfer proposal
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
+
+/// Circular buffer to store trade size observations
+pub const OBSERVATIONS: CircularBuffer<Observation> =
+    CircularBuffer::new("observations_state", "observations_buffer");
 
 /// Stores asset balances to query them later at any block height
 pub const BALANCES: SnapshotMap<&AssetInfo, Uint128> = SnapshotMap::new(

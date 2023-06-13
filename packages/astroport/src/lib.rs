@@ -8,6 +8,7 @@ pub mod generator_proxy;
 pub mod maker;
 pub mod native_coin_registry;
 pub mod native_coin_wrapper;
+pub mod observation;
 pub mod oracle;
 pub mod pair;
 pub mod pair_bonded;

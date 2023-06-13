@@ -1,5 +1,6 @@
 use crate::consts::MIN_AMP_CHANGING_TIME;
 use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
+use astroport_circular_buffer::error::BufferError;
 use cosmwasm_std::{ConversionOverflowError, Decimal, OverflowError, StdError};
 use thiserror::Error;
 
@@ -14,6 +15,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     OverflowError(#[from] OverflowError),
+
+    #[error("{0}")]
+    CircularBuffer(#[from] BufferError),
 
     #[error("Unauthorized")]
     Unauthorized {},

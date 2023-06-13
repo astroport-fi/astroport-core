@@ -1,9 +1,11 @@
+use crate::observation::OracleObservation;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Binary, Decimal, Decimal256, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 use crate::asset::PairInfo;
 use crate::asset::{Asset, AssetInfo};
+
 use crate::pair::{
     ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
     SimulationResponse,
@@ -137,13 +139,6 @@ pub struct OrderbookStateResponse {
 }
 
 #[cw_serde]
-pub struct OracleObservation {
-    pub timestamp: u64,
-    pub price: Decimal,
-}
-
-#[cw_serde]
-#[non_exhaustive]
 pub enum MigrateMsg {
     MigrateToOrderbook { params: OrderbookConfig },
 }

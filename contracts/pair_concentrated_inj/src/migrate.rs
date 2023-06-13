@@ -5,17 +5,15 @@ use cw2::{set_contract_version, CONTRACT};
 use cw_storage_plus::Item;
 use injective_cosmwasm::{InjectiveMsgWrapper, InjectiveQueryWrapper};
 
-use crate::consts::OBSERVATIONS_SIZE;
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
 use crate::orderbook::state::OrderbookState;
 use astroport::pair_concentrated_inj::MigrateMsg;
-use astroport_circular_buffer::BufferManager;
 use astroport_pair_concentrated::state::Config as CLConfig;
 
-use crate::state::{AmpGamma, Config, PoolParams, PoolState, PriceState, CONFIG, OBSERVATIONS};
+use crate::state::{AmpGamma, Config, PoolParams, PoolState, PriceState, CONFIG};
 
 const MIGRATE_FROM: &str = "astroport-pair-concentrated";
-const MIGRATION_VERSION: &str = "1.2.0";
+const MIGRATION_VERSION: &str = "2.0.0";
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -36,7 +34,6 @@ pub fn migrate(
                     contract_info.contract, contract_info.version
                 )));
             }
-            BufferManager::init(deps.storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
 
             let config: CLConfig = Item::new("config").load(deps.storage)?;
             let ob_state = OrderbookState::new(
@@ -52,7 +49,6 @@ pub fn migrate(
 
             attrs.push(("action", "migrate_to_orderbook"));
         }
-        _ => unimplemented!("Usual contract migration is not implemented yet"),
     }
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;

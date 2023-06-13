@@ -7,20 +7,23 @@ use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo};
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
+use astroport::observation::query_observation;
 use astroport::pair::{
-    ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
-    SimulationResponse,
+    ConfigResponse, PoolResponse, ReverseSimulationResponse, SimulationResponse,
 };
+
 use astroport::pair_concentrated::{ConcentratedPoolConfig, QueryMsg};
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
 use crate::math::calc_d;
-use crate::state::{Precisions, BALANCES, CONFIG};
+
+use crate::state::{Precisions, BALANCES, CONFIG, OBSERVATIONS};
+
 use crate::utils::{
-    accumulate_prices, before_swap_check, calc_last_prices, compute_offer_amount, compute_swap,
-    get_share_in_assets, pool_info, query_pools,
+    before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets, pool_info,
+    query_pools,
 };
 
 /// Exposes all the queries available in the contract.
@@ -62,10 +65,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             &query_reverse_simulation(deps, env, ask_asset)
                 .map_err(|err| StdError::generic_err(format!("{err}")))?,
         ),
-        QueryMsg::CumulativePrices {} => to_binary(
-            &query_cumulative_prices(deps, env)
-                .map_err(|err| StdError::generic_err(format!("{err}")))?,
-        ),
+        QueryMsg::CumulativePrices {} => Err(StdError::generic_err(
+            stringify!(Not implemented. Use {"observe": {"seconds_ago": ... }} instead.),
+        )),
+        QueryMsg::Observe { seconds_ago } => {
+            to_binary(&query_observation(deps, env, OBSERVATIONS, seconds_ago)?)
+        }
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
         QueryMsg::LpPrice {} => to_binary(&query_lp_price(deps)?),
         QueryMsg::ComputeD {} => to_binary(&query_compute_d(deps, env)?),
@@ -203,29 +208,6 @@ pub fn query_reverse_simulation(
     })
 }
 
-/// Returns information about cumulative prices for the assets in the pool.
-fn query_cumulative_prices(
-    deps: Deps,
-    env: Env,
-) -> Result<CumulativePricesResponse, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
-    let precisions = Precisions::new(deps.storage)?;
-    let pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
-
-    let xs = pools.iter().map(|asset| asset.amount).collect_vec();
-    let (_, last_real_price) = calc_last_prices(&xs, &config, &env)?;
-
-    accumulate_prices(&env, &mut config, last_real_price);
-
-    let (assets, total_share) = pool_info(deps.querier, &config)?;
-
-    Ok(CumulativePricesResponse {
-        assets,
-        total_share,
-        cumulative_prices: config.cumulative_prices,
-    })
-}
-
 /// Compute the current LP token virtual price.
 pub fn query_lp_price(deps: Deps) -> StdResult<Decimal256> {
     let config = CONFIG.load(deps.storage)?;
@@ -302,4 +284,181 @@ pub fn query_asset_balances_at(
     block_height: Uint64,
 ) -> StdResult<Option<Uint128>> {
     BALANCES.may_load_at_height(deps.storage, &asset_info, block_height.u64())
+}
+
+#[cfg(test)]
+mod testing {
+    use std::error::Error;
+    use std::str::FromStr;
+
+    use astroport::observation::{query_observation, Observation, OracleObservation};
+    use astroport_circular_buffer::BufferManager;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+    use cosmwasm_std::Timestamp;
+
+    use super::*;
+
+    pub fn f64_to_dec<T>(val: f64) -> T
+    where
+        T: FromStr,
+        T::Err: Error,
+    {
+        T::from_str(&val.to_string()).unwrap()
+    }
+
+    #[test]
+    fn observations_full_buffer() {
+        let mut deps = mock_dependencies();
+        let mut env = mock_env();
+        env.block.time = Timestamp::from_seconds(100_000);
+        BufferManager::init(&mut deps.storage, OBSERVATIONS, 20).unwrap();
+
+        let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
+
+        let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
+        assert_eq!(err.to_string(), "Generic error: Buffer is empty");
+
+        let array = (1..=30)
+            .into_iter()
+            .map(|i| Observation {
+                timestamp: env.block.time.seconds() + i * 1000,
+                base_sma: Default::default(),
+                base_amount: i.into(),
+                quote_sma: Default::default(),
+                quote_amount: (i * i).into(),
+            })
+            .collect_vec();
+        buffer.push_many(&array);
+        buffer.commit(&mut deps.storage).unwrap();
+
+        env.block.time = env.block.time.plus_seconds(30_000);
+
+        assert_eq!(
+            OracleObservation {
+                timestamp: 120_000,
+                price: f64_to_dec(20.0 / 400.0),
+            },
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
+        );
+
+        assert_eq!(
+            OracleObservation {
+                timestamp: 124_411,
+                price: f64_to_dec(0.04098166666666694),
+            },
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
+        );
+
+        let err = query_observation(deps.as_ref(), env, OBSERVATIONS, 35_000).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Generic error: Requested observation is too old. Last known observation is at 111000"
+        );
+    }
+
+    #[test]
+    fn observations_incomplete_buffer() {
+        let mut deps = mock_dependencies();
+        let mut env = mock_env();
+        env.block.time = Timestamp::from_seconds(100_000);
+        BufferManager::init(&mut deps.storage, OBSERVATIONS, 3000).unwrap();
+
+        let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
+
+        let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
+        assert_eq!(err.to_string(), "Generic error: Buffer is empty");
+
+        let array = (1..=30)
+            .into_iter()
+            .map(|i| Observation {
+                timestamp: env.block.time.seconds() + i * 1000,
+                base_sma: Default::default(),
+                base_amount: i.into(),
+                quote_sma: Default::default(),
+                quote_amount: (i * i).into(),
+            })
+            .collect_vec();
+        buffer.push_many(&array);
+        buffer.commit(&mut deps.storage).unwrap();
+
+        env.block.time = env.block.time.plus_seconds(30_000);
+
+        assert_eq!(
+            OracleObservation {
+                timestamp: 120_000,
+                price: f64_to_dec(20.0 / 400.0),
+            },
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
+        );
+
+        assert_eq!(
+            OracleObservation {
+                timestamp: 124_411,
+                price: f64_to_dec(0.04098166666666694),
+            },
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
+        );
+    }
+
+    #[test]
+    fn observations_checking_triple_capacity_step_by_step() {
+        let mut deps = mock_dependencies();
+        let mut env = mock_env();
+        env.block.time = Timestamp::from_seconds(100_000);
+        const CAPACITY: u32 = 20;
+        BufferManager::init(&mut deps.storage, OBSERVATIONS, CAPACITY).unwrap();
+
+        let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
+
+        let ts = env.block.time.seconds();
+
+        let array = (1..=CAPACITY * 3)
+            .into_iter()
+            .map(|i| Observation {
+                timestamp: ts + i as u64 * 1000,
+                base_sma: Default::default(),
+                base_amount: (i * i).into(),
+                quote_sma: Default::default(),
+                quote_amount: i.into(),
+            })
+            .collect_vec();
+
+        for (k, obs) in array.iter().enumerate() {
+            env.block.time = env.block.time.plus_seconds(1000);
+
+            buffer.push(&obs);
+            buffer.commit(&mut deps.storage).unwrap();
+            let k1 = k as u32 + 1;
+
+            let from = k1.saturating_sub(CAPACITY) + 1;
+            let to = k1;
+
+            for i in from..=to {
+                let shift = (to - i) as u64;
+                if shift != 0 {
+                    assert_eq!(
+                        OracleObservation {
+                            timestamp: ts + i as u64 * 1000 + 500,
+                            price: f64_to_dec(i as f64 + 0.5),
+                        },
+                        query_observation(
+                            deps.as_ref(),
+                            env.clone(),
+                            OBSERVATIONS,
+                            shift * 1000 - 500
+                        )
+                        .unwrap()
+                    );
+                }
+                assert_eq!(
+                    OracleObservation {
+                        timestamp: ts + i as u64 * 1000,
+                        price: f64_to_dec(i as f64),
+                    },
+                    query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, shift * 1000)
+                        .unwrap()
+                );
+            }
+        }
+    }
 }
