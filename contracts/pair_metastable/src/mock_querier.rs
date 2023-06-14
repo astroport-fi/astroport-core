@@ -1,9 +1,11 @@
+use astroport::pair::{MetaStablePriceQueryMsg, MetaStablePriceResponse};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Addr, Coin, Decimal, OwnedDeps, Querier, QuerierResult,
     QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use std::collections::HashMap;
+use std::ops::Mul;
 
 use astroport::factory::FeeInfoResponse;
 use astroport::factory::QueryMsg::FeeInfo;
@@ -29,6 +31,7 @@ pub struct WasmMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
+    price_querier: PriceQuerier,
 }
 
 #[derive(Clone, Default)]
@@ -41,6 +44,25 @@ impl TokenQuerier {
     pub fn new(balances: &[(&String, &[(&String, &Uint128)])]) -> Self {
         TokenQuerier {
             balances: balances_to_map(balances),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct PriceQuerier {
+    price: Decimal,
+}
+
+impl PriceQuerier {
+    pub fn new(price: Decimal) -> Self {
+        PriceQuerier { price }
+    }
+}
+
+impl Default for PriceQuerier {
+    fn default() -> Self {
+        PriceQuerier {
+            price: Decimal::one(),
         }
     }
 }
@@ -141,6 +163,15 @@ impl WasmMockQuerier {
                         ),
                         _ => panic!("DO NOT ENTER HERE"),
                     }
+                } else if contract_addr == "price_query" {
+                    match from_binary(&msg).unwrap() {
+                        MetaStablePriceQueryMsg { amount, .. } => SystemResult::Ok(
+                            to_binary(&MetaStablePriceResponse {
+                                amount: self.price_querier.price.mul(amount),
+                            })
+                            .into(),
+                        ),
+                    }
                 } else {
                     match from_binary(&msg).unwrap() {
                         Cw20QueryMsg::TokenInfo {} => {
@@ -203,6 +234,7 @@ impl WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
             tax_querier: TaxQuerier::default(),
+            price_querier: PriceQuerier::default(),
         }
     }
 
@@ -220,5 +252,9 @@ impl WasmMockQuerier {
         for (addr, balance) in balances {
             self.base.update_balance(addr.to_string(), balance.to_vec());
         }
+    }
+
+    pub fn with_price_query(&mut self, price: Decimal) {
+        self.price_querier = PriceQuerier::new(price);
     }
 }

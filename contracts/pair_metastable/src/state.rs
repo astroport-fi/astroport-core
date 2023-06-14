@@ -12,6 +12,7 @@ pub struct Config {
     pub pair_info: PairInfo,
     /// The factory contract address
     pub factory_addr: Addr,
+    pub price_query_addr: Addr,
     /// The last timestamp when the pair contract update the asset cumulative prices
     pub block_time_last: u64,
     /// The last cumulative price for asset 0

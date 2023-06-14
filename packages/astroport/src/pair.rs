@@ -170,3 +170,23 @@ pub enum StablePoolUpdateParams {
     StartChangingAmp { next_amp: u64, next_amp_time: u64 },
     StopChangingAmp {},
 }
+
+/// This structure holds stableswap pool parameters.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct MetaStablePoolParams {
+    /// The current stableswap pool amplification
+    pub amp: u64,
+    pub price_query_addr: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MetaStablePriceQueryMsg {
+    pub offer_asset: AssetInfo,
+    pub amount: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MetaStablePriceResponse {
+    pub amount: Uint128,
+}

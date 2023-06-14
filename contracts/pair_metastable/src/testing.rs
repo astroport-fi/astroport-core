@@ -11,8 +11,8 @@ use crate::state::Config;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 
 use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, SimulationResponse, StablePoolParams,
-    TWAP_PRECISION,
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, MetaStablePoolParams, PoolResponse,
+    SimulationResponse, TWAP_PRECISION,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
@@ -65,7 +65,13 @@ fn proper_initialization() {
             },
         ],
         token_code_id: 10u64,
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&MetaStablePoolParams {
+                amp: 100,
+                price_query_addr: String::from("price_query"),
+            })
+            .unwrap(),
+        ),
     };
 
     let sender = "addr0000";
@@ -148,7 +154,13 @@ fn provide_liquidity() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&MetaStablePoolParams {
+                amp: 100,
+                price_query_addr: String::from("price_query"),
+            })
+            .unwrap(),
+        ),
     };
 
     let env = mock_env();
@@ -512,7 +524,13 @@ fn withdraw_liquidity() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&MetaStablePoolParams {
+                amp: 100,
+                price_query_addr: String::from("price_query"),
+            })
+            .unwrap(),
+        ),
     };
 
     let env = mock_env();
@@ -611,6 +629,11 @@ fn try_native_to_token() {
         amount: collateral_pool_amount + offer_amount, /* user deposit must be pre-applied */
     }]);
 
+    deps.querier.with_price_query(Decimal::from_ratio(
+        asset_pool_amount,
+        collateral_pool_amount,
+    ));
+
     deps.querier.with_tax(
         Decimal::zero(),
         &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
@@ -638,7 +661,13 @@ fn try_native_to_token() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&MetaStablePoolParams {
+                amp: 100,
+                price_query_addr: String::from("price_query"),
+            })
+            .unwrap(),
+        ),
     };
 
     let env = mock_env_with_block_time(100);
@@ -792,7 +821,13 @@ fn try_token_to_native() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&MetaStablePoolParams {
+                amp: 100,
+                price_query_addr: String::from("price_query"),
+            })
+            .unwrap(),
+        ),
     };
 
     let env = mock_env_with_block_time(100);
@@ -1042,7 +1077,13 @@ fn test_query_pool() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&MetaStablePoolParams {
+                amp: 100,
+                price_query_addr: String::from("price_query"),
+            })
+            .unwrap(),
+        ),
     };
 
     let env = mock_env();
@@ -1107,7 +1148,13 @@ fn test_query_share() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        init_params: Some(
+            to_binary(&MetaStablePoolParams {
+                amp: 100,
+                price_query_addr: String::from("price_query"),
+            })
+            .unwrap(),
+        ),
     };
 
     let env = mock_env();
@@ -1217,6 +1264,7 @@ fn test_accumulate_prices() {
                     pair_type: PairType::Stable {},
                 },
                 factory_addr: Addr::unchecked("factory"),
+                price_query_addr: Addr::unchecked("price_query"),
                 block_time_last: case.block_time_last,
                 price0_cumulative_last: Uint128::new(case.last0),
                 price1_cumulative_last: Uint128::new(case.last1),

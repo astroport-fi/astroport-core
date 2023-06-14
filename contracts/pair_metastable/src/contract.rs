@@ -5,10 +5,12 @@ use crate::math::{
 };
 use crate::state::{Config, CONFIG};
 
+use astroport::DecimalCheckedOps;
 use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    Env, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
+    Uint128, WasmMsg,
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -17,8 +19,9 @@ use astroport::factory::PairType;
 
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::{
-    ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams, DEFAULT_SLIPPAGE,
-    MAX_ALLOWED_SLIPPAGE, TWAP_PRECISION,
+    ConfigResponse, InstantiateMsg, MetaStablePoolParams, MetaStablePriceQueryMsg,
+    MetaStablePriceResponse, StablePoolUpdateParams, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
+    TWAP_PRECISION,
 };
 
 use astroport::pair::{
@@ -72,7 +75,7 @@ pub fn instantiate(
         return Err(ContractError::InitParamsNotFound {});
     }
 
-    let params: StablePoolParams = from_binary(&msg.init_params.unwrap())?;
+    let params: MetaStablePoolParams = from_binary(&msg.init_params.unwrap())?;
 
     if params.amp == 0 || params.amp > MAX_AMP {
         return Err(ContractError::IncorrectAmp {});
@@ -88,6 +91,7 @@ pub fn instantiate(
             pair_type: PairType::Stable {},
         },
         factory_addr: addr_validate_to_lower(deps.api, msg.factory_addr.as_str())?,
+        price_query_addr: addr_validate_to_lower(deps.api, params.price_query_addr.as_str())?,
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
@@ -734,6 +738,10 @@ pub fn swap(
     } else {
         return Err(ContractError::AssetMismatch {});
     }
+
+    let (offer_amount, receive_amount) = query_price(&deps.querier, &config, &offer_asset.info)?;
+    let price = Decimal::from_ratio(receive_amount, offer_amount);
+    let offer_pool_amount = price.checked_mul(offer_pool.amount)?;
 
     // Get fee info from the factory
     let fee_info = query_fee_info(
@@ -1526,4 +1534,22 @@ fn compute_current_amp(config: &Config, env: &Env) -> StdResult<u64> {
     } else {
         Ok(config.next_amp)
     }
+}
+
+fn query_price(
+    querier: &QuerierWrapper,
+    config: &Config,
+    offer_asset_info: &AssetInfo,
+) -> StdResult<(Uint128, Uint128)> {
+    let offer_token_precision = query_token_precision(querier, offer_asset_info.to_owned())?;
+    let offer_amount = Uint128::new(10_u128.pow((offer_token_precision) as u32));
+    let receive: MetaStablePriceResponse = querier.query_wasm_smart(
+        config.price_query_addr.to_owned(),
+        &MetaStablePriceQueryMsg {
+            amount: offer_amount,
+            offer_asset: offer_asset_info.to_owned(),
+        },
+    )?;
+
+    Ok((offer_amount, receive.amount))
 }
