@@ -152,8 +152,7 @@ where
     /// Push multiple values to precommit buffer.
     pub fn push_many(&mut self, values: &'a [V]) {
         for value in values {
-            self.precommit_buffer.insert(self.state.head, value);
-            self.state.head = (self.state.head + 1) % self.state.capacity;
+            self.push(value);
         }
     }
 
