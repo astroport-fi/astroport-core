@@ -461,9 +461,12 @@ where
                 );
             }
             Ordering::Equal => {
-                // this should never happen as we supposed to call this function only
+                // This should never happen as we supposed to call this function only
                 // if there was at least one trade
-                return Ok(messages);
+                return Err(StdError::generic_err(
+                    "Maker fee cannot be calculated because orderbook balance hasn't changed",
+                )
+                .into());
             }
         }
     }
