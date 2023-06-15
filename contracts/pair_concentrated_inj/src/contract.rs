@@ -306,6 +306,7 @@ pub fn execute(
             .map_err(Into::into)
         }
         ExecuteMsg::WithdrawFromOrderbook {} => orderbook_emergency_withdraw(deps, env),
+        ExecuteMsg::UpdateMarketTicks {} => update_market_ticks(deps),
     }
 }
 
@@ -969,4 +970,18 @@ pub fn orderbook_emergency_withdraw(
         attr("action", "emergency_orderbook_withdraw"),
         attr("pair", env.contract.address),
     ]))
+}
+
+/// Permissionless endpoint to update price_tick_size and quantity_tick_size
+/// according to the current exchange module state.
+/// Besides updating with the same values is safe, in this case
+/// function explicitly returns error "Ticks are already up to date".
+fn update_market_ticks(
+    deps: DepsMut<InjectiveQueryWrapper>,
+) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
+    let mut ob_state = OrderbookState::load(deps.storage)?;
+    ob_state.set_ticks(deps.querier)?;
+    ob_state.save(deps.storage)?;
+
+    Ok(Response::new().add_attribute("action", "update_market_ticks"))
 }

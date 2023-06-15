@@ -22,12 +22,12 @@ use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, Pa
 use astroport::factory::{PairConfig, PairType};
 use astroport::native_coin_registry;
 use astroport::pair::{
-    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, PoolResponse,
-    ReverseSimulationResponse, SimulationResponse,
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, PoolResponse, ReverseSimulationResponse,
+    SimulationResponse,
 };
 use astroport::pair_concentrated::{ConcentratedPoolParams, ConcentratedPoolUpdateParams};
 use astroport::pair_concentrated_inj::{
-    ConcentratedInjObParams, OrderbookConfig, OrderbookStateResponse, QueryMsg,
+    ConcentratedInjObParams, ExecuteMsg, OrderbookConfig, OrderbookStateResponse, QueryMsg,
 };
 use astroport_pair_concentrated_injective::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated_injective::migrate::migrate;
@@ -494,6 +494,15 @@ impl Helper {
         self.app
             .wrap()
             .query_wasm_smart(&self.pair_addr, &QueryMsg::OrderbookState {})
+    }
+
+    pub fn try_update_ticks(&mut self, sender: &Addr) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.pair_addr.clone(),
+            &ExecuteMsg::UpdateMarketTicks {},
+            &[],
+        )
     }
 
     fn init_token(
