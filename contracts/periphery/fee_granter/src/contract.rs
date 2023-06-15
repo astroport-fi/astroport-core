@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin as SdkCoin;
 use cosmos_sdk_proto::cosmos::feegrant::v1beta1::{
     BasicAllowance, MsgGrantAllowance, MsgRevokeAllowance,
@@ -15,13 +13,11 @@ use cosmwasm_std::{
 };
 use cw_utils::must_pay;
 
-use astroport::common::{
-    claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
-};
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::fee_granter::{Config, ExecuteMsg, InstantiateMsg};
 
 use crate::error::ContractError;
-use crate::state::{CONFIG, GRANTS, MAX_ADMINS, OWNERSHIP_PROPOSAL};
+use crate::state::{update_admins_with_validation, CONFIG, GRANTS, OWNERSHIP_PROPOSAL};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -30,18 +26,11 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, StdError> {
-    let admins = validate_addresses(deps.api, &msg.admins)?;
-    if admins.len() > MAX_ADMINS {
-        return Err(StdError::generic_err(format!(
-            "Maximum allowed number of admins is {MAX_ADMINS}"
-        ))
-        .into());
-    }
     CONFIG.save(
         deps.storage,
         &Config {
             owner: deps.api.addr_validate(&msg.owner)?,
-            admins,
+            admins: update_admins_with_validation(deps.api, vec![], &msg.admins, &[])?,
             gas_denom: msg.gas_denom,
         },
     )?;
@@ -236,29 +225,8 @@ fn update_admins(
         return Err(ContractError::Unauthorized {});
     }
 
-    let mut admins: HashSet<_> = config.admins.into_iter().collect();
-    validate_addresses(deps.api, &add_admins)?
-        .iter()
-        .try_for_each(|admin| {
-            if !admins.insert(admin.clone()) {
-                return Err(StdError::generic_err(format!(
-                    "Admin {admin} already exists",
-                )));
-            };
-            Ok(())
-        })?;
-
-    let remove_set: HashSet<_> = validate_addresses(deps.api, &remove_admins)?
-        .into_iter()
-        .collect();
-    config.admins = admins.difference(&remove_set).cloned().collect();
-
-    if config.admins.len() > MAX_ADMINS {
-        return Err(StdError::generic_err(format!(
-            "Maximum allowed number of admins is {MAX_ADMINS}"
-        ))
-        .into());
-    }
+    config.admins =
+        update_admins_with_validation(deps.api, config.admins, &add_admins, &remove_admins)?;
     CONFIG.save(deps.storage, &config)?;
 
     let mut attributes = vec![attr("action", "update_admins")];

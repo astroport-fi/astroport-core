@@ -132,6 +132,44 @@ fn test_update_admins() {
     });
 
     let fee_granter_code_id = app.store_code(fee_granter_contract());
+    let err = app
+        .instantiate_contract(
+            fee_granter_code_id,
+            owner.clone(),
+            &InstantiateMsg {
+                owner: owner.to_string(),
+                admins: vec![admin.to_string(), "user1".to_string(), "user2".to_string()],
+                gas_denom: GAS_DENOM.to_string(),
+            },
+            &[],
+            "Test contract",
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Maximum allowed number of admins is {MAX_ADMINS}")
+    );
+
+    let err = app
+        .instantiate_contract(
+            fee_granter_code_id,
+            owner.clone(),
+            &InstantiateMsg {
+                owner: owner.to_string(),
+                admins: vec![admin.to_string(), admin.to_string()],
+                gas_denom: GAS_DENOM.to_string(),
+            },
+            &[],
+            "Test contract",
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Admin {admin} already exists")
+    );
+
     let fee_granter = app
         .instantiate_contract(
             fee_granter_code_id,
