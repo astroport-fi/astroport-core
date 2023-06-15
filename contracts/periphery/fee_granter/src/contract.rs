@@ -1,4 +1,3 @@
-use astroport::asset::validate_native_denom;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin as SdkCoin;
 use cosmos_sdk_proto::cosmos::feegrant::v1beta1::{
     BasicAllowance, MsgGrantAllowance, MsgRevokeAllowance,
@@ -15,6 +14,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw_utils::must_pay;
 
+use astroport::asset::validate_native_denom;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::fee_granter::{Config, ExecuteMsg, InstantiateMsg};
 
@@ -214,6 +214,9 @@ fn transfer_coins(
     amount: Uint128,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
+    if amount.is_zero() {
+        return Err(StdError::generic_err("Can't send 0 amount").into());
+    }
     let config = CONFIG.load(deps.storage)?;
     if config.owner != info.sender && !config.admins.contains(&info.sender) {
         return Err(ContractError::Unauthorized {});

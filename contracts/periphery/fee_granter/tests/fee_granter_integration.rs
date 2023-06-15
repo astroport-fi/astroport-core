@@ -100,8 +100,8 @@ fn test_init() {
 
     let receiver_addr = "receiver".to_string();
     app.execute_contract(
-        owner,
-        fee_granter,
+        owner.clone(),
+        fee_granter.clone(),
         &ExecuteMsg::TransferCoins {
             amount: 5u128.into(),
             receiver: Some(receiver_addr.clone()),
@@ -118,6 +118,22 @@ fn test_init() {
         .u128();
 
     assert_eq!(inj_bal_receiver, 5);
+
+    let err = app
+        .execute_contract(
+            owner,
+            fee_granter,
+            &ExecuteMsg::TransferCoins {
+                amount: 0u8.into(),
+                receiver: Some(receiver_addr.clone()),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Can't send 0 amount")
+    );
 }
 
 #[test]
