@@ -21,7 +21,7 @@ pub fn update_admins_with_validation(
     remove_admins: &[String],
 ) -> StdResult<Vec<Addr>> {
     let mut admins: HashSet<_> = cur_admins.into_iter().collect();
-    validate_addresses(api, &add_admins)?
+    validate_addresses(api, add_admins)?
         .iter()
         .try_for_each(|admin| {
             if !admins.insert(admin.clone()) {
@@ -32,15 +32,15 @@ pub fn update_admins_with_validation(
             Ok(())
         })?;
 
-    let remove_set: HashSet<_> = validate_addresses(api, &remove_admins)?
+    let remove_set: HashSet<_> = validate_addresses(api, remove_admins)?
         .into_iter()
         .collect();
     let new_admins: Vec<_> = admins.difference(&remove_set).cloned().collect();
 
     if new_admins.len() > MAX_ADMINS {
-        return Err(StdError::generic_err(format!(
+        Err(StdError::generic_err(format!(
             "Maximum allowed number of admins is {MAX_ADMINS}"
-        )));
+        )))
     } else {
         Ok(new_admins)
     }
