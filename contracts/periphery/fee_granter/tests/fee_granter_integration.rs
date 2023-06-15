@@ -164,6 +164,22 @@ fn test_update_admins() {
     )
     .unwrap();
 
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            fee_granter.clone(),
+            &ExecuteMsg::UpdateAdmins {
+                add: vec!["admin2".to_string(), "admin3".to_string()],
+                remove: vec![],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Maximum allowed number of admins is {MAX_ADMINS}")
+    );
+
     // Stargate messages are not implemented in cw-multitest thus we assert that we receive exact cw-multitest error
     let err = app
         .execute_contract(
