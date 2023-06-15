@@ -91,7 +91,7 @@ impl PoolParams {
             validate_param("out_fee", out_fee, MIN_FEE, MAX_FEE)?;
             if out_fee <= self.mid_fee {
                 return Err(StdError::generic_err(format!(
-                    "out_fee {out_fee} must be more {}",
+                    "out_fee {out_fee} must be more than mid_fee {}",
                     self.mid_fee
                 ))
                 .into());
