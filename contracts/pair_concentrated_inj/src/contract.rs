@@ -892,9 +892,7 @@ fn update_config<T>(
             "stop_changing_amp_gamma"
         }
         ConcentratedObPoolUpdateParams::UpdateOrderbookParams { orders_number } => {
-            let mut ob_config = OrderbookState::load(deps.storage)?;
-            ob_config.orders_number = orders_number;
-            ob_config.save(deps.storage)?;
+            OrderbookState::update_orders_number(deps.storage, orders_number)?;
             "update_orderbook_params"
         }
     };

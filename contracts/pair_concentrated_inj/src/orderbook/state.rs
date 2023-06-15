@@ -199,6 +199,23 @@ impl OrderbookState {
     pub fn ready(&mut self, ready: bool) {
         self.ready = ready;
     }
+
+    /// Validates new orders number parameter and saves it in storage.
+    pub fn update_orders_number(storage: &mut dyn Storage, orders_number: u8) -> StdResult<()> {
+        validate_param!(
+            orders_number,
+            orders_number,
+            *ORDER_SIZE_LIMITS.start(),
+            *ORDER_SIZE_LIMITS.end()
+        );
+
+        OB_CONFIG
+            .update(storage, |mut ob_state| {
+                ob_state.orders_number = orders_number;
+                Ok(ob_state)
+            })
+            .map(|_| ())
+    }
 }
 
 impl From<OrderbookState> for OrderbookStateResponse {
