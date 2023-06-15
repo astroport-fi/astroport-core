@@ -1,3 +1,4 @@
+use astroport::asset::validate_native_denom;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin as SdkCoin;
 use cosmos_sdk_proto::cosmos::feegrant::v1beta1::{
     BasicAllowance, MsgGrantAllowance, MsgRevokeAllowance,
@@ -26,6 +27,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, StdError> {
+    validate_native_denom(&msg.gas_denom)?;
     CONFIG.save(
         deps.storage,
         &Config {
