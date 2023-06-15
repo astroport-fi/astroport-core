@@ -440,7 +440,7 @@ pub fn accumulate_swap_sizes(
         }
 
         // Enable orderbook if we have enough observations
-        if !ob_state.ready && buffer.head() > ob_state.min_trades_to_avg {
+        if !ob_state.ready && (buffer.head() + 1) >= ob_state.min_trades_to_avg {
             ob_state.ready(true)
         }
     } else {
@@ -603,5 +603,50 @@ mod tests {
             buffer.read_last(&store).unwrap().unwrap().quote_sma.u128(),
             500u128
         );
+    }
+
+    #[test]
+    fn test_contract_ready() {
+        let mut store = MockStorage::new();
+        let env = mock_env();
+        let min_trades_to_avg = 10;
+        let mut ob_state = OrderbookState {
+            market_id: MarketId::unchecked("test"),
+            subaccount: SubaccountId::unchecked("test"),
+            asset_infos: vec![],
+            min_price_tick_size: Default::default(),
+            min_quantity_tick_size: Default::default(),
+            need_reconcile: false,
+            last_balances: vec![],
+            orders_number: 0,
+            min_trades_to_avg,
+            ready: false,
+            enabled: true,
+        };
+        BufferManager::init(&mut store, OBSERVATIONS, min_trades_to_avg).unwrap();
+
+        for _ in 0..min_trades_to_avg - 1 {
+            accumulate_swap_sizes(
+                &mut store,
+                &env,
+                &mut ob_state,
+                Uint128::from(1000u128),
+                Uint128::from(500u128),
+            )
+            .unwrap();
+        }
+        assert!(!ob_state.ready, "Contract should not be ready yet");
+
+        // last observation to make contract ready
+        accumulate_swap_sizes(
+            &mut store,
+            &env,
+            &mut ob_state,
+            Uint128::from(1000u128),
+            Uint128::from(500u128),
+        )
+        .unwrap();
+
+        assert!(ob_state.ready, "Contract should be ready");
     }
 }

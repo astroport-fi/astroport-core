@@ -119,7 +119,7 @@ where
         self.state.head
     }
 
-    /// Updates buffer capacity. In case precommit buffer contains keys greater than new capacity
+    /// Updates buffer capacity. In case precommit buffer contains keys greater or equal than new capacity
     /// it throws [`BufferError::ReduceCapacityError`] error.
     /// If head is ahead of new capacity it will be set to new capacity - 1.
     pub fn update_capacity(&mut self, capacity: u32) -> BufferResult<()> {
