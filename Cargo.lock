@@ -157,6 +157,7 @@ dependencies = [
  "cw-multi-test 0.16.4",
  "cw-storage-plus 0.15.1",
  "cw-utils 1.0.1",
+ "cw2 1.0.1",
  "thiserror",
 ]
 

@@ -12,6 +12,7 @@ use cosmwasm_std::{
     attr, coins, Addr, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError,
     StdResult, Uint128,
 };
+use cw2::set_contract_version;
 use cw_utils::must_pay;
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
@@ -20,6 +21,9 @@ use astroport::fee_granter::{Config, ExecuteMsg, InstantiateMsg};
 use crate::error::ContractError;
 use crate::state::{update_admins_with_validation, CONFIG, GRANTS, OWNERSHIP_PROPOSAL};
 
+pub(crate) const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+pub(crate) const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -27,6 +31,12 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, StdError> {
+    let attrs = vec![
+        attr("action", "instantiate"),
+        attr("contract", CONTRACT_NAME),
+        attr("gas_denom", &msg.gas_denom),
+    ];
+
     validate_native_denom(&msg.gas_denom)?;
     CONFIG.save(
         deps.storage,
@@ -37,7 +47,9 @@ pub fn instantiate(
         },
     )?;
 
-    Ok(Response::default())
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default().add_attributes(attrs))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

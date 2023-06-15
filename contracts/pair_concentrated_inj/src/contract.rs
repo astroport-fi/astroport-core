@@ -879,27 +879,37 @@ fn update_config<T>(
         return Err(ContractError::Unauthorized {});
     }
 
-    let action = match from_binary::<ConcentratedObPoolUpdateParams>(&params)? {
+    let attributes = match from_binary::<ConcentratedObPoolUpdateParams>(&params)? {
         ConcentratedObPoolUpdateParams::Update(update_params) => {
-            config.pool_params.update_params(update_params)?;
-            "update_params"
+            let mut attrs = config.pool_params.update_params(update_params)?;
+            attrs.push(attr("action", "update_params"));
+            attrs
         }
         ConcentratedObPoolUpdateParams::Promote(promote_params) => {
+            let attrs = vec![
+                attr("action", "promote_params"),
+                attr("next_amp", promote_params.next_amp.to_string()),
+                attr("next_gamma", promote_params.next_gamma.to_string()),
+                attr("future_time", promote_params.future_time.to_string()),
+            ];
             config.pool_state.promote_params(&env, promote_params)?;
-            "promote_params"
+            attrs
         }
         ConcentratedObPoolUpdateParams::StopChangingAmpGamma {} => {
             config.pool_state.stop_promotion(&env);
-            "stop_changing_amp_gamma"
+            vec![attr("action", "stop_changing_amp_gamma")]
         }
         ConcentratedObPoolUpdateParams::UpdateOrderbookParams { orders_number } => {
             OrderbookState::update_orders_number(deps.storage, orders_number)?;
-            "update_orderbook_params"
+            vec![
+                attr("action", "update_orderbook_params"),
+                attr("orders_number", orders_number.to_string()),
+            ]
         }
     };
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::default().add_attribute("action", action))
+    Ok(Response::default().add_attributes(attributes))
 }
 
 /// In case for some reason orderbook was disabled and liquidity left in the subaccount
