@@ -24,7 +24,7 @@ pub trait ResizableCircularBuffer {
 impl<'a> ResizableCircularBuffer for crate::BufferManager<'a, Uint128> {
     type Error = BufferError;
 
-    /// Invalidate all keys which are greater than new capacity.  
+    /// Invalidate all keys which are greater or equal than new capacity.  
     /// Warning: this function may be gas intensive and fail due to gas limit if new capacity is
     /// way lower than old one.
     fn pre_resize_hook(
