@@ -32,8 +32,10 @@ use cosmwasm_std::{StdError, Storage};
 use cw_storage_plus::{Item, Map};
 
 use crate::error::{BufferError, BufferResult};
+use crate::traits::ResizableCircularBuffer;
 
 pub mod error;
+pub mod traits;
 
 #[cw_serde]
 pub struct BufferState {
@@ -117,35 +119,6 @@ where
     /// Returns current buffer head.
     pub fn head(&self) -> u32 {
         self.state.head
-    }
-
-    /// Updates buffer capacity. In case precommit buffer contains keys greater or equal than new capacity
-    /// it throws [`BufferError::ReduceCapacityError`] error.
-    /// If head is ahead of new capacity it will be set to new capacity - 1.  
-    /// Warning: this function may be gas intensive and fail due to gas limit if new capacity is
-    /// way lower than old one.
-    pub fn update_capacity(&mut self, store: &mut dyn Storage, capacity: u32) -> BufferResult<()> {
-        match capacity.cmp(&self.state.capacity) {
-            Ordering::Greater => self.state.capacity = capacity,
-            Ordering::Less => {
-                let can_reduce = self.precommit_buffer.iter().all(|(&key, _)| key < capacity);
-                if !can_reduce {
-                    return Err(BufferError::ReduceCapacityError {});
-                }
-
-                if self.state.head >= capacity {
-                    self.state.head = capacity - 1
-                }
-
-                let array_key = self.store_iface.array();
-                (capacity..self.state.capacity - 1).for_each(|i| array_key.remove(store, i));
-
-                self.state.capacity = capacity;
-            }
-            Ordering::Equal => {}
-        }
-
-        Ok(())
     }
 
     /// Push value to precommit buffer.
@@ -272,6 +245,38 @@ where
         self.store_iface
             .array()
             .has(store, index % self.state.capacity)
+    }
+}
+
+impl<'a, V> BufferManager<'a, V>
+where
+    BufferManager<'a, V>: ResizableCircularBuffer,
+{
+    /// Updates buffer capacity. In case precommit buffer contains keys greater or equal than new capacity
+    /// it throws [`BufferError::ReduceCapacityError`] error.
+    /// If head is ahead of new capacity it will be set to new capacity - 1.
+    /// Custom pre- and post-resize logic is called to give a more fine-grained control over buffer state.
+    pub fn update_capacity(&mut self, store: &mut dyn Storage, capacity: u32) -> BufferResult<()> {
+        self.pre_resize_hook(store, capacity).map_err(Into::into)?;
+
+        match capacity.cmp(&self.state.capacity) {
+            Ordering::Greater => self.state.capacity = capacity,
+            Ordering::Less => {
+                let can_reduce = self.precommit_buffer.iter().all(|(&key, _)| key < capacity);
+                if !can_reduce {
+                    return Err(BufferError::ReduceCapacityError {});
+                }
+
+                if self.state.head >= capacity {
+                    self.state.head = capacity - 1
+                }
+
+                self.state.capacity = capacity;
+            }
+            Ordering::Equal => {}
+        }
+
+        self.post_resize_hook(store, capacity).map_err(Into::into)
     }
 }
 
