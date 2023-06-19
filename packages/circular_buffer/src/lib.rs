@@ -20,7 +20,6 @@
 //! let all_values = buffer.read_all(&store).unwrap();
 //! ```
 
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
@@ -32,10 +31,8 @@ use cosmwasm_std::{StdError, Storage};
 use cw_storage_plus::{Item, Map};
 
 use crate::error::{BufferError, BufferResult};
-use crate::traits::ResizableCircularBuffer;
 
 pub mod error;
-pub mod traits;
 
 #[cw_serde]
 pub struct BufferState {
@@ -248,38 +245,6 @@ where
     }
 }
 
-impl<'a, V> BufferManager<'a, V>
-where
-    BufferManager<'a, V>: ResizableCircularBuffer,
-{
-    /// Updates buffer capacity. In case precommit buffer contains keys greater or equal than new capacity
-    /// it throws [`BufferError::ReduceCapacityError`] error.
-    /// If head is ahead of new capacity it will be set to new capacity - 1.
-    /// Custom pre- and post-resize logic is called to give a more fine-grained control over buffer state.
-    pub fn update_capacity(&mut self, store: &mut dyn Storage, capacity: u32) -> BufferResult<()> {
-        self.pre_resize_hook(store, capacity).map_err(Into::into)?;
-
-        match capacity.cmp(&self.state.capacity) {
-            Ordering::Greater => self.state.capacity = capacity,
-            Ordering::Less => {
-                let can_reduce = self.precommit_buffer.iter().all(|(&key, _)| key < capacity);
-                if !can_reduce {
-                    return Err(BufferError::ReduceCapacityError {});
-                }
-
-                if self.state.head >= capacity {
-                    self.state.head = capacity - 1
-                }
-
-                self.state.capacity = capacity;
-            }
-            Ordering::Equal => {}
-        }
-
-        self.post_resize_hook(store, capacity).map_err(Into::into)
-    }
-}
-
 impl<V: Debug> Debug for BufferManager<'_, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BufferManager")
@@ -384,65 +349,5 @@ mod tests {
             .map(|i| i.u128())
             .collect::<Vec<_>>();
         assert_eq!(partial_read, vec![11, 13, 15, 7, 9]);
-    }
-
-    #[test]
-    fn test_update_capacity() {
-        let mut store = MockStorage::new();
-
-        BufferManager::init(&mut store, CIRCULAR_BUFFER, 10).unwrap();
-
-        let mut buffer = BufferManager::new(&store, CIRCULAR_BUFFER).unwrap();
-
-        let data = (1u8..=15).map(DataType::from).collect::<Vec<_>>();
-        buffer.push_many(&data);
-        buffer.commit(&mut store).unwrap();
-
-        let saved = buffer
-            .read_all(&store)
-            .unwrap()
-            .into_iter()
-            .map(|i| i.u128())
-            .collect::<Vec<_>>();
-        assert_eq!(saved, vec![11, 12, 13, 14, 15, 6, 7, 8, 9, 10]);
-
-        buffer.update_capacity(&mut store, 5).unwrap();
-        buffer.commit(&mut store).unwrap();
-
-        let saved = buffer
-            .read_all(&store)
-            .unwrap()
-            .into_iter()
-            .map(|i| i.u128())
-            .collect::<Vec<_>>();
-        assert_eq!(saved, vec![11, 12, 13, 14, 15]);
-
-        buffer.update_capacity(&mut store, 10).unwrap();
-        buffer.commit(&mut store).unwrap();
-
-        let saved = buffer
-            .read_all(&store)
-            .unwrap()
-            .into_iter()
-            .map(|i| i.u128())
-            .collect::<Vec<_>>();
-        assert_eq!(saved, vec![11, 12, 13, 14, 15]);
-
-        let data = (16u8..=20).map(DataType::from).collect::<Vec<_>>();
-        buffer.push_many(&data);
-        let err = buffer.update_capacity(&mut store, 8).unwrap_err();
-        assert_eq!(err, BufferError::ReduceCapacityError {});
-
-        let mut buffer: BufferManager<DataType> =
-            BufferManager::new(&store, CIRCULAR_BUFFER).unwrap();
-        buffer.update_capacity(&mut store, 3).unwrap();
-        buffer.commit(&mut store).unwrap();
-        let saved = buffer
-            .read_all(&store)
-            .unwrap()
-            .into_iter()
-            .map(|i| i.u128())
-            .collect::<Vec<_>>();
-        assert_eq!(saved, vec![11, 12, 13]);
     }
 }
