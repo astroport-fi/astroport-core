@@ -38,12 +38,6 @@ pub fn calc_hash(a1: &[u8], a2: &[u8]) -> String {
 /// Calculate available market ids for specified asset infos.
 /// We support only pairs thus only 2 market ids are possible.
 pub fn calc_market_ids(asset_infos: &[AssetInfo]) -> StdResult<[String; 2]> {
-    if asset_infos.len() != 2 {
-        return Err(StdError::generic_err(
-            "Orderbook integration supports only pools with 2 assets",
-        ));
-    }
-
     let assets = asset_infos
         .iter()
         .map(|asset_info| match asset_info {
@@ -467,9 +461,12 @@ where
                 );
             }
             Ordering::Equal => {
-                // this should never happen as we supposed to call this function only
+                // This should never happen as we supposed to call this function only
                 // if there was at least one trade
-                return Ok(messages);
+                return Err(StdError::generic_err(
+                    "Maker fee cannot be calculated because orderbook balance hasn't changed",
+                )
+                .into());
             }
         }
     }
@@ -521,21 +518,5 @@ mod tests {
         let err = calc_market_ids(&asset_infos).unwrap_err();
 
         assert_eq!(err.to_string(), "Generic error: CW20 tokens not supported");
-    }
-
-    #[test]
-    fn test_calc_market_ids_with_more_than_2_assets() {
-        let asset_infos = vec![
-            native_asset_info("uusd".to_string()),
-            token_asset_info(Addr::unchecked("astro".to_string())),
-            native_asset_info("uatom".to_string()),
-        ];
-
-        let err = calc_market_ids(&asset_infos).unwrap_err();
-
-        assert_eq!(
-            err.to_string(),
-            "Generic error: Orderbook integration supports only pools with 2 assets"
-        );
     }
 }

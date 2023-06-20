@@ -100,8 +100,8 @@ fn test_init() {
 
     let receiver_addr = "receiver".to_string();
     app.execute_contract(
-        owner,
-        fee_granter,
+        owner.clone(),
+        fee_granter.clone(),
         &ExecuteMsg::TransferCoins {
             amount: 5u128.into(),
             receiver: Some(receiver_addr.clone()),
@@ -118,6 +118,22 @@ fn test_init() {
         .u128();
 
     assert_eq!(inj_bal_receiver, 5);
+
+    let err = app
+        .execute_contract(
+            owner,
+            fee_granter,
+            &ExecuteMsg::TransferCoins {
+                amount: 0u8.into(),
+                receiver: Some(receiver_addr.clone()),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Can't send 0 amount")
+    );
 }
 
 #[test]
@@ -132,6 +148,44 @@ fn test_update_admins() {
     });
 
     let fee_granter_code_id = app.store_code(fee_granter_contract());
+    let err = app
+        .instantiate_contract(
+            fee_granter_code_id,
+            owner.clone(),
+            &InstantiateMsg {
+                owner: owner.to_string(),
+                admins: vec![admin.to_string(), "user1".to_string(), "user2".to_string()],
+                gas_denom: GAS_DENOM.to_string(),
+            },
+            &[],
+            "Test contract",
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Maximum allowed number of admins is {MAX_ADMINS}")
+    );
+
+    let err = app
+        .instantiate_contract(
+            fee_granter_code_id,
+            owner.clone(),
+            &InstantiateMsg {
+                owner: owner.to_string(),
+                admins: vec![admin.to_string(), admin.to_string()],
+                gas_denom: GAS_DENOM.to_string(),
+            },
+            &[],
+            "Test contract",
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Admin {admin} already exists")
+    );
+
     let fee_granter = app
         .instantiate_contract(
             fee_granter_code_id,
@@ -163,6 +217,22 @@ fn test_update_admins() {
         &[],
     )
     .unwrap();
+
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            fee_granter.clone(),
+            &ExecuteMsg::UpdateAdmins {
+                add: vec!["admin2".to_string(), "admin3".to_string()],
+                remove: vec![],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Maximum allowed number of admins is {MAX_ADMINS}")
+    );
 
     // Stargate messages are not implemented in cw-multitest thus we assert that we receive exact cw-multitest error
     let err = app

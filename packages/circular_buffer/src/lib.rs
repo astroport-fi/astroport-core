@@ -20,7 +20,6 @@
 //! let all_values = buffer.read_all(&store).unwrap();
 //! ```
 
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
@@ -119,30 +118,6 @@ where
         self.state.head
     }
 
-    /// Updates buffer capacity. In case precommit buffer contains keys greater than new capacity
-    /// it throws [`BufferError::ReduceCapacityError`] error.
-    /// If head is ahead of new capacity it will be set to new capacity - 1.
-    pub fn update_capacity(&mut self, capacity: u32) -> BufferResult<()> {
-        match capacity.cmp(&self.state.capacity) {
-            Ordering::Greater => self.state.capacity = capacity,
-            Ordering::Less => {
-                let can_reduce = self.precommit_buffer.iter().all(|(&key, _)| key < capacity);
-                if !can_reduce {
-                    return Err(BufferError::ReduceCapacityError {});
-                }
-
-                if self.state.head >= capacity {
-                    self.state.head = capacity - 1
-                }
-                // TODO: remove all indexes that are out of range?
-                self.state.capacity = capacity;
-            }
-            Ordering::Equal => {}
-        }
-
-        Ok(())
-    }
-
     /// Push value to precommit buffer.
     pub fn push(&mut self, value: &'a V) {
         self.precommit_buffer.insert(self.state.head, value);
@@ -152,8 +127,7 @@ where
     /// Push multiple values to precommit buffer.
     pub fn push_many(&mut self, values: &'a [V]) {
         for value in values {
-            self.precommit_buffer.insert(self.state.head, value);
-            self.state.head = (self.state.head + 1) % self.state.capacity;
+            self.push(value);
         }
     }
 
@@ -375,65 +349,5 @@ mod tests {
             .map(|i| i.u128())
             .collect::<Vec<_>>();
         assert_eq!(partial_read, vec![11, 13, 15, 7, 9]);
-    }
-
-    #[test]
-    fn test_update_capacity() {
-        let mut store = MockStorage::new();
-
-        BufferManager::init(&mut store, CIRCULAR_BUFFER, 10).unwrap();
-
-        let mut buffer = BufferManager::new(&store, CIRCULAR_BUFFER).unwrap();
-
-        let data = (1u8..=15).map(DataType::from).collect::<Vec<_>>();
-        buffer.push_many(&data);
-        buffer.commit(&mut store).unwrap();
-
-        let saved = buffer
-            .read_all(&store)
-            .unwrap()
-            .into_iter()
-            .map(|i| i.u128())
-            .collect::<Vec<_>>();
-        assert_eq!(saved, vec![11, 12, 13, 14, 15, 6, 7, 8, 9, 10]);
-
-        buffer.update_capacity(5).unwrap();
-        buffer.commit(&mut store).unwrap();
-
-        let saved = buffer
-            .read_all(&store)
-            .unwrap()
-            .into_iter()
-            .map(|i| i.u128())
-            .collect::<Vec<_>>();
-        assert_eq!(saved, vec![11, 12, 13, 14, 15]);
-
-        buffer.update_capacity(10).unwrap();
-        buffer.commit(&mut store).unwrap();
-
-        let saved = buffer
-            .read_all(&store)
-            .unwrap()
-            .into_iter()
-            .map(|i| i.u128())
-            .collect::<Vec<_>>();
-        assert_eq!(saved, vec![11, 12, 13, 14, 15, 6, 7, 8, 9, 10]);
-
-        let data = (16u8..=20).map(DataType::from).collect::<Vec<_>>();
-        buffer.push_many(&data);
-        let err = buffer.update_capacity(8).unwrap_err();
-        assert_eq!(err, BufferError::ReduceCapacityError {});
-
-        let mut buffer: BufferManager<DataType> =
-            BufferManager::new(&store, CIRCULAR_BUFFER).unwrap();
-        buffer.update_capacity(3).unwrap();
-        buffer.commit(&mut store).unwrap();
-        let saved = buffer
-            .read_all(&store)
-            .unwrap()
-            .into_iter()
-            .map(|i| i.u128())
-            .collect::<Vec<_>>();
-        assert_eq!(saved, vec![11, 12, 13]);
     }
 }

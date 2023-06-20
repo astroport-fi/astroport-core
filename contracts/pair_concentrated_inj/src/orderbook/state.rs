@@ -155,15 +155,23 @@ impl OrderbookState {
 
     /// Querying exchange module, converting into [`Decimal256`] and caching tick sizes.
     /// Cashed values help to save gas on begin blocker iterations.
-    fn set_ticks(&mut self, querier: QuerierWrapper<InjectiveQueryWrapper>) -> StdResult<()> {
+    pub fn set_ticks(&mut self, querier: QuerierWrapper<InjectiveQueryWrapper>) -> StdResult<()> {
         let querier = InjectiveQuerier::new(&querier);
         let market_info = querier
             .query_spot_market(&self.market_id)?
             .market
-            .ok_or_else(|| OrderbookError::MarketNotFound(self.market_id.clone().into()))?;
+            .ok_or_else(|| OrderbookError::MarketNotFound(self.market_id.as_str().to_string()))?;
 
-        self.min_price_tick_size = market_info.min_price_tick_size.conv()?;
-        self.min_quantity_tick_size = market_info.min_quantity_tick_size.conv()?;
+        let new_min_price_tick_size: Decimal256 = market_info.min_price_tick_size.conv()?;
+        let new_min_quantity_tick_size: Decimal256 = market_info.min_quantity_tick_size.conv()?;
+        if new_min_price_tick_size == self.min_price_tick_size
+            && new_min_quantity_tick_size == self.min_quantity_tick_size
+        {
+            return Err(StdError::generic_err("Ticks are already up to date"));
+        }
+
+        self.min_price_tick_size = new_min_price_tick_size;
+        self.min_quantity_tick_size = new_min_quantity_tick_size;
 
         Ok(())
     }
@@ -198,6 +206,23 @@ impl OrderbookState {
     /// If min_trades_to_avg has been reached, set ready flag to true.
     pub fn ready(&mut self, ready: bool) {
         self.ready = ready;
+    }
+
+    /// Validates new orders number parameter and saves it in storage.
+    pub fn update_orders_number(storage: &mut dyn Storage, orders_number: u8) -> StdResult<()> {
+        validate_param!(
+            orders_number,
+            orders_number,
+            *ORDER_SIZE_LIMITS.start(),
+            *ORDER_SIZE_LIMITS.end()
+        );
+
+        OB_CONFIG
+            .update(storage, |mut ob_state| {
+                ob_state.orders_number = orders_number;
+                Ok(ob_state)
+            })
+            .map(|_| ())
     }
 }
 

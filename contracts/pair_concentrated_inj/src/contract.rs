@@ -306,6 +306,7 @@ pub fn execute(
             .map_err(Into::into)
         }
         ExecuteMsg::WithdrawFromOrderbook {} => orderbook_emergency_withdraw(deps, env),
+        ExecuteMsg::UpdateMarketTicks {} => update_market_ticks(deps),
     }
 }
 
@@ -878,29 +879,37 @@ fn update_config<T>(
         return Err(ContractError::Unauthorized {});
     }
 
-    let action = match from_binary::<ConcentratedObPoolUpdateParams>(&params)? {
+    let attributes = match from_binary::<ConcentratedObPoolUpdateParams>(&params)? {
         ConcentratedObPoolUpdateParams::Update(update_params) => {
-            config.pool_params.update_params(update_params)?;
-            "update_params"
+            let mut attrs = config.pool_params.update_params(update_params)?;
+            attrs.push(attr("action", "update_params"));
+            attrs
         }
         ConcentratedObPoolUpdateParams::Promote(promote_params) => {
+            let attrs = vec![
+                attr("action", "promote_params"),
+                attr("next_amp", promote_params.next_amp.to_string()),
+                attr("next_gamma", promote_params.next_gamma.to_string()),
+                attr("future_time", promote_params.future_time.to_string()),
+            ];
             config.pool_state.promote_params(&env, promote_params)?;
-            "promote_params"
+            attrs
         }
         ConcentratedObPoolUpdateParams::StopChangingAmpGamma {} => {
             config.pool_state.stop_promotion(&env);
-            "stop_changing_amp_gamma"
+            vec![attr("action", "stop_changing_amp_gamma")]
         }
         ConcentratedObPoolUpdateParams::UpdateOrderbookParams { orders_number } => {
-            let mut ob_config = OrderbookState::load(deps.storage)?;
-            ob_config.orders_number = orders_number;
-            ob_config.save(deps.storage)?;
-            "update_orderbook_params"
+            OrderbookState::update_orders_number(deps.storage, orders_number)?;
+            vec![
+                attr("action", "update_orderbook_params"),
+                attr("orders_number", orders_number.to_string()),
+            ]
         }
     };
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::default().add_attribute("action", action))
+    Ok(Response::default().add_attributes(attributes))
 }
 
 /// In case for some reason orderbook was disabled and liquidity left in the subaccount
@@ -971,4 +980,18 @@ pub fn orderbook_emergency_withdraw(
         attr("action", "emergency_orderbook_withdraw"),
         attr("pair", env.contract.address),
     ]))
+}
+
+/// Permissionless endpoint to update price_tick_size and quantity_tick_size
+/// according to the current exchange module state.
+/// Besides updating with the same values is safe, in this case
+/// function explicitly returns error "Ticks are already up to date".
+fn update_market_ticks(
+    deps: DepsMut<InjectiveQueryWrapper>,
+) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
+    let mut ob_state = OrderbookState::load(deps.storage)?;
+    ob_state.set_ticks(deps.querier)?;
+    ob_state.save(deps.storage)?;
+
+    Ok(Response::new().add_attribute("action", "update_market_ticks"))
 }
