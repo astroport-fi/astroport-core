@@ -15,7 +15,7 @@ use astroport_pair_concentrated::state::Config as CLConfig;
 use crate::state::{AmpGamma, Config, PoolParams, PoolState, PriceState, CONFIG, OBSERVATIONS};
 
 const MIGRATE_FROM: &str = "astroport-pair-concentrated";
-const MIGRATION_VERSION: &str = "1.2.0";
+const MIGRATION_VERSION: &str = "1.2.2";
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
