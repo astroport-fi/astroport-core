@@ -631,15 +631,13 @@ fn withdraw_liquidity(
     if assets.is_empty() {
         // Usual withdraw (balanced)
         burn_amount = amount;
-        refund_assets = get_share_in_assets(&pools, amount, total_share)?;
+        refund_assets = get_share_in_assets(&pools, amount, total_share);
     } else {
         return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
     }
 
     // decrease XCP
     let mut xs = pools.iter().map(|a| a.amount).collect_vec();
-
-    let (_, old_real_price) = calc_last_prices(&xs, &config, &env)?;
 
     xs[0] -= refund_assets[0].amount;
     xs[1] -= refund_assets[1].amount;
@@ -677,8 +675,6 @@ fn withdraw_liquidity(
         )?
         .into(),
     );
-
-    accumulate_prices(&env, &mut config, old_real_price);
 
     if config.track_asset_balances {
         for (i, pool) in pools.iter().enumerate() {
