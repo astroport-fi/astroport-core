@@ -50,4 +50,3 @@ derivative = "2.2"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
 injective-math = "0.1"
 injective-testing = "0.1.1"
-rand = "0.8"

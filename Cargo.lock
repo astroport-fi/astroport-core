@@ -422,7 +422,6 @@ dependencies = [
  "injective-testing",
  "itertools",
  "proptest",
- "rand 0.8.5",
  "thiserror",
  "tiny-keccak 2.0.2",
 ]

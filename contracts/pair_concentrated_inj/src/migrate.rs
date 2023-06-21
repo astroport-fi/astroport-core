@@ -1,6 +1,6 @@
 use astroport::asset::PairInfo;
 use astroport::factory::PairType;
-use cosmwasm_std::{entry_point, DepsMut, Env, Response, StdError, StdResult};
+use cosmwasm_std::{attr, entry_point, DepsMut, Env, Response, StdError, StdResult};
 use cw2::{set_contract_version, CONTRACT};
 use cw_storage_plus::Item;
 use injective_cosmwasm::{InjectiveMsgWrapper, InjectiveQueryWrapper};
@@ -47,17 +47,18 @@ pub fn migrate(
             CONFIG.save(deps.storage, &config.into())?;
             ob_state.save(deps.storage)?;
 
-            attrs.push(("action", "migrate_to_orderbook"));
+            attrs.push(attr("action", "migrate_to_orderbook"));
+            attrs.push(attr("subaccount_id", ob_state.subaccount.to_string()))
         }
     }
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     attrs.extend([
-        ("previous_contract_name", contract_info.contract.as_str()),
-        ("previous_contract_version", contract_info.version.as_str()),
-        ("new_contract_name", CONTRACT_NAME),
-        ("new_contract_version", CONTRACT_VERSION),
+        attr("previous_contract_name", contract_info.contract),
+        attr("previous_contract_version", contract_info.version),
+        attr("new_contract_name", CONTRACT_NAME),
+        attr("new_contract_version", CONTRACT_VERSION),
     ]);
     Ok(Response::default().add_attributes(attrs))
 }

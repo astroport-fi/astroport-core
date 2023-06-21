@@ -161,7 +161,9 @@ pub fn instantiate(
         INSTANTIATE_TOKEN_REPLY_ID,
     );
 
-    Ok(Response::new().add_submessage(sub_msg))
+    Ok(Response::new()
+        .add_submessage(sub_msg)
+        .add_attribute("subaccount_id", ob_state.subaccount.to_string()))
 }
 
 /// The entry point to the contract for processing replies from submessages.
