@@ -101,7 +101,7 @@ fn query_share(deps: Deps, amount: Uint128) -> Result<Vec<Asset>, ContractError>
         &precisions,
     )?;
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
-    let refund_assets = get_share_in_assets(&pools, amount, total_share)?;
+    let refund_assets = get_share_in_assets(&pools, amount, total_share);
 
     let refund_assets = refund_assets
         .into_iter()

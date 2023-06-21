@@ -20,16 +20,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7de8ce5e0f9f8d88245311066a578d72b7af3e7088f32783804676302df237e4"
 
 [[package]]
-name = "ap-native-coin-registry"
-version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=merge/release#ff923ddac6b99c10bed53c7af6c8c4a5d2f5995e"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 0.15.1",
-]
-
-[[package]]
 name = "ap-valkyrie"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts?branch=main#e573a8f8542b99015cac910f024a5f20fd793f3c"
@@ -50,36 +40,7 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "2.4.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=merge/release#ff923ddac6b99c10bed53c7af6c8c4a5d2f5995e"
-dependencies = [
- "ap-native-coin-registry",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 0.15.1",
- "cw-utils 0.15.1",
- "cw20 0.15.1",
- "itertools",
- "uint",
-]
-
-[[package]]
-name = "astroport"
-version = "2.7.1"
-source = "git+https://github.com/astroport-fi/astroport-core?branch=main#c73a2db3c0b4f069e906d90970e1b72a5cf71bbf"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 0.15.1",
- "cw-utils 0.15.1",
- "cw20 0.15.1",
- "itertools",
- "uint",
-]
-
-[[package]]
-name = "astroport"
-version = "2.8.0"
+version = "2.8.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -109,7 +70,7 @@ name = "astroport-factory"
 version = "1.5.1"
 dependencies = [
  "anyhow",
- "astroport 2.8.0",
+ "astroport",
  "astroport-pair",
  "astroport-token",
  "cosmwasm-schema",
@@ -128,7 +89,7 @@ name = "astroport-generator"
 version = "2.3.0"
 dependencies = [
  "anyhow",
- "astroport 2.8.0",
+ "astroport",
  "astroport-factory",
  "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance?branch=main)",
  "astroport-native-coin-registry",
@@ -162,7 +123,7 @@ dependencies = [
 name = "astroport-generator-proxy-template"
 version = "0.0.0"
 dependencies = [
- "astroport 2.8.0",
+ "astroport",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -176,7 +137,7 @@ name = "astroport-governance"
 version = "1.2.0"
 source = "git+https://github.com/astroport-fi/astroport-governance?branch=main#193a33d72f9ee608d7fcff6c1f0425b84e22777a"
 dependencies = [
- "astroport 2.4.0",
+ "astroport",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -188,7 +149,7 @@ name = "astroport-governance"
 version = "1.2.0"
 source = "git+https://github.com/astroport-fi/astroport-governance?branch=merge/release#f7381bb095c15a34c8cb4ba51911506f4d216462"
 dependencies = [
- "astroport 2.4.0",
+ "astroport",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -200,7 +161,7 @@ name = "astroport-maker"
 version = "1.3.1"
 dependencies = [
  "astro-satellite-package",
- "astroport 2.8.0",
+ "astroport",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
  "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance?branch=main)",
@@ -221,7 +182,7 @@ dependencies = [
 name = "astroport-native-coin-registry"
 version = "1.0.1"
 dependencies = [
- "astroport 2.8.0",
+ "astroport",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
@@ -235,7 +196,7 @@ dependencies = [
 name = "astroport-native-coin-wrapper"
 version = "0.1.0"
 dependencies = [
- "astroport 2.8.0",
+ "astroport",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -265,7 +226,7 @@ name = "astroport-oracle"
 version = "2.1.1"
 dependencies = [
  "anyhow",
- "astroport 2.8.0",
+ "astroport",
  "astroport-factory",
  "astroport-native-coin-registry",
  "astroport-pair",
@@ -285,7 +246,7 @@ dependencies = [
 name = "astroport-pair"
 version = "1.3.1"
 dependencies = [
- "astroport 2.8.0",
+ "astroport",
  "astroport-factory",
  "astroport-token",
  "cosmwasm-schema",
@@ -304,7 +265,7 @@ dependencies = [
 name = "astroport-pair-astro-xastro"
 version = "1.0.3"
 dependencies = [
- "astroport 2.8.0",
+ "astroport",
  "astroport-factory",
  "astroport-pair-bonded",
  "astroport-staking",
@@ -323,7 +284,7 @@ dependencies = [
 name = "astroport-pair-bonded"
 version = "1.0.1"
 dependencies = [
- "astroport 2.8.0",
+ "astroport",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
@@ -335,7 +296,7 @@ dependencies = [
 name = "astroport-pair-bonded-template"
 version = "1.0.0"
 dependencies = [
- "astroport 2.8.0",
+ "astroport",
  "astroport-pair-bonded",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -347,10 +308,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "anyhow",
- "astroport 2.8.0",
+ "astroport",
  "astroport-factory",
  "astroport-native-coin-registry",
  "astroport-token",
@@ -372,7 +333,7 @@ name = "astroport-pair-stable"
 version = "2.1.2"
 dependencies = [
  "anyhow",
- "astroport 2.8.0",
+ "astroport",
  "astroport-factory",
  "astroport-native-coin-registry",
  "astroport-token",
@@ -396,7 +357,7 @@ name = "astroport-router"
 version = "1.1.1"
 dependencies = [
  "anyhow",
- "astroport 2.8.0",
+ "astroport",
  "astroport-factory",
  "astroport-pair",
  "astroport-token",
@@ -414,7 +375,7 @@ dependencies = [
 name = "astroport-staking"
 version = "1.1.0"
 dependencies = [
- "astroport 2.8.0",
+ "astroport",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -430,7 +391,7 @@ dependencies = [
 name = "astroport-token"
 version = "1.1.1"
 dependencies = [
- "astroport 2.8.0",
+ "astroport",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2 0.15.1",
@@ -443,7 +404,7 @@ dependencies = [
 name = "astroport-vesting"
 version = "1.3.1"
 dependencies = [
- "astroport 2.8.0",
+ "astroport",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -459,7 +420,7 @@ dependencies = [
 name = "astroport-whitelist"
 version = "1.0.1"
 dependencies = [
- "astroport 2.8.0",
+ "astroport",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw1-whitelist",
@@ -471,7 +432,7 @@ dependencies = [
 name = "astroport-xastro-token"
 version = "1.0.2"
 dependencies = [
- "astroport 2.8.0",
+ "astroport",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -1146,7 +1107,7 @@ version = "0.0.0"
 source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts?branch=main#e573a8f8542b99015cac910f024a5f20fd793f3c"
 dependencies = [
  "ap-valkyrie",
- "astroport 2.7.1",
+ "astroport",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
