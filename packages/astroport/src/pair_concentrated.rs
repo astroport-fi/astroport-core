@@ -3,6 +3,7 @@ use cosmwasm_std::{Decimal, Decimal256, Uint128, Uint64};
 
 use crate::asset::PairInfo;
 use crate::asset::{Asset, AssetInfo};
+use crate::observation::OracleObservation;
 use crate::pair::{
     ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
     SimulationResponse,
@@ -140,6 +141,9 @@ pub enum QueryMsg {
         asset_info: AssetInfo,
         block_height: Uint64,
     },
+    /// Query price from observations
+    #[returns(OracleObservation)]
+    Observe { seconds_ago: u64 },
 }
 
 #[cw_serde]

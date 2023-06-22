@@ -1,25 +1,25 @@
 use cosmwasm_std::{
     entry_point, to_binary, Binary, CustomQuery, Decimal, Decimal256, Deps, Env, StdError,
-    StdResult, Storage, Uint128,
+    StdResult, Uint128,
 };
 use injective_cosmwasm::InjectiveQueryWrapper;
 use itertools::Itertools;
 
 use astroport::asset::Asset;
-use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
+use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
+use astroport::observation::query_observation;
 use astroport::pair::{
     ConfigResponse, PoolResponse, ReverseSimulationResponse, SimulationResponse,
 };
 use astroport::pair_concentrated::ConcentratedPoolParams;
-use astroport::pair_concentrated_inj::{OracleObservation, OrderbookStateResponse, QueryMsg};
+use astroport::pair_concentrated_inj::{OrderbookStateResponse, QueryMsg};
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
-use astroport_circular_buffer::BufferManager;
 
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
 use crate::math::calc_d;
 use crate::orderbook::state::OrderbookState;
-use crate::state::{Observation, Precisions, CONFIG, OBSERVATIONS};
+use crate::state::{Precisions, CONFIG, OBSERVATIONS};
 use crate::utils::{
     before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets, query_pools,
 };
@@ -68,7 +68,9 @@ pub fn query(deps: Deps<InjectiveQueryWrapper>, env: Env, msg: QueryMsg) -> StdR
         QueryMsg::CumulativePrices {} => Err(StdError::generic_err(
             stringify!(Not implemented. Use {"observe": {"seconds_ago": ... }} instead.),
         )),
-        QueryMsg::Observe { seconds_ago } => to_binary(&query_observation(deps, env, seconds_ago)?),
+        QueryMsg::Observe { seconds_ago } => {
+            to_binary(&query_observation(deps, env, OBSERVATIONS, seconds_ago)?)
+        }
         QueryMsg::OrderbookState {} => {
             let resp: OrderbookStateResponse = OrderbookState::load(deps.storage)?.into();
             to_binary(&resp)
@@ -322,123 +324,15 @@ pub fn query_compute_d(deps: Deps<InjectiveQueryWrapper>, env: Env) -> StdResult
     calc_d(&xs, &amp_gamma)
 }
 
-/// Performs binary search in circular buffer. Returns left and right bounds of target value.
-/// Either left or right bound may hit in target value.
-fn binary_search(
-    storage: &dyn Storage,
-    buffer: &BufferManager<Observation>,
-    target: u64,
-    mut start: u32,
-    mut end: u32,
-) -> StdResult<(Observation, Observation)> {
-    loop {
-        let mid = (start + end) / 2;
-
-        // We've checked bounds before calling this function thus these errors should be impossible.
-        let leftward_or_hit = buffer.read_single(storage, mid)?.ok_or_else(|| {
-            StdError::generic_err(format!(
-                "Unexpected error in binary_search: leftward_or_hit is None at index {mid}",
-            ))
-        })?;
-        let rightward_or_hit = buffer.read_single(storage, mid + 1)?.ok_or_else(|| {
-            StdError::generic_err(format!(
-                "Unexpected error in binary_search: rightward_or_hit is None at index {}",
-                mid + 1
-            ))
-        })?;
-
-        if leftward_or_hit.timestamp <= target && target <= rightward_or_hit.timestamp {
-            break Ok((leftward_or_hit, rightward_or_hit));
-        }
-        if leftward_or_hit.timestamp > target {
-            end = mid - 1;
-        } else {
-            start = mid + 1;
-        }
-    }
-}
-
-/// Returns price observation at point that was 'seconds_ago' seconds ago.
-pub fn query_observation<C>(
-    deps: Deps<C>,
-    env: Env,
-    seconds_ago: u64,
-) -> StdResult<OracleObservation>
-where
-    C: CustomQuery,
-{
-    let buffer = BufferManager::new(deps.storage, OBSERVATIONS)?;
-    let target = env.block.time.seconds() - seconds_ago;
-
-    let mut oldest_ind = buffer.head();
-    let mut newest_ind = buffer.head() + buffer.capacity() - 1;
-    if !buffer.exists(deps.storage, oldest_ind) {
-        if buffer.head() > 0 {
-            oldest_ind = 0;
-            newest_ind %= buffer.capacity();
-        } else {
-            return Err(StdError::generic_err("Buffer is empty"));
-        }
-    }
-
-    let newest_obs = buffer.read_single(deps.storage, newest_ind)?.unwrap();
-    if target >= newest_obs.timestamp {
-        return Ok(OracleObservation {
-            timestamp: target,
-            price: Decimal::from_ratio(newest_obs.base_amount, newest_obs.quote_amount),
-        });
-    }
-    let oldest_obs = buffer.read_single(deps.storage, oldest_ind)?.unwrap();
-    if target == oldest_obs.timestamp {
-        return Ok(OracleObservation {
-            timestamp: target,
-            price: Decimal::from_ratio(oldest_obs.base_amount, oldest_obs.quote_amount),
-        });
-    }
-    if target < oldest_obs.timestamp {
-        return Err(StdError::generic_err(format!(
-            "Requested observation is too old. Last known observation is at {}",
-            oldest_obs.timestamp
-        )));
-    }
-
-    let (left, right) = binary_search(deps.storage, &buffer, target, oldest_ind, newest_ind)?;
-
-    let price_left = Decimal::from_ratio(left.base_amount, left.quote_amount);
-    let price_right = Decimal::from_ratio(right.base_amount, right.quote_amount);
-    let price = if left.timestamp == target {
-        price_left
-    } else if right.timestamp == target {
-        price_right
-    } else if price_left == price_right {
-        price_left
-    } else {
-        // Interpolate.
-        let price_slope = price_right.diff(price_left)
-            * Decimal::from_ratio(1u8, right.timestamp - left.timestamp);
-        let time_interval = Decimal::from_ratio(target - left.timestamp, 1u8);
-        if price_left > price_right {
-            price_left - price_slope * time_interval
-        } else {
-            price_left + price_slope * time_interval
-        }
-    };
-
-    Ok(OracleObservation {
-        timestamp: target,
-        price,
-    })
-}
-
 #[cfg(test)]
 mod testing {
     use std::error::Error;
     use std::str::FromStr;
 
+    use astroport::observation::{query_observation, Observation, OracleObservation};
+    use astroport_circular_buffer::BufferManager;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::Timestamp;
-
-    use crate::state::Observation;
 
     use super::*;
 
@@ -491,7 +385,13 @@ mod testing {
                             timestamp: ts + i as u64 * 1000 + 500,
                             price: f64_to_dec(i as f64 + 0.5),
                         },
-                        query_observation(deps.as_ref(), env.clone(), shift * 1000 - 500).unwrap()
+                        query_observation(
+                            deps.as_ref(),
+                            env.clone(),
+                            OBSERVATIONS,
+                            shift * 1000 - 500
+                        )
+                        .unwrap()
                     );
                 }
                 assert_eq!(
@@ -499,7 +399,8 @@ mod testing {
                         timestamp: ts + i as u64 * 1000,
                         price: f64_to_dec(i as f64),
                     },
-                    query_observation(deps.as_ref(), env.clone(), shift * 1000).unwrap()
+                    query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, shift * 1000)
+                        .unwrap()
                 );
             }
         }
@@ -514,7 +415,7 @@ mod testing {
 
         let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
 
-        let err = query_observation(deps.as_ref(), env.clone(), 11000).unwrap_err();
+        let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
         assert_eq!(err.to_string(), "Generic error: Buffer is empty");
 
         let array = (1..=30)
@@ -537,7 +438,7 @@ mod testing {
                 timestamp: 120_000,
                 price: f64_to_dec(20.0 / 400.0),
             },
-            query_observation(deps.as_ref(), env.clone(), 10000).unwrap()
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
         );
 
         assert_eq!(
@@ -545,10 +446,10 @@ mod testing {
                 timestamp: 124_411,
                 price: f64_to_dec(0.04098166666666694),
             },
-            query_observation(deps.as_ref(), env.clone(), 5589).unwrap()
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
         );
 
-        let err = query_observation(deps.as_ref(), env, 35_000).unwrap_err();
+        let err = query_observation(deps.as_ref(), env, OBSERVATIONS, 35_000).unwrap_err();
         assert_eq!(
             err.to_string(),
             "Generic error: Requested observation is too old. Last known observation is at 111000"
@@ -564,7 +465,7 @@ mod testing {
 
         let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
 
-        let err = query_observation(deps.as_ref(), env.clone(), 11000).unwrap_err();
+        let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
         assert_eq!(err.to_string(), "Generic error: Buffer is empty");
 
         let array = (1..=30)
@@ -587,7 +488,7 @@ mod testing {
                 timestamp: 120_000,
                 price: f64_to_dec(20.0 / 400.0),
             },
-            query_observation(deps.as_ref(), env.clone(), 10000).unwrap()
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
         );
 
         assert_eq!(
@@ -595,7 +496,7 @@ mod testing {
                 timestamp: 124_411,
                 price: f64_to_dec(0.04098166666666694),
             },
-            query_observation(deps.as_ref(), env.clone(), 5589).unwrap()
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
         );
     }
 }

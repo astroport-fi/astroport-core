@@ -1,7 +1,8 @@
-use cosmwasm_std::Addr;
-use itertools::Itertools;
+use cosmwasm_std::{Addr, Decimal, StdError};
+use std::str::FromStr;
 
 use astroport::asset::AssetInfoExt;
+use astroport::observation::OracleObservation;
 use astroport_pair_stable::error::ContractError;
 use helper::AppExtension;
 
@@ -403,26 +404,9 @@ fn check_pool_prices() {
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("USDX")];
 
     let mut helper = Helper::new(&owner, test_coins.clone(), 100u64, None).unwrap();
-
-    let check_prices = |helper: &Helper| {
-        let prices = helper.query_prices().unwrap();
-
-        test_coins
-            .iter()
-            .cartesian_product(test_coins.iter())
-            .filter(|(a, b)| a != b)
-            .for_each(|(from_coin, to_coin)| {
-                let price = prices
-                    .cumulative_prices
-                    .iter()
-                    .filter(|(from, to, _)| {
-                        from.eq(&helper.assets[&from_coin]) && to.eq(&helper.assets[&to_coin])
-                    })
-                    .collect::<Vec<_>>();
-                assert_eq!(price.len(), 1);
-                assert!(!price[0].2.is_zero());
-            });
-    };
+    let err = helper.query_prices().unwrap_err();
+    assert_eq!(StdError::generic_err("Querier contract error: Generic error: Not implemented.Use { \"observe\" : { \"seconds_ago\" : ... } } instead.")
+               , err);
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000_000000u128),
@@ -430,7 +414,12 @@ fn check_pool_prices() {
     ];
     helper.provide_liquidity(&owner, &assets).unwrap();
     helper.app.next_block(1000);
-    check_prices(&helper);
+
+    let err = helper.query_observe(0).unwrap_err();
+    assert_eq!(
+        err,
+        StdError::generic_err("Querier contract error: Generic error: Buffer is empty")
+    );
 
     let user1 = Addr::unchecked("user1");
     let offer_asset = helper.assets[&test_coins[0]].with_balance(1000_000000u128);
@@ -445,7 +434,13 @@ fn check_pool_prices() {
         .unwrap();
 
     helper.app.next_block(86400);
-    check_prices(&helper);
+    assert_eq!(
+        helper.query_observe(0).unwrap(),
+        OracleObservation {
+            timestamp: helper.app.block_info().time.seconds(),
+            price: Decimal::from_str("1.000500348223145698").unwrap()
+        }
+    );
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000000u128),
@@ -456,7 +451,6 @@ fn check_pool_prices() {
     // Imbalanced provide
     helper.provide_liquidity(&user1, &assets).unwrap();
     helper.app.next_block(14 * 86400);
-    check_prices(&helper);
 
     let offer_asset = helper.assets[&test_coins[1]].with_balance(10_000_000000u128);
     helper.give_me_money(&[offer_asset.clone()], &user1);
@@ -468,5 +462,11 @@ fn check_pool_prices() {
         )
         .unwrap();
     helper.app.next_block(86400);
-    check_prices(&helper);
+    assert_eq!(
+        helper.query_observe(0).unwrap(),
+        OracleObservation {
+            timestamp: helper.app.block_info().time.seconds(),
+            price: Decimal::from_str("0.9994992083").unwrap()
+        }
+    );
 }

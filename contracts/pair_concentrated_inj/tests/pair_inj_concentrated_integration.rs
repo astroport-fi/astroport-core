@@ -1,8 +1,7 @@
-use cosmwasm_std::{coins, Addr, Decimal, Uint128};
-use cw_multi_test::{next_block, Executor};
+use cosmwasm_std::{coins, Addr, Decimal, StdError, Uint128};
+use cw_multi_test::Executor;
 use injective_cosmwasm::InjectiveQuerier;
 use injective_testing::generate_inj_address;
-use itertools::Itertools;
 
 use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::factory::PairType;
@@ -773,7 +772,6 @@ fn check_amp_gamma_change() {
 }
 
 #[test]
-#[ignore]
 fn check_prices() {
     let owner = Addr::unchecked("owner");
 
@@ -792,62 +790,10 @@ fn check_prices() {
         track_asset_balances: None,
     };
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
-    helper.app.update_block(next_block);
-
-    let check_prices = |helper: &Helper| {
-        let prices = helper.query_prices().unwrap();
-
-        test_coins
-            .iter()
-            .cartesian_product(test_coins.iter())
-            .filter(|(a, b)| a != b)
-            .for_each(|(from_coin, to_coin)| {
-                let price = prices
-                    .cumulative_prices
-                    .iter()
-                    .filter(|(from, to, _)| {
-                        from.eq(&helper.assets[from_coin]) && to.eq(&helper.assets[to_coin])
-                    })
-                    .collect::<Vec<_>>();
-                assert_eq!(price.len(), 1);
-                assert!(!price[0].2.is_zero());
-            });
-    };
-
-    let assets = vec![
-        helper.assets[&test_coins[0]].with_balance(100_000_000_000000u128),
-        helper.assets[&test_coins[1]].with_balance(100_000_000_000000u128),
-    ];
-    helper.provide_liquidity(&owner, &assets).unwrap();
-    check_prices(&helper);
-
-    helper.app.next_block(1000);
-
-    let user1 = Addr::unchecked("user1");
-    let offer_asset = helper.assets[&test_coins[0]].with_balance(1000_000000u128);
-    helper.give_me_money(&[offer_asset.clone()], &user1);
-
-    helper.swap(&user1, &offer_asset, None).unwrap();
-    check_prices(&helper);
-
-    helper.app.next_block(86400);
-
-    let assets = vec![
-        helper.assets[&test_coins[0]].with_balance(100_000000u128),
-        helper.assets[&test_coins[1]].with_balance(100_000000u128),
-    ];
-    helper.give_me_money(&assets, &user1);
-
-    helper.provide_liquidity(&user1, &assets).unwrap();
-    check_prices(&helper);
-
-    helper.app.next_block(14 * 86400);
-
-    let offer_asset = helper.assets[&test_coins[1]].with_balance(10_000_000000u128);
-    helper.give_me_money(&[offer_asset.clone()], &user1);
-    helper.swap(&user1, &offer_asset, None).unwrap();
-    check_prices(&helper);
+    let helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
+    let err = helper.query_prices().unwrap_err();
+    assert_eq!(StdError::generic_err("Querier contract error: Generic error: Not implemented.Use { \"observe\" : { \"seconds_ago\" : ... } } instead.")
+               , err);
 }
 
 #[test]
@@ -1719,8 +1665,8 @@ fn test_migrate_cl_to_orderbook_cl() {
         .deposits
         .total_balance
         .into();
-    assert_eq!(inj_deposit, 2489_766000000000000000);
-    assert_eq!(astro_deposit, 4979_553496);
+    assert_eq!(inj_deposit, 2489_761000000000000000);
+    assert_eq!(astro_deposit, 4979_563465);
 
     let inj_pool = helper.coin_balance(&test_coins[0], &helper.pair_addr);
     let astro_pool = helper.coin_balance(&test_coins[1], &helper.pair_addr);

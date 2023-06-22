@@ -3,13 +3,15 @@ use std::fmt::Display;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     attr, Addr, Attribute, CustomQuery, Decimal, Decimal256, DepsMut, Env, Order, StdError,
-    StdResult, Storage, Uint128,
+    StdResult, Storage,
 };
 use cw_storage_plus::{Item, Map};
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::common::OwnershipProposal;
 use astroport::cosmwasm_ext::{AbsDiff, IntegerToDecimal};
+use astroport::observation::Observation;
+
 use astroport::pair_concentrated::{PromoteParams, UpdatePoolParams};
 use astroport_circular_buffer::CircularBuffer;
 
@@ -419,22 +421,6 @@ impl Precisions {
     }
 }
 
-/// Stores trade size observations. We use it in orderbook integration
-/// and derive prices for external contracts/users.
-#[cw_serde]
-#[derive(Copy)]
-pub struct Observation {
-    pub timestamp: u64,
-    /// Base asset simple moving average (mean)
-    pub base_sma: Uint128,
-    /// Base asset amount that was added at this observation
-    pub base_amount: Uint128,
-    /// Quote asset simple moving average (mean)
-    pub quote_sma: Uint128,
-    /// Quote asset amount that was added at this observation
-    pub quote_amount: Uint128,
-}
-
 /// Stores pool parameters and state.
 pub const CONFIG: Item<Config> = Item::new("config");
 
@@ -453,7 +439,7 @@ mod test {
     use std::str::FromStr;
 
     use cosmwasm_std::testing::mock_env;
-    use cosmwasm_std::{to_binary, Timestamp};
+    use cosmwasm_std::Timestamp;
 
     use crate::math::calc_y;
 
@@ -872,25 +858,5 @@ mod test {
                 price,
             )
             .unwrap();
-    }
-
-    #[test]
-    fn check_observation_size() {
-        // Checking [`Observation`] object size to estimate gas cost
-
-        let obs = Observation {
-            timestamp: 0,
-            base_sma: Default::default(),
-            base_amount: Default::default(),
-            quote_sma: Default::default(),
-            quote_amount: Default::default(),
-        };
-
-        let storage_bytes = std::mem::size_of_val(&to_binary(&obs).unwrap());
-        assert_eq!(storage_bytes, 24); // in storage
-
-        // https://github.com/cosmos/cosmos-sdk/blob/47f46643affd7ec7978329c42bac47275ac7e1cc/store/types/gas.go#L199
-        println!("sdk gas cost per read {}", 1000 + storage_bytes * 3);
-        println!("sdk gas cost per write {}", 2000 + storage_bytes * 30)
     }
 }

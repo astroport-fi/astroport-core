@@ -8,6 +8,7 @@ use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, DecimalAsset};
 use astroport::cosmwasm_ext::{AbsDiff, IntegerToDecimal};
+use astroport::observation::Observation;
 use astroport::querier::query_factory_config;
 use astroport_circular_buffer::error::BufferResult;
 use astroport_circular_buffer::BufferManager;
@@ -18,7 +19,7 @@ use crate::error::ContractError;
 use crate::math::{calc_d, calc_y};
 use crate::orderbook::state::OrderbookState;
 use crate::orderbook::utils::get_subaccount_balances_dec;
-use crate::state::{Config, Observation, PoolParams, Precisions, OBSERVATIONS};
+use crate::state::{Config, PoolParams, Precisions, OBSERVATIONS};
 
 /// Helper function to check the given asset infos are valid.
 pub(crate) fn check_asset_infos(asset_infos: &[AssetInfo]) -> Result<(), ContractError> {

@@ -18,6 +18,7 @@ use astroport::asset::{
     addr_opt_validate, check_swap_parameters, format_lp_token_name, Asset, AssetInfo, CoinsExt,
     Decimal256Ext, DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
+
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::PairType;
 use astroport::pair::{
@@ -25,26 +26,30 @@ use astroport::pair::{
     DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
 };
 
-use crate::migration::migrate_config_to_v210;
+use crate::migration::{migrate_config_from_v21, migrate_config_to_v210};
+use astroport::observation::{query_observation, OBSERVATIONS_SIZE};
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
-    ReverseSimulationResponse, SimulationResponse, StablePoolConfig,
+    Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse,
+    SimulationResponse, StablePoolConfig,
 };
 use astroport::querier::{
     query_factory_config, query_fee_info, query_supply, query_token_precision,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport::DecimalCheckedOps;
+use astroport_circular_buffer::BufferManager;
 
 use crate::error::ContractError;
 use crate::math::{
     calc_y, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME,
 };
-use crate::state::{get_precision, store_precisions, Config, CONFIG, OWNERSHIP_PROPOSAL};
+use crate::state::{
+    get_precision, store_precisions, Config, CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL,
+};
 use crate::utils::{
-    accumulate_prices, adjust_precision, check_asset_infos, check_assets, check_cw20_in_pool,
-    compute_current_amp, compute_swap, get_share_in_assets, mint_liquidity_token_message,
-    select_pools, SwapResult,
+    accumulate_swap_sizes, adjust_precision, check_asset_infos, check_assets, check_cw20_in_pool,
+    compute_current_amp, compute_swap, determine_base_quote_amount, get_share_in_assets,
+    mint_liquidity_token_message, select_pools, SwapResult,
 };
 
 /// Contract name that is used for migration.
@@ -90,16 +95,6 @@ pub fn instantiate(
     let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
     let greatest_precision = store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
-    // Initializing cumulative prices
-    let mut cumulative_prices = vec![];
-    for from_pool in &msg.asset_infos {
-        for to_pool in &msg.asset_infos {
-            if !from_pool.eq(to_pool) {
-                cumulative_prices.push((from_pool.clone(), to_pool.clone(), Uint128::zero()))
-            }
-        }
-    }
-
     let config = Config {
         owner: addr_opt_validate(deps.api, &params.owner)?,
         pair_info: PairInfo {
@@ -115,10 +110,10 @@ pub fn instantiate(
         next_amp: params.amp * AMP_PRECISION,
         next_amp_time: env.block.time.seconds(),
         greatest_precision,
-        cumulative_prices,
     };
 
     CONFIG.save(deps.storage, &config)?;
+    BufferManager::init(deps.storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
 
     let token_name = format_lp_token_name(&msg.asset_infos, &deps.querier)?;
 
@@ -327,7 +322,6 @@ pub fn receive_cw20(
         }
         Cw20HookMsg::WithdrawLiquidity { .. } => withdraw_liquidity(
             deps,
-            env,
             info,
             Addr::unchecked(cw20_msg.sender),
             cw20_msg.amount,
@@ -356,7 +350,7 @@ pub fn provide_liquidity(
     check_assets(deps.api, &assets)?;
 
     let auto_stake = auto_stake.unwrap_or(false);
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     info.funds
         .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
 
@@ -512,21 +506,6 @@ pub fn provide_liquidity(
         auto_stake,
     )?);
 
-    let pools = pools
-        .into_iter()
-        .map(|(info, amount)| {
-            let precision = get_precision(deps.storage, &info)?;
-            Ok(DecimalAsset {
-                info,
-                amount: Decimal256::with_precision(amount, precision)?,
-            })
-        })
-        .collect::<StdResult<Vec<_>>>()?;
-
-    if accumulate_prices(deps.as_ref(), env, &mut config, &pools)? {
-        CONFIG.save(deps.storage, &config)?;
-    }
-
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "provide_liquidity"),
         attr("sender", info.sender),
@@ -542,12 +521,11 @@ pub fn provide_liquidity(
 /// * **amount** is the amount of LP tokens to burn.
 pub fn withdraw_liquidity(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     sender: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.pair_info.liquidity_token {
         return Err(ContractError::Unauthorized {});
@@ -569,18 +547,6 @@ pub fn withdraw_liquidity(
         )?
         .into(),
     );
-
-    let pools = pools
-        .iter()
-        .map(|pool| {
-            let precision = get_precision(deps.storage, &pool.info)?;
-            pool.to_decimal_asset(precision)
-        })
-        .collect::<StdResult<Vec<DecimalAsset>>>()?;
-
-    if accumulate_prices(deps.as_ref(), env, &mut config, &pools)? {
-        CONFIG.save(deps.storage, &config)?;
-    }
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),
@@ -614,7 +580,7 @@ pub fn swap(
     max_spread: Option<Decimal>,
     to: Option<Addr>,
 ) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     // If the asset balance already increased
     // We should subtract the user deposit from the pool offer asset amount
@@ -705,9 +671,10 @@ pub fn swap(
         }
     }
 
-    if accumulate_prices(deps.as_ref(), env, &mut config, &pools)? {
-        CONFIG.save(deps.storage, &config)?;
-    }
+    // Store time series data
+    let (base_amount, quote_amount) =
+        determine_base_quote_amount(&pools, &offer_asset, return_amount)?;
+    accumulate_swap_sizes(deps.storage, &env, base_amount, quote_amount)?;
 
     Ok(Response::new()
         .add_messages(
@@ -791,7 +758,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             ask_asset,
             offer_asset_info,
         )?),
-        QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
+        QueryMsg::CumulativePrices {} => Err(StdError::generic_err(
+            stringify!(Not implemented. Use {"observe": {"seconds_ago": ... }} instead.),
+        )),
+        QueryMsg::Observe { seconds_ago } => {
+            to_binary(&query_observation(deps, env, OBSERVATIONS, seconds_ago)?)
+        }
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
         QueryMsg::QueryComputeD {} => to_binary(&query_compute_d(deps, env)?),
         _ => Err(StdError::generic_err("Query is not supported")),
@@ -979,29 +951,6 @@ pub fn query_reverse_simulation(
     })
 }
 
-/// Returns information about cumulative prices for the assets in the pool using a [`CumulativePricesResponse`] object.
-pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
-    let mut config = CONFIG.load(deps.storage)?;
-    let (assets, total_share) = pool_info(deps.querier, &config)?;
-    let decimal_assets = assets
-        .iter()
-        .cloned()
-        .map(|asset| {
-            let precision = get_precision(deps.storage, &asset.info)?;
-            asset.to_decimal_asset(precision)
-        })
-        .collect::<StdResult<Vec<DecimalAsset>>>()?;
-
-    accumulate_prices(deps, env, &mut config, &decimal_assets)
-        .map_err(|err| StdError::generic_err(format!("{err}")))?;
-
-    Ok(CumulativePricesResponse {
-        assets,
-        total_share,
-        cumulative_prices: config.cumulative_prices,
-    })
-}
-
 /// Returns the pair contract configuration in a [`ConfigResponse`] object.
 pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
@@ -1075,7 +1024,9 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
             "1.0.0-fix1" | "1.1.0" | "1.1.1" => {
                 migrate_config_to_v210(deps.branch())?;
             }
-            "2.1.1" => {}
+            "2.1.1" | "2.1.2" => {
+                migrate_config_from_v21(deps.branch())?;
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
@@ -1206,4 +1157,120 @@ fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint128> {
     compute_d(amp, &pools)
         .map_err(|_| StdError::generic_err("Failed to calculate the D"))?
         .to_uint128_with_precision(config.greatest_precision)
+}
+
+#[cfg(test)]
+mod testing {
+    use std::error::Error;
+    use std::str::FromStr;
+
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+    use cosmwasm_std::Timestamp;
+
+    use astroport::observation::{query_observation, Observation, OracleObservation};
+    use astroport_circular_buffer::BufferManager;
+
+    use super::*;
+
+    pub fn f64_to_dec<T>(val: f64) -> T
+    where
+        T: FromStr,
+        T::Err: Error,
+    {
+        T::from_str(&val.to_string()).unwrap()
+    }
+
+    #[test]
+    fn observations_full_buffer() {
+        let mut deps = mock_dependencies();
+        let mut env = mock_env();
+        env.block.time = Timestamp::from_seconds(100_000);
+        BufferManager::init(&mut deps.storage, OBSERVATIONS, 20).unwrap();
+
+        let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
+
+        let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
+        assert_eq!(err.to_string(), "Generic error: Buffer is empty");
+
+        let array = (1..=30)
+            .into_iter()
+            .map(|i| Observation {
+                timestamp: env.block.time.seconds() + i * 1000,
+                base_sma: Default::default(),
+                base_amount: i.into(),
+                quote_sma: Default::default(),
+                quote_amount: (i * i).into(),
+            })
+            .collect_vec();
+        buffer.push_many(&array);
+        buffer.commit(&mut deps.storage).unwrap();
+
+        env.block.time = env.block.time.plus_seconds(30_000);
+
+        assert_eq!(
+            OracleObservation {
+                timestamp: 120_000,
+                price: f64_to_dec(20.0 / 400.0),
+            },
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
+        );
+
+        assert_eq!(
+            OracleObservation {
+                timestamp: 124_411,
+                price: f64_to_dec(0.04098166666666694),
+            },
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
+        );
+
+        let err = query_observation(deps.as_ref(), env, OBSERVATIONS, 35_000).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Generic error: Requested observation is too old. Last known observation is at 111000"
+        );
+    }
+
+    #[test]
+    fn observations_incomplete_buffer() {
+        let mut deps = mock_dependencies();
+        let mut env = mock_env();
+        env.block.time = Timestamp::from_seconds(100_000);
+        BufferManager::init(&mut deps.storage, OBSERVATIONS, 3000).unwrap();
+
+        let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
+
+        let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
+        assert_eq!(err.to_string(), "Generic error: Buffer is empty");
+
+        let array = (1..=30)
+            .into_iter()
+            .map(|i| Observation {
+                timestamp: env.block.time.seconds() + i * 1000,
+                base_sma: Default::default(),
+                base_amount: i.into(),
+                quote_sma: Default::default(),
+                quote_amount: (i * i).into(),
+            })
+            .collect_vec();
+        buffer.push_many(&array);
+        buffer.commit(&mut deps.storage).unwrap();
+
+        env.block.time = env.block.time.plus_seconds(30_000);
+
+        assert_eq!(
+            OracleObservation {
+                timestamp: 120_000,
+                price: f64_to_dec(20.0 / 400.0),
+            },
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
+        );
+
+        assert_eq!(
+            OracleObservation {
+                timestamp: 124_411,
+                price: f64_to_dec(0.04098166666666694),
+            },
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
+        );
+    }
 }

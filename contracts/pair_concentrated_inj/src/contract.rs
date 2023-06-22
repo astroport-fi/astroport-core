@@ -11,7 +11,6 @@ use cw_utils::parse_instantiate_response_data;
 use injective_cosmwasm::{InjectiveMsgWrapper, InjectiveQuerier, InjectiveQueryWrapper};
 use itertools::Itertools;
 
-use crate::consts::OBSERVATIONS_SIZE;
 use astroport::asset::{
     addr_opt_validate, format_lp_token_name, Asset, AssetInfo, AssetInfoExt, CoinsExt,
     Decimal256Ext, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
@@ -19,6 +18,7 @@ use astroport::asset::{
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
+use astroport::observation::OBSERVATIONS_SIZE;
 use astroport::pair::{Cw20HookMsg, InstantiateMsg};
 use astroport::pair_concentrated::UpdatePoolParams;
 use astroport::pair_concentrated_inj::{
@@ -161,7 +161,9 @@ pub fn instantiate(
         INSTANTIATE_TOKEN_REPLY_ID,
     );
 
-    Ok(Response::new().add_submessage(sub_msg))
+    Ok(Response::new()
+        .add_submessage(sub_msg)
+        .add_attribute("subaccount_id", ob_state.subaccount.to_string()))
 }
 
 /// The entry point to the contract for processing replies from submessages.
