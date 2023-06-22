@@ -1,18 +1,20 @@
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Decimal256, Deps, Env, QuerierWrapper,
-    StdResult, Storage, Uint128, Uint64,
+    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Env, QuerierWrapper, StdError,
+    StdResult, Storage, Uint128, Uint256, Uint64,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 use std::cmp::Ordering;
 
 use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
-use astroport::pair::TWAP_PRECISION;
+use astroport::observation::Observation;
 use astroport::querier::query_factory_config;
+use astroport_circular_buffer::error::BufferResult;
+use astroport_circular_buffer::BufferManager;
 
 use crate::error::ContractError;
 use crate::math::calc_y;
-use crate::state::{get_precision, Config};
+use crate::state::{get_precision, Config, OBSERVATIONS};
 
 /// Helper function to check if the given asset infos are valid.
 pub(crate) fn check_asset_infos(
@@ -288,50 +290,97 @@ pub(crate) fn compute_swap(
     })
 }
 
-/// Accumulate token prices for the assets in the pool.
-///
-/// * **pools** array with assets available in the pool.
-pub fn accumulate_prices(
-    deps: Deps,
-    env: Env,
-    config: &mut Config,
-    pools: &[DecimalAsset],
-) -> Result<bool, ContractError> {
-    let block_time = env.block.time.seconds();
-    if block_time <= config.block_time_last {
-        return Ok(false);
-    }
+/// Calculate and save moving averages of swap sizes.
+pub fn accumulate_swap_sizes(
+    storage: &mut dyn Storage,
+    env: &Env,
+    base_amount: Uint128,
+    quote_amount: Uint128,
+) -> BufferResult<()> {
+    let mut buffer = BufferManager::new(storage, OBSERVATIONS)?;
 
-    let time_elapsed = Uint128::from(block_time - config.block_time_last);
-
-    if pools.iter().all(|pool| !pool.amount.is_zero()) {
-        let immut_config = config.clone();
-        for (from, to, value) in config.cumulative_prices.iter_mut() {
-            let offer_asset = DecimalAsset {
-                info: from.clone(),
-                amount: Decimal256::one(),
-            };
-
-            let (offer_pool, ask_pool) = select_pools(Some(from), Some(to), pools)?;
-            let SwapResult { return_amount, .. } = compute_swap(
-                deps.storage,
-                &env,
-                &immut_config,
-                &offer_asset,
-                &offer_pool,
-                &ask_pool,
-                pools,
+    let new_observation;
+    if let Some(last_obs) = buffer.read_last(storage)? {
+        // Since this is circular buffer the next index contains the oldest value
+        let count = buffer.capacity();
+        if let Some(oldest_obs) = buffer.read_single(storage, buffer.head() + 1)? {
+            let new_base_sma = safe_sma_calculation(
+                last_obs.base_sma,
+                oldest_obs.base_amount,
+                count,
+                base_amount,
             )?;
-
-            *value = value.wrapping_add(time_elapsed.checked_mul(adjust_precision(
-                return_amount,
-                get_precision(deps.storage, &ask_pool.info)?,
-                TWAP_PRECISION,
-            )?)?);
+            let new_quote_sma = safe_sma_calculation(
+                last_obs.quote_sma,
+                oldest_obs.quote_amount,
+                count,
+                quote_amount,
+            )?;
+            new_observation = Observation {
+                base_amount,
+                quote_amount,
+                base_sma: new_base_sma,
+                quote_sma: new_quote_sma,
+                timestamp: env.block.time.seconds(),
+            };
+        } else {
+            // Buffer is not full yet
+            let count = Uint128::from(buffer.head());
+            let new_base_sma = (last_obs.base_sma * count + base_amount) / (count + Uint128::one());
+            let new_quote_sma =
+                (last_obs.quote_sma * count + quote_amount) / (count + Uint128::one());
+            new_observation = Observation {
+                base_amount,
+                quote_amount,
+                base_sma: new_base_sma,
+                quote_sma: new_quote_sma,
+                timestamp: env.block.time.seconds(),
+            };
         }
+    } else {
+        // Buffer is empty
+        new_observation = Observation {
+            timestamp: env.block.time.seconds(),
+            base_sma: base_amount,
+            base_amount,
+            quote_sma: quote_amount,
+            quote_amount,
+        };
     }
 
-    config.block_time_last = block_time;
+    buffer.instant_push(storage, &new_observation)
+}
 
-    Ok(true)
+/// Internal function to calculate new moving average using Uint256.
+/// Overflow is possible only if new average order size is greater than 2^128 - 1 which is unlikely.
+fn safe_sma_calculation(
+    sma: Uint128,
+    oldest_amount: Uint128,
+    count: u32,
+    new_amount: Uint128,
+) -> StdResult<Uint128> {
+    let res = (sma.full_mul(count) + Uint256::from(new_amount) - Uint256::from(oldest_amount))
+        .checked_div(count.into())?;
+    res.try_into().map_err(StdError::from)
+}
+
+/// Internal function to determine which asset is base one, which is quote one
+pub(crate) fn determine_base_quote_amount(
+    pools: &[DecimalAsset],
+    offer_asset: &Asset,
+    return_amount: Uint128,
+) -> Result<(Uint128, Uint128), ContractError> {
+    let offer_index = pools
+        .iter()
+        .find_position(|asset| asset.info == offer_asset.info)
+        .ok_or_else(|| ContractError::InvalidAsset(offer_asset.info.to_string()))?
+        .0;
+
+    let (base_amount, quote_amount) = if offer_index == 0 {
+        (offer_asset.amount, return_amount)
+    } else {
+        (return_amount, offer_asset.amount)
+    };
+
+    Ok((base_amount, quote_amount))
 }

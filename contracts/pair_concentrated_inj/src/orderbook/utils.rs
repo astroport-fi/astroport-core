@@ -1,4 +1,4 @@
-use astroport::asset::{Asset, AssetInfo, AssetInfoExt, DecimalAsset};
+use astroport::asset::{Asset, AssetInfo, AssetInfoExt, DecimalAsset, PairInfo};
 use cosmwasm_std::{
     Addr, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Env, QuerierWrapper, Response,
     StdError, StdResult,
@@ -11,7 +11,7 @@ use tiny_keccak::Hasher;
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
 use crate::math::calc_y;
-use crate::orderbook::consts::SUBACC_NONCE;
+use crate::orderbook::consts::{GAS_FEE_DENOM, SUBACC_NONCE};
 use crate::orderbook::error::OrderbookError;
 use crate::orderbook::state::OrderbookState;
 use crate::state::{AmpGamma, Config, Precisions};
@@ -19,7 +19,8 @@ use astroport::cosmwasm_ext::{AbsDiff, ConvertInto, IntegerToDecimal};
 use astroport::querier::{query_fee_info, query_supply};
 use injective_cosmwasm::{
     checked_address_to_subaccount_id, create_batch_update_orders_msg, create_withdraw_msg,
-    InjectiveMsgWrapper, InjectiveQuerier, MarketId, OrderType, SpotOrder, SubaccountId,
+    FundingMode, InjectiveMsgWrapper, InjectiveQuerier, MarketId, OrderType, SpotOrder,
+    SubaccountId,
 };
 
 /// Calculate hash from two binary slices.
@@ -35,14 +36,8 @@ pub fn calc_hash(a1: &[u8], a2: &[u8]) -> String {
 }
 
 /// Calculate available market ids for specified asset infos.
-/// Currently, this pair supports only pairs thus only 2 market ids are possible.
+/// We support only pairs thus only 2 market ids are possible.
 pub fn calc_market_ids(asset_infos: &[AssetInfo]) -> StdResult<[String; 2]> {
-    if asset_infos.len() != 2 {
-        return Err(StdError::generic_err(
-            "Orderbook integration supports only pools with 2 assets",
-        ));
-    }
-
     let assets = asset_infos
         .iter()
         .map(|asset_info| match asset_info {
@@ -180,14 +175,41 @@ pub fn leave_orderbook(
 }
 
 /// Ask chain module whether contract is registered for begin blocker or not.
-pub fn is_contract_active(inj_querier: &InjectiveQuerier, contract_addr: &Addr) -> StdResult<bool> {
-    let reg_info = inj_querier.query_contract_registration_info(contract_addr)?;
-    let active = reg_info
-        .contract
-        .map(|reg| reg.is_executable)
-        .unwrap_or(false);
+/// We are masking any deserialization errors which could potentially happen due to Injective types.
+pub fn is_contract_active(inj_querier: &InjectiveQuerier, contract_addr: &Addr) -> bool {
+    inj_querier
+        .query_contract_registration_info(contract_addr)
+        .map(|reg_info| {
+            reg_info
+                .contract
+                .map(|reg| reg.is_executable)
+                .unwrap_or(false)
+        })
+        .unwrap_or(false)
+}
 
-    Ok(active)
+/// If pool contains INJ token, we need to make sure that someone else is paying for gas on begin blocker.
+/// We need this to keep PCL math logic safe from external manipulations.
+pub fn is_allowed_for_begin_blocker(inj_querier: &InjectiveQuerier, pair_info: &PairInfo) -> bool {
+    let has_inj = pair_info
+        .asset_infos
+        .iter()
+        .any(|info| matches!(info, AssetInfo::NativeToken { denom } if denom == GAS_FEE_DENOM));
+    if has_inj {
+        match inj_querier.query_contract_registration_info(&pair_info.contract_addr) {
+            // Until contract is registered we won't know funding mode.
+            // Considering proper_funding_mode: true by default.
+            Ok(reg_info) => reg_info
+                .contract
+                .map(|reg| matches!(reg.fund_mode, FundingMode::GrantOnly))
+                .unwrap_or(true),
+            // Injective under certain conditions can return deserialization error.
+            // We consider this as a critical problem and disable begin blocker.
+            Err(_) => false,
+        }
+    } else {
+        true
+    }
 }
 
 /// Calculate swap result using cached D.
@@ -439,9 +461,12 @@ where
                 );
             }
             Ordering::Equal => {
-                // this should never happen as we supposed to call this function only
+                // This should never happen as we supposed to call this function only
                 // if there was at least one trade
-                return Ok(messages);
+                return Err(StdError::generic_err(
+                    "Maker fee cannot be calculated because orderbook balance hasn't changed",
+                )
+                .into());
             }
         }
     }
@@ -493,21 +518,5 @@ mod tests {
         let err = calc_market_ids(&asset_infos).unwrap_err();
 
         assert_eq!(err.to_string(), "Generic error: CW20 tokens not supported");
-    }
-
-    #[test]
-    fn test_calc_market_ids_with_more_than_2_assets() {
-        let asset_infos = vec![
-            native_asset_info("uusd".to_string()),
-            token_asset_info(Addr::unchecked("astro".to_string())),
-            native_asset_info("uatom".to_string()),
-        ];
-
-        let err = calc_market_ids(&asset_infos).unwrap_err();
-
-        assert_eq!(
-            err.to_string(),
-            "Generic error: Orderbook integration supports only pools with 2 assets"
-        );
     }
 }

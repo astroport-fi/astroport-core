@@ -2,14 +2,16 @@ use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    Addr, CustomQuery, Decimal, Decimal256, DepsMut, Env, Order, StdError, StdResult, Storage,
-    Uint128,
+    attr, Addr, Attribute, CustomQuery, Decimal, Decimal256, DepsMut, Env, Order, StdError,
+    StdResult, Storage,
 };
 use cw_storage_plus::{Item, Map};
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::common::OwnershipProposal;
 use astroport::cosmwasm_ext::{AbsDiff, IntegerToDecimal};
+use astroport::observation::Observation;
+
 use astroport::pair_concentrated::{PromoteParams, UpdatePoolParams};
 use astroport_circular_buffer::CircularBuffer;
 
@@ -28,8 +30,6 @@ pub struct Config {
     pub pair_info: PairInfo,
     /// The factory contract address
     pub factory_addr: Addr,
-    /// The last timestamp when the pair contract updated the asset cumulative prices
-    pub block_time_last: u64,
     /// Pool parameters
     pub pool_params: PoolParams,
     /// Pool state
@@ -75,29 +75,37 @@ where
 
 impl PoolParams {
     /// Intended to update current pool parameters. Performs validation of the new parameters.
+    /// Returns a vector of attributes with updated parameters.
     ///
     /// * `update_params` - an object which contains new pool parameters. Any of the parameters may be omitted.
-    pub fn update_params(&mut self, update_params: UpdatePoolParams) -> Result<(), ContractError> {
+    pub fn update_params(
+        &mut self,
+        update_params: UpdatePoolParams,
+    ) -> Result<Vec<Attribute>, ContractError> {
+        let mut attributes = vec![];
         if let Some(mid_fee) = update_params.mid_fee {
             validate_param("mid_fee", mid_fee, MIN_FEE, MAX_FEE)?;
             self.mid_fee = mid_fee;
+            attributes.push(attr("mid_fee", mid_fee.to_string()));
         }
 
         if let Some(out_fee) = update_params.out_fee {
             validate_param("out_fee", out_fee, MIN_FEE, MAX_FEE)?;
             if out_fee <= self.mid_fee {
                 return Err(StdError::generic_err(format!(
-                    "out_fee {out_fee} must be more {}",
+                    "out_fee {out_fee} must be more than mid_fee {}",
                     self.mid_fee
                 ))
                 .into());
             }
             self.out_fee = out_fee;
+            attributes.push(attr("out_fee", out_fee.to_string()));
         }
 
         if let Some(fee_gamma) = update_params.fee_gamma {
             validate_param("fee_gamma", fee_gamma, FEE_GAMMA_MIN, FEE_GAMMA_MAX)?;
             self.fee_gamma = fee_gamma;
+            attributes.push(attr("fee_gamma", fee_gamma.to_string()));
         }
 
         if let Some(repeg_profit_threshold) = update_params.repeg_profit_threshold {
@@ -108,6 +116,10 @@ impl PoolParams {
                 REPEG_PROFIT_THRESHOLD_MAX,
             )?;
             self.repeg_profit_threshold = repeg_profit_threshold;
+            attributes.push(attr(
+                "repeg_profit_threshold",
+                repeg_profit_threshold.to_string(),
+            ));
         }
 
         if let Some(min_price_scale_delta) = update_params.min_price_scale_delta {
@@ -118,6 +130,10 @@ impl PoolParams {
                 PRICE_SCALE_DELTA_MAX,
             )?;
             self.min_price_scale_delta = min_price_scale_delta;
+            attributes.push(attr(
+                "min_price_scale_delta",
+                min_price_scale_delta.to_string(),
+            ));
         }
 
         if let Some(ma_half_time) = update_params.ma_half_time {
@@ -128,9 +144,10 @@ impl PoolParams {
                 *MA_HALF_TIME_LIMITS.end(),
             )?;
             self.ma_half_time = ma_half_time;
+            attributes.push(attr("ma_half_time", ma_half_time.to_string()));
         }
 
-        Ok(())
+        Ok(attributes)
     }
 
     pub fn fee(&self, xp: &[Decimal256]) -> Decimal256 {
@@ -404,22 +421,6 @@ impl Precisions {
     }
 }
 
-/// Stores trade size observations. We use it in orderbook integration
-/// and derive prices for external contracts/users.
-#[cw_serde]
-#[derive(Copy)]
-pub struct Observation {
-    pub timestamp: u64,
-    /// Base asset simple moving average (mean)
-    pub base_sma: Uint128,
-    /// Base asset amount that was added at this observation
-    pub base_amount: Uint128,
-    /// Quote asset simple moving average (mean)
-    pub quote_sma: Uint128,
-    /// Quote asset amount that was added at this observation
-    pub quote_amount: Uint128,
-}
-
 /// Stores pool parameters and state.
 pub const CONFIG: Item<Config> = Item::new("config");
 
@@ -438,7 +439,7 @@ mod test {
     use std::str::FromStr;
 
     use cosmwasm_std::testing::mock_env;
-    use cosmwasm_std::{to_binary, Timestamp};
+    use cosmwasm_std::Timestamp;
 
     use crate::math::calc_y;
 
@@ -857,25 +858,5 @@ mod test {
                 price,
             )
             .unwrap();
-    }
-
-    #[test]
-    fn check_observation_size() {
-        // Checking [`Observation`] object size to estimate gas cost
-
-        let obs = Observation {
-            timestamp: 0,
-            base_sma: Default::default(),
-            base_amount: Default::default(),
-            quote_sma: Default::default(),
-            quote_amount: Default::default(),
-        };
-
-        let storage_bytes = std::mem::size_of_val(&to_binary(&obs).unwrap());
-        assert_eq!(storage_bytes, 24); // in storage
-
-        // https://github.com/cosmos/cosmos-sdk/blob/47f46643affd7ec7978329c42bac47275ac7e1cc/store/types/gas.go#L199
-        println!("sdk gas cost per read {}", 1000 + storage_bytes * 3);
-        println!("sdk gas cost per write {}", 2000 + storage_bytes * 30)
     }
 }

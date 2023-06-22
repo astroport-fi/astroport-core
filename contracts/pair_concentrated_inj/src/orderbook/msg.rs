@@ -5,4 +5,5 @@ use cosmwasm_schema::cw_serde;
 pub enum SudoMsg {
     BeginBlocker {},
     Deactivate {},
+    Deregister {},
 }

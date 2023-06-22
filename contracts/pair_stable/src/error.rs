@@ -2,6 +2,7 @@ use cosmwasm_std::{CheckedMultiplyRatioError, ConversionOverflowError, OverflowE
 use thiserror::Error;
 
 use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
+use astroport_circular_buffer::error::BufferError;
 
 use crate::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
 
@@ -13,6 +14,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     CheckedMultiplyRatioError(#[from] CheckedMultiplyRatioError),
+
+    #[error("{0}")]
+    CircularBuffer(#[from] BufferError),
 
     #[error("Unauthorized")]
     Unauthorized {},

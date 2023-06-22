@@ -26,8 +26,6 @@ pub const TWO: Decimal256 = Decimal256::raw(2000000000000000000);
 pub const MAX_ITER: usize = 64;
 /// TWAP constant for external oracle prices
 pub const TWAP_PRECISION_DEC: Decimal256 = Decimal256::raw((1e6 * 1e18) as u128);
-/// Circular buffer size which stores observations
-pub const OBSERVATIONS_SIZE: u32 = 3000;
 
 /// ## Validation constants
 /// 0.001

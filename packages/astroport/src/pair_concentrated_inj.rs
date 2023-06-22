@@ -1,9 +1,11 @@
+use crate::observation::OracleObservation;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Binary, Decimal, Decimal256, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 use crate::asset::PairInfo;
 use crate::asset::{Asset, AssetInfo};
+
 use crate::pair::{
     ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
     SimulationResponse,
@@ -65,6 +67,9 @@ pub enum ExecuteMsg {
     /// Permissionless endpoint to withdraw all liquidity from orderbook
     /// if orderbook integration is disabled.
     WithdrawFromOrderbook {},
+    /// Permissionless endpoint to update price_tick_size and quantity_tick_size
+    /// according to the current exchange module state.
+    UpdateMarketTicks {},
 }
 
 /// This structure describes the query messages available in the contract.
@@ -132,18 +137,13 @@ pub struct OrderbookStateResponse {
     pub min_trades_to_avg: u32,
     /// Whether the pool is ready to integrate with the orderbook (MIN_TRADES_TO_AVG is reached)
     pub ready: bool,
-}
-
-#[cw_serde]
-pub struct OracleObservation {
-    pub timestamp: u64,
-    pub price: Decimal,
+    /// Whether the begin blocker execution is allowed or not. Default: true
+    pub enabled: bool,
 }
 
 #[cw_serde]
 pub enum MigrateMsg {
     MigrateToOrderbook { params: OrderbookConfig },
-    NormalMigration {}, // this is placeholder for future migrations. Must be adjusted when new migrations are added.
 }
 
 /// This enum is intended for parameters update.

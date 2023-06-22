@@ -29,7 +29,7 @@ pub fn sudo(
 ) -> Result<Response<InjectiveMsgWrapper>, OrderbookError> {
     match msg {
         SudoMsg::BeginBlocker {} => begin_blocker(deps, env),
-        SudoMsg::Deactivate {} => deactivate_orderbook(deps, env),
+        SudoMsg::Deactivate {} | SudoMsg::Deregister {} => deactivate_orderbook(deps, env),
     }
 }
 
@@ -38,7 +38,7 @@ fn begin_blocker(
     env: Env,
 ) -> Result<Response<InjectiveMsgWrapper>, OrderbookError> {
     let ob_state = OrderbookState::load(deps.storage)?;
-    if !ob_state.ready {
+    if !(ob_state.ready && ob_state.enabled) {
         return Ok(Response::new());
     }
     let querier = InjectiveQuerier::new(&deps.querier);
@@ -222,7 +222,13 @@ fn deactivate_orderbook(
         &env.contract.address
     ));
 
-    let ob_state = OrderbookState::load(deps.storage)?;
+    let mut ob_state = OrderbookState::load(deps.storage)?;
+    ob_state.enabled = false;
+    ob_state.last_balances = vec![
+        ob_state.asset_infos[0].with_balance(0u8),
+        ob_state.asset_infos[1].with_balance(0u8),
+    ];
+    ob_state.save(deps.storage)?;
 
     let querier = InjectiveQuerier::new(&deps.querier);
     let balances = get_subaccount_balances(&ob_state.asset_infos, &querier, &ob_state.subaccount)?;

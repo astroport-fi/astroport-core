@@ -3,15 +3,13 @@ use crate::contract::{
     query_simulation, reply,
 };
 use crate::error::ContractError;
-use crate::math::AMP_PRECISION;
 use crate::mock_querier::mock_dependencies;
 
-use crate::state::{store_precisions, Config, CONFIG};
-use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo, PairInfo};
+use crate::state::{CONFIG, OBSERVATIONS};
+use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo};
 
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, SimulationResponse, StablePoolParams,
-    TWAP_PRECISION,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
@@ -1149,131 +1147,180 @@ fn test_query_share() {
     assert_eq!(res[1].amount, Uint128::new(500));
 }
 
-#[test]
-fn test_accumulate_prices() {
-    struct Case {
-        block_time: u64,
-        block_time_last: u64,
-        last0: u128,
-        last1: u128,
-        x_amount: u128,
-        y_amount: u128,
+#[cfg(test)]
+mod testing {
+    use std::error::Error;
+    use std::str::FromStr;
+
+    use astroport::observation::{query_observation, Observation, OracleObservation};
+    use astroport_circular_buffer::BufferManager;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+    use cosmwasm_std::Timestamp;
+
+    use super::*;
+
+    pub fn f64_to_dec<T>(val: f64) -> T
+    where
+        T: FromStr,
+        T::Err: Error,
+    {
+        T::from_str(&val.to_string()).unwrap()
     }
 
-    struct Result {
-        block_time_last: u64,
-        cumulative_price_x: u128,
-        cumulative_price_y: u128,
+    #[test]
+    fn observations_full_buffer() {
+        let mut deps = mock_dependencies();
+        let mut env = mock_env();
+        env.block.time = Timestamp::from_seconds(100_000);
+        BufferManager::init(&mut deps.storage, OBSERVATIONS, 20).unwrap();
+
+        let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
+
+        let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
+        assert_eq!(err.to_string(), "Generic error: Buffer is empty");
+
+        let array = (1..=30)
+            .into_iter()
+            .map(|i| Observation {
+                timestamp: env.block.time.seconds() + i * 1000,
+                base_sma: Default::default(),
+                base_amount: i.into(),
+                quote_sma: Default::default(),
+                quote_amount: (i * i).into(),
+            })
+            .collect_vec();
+        buffer.push_many(&array);
+        buffer.commit(&mut deps.storage).unwrap();
+
+        env.block.time = env.block.time.plus_seconds(30_000);
+
+        assert_eq!(
+            OracleObservation {
+                timestamp: 120_000,
+                price: f64_to_dec(20.0 / 400.0),
+            },
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
+        );
+
+        assert_eq!(
+            OracleObservation {
+                timestamp: 124_411,
+                price: f64_to_dec(0.04098166666666694),
+            },
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
+        );
+
+        let err = query_observation(deps.as_ref(), env, OBSERVATIONS, 35_000).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Generic error: Requested observation is too old. Last known observation is at 111000"
+        );
     }
 
-    let price_precision = 10u128.pow(TWAP_PRECISION.into());
+    #[test]
+    fn observations_incomplete_buffer() {
+        let mut deps = mock_dependencies();
+        let mut env = mock_env();
+        env.block.time = Timestamp::from_seconds(100_000);
+        BufferManager::init(&mut deps.storage, OBSERVATIONS, 3000).unwrap();
 
-    let test_cases: Vec<(Case, Result)> = vec![
-        (
-            Case {
-                block_time: 1000,
-                block_time_last: 0,
-                last0: 0,
-                last1: 0,
-                x_amount: 250_000000,
-                y_amount: 500_000000,
-            },
-            Result {
-                block_time_last: 1000,
-                cumulative_price_x: 1008,
-                cumulative_price_y: 991,
-            },
-        ),
-        // Same block height, no changes
-        (
-            Case {
-                block_time: 1000,
-                block_time_last: 1000,
-                last0: 1 * price_precision,
-                last1: 2 * price_precision,
-                x_amount: 250_000000,
-                y_amount: 500_000000,
-            },
-            Result {
-                block_time_last: 1000,
-                cumulative_price_x: 1,
-                cumulative_price_y: 2,
-            },
-        ),
-        (
-            Case {
-                block_time: 1500,
-                block_time_last: 1000,
-                last0: 500 * price_precision,
-                last1: 2000 * price_precision,
-                x_amount: 250_000000,
-                y_amount: 500_000000,
-            },
-            Result {
-                block_time_last: 1500,
-                cumulative_price_x: 1004,
-                cumulative_price_y: 2495,
-            },
-        ),
-    ];
+        let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
 
-    for test_case in test_cases {
-        let (case, result) = test_case;
-        let asset_x = native_asset_info("uusd".to_string());
-        let asset_y = native_asset_info("uluna".to_string());
-        let mut deps = mock_dependencies(&[]);
-        store_precisions(
-            deps.as_mut(),
-            &[asset_x.clone(), asset_y.clone()],
-            &Addr::unchecked("factory"),
-        )
-        .unwrap();
+        let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
+        assert_eq!(err.to_string(), "Generic error: Buffer is empty");
 
-        let cumulative_prices = vec![
-            (asset_x.clone(), asset_y.clone(), case.last0.into()),
-            (asset_y.clone(), asset_x.clone(), case.last1.into()),
-        ];
-        let pools = vec![
-            native_asset(asset_x.to_string(), case.x_amount.into()),
-            native_asset(asset_y.to_string(), case.y_amount.into()),
-        ];
+        let array = (1..=30)
+            .into_iter()
+            .map(|i| Observation {
+                timestamp: env.block.time.seconds() + i * 1000,
+                base_sma: Default::default(),
+                base_amount: i.into(),
+                quote_sma: Default::default(),
+                quote_amount: (i * i).into(),
+            })
+            .collect_vec();
+        buffer.push_many(&array);
+        buffer.commit(&mut deps.storage).unwrap();
 
-        let env = mock_env_with_block_time(case.block_time);
-        let mut config = Config {
-            owner: None,
-            pair_info: PairInfo {
-                asset_infos: vec![asset_x, asset_y],
-                contract_addr: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                liquidity_token: Addr::unchecked("lp_token"),
-                pair_type: PairType::Stable {},
+        env.block.time = env.block.time.plus_seconds(30_000);
+
+        assert_eq!(
+            OracleObservation {
+                timestamp: 120_000,
+                price: f64_to_dec(20.0 / 400.0),
             },
-            factory_addr: Addr::unchecked("factory"),
-            block_time_last: case.block_time_last,
-            init_amp: 100 * AMP_PRECISION,
-            init_amp_time: env.block.time.seconds(),
-            next_amp: 100 * AMP_PRECISION,
-            next_amp_time: env.block.time.seconds(),
-            greatest_precision: 6,
-            cumulative_prices,
-        };
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
+        );
 
-        let pools = pools
-            .iter()
-            .cloned()
-            .map(|pool| pool.to_decimal_asset(NATIVE_TOKEN_PRECISION).unwrap())
+        assert_eq!(
+            OracleObservation {
+                timestamp: 124_411,
+                price: f64_to_dec(0.04098166666666694),
+            },
+            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
+        );
+    }
+
+    #[test]
+    fn observations_checking_triple_capacity_step_by_step() {
+        let mut deps = mock_dependencies();
+        let mut env = mock_env();
+        env.block.time = Timestamp::from_seconds(100_000);
+        const CAPACITY: u32 = 20;
+        BufferManager::init(&mut deps.storage, OBSERVATIONS, CAPACITY).unwrap();
+
+        let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
+
+        let ts = env.block.time.seconds();
+
+        let array = (1..=CAPACITY * 3)
+            .into_iter()
+            .map(|i| Observation {
+                timestamp: ts + i as u64 * 1000,
+                base_sma: Default::default(),
+                base_amount: (i * i).into(),
+                quote_sma: Default::default(),
+                quote_amount: i.into(),
+            })
             .collect_vec();
 
-        accumulate_prices(deps.as_ref(), env.clone(), &mut config, &pools).unwrap();
+        for (k, obs) in array.iter().enumerate() {
+            env.block.time = env.block.time.plus_seconds(1000);
 
-        assert_eq!(config.block_time_last, result.block_time_last);
-        assert_eq!(
-            config.cumulative_prices[0].2 / Uint128::from(price_precision),
-            Uint128::new(result.cumulative_price_x)
-        );
-        assert_eq!(
-            config.cumulative_prices[1].2 / Uint128::from(price_precision),
-            Uint128::new(result.cumulative_price_y)
-        );
+            buffer.push(&obs);
+            buffer.commit(&mut deps.storage).unwrap();
+            let k1 = k as u32 + 1;
+
+            let from = k1.saturating_sub(CAPACITY) + 1;
+            let to = k1;
+
+            for i in from..=to {
+                let shift = (to - i) as u64;
+                if shift != 0 {
+                    assert_eq!(
+                        OracleObservation {
+                            timestamp: ts + i as u64 * 1000 + 500,
+                            price: f64_to_dec(i as f64 + 0.5),
+                        },
+                        query_observation(
+                            deps.as_ref(),
+                            env.clone(),
+                            OBSERVATIONS,
+                            shift * 1000 - 500
+                        )
+                        .unwrap()
+                    );
+                }
+                assert_eq!(
+                    OracleObservation {
+                        timestamp: ts + i as u64 * 1000,
+                        price: f64_to_dec(i as f64),
+                    },
+                    query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, shift * 1000)
+                        .unwrap()
+                );
+            }
+        }
     }
 }
 
@@ -1287,9 +1334,7 @@ fn mock_env_with_block_time(time: u64) -> Env {
     env
 }
 
-use crate::utils::{accumulate_prices, compute_swap, select_pools};
-pub const NATIVE_TOKEN_PRECISION: u8 = 6;
-use astroport::factory::PairType;
+use crate::utils::{compute_swap, select_pools};
 use proptest::prelude::*;
 use sim::StableSwapModel;
 
