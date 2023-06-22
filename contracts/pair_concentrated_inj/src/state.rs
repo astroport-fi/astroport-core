@@ -2,7 +2,8 @@ use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    Addr, CustomQuery, Decimal, Decimal256, DepsMut, Env, Order, StdError, StdResult, Storage,
+    attr, Addr, Attribute, CustomQuery, Decimal, Decimal256, DepsMut, Env, Order, StdError,
+    StdResult, Storage,
 };
 use cw_storage_plus::{Item, Map};
 
@@ -74,29 +75,37 @@ where
 
 impl PoolParams {
     /// Intended to update current pool parameters. Performs validation of the new parameters.
+    /// Returns a vector of attributes with updated parameters.
     ///
     /// * `update_params` - an object which contains new pool parameters. Any of the parameters may be omitted.
-    pub fn update_params(&mut self, update_params: UpdatePoolParams) -> Result<(), ContractError> {
+    pub fn update_params(
+        &mut self,
+        update_params: UpdatePoolParams,
+    ) -> Result<Vec<Attribute>, ContractError> {
+        let mut attributes = vec![];
         if let Some(mid_fee) = update_params.mid_fee {
             validate_param("mid_fee", mid_fee, MIN_FEE, MAX_FEE)?;
             self.mid_fee = mid_fee;
+            attributes.push(attr("mid_fee", mid_fee.to_string()));
         }
 
         if let Some(out_fee) = update_params.out_fee {
             validate_param("out_fee", out_fee, MIN_FEE, MAX_FEE)?;
             if out_fee <= self.mid_fee {
                 return Err(StdError::generic_err(format!(
-                    "out_fee {out_fee} must be more {}",
+                    "out_fee {out_fee} must be more than mid_fee {}",
                     self.mid_fee
                 ))
                 .into());
             }
             self.out_fee = out_fee;
+            attributes.push(attr("out_fee", out_fee.to_string()));
         }
 
         if let Some(fee_gamma) = update_params.fee_gamma {
             validate_param("fee_gamma", fee_gamma, FEE_GAMMA_MIN, FEE_GAMMA_MAX)?;
             self.fee_gamma = fee_gamma;
+            attributes.push(attr("fee_gamma", fee_gamma.to_string()));
         }
 
         if let Some(repeg_profit_threshold) = update_params.repeg_profit_threshold {
@@ -107,6 +116,10 @@ impl PoolParams {
                 REPEG_PROFIT_THRESHOLD_MAX,
             )?;
             self.repeg_profit_threshold = repeg_profit_threshold;
+            attributes.push(attr(
+                "repeg_profit_threshold",
+                repeg_profit_threshold.to_string(),
+            ));
         }
 
         if let Some(min_price_scale_delta) = update_params.min_price_scale_delta {
@@ -117,6 +130,10 @@ impl PoolParams {
                 PRICE_SCALE_DELTA_MAX,
             )?;
             self.min_price_scale_delta = min_price_scale_delta;
+            attributes.push(attr(
+                "min_price_scale_delta",
+                min_price_scale_delta.to_string(),
+            ));
         }
 
         if let Some(ma_half_time) = update_params.ma_half_time {
@@ -127,9 +144,10 @@ impl PoolParams {
                 *MA_HALF_TIME_LIMITS.end(),
             )?;
             self.ma_half_time = ma_half_time;
+            attributes.push(attr("ma_half_time", ma_half_time.to_string()));
         }
 
-        Ok(())
+        Ok(attributes)
     }
 
     pub fn fee(&self, xp: &[Decimal256]) -> Decimal256 {

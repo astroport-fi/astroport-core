@@ -328,6 +328,37 @@ impl AssetInfo {
     }
 }
 
+/// Taken from https://github.com/mars-protocol/red-bank/blob/5bb0fe145588352b281803f7b870103bc6832621/packages/utils/src/helpers.rs#L68
+/// Follows cosmos SDK validation logic where denom can be 3 - 128 characters long
+/// and starts with a letter, followed but either a letter, number, or separator ( ‘/' , ‘:' , ‘.’ , ‘_’ , or '-')
+/// reference: https://github.com/cosmos/cosmos-sdk/blob/7728516abfab950dc7a9120caad4870f1f962df5/types/coin.go#L865-L867
+pub fn validate_native_denom(denom: &str) -> StdResult<()> {
+    if denom.len() < 3 || denom.len() > 128 {
+        return Err(StdError::generic_err(format!(
+            "Invalid denom length: {denom}"
+        )));
+    }
+
+    let mut chars = denom.chars();
+    let first = chars.next().unwrap();
+    if !first.is_ascii_alphabetic() {
+        return Err(StdError::generic_err(format!(
+            "First character is not ASCII alphabetic: {denom}"
+        )));
+    }
+
+    let set = ['/', ':', '.', '_', '-'];
+    for c in chars {
+        if !(c.is_ascii_alphanumeric() || set.contains(&c)) {
+            return Err(StdError::generic_err(format!(
+                "Not all characters are ASCII alphanumeric or one of:  /  :  .  _  -: {denom}"
+            )));
+        }
+    }
+
+    Ok(())
+}
+
 /// This structure stores the main parameters for an Astroport pair
 #[cw_serde]
 pub struct PairInfo {
@@ -682,5 +713,36 @@ mod tests {
                 "Supplied coins contain uusd that is not in the input asset vector"
             )
         );
+    }
+
+    #[test]
+    fn native_denom_validation() {
+        let err = validate_native_denom("ab").unwrap_err();
+        assert_eq!(err, StdError::generic_err("Invalid denom length: ab"));
+        let err = validate_native_denom("1usd").unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err("First character is not ASCII alphabetic: 1usd")
+        );
+        let err = validate_native_denom("wow@usd").unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err(
+                "Not all characters are ASCII alphanumeric or one of:  /  :  .  _  -: wow@usd"
+            )
+        );
+        let long_denom: String = ['a'].repeat(129).iter().collect();
+        let err = validate_native_denom(&long_denom).unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err("Invalid denom length: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        );
+
+        validate_native_denom("uusd").unwrap();
+        validate_native_denom(
+            "ibc/EBD5A24C554198EBAF44979C5B4D2C2D312E6EBAB71962C92F735499C7575839",
+        )
+        .unwrap();
+        validate_native_denom("factory/wasm1jdppe6fnj2q7hjsepty5crxtrryzhuqsjrj95y/uusd").unwrap();
     }
 }

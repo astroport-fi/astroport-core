@@ -17,6 +17,7 @@ cw-storage-plus = "0.15"
 cw-utils = "1.0"
 cosmwasm-schema = "1.2.5"
 thiserror = "1"
+cw2 = "1.0.1"
 
 [dev-dependencies]
 cw-multi-test = { version="0.16.4", features=["stargate"] }

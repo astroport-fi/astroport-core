@@ -967,6 +967,14 @@ fn check_orderbook_integration() {
             .unwrap();
     }
 
+    let err = helper
+        .try_update_ticks(&Addr::unchecked("random_user"))
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Ticks are already up to date"
+    );
+
     let ob_state = helper.query_ob_config_smart().unwrap();
     assert_eq!(ob_state.orders_number, 5);
     assert_eq!(ob_state.need_reconcile, true);

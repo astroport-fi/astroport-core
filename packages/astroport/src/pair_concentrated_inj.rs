@@ -67,6 +67,9 @@ pub enum ExecuteMsg {
     /// Permissionless endpoint to withdraw all liquidity from orderbook
     /// if orderbook integration is disabled.
     WithdrawFromOrderbook {},
+    /// Permissionless endpoint to update price_tick_size and quantity_tick_size
+    /// according to the current exchange module state.
+    UpdateMarketTicks {},
 }
 
 /// This structure describes the query messages available in the contract.

@@ -1,7 +1,3 @@
-use crate::error::ContractError;
-use crate::state::{validate_admins, CONFIG, GRANTS, OWNERSHIP_PROPOSAL};
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::fee_granter::{Config, ExecuteMsg, InstantiateMsg};
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin as SdkCoin;
 use cosmos_sdk_proto::cosmos::feegrant::v1beta1::{
     BasicAllowance, MsgGrantAllowance, MsgRevokeAllowance,
@@ -15,8 +11,18 @@ use cosmwasm_std::{
     attr, coins, Addr, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError,
     StdResult, Uint128,
 };
+use cw2::set_contract_version;
 use cw_utils::must_pay;
-use std::collections::HashSet;
+
+use astroport::asset::validate_native_denom;
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::fee_granter::{Config, ExecuteMsg, InstantiateMsg};
+
+use crate::error::ContractError;
+use crate::state::{update_admins_with_validation, CONFIG, GRANTS, OWNERSHIP_PROPOSAL};
+
+pub(crate) const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+pub(crate) const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -25,17 +31,25 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, StdError> {
-    let admins = validate_admins(deps.api, &msg.admins)?;
+    let attrs = vec![
+        attr("action", "instantiate"),
+        attr("contract", CONTRACT_NAME),
+        attr("gas_denom", &msg.gas_denom),
+    ];
+
+    validate_native_denom(&msg.gas_denom)?;
     CONFIG.save(
         deps.storage,
         &Config {
             owner: deps.api.addr_validate(&msg.owner)?,
-            admins,
+            admins: update_admins_with_validation(deps.api, vec![], &msg.admins, &[])?,
             gas_denom: msg.gas_denom,
         },
     )?;
 
-    Ok(Response::default())
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default().add_attributes(attrs))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -200,6 +214,9 @@ fn transfer_coins(
     amount: Uint128,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
+    if amount.is_zero() {
+        return Err(StdError::generic_err("Can't send 0 amount").into());
+    }
     let config = CONFIG.load(deps.storage)?;
     if config.owner != info.sender && !config.admins.contains(&info.sender) {
         return Err(ContractError::Unauthorized {});
@@ -225,22 +242,8 @@ fn update_admins(
         return Err(ContractError::Unauthorized {});
     }
 
-    let mut admins: HashSet<_> = config.admins.into_iter().collect();
-    validate_admins(deps.api, &add_admins)?
-        .into_iter()
-        .try_for_each(|admin| {
-            if !admins.insert(admin.clone()) {
-                return Err(StdError::generic_err(format!(
-                    "Admin {admin} already exists",
-                )));
-            };
-            Ok(())
-        })?;
-
-    let remove_set: HashSet<_> = validate_admins(deps.api, &remove_admins)?
-        .into_iter()
-        .collect();
-    config.admins = admins.difference(&remove_set).cloned().collect();
+    config.admins =
+        update_admins_with_validation(deps.api, config.admins, &add_admins, &remove_admins)?;
     CONFIG.save(deps.storage, &config)?;
 
     let mut attributes = vec![attr("action", "update_admins")];
