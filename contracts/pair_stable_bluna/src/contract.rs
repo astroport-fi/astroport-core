@@ -7,11 +7,10 @@ use crate::state::{
     Config, BLUNA_REWARD_GLOBAL_INDEX, BLUNA_REWARD_HOLDER, BLUNA_REWARD_USER_INDEXES, CONFIG,
 };
 
-use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps,
     DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
-    Uint256, WasmMsg,
+    Uint256, WasmMsg, Decimal256
 };
 
 use crate::response::MsgInstantiateContractResponse;

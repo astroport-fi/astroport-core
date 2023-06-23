@@ -96,6 +96,7 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
+ "itertools",
  "protobuf",
  "schemars",
  "serde",

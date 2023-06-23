@@ -1,8 +1,9 @@
 use cw_storage_plus::{Bound, Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use itertools::Itertools;
 
-use cosmwasm_std::{Addr, Deps, Order};
+use cosmwasm_std::{Addr, Deps, Order, StdResult};
 
 use astroport::asset::AssetInfo;
 
@@ -45,11 +46,14 @@ pub const PAIRS: Map<&[u8], Addr> = Map::new("pair_info");
 /// Calculates key of pair from the specified parameters in the `asset_infos` variable.
 /// ## Params
 /// `asset_infos` it is array with two items the type of [`AssetInfo`].
-pub fn pair_key(asset_infos: &[AssetInfo; 2]) -> Vec<u8> {
-    let mut asset_infos = asset_infos.to_vec();
-    asset_infos.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
-
-    [asset_infos[0].as_bytes(), asset_infos[1].as_bytes()].concat()
+pub fn pair_key(asset_infos: &[AssetInfo]) -> Vec<u8> {
+    asset_infos
+        .iter()
+        .map(AssetInfo::as_bytes)
+        .sorted()
+        .flatten()
+        .copied()
+        .collect()
 }
 
 /// Saves the settings of the created pairs
@@ -73,18 +77,33 @@ pub fn read_pairs(
     deps: Deps,
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
-) -> Vec<Addr> {
+) -> StdResult<Vec<Addr>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = calc_range_start(start_after).map(Bound::exclusive);
 
-    PAIRS
-        .range(deps.storage, start, None, Order::Ascending)
-        .take(limit)
-        .map(|item| {
-            let (_, pair_addr) = item.unwrap();
-            pair_addr
-        })
-        .collect()
+    if let Some(start) = calc_range_start(start_after) {
+        PAIRS
+            .range(
+                deps.storage,
+                Some(Bound::exclusive(start.as_slice())),
+                None,
+                Order::Ascending,
+            )
+            .take(limit)
+            .map(|item| {
+                let (_, pair_addr) = item?;
+                Ok(pair_addr)
+            })
+            .collect()
+    } else {
+        PAIRS
+            .range(deps.storage, None, None, Order::Ascending)
+            .take(limit)
+            .map(|item| {
+                let (_, pair_addr) = item?;
+                Ok(pair_addr)
+            })
+            .collect()
+    }
 }
 
 // this will set the first key after the provided key, by appending a 1 byte
@@ -93,16 +112,10 @@ pub fn read_pairs(
 /// ## Params
 /// `start_after` is an [`Option`] type that accepts two [`AssetInfo`] elements.
 fn calc_range_start(start_after: Option<[AssetInfo; 2]>) -> Option<Vec<u8>> {
-    start_after.map(|asset_infos| {
-        let mut asset_infos = asset_infos.to_vec();
-        asset_infos.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
-
-        let mut v = [asset_infos[0].as_bytes(), asset_infos[1].as_bytes()]
-            .concat()
-            .as_slice()
-            .to_vec();
-        v.push(1);
-        v
+    start_after.map(|ref asset| {
+        let mut key = pair_key(asset);
+        key.push(1);
+        key
     })
 }
 

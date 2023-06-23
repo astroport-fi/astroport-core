@@ -507,7 +507,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 /// * **asset_infos** it is array with two items the type of [`AssetInfo`].
 pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
-    query_pair_info(deps, &pair_addr)
+    query_pair_info(&deps.querier, &pair_addr)
 }
 
 /// ## Description
@@ -523,10 +523,10 @@ pub fn query_pairs(
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
 ) -> StdResult<PairsResponse> {
-    let pairs: Vec<PairInfo> = read_pairs(deps, start_after, limit)
+    let pairs = read_pairs(deps, start_after, limit)?
         .iter()
-        .map(|pair_addr| query_pair_info(deps, pair_addr).unwrap())
-        .collect();
+        .map(|pair_addr| query_pair_info(&deps.querier, pair_addr))
+        .collect::<StdResult<Vec<_>>>()?;
 
     Ok(PairsResponse { pairs })
 }
