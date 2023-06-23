@@ -9,6 +9,7 @@ use itertools::Itertools;
 
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
+use astroport::observation::OracleObservation;
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, QueryMsg, ReverseSimulationResponse,
     SimulationResponse, StablePoolParams,
@@ -337,6 +338,12 @@ impl Helper {
         self.app
             .wrap()
             .query_wasm_smart(&self.pair_addr, &QueryMsg::CumulativePrices {})
+    }
+
+    pub fn query_observe(&self, seconds_ago: u64) -> StdResult<OracleObservation> {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.pair_addr, &QueryMsg::Observe { seconds_ago })
     }
 
     fn init_token(

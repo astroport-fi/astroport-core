@@ -1,10 +1,12 @@
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::PairType;
+use astroport::observation::OBSERVATIONS_SIZE;
+use astroport_circular_buffer::BufferManager;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage, Uint128};
 use cw_storage_plus::Item;
 
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, CONFIG, OBSERVATIONS};
 use crate::state::{PoolParams, PoolState};
 
 pub(crate) fn migrate_config(storage: &mut dyn Storage) -> Result<(), StdError> {
@@ -66,7 +68,6 @@ pub(crate) fn migrate_config(storage: &mut dyn Storage) -> Result<(), StdError> 
         pair_info,
         factory_addr: old_config.factory_addr,
         block_time_last: old_config.block_time_last,
-        cumulative_prices: old_config.cumulative_prices,
         pool_params: old_config.pool_params,
         pool_state: old_config.pool_state,
         owner: old_config.owner,
@@ -75,10 +76,12 @@ pub(crate) fn migrate_config(storage: &mut dyn Storage) -> Result<(), StdError> 
 
     CONFIG.save(storage, &new_config)?;
 
+    BufferManager::init(storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
+
     Ok(())
 }
 
-pub(crate) fn migrate_config_from_v140(storage: &mut dyn Storage) -> Result<(), StdError> {
+pub(crate) fn migrate_config_from_v114(storage: &mut dyn Storage) -> Result<(), StdError> {
     /// This structure stores the main config parameters for a constant product pair contract.
     #[cw_serde]
     pub struct OldConfig {
@@ -107,7 +110,6 @@ pub(crate) fn migrate_config_from_v140(storage: &mut dyn Storage) -> Result<(), 
         pair_info: old_config.pair_info,
         factory_addr: old_config.factory_addr,
         block_time_last: old_config.block_time_last,
-        cumulative_prices: old_config.cumulative_prices,
         pool_params: old_config.pool_params,
         pool_state: old_config.pool_state,
         owner: old_config.owner,
@@ -115,6 +117,52 @@ pub(crate) fn migrate_config_from_v140(storage: &mut dyn Storage) -> Result<(), 
     };
 
     CONFIG.save(storage, &new_config)?;
+
+    BufferManager::init(storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
+
+    Ok(())
+}
+
+pub(crate) fn migrate_config_from_v120(storage: &mut dyn Storage) -> Result<(), StdError> {
+    /// This structure stores the main config parameters for a constant product pair contract.
+    #[cw_serde]
+    pub struct OldConfig {
+        /// The pair information stored in a [`PairInfo`] struct
+        pub pair_info: PairInfo,
+        /// The factory contract address
+        pub factory_addr: Addr,
+        /// The last timestamp when the pair contract updated the asset cumulative prices
+        pub block_time_last: u64,
+        /// The vector contains cumulative prices for each pair of assets in the pool
+        pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
+        /// Pool parameters
+        pub pool_params: PoolParams,
+        /// Pool state
+        pub pool_state: PoolState,
+        /// Pool's owner
+        pub owner: Option<Addr>,
+        /// Whether asset balances are tracked over blocks or not.
+        pub track_asset_balances: bool,
+    }
+
+    /// Stores the config struct at the given key
+    pub const OLD_CONFIG: Item<OldConfig> = Item::new("config");
+
+    let old_config = OLD_CONFIG.load(storage)?;
+
+    let new_config = Config {
+        pair_info: old_config.pair_info,
+        factory_addr: old_config.factory_addr,
+        block_time_last: old_config.block_time_last,
+        pool_params: old_config.pool_params,
+        pool_state: old_config.pool_state,
+        owner: old_config.owner,
+        track_asset_balances: old_config.track_asset_balances,
+    };
+
+    CONFIG.save(storage, &new_config)?;
+
+    BufferManager::init(storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
 
     Ok(())
 }

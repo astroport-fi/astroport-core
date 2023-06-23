@@ -24,8 +24,6 @@ pub const HALFPOW_TOL: Decimal256 = Decimal256::raw(100000000);
 pub const TWO: Decimal256 = Decimal256::raw(2000000000000000000);
 /// Iterations limit for Newton's method
 pub const MAX_ITER: usize = 64;
-/// TWAP constant for external oracle prices
-pub const TWAP_PRECISION_DEC: Decimal256 = Decimal256::raw((1e6 * 1e18) as u128);
 
 /// ## Validation constants
 /// 0.001

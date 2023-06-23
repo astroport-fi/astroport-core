@@ -1,19 +1,22 @@
 use cosmwasm_std::{
     to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Decimal256, Env, Fraction,
-    QuerierWrapper, StdError, StdResult, Uint128,
+    QuerierWrapper, StdError, StdResult, Storage, Uint128, Uint256,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 
-use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
+use astroport::asset::{Asset, AssetInfo, DecimalAsset};
 use astroport::cosmwasm_ext::AbsDiff;
+use astroport::observation::Observation;
 use astroport::querier::{query_factory_config, query_supply};
+use astroport_circular_buffer::error::BufferResult;
+use astroport_circular_buffer::BufferManager;
 use astroport_factory::state::pair_key;
 
-use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, OFFER_PERCENT, TWAP_PRECISION_DEC};
+use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, OFFER_PERCENT};
 use crate::error::ContractError;
 use crate::math::{calc_d, calc_y};
-use crate::state::{Config, PoolParams, Precisions};
+use crate::state::{Config, PoolParams, Precisions, OBSERVATIONS};
 
 /// Helper function to check the given asset infos are valid.
 pub(crate) fn check_asset_infos(
@@ -237,45 +240,28 @@ pub struct SwapResult {
 }
 
 impl SwapResult {
-    /// Calculates **last price** and **last real price**.
-    /// Returns (last_price, last_real_price) where:
-    /// - last_price is a price for repeg algo,
-    /// - last_real_price is a real price occurred for user.
-    pub fn calc_last_prices(
-        &self,
-        offer_amount: Decimal256,
-        offer_ind: usize,
-    ) -> (Decimal256, Decimal256) {
+    /// Calculates and returns **last price** where:
+    /// - last_price is a price for repeg algo
+    pub fn calc_last_prices(&self, offer_amount: Decimal256, offer_ind: usize) -> Decimal256 {
         if offer_ind == 0 {
-            (
-                offer_amount / (self.dy + self.maker_fee),
-                offer_amount / (self.dy + self.total_fee),
-            )
+            offer_amount / (self.dy + self.maker_fee)
         } else {
-            (
-                (self.dy + self.maker_fee) / offer_amount,
-                (self.dy + self.total_fee) / offer_amount,
-            )
+            (self.dy + self.maker_fee) / offer_amount
         }
     }
 }
 
 /// Performs swap simulation to calculate price.
-pub fn calc_last_prices(
-    xs: &[Decimal256],
-    config: &Config,
-    env: &Env,
-) -> StdResult<(Decimal256, Decimal256)> {
+pub fn calc_last_prices(xs: &[Decimal256], config: &Config, env: &Env) -> StdResult<Decimal256> {
     let mut offer_amount = Decimal256::one().min(xs[0] * OFFER_PERCENT);
     if offer_amount.is_zero() {
         offer_amount = Decimal256::raw(1u128);
     }
 
-    let (last_price, last_real_price) =
-        compute_swap(xs, offer_amount, 1, config, env, Decimal256::zero())?
-            .calc_last_prices(offer_amount, 0);
+    let last_price = compute_swap(xs, offer_amount, 1, config, env, Decimal256::zero())?
+        .calc_last_prices(offer_amount, 0);
 
-    Ok((last_price, last_real_price))
+    Ok(last_price)
 }
 
 /// Calculate swap result.
@@ -371,36 +357,6 @@ pub fn compute_offer_amount(
     Ok((dy, spread_fee, fee))
 }
 
-/// Accumulate token prices for the assets in the pool.
-pub fn accumulate_prices(env: &Env, config: &mut Config, last_real_price: Decimal256) {
-    let block_time = env.block.time.seconds();
-    if block_time <= config.block_time_last {
-        return;
-    }
-
-    let time_elapsed = Uint128::from(block_time - config.block_time_last);
-
-    for (from, _, value) in config.cumulative_prices.iter_mut() {
-        let price = if &config.pair_info.asset_infos[0] == from {
-            last_real_price.inv().unwrap()
-        } else {
-            last_real_price
-        };
-        // Price max value = 1e18 bc smallest value in Decimal is 1e-18.
-        // Thus highest inverted price is 1/1e-18.
-        // (price * twap) max value = 1e24 which fits into Uint128 thus we use unwrap here
-        let price: Uint128 = (price * TWAP_PRECISION_DEC)
-            .to_uint128_with_precision(0u8)
-            .unwrap();
-        // time_elapsed * price does not need checked_mul.
-        // price max value = 1e24, u128 max value = 340282366920938463463374607431768211455
-        // overflow is possible if time_elapsed > 340282366920939 seconds ~ 10790283 years
-        *value = value.wrapping_add(time_elapsed * price);
-    }
-
-    config.block_time_last = block_time;
-}
-
 /// Calculate provide fee applied on the amount of LP tokens. Only charged for imbalanced provide.
 /// * `deposits` - internal repr of deposit
 /// * `xp` - internal repr of pools
@@ -447,9 +403,84 @@ pub fn check_pair_registered(
         .map(|inner| inner.is_some())
 }
 
+/// Internal function to calculate new moving average using Uint256.
+/// Overflow is possible only if new average order size is greater than 2^128 - 1 which is unlikely.
+fn safe_sma_calculation(
+    sma: Uint128,
+    oldest_amount: Uint128,
+    count: u32,
+    new_amount: Uint128,
+) -> StdResult<Uint128> {
+    let res = (sma.full_mul(count) + Uint256::from(new_amount) - Uint256::from(oldest_amount))
+        .checked_div(count.into())?;
+    res.try_into().map_err(StdError::from)
+}
+
+/// Calculate and save moving averages of swap sizes.
+pub fn accumulate_swap_sizes(
+    storage: &mut dyn Storage,
+    env: &Env,
+    base_amount: Uint128,
+    quote_amount: Uint128,
+) -> BufferResult<()> {
+    let mut buffer = BufferManager::new(storage, OBSERVATIONS)?;
+
+    let new_observation;
+    if let Some(last_obs) = buffer.read_last(storage)? {
+        // Since this is circular buffer the next index contains the oldest value
+        let count = buffer.capacity();
+        if let Some(oldest_obs) = buffer.read_single(storage, buffer.head() + 1)? {
+            let new_base_sma = safe_sma_calculation(
+                last_obs.base_sma,
+                oldest_obs.base_amount,
+                count,
+                base_amount,
+            )?;
+            let new_quote_sma = safe_sma_calculation(
+                last_obs.quote_sma,
+                oldest_obs.quote_amount,
+                count,
+                quote_amount,
+            )?;
+            new_observation = Observation {
+                base_amount,
+                quote_amount,
+                base_sma: new_base_sma,
+                quote_sma: new_quote_sma,
+                timestamp: env.block.time.seconds(),
+            };
+        } else {
+            // Buffer is not full yet
+            let count = Uint128::from(buffer.head());
+            let new_base_sma = (last_obs.base_sma * count + base_amount) / (count + Uint128::one());
+            let new_quote_sma =
+                (last_obs.quote_sma * count + quote_amount) / (count + Uint128::one());
+            new_observation = Observation {
+                base_amount,
+                quote_amount,
+                base_sma: new_base_sma,
+                quote_sma: new_quote_sma,
+                timestamp: env.block.time.seconds(),
+            };
+        }
+    } else {
+        // Buffer is empty
+        new_observation = Observation {
+            timestamp: env.block.time.seconds(),
+            base_sma: base_amount,
+            base_amount,
+            quote_sma: quote_amount,
+            quote_amount,
+        };
+    }
+
+    buffer.instant_push(storage, &new_observation)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cosmwasm_std::testing::{mock_env, MockStorage};
     use std::error::Error;
     use std::fmt::Display;
     use std::str::FromStr;
@@ -495,5 +526,35 @@ mod tests {
             &params,
         );
         assert_eq!(dec_to_f64(fee_rate), 0.002205);
+    }
+
+    #[test]
+    fn test_swap_obeservations() {
+        let mut store = MockStorage::new();
+        let env = mock_env();
+
+        BufferManager::init(&mut store, OBSERVATIONS, 10).unwrap();
+
+        for _ in 0..50 {
+            accumulate_swap_sizes(
+                &mut store,
+                &env,
+                Uint128::from(1000u128),
+                Uint128::from(500u128),
+            )
+            .unwrap();
+        }
+
+        let buffer = BufferManager::new(&store, OBSERVATIONS).unwrap();
+
+        assert_eq!(buffer.head(), 0);
+        assert_eq!(
+            buffer.read_last(&store).unwrap().unwrap().base_sma.u128(),
+            1000u128
+        );
+        assert_eq!(
+            buffer.read_last(&store).unwrap().unwrap().quote_sma.u128(),
+            500u128
+        );
     }
 }

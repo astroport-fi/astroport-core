@@ -8,6 +8,7 @@ use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, DecimalAsset};
 use astroport::cosmwasm_ext::{AbsDiff, IntegerToDecimal};
+use astroport::observation::Observation;
 use astroport::querier::query_factory_config;
 use astroport_circular_buffer::error::BufferResult;
 use astroport_circular_buffer::BufferManager;
@@ -18,7 +19,7 @@ use crate::error::ContractError;
 use crate::math::{calc_d, calc_y};
 use crate::orderbook::state::OrderbookState;
 use crate::orderbook::utils::get_subaccount_balances_dec;
-use crate::state::{Config, Observation, PoolParams, Precisions, OBSERVATIONS};
+use crate::state::{Config, PoolParams, Precisions, OBSERVATIONS};
 
 /// Helper function to check the given asset infos are valid.
 pub(crate) fn check_asset_infos(asset_infos: &[AssetInfo]) -> Result<(), ContractError> {
@@ -262,42 +263,26 @@ impl SwapResult {
     /// Calculates **last price** and **last real price**.
     /// Returns (last_price, last_real_price) where:
     /// - last_price is a price for repeg algo,
-    /// - last_real_price is a real price occurred for user.
-    pub fn calc_last_prices(
-        &self,
-        offer_amount: Decimal256,
-        offer_ind: usize,
-    ) -> (Decimal256, Decimal256) {
+    pub fn calc_last_price(&self, offer_amount: Decimal256, offer_ind: usize) -> Decimal256 {
         if offer_ind == 0 {
-            (
-                offer_amount / (self.dy + self.maker_fee),
-                offer_amount / (self.dy + self.total_fee),
-            )
+            offer_amount / (self.dy + self.maker_fee)
         } else {
-            (
-                (self.dy + self.maker_fee) / offer_amount,
-                (self.dy + self.total_fee) / offer_amount,
-            )
+            (self.dy + self.maker_fee) / offer_amount
         }
     }
 }
 
-/// Performs swap simulation to calculate price.
-pub fn calc_last_prices(
-    xs: &[Decimal256],
-    config: &Config,
-    env: &Env,
-) -> StdResult<(Decimal256, Decimal256)> {
+/// Performs swap simulation to calculate a price.
+pub fn calc_last_prices(xs: &[Decimal256], config: &Config, env: &Env) -> StdResult<Decimal256> {
     let mut offer_amount = Decimal256::one().min(xs[0] * OFFER_PERCENT);
     if offer_amount.is_zero() {
         offer_amount = Decimal256::raw(1u128);
     }
 
-    let (last_price, last_real_price) =
-        compute_swap(xs, offer_amount, 1, config, env, Decimal256::zero())?
-            .calc_last_prices(offer_amount, 0);
+    let last_price = compute_swap(xs, offer_amount, 1, config, env, Decimal256::zero())?
+        .calc_last_price(offer_amount, 0);
 
-    Ok((last_price, last_real_price))
+    Ok(last_price)
 }
 
 /// Calculate swap result.
@@ -456,7 +441,7 @@ pub fn accumulate_swap_sizes(
         }
 
         // Enable orderbook if we have enough observations
-        if !ob_state.ready && buffer.head() > ob_state.min_trades_to_avg {
+        if !ob_state.ready && (buffer.head() + 1) >= ob_state.min_trades_to_avg {
             ob_state.ready(true)
         }
     } else {
@@ -593,6 +578,7 @@ mod tests {
             orders_number: 0,
             min_trades_to_avg: *MIN_TRADES_TO_AVG_LIMITS.start(),
             ready: false,
+            enabled: true,
         };
         BufferManager::init(&mut store, OBSERVATIONS, 10).unwrap();
 
@@ -618,5 +604,50 @@ mod tests {
             buffer.read_last(&store).unwrap().unwrap().quote_sma.u128(),
             500u128
         );
+    }
+
+    #[test]
+    fn test_contract_ready() {
+        let mut store = MockStorage::new();
+        let env = mock_env();
+        let min_trades_to_avg = 10;
+        let mut ob_state = OrderbookState {
+            market_id: MarketId::unchecked("test"),
+            subaccount: SubaccountId::unchecked("test"),
+            asset_infos: vec![],
+            min_price_tick_size: Default::default(),
+            min_quantity_tick_size: Default::default(),
+            need_reconcile: false,
+            last_balances: vec![],
+            orders_number: 0,
+            min_trades_to_avg,
+            ready: false,
+            enabled: true,
+        };
+        BufferManager::init(&mut store, OBSERVATIONS, min_trades_to_avg).unwrap();
+
+        for _ in 0..min_trades_to_avg - 1 {
+            accumulate_swap_sizes(
+                &mut store,
+                &env,
+                &mut ob_state,
+                Uint128::from(1000u128),
+                Uint128::from(500u128),
+            )
+            .unwrap();
+        }
+        assert!(!ob_state.ready, "Contract should not be ready yet");
+
+        // last observation to make contract ready
+        accumulate_swap_sizes(
+            &mut store,
+            &env,
+            &mut ob_state,
+            Uint128::from(1000u128),
+            Uint128::from(500u128),
+        )
+        .unwrap();
+
+        assert!(ob_state.ready, "Contract should be ready");
     }
 }

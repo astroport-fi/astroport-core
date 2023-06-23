@@ -11,7 +11,6 @@ use cw_utils::parse_instantiate_response_data;
 use injective_cosmwasm::{InjectiveMsgWrapper, InjectiveQuerier, InjectiveQueryWrapper};
 use itertools::Itertools;
 
-use crate::consts::OBSERVATIONS_SIZE;
 use astroport::asset::{
     addr_opt_validate, format_lp_token_name, Asset, AssetInfo, AssetInfoExt, CoinsExt,
     Decimal256Ext, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
@@ -19,6 +18,7 @@ use astroport::asset::{
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
+use astroport::observation::OBSERVATIONS_SIZE;
 use astroport::pair::{Cw20HookMsg, InstantiateMsg};
 use astroport::pair_concentrated::UpdatePoolParams;
 use astroport::pair_concentrated_inj::{
@@ -32,7 +32,8 @@ use crate::error::ContractError;
 use crate::math::{calc_d, get_xcp};
 use crate::orderbook::state::OrderbookState;
 use crate::orderbook::utils::{
-    get_subaccount_balances, is_contract_active, leave_orderbook, process_cumulative_trade,
+    get_subaccount_balances, is_allowed_for_begin_blocker, is_contract_active, leave_orderbook,
+    process_cumulative_trade,
 };
 use crate::state::{
     store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, CONFIG,
@@ -130,7 +131,6 @@ pub fn instantiate(
             pair_type: PairType::Custom("concentrated_inj_orderbook".to_string()),
         },
         factory_addr,
-        block_time_last: env.block.time.seconds(),
         pool_params,
         pool_state,
         owner: None,
@@ -161,7 +161,9 @@ pub fn instantiate(
         INSTANTIATE_TOKEN_REPLY_ID,
     );
 
-    Ok(Response::new().add_submessage(sub_msg))
+    Ok(Response::new()
+        .add_submessage(sub_msg)
+        .add_attribute("subaccount_id", ob_state.subaccount.to_string()))
 }
 
 /// The entry point to the contract for processing replies from submessages.
@@ -306,6 +308,7 @@ pub fn execute(
             .map_err(Into::into)
         }
         ExecuteMsg::WithdrawFromOrderbook {} => orderbook_emergency_withdraw(deps, env),
+        ExecuteMsg::UpdateMarketTicks {} => update_market_ticks(deps),
     }
 }
 
@@ -319,10 +322,14 @@ fn receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
     match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::WithdrawLiquidity { assets } => {
-            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
-            withdraw_liquidity(deps, env, info, sender, cw20_msg.amount, assets)
-        }
+        Cw20HookMsg::WithdrawLiquidity { assets } => withdraw_liquidity(
+            deps,
+            env,
+            info,
+            Addr::unchecked(cw20_msg.sender),
+            cw20_msg.amount,
+            assets,
+        ),
         _ => Err(ContractError::NotSupported {}),
     }
 }
@@ -339,8 +346,6 @@ fn receive_cw20(
 ///
 /// * **receiver** is an optional parameter which defines the receiver of the LP tokens.
 /// If no custom receiver is specified, the pair will mint LP tokens for the function caller.
-///
-/// NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
 pub fn provide_liquidity<T>(
     deps: DepsMut<InjectiveQueryWrapper>,
     env: Env,
@@ -436,9 +441,10 @@ where
     let mut xs = pools.iter().map(|asset| asset.amount).collect_vec();
 
     let mut messages = vec![];
+    let inj_querier = InjectiveQuerier::new(&deps.querier);
     let subacc_balances = get_subaccount_balances(
         &config.pair_info.asset_infos,
-        &InjectiveQuerier::new(&deps.querier),
+        &inj_querier,
         &ob_state.subaccount,
     )?;
     // In case begin blocker logic wasn't executed, we need to update price and send maker fees
@@ -472,10 +478,7 @@ where
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
     let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
-    let (mut old_price, _) = (
-        config.pool_state.price_state.last_price,
-        config.pool_state.price_state.last_price,
-    );
+    let mut old_price = config.pool_state.price_state.last_price;
 
     let share = if total_share.is_zero() {
         let mint_amount = xcp
@@ -501,7 +504,7 @@ where
         mint_amount
     } else {
         let mut old_xp = xs.clone();
-        old_price = calc_last_prices(&old_xp, &config, &env)?.0;
+        old_price = calc_last_prices(&old_xp, &config, &env)?;
         old_xp[1] *= config.pool_state.price_state.price_scale;
         let old_d = calc_d(&old_xp, &amp_gamma)?;
         let share = (total_share * new_d / old_d).saturating_sub(total_share);
@@ -523,15 +526,15 @@ where
         deposits[1].diff(balanced_share[1]),
     ];
 
-    let tmp_xp = vec![
-        new_xp[0],
-        new_xp[1] / config.pool_state.price_state.price_scale,
-    ];
-    let (new_price, _) = calc_last_prices(&tmp_xp, &config, &env)?;
-
     // if assets_diff[1] is zero then deposits are balanced thus no need to update price
     if !assets_diff[1].is_zero() {
         let last_price = assets_diff[0] / assets_diff[1];
+
+        let tmp_xp = vec![
+            new_xp[0],
+            new_xp[1] / config.pool_state.price_state.price_scale,
+        ];
+        let new_price = calc_last_prices(&tmp_xp, &config, &env)?;
 
         assert_slippage_tolerance(old_price, new_price, slippage_tolerance)?;
 
@@ -560,6 +563,7 @@ where
         auto_stake,
     )?);
 
+    ob_state.enabled = is_allowed_for_begin_blocker(&inj_querier, &config.pair_info);
     ob_state.reconcile(deps.storage)?;
     CONFIG.save(deps.storage, &config)?;
 
@@ -687,8 +691,7 @@ fn withdraw_liquidity(
     ]))
 }
 
-/// Performs an swap operation with the specified parameters. The trader must approve the
-/// pool contract to transfer offer assets from their wallet.
+/// Performs swap operation with the specified parameters.
 ///
 /// * **sender** is the sender of the swap operation.
 ///
@@ -752,9 +755,10 @@ where
 
     let mut messages = vec![];
 
+    let inj_querier = InjectiveQuerier::new(&deps.querier);
     let subacc_balances = get_subaccount_balances(
         &config.pair_info.asset_infos,
-        &InjectiveQuerier::new(&deps.querier),
+        &inj_querier,
         &ob_state.subaccount,
     )?;
     // In case begin blocker logic wasn't executed, we need to update price and send maker fees
@@ -801,7 +805,7 @@ where
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
 
-    let (last_price, _) = swap_result.calc_last_prices(offer_asset_dec.amount, offer_ind);
+    let last_price = swap_result.calc_last_price(offer_asset_dec.amount, offer_ind);
 
     // update_price() works only with internal representation
     xs[1] *= config.pool_state.price_state.price_scale;
@@ -840,6 +844,7 @@ where
     accumulate_swap_sizes(deps.storage, &env, &mut ob_state, base_amount, quote_amount)?;
 
     CONFIG.save(deps.storage, &config)?;
+    ob_state.enabled = is_allowed_for_begin_blocker(&inj_querier, &config.pair_info);
     ob_state.reconcile(deps.storage)?;
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
@@ -876,29 +881,37 @@ fn update_config<T>(
         return Err(ContractError::Unauthorized {});
     }
 
-    let action = match from_binary::<ConcentratedObPoolUpdateParams>(&params)? {
+    let attributes = match from_binary::<ConcentratedObPoolUpdateParams>(&params)? {
         ConcentratedObPoolUpdateParams::Update(update_params) => {
-            config.pool_params.update_params(update_params)?;
-            "update_params"
+            let mut attrs = config.pool_params.update_params(update_params)?;
+            attrs.push(attr("action", "update_params"));
+            attrs
         }
         ConcentratedObPoolUpdateParams::Promote(promote_params) => {
+            let attrs = vec![
+                attr("action", "promote_params"),
+                attr("next_amp", promote_params.next_amp.to_string()),
+                attr("next_gamma", promote_params.next_gamma.to_string()),
+                attr("future_time", promote_params.future_time.to_string()),
+            ];
             config.pool_state.promote_params(&env, promote_params)?;
-            "promote_params"
+            attrs
         }
         ConcentratedObPoolUpdateParams::StopChangingAmpGamma {} => {
             config.pool_state.stop_promotion(&env);
-            "stop_changing_amp_gamma"
+            vec![attr("action", "stop_changing_amp_gamma")]
         }
         ConcentratedObPoolUpdateParams::UpdateOrderbookParams { orders_number } => {
-            let mut ob_config = OrderbookState::load(deps.storage)?;
-            ob_config.orders_number = orders_number;
-            ob_config.save(deps.storage)?;
-            "update_orderbook_params"
+            OrderbookState::update_orders_number(deps.storage, orders_number)?;
+            vec![
+                attr("action", "update_orderbook_params"),
+                attr("orders_number", orders_number.to_string()),
+            ]
         }
     };
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::default().add_attribute("action", action))
+    Ok(Response::default().add_attributes(attributes))
 }
 
 /// In case for some reason orderbook was disabled and liquidity left in the subaccount
@@ -910,14 +923,14 @@ pub fn orderbook_emergency_withdraw(
     let querier = InjectiveQuerier::new(&deps.querier);
 
     // Ask chain whether the pair contract is still active in begin blocker
-    if is_contract_active(&querier, &env.contract.address)? {
+    if is_contract_active(&querier, &env.contract.address) {
         return Err(StdError::generic_err(
             "Failed to withdraw liquidity from orderbook: contract is active",
         )
         .into());
     }
 
-    let ob_state = OrderbookState::load(deps.storage)?;
+    let mut ob_state = OrderbookState::load(deps.storage)?;
     let balances = get_subaccount_balances(&ob_state.asset_infos, &querier, &ob_state.subaccount)?;
 
     let mut response = if !(balances[0].amount + balances[1].amount).is_zero() {
@@ -958,6 +971,7 @@ pub fn orderbook_emergency_withdraw(
         response = response.add_messages(maker_fee_message);
     }
 
+    ob_state.enabled = false;
     let new_balances = vec![
         ob_state.asset_infos[0].with_balance(0u8),
         ob_state.asset_infos[1].with_balance(0u8),
@@ -965,7 +979,21 @@ pub fn orderbook_emergency_withdraw(
     ob_state.reconciliation_done(deps.storage, new_balances)?;
 
     Ok(response.add_attributes(vec![
-        attr("action", "emergency_withdraw"),
+        attr("action", "emergency_orderbook_withdraw"),
         attr("pair", env.contract.address),
     ]))
+}
+
+/// Permissionless endpoint to update price_tick_size and quantity_tick_size
+/// according to the current exchange module state.
+/// Besides updating with the same values is safe, in this case
+/// function explicitly returns error "Ticks are already up to date".
+fn update_market_ticks(
+    deps: DepsMut<InjectiveQueryWrapper>,
+) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
+    let mut ob_state = OrderbookState::load(deps.storage)?;
+    ob_state.set_ticks(deps.querier)?;
+    ob_state.save(deps.storage)?;
+
+    Ok(Response::new().add_attribute("action", "update_market_ticks"))
 }

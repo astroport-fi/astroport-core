@@ -52,6 +52,8 @@ pub struct OrderbookState {
     pub min_trades_to_avg: u32,
     /// Whether the pool is ready to integrate with the orderbook (MIN_TRADES_TO_AVG is reached)
     pub ready: bool,
+    /// Whether the begin blocker execution is allowed or not. Default: true
+    pub enabled: bool,
 }
 
 const OB_CONFIG: Item<OrderbookState> = Item::new("orderbook_config");
@@ -89,6 +91,7 @@ impl OrderbookState {
             orders_number,
             min_trades_to_avg,
             ready: false,
+            enabled: true,
         };
 
         state.set_ticks(querier)?;
@@ -152,20 +155,28 @@ impl OrderbookState {
 
     /// Querying exchange module, converting into [`Decimal256`] and caching tick sizes.
     /// Cashed values help to save gas on begin blocker iterations.
-    fn set_ticks(&mut self, querier: QuerierWrapper<InjectiveQueryWrapper>) -> StdResult<()> {
+    pub fn set_ticks(&mut self, querier: QuerierWrapper<InjectiveQueryWrapper>) -> StdResult<()> {
         let querier = InjectiveQuerier::new(&querier);
         let market_info = querier
             .query_spot_market(&self.market_id)?
             .market
-            .ok_or_else(|| OrderbookError::MarketNotFound(self.market_id.clone().into()))?;
+            .ok_or_else(|| OrderbookError::MarketNotFound(self.market_id.as_str().to_string()))?;
 
-        self.min_price_tick_size = market_info.min_price_tick_size.conv()?;
-        self.min_quantity_tick_size = market_info.min_quantity_tick_size.conv()?;
+        let new_min_price_tick_size: Decimal256 = market_info.min_price_tick_size.conv()?;
+        let new_min_quantity_tick_size: Decimal256 = market_info.min_quantity_tick_size.conv()?;
+        if new_min_price_tick_size == self.min_price_tick_size
+            && new_min_quantity_tick_size == self.min_quantity_tick_size
+        {
+            return Err(StdError::generic_err("Ticks are already up to date"));
+        }
+
+        self.min_price_tick_size = new_min_price_tick_size;
+        self.min_quantity_tick_size = new_min_quantity_tick_size;
 
         Ok(())
     }
 
-    /// Set flag to trigger reconciliation on next begin blocker
+    /// Set flag to trigger reconciliation on the next begin blocker
     pub fn reconcile(self, storage: &mut dyn Storage) -> StdResult<()> {
         OB_CONFIG.save(
             storage,
@@ -196,6 +207,23 @@ impl OrderbookState {
     pub fn ready(&mut self, ready: bool) {
         self.ready = ready;
     }
+
+    /// Validates new orders number parameter and saves it in storage.
+    pub fn update_orders_number(storage: &mut dyn Storage, orders_number: u8) -> StdResult<()> {
+        validate_param!(
+            orders_number,
+            orders_number,
+            *ORDER_SIZE_LIMITS.start(),
+            *ORDER_SIZE_LIMITS.end()
+        );
+
+        OB_CONFIG
+            .update(storage, |mut ob_state| {
+                ob_state.orders_number = orders_number;
+                Ok(ob_state)
+            })
+            .map(|_| ())
+    }
 }
 
 impl From<OrderbookState> for OrderbookStateResponse {
@@ -210,6 +238,7 @@ impl From<OrderbookState> for OrderbookStateResponse {
             orders_number: value.orders_number,
             min_trades_to_avg: value.min_trades_to_avg,
             ready: value.ready,
+            enabled: value.enabled,
         }
     }
 }

@@ -17,24 +17,27 @@ use astroport::asset::{
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
+use astroport::observation::OBSERVATIONS_SIZE;
 use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, MigrateMsg, UpdatePoolParams,
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_circular_buffer::BufferManager;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
 use crate::error::ContractError;
 use crate::math::{calc_d, get_xcp};
-use crate::migration::{migrate_config, migrate_config_from_v140};
+use crate::migration::{migrate_config, migrate_config_from_v114, migrate_config_from_v120};
 use crate::state::{
     store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, BALANCES,
-    CONFIG, OWNERSHIP_PROPOSAL,
+    CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
-    accumulate_prices, assert_max_spread, assert_slippage_tolerance, before_swap_check,
+    accumulate_swap_sizes, assert_max_spread, assert_slippage_tolerance, before_swap_check,
     calc_last_prices, calc_provide_fee, check_asset_infos, check_assets, check_cw20_in_pool,
     check_pair_registered, compute_swap, get_share_in_assets, mint_liquidity_token_message,
     query_pools,
@@ -78,20 +81,6 @@ pub fn instantiate(
 
     store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
-    // Initializing cumulative prices
-    let cumulative_prices = vec![
-        (
-            msg.asset_infos[0].clone(),
-            msg.asset_infos[1].clone(),
-            Uint128::zero(),
-        ),
-        (
-            msg.asset_infos[1].clone(),
-            msg.asset_infos[0].clone(),
-            Uint128::zero(),
-        ),
-    ];
-
     let mut pool_params = PoolParams::default();
     pool_params.update_params(UpdatePoolParams {
         mid_fee: Some(params.mid_fee),
@@ -126,7 +115,6 @@ pub fn instantiate(
         },
         factory_addr,
         block_time_last: env.block.time.seconds(),
-        cumulative_prices,
         pool_params,
         pool_state,
         owner: None,
@@ -140,6 +128,8 @@ pub fn instantiate(
     }
 
     CONFIG.save(deps.storage, &config)?;
+
+    BufferManager::init(deps.storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
 
     let token_name = format_lp_token_name(&msg.asset_infos, &deps.querier)?;
 
@@ -479,10 +469,7 @@ pub fn provide_liquidity(
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
     let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
-    let (mut old_price, mut old_real_price) = (
-        config.pool_state.price_state.last_price,
-        config.pool_state.price_state.last_price,
-    );
+    let mut old_price = config.pool_state.price_state.last_price;
 
     let share = if total_share.is_zero() {
         let mint_amount = xcp
@@ -508,7 +495,7 @@ pub fn provide_liquidity(
         mint_amount
     } else {
         let mut old_xp = pools.iter().map(|a| a.amount).collect_vec();
-        (old_price, old_real_price) = calc_last_prices(&old_xp, &config, &env)?;
+        old_price = calc_last_prices(&old_xp, &config, &env)?;
         old_xp[1] *= config.pool_state.price_state.price_scale;
         let old_d = calc_d(&old_xp, &amp_gamma)?;
         let share = (total_share * new_d / old_d).saturating_sub(total_share);
@@ -534,7 +521,7 @@ pub fn provide_liquidity(
         new_xp[0],
         new_xp[1] / config.pool_state.price_state.price_scale,
     ];
-    let (new_price, _) = calc_last_prices(&tmp_xp, &config, &env)?;
+    let new_price = calc_last_prices(&tmp_xp, &config, &env)?;
 
     // if assets_diff[1] is zero then deposits are balanced thus no need to update price
     if !assets_diff[1].is_zero() {
@@ -580,8 +567,6 @@ pub fn provide_liquidity(
             )?;
         }
     }
-
-    accumulate_prices(&env, &mut config, old_real_price);
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -742,7 +727,6 @@ fn swap(
     before_swap_check(&pools, offer_asset_dec.amount)?;
 
     let mut xs = pools.iter().map(|asset| asset.amount).collect_vec();
-    let (_, old_real_price) = calc_last_prices(&xs, &config, &env)?;
 
     // Get fee info from the factory
     let fee_info = query_fee_info(
@@ -778,7 +762,7 @@ fn swap(
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
 
-    let (last_price, _) = swap_result.calc_last_prices(offer_asset_dec.amount, offer_ind);
+    let last_price = swap_result.calc_last_prices(offer_asset_dec.amount, offer_ind);
 
     // update_price() works only with internal representation
     xs[1] *= config.pool_state.price_state.price_scale;
@@ -807,7 +791,13 @@ fn swap(
         }
     }
 
-    accumulate_prices(&env, &mut config, old_real_price);
+    // Store time series data
+    let (base_amount, quote_amount) = if offer_ind == 0 {
+        (offer_asset.amount, return_amount)
+    } else {
+        (return_amount, offer_asset.amount)
+    };
+    accumulate_swap_sizes(deps.storage, &env, base_amount, quote_amount)?;
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -902,8 +892,8 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
     match contract_version.contract.as_ref() {
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
             "1.0.0" | "1.1.0" | "1.1.1" | "1.1.2" => migrate_config(deps.storage)?,
-            "1.1.4" => migrate_config_from_v140(deps.storage)?,
-            "1.2.0" | "1.2.1" => {}
+            "1.1.4" => migrate_config_from_v114(deps.storage)?,
+            "1.2.0" | "1.2.1" | "1.2.2" => migrate_config_from_v120(deps.storage)?,
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

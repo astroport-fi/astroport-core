@@ -314,3 +314,16 @@ Returns the balance of the specified asset that was in the pool just preceeding 
     "block_height": "12345678"
   }
 }
+```
+
+`observe`
+
+Query price from stored observations. If observation was not found at exact time then it is interpolated using surrounding observations.
+
+```json
+{
+  "observe": {
+    "seconds_ago": 3600
+  }
+}
+```
