@@ -10,7 +10,7 @@ use cosmwasm_std::{
     StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_cosmwasm::TerraQuerier;
+use classic_bindings::{TerraQuerier, TerraQuery};
 
 /// UST token denomination
 pub const UUSD_DENOM: &str = "uusd";
@@ -49,12 +49,12 @@ impl Asset {
     /// * **self** is the type of the caller object.
     ///
     /// * **querier** is an object of type [`QuerierWrapper`]
-    pub fn compute_tax(&self, querier: &QuerierWrapper) -> StdResult<Uint128> {
+    pub fn compute_tax(&self, querier: &QuerierWrapper<TerraQuery>) -> StdResult<Uint128> {
         let amount = self.amount;
         if let AssetInfo::NativeToken { denom } = &self.info {
             let terra_querier = TerraQuerier::new(querier);
-            let tax_rate: Decimal = (terra_querier.query_tax_rate()?).rate;
-            let tax_cap: Uint128 = (terra_querier.query_tax_cap(denom.to_string())?).cap;
+            let tax_rate: Decimal = terra_querier.query_tax_rate().unwrap().rate;
+            let tax_cap: Uint128 = terra_querier.query_tax_cap(denom.to_string()).unwrap().cap;
             Ok(std::cmp::min(
                 (amount.checked_sub(amount.multiply_ratio(
                     DECIMAL_FRACTION,
@@ -72,7 +72,7 @@ impl Asset {
     /// * **self** is the type of the caller object.
     ///
     /// * **querier** is an object of type [`QuerierWrapper`]
-    pub fn deduct_tax(&self, querier: &QuerierWrapper) -> StdResult<Coin> {
+    pub fn deduct_tax(&self, querier: &QuerierWrapper<TerraQuery>) -> StdResult<Coin> {
         let amount = self.amount;
         if let AssetInfo::NativeToken { denom } = &self.info {
             Ok(Coin {
@@ -96,7 +96,7 @@ impl Asset {
     /// * **querier** is an object of type [`QuerierWrapper`]
     ///
     /// * **recipient** is the address where the funds will be sent.
-    pub fn into_msg(self, querier: &QuerierWrapper, recipient: Addr) -> StdResult<CosmosMsg> {
+    pub fn into_msg(self, querier: &QuerierWrapper<TerraQuery>, recipient: Addr) -> StdResult<CosmosMsg> {
         let amount = self.amount;
 
         match &self.info {

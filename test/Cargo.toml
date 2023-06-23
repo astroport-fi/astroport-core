@@ -1,0 +1,29 @@
+[package]
+name = "test"
+version = "0.1.0"
+authors = ["nghuyenthevinh2000 <nghuyenthevinh@gmail.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+cosmwasm-schema = "1.1"
+cosmwasm-std = "1.1"
+cosmwasm-storage = "1.1"
+cw-storage-plus = "1.0.1"
+cw2 = "1.0.1"
+schemars = "0.8.10"
+serde = { version = "1.0.145", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.31" }
+
+[dev-dependencies]
+classic-test-tube = {version = "0.1.0", git = "https://github.com/classic-terra/classic-rust.git", package = "classic-test-tube", rev = "2b3571f272b54acd2119a33706f4abccdaa9f5dd"}

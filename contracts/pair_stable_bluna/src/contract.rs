@@ -1724,13 +1724,13 @@ fn get_bluna_reward_handling_messages(
     )?;
 
     Ok(vec![
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: bluna_rewarder.to_string(),
-            msg: to_binary(&anchor_basset::reward::ExecuteMsg::ClaimRewards {
-                recipient: Some(bluna_reward_holder.to_string()),
-            })?,
-            funds: vec![],
-        }),
+        // CosmosMsg::Wasm(WasmMsg::Execute {
+        //     contract_addr: bluna_rewarder.to_string(),
+        //     msg: to_binary(&anchor_basset::reward::ExecuteMsg::ClaimRewards {
+        //         recipient: Some(bluna_reward_holder.to_string()),
+        //     })?,
+        //     funds: vec![],
+        // }),
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
             funds: vec![],

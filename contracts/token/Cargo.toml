@@ -19,15 +19,15 @@ library = []
 
 [dependencies]
 astroport = { path = "../../packages/astroport", default-features = false }
-cw2 = "0.8"
-cw20 = "0.8"
-cw20-base = { version = "0.8", features = ["library"] }
-cosmwasm-std = { version = "0.16.2", features = ["iterator"] }
+cw2 = "0.15"
+cw20 = "0.15"
+cw20-base = { version = "0.15", features = ["library"] }
+cosmwasm-std = "1.1"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-snafu = { version = "0.6.3" }
+snafu = "0.6"
 
 [dev-dependencies]
 # we only need to enable this if we use integration tests
-#cosmwasm-vm = { version = "0.10.1", default-features = false }
-cosmwasm-schema = { version = "0.16.2" }
+#cosmwasm-vm = { version = "1.1", default-features = false }
+cosmwasm-schema = "1.1"
