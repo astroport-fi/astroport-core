@@ -5,10 +5,9 @@ use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
 use astroport::oracle::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use astroport::pair::TWAP_PRECISION;
 use astroport::querier::query_token_precision;
-use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
-    Uint128,
+    Uint128, Decimal256, Uint256
 };
 use cw2::set_contract_version;
 
@@ -204,7 +203,7 @@ fn consult(deps: Deps, token: AssetInfo, amount: Uint128) -> Result<Uint256, Std
         Uint256::from(price).multiply_ratio(Uint256::from(amount), Uint256::from(one))
     } else {
         let price_precision = Uint256::from(10_u128.pow(TWAP_PRECISION.into()));
-        Uint256::from(amount) * price_average / Decimal256::from_uint256(price_precision)
+        Uint256::from(amount) * price_average / Decimal256::new(price_precision).to_uint_floor()
     })
 }
 

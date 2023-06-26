@@ -15,7 +15,7 @@ use classic_bindings::{TaxCapResponse, TaxRateResponse, TerraQuery};
 /// this uses our CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
-) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
+) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery> {
     let custom_querier: WasmMockQuerier =
         WasmMockQuerier::new(MockQuerier::new(&[(MOCK_CONTRACT_ADDR, contract_balance)]));
 
@@ -105,30 +105,21 @@ impl Querier for WasmMockQuerier {
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<TerraQuery>) -> QuerierResult {
         match &request {
-            QueryRequest::Custom(TerraQuery { route, query_data }) => {
-                if route == &TerraRoute::Treasury {
-                    match query_data {
-                        TerraQuery::TaxRate {} => {
-                            let res = TaxRateResponse {
-                                rate: self.tax_querier.rate,
-                            };
-                            SystemResult::Ok(to_binary(&res).into())
-                        }
-                        TerraQuery::TaxCap { denom } => {
-                            let cap = self
-                                .tax_querier
-                                .caps
-                                .get(denom)
-                                .copied()
-                                .unwrap_or_default();
-                            let res = TaxCapResponse { cap };
-                            SystemResult::Ok(to_binary(&res).into())
-                        }
-                        _ => panic!("DO NOT ENTER HERE"),
-                    }
-                } else {
-                    panic!("DO NOT ENTER HERE")
-                }
+            QueryRequest::Custom(TerraQuery::TaxRate {}) => {
+                let res = TaxRateResponse {
+                    rate: self.tax_querier.rate,
+                };
+                SystemResult::Ok(to_binary(&res).into())
+            },
+            QueryRequest::Custom(TerraQuery::TaxCap {denom}) => {
+                let cap = self
+                    .tax_querier
+                    .caps
+                    .get(denom)
+                    .copied()
+                    .unwrap_or_default();
+                let res = TaxCapResponse { cap };
+                SystemResult::Ok(to_binary(&res).into())
             }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if contract_addr == "factory" {
@@ -200,7 +191,7 @@ impl WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn new(base: MockQuerier<TerraQueryWrapper>) -> Self {
+    pub fn new(base: MockQuerier<TerraQuery>) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),

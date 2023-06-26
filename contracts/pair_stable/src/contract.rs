@@ -141,7 +141,7 @@ pub fn instantiate(
 ///
 /// * **msg** is the object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps: DepsMut<TerraQuery>, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
     if config.pair_info.liquidity_token != Addr::unchecked("") {

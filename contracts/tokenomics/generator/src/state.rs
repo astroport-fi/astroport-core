@@ -151,13 +151,13 @@ pub fn update_user_balance(
     if !pool.accumulated_rewards_per_share.is_zero() {
         user.reward_debt = pool
             .accumulated_rewards_per_share
-            .checked_mul(user.amount)?;
+            .checked_mul(Decimal::new(user.amount))?.to_uint_floor();
     };
 
     if !pool.accumulated_proxy_rewards_per_share.is_zero() {
         user.reward_debt_proxy = pool
             .accumulated_proxy_rewards_per_share
-            .checked_mul(user.amount)?;
+            .checked_mul(Decimal::new(user.amount))?.to_uint_floor();
     };
 
     Ok(user)

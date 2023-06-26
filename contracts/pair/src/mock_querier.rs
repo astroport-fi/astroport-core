@@ -4,6 +4,7 @@ use cosmwasm_std::{
     QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
 use astroport::factory::FeeInfoResponse;
 use astroport::factory::QueryMsg::FeeInfo;
@@ -22,6 +23,7 @@ pub fn mock_dependencies(
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier: custom_querier,
+        custom_query_type: PhantomData
     }
 }
 

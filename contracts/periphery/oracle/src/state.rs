@@ -2,8 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use astroport::asset::{AssetInfo, PairInfo};
-use cosmwasm_bignumber::Decimal256;
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Uint128, Decimal256};
 use cw_storage_plus::Item;
 
 /// ## Description
