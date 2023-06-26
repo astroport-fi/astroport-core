@@ -29,6 +29,7 @@ cw2 = "0.15"
 cw20 = "0.15"
 astroport = { path = "../../../packages/astroport", default-features = false }
 protobuf = { version = "2", features = ["with-bytes"] }
+classic-bindings = { version = "0.1.1" }
 
 [dev-dependencies]
 cosmwasm-schema = "1.1"

@@ -26,6 +26,8 @@ use astroport::{
 };
 use cw2::{get_contract_version, set_contract_version};
 
+use classic_bindings::TerraQuery;
+
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-generator";
 /// Contract version that is used for migration.
@@ -44,7 +46,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps:DepsMut<'_,TerraQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -127,7 +129,7 @@ pub fn instantiate(
 /// * **ExecuteMsg::ClaimOwnership {}** Approves owner.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -283,7 +285,7 @@ pub fn execute(
 /// ##Executor
 /// Only owner can execute it
 pub fn execute_update_config(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     info: MessageInfo,
     vesting_contract: Option<String>,
 ) -> Result<Response, ContractError> {
@@ -323,7 +325,7 @@ pub fn execute_update_config(
 /// ##Executor
 /// Can only be called by the owner
 pub fn add(
-    mut deps: DepsMut,
+    mut deps: DepsMut<'_, TerraQuery>,
     env: Env,
     lp_token: Addr,
     alloc_point: Uint64,
@@ -387,7 +389,7 @@ pub fn add(
 /// ##Executor
 /// Can only be called by the owner
 pub fn set(
-    mut deps: DepsMut,
+    mut deps: DepsMut<'_, TerraQuery>,
     env: Env,
     lp_token: Addr,
     alloc_point: Uint64,
@@ -429,7 +431,7 @@ pub fn set(
 ///
 /// * **on_reply** is the object of type [`ExecuteOnReply`]. Sets the action to be performed.
 fn update_rewards_and_execute(
-    mut deps: DepsMut,
+    mut deps: DepsMut<'_, TerraQuery>,
     env: Env,
     update_single_pool: Option<Addr>,
     on_reply: ExecuteOnReply,
@@ -483,7 +485,7 @@ fn update_rewards_and_execute(
 ///
 /// * **reward_proxy** is the object of type [`Addr`].
 fn get_proxy_rewards(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     lp_token: &Addr,
     pool: &mut PoolInfo,
     reward_proxy: &Addr,
@@ -518,7 +520,7 @@ fn get_proxy_rewards(
 ///
 /// * **_msg** is the object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps: DepsMut<'_, TerraQuery>, env: Env, _msg: Reply) -> Result<Response, ContractError> {
     process_after_update(deps, env)
 }
 
@@ -529,7 +531,7 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractE
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **env** is the object of type [`Env`].
-fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+fn process_after_update(deps: DepsMut<'_, TerraQuery>, env: Env) -> Result<Response, ContractError> {
     match TMP_USER_ACTION.load(deps.storage)? {
         Some(action) => {
             TMP_USER_ACTION.save(deps.storage, &None)?;
@@ -584,7 +586,7 @@ fn process_after_update(deps: DepsMut, env: Env) -> Result<Response, ContractErr
 ///
 /// * **amount** is the object of type [`Uint128`]. Sets a new count of tokens per block.
 fn set_tokens_per_block(
-    mut deps: DepsMut,
+    mut deps: DepsMut<'_, TerraQuery>,
     env: Env,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
@@ -605,7 +607,7 @@ fn set_tokens_per_block(
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **env** is the object of type [`Env`].
-pub fn mass_update_pools(mut deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+pub fn mass_update_pools(mut deps: DepsMut<'_, TerraQuery>, env: Env) -> Result<Response, ContractError> {
     let response = Response::default();
 
     let cfg = CONFIG.load(deps.storage)?;
@@ -632,7 +634,7 @@ pub fn mass_update_pools(mut deps: DepsMut, env: Env) -> Result<Response, Contra
 /// * **env** is the object of type [`Env`].
 ///
 /// * **lp_token** is the object of type [`Addr`]. Sets the liquidity pool to be updated.
-pub fn update_pool(mut deps: DepsMut, env: Env, lp_token: Addr) -> Result<Response, ContractError> {
+pub fn update_pool(mut deps:DepsMut<'_,TerraQuery>, env: Env, lp_token: Addr) -> Result<Response, ContractError> {
     let response = Response::default();
 
     let cfg = CONFIG.load(deps.storage)?;
@@ -661,7 +663,7 @@ pub fn update_pool(mut deps: DepsMut, env: Env, lp_token: Addr) -> Result<Respon
 /// * **deposited** is an [`Option`] field object of type [`Uint128`].
 // Update reward variables of the given pool to be up-to-date.
 pub fn accumulate_rewards_per_share(
-    deps: DepsMut,
+    deps:DepsMut<'_,TerraQuery>,
     env: &Env,
     lp_token: &Addr,
     pool: &mut PoolInfo,
@@ -736,7 +738,7 @@ pub fn accumulate_rewards_per_share(
 ///
 /// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
 fn receive_cw20(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
@@ -848,7 +850,7 @@ pub fn send_pending_rewards(
 /// * **amount** is the object of type [`Uint128`].
 // Deposit LP tokens to MasterChef for ASTRO allocation.
 pub fn deposit(
-    mut deps: DepsMut,
+    mut deps: DepsMut<'_, TerraQuery>,
     env: Env,
     lp_token: Addr,
     beneficiary: Addr,
@@ -927,7 +929,7 @@ pub fn deposit(
 ///
 /// * **amount** is the object of type [`Uint128`].
 pub fn withdraw(
-    mut deps: DepsMut,
+    mut deps: DepsMut<'_, TerraQuery>,
     env: Env,
     lp_token: Addr,
     account: Addr,
@@ -1004,7 +1006,7 @@ pub fn withdraw(
 
 /// # Builds claim reward messages from the pool if they are supported
 pub fn build_claim_pools_asset_reward_messages(
-    deps: Deps,
+    deps: Deps<'_, TerraQuery>,
     env: &Env,
     lp_token: &Addr,
     pool: &PoolInfo,
@@ -1058,7 +1060,7 @@ pub fn build_claim_pools_asset_reward_messages(
 ///
 /// * **lp_token** is the object of type [`String`].
 pub fn emergency_withdraw(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     _env: Env,
     info: MessageInfo,
     lp_token: String,
@@ -1115,7 +1117,7 @@ pub fn emergency_withdraw(
 ///
 /// * **proxies** is an array that contains the objects of type [`String`]. Sets the list of allowed reward proxy contracts.
 fn set_allowed_reward_proxies(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     info: MessageInfo,
     proxies: Vec<String>,
 ) -> Result<Response, ContractError> {
@@ -1150,7 +1152,7 @@ fn set_allowed_reward_proxies(
 ///
 /// * **lp_token** is the object of type [`String`].
 fn send_orphan_proxy_rewards(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     info: MessageInfo,
     recipient: String,
     lp_token: String,
@@ -1224,7 +1226,7 @@ fn send_orphan_proxy_rewards(
 ///
 /// * **QueryMsg::SimulateFutureReward { lp_token, future_block }** Returns information about the reward at the future block
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(deps: Deps<'_, TerraQuery>, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::PoolLength {} => Ok(to_binary(&pool_length(deps)?)?),
         QueryMsg::Deposit { lp_token, user } => {
@@ -1256,7 +1258,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
 /// in a [`PoolLengthResponse`] object.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
+pub fn pool_length(deps: Deps<TerraQuery>) -> Result<PoolLengthResponse, ContractError> {
     let length = POOL_INFO
         .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
         .count();
@@ -1271,7 +1273,7 @@ pub fn pool_length(deps: Deps) -> Result<PoolLengthResponse, ContractError> {
 /// * **lp_token** is the object of type [`String`].
 ///
 /// * **user** is the object of type [`String`].
-pub fn query_deposit(deps: Deps, lp_token: String, user: String) -> Result<Uint128, ContractError> {
+pub fn query_deposit(deps: Deps<'_, TerraQuery>, lp_token: String, user: String) -> Result<Uint128, ContractError> {
     let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
     let user = addr_validate_to_lower(deps.api, &user)?;
 
@@ -1294,7 +1296,7 @@ pub fn query_deposit(deps: Deps, lp_token: String, user: String) -> Result<Uint1
 /// * **user** is the object of type [`String`].
 // View function to see pending ASTRO on frontend.
 pub fn pending_token(
-    deps: Deps,
+    deps: Deps<'_, TerraQuery>,
     env: Env,
     lp_token: String,
     user: String,
@@ -1366,7 +1368,7 @@ pub fn pending_token(
 /// configs in a [`ConfigResponse`] object .
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
+fn query_config(deps: Deps<TerraQuery>) -> Result<ConfigResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     Ok(ConfigResponse {
@@ -1387,7 +1389,7 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **lp_token** is the object of type [`String`].
-fn query_reward_info(deps: Deps, lp_token: String) -> Result<RewardInfoResponse, ContractError> {
+fn query_reward_info(deps: Deps<'_, TerraQuery>, lp_token: String) -> Result<RewardInfoResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
@@ -1416,7 +1418,7 @@ fn query_reward_info(deps: Deps, lp_token: String) -> Result<RewardInfoResponse,
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **lp_token** is the object of type [`String`].
-fn query_orphan_proxy_rewards(deps: Deps, lp_token: String) -> Result<Uint128, ContractError> {
+fn query_orphan_proxy_rewards(deps: Deps<'_, TerraQuery>, lp_token: String) -> Result<Uint128, ContractError> {
     let lp_token = addr_validate_to_lower(deps.api, &lp_token)?;
 
     let pool = POOL_INFO.load(deps.storage, &lp_token)?;
@@ -1437,7 +1439,7 @@ fn query_orphan_proxy_rewards(deps: Deps, lp_token: String) -> Result<Uint128, C
 ///
 /// * **lp_token** is the object of type [`Addr`].
 fn query_pool_info(
-    deps: Deps,
+    deps: Deps<'_, TerraQuery>,
     env: Env,
     lp_token: String,
 ) -> Result<PoolInfoResponse, ContractError> {
@@ -1510,7 +1512,7 @@ fn query_pool_info(
 ///
 /// * **lp_token** is the object of type [`Addr`].
 pub fn query_simulate_future_reward(
-    deps: Deps,
+    deps: Deps<'_, TerraQuery>,
     env: Env,
     lp_token: String,
     future_block: u64,
@@ -1564,7 +1566,7 @@ pub fn calculate_rewards(env: &Env, pool: &PoolInfo, cfg: &Config) -> StdResult<
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps:DepsMut<'_,TerraQuery>, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {

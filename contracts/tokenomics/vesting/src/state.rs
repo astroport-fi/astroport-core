@@ -5,6 +5,7 @@ use astroport::common::OwnershipProposal;
 use astroport::vesting::{OrderBy, VestingInfo};
 use cosmwasm_std::{Addr, Deps, StdResult};
 use cw_storage_plus::{Bound, Item, Map};
+use classic_bindings::TerraQuery;
 
 /// ## Description
 /// This structure describes the main control config of vesting contract.
@@ -43,7 +44,7 @@ const DEFAULT_LIMIT: u32 = 10;
 ///
 /// * **order_by** is an [`Option`] field of type [`OrderBy`].
 pub fn read_vesting_infos(
-    deps: Deps,
+    deps:Deps<'_,TerraQuery>,
     start_after: Option<Addr>,
     limit: Option<u32>,
     order_by: Option<OrderBy>,

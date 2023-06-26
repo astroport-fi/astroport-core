@@ -12,6 +12,8 @@ use cw20_base::ContractError;
 use astroport::asset::addr_validate_to_lower;
 use astroport::token::{InstantiateMsg, MigrateMsg};
 
+use classic_bindings::TerraQuery;
+
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-token";
 /// Contract version that is used for migration.
@@ -93,7 +95,7 @@ fn verify_logo(logo: &Logo) -> Result<(), ContractError> {
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    mut deps: DepsMut,
+    mut deps:DepsMut,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -158,7 +160,7 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    deps:DepsMut,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -167,7 +169,7 @@ pub fn execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps:Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     cw20_query(deps, env, msg)
 }
 
@@ -180,7 +182,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 ///
 /// * **msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps:DepsMut<'_,TerraQuery>, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     let migration_error = Err(StdError::generic_err(format!(

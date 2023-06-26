@@ -24,7 +24,7 @@ use cosmwasm_std::{
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
 
-fn store_liquidity_token(deps: DepsMut, msg_id: u64, contract_addr: String) {
+fn store_liquidity_token(deps:DepsMut<'_,TerraQuery> msg_id: u64, contract_addr: String) {
     let data = MsgInstantiateContractResponse {
         contract_address: contract_addr,
         data: vec![],

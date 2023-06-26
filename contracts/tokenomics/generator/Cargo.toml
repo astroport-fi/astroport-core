@@ -28,6 +28,7 @@ schemars = "0.8.1"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
 astroport = { path = "../../../packages/astroport", default-features = false }
+classic-bindings = { version = "0.1.1" }
 
 [dev-dependencies]
 cosmwasm-schema = "1.1"

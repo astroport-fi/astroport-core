@@ -38,13 +38,13 @@ pub fn test_mock_env(mock_env_params: MockEnvParams) -> Env {
     }
 }
 
-fn get_balance<T: Into<String>>(deps: Deps, address: T) -> Uint128 {
+fn get_balance<T: Into<String>>(deps: Deps<'_, TerraQuery> address: T) -> Uint128 {
     query_balance(deps, address.into()).unwrap().balance
 }
 
 // this will set up the instantiation for other tests
 fn do_instantiate_with_minter(
-    deps: DepsMut,
+    deps:DepsMut<'_,TerraQuery>
     addr: &str,
     amount: Uint128,
     minter: &str,
@@ -62,13 +62,13 @@ fn do_instantiate_with_minter(
 }
 
 // this will set up the instantiation for other tests
-fn do_instantiate(deps: DepsMut, addr: &str, amount: Uint128) -> TokenInfoResponse {
+fn do_instantiate(deps:DepsMut<'_,TerraQuery> addr: &str, amount: Uint128) -> TokenInfoResponse {
     _do_instantiate(deps, addr, amount, None)
 }
 
 // this will set up the instantiation for other tests
 fn _do_instantiate(
-    mut deps: DepsMut,
+    mut deps:DepsMut<'_,TerraQuery>
     addr: &str,
     amount: Uint128,
     mint: Option<MinterResponse>,

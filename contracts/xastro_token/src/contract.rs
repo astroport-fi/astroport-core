@@ -25,6 +25,8 @@ use cw_storage_plus::Bound;
 
 use astroport::xastro_token::{InstantiateMsg, MigrateMsg, QueryMsg};
 
+use classic_bindings::TerraQuery;
+
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-xastro-token";
 /// Contract version that is used for migration.
@@ -110,7 +112,7 @@ fn verify_logo(logo: &Logo) -> Result<(), ContractError> {
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    mut deps: DepsMut,
+    mut deps:DepsMut,
     env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -235,7 +237,7 @@ pub fn create_accounts(deps: &mut DepsMut, env: &Env, accounts: &[Cw20Coin]) -> 
 /// * **ExecuteMsg::UploadLogo(logo)** Uploads logo.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    deps:DepsMut,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -296,7 +298,7 @@ pub fn execute(
 ///
 /// * **amount** is the object of type [`Uint128`].
 pub fn execute_transfer(
-    deps: DepsMut,
+    deps:DepsMut,
     env: Env,
     info: MessageInfo,
     recipient: String,
@@ -343,7 +345,7 @@ pub fn execute_transfer(
 ///
 /// * **amount** is the object of type [`Uint128`].
 pub fn execute_burn(
-    deps: DepsMut,
+    deps:DepsMut,
     env: Env,
     info: MessageInfo,
     amount: Uint128,
@@ -391,7 +393,7 @@ pub fn execute_burn(
 ///
 /// * **amount** is the object of type [`Uint128`].
 pub fn execute_mint(
-    deps: DepsMut,
+    deps:DepsMut,
     env: Env,
     info: MessageInfo,
     recipient: String,
@@ -450,7 +452,7 @@ pub fn execute_mint(
 ///
 /// * **msg** is the object of type [`Binary`].
 pub fn execute_send(
-    deps: DepsMut,
+    deps:DepsMut,
     env: Env,
     info: MessageInfo,
     contract: String,
@@ -511,7 +513,7 @@ pub fn execute_send(
 ///
 /// * **amount** is the object of type [`Uint128`].
 pub fn execute_transfer_from(
-    deps: DepsMut,
+    deps:DepsMut,
     env: Env,
     info: MessageInfo,
     owner: String,
@@ -563,7 +565,7 @@ pub fn execute_transfer_from(
 ///
 /// * **amount** is the object of type [`Uint128`].
 pub fn execute_burn_from(
-    deps: DepsMut,
+    deps:DepsMut,
     env: Env,
     info: MessageInfo,
     owner: String,
@@ -619,7 +621,7 @@ pub fn execute_burn_from(
 ///
 /// * **msg** is the object of type [`Binary`].
 pub fn execute_send_from(
-    deps: DepsMut,
+    deps:DepsMut,
     env: Env,
     info: MessageInfo,
     owner: String,
@@ -800,7 +802,7 @@ pub fn query_all_accounts(
 ///
 /// * **msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps:DepsMut<'_,TerraQuery>, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     let migration_error = Err(StdError::generic_err(format!(

@@ -7,6 +7,7 @@ use crate::state::{
     Config, BLUNA_REWARD_GLOBAL_INDEX, BLUNA_REWARD_HOLDER, BLUNA_REWARD_USER_INDEXES, CONFIG,
 };
 
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps,
     DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
@@ -64,7 +65,7 @@ const INSTANTIATE_BLUNA_REWARD_HOLDER_REPLY_ID: u64 = 2;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -154,7 +155,7 @@ pub fn instantiate(
 ///
 /// * **msg** is the object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps:DepsMut<'_,TerraQuery>, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let data = msg.result.unwrap().data.unwrap();
     let res: MsgInstantiateContractResponse =
         Message::parse_from_bytes(data.as_slice()).map_err(|_| {
@@ -237,7 +238,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///         }** Handles and distributes reward
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -325,7 +326,7 @@ pub fn execute(
 ///
 /// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
 pub fn receive_cw20(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
@@ -402,7 +403,7 @@ pub fn receive_cw20(
 ///
 /// * **receiver** is object of type [`Option<String>`]. Sets the receiver of liquidity.
 pub fn provide_liquidity(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     assets: [Asset; 2],
@@ -573,7 +574,7 @@ pub fn provide_liquidity(
 ///
 /// * **auto_stake** is the field of type [`bool`]. Determines whether an autostake will be performed on the generator
 fn mint_liquidity_token_message(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     config: &Config,
     env: Env,
     recipient: Addr,
@@ -637,7 +638,7 @@ fn mint_liquidity_token_message(
 ///
 /// * **amount** is the object of type [`Uint128`]. Sets the withdrawal amount.
 pub fn withdraw_liquidity(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     sender: Addr,
@@ -748,7 +749,7 @@ pub fn get_share_in_assets(
 /// * **to** is the object of type [`Option<Addr>`]. Sets the recipient of the swap operation.
 #[allow(clippy::too_many_arguments)]
 pub fn swap(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     sender: Addr,
@@ -999,7 +1000,7 @@ pub fn calculate_maker_fee(
 /// [`ConfigResponse`] object.
 /// * **QueryMsg::PendingReward {}** Returns pending reward amount for a user in a [`Asset`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Pair {} => to_binary(&query_pair_info(deps)?),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
@@ -1020,7 +1021,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// Returns information about a pair in an object of type [`PairInfo`].
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_pair_info(deps: Deps) -> StdResult<PairInfo> {
+pub fn query_pair_info(deps: Deps<'_, TerraQuery>) -> StdResult<PairInfo> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(config.pair_info)
 }
@@ -1029,7 +1030,7 @@ pub fn query_pair_info(deps: Deps) -> StdResult<PairInfo> {
 /// Returns information about a pool in an object of type [`PoolResponse`].
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
+pub fn query_pool(deps: Deps<'_, TerraQuery>) -> StdResult<PoolResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps, config)?;
 
@@ -1047,7 +1048,7 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **amount** is the object of type [`Uint128`]. Sets the amount for which a share in the pool will be requested.
-pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<[Asset; 2]> {
+pub fn query_share(deps: Deps<'_, TerraQuery>, amount: Uint128) -> StdResult<[Asset; 2]> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (pools, total_share) = pool_info(deps, config)?;
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
@@ -1061,7 +1062,7 @@ pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<[Asset; 2]> {
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **offer_asset** is the object of type [`Asset`].
-pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<SimulationResponse> {
+pub fn query_simulation(deps: Deps<'_, TerraQuery>, env: Env, offer_asset: Asset) -> StdResult<SimulationResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let contract_addr = config.pair_info.contract_addr.clone();
 
@@ -1112,7 +1113,7 @@ pub fn query_simulation(deps: Deps, env: Env, offer_asset: Asset) -> StdResult<S
 ///
 /// * **ask_asset** is the object of type [`Asset`].
 pub fn query_reverse_simulation(
-    deps: Deps,
+    deps: Deps<'_, TerraQuery>,
     env: Env,
     ask_asset: Asset,
 ) -> StdResult<ReverseSimulationResponse> {
@@ -1165,7 +1166,7 @@ pub fn query_reverse_simulation(
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **env** is the object of type [`Env`].
-pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
+pub fn query_cumulative_prices(deps: Deps<'_, TerraQuery>, env: Env) -> StdResult<CumulativePricesResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps, config.clone())?;
 
@@ -1198,7 +1199,7 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
 /// Returns information about the controls settings in a [`ConfigResponse`] object.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps<'_, TerraQuery>, env: Env) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
@@ -1214,7 +1215,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
 /// Returns pending reward amount for a user in a [`Asset`] object.
 /// ## Params
 /// * **user** is the object of type [`String`] whose reward is querying
-pub fn query_pending_reward(deps: Deps, _env: Env, user: String) -> StdResult<Asset> {
+pub fn query_pending_reward(deps: Deps<'_, TerraQuery>, _env: Env, user: String) -> StdResult<Asset> {
     use cosmwasm_std::Decimal256;
 
     let user = addr_validate_to_lower(deps.api, &user)?;
@@ -1459,7 +1460,7 @@ fn assert_slippage_tolerance(
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut<'_, TerraQuery>, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     let mut response = Response::new()
@@ -1499,7 +1500,7 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, Con
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **config** is the object of type [`Config`].
-pub fn pool_info(deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)> {
+pub fn pool_info(deps: Deps<'_, TerraQuery>, config: Config) -> StdResult<([Asset; 2], Uint128)> {
     let contract_addr = config.pair_info.contract_addr.clone();
     let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
     let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;
@@ -1520,7 +1521,7 @@ pub fn pool_info(deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)>
 ///
 /// * **params** is the object of type [`Binary`].
 pub fn update_config(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     params: Binary,
@@ -1564,7 +1565,7 @@ pub fn update_config(
 /// * **next_amp_time** is the object of type [`u64`].
 fn start_changing_amp(
     mut config: Config,
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     next_amp: u64,
     next_amp_time: u64,
@@ -1609,7 +1610,7 @@ fn start_changing_amp(
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **env** is the object of type [`Env`].
-fn stop_changing_amp(mut config: Config, deps: DepsMut, env: Env) -> StdResult<()> {
+fn stop_changing_amp(mut config: Config, deps: DepsMut<'_, TerraQuery>, env: Env) -> StdResult<()> {
     let current_amp = compute_current_amp(&config, &env)?;
     let block_time = env.block.time.seconds();
 
@@ -1666,7 +1667,7 @@ fn compute_current_amp(config: &Config, env: &Env) -> StdResult<u64> {
 ///
 /// * **factory_addr** is the object of type [`Addr`].
 fn get_bluna_reward_holder_instantiating_message(
-    deps: Deps,
+    deps: Deps<'_, TerraQuery>,
     env: &Env,
     factory_addr: &Addr,
 ) -> Result<SubMsg, ContractError> {
@@ -1706,7 +1707,7 @@ fn get_bluna_reward_holder_instantiating_message(
 ///
 /// * **receiver** is object of type [`Option<Addr>`]
 fn get_bluna_reward_handling_messages(
-    deps: Deps,
+    deps: Deps<'_, TerraQuery>,
     env: &Env,
     bluna_rewarder: &str,
     user: Addr,
@@ -1757,7 +1758,7 @@ fn get_bluna_reward_handling_messages(
 ///
 /// * **receiver** is the object of type [`Option<String>`]
 fn claim_reward(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     receiver: Option<String>,
@@ -1817,7 +1818,7 @@ fn claim_reward(
 ///
 /// * **total_share** is the object of type [`Uint128`]
 fn claim_reward_by_generator(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     user: String,
@@ -1867,7 +1868,7 @@ fn claim_reward_by_generator(
 /// * **receiver** is object of type [`Option<Addr>`].
 #[allow(clippy::too_many_arguments)]
 pub fn handle_reward(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     previous_reward_balance: Uint128,

@@ -1,5 +1,5 @@
 use cosmwasm_std::{Addr, Env, Order, StdResult, Storage, Uint128};
-use cw_storage_plus::{Bound, Map, SnapshotMap, Strategy, U64Key};
+use cw_storage_plus::{Bound, Map, SnapshotMap, Strategy, Key};
 
 /// ## Description
 /// Contains balances at every block.

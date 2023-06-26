@@ -25,6 +25,8 @@ use protobuf::Message;
 use std::str::FromStr;
 use std::vec;
 
+use classic_bindings::TerraQuery;
+
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-pair";
 /// Contract version that is used for migration.
@@ -44,7 +46,7 @@ const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -112,7 +114,7 @@ pub fn instantiate(
 ///
 /// * **msg** is the object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps:DepsMut<'_,TerraQuery>, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
     if config.pair_info.liquidity_token != Addr::unchecked("") {
@@ -165,7 +167,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///         }** Performs an swap operation with the specified parameters.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -231,7 +233,7 @@ pub fn execute(
 ///
 /// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
 pub fn receive_cw20(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
@@ -310,7 +312,7 @@ pub fn receive_cw20(
 /// * **receiver** is an [`Option`] field of type  [`String`]. Sets the receiver of liquidity.
 // CONTRACT - should approve contract to use the amount of token.
 pub fn provide_liquidity(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     assets: [Asset; 2],
@@ -435,7 +437,7 @@ pub fn provide_liquidity(
 ///
 /// * **auto_stake** is the field of type [`bool`]. Determines whether an autostake will be performed on the generator
 fn mint_liquidity_token_message(
-    deps: Deps,
+    deps: Deps<'_, TerraQuery>,
     config: &Config,
     env: Env,
     recipient: Addr,
@@ -499,7 +501,7 @@ fn mint_liquidity_token_message(
 ///
 /// * **amount** is the object of type [`Uint128`]. Sets the withdrawal amount.
 pub fn withdraw_liquidity(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     sender: Addr,
@@ -602,7 +604,7 @@ pub fn get_share_in_assets(
 /// * **to** is the object of type [`Option<Addr>`]. Sets the recipient of the swap operation.
 #[allow(clippy::too_many_arguments)]
 pub fn swap(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     sender: Addr,
@@ -820,7 +822,7 @@ pub fn calculate_maker_fee(
 /// * **QueryMsg::Config {}** Returns information about the controls settings in a
 /// [`ConfigResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<'_, TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Pair {} => to_binary(&query_pair_info(deps)?),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
@@ -838,7 +840,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// Returns information about a pair in an object of type [`PairInfo`].
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_pair_info(deps: Deps) -> StdResult<PairInfo> {
+pub fn query_pair_info(deps: Deps<'_, TerraQuery>) -> StdResult<PairInfo> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(config.pair_info)
 }
@@ -847,7 +849,7 @@ pub fn query_pair_info(deps: Deps) -> StdResult<PairInfo> {
 /// Returns information about a pool in an object of type [`PoolResponse`].
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
+pub fn query_pool(deps: Deps<'_, TerraQuery>) -> StdResult<PoolResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps, config)?;
 
@@ -865,7 +867,7 @@ pub fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **amount** is the object of type [`Uint128`]. Sets the amount for which a share in the pool will be requested.
-pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
+pub fn query_share(deps: Deps<'_, TerraQuery>, amount: Uint128) -> StdResult<Vec<Asset>> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (pools, total_share) = pool_info(deps, config)?;
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
@@ -879,7 +881,7 @@ pub fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **offer_asset** is the object of type [`Asset`].
-pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationResponse> {
+pub fn query_simulation(deps: Deps<'_, TerraQuery>, offer_asset: Asset) -> StdResult<SimulationResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let contract_addr = config.pair_info.contract_addr.clone();
 
@@ -927,7 +929,7 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
 ///
 /// * **ask_asset** is the object of type [`Asset`].
 pub fn query_reverse_simulation(
-    deps: Deps,
+    deps: Deps<'_, TerraQuery>,
     ask_asset: Asset,
 ) -> StdResult<ReverseSimulationResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
@@ -976,7 +978,7 @@ pub fn query_reverse_simulation(
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **env** is the object of type [`Env`].
-pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
+pub fn query_cumulative_prices(deps: Deps<'_, TerraQuery>, env: Env) -> StdResult<CumulativePricesResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps, config.clone())?;
 
@@ -1004,7 +1006,7 @@ pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePric
 /// Returns information about the controls settings in a [`ConfigResponse`] object.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps<'_, TerraQuery>) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
@@ -1198,7 +1200,7 @@ fn assert_slippage_tolerance(
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps:DepsMut<'_,TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
 
@@ -1208,7 +1210,7 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Respons
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **config** is the object of type [`Config`].
-pub fn pool_info(deps: Deps, config: Config) -> StdResult<([Asset; 2], Uint128)> {
+pub fn pool_info(deps: Deps<'_, TerraQuery>, config: Config) -> StdResult<([Asset; 2], Uint128)> {
     let contract_addr = config.pair_info.contract_addr.clone();
     let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
     let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;

@@ -27,6 +27,7 @@ cosmwasm-std = "1.1"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6" }
+classic-bindings = { version = "0.1.1" }
 
 [dev-dependencies]
 # we only need to enable this if we use integration tests

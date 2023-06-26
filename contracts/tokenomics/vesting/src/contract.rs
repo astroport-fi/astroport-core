@@ -15,6 +15,8 @@ use astroport::vesting::{
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
+use classic_bindings::TerraQuery;
+
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-vesting";
 /// Contract version that is used for migration.
@@ -35,7 +37,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps:DepsMut<'_,TerraQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -72,7 +74,7 @@ pub fn instantiate(
 /// depending on the received template.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -127,7 +129,7 @@ pub fn execute(
 ///
 /// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
 fn receive_cw20(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
@@ -166,7 +168,7 @@ fn receive_cw20(
 /// * **cw20_amount** is the object of type [`Uint128`]. Sets the amount that confirms the total
 /// amount of all accounts to register
 pub fn register_vesting_accounts(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     _env: Env,
     vesting_accounts: Vec<VestingAccount>,
     cw20_amount: Uint128,
@@ -252,7 +254,7 @@ fn assert_vesting_schedules(
 ///
 /// * **amount** is an [`Option`] field of type [`Uint128`]. Sets the amount of claim.
 pub fn claim(
-    deps: DepsMut,
+    deps: DepsMut<'_, TerraQuery>,
     env: Env,
     info: MessageInfo,
     recipient: Option<String>,
@@ -362,7 +364,7 @@ fn compute_available_amount(current_time: u64, vesting_info: &VestingInfo) -> St
 ///
 /// * **QueryMsg::AvailableAmount { address }** Returns the available amount for specified account.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps:Deps<'_,TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::VestingAccount { address } => {
@@ -390,7 +392,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 ///
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps<TerraQuery>) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
         owner: config.owner,
@@ -411,7 +413,7 @@ pub fn query_timestamp(env: Env) -> StdResult<u64> {
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **address** is the object of type [`String`].
-pub fn query_vesting_account(deps: Deps, address: String) -> StdResult<VestingAccountResponse> {
+pub fn query_vesting_account(deps:Deps<'_,TerraQuery>, address: String) -> StdResult<VestingAccountResponse> {
     let address = addr_validate_to_lower(deps.api, &address)?;
     let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
 
@@ -432,7 +434,7 @@ pub fn query_vesting_account(deps: Deps, address: String) -> StdResult<VestingAc
 ///
 /// * **order_by** is an [`Option`] field of type [`OrderBy`].
 pub fn query_vesting_accounts(
-    deps: Deps,
+    deps:Deps<'_,TerraQuery>,
     start_after: Option<String>,
     limit: Option<u32>,
     order_by: Option<OrderBy>,
@@ -462,7 +464,7 @@ pub fn query_vesting_accounts(
 /// * **env** is the object of type [`Env`].
 ///
 /// * **address** is the object of type [`String`].
-pub fn query_vesting_available_amount(deps: Deps, env: Env, address: String) -> StdResult<Uint128> {
+pub fn query_vesting_available_amount(deps:Deps<'_,TerraQuery>, env: Env, address: String) -> StdResult<Uint128> {
     let address = addr_validate_to_lower(deps.api, &address)?;
 
     let info: VestingInfo = VESTING_INFO.load(deps.storage, &address)?;
@@ -479,6 +481,6 @@ pub fn query_vesting_available_amount(deps: Deps, env: Env, address: String) -> 
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps:DepsMut<'_,TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }

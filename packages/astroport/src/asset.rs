@@ -186,7 +186,7 @@ impl AssetInfo {
     /// * **self** is the type of the caller object.
     ///
     /// * **pool_addr** is the address of the contract whose token balance we check.
-    pub fn query_pool(&self, querier: &QuerierWrapper, pool_addr: Addr) -> StdResult<Uint128> {
+    pub fn query_pool(&self, querier: &QuerierWrapper<'_, TerraQuery>, pool_addr: Addr) -> StdResult<Uint128> {
         match self {
             AssetInfo::Token { contract_addr, .. } => {
                 query_token_balance(querier, contract_addr.clone(), pool_addr)
@@ -280,7 +280,7 @@ impl PairInfo {
     /// * **contract_addr** is pair's pool address.
     pub fn query_pools(
         &self,
-        querier: &QuerierWrapper,
+        querier: &QuerierWrapper<'_, TerraQuery>,
         contract_addr: Addr,
     ) -> StdResult<[Asset; 2]> {
         Ok([
@@ -320,7 +320,7 @@ const TOKEN_SYMBOL_MAX_LENGTH: usize = 4;
 /// * **querier** is an object of type [`QuerierWrapper`].
 pub fn format_lp_token_name(
     asset_infos: [AssetInfo; 2],
-    querier: &QuerierWrapper,
+    querier: &QuerierWrapper<'_, TerraQuery>,
 ) -> StdResult<String> {
     let mut short_symbols: Vec<String> = vec![];
     for asset_info in asset_infos {
@@ -377,7 +377,7 @@ pub fn token_asset_info(contract_addr: Addr) -> AssetInfo {
 }
 
 /// Returns [`PairInfo`] by specified pool address.
-pub fn pair_info_by_pool(deps: Deps, pool: Addr) -> StdResult<PairInfo> {
+pub fn pair_info_by_pool(deps: Deps<'_, TerraQuery>, pool: Addr) -> StdResult<PairInfo> {
     let minter_info: MinterResponse = deps
         .querier
         .query_wasm_smart(pool, &Cw20QueryMsg::Minter {})?;

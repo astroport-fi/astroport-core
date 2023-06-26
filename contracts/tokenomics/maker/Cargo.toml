@@ -30,6 +30,7 @@ astroport = { path = "../../../packages/astroport", default-features = false }
 astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
+classic-bindings = { version = "0.1.1" }
 
 [dev-dependencies]
 cosmwasm-schema = "1.1"

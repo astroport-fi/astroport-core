@@ -10,6 +10,8 @@ use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
 use astroport::factory::PairConfig;
 
+use classic_bindings::TerraQuery;
+
 /// ## Description
 /// This structure describes the main control config of factory.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -74,7 +76,7 @@ const DEFAULT_LIMIT: u32 = 10;
 ///
 /// `limit` is a [`Option`] type. Sets the number of items to be read.
 pub fn read_pairs(
-    deps: Deps,
+    deps: Deps<'_, TerraQuery>,
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
 ) -> StdResult<Vec<Addr>> {
