@@ -1,9 +1,9 @@
 use astroport::asset::PairInfo;
 use astroport::pair::QueryMsg;
-use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
+use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR, mock_dependencies};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, Empty, OwnedDeps, Querier, QuerierResult,
-    QueryRequest, SystemError, SystemResult, WasmQuery,
+    QueryRequest, SystemError, SystemResult, WasmQuery
 };
 use std::collections::HashMap;
 
@@ -19,6 +19,7 @@ pub fn mock_dependencies(
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier: custom_querier,
+        custom_query_type: PhantomData
     }
 }
 

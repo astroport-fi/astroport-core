@@ -8,22 +8,7 @@ use std::collections::HashMap;
 use astroport::factory::QueryMsg::{Config, FeeInfo};
 use astroport::factory::{ConfigResponse, FeeInfoResponse};
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
-use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
-
-/// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
-/// this uses our CustomQuerier.
-pub fn mock_dependencies(
-    contract_balance: &[Coin],
-) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
-    let custom_querier: WasmMockQuerier =
-        WasmMockQuerier::new(MockQuerier::new(&[(MOCK_CONTRACT_ADDR, contract_balance)]));
-
-    OwnedDeps {
-        storage: MockStorage::default(),
-        api: MockApi::default(),
-        querier: custom_querier,
-    }
-}
+use classic_bindings::{TaxCapResponse, TaxRateResponse, TerraQuery};
 
 pub struct WasmMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,

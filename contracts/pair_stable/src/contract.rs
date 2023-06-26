@@ -8,7 +8,7 @@ use crate::state::{Config, CONFIG};
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps,
     DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
-    WasmMsg,
+    WasmMsg, Decimal256
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -33,6 +33,7 @@ use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
 use std::cmp::Ordering;
+use std::convert::TryFrom;
 use std::str::FromStr;
 use std::vec;
 
@@ -59,7 +60,7 @@ const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -141,7 +142,7 @@ pub fn instantiate(
 ///
 /// * **msg** is the object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps:DepsMut<'_, TerraQuery>, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps: DepsMut<TerraQuery>, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
     if config.pair_info.liquidity_token != Addr::unchecked("") {
@@ -195,7 +196,7 @@ pub fn reply(deps:DepsMut<'_, TerraQuery>, _env: Env, msg: Reply) -> Result<Resp
 ///         }** Performs an swap operation with the specified parameters.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -261,7 +262,7 @@ pub fn execute(
 ///
 /// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
 pub fn receive_cw20(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
@@ -338,7 +339,7 @@ pub fn receive_cw20(
 ///
 /// * **receiver** is object of type [`Option<String>`]. Sets the receiver of liquidity.
 pub fn provide_liquidity(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     assets: [Asset; 2],
@@ -517,7 +518,7 @@ pub fn provide_liquidity(
 ///
 /// * **auto_stake** is the field of type [`bool`]. Determines whether an autostake will be performed on the generator
 fn mint_liquidity_token_message(
-    deps: Deps<'_, TerraQuery>,
+    deps: Deps<TerraQuery>,
     config: &Config,
     env: Env,
     recipient: Addr,
@@ -581,7 +582,7 @@ fn mint_liquidity_token_message(
 ///
 /// * **amount** is the object of type [`Uint128`]. Sets the withdrawal amount.
 pub fn withdraw_liquidity(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     sender: Addr,
@@ -692,7 +693,7 @@ pub fn get_share_in_assets(
 /// * **to** is the object of type [`Option<Addr>`]. Sets the recipient of the swap operation.
 #[allow(clippy::too_many_arguments)]
 pub fn swap(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     sender: Addr,
@@ -942,7 +943,8 @@ pub fn calculate_maker_fee(
 /// * **QueryMsg::Config {}** Returns information about the controls settings in a
 /// [`ConfigResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps<'_, TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+
+pub fn query(deps: Deps<TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Pair {} => to_binary(&query_pair_info(deps)?),
         QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
@@ -962,7 +964,7 @@ pub fn query(deps: Deps<'_, TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<B
 /// Returns information about a pair in an object of type [`PairInfo`].
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_pair_info(deps: Deps<'_, TerraQuery>) -> StdResult<PairInfo> {
+pub fn query_pair_info(deps: Deps<TerraQuery>) -> StdResult<PairInfo> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(config.pair_info)
 }
@@ -971,7 +973,7 @@ pub fn query_pair_info(deps: Deps<'_, TerraQuery>) -> StdResult<PairInfo> {
 /// Returns information about a pool in an object of type [`PoolResponse`].
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_pool(deps: Deps<'_, TerraQuery>) -> StdResult<PoolResponse> {
+pub fn query_pool(deps: Deps<TerraQuery>) -> StdResult<PoolResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps, config)?;
 
@@ -989,7 +991,7 @@ pub fn query_pool(deps: Deps<'_, TerraQuery>) -> StdResult<PoolResponse> {
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **amount** is the object of type [`Uint128`]. Sets the amount for which a share in the pool will be requested.
-pub fn query_share(deps: Deps<'_, TerraQuery>, amount: Uint128) -> StdResult<[Asset; 2]> {
+pub fn query_share(deps: Deps<TerraQuery>, amount: Uint128) -> StdResult<[Asset; 2]> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (pools, total_share) = pool_info(deps, config)?;
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
@@ -1003,7 +1005,7 @@ pub fn query_share(deps: Deps<'_, TerraQuery>, amount: Uint128) -> StdResult<[As
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **offer_asset** is the object of type [`Asset`].
-pub fn query_simulation(deps: Deps<'_, TerraQuery>, env: Env, offer_asset: Asset) -> StdResult<SimulationResponse> {
+pub fn query_simulation(deps: Deps<TerraQuery>, env: Env, offer_asset: Asset) -> StdResult<SimulationResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let contract_addr = config.pair_info.contract_addr.clone();
 
@@ -1054,7 +1056,7 @@ pub fn query_simulation(deps: Deps<'_, TerraQuery>, env: Env, offer_asset: Asset
 ///
 /// * **ask_asset** is the object of type [`Asset`].
 pub fn query_reverse_simulation(
-    deps: Deps<'_, TerraQuery>,
+    deps: Deps<TerraQuery>,
     env: Env,
     ask_asset: Asset,
 ) -> StdResult<ReverseSimulationResponse> {
@@ -1107,7 +1109,7 @@ pub fn query_reverse_simulation(
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **env** is the object of type [`Env`].
-pub fn query_cumulative_prices(deps: Deps<'_, TerraQuery>, env: Env) -> StdResult<CumulativePricesResponse> {
+pub fn query_cumulative_prices(deps: Deps<TerraQuery>, env: Env) -> StdResult<CumulativePricesResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let (assets, total_share) = pool_info(deps, config.clone())?;
 
@@ -1140,7 +1142,7 @@ pub fn query_cumulative_prices(deps: Deps<'_, TerraQuery>, env: Env) -> StdResul
 /// Returns information about the controls settings in a [`ConfigResponse`] object.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_config(deps: Deps<'_, TerraQuery>, env: Env) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps<TerraQuery>, env: Env) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
@@ -1235,23 +1237,24 @@ fn compute_offer_amount(
     let ask_amount = adjust_precision(ask_amount, ask_precision, greater_precision)?;
 
     let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
-    let inv_one_minus_commission: Decimal = (Decimal256::one() / one_minus_commission).into();
-    let before_commission_deduction = ask_amount * inv_one_minus_commission;
+    let inv_one_minus_commission = Decimal256::one() / one_minus_commission;
+    let before_commission_deduction = inv_one_minus_commission.checked_mul(Decimal256::raw(ask_amount.u128())).unwrap();
+    let unsafe_before_commission_deduction = Uint128::try_from(before_commission_deduction.to_uint_floor()).unwrap();
 
     let offer_amount = Uint128::new(
         calc_offer_amount(
             offer_pool.u128(),
             ask_pool.u128(),
-            before_commission_deduction.u128(),
+            unsafe_before_commission_deduction.u128(),
             amp,
         )
         .unwrap(),
     );
 
     // We assume the assets should stay in a 1:1 ratio, the true exchange rate is 1. So any exchange rate <1 could be considered the spread
-    let spread_amount = offer_amount.saturating_sub(before_commission_deduction);
+    let spread_amount = offer_amount.saturating_sub(unsafe_before_commission_deduction);
 
-    let commission_amount = before_commission_deduction * commission_rate;
+    let commission_amount = unsafe_before_commission_deduction * commission_rate;
 
     let offer_amount = adjust_precision(offer_amount, greater_precision, offer_precision)?;
     let spread_amount = adjust_precision(spread_amount, greater_precision, ask_precision)?;
@@ -1313,8 +1316,10 @@ pub fn assert_max_spread(
     }
 
     if let Some(belief_price) = belief_price {
+        let belief_price_rate = Decimal256::one() / Decimal256::from(belief_price);
+        let unsafe_belief_price_rate = Uint128::try_from(belief_price_rate.to_uint_floor()).unwrap();
         let expected_return =
-            offer_amount * Decimal::from(Decimal256::one() / Decimal256::from(belief_price));
+            offer_amount * unsafe_belief_price_rate;
         let spread_amount = expected_return
             .checked_sub(return_amount)
             .unwrap_or_else(|_| Uint128::zero());
@@ -1368,7 +1373,7 @@ pub fn migrate(_deps:DepsMut<'_, TerraQuery>, _env: Env, _msg: MigrateMsg) -> St
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **config** is the object of type [`Config`].
-pub fn pool_info(deps: Deps<'_, TerraQuery>, config: Config) -> StdResult<([Asset; 2], Uint128)> {
+pub fn pool_info(deps: Deps<TerraQuery>, config: Config) -> StdResult<([Asset; 2], Uint128)> {
     let contract_addr = config.pair_info.contract_addr.clone();
     let pools: [Asset; 2] = config.pair_info.query_pools(&deps.querier, contract_addr)?;
     let total_share: Uint128 = query_supply(&deps.querier, config.pair_info.liquidity_token)?;
@@ -1389,7 +1394,7 @@ pub fn pool_info(deps: Deps<'_, TerraQuery>, config: Config) -> StdResult<([Asse
 ///
 /// * **params** is the object of type [`Binary`].
 pub fn update_config(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     params: Binary,
@@ -1426,7 +1431,7 @@ pub fn update_config(
 /// * **next_amp_time** is the object of type [`u64`].
 fn start_changing_amp(
     mut config: Config,
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     next_amp: u64,
     next_amp_time: u64,
@@ -1471,7 +1476,7 @@ fn start_changing_amp(
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **env** is the object of type [`Env`].
-fn stop_changing_amp(mut config: Config, deps: DepsMut<'_, TerraQuery>, env: Env) -> StdResult<()> {
+fn stop_changing_amp(mut config: Config, deps: DepsMut<TerraQuery>, env: Env) -> StdResult<()> {
     let current_amp = compute_current_amp(&config, &env)?;
     let block_time = env.block.time.seconds();
 

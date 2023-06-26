@@ -800,15 +800,15 @@ pub fn send_pending_rewards(
 
     let pending_rewards = pool
         .accumulated_rewards_per_share
-        .checked_mul(user.amount)?
-        .checked_sub(user.reward_debt)?;
+        .checked_mul(Decimal::new(user.amount))?
+        .checked_sub(Decimal::new(user.reward_debt))?;
 
     if !pending_rewards.is_zero() {
         messages.push(WasmMsg::Execute {
             contract_addr: cfg.vesting_contract.to_string(),
             msg: to_binary(&VestingExecuteMsg::Claim {
                 recipient: Some(to.to_string()),
-                amount: Some(pending_rewards),
+                amount: Some(pending_rewards.to_uint_floor()),
             })?,
             funds: vec![],
         });
@@ -817,8 +817,8 @@ pub fn send_pending_rewards(
     if let Some(proxy) = &pool.reward_proxy {
         let pending_proxy_rewards = pool
             .accumulated_proxy_rewards_per_share
-            .checked_mul(user.amount)?
-            .checked_sub(user.reward_debt_proxy)?;
+            .checked_mul(Decimal::new(user.amount))?
+            .checked_sub(Decimal::new(user.reward_debt_proxy))?;
 
         if !pending_proxy_rewards.is_zero() {
             messages.push(WasmMsg::Execute {
@@ -826,7 +826,7 @@ pub fn send_pending_rewards(
                 funds: vec![],
                 msg: to_binary(&ProxyExecuteMsg::SendRewards {
                     account: to.to_string(),
-                    amount: pending_proxy_rewards,
+                    amount: pending_proxy_rewards.to_uint_floor(),
                 })?,
             });
         }
@@ -1072,8 +1072,8 @@ pub fn emergency_withdraw(
 
     pool.orphan_proxy_rewards = pool.orphan_proxy_rewards.checked_add(
         pool.accumulated_proxy_rewards_per_share
-            .checked_mul(user.amount)?
-            .saturating_sub(user.reward_debt_proxy),
+            .checked_mul(Decimal::new(user.amount))?
+            .saturating_sub(Decimal::new(user.reward_debt_proxy)).to_uint_floor(),
     )?;
 
     //call to transfer function for lp token
@@ -1336,8 +1336,8 @@ pub fn pending_token(
 
                 pending_on_proxy = Some(
                     acc_per_share_on_proxy
-                        .checked_mul(user_info.amount)?
-                        .checked_sub(user_info.reward_debt_proxy)?,
+                        .checked_mul(Decimal::new(user_info.amount))?
+                        .checked_sub(Decimal::new(user_info.reward_debt_proxy))?.to_uint_floor()
                 );
             }
         }
@@ -1354,8 +1354,8 @@ pub fn pending_token(
     }
 
     let pending = acc_per_share
-        .checked_mul(user_info.amount)?
-        .checked_sub(user_info.reward_debt)?;
+        .checked_mul(Decimal::new(user_info.amount))?
+        .checked_sub(Decimal::new(user_info.reward_debt))?.to_uint_floor();
 
     Ok(PendingTokenResponse {
         pending,

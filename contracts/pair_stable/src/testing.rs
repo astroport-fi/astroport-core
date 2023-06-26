@@ -15,16 +15,17 @@ use astroport::pair::{
     TWAP_PRECISION,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use classic_bindings::TerraQuery;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, ContractResult, CosmosMsg, Decimal, DepsMut,
-    Env, Reply, ReplyOn, Response, StdError, SubMsg, SubMsgExecutionResponse, Timestamp, Uint128,
-    WasmMsg,
+    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut,
+    Env, Reply, ReplyOn, Response, StdError, SubMsg, Timestamp, Uint128,
+    WasmMsg, SubMsgResponse, SubMsgResult,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
 
-fn store_liquidity_token(deps:DepsMut<'_,TerraQuery> msg_id: u64, contract_addr: String) {
+fn store_liquidity_token(deps: DepsMut<TerraQuery>, msg_id: u64, contract_addr: String) {
     let data = MsgInstantiateContractResponse {
         contract_address: contract_addr,
         data: vec![],
@@ -36,13 +37,13 @@ fn store_liquidity_token(deps:DepsMut<'_,TerraQuery> msg_id: u64, contract_addr:
 
     let reply_msg = Reply {
         id: msg_id,
-        result: ContractResult::Ok(SubMsgExecutionResponse {
+        result: SubMsgResult::Ok(SubMsgResponse {
             events: vec![],
             data: Some(data.into()),
         }),
     };
 
-    let _res = reply(deps, mock_env(), reply_msg.clone()).unwrap();
+    reply(deps, mock_env(), reply_msg).unwrap();
 }
 
 #[test]

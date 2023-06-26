@@ -1,11 +1,10 @@
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 
-use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps,
     DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
-    WasmMsg,
+    WasmMsg,Decimal256, Uint256
 };
 
 use crate::response::MsgInstantiateContractResponse;
@@ -22,6 +21,7 @@ use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use protobuf::Message;
+use std::convert::TryFrom;
 use std::str::FromStr;
 use std::vec;
 
@@ -1058,13 +1058,14 @@ pub fn compute_swap(
     // calculate spread & commission
     let spread_amount: Uint256 =
         (offer_amount * Decimal256::from_ratio(ask_pool, offer_pool)) - return_amount;
+    let unsafe_spread_amount = Uint128::try_from(spread_amount).unwrap();
     let commission_amount: Uint256 = return_amount * commission_rate;
 
     // commission will be absorbed to pool
     let return_amount: Uint256 = return_amount - commission_amount;
     Ok((
         return_amount.into(),
-        spread_amount.into(),
+        unsafe_spread_amount.into(),
         commission_amount.into(),
     ))
 }
@@ -1089,20 +1090,24 @@ fn compute_offer_amount(
     // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
     let cp = Uint256::from(offer_pool) * Uint256::from(ask_pool);
     let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
-    let inv_one_minus_commission: Decimal = (Decimal256::one() / one_minus_commission).into();
+    let inv_one_minus_commission = Decimal256::one() / one_minus_commission;
 
-    let offer_amount: Uint128 = Uint128::from(cp.multiply_ratio(
+    let a = inv_one_minus_commission.checked_mul(Decimal256::raw(ask_amount.u128())).unwrap();
+    let b = Decimal256::raw(ask_pool.u128()).checked_sub(a).unwrap().to_uint_floor();
+    let unsafe_offer_amount = Uint128::try_from(cp.multiply_ratio(
         Uint256::one(),
-        Uint256::from(ask_pool.checked_sub(ask_amount * inv_one_minus_commission)?),
-    ))
+        b,
+    )).unwrap()
     .checked_sub(offer_pool)?;
 
-    let before_commission_deduction = ask_amount * inv_one_minus_commission;
-    let spread_amount = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool))
+    let before_commission_deduction = inv_one_minus_commission.checked_mul(Decimal256::raw(ask_amount.u128())).unwrap();
+    let spread_amount = Decimal256::from_ratio(ask_pool, offer_pool).checked_mul(Decimal256::raw(unsafe_offer_amount.u128())).unwrap()
         .checked_sub(before_commission_deduction)
-        .unwrap_or_else(|_| Uint128::zero());
-    let commission_amount = before_commission_deduction * commission_rate;
-    Ok((offer_amount, spread_amount, commission_amount))
+        .unwrap_or_else(|_| Decimal256::zero());
+    let unsafe_spread_amount = Uint128::try_from(spread_amount.to_uint_floor()).unwrap_or_else(|_| Uint128::zero());
+    let commission_amount = before_commission_deduction * Decimal256::from(commission_rate);
+    let unsafe_commission_amount = Uint128::try_from(commission_amount.to_uint_floor()).unwrap();
+    Ok((unsafe_offer_amount, unsafe_spread_amount, unsafe_commission_amount))
 }
 
 /// ## Description
@@ -1134,14 +1139,13 @@ pub fn assert_max_spread(
     }
 
     if let Some(belief_price) = belief_price {
-        let expected_return =
-            offer_amount * Decimal::from(Decimal256::one() / Decimal256::from(belief_price));
+        let expected_return = (Decimal256::one() / Decimal256::from(belief_price)).checked_mul(Decimal256::raw(offer_amount.u128())).unwrap();
         let spread_amount = expected_return
-            .checked_sub(return_amount)
-            .unwrap_or_else(|_| Uint128::zero());
+            .checked_sub(Decimal256::raw(return_amount.u128()))
+            .unwrap_or_else(|_| Decimal256::zero());
 
-        if return_amount < expected_return
-            && Decimal::from_ratio(spread_amount, expected_return) > max_spread
+        if Decimal256::raw(return_amount.u128()) < expected_return
+            && Decimal256::from_ratio(spread_amount.to_uint_floor(), expected_return.to_uint_floor()) > Decimal256::from(max_spread)
         {
             return Err(ContractError::MaxSpreadAssertion {});
         }
