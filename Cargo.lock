@@ -223,31 +223,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "astroport-pair-stable-bluna"
-version = "1.0.1"
-dependencies = [
- "astroport 1.2.0",
- "astroport-factory",
- "astroport-token",
- "astroport-whitelist",
- "classic-bindings",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-vm",
- "cw-multi-test",
- "cw-storage-plus 0.15.1",
- "cw2 0.15.1",
- "cw20 0.15.1",
- "integer-sqrt",
- "proptest",
- "protobuf",
- "schemars",
- "serde",
- "sim",
- "thiserror",
-]
-
-[[package]]
 name = "astroport-router"
 version = "1.0.0"
 dependencies = [
