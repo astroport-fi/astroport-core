@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{
     ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
@@ -10,71 +12,36 @@ use astroport::pair::{
 
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_pair_stable::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
+    attr, from_binary, to_binary, Addr, Coin, Decimal, Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
+use classic_test_tube::{TerraTestApp, Wasm, SigningAccount, Module, Account};
 
-const OWNER: &str = "owner";
-
-fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+fn store_token_code(wasm: &Wasm<TerraTestApp>, owner: &SigningAccount) -> u64 {
+    let astro_token_contract = std::fs::read("../../../artifacts/astroport_token.wasm").unwrap();
+    let contract = wasm.store_code(&astro_token_contract, None, owner).unwrap();
+    contract.data.code_id
 }
 
-fn store_token_code(app: &mut TerraApp) -> u64 {
-    let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
-
-    app.store_code(astro_token_contract)
+fn store_pair_code(wasm: &Wasm<TerraTestApp>, owner: &SigningAccount) -> u64 {
+    let pair_contract = std::fs::read("../../../artifacts/astroport_pair_stable.wasm").unwrap();
+    let contract = wasm.store_code(&pair_contract, None, owner).unwrap();
+    contract.data.code_id
 }
 
-fn store_pair_code(app: &mut TerraApp) -> u64 {
-    let pair_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_pair_stable::contract::execute,
-            astroport_pair_stable::contract::instantiate,
-            astroport_pair_stable::contract::query,
-        )
-        .with_reply_empty(astroport_pair_stable::contract::reply),
-    );
-
-    app.store_code(pair_contract)
+fn store_factory_code(wasm: &Wasm<TerraTestApp>, owner: &SigningAccount) -> u64 {
+    let factory_contract = std::fs::read("../../../artifacts/astroport_factory.wasm").unwrap();
+    let contract = wasm.store_code(&factory_contract, None, owner).unwrap();
+    contract.data.code_id
 }
 
-fn store_factory_code(app: &mut TerraApp) -> u64 {
-    let factory_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_factory::contract::execute,
-            astroport_factory::contract::instantiate,
-            astroport_factory::contract::query,
-        )
-        .with_reply_empty(astroport_factory::contract::reply),
-    );
+fn instantiate_pair<'a>(app: &'a TerraTestApp, owner: &'a SigningAccount) -> String {
+    let wasm = Wasm::new(app);
 
-    app.store_code(factory_contract)
-}
+    let token_contract_code_id = store_token_code(&wasm, owner);
 
-fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
-    let token_contract_code_id = store_token_code(&mut router);
-
-    let pair_contract_code_id = store_pair_code(&mut router);
+    let pair_contract_code_id = store_pair_code(&wasm, owner);
 
     let msg = InstantiateMsg {
         asset_infos: [
@@ -90,14 +57,14 @@ fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
         init_params: None,
     };
 
-    let resp = router
-        .instantiate_contract(
+    let resp = wasm
+        .instantiate(
             pair_contract_code_id,
-            owner.clone(),
             &msg,
+            Some(&owner.address()),
+            Some("PAIR"),
             &[],
-            String::from("PAIR"),
-            None,
+            owner
         )
         .unwrap_err();
     assert_eq!("You need to provide init params", resp.to_string());
@@ -116,57 +83,46 @@ fn instantiate_pair(mut router: &mut TerraApp, owner: &Addr) -> Addr {
         init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
-    let pair = router
-        .instantiate_contract(
+    let pair = wasm
+        .instantiate(
             pair_contract_code_id,
-            owner.clone(),
             &msg,
+            Some(&owner.address()),
+            Some("PAIR"),
             &[],
-            String::from("PAIR"),
-            None,
+            owner,
         )
         .unwrap();
 
-    let res: PairInfo = router
-        .wrap()
-        .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
+    let res: PairInfo = wasm
+        .query(&pair.data.address, &QueryMsg::Pair {})
         .unwrap();
     assert_eq!("contract #0", res.contract_addr);
     assert_eq!("contract #1", res.liquidity_token);
 
-    pair
+    pair.data.address
 }
 
 #[test]
 fn test_provide_and_withdraw_liquidity() {
-    let owner = Addr::unchecked("owner");
-    let alice_address = Addr::unchecked("alice");
-    let mut router = mock_app();
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
 
-    // Set alice balances
-    router
-        .init_bank_balance(
-            &alice_address,
-            vec![
-                Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::new(233u128),
-                },
-                Coin {
-                    denom: "uluna".to_string(),
-                    amount: Uint128::new(200u128),
-                },
-            ],
-        )
-        .unwrap();
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(233u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        2
+    ).unwrap();
+    let owner = &accs[0];
+    let alice_address = &accs[1];
 
     // Init pair
-    let pair_instance = instantiate_pair(&mut router, &owner);
+    let pair_instance = instantiate_pair(&app, owner);
 
-    let res: Result<PairInfo, _> = router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: pair_instance.to_string(),
-        msg: to_binary(&QueryMsg::Pair {}).unwrap(),
-    }));
+    let res: Result<PairInfo, _> = wasm.query(&pair_instance.to_string(), &QueryMsg::Pair {});
     let res = res.unwrap();
 
     assert_eq!(
@@ -182,27 +138,25 @@ fn test_provide_and_withdraw_liquidity() {
     );
 
     // When dealing with native tokens transfer should happen before contract call, which cw-multitest doesn't support
-    router
-        .init_bank_balance(
-            &pair_instance,
-            vec![
-                Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::new(100u128),
-                },
-                Coin {
-                    denom: "uluna".to_string(),
-                    amount: Uint128::new(100u128),
-                },
-            ],
-        )
-        .unwrap();
+    // bank
+    //     .init_bank_balance(
+    //         &pair_instance,
+    //         vec![
+    //             Coin {
+    //                 denom: "uusd".to_string(),
+    //                 amount: Uint128::new(100u128),
+    //             },
+    //             Coin {
+    //                 denom: "uluna".to_string(),
+    //                 amount: Uint128::new(100u128),
+    //             },
+    //         ],
+    //     )
+    //     .unwrap();
 
     // Provide liquidity
     let (msg, coins) = provide_liquidity_msg(Uint128::new(100), Uint128::new(100), None);
-    let res = router
-        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
-        .unwrap();
+    let res = wasm.execute(&pair_instance, &msg, &coins, alice_address).unwrap();
 
     assert_eq!(
         res.events[1].attributes[1],
@@ -230,9 +184,8 @@ fn test_provide_and_withdraw_liquidity() {
         Uint128::new(100),
         Some("bob".to_string()),
     );
-    let res = router
-        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
-        .unwrap();
+
+    let res = wasm.execute(&pair_instance, &msg, &coins, alice_address).unwrap();
 
     assert_eq!(
         res.events[1].attributes[1],
@@ -293,11 +246,17 @@ fn provide_liquidity_msg(
 
 #[test]
 fn test_compatibility_of_tokens_with_different_precision() {
-    let mut app = mock_app();
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
 
-    let owner = Addr::unchecked(OWNER);
+    let owner = &app.init_account(
+        &[
+            Coin::new(233u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+    ).unwrap();
 
-    let token_code_id = store_token_code(&mut app);
+    let token_code_id = store_token_code(&wasm, owner);
 
     let x_amount = Uint128::new(1000000_00000);
     let y_amount = Uint128::new(1000000_0000000);
@@ -311,24 +270,24 @@ fn test_compatibility_of_tokens_with_different_precision() {
         symbol: token_name.to_string(),
         decimals: 5,
         initial_balances: vec![Cw20Coin {
-            address: OWNER.to_string(),
+            address: owner.address().to_string(),
             amount: x_amount + x_offer,
         }],
         mint: Some(MinterResponse {
-            minter: String::from(OWNER),
+            minter: owner.address().to_string(),
             cap: None,
         }),
         marketing: None,
     };
 
-    let token_x_instance = app
-        .instantiate_contract(
+    let token_x_instance = wasm
+        .instantiate(
             token_code_id,
-            owner.clone(),
             &init_msg,
+            Some(&owner.address()),
+            Some(token_name),
             &[],
-            token_name,
-            None,
+            owner,
         )
         .unwrap();
 
@@ -339,29 +298,29 @@ fn test_compatibility_of_tokens_with_different_precision() {
         symbol: token_name.to_string(),
         decimals: 7,
         initial_balances: vec![Cw20Coin {
-            address: OWNER.to_string(),
+            address: owner.address().to_string(),
             amount: y_amount,
         }],
         mint: Some(MinterResponse {
-            minter: String::from(OWNER),
+            minter: owner.address().to_string(),
             cap: None,
         }),
         marketing: None,
     };
 
-    let token_y_instance = app
-        .instantiate_contract(
+    let token_y_instance = wasm
+        .instantiate(
             token_code_id,
-            owner.clone(),
             &init_msg,
+            Some(&owner.address()),
+            Some(token_name),
             &[],
-            token_name,
-            None,
+            owner,
         )
         .unwrap();
 
-    let pair_code_id = store_pair_code(&mut app);
-    let factory_code_id = store_factory_code(&mut app);
+    let pair_code_id = store_pair_code(&wasm, owner);
+    let factory_code_id = store_factory_code(&wasm, owner);
 
     let init_msg = FactoryInstantiateMsg {
         fee_address: None,
@@ -378,47 +337,44 @@ fn test_compatibility_of_tokens_with_different_precision() {
         whitelist_code_id: 234u64,
     };
 
-    let factory_instance = app
-        .instantiate_contract(
-            factory_code_id,
-            owner.clone(),
-            &init_msg,
-            &[],
-            "FACTORY",
-            None,
-        )
-        .unwrap();
+    let factory_instance = wasm
+        .instantiate(
+            factory_code_id, 
+            &init_msg, 
+            Some(owner.address().as_str()), 
+            Some("FACTORY"), 
+            &[], 
+            owner
+        ).unwrap();
 
     let msg = FactoryExecuteMsg::CreatePair {
         pair_type: PairType::Stable {},
         asset_infos: [
             AssetInfo::Token {
-                contract_addr: token_x_instance.clone(),
+                contract_addr: Addr::unchecked(&token_x_instance.data.address),
             },
             AssetInfo::Token {
-                contract_addr: token_y_instance.clone(),
+                contract_addr: Addr::unchecked(&token_y_instance.data.address),
             },
         ],
         init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
-    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
-        .unwrap();
+    wasm.execute(&factory_instance.data.address, &msg,&[], owner).unwrap();
 
     let msg = FactoryQueryMsg::Pair {
         asset_infos: [
             AssetInfo::Token {
-                contract_addr: token_x_instance.clone(),
+                contract_addr: Addr::unchecked(&token_x_instance.data.address),
             },
             AssetInfo::Token {
-                contract_addr: token_y_instance.clone(),
+                contract_addr: Addr::unchecked(&token_y_instance.data.address),
             },
         ],
     };
 
-    let res: PairInfo = app
-        .wrap()
-        .query_wasm_smart(&factory_instance, &msg)
+    let res: PairInfo = wasm
+        .query(&factory_instance.data.address, &msg)
         .unwrap();
 
     let pair_instance = res.contract_addr;
@@ -429,8 +385,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         amount: x_amount + x_offer,
     };
 
-    app.execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
-        .unwrap();
+    wasm.execute(&token_x_instance.data.address, &msg, &[], owner).unwrap();
 
     let msg = Cw20ExecuteMsg::IncreaseAllowance {
         spender: pair_instance.to_string(),
@@ -438,20 +393,19 @@ fn test_compatibility_of_tokens_with_different_precision() {
         amount: y_amount,
     };
 
-    app.execute_contract(owner.clone(), token_y_instance.clone(), &msg, &[])
-        .unwrap();
+    wasm.execute(&token_y_instance.data.address, &msg, &[], owner).unwrap();
 
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: [
             Asset {
                 info: AssetInfo::Token {
-                    contract_addr: token_x_instance.clone(),
+                    contract_addr: Addr::unchecked(&token_x_instance.data.address),
                 },
                 amount: x_amount,
             },
             Asset {
                 info: AssetInfo::Token {
-                    contract_addr: token_y_instance.clone(),
+                    contract_addr: Addr::unchecked(&token_y_instance.data.address),
                 },
                 amount: y_amount,
             },
@@ -461,8 +415,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         receiver: None,
     };
 
-    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
-        .unwrap();
+    wasm.execute(pair_instance.as_str(), &msg, &[], owner).unwrap();
 
     let user = Addr::unchecked("user");
 
@@ -477,16 +430,14 @@ fn test_compatibility_of_tokens_with_different_precision() {
         amount: x_offer,
     };
 
-    app.execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
-        .unwrap();
+    wasm.execute(&token_x_instance.data.address, &msg, &[], owner).unwrap();
 
     let msg = Cw20QueryMsg::Balance {
         address: user.to_string(),
     };
 
-    let res: BalanceResponse = app
-        .wrap()
-        .query_wasm_smart(&token_y_instance, &msg)
+    let res: BalanceResponse = wasm
+        .query(&token_y_instance.data.address, &msg)
         .unwrap();
 
     assert_eq!(res.balance, y_expected_return);
@@ -494,27 +445,18 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
 #[test]
 fn test_if_twap_is_calculated_correctly_when_pool_idles() {
-    let mut app = mock_app();
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
 
-    let user1 = Addr::unchecked("user1");
-
-    app.init_bank_balance(
-        &user1,
-        vec![
-            Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128::new(4666666_000000),
-            },
-            Coin {
-                denom: "uluna".to_string(),
-                amount: Uint128::new(2000000_000000),
-            },
+    let user1 = &app.init_account(
+        &[
+            Coin::new(4666666_000000, "uusd"),
+            Coin::new(2000000_000000, "uluna"),
         ],
-    )
-    .unwrap();
+    ).unwrap();
 
     // instantiate pair
-    let pair_instance = instantiate_pair(&mut app, &user1);
+    let pair_instance = instantiate_pair(&app, user1);
 
     // provide liquidity, accumulators are empty
     let (msg, coins) = provide_liquidity_msg(
@@ -522,17 +464,14 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
         Uint128::new(1000000_000000),
         None,
     );
-    app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
-        .unwrap();
+
+    wasm.execute(&pair_instance, &msg, &coins, user1).unwrap();
 
     const BLOCKS_PER_DAY: u64 = 17280;
     const ELAPSED_SECONDS: u64 = BLOCKS_PER_DAY * 5;
 
     // a day later
-    app.update_block(|b| {
-        b.height += BLOCKS_PER_DAY;
-        b.time = b.time.plus_seconds(ELAPSED_SECONDS);
-    });
+    app.increase_time(ELAPSED_SECONDS);
 
     // provide liquidity, accumulators firstly filled with the same prices
     let (msg, coins) = provide_liquidity_msg(
@@ -540,24 +479,20 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
         Uint128::new(1000000_000000),
         None,
     );
-    app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
-        .unwrap();
+    wasm.execute(&pair_instance, &msg, &coins, user1).unwrap();
 
     // get current twap accumulator values
     let msg = QueryMsg::CumulativePrices {};
     let cpr_old: CumulativePricesResponse =
-        app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
+        wasm.query(&pair_instance, &msg).unwrap();
 
     // a day later
-    app.update_block(|b| {
-        b.height += BLOCKS_PER_DAY;
-        b.time = b.time.plus_seconds(ELAPSED_SECONDS);
-    });
+    app.increase_time(ELAPSED_SECONDS);
 
     // get current twap accumulator values, it should be added up by the query method with new 2/1 ratio
     let msg = QueryMsg::CumulativePrices {};
     let cpr_new: CumulativePricesResponse =
-        app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
+        wasm.query(&pair_instance, &msg).unwrap();
 
     let twap0 = cpr_new.price0_cumulative_last - cpr_old.price0_cumulative_last;
     let twap1 = cpr_new.price1_cumulative_last - cpr_old.price1_cumulative_last;
@@ -570,11 +505,18 @@ fn test_if_twap_is_calculated_correctly_when_pool_idles() {
 
 #[test]
 fn create_pair_with_same_assets() {
-    let mut router = mock_app();
-    let owner = Addr::unchecked("owner");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
 
-    let token_contract_code_id = store_token_code(&mut router);
-    let pair_contract_code_id = store_pair_code(&mut router);
+    let owner = &app.init_account(
+        &[
+            Coin::new(233u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+    ).unwrap();
+
+    let token_contract_code_id = store_token_code(&wasm, owner);
+    let pair_contract_code_id = store_pair_code(&wasm, owner);
 
     let msg = InstantiateMsg {
         asset_infos: [
@@ -590,49 +532,52 @@ fn create_pair_with_same_assets() {
         init_params: None,
     };
 
-    let resp = router
-        .instantiate_contract(
-            pair_contract_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("PAIR"),
-            None,
-        )
-        .unwrap_err();
+    let resp = wasm.instantiate(
+        pair_contract_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some("PAIR"), 
+        &[], 
+        owner
+    ).unwrap_err();
 
     assert_eq!(resp.to_string(), "Doubling assets in asset infos")
 }
 
 #[test]
 fn update_pair_config() {
-    let mut router = mock_app();
-    let owner = Addr::unchecked("owner");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
 
-    let token_contract_code_id = store_token_code(&mut router);
-    let pair_contract_code_id = store_pair_code(&mut router);
+    let owner = &app.init_account(
+        &[
+            Coin::new(233u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+    ).unwrap();
 
-    let factory_code_id = store_factory_code(&mut router);
+    let token_contract_code_id = store_token_code(&wasm, owner);
+    let pair_contract_code_id = store_pair_code(&wasm, owner);
+
+    let factory_code_id = store_factory_code(&wasm, owner);
 
     let init_msg = FactoryInstantiateMsg {
         fee_address: None,
         pair_configs: vec![],
         token_code_id: token_contract_code_id,
         generator_address: Some(String::from("generator")),
-        owner: owner.to_string(),
+        owner: owner.address().to_string(),
         whitelist_code_id: 234u64,
     };
 
-    let factory_instance = router
-        .instantiate_contract(
-            factory_code_id,
-            owner.clone(),
-            &init_msg,
-            &[],
-            "FACTORY",
-            None,
-        )
-        .unwrap();
+    let factory_instance = wasm.instantiate(
+        factory_code_id, 
+        &init_msg, 
+        Some(owner.address().as_str()), 
+        Some("FACTORY"),
+        &[],
+        owner
+    ).unwrap();
 
     let msg = InstantiateMsg {
         asset_infos: [
@@ -644,24 +589,21 @@ fn update_pair_config() {
             },
         ],
         token_code_id: token_contract_code_id,
-        factory_addr: factory_instance.to_string(),
+        factory_addr: factory_instance.data.address.to_string(),
         init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
     };
 
-    let pair = router
-        .instantiate_contract(
-            pair_contract_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("PAIR"),
-            None,
-        )
-        .unwrap();
+    let pair = wasm.instantiate(
+        pair_contract_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some("PAIR"), 
+        &[], 
+        owner
+    ).unwrap();
 
-    let res: ConfigResponse = router
-        .wrap()
-        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+    let res: ConfigResponse = wasm
+        .query(&pair.data.address, &QueryMsg::Config {})
         .unwrap();
 
     let params: StablePoolConfig = from_binary(&res.params.unwrap()).unwrap();
@@ -672,14 +614,12 @@ fn update_pair_config() {
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: MAX_AMP + 1,
-            next_amp_time: router.block_info().time.seconds(),
+            next_amp_time: app.get_block_time_seconds().try_into().unwrap(),
         })
         .unwrap(),
     };
 
-    let resp = router
-        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
-        .unwrap_err();
+    let resp = wasm.execute(&pair.data.address, &msg, &[], owner).unwrap_err();
 
     assert_eq!(
         resp.to_string(),
@@ -693,14 +633,12 @@ fn update_pair_config() {
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: 100 * MAX_AMP_CHANGE + 1,
-            next_amp_time: router.block_info().time.seconds(),
+            next_amp_time: app.get_block_time_seconds().try_into().unwrap(),
         })
         .unwrap(),
     };
 
-    let resp = router
-        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
-        .unwrap_err();
+    let resp = wasm.execute(&pair.data.address, &msg, &[], owner).unwrap_err();
 
     assert_eq!(
         resp.to_string(),
@@ -714,14 +652,12 @@ fn update_pair_config() {
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: 250,
-            next_amp_time: router.block_info().time.seconds(),
+            next_amp_time: app.get_block_time_seconds().try_into().unwrap(),
         })
         .unwrap(),
     };
 
-    let resp = router
-        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
-        .unwrap_err();
+    let resp = wasm.execute(&pair.data.address, &msg, &[], owner).unwrap_err();
 
     assert_eq!(
         resp.to_string(),
@@ -732,42 +668,32 @@ fn update_pair_config() {
     );
 
     // Start increasing amp
-    router.update_block(|b| {
-        b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME);
-    });
+    app.increase_time(MIN_AMP_CHANGING_TIME);
 
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: 250,
-            next_amp_time: router.block_info().time.seconds() + MIN_AMP_CHANGING_TIME,
+            next_amp_time: TryInto::<u64>::try_into(app.get_block_time_seconds()).unwrap() + MIN_AMP_CHANGING_TIME,
         })
         .unwrap(),
     };
 
-    router
-        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
-        .unwrap();
+    wasm.execute(&pair.data.address, &msg, &[], owner).unwrap();
 
-    router.update_block(|b| {
-        b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME / 2);
-    });
+    app.increase_time(MIN_AMP_CHANGING_TIME / 2);
 
-    let res: ConfigResponse = router
-        .wrap()
-        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+    let res: ConfigResponse = wasm
+        .query(&pair.data.address, &QueryMsg::Config {})
         .unwrap();
 
     let params: StablePoolConfig = from_binary(&res.params.unwrap()).unwrap();
 
     assert_eq!(params.amp, Decimal::from_ratio(175u32, 1u32));
 
-    router.update_block(|b| {
-        b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME / 2);
-    });
+    app.increase_time(MIN_AMP_CHANGING_TIME / 2);
 
-    let res: ConfigResponse = router
-        .wrap()
-        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+    let res: ConfigResponse = wasm
+        .query(&pair.data.address, &QueryMsg::Config {})
         .unwrap();
 
     let params: StablePoolConfig = from_binary(&res.params.unwrap()).unwrap();
@@ -775,29 +701,22 @@ fn update_pair_config() {
     assert_eq!(params.amp, Decimal::from_ratio(250u32, 1u32));
 
     // Start decreasing amp
-    router.update_block(|b| {
-        b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME);
-    });
+    app.increase_time(MIN_AMP_CHANGING_TIME);
 
     let msg = ExecuteMsg::UpdateConfig {
         params: to_binary(&StablePoolUpdateParams::StartChangingAmp {
             next_amp: 50,
-            next_amp_time: router.block_info().time.seconds() + MIN_AMP_CHANGING_TIME,
+            next_amp_time: TryInto::<u64>::try_into(app.get_block_time_seconds()).unwrap() + MIN_AMP_CHANGING_TIME,
         })
         .unwrap(),
     };
 
-    router
-        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
-        .unwrap();
+    wasm.execute(&pair.data.address, &msg, &[], owner).unwrap();
 
-    router.update_block(|b| {
-        b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME / 2);
-    });
+    app.increase_time(MIN_AMP_CHANGING_TIME / 2);
 
-    let res: ConfigResponse = router
-        .wrap()
-        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+    let res: ConfigResponse = wasm
+        .query(&pair.data.address, &QueryMsg::Config {})
         .unwrap();
 
     let params: StablePoolConfig = from_binary(&res.params.unwrap()).unwrap();
@@ -809,17 +728,12 @@ fn update_pair_config() {
         params: to_binary(&StablePoolUpdateParams::StopChangingAmp {}).unwrap(),
     };
 
-    router
-        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
-        .unwrap();
+    wasm.execute(&pair.data.address, &msg, &[], owner).unwrap();
 
-    router.update_block(|b| {
-        b.time = b.time.plus_seconds(MIN_AMP_CHANGING_TIME / 2);
-    });
+    app.increase_time(MIN_AMP_CHANGING_TIME / 2);
 
-    let res: ConfigResponse = router
-        .wrap()
-        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+    let res: ConfigResponse = wasm
+        .query(&pair.data.address, &QueryMsg::Config {})
         .unwrap();
 
     let params: StablePoolConfig = from_binary(&res.params.unwrap()).unwrap();

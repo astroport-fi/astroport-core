@@ -44,7 +44,7 @@ const DEFAULT_LIMIT: u32 = 10;
 ///
 /// * **order_by** is an [`Option`] field of type [`OrderBy`].
 pub fn read_vesting_infos(
-    deps:Deps<'_,TerraQuery>,
+    deps:Deps<TerraQuery>,
     start_after: Option<Addr>,
     limit: Option<u32>,
     order_by: Option<OrderBy>,

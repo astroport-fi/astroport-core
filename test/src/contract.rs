@@ -14,7 +14,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    _deps: DepsMut<'_, TerraQuery>
+    _deps: DepsMut<TerraQuery>
     _env: Env,
     _info: MessageInfo,
     _msg: InstantiateMsg,
@@ -24,7 +24,7 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    _deps: DepsMut<'_, TerraQuery>
+    _deps: DepsMut<TerraQuery>
     _env: Env,
     _info: MessageInfo,
     _msg: ExecuteMsg,
@@ -33,7 +33,7 @@ pub fn execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps<'_, TerraQuery> _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(_deps: Deps<TerraQuery> _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
     unimplemented!()
 }
 

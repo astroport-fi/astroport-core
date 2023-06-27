@@ -804,7 +804,7 @@ pub fn query_all_accounts(
 ///
 /// * **msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps:DepsMut<'_,TerraQuery>, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps:DepsMut<TerraQuery>, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     let migration_error = Err(StdError::generic_err(format!(

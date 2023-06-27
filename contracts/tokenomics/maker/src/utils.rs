@@ -15,7 +15,7 @@ pub const BRIDGES_MAX_DEPTH: u64 = 2;
 pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 3;
 
 pub fn try_build_swap_msg(
-    deps: Deps<'_, TerraQuery>,
+    deps: Deps<TerraQuery>,
     cfg: &Config,
     from: AssetInfo,
     to: AssetInfo,
@@ -27,7 +27,7 @@ pub fn try_build_swap_msg(
 }
 
 pub fn build_swap_msg(
-    deps: Deps<'_, TerraQuery>,
+    deps: Deps<TerraQuery>,
     cfg: &Config,
     pool: PairInfo,
     from: AssetInfo,
@@ -102,7 +102,7 @@ pub fn build_distribute_msg(
 }
 
 pub fn validate_bridge(
-    deps:Deps<'_,TerraQuery>,
+    deps:Deps<TerraQuery>,
     cfg: &Config,
     from_token: AssetInfo,
     bridge_token: AssetInfo,
@@ -138,7 +138,7 @@ pub fn validate_bridge(
 }
 
 pub fn get_pool(
-    deps: Deps<'_, TerraQuery>,
+    deps: Deps<TerraQuery>,
     cfg: &Config,
     from: AssetInfo,
     to: AssetInfo,

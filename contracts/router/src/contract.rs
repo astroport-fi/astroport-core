@@ -38,7 +38,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps:DepsMut<'_,TerraQuery>,
+    deps:DepsMut<TerraQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -87,7 +87,7 @@ pub fn instantiate(
 ///         }** Performs minimum receive amount assertion.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -142,7 +142,7 @@ pub fn execute(
 ///
 /// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
 pub fn receive_cw20(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
@@ -194,7 +194,7 @@ pub fn receive_cw20(
 /// * **to** is the object of type [`Option<Addr>`]. Sets the recipient of the swap operation.
 #[allow(clippy::too_many_arguments)]
 pub fn execute_swap_operations(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     _info: MessageInfo,
     sender: Addr,
@@ -277,7 +277,7 @@ pub fn execute_swap_operations(
 ///
 /// * **receiver** is the object of type [`Addr`]. Sets recipient for which the receive minimum amount assertion will be performed.
 fn assert_minimum_receive(
-    deps: Deps<'_, TerraQuery>,
+    deps: Deps<TerraQuery>,
     asset_info: AssetInfo,
     prev_balance: Uint128,
     minimum_receive: Uint128,
@@ -314,7 +314,7 @@ fn assert_minimum_receive(
 ///         }** Returns information about the simulation of the swap operations in a
 /// [`SimulateSwapOperationsResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps<'_, TerraQuery>, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(deps: Deps<TerraQuery>, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::SimulateSwapOperations {
@@ -333,7 +333,7 @@ pub fn query(deps: Deps<'_, TerraQuery>, _env: Env, msg: QueryMsg) -> Result<Bin
 /// settings in a [`ConfigResponse`] object.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_config(deps: Deps<'_, TerraQuery>) -> Result<ConfigResponse, ContractError> {
+pub fn query_config(deps: Deps<TerraQuery>) -> Result<ConfigResponse, ContractError> {
     let state = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
         astroport_factory: state.astroport_factory.into_string(),
@@ -351,7 +351,7 @@ pub fn query_config(deps: Deps<'_, TerraQuery>) -> Result<ConfigResponse, Contra
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps:DepsMut<'_,TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps:DepsMut<TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
 
@@ -365,7 +365,7 @@ pub fn migrate(_deps:DepsMut<'_,TerraQuery>, _env: Env, _msg: MigrateMsg) -> Std
 ///
 /// * **operations** is a vector that contains object of type [`SwapOperation`].
 fn simulate_swap_operations(
-    deps: Deps<'_, TerraQuery>,
+    deps: Deps<TerraQuery>,
     offer_amount: Uint128,
     operations: Vec<SwapOperation>,
 ) -> Result<SimulateSwapOperationsResponse, ContractError> {
@@ -513,7 +513,7 @@ fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), 
 #[test]
 fn test_invalid_operations() {
     use cosmwasm_std::testing::mock_dependencies;
-    let deps = mock_dependencies(&[]);
+    let deps = mock_dependencies();
     // empty error
     assert_eq!(true, assert_operations(deps.as_ref().api, &vec![]).is_err());
 

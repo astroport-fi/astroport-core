@@ -27,7 +27,7 @@ use classic_bindings::{create_swap_msg, create_swap_send_msg, TerraMsg, TerraQue
 ///
 /// * **to** is the object of type [`Option<String>`].
 pub fn execute_swap_operation(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     operation: SwapOperation,
@@ -125,7 +125,7 @@ pub fn execute_swap_operation(
 ///
 /// * **to** is the object of type [`Option<String>`].
 pub fn asset_into_swap_msg(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     pair_contract: String,
     offer_asset: Asset,
     max_spread: Option<Decimal>,

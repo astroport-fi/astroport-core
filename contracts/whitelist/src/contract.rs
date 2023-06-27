@@ -22,7 +22,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps:DepsMut<'_,TerraQuery>,
+    deps:DepsMut<TerraQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -42,7 +42,7 @@ pub fn map_validate(api: &dyn Api, admins: &[String]) -> StdResult<Vec<Addr>> {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps:DepsMut<'_,TerraQuery>,
+    deps:DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     // Note: implement this function with different type to add support for custom messages
@@ -57,7 +57,7 @@ pub fn execute(
 }
 
 pub fn execute_execute<T>(
-    deps:DepsMut<'_,TerraQuery>,
+    deps:DepsMut<TerraQuery>,
     _env: Env,
     info: MessageInfo,
     msgs: Vec<CosmosMsg<T>>,
@@ -76,7 +76,7 @@ where
 }
 
 pub fn execute_freeze(
-    deps:DepsMut<'_,TerraQuery>,
+    deps:DepsMut<TerraQuery>,
     _env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
@@ -93,7 +93,7 @@ pub fn execute_freeze(
 }
 
 pub fn execute_update_admins(
-    deps:DepsMut<'_,TerraQuery>,
+    deps:DepsMut<TerraQuery>,
     _env: Env,
     info: MessageInfo,
     admins: Vec<String>,
@@ -110,21 +110,21 @@ pub fn execute_update_admins(
     }
 }
 
-fn can_execute(deps:Deps<'_,TerraQuery>, sender: &str) -> StdResult<bool> {
+fn can_execute(deps:Deps<TerraQuery>, sender: &str) -> StdResult<bool> {
     let cfg = ADMIN_LIST.load(deps.storage)?;
     let can = cfg.is_admin(sender.as_ref());
     Ok(can)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps:Deps<'_,TerraQuery>, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps:Deps<TerraQuery>, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::AdminList {} => to_binary(&query_admin_list(deps)?),
         QueryMsg::CanExecute { sender, msg } => to_binary(&query_can_execute(deps, sender, msg)?),
     }
 }
 
-pub fn query_admin_list(deps: Deps<'_,TerraQuery>) -> StdResult<AdminListResponse> {
+pub fn query_admin_list(deps: Deps<TerraQuery>) -> StdResult<AdminListResponse> {
     let cfg = ADMIN_LIST.load(deps.storage)?;
     Ok(AdminListResponse {
         admins: cfg.admins.into_iter().map(|a| a.into()).collect(),
@@ -133,7 +133,7 @@ pub fn query_admin_list(deps: Deps<'_,TerraQuery>) -> StdResult<AdminListRespons
 }
 
 pub fn query_can_execute(
-    deps:Deps<'_,TerraQuery>,
+    deps:Deps<TerraQuery>,
     sender: String,
     _msg: CosmosMsg,
 ) -> StdResult<CanExecuteResponse> {
@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn instantiate_and_modify_config() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let alice = "alice";
         let bob = "bob";

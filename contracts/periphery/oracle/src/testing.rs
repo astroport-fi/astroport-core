@@ -4,6 +4,7 @@ use astroport::asset::{Asset, AssetInfo};
 use astroport::oracle::{ExecuteMsg, InstantiateMsg};
 use cosmwasm_std::testing::{mock_env, mock_info};
 use cosmwasm_std::{Addr, Uint128, Decimal256, Uint256};
+use std::convert::TryFrom;
 use std::ops::Mul;
 
 #[test]
@@ -19,7 +20,7 @@ fn decimal_overflow() {
     println!("{}", price_average.to_string());
     println!(
         "{}",
-        Uint128::from(price_average.mul(Uint256::from(amount))).to_string()
+        Uint128::try_from(price_average.mul(Uint256::from(amount))).unwrap().to_string()
     );
 }
 

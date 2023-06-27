@@ -377,7 +377,7 @@ pub fn token_asset_info(contract_addr: Addr) -> AssetInfo {
 }
 
 /// Returns [`PairInfo`] by specified pool address.
-pub fn pair_info_by_pool(deps: Deps<'_, TerraQuery>, pool: Addr) -> StdResult<PairInfo> {
+pub fn pair_info_by_pool(deps: Deps<TerraQuery>, pool: Addr) -> StdResult<PairInfo> {
     let minter_info: MinterResponse = deps
         .querier
         .query_wasm_smart(pool, &Cw20QueryMsg::Minter {})?;

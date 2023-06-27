@@ -32,7 +32,7 @@ const PERIOD: u64 = 86400;
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
@@ -85,7 +85,7 @@ pub fn instantiate(
 /// [`PERIOD`] constant.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     _info: MessageInfo,
     msg: ExecuteMsg,
@@ -103,7 +103,7 @@ pub fn execute(
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **env** is the object of type [`Env`].
-pub fn update(deps: DepsMut<'_, TerraQuery>, env: Env) -> Result<Response, ContractError> {
+pub fn update(deps: DepsMut<TerraQuery>, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let price_last = PRICE_LAST.load(deps.storage)?;
 
@@ -157,7 +157,7 @@ pub fn update(deps: DepsMut<'_, TerraQuery>, env: Env) -> Result<Response, Contr
 /// * **QueryMsg::Consult { token, amount }** Validates assets and calculates a new average
 /// amount with updated precision
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps<'_, TerraQuery>, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Consult { token, amount } => to_binary(&consult(deps, token, amount)?),
     }
@@ -173,7 +173,7 @@ pub fn query(deps: Deps<'_, TerraQuery>, _env: Env, msg: QueryMsg) -> StdResult<
 /// * **token** is the object of type [`AssetInfo`].
 ///
 /// * **amount** is the object of type [`Uint128`].
-fn consult(deps: Deps<'_, TerraQuery>, token: AssetInfo, amount: Uint128) -> Result<Uint256, StdError> {
+fn consult(deps: Deps<TerraQuery>, token: AssetInfo, amount: Uint128) -> Result<Uint256, StdError> {
     let config = CONFIG.load(deps.storage)?;
     let price_last = PRICE_LAST.load(deps.storage)?;
 
@@ -217,6 +217,6 @@ fn consult(deps: Deps<'_, TerraQuery>, token: AssetInfo, amount: Uint128) -> Res
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps:DepsMut<'_,TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps:DepsMut<TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }

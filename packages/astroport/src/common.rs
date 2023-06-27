@@ -34,7 +34,7 @@ pub struct OwnershipProposal {
 ///
 /// `proposal` is the object of type [`OwnershipProposal`].
 pub fn propose_new_owner(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     env: Env,
     new_owner: String,
@@ -81,7 +81,7 @@ pub fn propose_new_owner(
 ///
 /// `proposal` is the object of type [`OwnershipProposal`].
 pub fn drop_ownership_proposal(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     owner: Addr,
     proposal: Item<OwnershipProposal>,
@@ -111,11 +111,11 @@ pub fn drop_ownership_proposal(
 ///
 /// `cb` is a type of callback function that takes two parameters of type [`DepsMut`] and [`Addr`].
 pub fn claim_ownership(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     env: Env,
     proposal: Item<OwnershipProposal>,
-    cb: fn(DepsMut<'_, TerraQuery>, Addr) -> StdResult<()>,
+    cb: fn(DepsMut<TerraQuery>, Addr) -> StdResult<()>,
 ) -> StdResult<Response> {
     let p: OwnershipProposal = proposal
         .load(deps.storage)

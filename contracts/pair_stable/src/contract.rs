@@ -1363,7 +1363,7 @@ fn assert_slippage_tolerance(
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps:DepsMut<'_, TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps:DepsMut<TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
 

@@ -42,7 +42,7 @@ pub fn query_balance(
 /// * **querier** is the object of type [`QuerierWrapper`].
 ///
 /// * **account_addr** is the object of type [`Addr`].
-pub fn query_all_balances(querier: &QuerierWrapper<'_, TerraQuery>, account_addr: Addr) -> StdResult<Vec<Coin>> {
+pub fn query_all_balances(querier: &QuerierWrapper<TerraQuery>, account_addr: Addr) -> StdResult<Vec<Coin>> {
     let all_balances: AllBalanceResponse =
         querier.query(&QueryRequest::Bank(BankQuery::AllBalances {
             address: String::from(account_addr),
@@ -188,7 +188,7 @@ pub fn query_fee_info(
 ///
 /// * **asset_infos** is an array that contains two items of type [`AssetInfo`].
 pub fn query_pair_info(
-    querier: &QuerierWrapper<'_, TerraQuery>,
+    querier: &QuerierWrapper<TerraQuery>,
     factory_contract: Addr,
     asset_infos: &[AssetInfo; 2],
 ) -> StdResult<PairInfo> {
@@ -211,7 +211,7 @@ pub fn query_pair_info(
 ///
 /// * **limit** is an [`Option`] field of type [`u32`].
 pub fn query_pairs_info(
-    querier: &QuerierWrapper<'_, TerraQuery>,
+    querier: &QuerierWrapper<TerraQuery>,
     factory_contract: Addr,
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
@@ -231,7 +231,7 @@ pub fn query_pairs_info(
 ///
 /// * **offer_asset** is the object of type [`Asset`].
 pub fn simulate(
-    querier: &QuerierWrapper<'_, TerraQuery>,
+    querier: &QuerierWrapper<TerraQuery>,
     pair_contract: Addr,
     offer_asset: &Asset,
 ) -> StdResult<SimulationResponse> {
@@ -252,7 +252,7 @@ pub fn simulate(
 ///
 /// * **ask_asset** is the object of type [`Asset`].
 pub fn reverse_simulate(
-    querier: &QuerierWrapper<'_, TerraQuery>,
+    querier: &QuerierWrapper<TerraQuery>,
     pair_contract: &Addr,
     ask_asset: &Asset,
 ) -> StdResult<ReverseSimulationResponse> {

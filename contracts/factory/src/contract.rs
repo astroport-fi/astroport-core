@@ -48,7 +48,7 @@ const INSTANTIATE_PAIR_REPLY_ID: u64 = 1;
 /// * **msg**  is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps:DepsMut<'_, TerraQuery>,
+    deps:DepsMut,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -144,7 +144,7 @@ pub struct UpdateConfig {
 /// * **ExecuteMsg::ClaimOwnership {}** Approves ownership.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -223,7 +223,7 @@ pub fn execute(
 /// ##Executor
 /// Only owner can execute it
 pub fn execute_update_config(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     param: UpdateConfig,
@@ -275,7 +275,7 @@ pub fn execute_update_config(
 /// ## Executor
 /// Only owner can execute it
 pub fn execute_update_pair_config(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut,
     info: MessageInfo,
     pair_config: PairConfig,
 ) -> Result<Response, ContractError> {
@@ -315,7 +315,7 @@ pub fn execute_update_pair_config(
 ///
 /// * **init_params** is an [`Option`] type. Receive a binary data.
 pub fn execute_create_pair(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut,
     env: Env,
     pair_type: PairType,
     asset_infos: [AssetInfo; 2],
@@ -386,7 +386,7 @@ pub fn execute_create_pair(
 ///
 /// * **msg** is the object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps:DepsMut<'_,TerraQuery>, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps:DepsMut<TerraQuery>, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let tmp = TMP_PAIR_INFO.load(deps.storage)?;
     if PAIRS.may_load(deps.storage, &tmp.pair_key)?.is_some() {
         return Err(ContractError::PairWasRegistered {});
@@ -423,7 +423,7 @@ pub fn reply(deps:DepsMut<'_,TerraQuery>, _env: Env, msg: Reply) -> Result<Respo
 /// ## Executor
 /// Only owner can execute it
 pub fn deregister(
-    deps: DepsMut<'_, TerraQuery>,
+    deps: DepsMut,
     info: MessageInfo,
     asset_infos: [AssetInfo; 2],
 ) -> Result<Response, ContractError> {
@@ -465,7 +465,7 @@ pub fn deregister(
 /// * **QueryMsg::FeeInfo { pair_type }** Returns the settings specified in the custom
 /// structure [`FeeInfoResponse`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps<'_, TerraQuery>, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::Pair { asset_infos } => to_binary(&query_pair(deps, asset_infos)?),
@@ -507,7 +507,7 @@ pub fn query_config(deps: Deps<TerraQuery>) -> StdResult<ConfigResponse> {
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **asset_infos** it is array with two items the type of [`AssetInfo`].
-pub fn query_pair(deps: Deps<'_, TerraQuery>, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
+pub fn query_pair(deps: Deps<TerraQuery>, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     query_pair_info(&deps.querier, &pair_addr)
 }
@@ -521,7 +521,7 @@ pub fn query_pair(deps: Deps<'_, TerraQuery>, asset_infos: [AssetInfo; 2]) -> St
 ///
 /// * **limit** is a [`Option`] type. Sets the number of items to be read.
 pub fn query_pairs(
-    deps: Deps<'_, TerraQuery>,
+    deps: Deps<TerraQuery>,
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
 ) -> StdResult<PairsResponse> {
@@ -539,7 +539,7 @@ pub fn query_pairs(
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **pair_type** is the type of pair available in [`PairType`]
-pub fn query_fee_info(deps: Deps<'_, TerraQuery>, pair_type: PairType) -> StdResult<FeeInfoResponse> {
+pub fn query_fee_info(deps: Deps<TerraQuery>, pair_type: PairType) -> StdResult<FeeInfoResponse> {
     let config = CONFIG.load(deps.storage)?;
     let pair_config = PAIR_CONFIGS.load(deps.storage, pair_type.to_string())?;
 
@@ -559,7 +559,7 @@ pub fn query_fee_info(deps: Deps<'_, TerraQuery>, pair_type: PairType) -> StdRes
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps:DepsMut<'_,TerraQuery>, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps:DepsMut<TerraQuery>, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {

@@ -13,7 +13,7 @@ use classic_bindings::TerraQuery;
 ///
 /// * **asset_infos** is array with two items the type of [`AssetInfo`].
 pub fn query_pair_info(
-    querier: &QuerierWrapper<'_, TerraQuery>,
+    querier: &QuerierWrapper<TerraQuery>,
     factory_contract: Addr,
     asset_infos: [AssetInfo; 2],
 ) -> StdResult<PairInfo> {
@@ -30,7 +30,7 @@ pub fn query_pair_info(
 ///
 /// * **pair_contract** is the object of type [`Addr`].
 pub fn query_cumulative_prices(
-    querier: &QuerierWrapper<'_, TerraQuery>,
+    querier: &QuerierWrapper<TerraQuery>,
     pair_contract: Addr,
 ) -> StdResult<CumulativePricesResponse> {
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -48,7 +48,7 @@ pub fn query_cumulative_prices(
 ///
 /// * **asset** is the object of type [`Asset`].
 pub fn query_prices(
-    querier: &QuerierWrapper<'_, TerraQuery>,
+    querier: &QuerierWrapper<TerraQuery>,
     pair_contract: Addr,
     asset: Asset,
 ) -> StdResult<SimulationResponse> {
