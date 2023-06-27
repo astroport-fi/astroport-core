@@ -618,7 +618,7 @@ fn withdraw_liquidity(
     if assets.is_empty() {
         // Usual withdraw (balanced)
         burn_amount = amount;
-        refund_assets = get_share_in_assets(&pools, amount, total_share)?;
+        refund_assets = get_share_in_assets(&pools, amount, total_share);
     } else {
         return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
     }
@@ -893,7 +893,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
             "1.0.0" | "1.1.0" | "1.1.1" | "1.1.2" => migrate_config(deps.storage)?,
             "1.1.4" => migrate_config_from_v114(deps.storage)?,
-            "1.2.0" => migrate_config_from_v120(deps.storage)?,
+            "1.2.0" | "1.2.1" | "1.2.2" => migrate_config_from_v120(deps.storage)?,
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

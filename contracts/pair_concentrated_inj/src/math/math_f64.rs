@@ -1,7 +1,7 @@
 use crate::consts::MAX_ITER;
 
 const N: f64 = 2.0;
-const TOL: f64 = 1e-3;
+const TOL: f64 = 1e-5;
 
 pub fn f(d: f64, x: &[f64], a: f64, gamma: f64) -> f64 {
     let k0 = (x[0] * x[1] * N * N) / d.powi(2);

@@ -127,7 +127,7 @@ pub(crate) fn get_share_in_assets(
     pools: &[DecimalAsset],
     amount: Uint128,
     total_share: Uint128,
-) -> StdResult<Vec<DecimalAsset>> {
+) -> Vec<DecimalAsset> {
     let share_ratio = if !total_share.is_zero() {
         Decimal256::from_ratio(amount, total_share)
     } else {
@@ -136,11 +136,9 @@ pub(crate) fn get_share_in_assets(
 
     pools
         .iter()
-        .map(|pool| {
-            Ok(DecimalAsset {
-                info: pool.info.clone(),
-                amount: pool.amount * share_ratio,
-            })
+        .map(|pool| DecimalAsset {
+            info: pool.info.clone(),
+            amount: pool.amount * share_ratio,
         })
         .collect()
 }
