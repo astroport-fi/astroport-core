@@ -890,7 +890,7 @@ fn query_get_balances(deps: Deps<TerraQuery>, env: Env, assets: Vec<AssetInfo>) 
 fn query_bridges(deps:Deps<TerraQuery>, _env: Env) -> StdResult<Vec<(String, String)>> {
     BRIDGES
         .range(deps.storage, None, None, Order::Ascending)
-        .map(|bridge| bridge.map(|bridge| Ok((String::from_utf8(bridge.0)?, bridge.1.to_string()))))
+        .map(|bridge| bridge.map(|bridge| Ok((String::from_utf8(bridge.0.as_bytes().to_vec())?, bridge.1.to_string()))))
         .collect::<StdResult<StdResult<Vec<_>>>>()?
 }
 
