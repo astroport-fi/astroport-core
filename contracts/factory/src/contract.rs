@@ -144,7 +144,7 @@ pub struct UpdateConfig {
 /// * **ExecuteMsg::ClaimOwnership {}** Approves ownership.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -223,7 +223,7 @@ pub fn execute(
 /// ##Executor
 /// Only owner can execute it
 pub fn execute_update_config(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     _env: Env,
     info: MessageInfo,
     param: UpdateConfig,
@@ -275,7 +275,7 @@ pub fn execute_update_config(
 /// ## Executor
 /// Only owner can execute it
 pub fn execute_update_pair_config(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     pair_config: PairConfig,
 ) -> Result<Response, ContractError> {
@@ -315,7 +315,7 @@ pub fn execute_update_pair_config(
 ///
 /// * **init_params** is an [`Option`] type. Receive a binary data.
 pub fn execute_create_pair(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     pair_type: PairType,
     asset_infos: [AssetInfo; 2],
@@ -423,7 +423,7 @@ pub fn reply(deps:DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractEr
 /// ## Executor
 /// Only owner can execute it
 pub fn deregister(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     asset_infos: [AssetInfo; 2],
 ) -> Result<Response, ContractError> {
