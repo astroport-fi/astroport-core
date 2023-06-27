@@ -33,6 +33,7 @@ thiserror = "1.0"
 protobuf = { version = "2", features = ["with-bytes"] }
 itertools = "0.10"
 classic-bindings = { version = "0.1.1" }
+classic-test-tube = {version = "0.1.0", git = "https://github.com/classic-terra/classic-rust.git", package = "classic-test-tube", rev = "2b3571f272b54acd2119a33706f4abccdaa9f5dd"}
 
 [dev-dependencies]
 cosmwasm-schema = "1.1"

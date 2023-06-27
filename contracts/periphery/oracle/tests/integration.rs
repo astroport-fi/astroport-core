@@ -1,9 +1,10 @@
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
     attr, to_binary, Addr, BlockInfo, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
+use classic_test_tube::{TerraTestApp, SigningAccount, Wasm, Module, Account, Bank};
+use classic_test_tube::cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
+use classic_test_tube::cosmrs::proto::cosmos::base::v1beta1::Coin as CosmosCoin;
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
@@ -14,30 +15,10 @@ use astroport::oracle::QueryMsg::Consult;
 use astroport::oracle::{ExecuteMsg, InstantiateMsg};
 use astroport::pair::StablePoolParams;
 
-fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
-}
-
-fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, u64) {
-    let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
-
-    let astro_token_code_id = router.store_code(astro_token_contract);
+fn instantiate_contracts(app: &TerraTestApp, owner: &SigningAccount) -> (Addr, Addr, u64) {
+    let wasm = Wasm::new(app);
+    let astro_token_contract = std::fs::read("../../../../artifacts/astroport_token.wasm").unwrap();
+    let astro_token_code_id = wasm.store_code(&astro_token_contract, None, owner).unwrap().data.code_id;
 
     let msg = TokenInstantiateMsg {
         name: String::from("Astro token"),
@@ -45,55 +26,30 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, u64
         decimals: 6,
         initial_balances: vec![],
         mint: Some(MinterResponse {
-            minter: owner.to_string(),
+            minter: owner.address(),
             cap: None,
         }),
         marketing: None,
     };
 
-    let astro_token_instance = router
-        .instantiate_contract(
-            astro_token_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("ASTRO"),
-            None,
-        )
-        .unwrap();
+    let astro_token_instance = wasm.instantiate(
+        astro_token_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some("ASTRO"), 
+        &[], 
+        owner
+    ).unwrap();
 
-    let pair_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_pair::contract::execute,
-            astroport_pair::contract::instantiate,
-            astroport_pair::contract::query,
-        )
-        .with_reply_empty(astroport_pair::contract::reply),
-    );
+    let pair_contract = std::fs::read("../../../../artifacts/astroport_pair.wasm").unwrap();
+    let pair_code_id = wasm.store_code(&pair_contract, None, owner).unwrap().data.code_id;
 
-    let pair_code_id = router.store_code(pair_contract);
+    let pair_stable_contract = std::fs::read("../../../../artifacts/astroport_pair_stable.wasm").unwrap();
+    let pair_stable_code_id = wasm.store_code(&pair_stable_contract, None, owner).unwrap().data.code_id;
 
-    let pair_stable_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_pair_stable::contract::execute,
-            astroport_pair_stable::contract::instantiate,
-            astroport_pair_stable::contract::query,
-        )
-        .with_reply_empty(astroport_pair_stable::contract::reply),
-    );
-
-    let pair_stable_code_id = router.store_code(pair_stable_contract);
-
-    let factory_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_factory::contract::execute,
-            astroport_factory::contract::instantiate,
-            astroport_factory::contract::query,
-        )
-        .with_reply_empty(astroport_factory::contract::reply),
-    );
-
-    let factory_code_id = router.store_code(factory_contract);
+    let factory_contract = std::fs::read("../../../../artifacts/astroport_factory.wasm").unwrap();
+    let factory_code_id = wasm.store_code(&factory_contract, None, owner).unwrap().data.code_id;
+    
     let msg = astroport::factory::InstantiateMsg {
         pair_configs: vec![
             PairConfig {
@@ -114,38 +70,30 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, u64
         token_code_id: 1u64,
         fee_address: None,
         generator_address: Some(String::from("generator")),
-        owner: owner.to_string(),
+        owner: owner.address(),
         whitelist_code_id: 234u64,
     };
 
-    let factory_instance = router
-        .instantiate_contract(
-            factory_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("FACTORY"),
-            None,
-        )
-        .unwrap();
+    let factory_instance = wasm.instantiate(
+        factory_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some("FACTORY"), 
+        &[], 
+        owner
+    ).unwrap();
 
-    let oracle_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_oracle::contract::execute,
-        astroport_oracle::contract::instantiate,
-        astroport_oracle::contract::query,
-    ));
-    let oracle_code_id = router.store_code(oracle_contract);
-    (astro_token_instance, factory_instance, oracle_code_id)
+    let oracle_contract = std::fs::read("../../../../artifacts/astroport_oracle.wasm").unwrap();
+    let oracle_code_id = wasm.store_code(&oracle_contract, None, owner).unwrap().data.code_id;
+
+    (Addr::unchecked(astro_token_instance.data.address), Addr::unchecked(factory_instance.data.address), oracle_code_id)
 }
 
-fn instantiate_token(router: &mut TerraApp, owner: Addr, name: String, symbol: String) -> Addr {
-    let token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
+fn instantiate_token(app: &TerraTestApp, owner: &SigningAccount, name: String, symbol: String) -> Addr {
+    let wasm = Wasm::new(app);
 
-    let token_code_id = router.store_code(token_contract);
+    let token_contract = std::fs::read("../../../../artifacts/astroport_token.wasm").unwrap();
+    let token_code_id = wasm.store_code(&token_contract, None, owner).unwrap().data.code_id;
 
     let msg = TokenInstantiateMsg {
         name,
@@ -153,28 +101,27 @@ fn instantiate_token(router: &mut TerraApp, owner: Addr, name: String, symbol: S
         decimals: 6,
         initial_balances: vec![],
         mint: Some(MinterResponse {
-            minter: owner.to_string(),
+            minter: owner.address(),
             cap: None,
         }),
         marketing: None,
     };
 
-    let token_instance = router
-        .instantiate_contract(
-            token_code_id.clone(),
-            owner.clone(),
-            &msg,
-            &[],
-            symbol,
-            None,
-        )
+    let token_instance = wasm.instantiate(
+        token_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some(&symbol), 
+        &[], 
+        owner)
         .unwrap();
-    token_instance
+
+    Addr::unchecked(token_instance.data.address)
 }
 
 fn mint_some_token(
-    router: &mut TerraApp,
-    owner: Addr,
+    wasm: &Wasm<TerraTestApp>,
+    owner: &SigningAccount,
     token_instance: Addr,
     to: Addr,
     amount: Uint128,
@@ -183,17 +130,16 @@ fn mint_some_token(
         recipient: to.to_string(),
         amount,
     };
-    let res = router
-        .execute_contract(owner.clone(), token_instance.clone(), &msg, &[])
-        .unwrap();
+
+    let res = wasm.execute(token_instance.as_str(), &msg, &[], owner).unwrap();
     assert_eq!(res.events[1].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[1].attributes[2], attr("to", to.to_string()));
     assert_eq!(res.events[1].attributes[3], attr("amount", amount));
 }
 
 fn allowance_token(
-    router: &mut TerraApp,
-    owner: Addr,
+    wasm: &Wasm<TerraTestApp>,
+    owner: &SigningAccount,
     spender: Addr,
     token: Addr,
     amount: Uint128,
@@ -203,16 +149,15 @@ fn allowance_token(
         amount,
         expires: None,
     };
-    let res = router
-        .execute_contract(owner.clone(), token.clone(), &msg, &[])
-        .unwrap();
+    let res = wasm.execute(token.as_str(), &msg, &[], owner).unwrap();
+
     assert_eq!(
         res.events[1].attributes[1],
         attr("action", "increase_allowance")
     );
     assert_eq!(
         res.events[1].attributes[2],
-        attr("owner", owner.to_string())
+        attr("owner", owner.address())
     );
     assert_eq!(
         res.events[1].attributes[3],
@@ -221,16 +166,13 @@ fn allowance_token(
     assert_eq!(res.events[1].attributes[4], attr("amount", amount));
 }
 
-fn check_balance(router: &mut TerraApp, user: Addr, token: Addr, expected_amount: Uint128) {
+fn check_balance(wasm: &Wasm<TerraTestApp>, user: Addr, token: Addr, expected_amount: Uint128) {
     let msg = Cw20QueryMsg::Balance {
         address: user.to_string(),
     };
 
     let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: token.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+        wasm.query(token.as_str(), &msg);
 
     let balance = res.unwrap();
 
@@ -238,20 +180,22 @@ fn check_balance(router: &mut TerraApp, user: Addr, token: Addr, expected_amount
 }
 
 fn create_pair(
-    mut router: &mut TerraApp,
-    owner: Addr,
-    user: Addr,
+    app: &TerraTestApp,
+    owner: &SigningAccount,
+    user: &SigningAccount,
     factory_instance: &Addr,
     assets: [Asset; 2],
 ) -> PairInfo {
+    let wasm = Wasm::new(app);
+
     for a in assets.clone() {
         match a.info {
             AssetInfo::Token { contract_addr } => {
                 mint_some_token(
-                    &mut router,
-                    owner.clone(),
+                    &wasm,
+                    owner,
                     contract_addr.clone(),
-                    user.clone(),
+                    Addr::unchecked(user.address()),
                     a.amount,
                 );
             }
@@ -263,18 +207,16 @@ fn create_pair(
     let asset_infos = [assets[0].info.clone(), assets[1].info.clone()];
 
     // Create pair in factory
-    let res = router
-        .execute_contract(
-            owner.clone(),
-            factory_instance.clone(),
-            &astroport::factory::ExecuteMsg::CreatePair {
-                pair_type: PairType::Xyk {},
-                asset_infos: asset_infos.clone(),
-                init_params: None,
-            },
-            &[],
-        )
-        .unwrap();
+    let res = wasm.execute(
+        factory_instance.as_str(), 
+        &astroport::factory::ExecuteMsg::CreatePair {
+            pair_type: PairType::Xyk {},
+            asset_infos: asset_infos.clone(),
+            init_params: None,
+        }, 
+        &[],
+        owner
+    ).unwrap();
 
     assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
     assert_eq!(
@@ -290,15 +232,10 @@ fn create_pair(
     );
 
     // Get pair
-    let pair_info: PairInfo = router
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+    let pair_info: PairInfo = wasm
+        .query(factory_instance.as_str(), &astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
-            })
-            .unwrap(),
-        }))
+        })
         .unwrap();
 
     let mut funds = vec![];
@@ -307,7 +244,7 @@ fn create_pair(
         match a.info {
             AssetInfo::Token { contract_addr } => {
                 allowance_token(
-                    &mut router,
+                    &wasm,
                     user.clone(),
                     pair_info.contract_addr.clone(),
                     contract_addr.clone(),
@@ -323,40 +260,51 @@ fn create_pair(
         }
     }
 
-    router.init_bank_balance(&user, funds.clone()).unwrap();
+    // give money to user
+    let minter = app.init_account(&funds).unwrap();
+    let bank = Bank::new(app);
+    let cosmos_funds = vec![];
+    for coin in funds.clone() {
+        cosmos_funds.push(CosmosCoin {
+            denom: coin.denom,
+            amount: coin.amount.u128().to_string(),
+        });
+    }
 
-    router
-        .execute_contract(
-            user.clone(),
-            pair_info.contract_addr.clone(),
-            &astroport::pair::ExecuteMsg::ProvideLiquidity {
-                assets,
-                slippage_tolerance: None,
-                auto_stake: None,
-                receiver: None,
-            },
-            &funds,
-        )
-        .unwrap();
+    bank.send(MsgSend { from_address: minter.address(), to_address: user.address(), amount: cosmos_funds }, owner).unwrap();
+
+    wasm.execute(
+        pair_info.contract_addr.as_str(),
+        &astroport::pair::ExecuteMsg::ProvideLiquidity {
+            assets,
+            slippage_tolerance: None,
+            auto_stake: None,
+            receiver: None,
+        }, 
+        &funds, 
+        user
+    ).unwrap();
 
     pair_info
 }
 
 fn create_pair_stable(
-    mut router: &mut TerraApp,
-    owner: Addr,
-    user: Addr,
+    app: &TerraTestApp,
+    owner: &SigningAccount,
+    user: &SigningAccount,
     factory_instance: &Addr,
     assets: [Asset; 2],
 ) -> PairInfo {
+    let wasm = Wasm::new(app);
+
     for a in assets.clone() {
         match a.info {
             AssetInfo::Token { contract_addr } => {
                 mint_some_token(
-                    &mut router,
-                    owner.clone(),
+                    &wasm,
+                    owner,
                     contract_addr.clone(),
-                    user.clone(),
+                    Addr::unchecked(user.address()),
                     a.amount,
                 );
             }
@@ -368,18 +316,16 @@ fn create_pair_stable(
     let asset_infos = [assets[0].info.clone(), assets[1].info.clone()];
 
     // Create pair in factory
-    let res = router
-        .execute_contract(
-            owner.clone(),
-            factory_instance.clone(),
-            &astroport::factory::ExecuteMsg::CreatePair {
-                pair_type: PairType::Stable {},
-                asset_infos: asset_infos.clone(),
-                init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
-            },
-            &[],
-        )
-        .unwrap();
+    let res = wasm.execute(
+        factory_instance.as_str(),
+        &astroport::factory::ExecuteMsg::CreatePair {
+            pair_type: PairType::Stable {},
+            asset_infos: asset_infos.clone(),
+            init_params: Some(to_binary(&StablePoolParams { amp: 100 }).unwrap()),
+        },
+        &[], 
+        owner
+    ).unwrap();
 
     assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
     assert_eq!(
@@ -395,15 +341,10 @@ fn create_pair_stable(
     );
 
     // Get pair
-    let pair_info: PairInfo = router
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
-                asset_infos: asset_infos.clone(),
-            })
-            .unwrap(),
-        }))
+    let pair_info: PairInfo = wasm
+        .query(factory_instance.as_str(), &astroport::factory::QueryMsg::Pair {
+            asset_infos: asset_infos.clone(),
+        })
         .unwrap();
 
     let mut funds = vec![];
@@ -412,7 +353,7 @@ fn create_pair_stable(
         match a.info {
             AssetInfo::Token { contract_addr } => {
                 allowance_token(
-                    &mut router,
+                    &wasm,
                     user.clone(),
                     pair_info.contract_addr.clone(),
                     contract_addr.clone(),
@@ -428,29 +369,37 @@ fn create_pair_stable(
         }
     }
 
-    router.init_bank_balance(&user, funds.clone()).unwrap();
+    let minter = app.init_account(&funds).unwrap();
+    let bank = Bank::new(app);
+    let cosmos_funds = vec![];
+    for coin in funds.clone() {
+        cosmos_funds.push(CosmosCoin {
+            denom: coin.denom,
+            amount: coin.amount.u128().to_string(),
+        });
+    }
 
-    router
-        .execute_contract(
-            user.clone(),
-            pair_info.contract_addr.clone(),
-            &astroport::pair::ExecuteMsg::ProvideLiquidity {
-                assets,
-                slippage_tolerance: None,
-                auto_stake: None,
-                receiver: None,
-            },
-            &funds,
-        )
-        .unwrap();
+    bank.send(MsgSend { from_address: minter.address(), to_address: user.address(), amount: cosmos_funds }, owner).unwrap();
+
+    wasm.execute(
+        pair_info.contract_addr.as_str(),
+        &astroport::pair::ExecuteMsg::ProvideLiquidity {
+            assets,
+            slippage_tolerance: None,
+            auto_stake: None,
+            receiver: None,
+        }, 
+        &funds, 
+        user
+    ).unwrap();
 
     pair_info
 }
 
 fn change_provide_liquidity(
-    mut router: &mut TerraApp,
-    owner: Addr,
-    user: Addr,
+    wasm: &Wasm<TerraTestApp>,
+    owner: &SigningAccount,
+    user: &SigningAccount,
     pair_contract: Addr,
     token1: Addr,
     token2: Addr,
@@ -458,78 +407,76 @@ fn change_provide_liquidity(
     amount2: Uint128,
 ) {
     mint_some_token(
-        &mut router,
-        owner.clone(),
+        &wasm,
+        owner,
         token1.clone(),
-        user.clone(),
+        Addr::unchecked(user.address()),
         amount1,
     );
     mint_some_token(
-        &mut router,
-        owner.clone(),
+        &wasm,
+        owner,
         token2.clone(),
-        user.clone(),
+        Addr::unchecked(user.address()),
         amount2,
     );
-    check_balance(&mut router, user.clone(), token1.clone(), amount1);
-    check_balance(&mut router, user.clone(), token2.clone(), amount2);
+    check_balance(&wasm, Addr::unchecked(user.address()), token1.clone(), amount1);
+    check_balance(&wasm, Addr::unchecked(user.address()), token2.clone(), amount2);
     allowance_token(
-        &mut router,
-        user.clone(),
+        &wasm,
+        user,
         pair_contract.clone(),
         token1.clone(),
         amount1,
     );
     allowance_token(
-        &mut router,
-        user.clone(),
+        &wasm,
+        user,
         pair_contract.clone(),
         token2.clone(),
         amount2,
     );
-    router
-        .execute_contract(
-            user,
-            pair_contract,
-            &astroport::pair::ExecuteMsg::ProvideLiquidity {
-                assets: [
-                    Asset {
-                        info: AssetInfo::Token {
-                            contract_addr: token1.clone(),
-                        },
-                        amount: amount1,
+
+    wasm.execute(
+        pair_contract.as_str(), 
+        &astroport::pair::ExecuteMsg::ProvideLiquidity {
+            assets: [
+                Asset {
+                    info: AssetInfo::Token {
+                        contract_addr: token1.clone(),
                     },
-                    Asset {
-                        info: AssetInfo::Token {
-                            contract_addr: token2.clone(),
-                        },
-                        amount: amount2,
+                    amount: amount1,
+                },
+                Asset {
+                    info: AssetInfo::Token {
+                        contract_addr: token2.clone(),
                     },
-                ],
-                slippage_tolerance: Some(Decimal::percent(50)),
-                auto_stake: None,
-                receiver: None,
-            },
-            &vec![],
-        )
-        .unwrap();
+                    amount: amount2,
+                },
+            ],
+            slippage_tolerance: Some(Decimal::percent(50)),
+            auto_stake: None,
+            receiver: None,
+        },
+        &[], 
+        user
+    ).unwrap();
 }
 
-pub fn next_day(block: &mut BlockInfo) {
-    block.time = block.time.plus_seconds(86400);
-    block.height += 17280;
+pub fn next_day(app: &TerraTestApp) {
+    app.increase_time(86400);
 }
 
 #[test]
 fn consult() {
-    let mut router = mock_app();
+    let mut wasm = mock_app();
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
     let (astro_token_instance, factory_instance, oracle_code_id) =
-        instantiate_contracts(&mut router, owner.clone());
+        instantiate_contracts(&mut wasm, owner.clone());
 
     let usdc_token_instance = instantiate_token(
-        &mut router,
+        &mut wasm,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),
@@ -544,7 +491,7 @@ fn consult() {
         },
     ];
     create_pair(
-        &mut router,
+        &mut wasm,
         owner.clone(),
         user.clone(),
         &factory_instance,
@@ -559,8 +506,8 @@ fn consult() {
             },
         ],
     );
-    router.update_block(next_day);
-    let pair_info: PairInfo = router
+    wasm.update_block(next_day);
+    let pair_info: PairInfo = wasm
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
@@ -572,7 +519,7 @@ fn consult() {
         .unwrap();
 
     change_provide_liquidity(
-        &mut router,
+        &mut wasm,
         owner.clone(),
         user.clone(),
         pair_info.contract_addr.clone(),
@@ -581,13 +528,13 @@ fn consult() {
         Uint128::from(50_000_u128),
         Uint128::from(50_000_u128),
     );
-    router.update_block(next_day);
+    wasm.update_block(next_day);
 
     let msg = InstantiateMsg {
         factory_contract: factory_instance.to_string(),
         asset_infos: asset_infos.clone(),
     };
-    let oracle_instance = router
+    let oracle_instance = wasm
         .instantiate_contract(
             oracle_code_id,
             owner.clone(),
@@ -598,7 +545,7 @@ fn consult() {
         )
         .unwrap();
 
-    let e = router
+    let e = wasm
         .execute_contract(
             owner.clone(),
             oracle_instance.clone(),
@@ -607,11 +554,11 @@ fn consult() {
         )
         .unwrap_err();
     assert_eq!(e.to_string(), "Period not elapsed",);
-    router.update_block(next_day);
+    wasm.update_block(next_day);
 
     // Change pair liquidity
     change_provide_liquidity(
-        &mut router,
+        &mut wasm,
         owner.clone(),
         user,
         pair_info.contract_addr,
@@ -620,8 +567,8 @@ fn consult() {
         Uint128::from(10_000_u128),
         Uint128::from(10_000_u128),
     );
-    router.update_block(next_day);
-    router
+    wasm.update_block(next_day);
+    wasm
         .execute_contract(
             owner.clone(),
             oracle_instance.clone(),
@@ -640,7 +587,7 @@ fn consult() {
             },
             amount,
         };
-        let res: Uint128 = router
+        let res: Uint128 = wasm
             .wrap()
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: oracle_instance.to_string(),
@@ -653,14 +600,14 @@ fn consult() {
 
 #[test]
 fn consult_pair_stable() {
-    let mut router = mock_app();
+    let mut wasm = mock_app();
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
     let (astro_token_instance, factory_instance, oracle_code_id) =
-        instantiate_contracts(&mut router, owner.clone());
+        instantiate_contracts(&mut wasm, owner.clone());
 
     let usdc_token_instance = instantiate_token(
-        &mut router,
+        &mut wasm,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),
@@ -675,7 +622,7 @@ fn consult_pair_stable() {
         },
     ];
     create_pair_stable(
-        &mut router,
+        &mut wasm,
         owner.clone(),
         user.clone(),
         &factory_instance,
@@ -690,8 +637,8 @@ fn consult_pair_stable() {
             },
         ],
     );
-    router.update_block(next_day);
-    let pair_info: PairInfo = router
+    wasm.update_block(next_day);
+    let pair_info: PairInfo = wasm
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
@@ -703,7 +650,7 @@ fn consult_pair_stable() {
         .unwrap();
 
     change_provide_liquidity(
-        &mut router,
+        &mut wasm,
         owner.clone(),
         user.clone(),
         pair_info.contract_addr.clone(),
@@ -712,13 +659,13 @@ fn consult_pair_stable() {
         Uint128::from(500_000_000000u128),
         Uint128::from(500_000_000000u128),
     );
-    router.update_block(next_day);
+    wasm.update_block(next_day);
 
     let msg = InstantiateMsg {
         factory_contract: factory_instance.to_string(),
         asset_infos: asset_infos.clone(),
     };
-    let oracle_instance = router
+    let oracle_instance = wasm
         .instantiate_contract(
             oracle_code_id,
             owner.clone(),
@@ -729,7 +676,7 @@ fn consult_pair_stable() {
         )
         .unwrap();
 
-    let e = router
+    let e = wasm
         .execute_contract(
             owner.clone(),
             oracle_instance.clone(),
@@ -738,11 +685,11 @@ fn consult_pair_stable() {
         )
         .unwrap_err();
     assert_eq!(e.to_string(), "Period not elapsed",);
-    router.update_block(next_day);
+    wasm.update_block(next_day);
 
     // Change pair liquidity
     change_provide_liquidity(
-        &mut router,
+        &mut wasm,
         owner.clone(),
         user,
         pair_info.contract_addr,
@@ -751,8 +698,8 @@ fn consult_pair_stable() {
         Uint128::from(100_000_000000u128),
         Uint128::from(100_000_000000u128),
     );
-    router.update_block(next_day);
-    router
+    wasm.update_block(next_day);
+    wasm
         .execute_contract(
             owner.clone(),
             oracle_instance.clone(),
@@ -771,7 +718,7 @@ fn consult_pair_stable() {
             },
             amount,
         };
-        let res: Uint128 = router
+        let res: Uint128 = wasm
             .wrap()
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: oracle_instance.to_string(),
@@ -784,14 +731,14 @@ fn consult_pair_stable() {
 
 #[test]
 fn consult2() {
-    let mut router = mock_app();
+    let mut wasm = mock_app();
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
     let (astro_token_instance, factory_instance, oracle_code_id) =
-        instantiate_contracts(&mut router, owner.clone());
+        instantiate_contracts(&mut wasm, owner.clone());
 
     let usdc_token_instance = instantiate_token(
-        &mut router,
+        &mut wasm,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),
@@ -806,7 +753,7 @@ fn consult2() {
         },
     ];
     create_pair(
-        &mut router,
+        &mut wasm,
         owner.clone(),
         user.clone(),
         &factory_instance,
@@ -821,8 +768,8 @@ fn consult2() {
             },
         ],
     );
-    router.update_block(next_day);
-    let pair_info: PairInfo = router
+    wasm.update_block(next_day);
+    let pair_info: PairInfo = wasm
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
@@ -834,7 +781,7 @@ fn consult2() {
         .unwrap();
 
     change_provide_liquidity(
-        &mut router,
+        &mut wasm,
         owner.clone(),
         user.clone(),
         pair_info.contract_addr.clone(),
@@ -843,13 +790,13 @@ fn consult2() {
         Uint128::from(1000_u128),
         Uint128::from(1000_u128),
     );
-    router.update_block(next_day);
+    wasm.update_block(next_day);
 
     let msg = InstantiateMsg {
         factory_contract: factory_instance.to_string(),
         asset_infos: asset_infos.clone(),
     };
-    let oracle_instance = router
+    let oracle_instance = wasm
         .instantiate_contract(
             oracle_code_id,
             owner.clone(),
@@ -860,7 +807,7 @@ fn consult2() {
         )
         .unwrap();
 
-    let e = router
+    let e = wasm
         .execute_contract(
             owner.clone(),
             oracle_instance.clone(),
@@ -869,8 +816,8 @@ fn consult2() {
         )
         .unwrap_err();
     assert_eq!(e.to_string(), "Period not elapsed",);
-    router.update_block(next_day);
-    router
+    wasm.update_block(next_day);
+    wasm
         .execute_contract(
             owner.clone(),
             oracle_instance.clone(),
@@ -885,7 +832,7 @@ fn consult2() {
         (Uint128::from(1000_u128), Uint128::from(500_u128)),
     ] {
         change_provide_liquidity(
-            &mut router,
+            &mut wasm,
             owner.clone(),
             user.clone(),
             pair_info.contract_addr.clone(),
@@ -894,8 +841,8 @@ fn consult2() {
             amount1,
             amount2,
         );
-        router.update_block(next_day);
-        router
+        wasm.update_block(next_day);
+        wasm
             .execute_contract(
                 owner.clone(),
                 oracle_instance.clone(),
@@ -922,7 +869,7 @@ fn consult2() {
             },
             amount,
         };
-        let res: Uint128 = router
+        let res: Uint128 = wasm
             .wrap()
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: oracle_instance.to_string(),
@@ -938,7 +885,7 @@ fn consult2() {
         (Uint128::from(250_u128), Uint128::from(350_u128)),
     ] {
         change_provide_liquidity(
-            &mut router,
+            &mut wasm,
             owner.clone(),
             user.clone(),
             pair_info.contract_addr.clone(),
@@ -947,8 +894,8 @@ fn consult2() {
             amount1,
             amount2,
         );
-        router.update_block(next_day);
-        router
+        wasm.update_block(next_day);
+        wasm
             .execute_contract(
                 owner.clone(),
                 oracle_instance.clone(),
@@ -975,7 +922,7 @@ fn consult2() {
             },
             amount,
         };
-        let res: Uint128 = router
+        let res: Uint128 = wasm
             .wrap()
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: oracle_instance.to_string(),
@@ -988,15 +935,15 @@ fn consult2() {
 
 #[test]
 fn consult_zero_price() {
-    let mut router = mock_app();
+    let mut wasm = mock_app();
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user0000");
 
     let (astro_token_instance, factory_instance, oracle_code_id) =
-        instantiate_contracts(&mut router, owner.clone());
+        instantiate_contracts(&mut wasm, owner.clone());
 
     let usdc_token_instance = instantiate_token(
-        &mut router,
+        &mut wasm,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),
@@ -1011,7 +958,7 @@ fn consult_zero_price() {
         },
     ];
     create_pair(
-        &mut router,
+        &mut wasm,
         owner.clone(),
         user.clone(),
         &factory_instance,
@@ -1026,12 +973,12 @@ fn consult_zero_price() {
             },
         ],
     );
-    router.update_block(next_day);
+    wasm.update_block(next_day);
     let msg = InstantiateMsg {
         factory_contract: factory_instance.to_string(),
         asset_infos: asset_infos.clone(),
     };
-    let oracle_instance = router
+    let oracle_instance = wasm
         .instantiate_contract(
             oracle_code_id,
             owner.clone(),
@@ -1042,7 +989,7 @@ fn consult_zero_price() {
         )
         .unwrap();
 
-    let e = router
+    let e = wasm
         .execute_contract(
             owner.clone(),
             oracle_instance.clone(),
@@ -1051,8 +998,8 @@ fn consult_zero_price() {
         )
         .unwrap_err();
     assert_eq!(e.to_string(), "Period not elapsed",);
-    router.update_block(next_day);
-    router
+    wasm.update_block(next_day);
+    wasm
         .execute_contract(
             owner.clone(),
             oracle_instance.clone(),
@@ -1079,7 +1026,7 @@ fn consult_zero_price() {
             },
             amount: amount_in,
         };
-        let res: Uint128 = router
+        let res: Uint128 = wasm
             .wrap()
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: oracle_instance.to_string(),

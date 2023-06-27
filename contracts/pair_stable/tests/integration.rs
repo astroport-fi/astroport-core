@@ -270,11 +270,11 @@ fn test_compatibility_of_tokens_with_different_precision() {
         symbol: token_name.to_string(),
         decimals: 5,
         initial_balances: vec![Cw20Coin {
-            address: owner.address().to_string(),
+            address: owner.address(),
             amount: x_amount + x_offer,
         }],
         mint: Some(MinterResponse {
-            minter: owner.address().to_string(),
+            minter: owner.address(),
             cap: None,
         }),
         marketing: None,
@@ -298,11 +298,11 @@ fn test_compatibility_of_tokens_with_different_precision() {
         symbol: token_name.to_string(),
         decimals: 7,
         initial_balances: vec![Cw20Coin {
-            address: owner.address().to_string(),
+            address: owner.address(),
             amount: y_amount,
         }],
         mint: Some(MinterResponse {
-            minter: owner.address().to_string(),
+            minter: owner.address(),
             cap: None,
         }),
         marketing: None,
@@ -566,7 +566,7 @@ fn update_pair_config() {
         pair_configs: vec![],
         token_code_id: token_contract_code_id,
         generator_address: Some(String::from("generator")),
-        owner: owner.address().to_string(),
+        owner: owner.address(),
         whitelist_code_id: 234u64,
     };
 

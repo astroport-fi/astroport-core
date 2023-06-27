@@ -1,5 +1,4 @@
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{attr, Addr};
+use cosmwasm_std::{attr, Addr, Coin};
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
@@ -7,68 +6,39 @@ use astroport::factory::{
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cw20::MinterResponse;
+use classic_test_tube::{self, TerraTestApp, Wasm, SigningAccount, Module, Account};
 
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
-
-fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+fn store_factory_code(wasm: &Wasm<TerraTestApp>, owner: &SigningAccount) -> u64 {
+    let factory_contract = std::fs::read("../../../artifacts/astroport_factory.wasm").unwrap();
+    let contract = wasm.store_code(&factory_contract, None, owner).unwrap();
+    contract.data.code_id
 }
 
-fn store_factory_code(app: &mut TerraApp) -> u64 {
-    let factory_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_factory::contract::execute,
-            astroport_factory::contract::instantiate,
-            astroport_factory::contract::query,
-        )
-        .with_reply_empty(astroport_factory::contract::reply),
-    );
-
-    app.store_code(factory_contract)
+fn store_pair_code(wasm: &Wasm<TerraTestApp>, owner: &SigningAccount) -> u64 {
+    let pair_contract = std::fs::read("../../../artifacts/astroport_pair_stable.wasm").unwrap();
+    let contract = wasm.store_code(&pair_contract, None, owner).unwrap();
+    contract.data.code_id
 }
 
-fn store_pair_code(app: &mut TerraApp) -> u64 {
-    let pair_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_pair::contract::execute,
-            astroport_pair::contract::instantiate,
-            astroport_pair::contract::query,
-        )
-        .with_reply_empty(astroport_pair::contract::reply),
-    );
-
-    app.store_code(pair_contract)
-}
-
-fn store_token_code(app: &mut TerraApp) -> u64 {
-    let token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
-
-    app.store_code(token_contract)
+fn store_token_code(wasm: &Wasm<TerraTestApp>, owner: &SigningAccount) -> u64 {
+    let astro_token_contract = std::fs::read("../../../artifacts/astroport_token.wasm").unwrap();
+    let contract = wasm.store_code(&astro_token_contract, None, owner).unwrap();
+    contract.data.code_id
 }
 
 #[test]
 fn proper_initialization() {
-    let mut app = mock_app();
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
 
-    let owner = Addr::unchecked("owner");
+    let owner = &app.init_account(
+        &[
+            Coin::new(233u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+    ).unwrap();
 
-    let factory_code_id = store_factory_code(&mut app);
+    let factory_code_id = store_factory_code(&wasm, owner);
 
     let pair_configs = vec![PairConfig {
         code_id: 321,
@@ -82,42 +52,48 @@ fn proper_initialization() {
         pair_configs: pair_configs.clone(),
         token_code_id: 123,
         fee_address: None,
-        owner: owner.to_string(),
+        owner: owner.address(),
         generator_address: Some(String::from("generator")),
         whitelist_code_id: 234u64,
     };
 
-    let factory_instance = app
-        .instantiate_contract(
-            factory_code_id,
-            Addr::unchecked(owner.clone()),
-            &msg,
-            &[],
-            "factory",
-            None,
-        )
-        .unwrap();
+    let factory_instance = wasm
+        .instantiate(
+            factory_code_id, 
+            &msg, 
+            Some(owner.address().as_str()), 
+            Some("FACTORY"), 
+            &[], 
+            owner
+        ).unwrap();
 
     let msg = QueryMsg::Config {};
-    let config_res: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&factory_instance, &msg)
+    let config_res: ConfigResponse = wasm
+        .query(&factory_instance.data.address, &msg)
         .unwrap();
 
     assert_eq!(123, config_res.token_code_id);
     assert_eq!(pair_configs, config_res.pair_configs);
-    assert_eq!(owner, config_res.owner);
+    assert_eq!(owner.address(), config_res.owner);
 }
 
 #[test]
 fn update_config() {
-    let mut app = mock_app();
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
 
-    let owner = String::from("owner");
+    let accs = &app.init_accounts(
+        &[
+            Coin::new(233u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],2
+    ).unwrap();
 
-    let token_code_id = store_token_code(&mut app);
-    let factory_instance =
-        instantiate_contract(&mut app, &Addr::unchecked(owner.clone()), token_code_id);
+    let owner = &accs[0];
+    let unauthorized = &accs[1];
+
+    let token_code_id = store_token_code(&wasm, owner);
+    let factory_instance = instantiate_contract(&wasm, owner, token_code_id);
 
     // update config
     let fee_address = Some(String::from("fee"));
@@ -130,18 +106,11 @@ fn update_config() {
         whitelist_code_id: None,
     };
 
-    app.execute_contract(
-        Addr::unchecked(owner.clone()),
-        factory_instance.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
+    wasm.execute(factory_instance.as_str(), &msg,&[], owner).unwrap();
 
     let msg = QueryMsg::Config {};
-    let config_res: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&factory_instance, &msg)
+    let config_res: ConfigResponse = wasm
+        .query(factory_instance.as_str(), &msg)
         .unwrap();
 
     assert_eq!(200u64, config_res.token_code_id);
@@ -162,20 +131,13 @@ fn update_config() {
         whitelist_code_id: None,
     };
 
-    let res = app
-        .execute_contract(
-            Addr::unchecked("invalid_owner"),
-            factory_instance,
-            &msg,
-            &[],
-        )
-        .unwrap_err();
+    let res = wasm.execute(factory_instance.as_str(), &msg, &[], unauthorized).unwrap_err();
     assert_eq!(res.to_string(), "Unauthorized");
 }
 
-fn instantiate_contract(app: &mut TerraApp, owner: &Addr, token_code_id: u64) -> Addr {
-    let pair_code_id = store_pair_code(app);
-    let factory_code_id = store_factory_code(app);
+fn instantiate_contract(wasm: &Wasm<TerraTestApp>, owner: &SigningAccount, token_code_id: u64) -> Addr {
+    let pair_code_id = store_pair_code(wasm, owner);
+    let factory_code_id = store_factory_code(wasm, owner);
 
     let pair_configs = vec![PairConfig {
         code_id: pair_code_id,
@@ -189,34 +151,36 @@ fn instantiate_contract(app: &mut TerraApp, owner: &Addr, token_code_id: u64) ->
         pair_configs: pair_configs.clone(),
         token_code_id,
         fee_address: None,
-        owner: owner.to_string(),
+        owner: owner.address(),
         generator_address: Some(String::from("generator")),
         whitelist_code_id: 234u64,
     };
 
-    app.instantiate_contract(
-        factory_code_id,
-        owner.to_owned(),
-        &msg,
-        &[],
-        "factory",
-        None,
-    )
-    .unwrap()
+    Addr::unchecked(wasm.instantiate(
+        factory_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some("FACTORY"), 
+        &[], 
+        owner
+    ).unwrap().data.address)
 }
 
 #[test]
 fn create_pair() {
-    let mut app = mock_app();
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
 
-    let owner = String::from("owner");
+    let owner = &app.init_account(
+        &[
+            Coin::new(233u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+    ).unwrap();
 
-    let token_code_id = store_token_code(&mut app);
+    let token_code_id = store_token_code(&wasm, owner);
 
-    let factory_instance =
-        instantiate_contract(&mut app, &Addr::unchecked(owner.clone()), token_code_id);
-
-    let owner_addr = Addr::unchecked(owner.clone());
+    let factory_instance = instantiate_contract(&wasm, owner.clone(), token_code_id);
 
     let token_name = "tokenX";
 
@@ -226,22 +190,20 @@ fn create_pair() {
         decimals: 18,
         initial_balances: vec![],
         mint: Some(MinterResponse {
-            minter: owner_addr.to_string(),
+            minter: owner.address(),
             cap: None,
         }),
         marketing: None,
     };
 
-    let token_instance0 = app
-        .instantiate_contract(
-            token_code_id,
-            owner_addr.clone(),
-            &init_msg,
-            &[],
-            token_name,
-            None,
-        )
-        .unwrap();
+    let token_instance0 = wasm.instantiate(
+        token_code_id, 
+        &init_msg, 
+        Some(owner.address().as_str()), 
+        Some(token_name), 
+        &[], 
+        owner
+    ).unwrap();
 
     let token_name = "tokenY";
 
@@ -251,29 +213,27 @@ fn create_pair() {
         decimals: 18,
         initial_balances: vec![],
         mint: Some(MinterResponse {
-            minter: owner_addr.to_string(),
+            minter: owner.address(),
             cap: None,
         }),
         marketing: None,
     };
 
-    let token_instance1 = app
-        .instantiate_contract(
-            token_code_id,
-            owner_addr.clone(),
-            &init_msg,
-            &[],
-            token_name,
-            None,
-        )
-        .unwrap();
+    let token_instance1 = wasm.instantiate(
+        token_code_id, 
+        &init_msg, 
+        Some(owner.address().as_str()), 
+        Some(token_name),
+        &[], 
+        owner
+    ).unwrap();
 
     let asset_infos = [
         AssetInfo::Token {
-            contract_addr: token_instance0.clone(),
+            contract_addr: Addr::unchecked(token_instance0.data.address),
         },
         AssetInfo::Token {
-            contract_addr: token_instance1.clone(),
+            contract_addr: Addr::unchecked(token_instance1.data.address),
         },
     ];
 
@@ -283,9 +243,7 @@ fn create_pair() {
         init_params: None,
     };
 
-    let res = app
-        .execute_contract(Addr::unchecked(owner), factory_instance.clone(), &msg, &[])
-        .unwrap();
+    let res = wasm.execute(factory_instance.as_str(), &msg, &[], owner).unwrap();
 
     assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
     assert_eq!(
@@ -293,10 +251,9 @@ fn create_pair() {
         attr("pair", "contract #1-contract #2")
     );
 
-    let res: PairInfo = app
-        .wrap()
-        .query_wasm_smart(
-            factory_instance.clone(),
+    let res: PairInfo = wasm
+        .query(
+            factory_instance.as_str(),
             &QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             },
