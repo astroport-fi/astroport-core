@@ -1574,7 +1574,7 @@ pub fn migrate(deps:DepsMut<'_,TerraQuery>, _env: Env, _msg: MigrateMsg) -> Resu
             "1.0.0" => {
                 let keys = POOL_INFO
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| String::from_utf8(v).map_err(StdError::from))
+                    .map(|v| String::from_utf8(v.unwrap().as_bytes().to_vec()).map_err(StdError::from))
                     .collect::<Result<Vec<String>, StdError>>()?;
 
                 for key in keys {

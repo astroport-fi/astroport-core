@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
-    StdError, StdResult, Uint128,
+    StdError, StdResult, Uint128, Addr,
 };
 use cw20::{
     AllAccountsResponse, BalanceResponse, Cw20Coin, Cw20ReceiveMsg, EmbeddedLogo, Logo, LogoInfo,
@@ -15,9 +15,9 @@ use astroport::asset::addr_validate_to_lower;
 use cw2::{get_contract_version, set_contract_version};
 use cw20_base::contract::{
     execute_update_marketing, execute_upload_logo, query_download_logo, query_marketing_info,
-    query_minter, query_token_info,
+    query_minter, query_token_info, execute_update_minter
 };
-use cw20_base::enumerable::query_all_allowances;
+use cw20_base::enumerable::query_owner_allowances;
 use cw20_base::msg::ExecuteMsg;
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw20_base::ContractError;
@@ -281,6 +281,7 @@ pub fn execute(
             marketing,
         } => execute_update_marketing(deps, env, info, project, description, marketing),
         ExecuteMsg::UploadLogo(logo) => execute_upload_logo(deps, env, info, logo),
+        ExecuteMsg::UpdateMinter { new_minter } => execute_update_minter(deps, env, info, new_minter)
     }
 }
 
@@ -726,7 +727,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             owner,
             start_after,
             limit,
-        } => to_binary(&query_all_allowances(deps, owner, start_after, limit)?),
+        } => to_binary(&query_owner_allowances(deps, owner, start_after, limit)?),
         QueryMsg::AllAccounts { start_after, limit } => {
             to_binary(&query_all_accounts(deps, start_after, limit)?)
         }
@@ -779,17 +780,18 @@ pub fn query_all_accounts(
     limit: Option<u32>,
 ) -> StdResult<AllAccountsResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(Bound::exclusive);
+    let start_after_addr = start_after.map(|s| Addr::unchecked(s)); 
+    let start = start_after_addr.as_ref().map(Bound::exclusive);
 
-    let accounts: Result<Vec<_>, _> = BALANCES
+    let accounts: Vec<_> = BALANCES
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(StdResult::unwrap)
-        .map(|(a, _)| String::from_utf8(a))
+        .map(|(a, _)| a.into_string())
         .collect();
 
     Ok(AllAccountsResponse {
-        accounts: accounts?,
+        accounts: accounts,
     })
 }
 

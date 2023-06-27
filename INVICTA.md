@@ -11,3 +11,4 @@
 
     `Uint128 * Uint128::try_from((Decimal256::one() / Decimal256::from(belief_price)).to_uint_floor()).unwrap()`
 7. All rounding from Decimal to Uint will be floor (Decimal -> Uint128, Decimal256 -> Uint256)
+8. Change cw-storage-plus::U64Key to u64

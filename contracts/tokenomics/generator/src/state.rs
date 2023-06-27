@@ -136,7 +136,7 @@ pub fn get_pools(store: &dyn Storage) -> Vec<(Addr, PoolInfo)> {
         .range(store, None, None, cosmwasm_std::Order::Ascending)
         .filter_map(|v| {
             v.ok()
-                .map(|v| (Addr::unchecked(String::from_utf8(v.0).unwrap()), v.1))
+                .map(|v| (Addr::unchecked(String::from_utf8(v.0.as_bytes().to_vec()).unwrap()), v.1))
         })
         .collect()
 }

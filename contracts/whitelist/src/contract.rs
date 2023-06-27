@@ -269,7 +269,7 @@ mod tests {
 
     #[test]
     fn can_execute_query_works() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let alice = "alice";
         let bob = "bob";

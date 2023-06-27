@@ -65,7 +65,7 @@ pub fn read_vesting_infos(
         )
         .take(limit)
         .filter_map(|v| v.ok())
-        .map(|(k, v)| (Addr::unchecked(String::from_utf8(k).unwrap()), v))
+        .map(|(k, v)| (Addr::unchecked(String::from_utf8(k.as_bytes().to_vec()).unwrap()), v))
         .collect();
 
     Ok(info)
@@ -75,7 +75,7 @@ pub fn read_vesting_infos(
 fn read_vesting_infos_as_expected() {
     use cosmwasm_std::{testing::mock_dependencies, Uint128};
 
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
 
     let vi_mock = VestingInfo {
         released_amount: Uint128::zero(),
