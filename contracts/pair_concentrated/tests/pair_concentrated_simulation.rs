@@ -9,6 +9,7 @@ use astroport_pair_concentrated::error::ContractError;
 use cosmwasm_std::{Addr, Decimal};
 use proptest::prelude::*;
 use std::collections::HashMap;
+use std::str::FromStr;
 
 const MAX_EVENTS: usize = 100;
 
@@ -315,6 +316,259 @@ fn generate_provide_cases() -> impl Strategy<Value = Vec<(String, u128, u128, u6
         ),
         MAX_EVENTS,
     )
+}
+
+#[derive(Debug)]
+enum PclEvent {
+    Provide { coin0: u128, coin1: u128 },
+    Swap { offer_ind: usize, dy: u128 },
+}
+
+fn generate_mixed_cases() -> impl Strategy<Value = Vec<(PclEvent, u64)>> {
+    let inj_amount_strategy = 1..=10000u128;
+    let usdt_amount_strategy = 1..=33650u128;
+    let time_strategy = 0..600u64;
+    let events_strategy = prop_oneof![
+        (inj_amount_strategy.clone(), usdt_amount_strategy.clone()).prop_map(|(coin0, coin1)| {
+            PclEvent::Provide {
+                coin0: coin0 * 1e18 as u128,
+                coin1: coin1 * 1e6 as u128,
+            }
+        }),
+        (inj_amount_strategy.clone()).prop_map(|dy| {
+            PclEvent::Swap {
+                offer_ind: 0,
+                dy: dy * 1e18 as u128,
+            }
+        }),
+        (usdt_amount_strategy.clone()).prop_map(|dy| {
+            PclEvent::Swap {
+                offer_ind: 1,
+                dy: dy * 1e6 as u128,
+            }
+        })
+    ];
+
+    prop::collection::vec((events_strategy, time_strategy), 1..=MAX_EVENTS)
+}
+
+fn simulate_mixed_case(cases: Vec<(PclEvent, u64)>) {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::cw20precise("inj", 18), TestCoin::native("uusd")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(10f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::from_str("0.297172").unwrap(),
+        ma_half_time: 600,
+        track_asset_balances: None,
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    // owner makes the first provide cuz the pool charges small amount of fees
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000u128 * 1e18 as u128),
+        helper.assets[&test_coins[1]].with_balance(336_505u128 * 1e6 as u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    let user = Addr::unchecked("user");
+    for (pcl_event, shift_time) in cases {
+        match pcl_event {
+            PclEvent::Provide { coin0, coin1 } => {
+                let assets = vec![
+                    helper.assets[&test_coins[0]].with_balance(coin0),
+                    helper.assets[&test_coins[1]].with_balance(coin1),
+                ];
+                helper.give_me_money(&assets, &user);
+
+                if let Err(err) = helper.provide_liquidity(&user, &assets) {
+                    let err: ContractError = err.downcast().unwrap();
+                    match err {
+                        ContractError::MaxSpreadAssertion {} => {
+                            // if swap fails because of spread then skip this case
+                            println!("provide: spread limit exceeded");
+                        }
+                        _ => panic!("{err}"),
+                    }
+
+                    continue;
+                }
+
+                // Shift time so EMA will update oracle prices
+                helper.app.next_block(shift_time);
+            }
+            PclEvent::Swap { offer_ind, dy } => {
+                let offer_asset = helper.assets[&test_coins[offer_ind]].with_balance(dy);
+                helper.give_me_money(&[offer_asset.clone()], &user);
+
+                if let Err(err) =
+                    helper.swap(&user, &offer_asset, Some(Decimal::from_str("0.5").unwrap()))
+                {
+                    let err: ContractError = err.downcast().unwrap();
+                    match err {
+                        ContractError::MaxSpreadAssertion {} => {
+                            let coin0_bal = helper.coin_balance(&test_coins[0], &helper.pair_addr);
+                            let coin1_bal = helper.coin_balance(&test_coins[1], &helper.pair_addr);
+                            // if swap fails because of spread then skip this case
+                            println!("swap: spread limit exceeded {offer_ind} {dy} {coin0_bal} {coin1_bal}");
+                        }
+                        _ => panic!("{err}"),
+                    }
+
+                    continue;
+                };
+
+                // Shift time so EMA will update oracle prices
+                helper.app.next_block(shift_time);
+            }
+        }
+    }
+    let config = helper.query_config().unwrap();
+    println!("price scale {}", config.pool_state.price_state.price_scale)
+}
+
+#[test]
+fn single_mixed_case() {
+    use PclEvent::*;
+    let case = vec![
+        (
+            Swap {
+                offer_ind: 0,
+                dy: 8230000000000000000000,
+            },
+            342,
+        ),
+        (
+            Swap {
+                offer_ind: 0,
+                dy: 9028000000000000000000,
+            },
+            254,
+        ),
+        (
+            Swap {
+                offer_ind: 0,
+                dy: 8531000000000000000000,
+            },
+            208,
+        ),
+        (
+            Swap {
+                offer_ind: 0,
+                dy: 8611000000000000000000,
+            },
+            314,
+        ),
+        (
+            Provide {
+                coin0: 2303000000000000000000,
+                coin1: 1273000000,
+            },
+            528,
+        ),
+        (
+            Swap {
+                offer_ind: 0,
+                dy: 1092000000000000000000,
+            },
+            474,
+        ),
+        (
+            Provide {
+                coin0: 1084000000000000000000,
+                coin1: 1000000,
+            },
+            186,
+        ),
+        (
+            Swap {
+                offer_ind: 1,
+                dy: 9093000000,
+            },
+            0,
+        ),
+        (
+            Provide {
+                coin0: 5114000000000000000000,
+                coin1: 18973000000,
+            },
+            0,
+        ),
+        (
+            Swap {
+                offer_ind: 0,
+                dy: 7849000000000000000000,
+            },
+            115,
+        ),
+        (
+            Provide {
+                coin0: 7332000000000000000000,
+                coin1: 1000000,
+            },
+            188,
+        ),
+        (
+            Swap {
+                offer_ind: 0,
+                dy: 9456000000000000000000,
+            },
+            24,
+        ),
+        (
+            Swap {
+                offer_ind: 0,
+                dy: 9980000000000000000000,
+            },
+            381,
+        ),
+        (
+            Provide {
+                coin0: 1000000000000000000,
+                coin1: 13471000000,
+            },
+            43,
+        ),
+        (
+            Swap {
+                offer_ind: 1,
+                dy: 26732000000,
+            },
+            0,
+        ),
+        (
+            Swap {
+                offer_ind: 0,
+                dy: 7433000000000000000000,
+            },
+            0,
+        ),
+        (
+            Provide {
+                coin0: 1000000000000000000,
+                coin1: 6037000000,
+            },
+            0,
+        ),
+    ];
+
+    simulate_mixed_case(case);
+}
+
+proptest! {
+    #[ignore]
+    #[test]
+    fn simulate_mixed(case in generate_mixed_cases()) {
+        simulate_mixed_case(case);
+    }
 }
 
 proptest! {
