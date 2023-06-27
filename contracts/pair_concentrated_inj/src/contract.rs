@@ -477,11 +477,14 @@ where
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
-    let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
+    config.pool_state.price_state.xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
     let mut old_price = config.pool_state.price_state.last_price;
 
     let share = if total_share.is_zero() {
-        let mint_amount = xcp
+        let mint_amount = config
+            .pool_state
+            .price_state
+            .xcp
             .checked_sub(MINIMUM_LIQUIDITY_AMOUNT.to_decimal256(LP_TOKEN_PRECISION)?)
             .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
 
@@ -548,8 +551,6 @@ where
     }
 
     let share_uint128 = share.to_uint(LP_TOKEN_PRECISION)?;
-
-    config.pool_state.price_state.xcp = xcp;
 
     // Mint LP tokens for the sender or for the receiver (if set)
     let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());
@@ -793,14 +794,15 @@ where
     xs[offer_ind] += offer_asset_dec.amount;
     xs[ask_ind] -= swap_result.dy + swap_result.maker_fee;
 
+    let return_amount = swap_result.dy.to_uint(ask_asset_prec)?;
+    let spread_amount = swap_result.spread_fee.to_uint(ask_asset_prec)?;
     assert_max_spread(
         belief_price,
         max_spread,
-        offer_asset_dec.amount,
-        swap_result.dy,
-        swap_result.spread_fee,
+        offer_asset.amount,
+        return_amount,
+        spread_amount,
     )?;
-    let spread_amount = swap_result.spread_fee.to_uint(ask_asset_prec)?;
 
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
@@ -815,7 +817,6 @@ where
 
     let receiver = to.unwrap_or_else(|| sender.clone());
 
-    let return_amount = swap_result.dy.to_uint(ask_asset_prec)?;
     messages.push(
         pools[ask_ind]
             .info
