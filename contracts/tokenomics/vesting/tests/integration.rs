@@ -512,14 +512,9 @@ fn instantiate_token(
     .unwrap()
 }
 
-fn instantiate_vesting(mut app: &mut TerraApp, astro_token_instance: &Addr) -> Addr {
-    let vesting_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_vesting::contract::execute,
-        astroport_vesting::contract::instantiate,
-        astroport_vesting::contract::query,
-    ));
-    let owner = Addr::unchecked(OWNER1);
-    let vesting_code_id = app.store_code(vesting_contract);
+fn instantiate_vesting(wasm: &Wasm<TerraTestApp>, owner: &SigningAccount, astro_token_instance: &Addr) -> Addr {
+    let vesting_contract = std::fs::read("../../../../artifacts/astroport_staking.wasm").unwrap();
+    let vesting_code_id = wasm.store_code(&vesting_contract, None, owner).unwrap().data.code_id;
 
     let init_msg = InstantiateMsg {
         owner: OWNER1.to_string(),

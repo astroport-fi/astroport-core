@@ -2,40 +2,16 @@ use astroport::staking::{ConfigResponse, Cw20HookMsg, InstantiateMsg as xInstati
 use astroport::token::InstantiateMsg;
 use cosmwasm_std::{
     attr,
-    testing::{mock_env, MockApi, MockStorage},
-    to_binary, Addr, QueryRequest, Uint128, WasmQuery,
+    to_binary, Addr, Uint128, Coin,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
+use classic_test_tube::{TerraTestApp, SigningAccount, Wasm, Module, Account};
 
-const ALICE: &str = "Alice";
-const BOB: &str = "Bob";
-const CAROL: &str = "Carol";
+fn instantiate_contracts(app: &TerraTestApp, owner: &SigningAccount) -> (Addr, Addr, Addr) {
+    let wasm = Wasm::new(app);
 
-fn mock_app() -> TerraApp {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
-}
-
-fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Addr) {
-    let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
-
-    let astro_token_code_id = router.store_code(astro_token_contract);
+    let astro_token_contract = std::fs::read("../../../../artifacts/astroport_token.wasm").unwrap();
+    let astro_token_code_id = wasm.store_code(&astro_token_contract, None, owner).unwrap().data.code_id;
 
     let msg = InstantiateMsg {
         name: String::from("Astro token"),
@@ -43,82 +19,62 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Add
         decimals: 6,
         initial_balances: vec![],
         mint: Some(MinterResponse {
-            minter: owner.to_string(),
+            minter: owner.address(),
             cap: None,
         }),
         marketing: None,
     };
 
-    let astro_token_instance = router
-        .instantiate_contract(
-            astro_token_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("ASTRO"),
-            None,
-        )
-        .unwrap();
+    let astro_token_instance = wasm.instantiate(
+        astro_token_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some("ASTRO"), 
+        &[], 
+        owner
+    ).unwrap();
 
-    let staking_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_staking::contract::execute,
-            astroport_staking::contract::instantiate,
-            astroport_staking::contract::query,
-        )
-        .with_reply_empty(astroport_staking::contract::reply),
-    );
-
-    let staking_code_id = router.store_code(staking_contract);
+    let staking_contract = std::fs::read("../../../../artifacts/astroport_staking.wasm").unwrap();
+    let staking_code_id = wasm.store_code(&staking_contract, None, owner).unwrap().data.code_id;
 
     let msg = xInstatiateMsg {
-        owner: owner.to_string(),
+        owner: owner.address(),
         token_code_id: astro_token_code_id,
-        deposit_token_addr: astro_token_instance.to_string(),
+        deposit_token_addr: astro_token_instance.clone().data.address,
         marketing: None,
     };
-    let staking_instance = router
-        .instantiate_contract(
-            staking_code_id,
-            owner,
-            &msg,
-            &[],
-            String::from("xASTRO"),
-            None,
-        )
-        .unwrap();
+    let staking_instance = wasm.instantiate(
+        staking_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some("xASTRO"), 
+        &[], 
+        owner
+    ).unwrap();
 
     let msg = QueryMsg::Config {};
-    let res = router
-        .wrap()
-        .query::<ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: staking_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }))
-        .unwrap();
+    let res : ConfigResponse = wasm.query(&staking_instance.data.address, &msg).unwrap();
 
     // in multitest, contract names are named in the order in which contracts are created.
-    assert_eq!("contract #0", astro_token_instance);
-    assert_eq!("contract #1", staking_instance);
+    assert_eq!("contract #0", astro_token_instance.clone().data.address);
+    assert_eq!("contract #1", staking_instance.data.address);
     assert_eq!("contract #2", res.share_token_addr);
 
     let x_astro_token_instance = res.share_token_addr;
 
     (
-        astro_token_instance,
-        staking_instance,
+        Addr::unchecked(astro_token_instance.data.address),
+        Addr::unchecked(staking_instance.data.address),
         x_astro_token_instance,
     )
 }
 
-fn mint_some_astro(router: &mut TerraApp, owner: Addr, astro_token_instance: Addr, to: &str) {
+fn mint_some_astro(wasm: &Wasm<TerraTestApp>, owner: &SigningAccount, astro_token_instance: Addr, to: &str) {
     let msg = cw20::Cw20ExecuteMsg::Mint {
         recipient: String::from(to),
         amount: Uint128::from(100u128),
     };
-    let res = router
-        .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
-        .unwrap();
+    let res = wasm.execute(astro_token_instance.as_str(), &msg, &[], owner).unwrap();
     assert_eq!(res.events[1].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[1].attributes[2], attr("to", String::from(to)));
     assert_eq!(
@@ -129,32 +85,36 @@ fn mint_some_astro(router: &mut TerraApp, owner: Addr, astro_token_instance: Add
 
 #[test]
 fn cw20receive_enter_and_leave() {
-    let mut router = mock_app();
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
 
-    let owner = Addr::unchecked("owner");
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        2
+    ).unwrap();
+    let owner = &accs[0];
+    let alice_address = &accs[1];
 
     let (astro_token_instance, staking_instance, x_astro_token_instance) =
-        instantiate_contracts(&mut router, owner.clone());
+        instantiate_contracts(&app, owner.clone());
 
     // mint 100 ASTRO for Alice
     mint_some_astro(
-        &mut router,
+        &wasm,
         owner.clone(),
         astro_token_instance.clone(),
-        ALICE,
+        &alice_address.address(),
     );
-
-    let alice_address = Addr::unchecked(ALICE);
 
     // check if Alice's ASTRO balance is 100
     let msg = Cw20QueryMsg::Balance {
-        address: alice_address.to_string(),
+        address: alice_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -169,14 +129,12 @@ fn cw20receive_enter_and_leave() {
         amount: Uint128::from(10u128),
     };
 
-    let resp = router
-        .execute_contract(
-            alice_address.clone(),
-            astro_token_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap_err();
+    let resp = wasm.execute(
+        astro_token_instance.as_str(), 
+        &msg, 
+        &[], 
+        alice_address
+    ).unwrap_err();
     assert_eq!(resp.to_string(), "Unauthorized");
 
     // try to enter Alice's 100 ASTRO for 100 xASTRO
@@ -186,24 +144,17 @@ fn cw20receive_enter_and_leave() {
         amount: Uint128::from(100u128),
     };
 
-    router
-        .execute_contract(
-            alice_address.clone(),
-            astro_token_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap();
-
+    wasm.execute(
+        astro_token_instance.as_str(), 
+        &msg, 
+        &[], 
+        alice_address
+    ).unwrap();
     // check if Alice's xASTRO balance is 100
     let msg = Cw20QueryMsg::Balance {
-        address: alice_address.to_string(),
+        address: alice_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(x_astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -213,13 +164,9 @@ fn cw20receive_enter_and_leave() {
 
     // check if Alice's ASTRO balance is 0
     let msg = Cw20QueryMsg::Balance {
-        address: alice_address.to_string(),
+        address: alice_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -231,11 +178,7 @@ fn cw20receive_enter_and_leave() {
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -250,14 +193,12 @@ fn cw20receive_enter_and_leave() {
         amount: Uint128::from(10u128),
     };
 
-    let resp = router
-        .execute_contract(
-            alice_address.clone(),
-            x_astro_token_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap_err();
+    let resp = wasm.execute(
+        x_astro_token_instance.as_str(), 
+        &msg, 
+        &[], 
+        alice_address
+    ).unwrap_err();
     assert_eq!(resp.to_string(), "Unauthorized");
 
     // try to leave Alice's 10 xASTRO for 10 ASTRO
@@ -267,24 +208,18 @@ fn cw20receive_enter_and_leave() {
         amount: Uint128::from(10u128),
     };
 
-    router
-        .execute_contract(
-            alice_address.clone(),
-            x_astro_token_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        x_astro_token_instance.as_str(), 
+        &msg, 
+        &[], 
+        alice_address
+    ).unwrap();
 
     // check if Alice's xASTRO balance is 90
     let msg = Cw20QueryMsg::Balance {
-        address: alice_address.to_string(),
+        address: alice_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(x_astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -294,13 +229,9 @@ fn cw20receive_enter_and_leave() {
 
     // check if Alice's ASTRO balance is 10
     let msg = Cw20QueryMsg::Balance {
-        address: alice_address.to_string(),
+        address: alice_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -312,11 +243,7 @@ fn cw20receive_enter_and_leave() {
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -328,11 +255,7 @@ fn cw20receive_enter_and_leave() {
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(x_astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -343,21 +266,30 @@ fn cw20receive_enter_and_leave() {
 
 #[test]
 fn should_not_allow_withdraw_more_than_what_you_have() {
-    let mut router = mock_app();
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
 
-    let owner = Addr::unchecked("owner");
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        2
+    ).unwrap();
+    let owner = &accs[0];
+    let alice_address = &accs[1];
 
     let (astro_token_instance, staking_instance, x_astro_token_instance) =
-        instantiate_contracts(&mut router, owner.clone());
+        instantiate_contracts(&app, owner.clone());
 
     // mint 100 ASTRO for Alice
     mint_some_astro(
-        &mut router,
+        &wasm,
         owner.clone(),
         astro_token_instance.clone(),
-        ALICE,
+        &alice_address.address(),
     );
-    let alice_address = Addr::unchecked(ALICE);
 
     // enter Alice's 100 ASTRO for 100 xASTRO
     let msg = Cw20ExecuteMsg::Send {
@@ -366,24 +298,18 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
         amount: Uint128::from(100u128),
     };
 
-    router
-        .execute_contract(
-            alice_address.clone(),
-            astro_token_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        astro_token_instance.as_str(), 
+        &msg, 
+        &[], 
+        alice_address
+    ).unwrap();
 
     // check if Alice's xASTRO balance is 100
     let msg = Cw20QueryMsg::Balance {
-        address: alice_address.to_string(),
+        address: alice_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(x_astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -398,53 +324,60 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
         amount: Uint128::from(200u128),
     };
 
-    let res = router
-        .execute_contract(
-            alice_address.clone(),
-            x_astro_token_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap_err();
+    let res = wasm.execute(
+        x_astro_token_instance.as_str(), 
+        &msg, 
+        &[], 
+        alice_address
+    ).unwrap_err();
 
     assert_eq!(res.to_string(), "Overflow: Cannot Sub with 100 and 200");
 }
 
 #[test]
 fn should_work_with_more_than_one_participant() {
-    let mut router = mock_app();
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
 
-    let owner = Addr::unchecked("owner");
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        4
+    ).unwrap();
+    let owner = &accs[0];
+    let alice_address = &accs[1];
+    let bob_address = &accs[2];
+    let carol_address = &accs[3];
 
     let (astro_token_instance, staking_instance, x_astro_token_instance) =
-        instantiate_contracts(&mut router, owner.clone());
+        instantiate_contracts(&app, owner.clone());
 
     // mint 100 ASTRO for Alice
     mint_some_astro(
-        &mut router,
+        &wasm,
         owner.clone(),
         astro_token_instance.clone(),
-        ALICE,
+        &alice_address.address(),
     );
-    let alice_address = Addr::unchecked(ALICE);
 
     // mint 100 ASTRO for Bob
     mint_some_astro(
-        &mut router,
+        &wasm,
         owner.clone(),
         astro_token_instance.clone(),
-        BOB,
+        &bob_address.address(),
     );
-    let bob_address = Addr::unchecked(BOB);
 
     // mint 100 ASTRO for Carol
     mint_some_astro(
-        &mut router,
+        &wasm,
         owner.clone(),
         astro_token_instance.clone(),
-        CAROL,
+        &carol_address.address(),
     );
-    let carol_address = Addr::unchecked(CAROL);
 
     // enter Alice's 20 ASTRO for 20 xASTRO
     let msg = Cw20ExecuteMsg::Send {
@@ -453,14 +386,12 @@ fn should_work_with_more_than_one_participant() {
         amount: Uint128::from(20u128),
     };
 
-    router
-        .execute_contract(
-            alice_address.clone(),
-            astro_token_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        astro_token_instance.as_str(), 
+        &msg, 
+        &[], 
+        alice_address
+    ).unwrap();
 
     // enter Bob's 10 ASTRO for 10 xASTRO
     let msg = Cw20ExecuteMsg::Send {
@@ -469,19 +400,18 @@ fn should_work_with_more_than_one_participant() {
         amount: Uint128::from(10u128),
     };
 
-    router
-        .execute_contract(bob_address.clone(), astro_token_instance.clone(), &msg, &[])
-        .unwrap();
+    wasm.execute(
+        astro_token_instance.as_str(), 
+        &msg, 
+        &[], 
+        bob_address
+    ).unwrap();
 
     // check if Alice's xASTRO balance is 20
     let msg = Cw20QueryMsg::Balance {
-        address: alice_address.to_string(),
+        address: alice_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(x_astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -491,13 +421,9 @@ fn should_work_with_more_than_one_participant() {
 
     // check if Bob's xASTRO balance is 10
     let msg = Cw20QueryMsg::Balance {
-        address: bob_address.to_string(),
+        address: bob_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(x_astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -509,11 +435,7 @@ fn should_work_with_more_than_one_participant() {
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -526,16 +448,14 @@ fn should_work_with_more_than_one_participant() {
         recipient: staking_instance.to_string(),
         amount: Uint128::from(20u128),
     };
-    let res = router
-        .execute_contract(
-            carol_address.clone(),
-            astro_token_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap();
+    let res = wasm.execute(
+        astro_token_instance.as_str(), 
+        &msg, 
+        &[], 
+        carol_address
+    ).unwrap();
     assert_eq!(res.events[1].attributes[1], attr("action", "transfer"));
-    assert_eq!(res.events[1].attributes[2], attr("from", carol_address));
+    assert_eq!(res.events[1].attributes[2], attr("from", carol_address.address()));
     assert_eq!(
         res.events[1].attributes[3],
         attr("to", staking_instance.clone())
@@ -552,24 +472,18 @@ fn should_work_with_more_than_one_participant() {
         amount: Uint128::from(10u128),
     };
 
-    router
-        .execute_contract(
-            alice_address.clone(),
-            astro_token_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        astro_token_instance.as_str(), 
+        &msg, 
+        &[], 
+        alice_address
+    ).unwrap();
 
     // check if Alice's xASTRO balance is 26
     let msg = Cw20QueryMsg::Balance {
-        address: alice_address.to_string(),
+        address: alice_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(x_astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -579,13 +493,9 @@ fn should_work_with_more_than_one_participant() {
 
     // check if Bob's xASTRO balance is 10
     let msg = Cw20QueryMsg::Balance {
-        address: bob_address.to_string(),
+        address: bob_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(x_astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -600,24 +510,18 @@ fn should_work_with_more_than_one_participant() {
         amount: Uint128::from(5u128),
     };
 
-    router
-        .execute_contract(
-            bob_address.clone(),
-            x_astro_token_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        x_astro_token_instance.as_str(), 
+        &msg, 
+        &[], 
+        bob_address
+    ).unwrap();
 
     // check if Alice's xASTRO balance is 26
     let msg = Cw20QueryMsg::Balance {
-        address: alice_address.to_string(),
+        address: alice_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(x_astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -627,13 +531,9 @@ fn should_work_with_more_than_one_participant() {
 
     // check if Bob's xASTRO balance is 5
     let msg = Cw20QueryMsg::Balance {
-        address: bob_address.to_string(),
+        address: bob_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(x_astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -645,11 +545,7 @@ fn should_work_with_more_than_one_participant() {
     let msg = Cw20QueryMsg::Balance {
         address: staking_instance.to_string(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -659,13 +555,9 @@ fn should_work_with_more_than_one_participant() {
 
     // check if Alice's ASTRO balance is 70 (100 minted - 20 entered - 10 entered)
     let msg = Cw20QueryMsg::Balance {
-        address: alice_address.to_string(),
+        address: alice_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {
@@ -675,13 +567,9 @@ fn should_work_with_more_than_one_participant() {
 
     // check if Bob's ASTRO balance is 98 (100 minted - 10 entered + 8 by leaving)
     let msg = Cw20QueryMsg::Balance {
-        address: bob_address.to_string(),
+        address: bob_address.address(),
     };
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
+    let res: Result<BalanceResponse, _> = wasm.query(astro_token_instance.as_str(), &msg);
     assert_eq!(
         res.unwrap(),
         BalanceResponse {

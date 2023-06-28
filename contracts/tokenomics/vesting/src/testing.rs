@@ -1,12 +1,24 @@
+use std::marker::PhantomData;
+
 use crate::contract::{instantiate, query};
 use astroport::vesting::{ConfigResponse, InstantiateMsg, QueryMsg};
 
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{from_binary, Addr};
+use classic_bindings::TerraQuery;
+use cosmwasm_std::testing::{mock_env, mock_info, MockQuerier, MockApi, MockStorage};
+use cosmwasm_std::{from_binary, Addr, OwnedDeps};
+
+pub fn mock_dependencies() -> OwnedDeps<MockStorage, MockApi, MockQuerier, TerraQuery> {
+    OwnedDeps {
+        storage: MockStorage::default(),
+        api: MockApi::default(),
+        querier: MockQuerier::default(),
+        custom_query_type: PhantomData,
+    }
+}
 
 #[test]
 fn proper_initialization() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
 
     let msg = InstantiateMsg {
         owner: "owner".to_string(),

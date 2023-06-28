@@ -1,9 +1,12 @@
+use std::marker::PhantomData;
+
+use cosmwasm_std::testing::{MockStorage, MockApi, MockQuerier};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use astroport::common::OwnershipProposal;
 use astroport::vesting::{OrderBy, VestingInfo};
-use cosmwasm_std::{Addr, Deps, StdResult};
+use cosmwasm_std::{Addr, Deps, StdResult, OwnedDeps};
 use cw_storage_plus::{Bound, Item, Map};
 use classic_bindings::TerraQuery;
 
@@ -32,6 +35,15 @@ pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_pro
 const MAX_LIMIT: u32 = 30;
 const DEFAULT_LIMIT: u32 = 10;
 
+pub fn mock_dependencies() -> OwnedDeps<MockStorage, MockApi, MockQuerier, TerraQuery> {
+    OwnedDeps {
+        storage: MockStorage::default(),
+        api: MockApi::default(),
+        querier: MockQuerier::default(),
+        custom_query_type: PhantomData,
+    }
+}
+
 /// ## Description
 /// Returns the empty vector if does not found data to read, otherwise returns the vector that
 /// contains the objects of type [`VESTING_INFO`].
@@ -50,7 +62,7 @@ pub fn read_vesting_infos(
     order_by: Option<OrderBy>,
 ) -> StdResult<Vec<(Addr, VestingInfo)>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start_after = start_after.map(|v| Bound::Exclusive(v.as_bytes().to_vec()));
+    let start_after = start_after.as_ref().map(Bound::exclusive);
     let (start, end) = match &order_by {
         Some(OrderBy::Asc) => (start_after, None),
         _ => (None, start_after),
@@ -73,7 +85,7 @@ pub fn read_vesting_infos(
 
 #[test]
 fn read_vesting_infos_as_expected() {
-    use cosmwasm_std::{testing::mock_dependencies, Uint128};
+    use cosmwasm_std::{Uint128};
 
     let mut deps = mock_dependencies();
 
