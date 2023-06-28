@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, ContractResult, Reply, ReplyOn, SubMsg,
-    SubMsgExecutionResponse, WasmMsg, SubMsgResult, SubMsgResponse,
+    attr, from_binary, to_binary, Addr, Reply, ReplyOn, SubMsg, 
+    WasmMsg, SubMsgResult, SubMsgResponse,
 };
 
 use crate::mock_querier::mock_dependencies;

@@ -18,7 +18,7 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use classic_bindings::TerraQuery;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, ContractResult, CosmosMsg, Decimal, DepsMut,
+    attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut,
     Env, Reply, ReplyOn, Response, StdError, SubMsg, Timestamp, Uint128,
     WasmMsg, SubMsgResult, SubMsgResponse,
 };

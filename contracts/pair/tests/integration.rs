@@ -7,9 +7,9 @@ use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, TWAP_PRECISION,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use classic_test_tube::{TerraTestApp, Wasm, SigningAccount, Module, Account, Bank};
+use classic_test_tube::{TerraTestApp, Wasm, SigningAccount, Module, Account};
 
 fn store_token_code(wasm: &Wasm<TerraTestApp>, owner: &SigningAccount) -> u64 {
     let astro_token_contract = std::fs::read("../../../artifacts/astroport_token.wasm").unwrap();

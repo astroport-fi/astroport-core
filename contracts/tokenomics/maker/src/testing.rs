@@ -1,10 +1,21 @@
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{from_binary, Addr, Decimal, Uint128, Uint64};
+use classic_bindings::TerraQuery;
+use cosmwasm_std::testing::{mock_env, mock_info, MockStorage, MockApi, MockQuerier};
+use cosmwasm_std::{from_binary, Addr, Decimal, Uint128, Uint64, OwnedDeps};
 
 use crate::contract::{execute, instantiate, query};
 use crate::state::{Config, CONFIG};
 use astroport::maker::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use std::marker::PhantomData;
 use std::str::FromStr;
+
+pub fn mock_dependencies() -> OwnedDeps<MockStorage, MockApi, MockQuerier, TerraQuery> {
+    OwnedDeps {
+        storage: MockStorage::default(),
+        api: MockApi::default(),
+        querier: MockQuerier::default(),
+        custom_query_type: PhantomData,
+    }
+}
 
 #[test]
 fn proper_initialization() {
@@ -53,7 +64,7 @@ fn proper_initialization() {
 
 #[test]
 fn update_owner() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let info = mock_info("addr0000", &[]);
 
     let owner = Addr::unchecked("owner");

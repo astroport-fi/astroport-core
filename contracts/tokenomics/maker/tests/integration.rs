@@ -7,48 +7,25 @@ use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use astroport_governance::utils::EPOCH_START;
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    attr, to_binary, Addr, Coin, Decimal, QueryRequest, Timestamp, Uint128, Uint64, WasmQuery,
+    attr, Addr, Coin, Decimal, Uint128, Uint64,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use std::str::FromStr;
-use terra_multi_test::{
-    next_block, AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
-};
-
-fn mock_app() -> TerraApp {
-    let mut env = mock_env();
-    env.block.time = Timestamp::from_seconds(EPOCH_START);
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
-}
+use classic_test_tube::{TerraTestApp, SigningAccount, Wasm, Module, Account, Bank};
+use classic_test_tube::cosmrs::proto::cosmos::base::v1beta1::Coin as CosmosCoin;
+use classic_test_tube::cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 
 fn instantiate_contracts(
-    router: &mut TerraApp,
-    owner: Addr,
+    app: &TerraTestApp,
+    owner: &SigningAccount,
     staking: Addr,
     governance_percent: Uint64,
     max_spread: Option<Decimal>,
 ) -> (Addr, Addr, Addr, Addr) {
-    let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
-
-    let astro_token_code_id = router.store_code(astro_token_contract);
+    let wasm = Wasm::new(app);
+    let astro_token_contract = std::fs::read("../../../../artifacts/astroport_token.wasm").unwrap();
+    let astro_token_code_id = wasm.store_code(&astro_token_contract, None, owner).unwrap().data.code_id;
 
     let msg = TokenInstantiateMsg {
         name: String::from("Astro token"),
@@ -56,44 +33,26 @@ fn instantiate_contracts(
         decimals: 6,
         initial_balances: vec![],
         mint: Some(MinterResponse {
-            minter: owner.to_string(),
+            minter: owner.address(),
             cap: None,
         }),
         marketing: None,
     };
 
-    let astro_token_instance = router
-        .instantiate_contract(
-            astro_token_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("ASTRO"),
-            None,
-        )
-        .unwrap();
+    let astro_token_instance = wasm.instantiate(
+        astro_token_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some("ASTRO"), 
+        &[], 
+        owner
+    ).unwrap();
 
-    let pair_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_pair::contract::execute,
-            astroport_pair::contract::instantiate,
-            astroport_pair::contract::query,
-        )
-        .with_reply_empty(astroport_pair::contract::reply),
-    );
+    let pair_contract = std::fs::read("../../../../artifacts/astroport_pair.wasm").unwrap();
+    let pair_code_id = wasm.store_code(&pair_contract, None, owner).unwrap().data.code_id;
 
-    let pair_code_id = router.store_code(pair_contract);
-
-    let factory_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_factory::contract::execute,
-            astroport_factory::contract::instantiate,
-            astroport_factory::contract::query,
-        )
-        .with_reply_empty(astroport_factory::contract::reply),
-    );
-
-    let factory_code_id = router.store_code(factory_contract);
+    let factory_contract = std::fs::read("../../../../artifacts/astroport_factory.wasm").unwrap();
+    let factory_code_id = wasm.store_code(&factory_contract, None, owner).unwrap().data.code_id;
     let msg = astroport::factory::InstantiateMsg {
         pair_configs: vec![PairConfig {
             code_id: pair_code_id,
@@ -104,93 +63,73 @@ fn instantiate_contracts(
         }],
         token_code_id: 1u64,
         fee_address: None,
-        owner: owner.to_string(),
+        owner: owner.address(),
         generator_address: Some(String::from("generator")),
         whitelist_code_id: 234u64,
     };
 
-    let factory_instance = router
-        .instantiate_contract(
-            factory_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("FACTORY"),
-            None,
-        )
-        .unwrap();
+    let factory_instance = wasm.instantiate(
+        factory_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some("FACTORY"), 
+        &[], 
+        owner
+    ).unwrap();
 
-    let escrow_fee_distributor_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_escrow_fee_distributor::contract::execute,
-        astroport_escrow_fee_distributor::contract::instantiate,
-        astroport_escrow_fee_distributor::contract::query,
-    ));
-
-    let escrow_fee_distributor_code_id = router.store_code(escrow_fee_distributor_contract);
+    let escrow_fee_distributor_contract = std::fs::read("../../../../artifacts/astroport_escrow_fee_distributor.wasm").unwrap();
+    let escrow_fee_distributor_code_id = wasm.store_code(&escrow_fee_distributor_contract, None, owner).unwrap().data.code_id;
 
     let init_msg = astroport_governance::escrow_fee_distributor::InstantiateMsg {
-        owner: owner.to_string(),
-        astro_token: astro_token_instance.to_string(),
+        owner: owner.address(),
+        astro_token: astro_token_instance.clone().data.address,
         voting_escrow_addr: "voting".to_string(),
         claim_many_limit: None,
         is_claim_disabled: None,
     };
 
-    let governance_instance = router
-        .instantiate_contract(
-            escrow_fee_distributor_code_id,
-            owner.clone(),
-            &init_msg,
-            &[],
-            "Astroport escrow fee distributor",
-            None,
-        )
-        .unwrap();
+    let governance_instance = wasm.instantiate(
+        escrow_fee_distributor_code_id, 
+        &init_msg, 
+        Some(owner.address().as_str()), 
+        Some("Astroport escrow fee distributor"), 
+        &[], 
+        owner
+    ).unwrap();
 
-    let maker_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_maker::contract::execute,
-        astroport_maker::contract::instantiate,
-        astroport_maker::contract::query,
-    ));
-
-    let market_code_id = router.store_code(maker_contract);
+    let maker_contract = std::fs::read("../../../../artifacts/astroport_maker.wasm").unwrap();
+    let market_code_id = wasm.store_code(&maker_contract, None, owner).unwrap().data.code_id;
 
     let msg = InstantiateMsg {
         owner: String::from("owner"),
-        factory_contract: factory_instance.to_string(),
+        factory_contract: factory_instance.clone().data.address,
         staking_contract: staking.to_string(),
-        governance_contract: Option::from(governance_instance.to_string()),
+        governance_contract: Option::from(governance_instance.clone().data.address),
         governance_percent: Option::from(governance_percent),
-        astro_token_contract: astro_token_instance.to_string(),
+        astro_token_contract: astro_token_instance.clone().data.address,
         max_spread,
     };
-    let maker_instance = router
-        .instantiate_contract(
-            market_code_id,
-            owner,
-            &msg,
-            &[],
-            String::from("MAKER"),
-            None,
-        )
-        .unwrap();
+
+    let maker_instance = wasm.instantiate(
+        market_code_id,
+        &msg,
+        Some(owner.address().as_str()),
+        Some("MAKER"),
+        &[],
+        owner
+    ).unwrap();
 
     (
-        astro_token_instance,
-        factory_instance,
-        maker_instance,
-        governance_instance,
+        Addr::unchecked(astro_token_instance.data.address),
+        Addr::unchecked(factory_instance.data.address),
+        Addr::unchecked(maker_instance.data.address),
+        Addr::unchecked(governance_instance.data.address),
     )
 }
 
-fn instantiate_token(router: &mut TerraApp, owner: Addr, name: String, symbol: String) -> Addr {
-    let token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
-
-    let token_code_id = router.store_code(token_contract);
+fn instantiate_token(wasm: &Wasm<TerraTestApp>, owner: &SigningAccount, name: String, symbol: String) -> Addr {
+    let token_contract = std::fs::read("../../../../artifacts/astroport_token.wasm").unwrap();
+    let token_code_id = wasm.store_code(&token_contract, None, owner).unwrap().data.code_id;
 
     let msg = TokenInstantiateMsg {
         name,
@@ -198,28 +137,27 @@ fn instantiate_token(router: &mut TerraApp, owner: Addr, name: String, symbol: S
         decimals: 6,
         initial_balances: vec![],
         mint: Some(MinterResponse {
-            minter: owner.to_string(),
+            minter: owner.address(),
             cap: None,
         }),
         marketing: None,
     };
 
-    let token_instance = router
-        .instantiate_contract(
-            token_code_id.clone(),
-            owner.clone(),
-            &msg,
-            &[],
-            symbol,
-            None,
-        )
+    let token_instance = wasm.instantiate(
+        token_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some(&symbol), 
+        &[], 
+        owner)
         .unwrap();
-    token_instance
+
+    Addr::unchecked(token_instance.data.address)
 }
 
 fn mint_some_token(
-    router: &mut TerraApp,
-    owner: Addr,
+    wasm: &Wasm<TerraTestApp>,
+    owner: &SigningAccount,
     token_instance: Addr,
     to: Addr,
     amount: Uint128,
@@ -228,17 +166,15 @@ fn mint_some_token(
         recipient: to.to_string(),
         amount,
     };
-    let res = router
-        .execute_contract(owner.clone(), token_instance.clone(), &msg, &[])
-        .unwrap();
+    let res = wasm.execute(token_instance.as_str(), &msg, &[], owner).unwrap();
     assert_eq!(res.events[1].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[1].attributes[2], attr("to", to.to_string()));
     assert_eq!(res.events[1].attributes[3], attr("amount", amount));
 }
 
 fn allowance_token(
-    router: &mut TerraApp,
-    owner: Addr,
+    wasm: &Wasm<TerraTestApp>,
+    owner:&SigningAccount,
     spender: Addr,
     token: Addr,
     amount: Uint128,
@@ -248,16 +184,14 @@ fn allowance_token(
         amount,
         expires: None,
     };
-    let res = router
-        .execute_contract(owner.clone(), token.clone(), &msg, &[])
-        .unwrap();
+    let res = wasm.execute(token.as_str(), &msg, &[], owner).unwrap();
     assert_eq!(
         res.events[1].attributes[1],
         attr("action", "increase_allowance")
     );
     assert_eq!(
         res.events[1].attributes[2],
-        attr("owner", owner.to_string())
+        attr("owner", owner.address())
     );
     assert_eq!(
         res.events[1].attributes[3],
@@ -266,37 +200,34 @@ fn allowance_token(
     assert_eq!(res.events[1].attributes[4], attr("amount", amount));
 }
 
-fn check_balance(router: &mut TerraApp, user: Addr, token: Addr, expected_amount: Uint128) {
+fn check_balance(wasm: &Wasm<TerraTestApp>, user: Addr, token: Addr, expected_amount: Uint128) {
     let msg = Cw20QueryMsg::Balance {
         address: user.to_string(),
     };
 
-    let res: Result<BalanceResponse, _> =
-        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: token.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }));
-
+    let res: Result<BalanceResponse, _> = wasm.query(token.as_str(), &msg);
     let balance = res.unwrap();
 
     assert_eq!(balance.balance, expected_amount);
 }
 
 fn create_pair(
-    mut router: &mut TerraApp,
-    owner: Addr,
-    user: Addr,
+    app: &TerraTestApp,
+    owner: &SigningAccount,
+    user: &SigningAccount,
     factory_instance: &Addr,
     assets: [Asset; 2],
 ) -> PairInfo {
+    let wasm = Wasm::new(app);
+
     for a in assets.clone() {
         match a.info {
             AssetInfo::Token { contract_addr } => {
                 mint_some_token(
-                    &mut router,
-                    owner.clone(),
+                    &wasm,
+                    owner,
                     contract_addr.clone(),
-                    user.clone(),
+                    Addr::unchecked(user.address()),
                     a.amount,
                 );
             }
@@ -308,18 +239,16 @@ fn create_pair(
     let asset_infos = [assets[0].info.clone(), assets[1].info.clone()];
 
     // Create pair in factory
-    let res = router
-        .execute_contract(
-            owner.clone(),
-            factory_instance.clone(),
-            &astroport::factory::ExecuteMsg::CreatePair {
-                pair_type: PairType::Xyk {},
-                asset_infos: asset_infos.clone(),
-                init_params: None,
-            },
-            &[],
-        )
-        .unwrap();
+    let res = wasm.execute(
+        factory_instance.as_str(), 
+        &astroport::factory::ExecuteMsg::CreatePair {
+            pair_type: PairType::Xyk {},
+            asset_infos: asset_infos.clone(),
+            init_params: None,
+        }, 
+        &[],
+        owner
+    ).unwrap();
 
     assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
     assert_eq!(
@@ -335,15 +264,10 @@ fn create_pair(
     );
 
     // Get pair
-    let pair_info: PairInfo = router
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+    let pair_info: PairInfo = wasm
+        .query(factory_instance.as_str(), &astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
-            })
-            .unwrap(),
-        }))
+        })
         .unwrap();
 
     let mut funds = vec![];
@@ -352,7 +276,7 @@ fn create_pair(
         match a.info {
             AssetInfo::Token { contract_addr } => {
                 allowance_token(
-                    &mut router,
+                    &wasm,
                     user.clone(),
                     pair_info.contract_addr.clone(),
                     contract_addr.clone(),
@@ -378,51 +302,70 @@ fn create_pair(
         })
         .collect();
 
-    router.init_bank_balance(&user, user_funds).unwrap();
+    // give money to user
+    let minter = app.init_account(&user_funds).unwrap();
+    let bank = Bank::new(app);
+    let mut cosmos_funds = vec![];
+    for coin in user_funds.clone() {
+        cosmos_funds.push(CosmosCoin {
+            denom: coin.denom,
+            amount: coin.amount.u128().to_string(),
+        });
+    }
 
-    router
-        .execute_contract(
-            user.clone(),
-            pair_info.contract_addr.clone(),
-            &astroport::pair::ExecuteMsg::ProvideLiquidity {
-                assets,
-                slippage_tolerance: None,
-                auto_stake: None,
-                receiver: None,
-            },
-            &funds,
-        )
-        .unwrap();
+    bank.send(MsgSend { from_address: minter.address(), to_address: user.address(), amount: cosmos_funds }, &minter).unwrap();
+
+    wasm.execute(
+        pair_info.contract_addr.as_str(),
+        &astroport::pair::ExecuteMsg::ProvideLiquidity {
+            assets,
+            slippage_tolerance: None,
+            auto_stake: None,
+            receiver: None,
+        }, 
+        &funds, 
+        user
+    ).unwrap();
 
     pair_info
 }
 
 #[test]
 fn update_config() {
-    let mut router = mock_app();
-    let owner = Addr::unchecked("owner");
-    let staking = Addr::unchecked("staking");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
+
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        3
+    ).unwrap();
+    let owner = &accs[0];
+    let staking = &accs[1];
+    let unauthorized = &accs[2];
     let governance_percent = Uint64::new(10);
 
     let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
         instantiate_contracts(
-            &mut router,
+            &app,
             owner.clone(),
-            staking.clone(),
+            Addr::unchecked(staking.address()),
             governance_percent,
             None,
         );
 
     let msg = QueryMsg::Config {};
-    let res: ConfigResponse = router
-        .wrap()
-        .query_wasm_smart(&maker_instance, &msg)
+    let res: ConfigResponse = wasm
+        .query(maker_instance.as_str(), &msg)
         .unwrap();
 
-    assert_eq!(res.owner, owner);
+    assert_eq!(res.owner.to_string(), owner.address());
     assert_eq!(res.astro_token_contract, astro_token_instance);
     assert_eq!(res.factory_contract, factory_instance);
-    assert_eq!(res.staking_contract, staking);
+    assert_eq!(res.staking_contract.to_string(), staking.address());
     assert_eq!(res.governance_contract, Some(governance_instance));
     assert_eq!(res.governance_percent, governance_percent);
     assert_eq!(res.max_spread, Decimal::from_str("0.05").unwrap());
@@ -442,25 +385,20 @@ fn update_config() {
     };
 
     // Assert cannot update with improper owner
-    let e = router
-        .execute_contract(
-            Addr::unchecked("not_owner"),
-            maker_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap_err();
+    let e = wasm.execute(
+        maker_instance.as_str(), 
+        &msg, 
+        &[], 
+        unauthorized
+    ).unwrap_err();
 
     assert_eq!(e.to_string(), "Unauthorized");
 
-    router
-        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
-        .unwrap();
+    wasm.execute(maker_instance.as_str(), &msg, &[], owner).unwrap();
 
     let msg = QueryMsg::Config {};
-    let res: ConfigResponse = router
-        .wrap()
-        .query_wasm_smart(&maker_instance, &msg)
+    let res: ConfigResponse = wasm
+        .query(maker_instance.as_str(), &msg)
         .unwrap();
 
     assert_eq!(res.factory_contract, new_factory);
@@ -477,21 +415,18 @@ fn update_config() {
         max_spread: None,
     };
 
-    router
-        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
-        .unwrap();
+    wasm.execute(maker_instance.as_str(), &msg, &[], owner).unwrap();
 
     let msg = QueryMsg::Config {};
-    let res: ConfigResponse = router
-        .wrap()
-        .query_wasm_smart(&maker_instance, &msg)
+    let res: ConfigResponse = wasm
+        .query(maker_instance.as_str(), &msg)
         .unwrap();
     assert_eq!(res.governance_contract, None);
 }
 
 fn test_maker_collect(
-    mut router: TerraApp,
-    owner: Addr,
+    app: &TerraTestApp,
+    owner:&SigningAccount,
     factory_instance: Addr,
     maker_instance: Addr,
     staking: Addr,
@@ -505,47 +440,48 @@ fn test_maker_collect(
     expected_balances: Vec<Asset>,
     collected_balances: Vec<(Addr, u128)>,
 ) {
-    let user = Addr::unchecked("user0000");
+    let wasm = Wasm::new(app);
+    let user = app.init_account(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+    ).unwrap();
 
     // Create pairs
     for t in pairs {
         create_pair(
-            &mut router,
-            owner.clone(),
-            user.clone(),
+            &app,
+            owner,
+            &user,
             &factory_instance,
             t,
         );
     }
 
     // Setup bridge to withdraw USDC via USDC -> TEST -> UUSD -> ASTRO route
-    router
-        .execute_contract(
-            owner.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::UpdateBridges {
-                add: Some(bridges),
-                remove: None,
-            },
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::UpdateBridges {
+            add: Some(bridges),
+            remove: None,
+        }, 
+        &[], 
+        owner).unwrap();
 
     // enable rewards distribution
-    router
-        .execute_contract(
-            owner.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::EnableRewards { blocks: 1 },
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::EnableRewards { blocks: 1 }, 
+        &[], 
+        owner
+    ).unwrap();
 
     // Mint all tokens for maker
     for t in mint_balances {
         let (token, amount) = t;
         mint_some_token(
-            &mut router,
+            &wasm,
             owner.clone(),
             token.clone(),
             maker_instance.clone(),
@@ -554,26 +490,30 @@ fn test_maker_collect(
 
         // Check initial balance
         check_balance(
-            &mut router,
+            &wasm,
             maker_instance.clone(),
             token,
             Uint128::from(amount),
         );
     }
 
-    router
-        .init_bank_balance(&maker_instance, native_balances)
-        .unwrap();
+    // give money to user
+    let minter = app.init_account(&native_balances).unwrap();
+    let bank = Bank::new(app);
+    let mut cosmos_funds = vec![];
+    for coin in native_balances.clone() {
+        cosmos_funds.push(CosmosCoin {
+            denom: coin.denom,
+            amount: coin.amount.u128().to_string(),
+        });
+    }
 
-    let balances_resp: BalancesResponse = router
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: maker_instance.to_string(),
-            msg: to_binary(&QueryMsg::Balances {
+    bank.send(MsgSend { from_address: minter.address(), to_address: maker_instance.to_string(), amount: cosmos_funds }, &minter).unwrap();
+
+    let balances_resp: BalancesResponse = wasm
+        .query(maker_instance.as_str(), &QueryMsg::Balances {
                 assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
-            })
-            .unwrap(),
-        }))
+        })
         .unwrap();
 
     for b in expected_balances {
@@ -586,21 +526,20 @@ fn test_maker_collect(
         assert_eq!(found, &b);
     }
 
-    router
-        .execute_contract(
-            Addr::unchecked("anyone"),
-            maker_instance.clone(),
-            &ExecuteMsg::Collect { assets },
-            &[],
-        )
-        .unwrap();
+    let anyone = app.init_account(&[]).unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::Collect { assets }, 
+        &[], 
+        &anyone
+    ).unwrap();
 
     for t in collected_balances {
         let (token, amount) = t;
 
         // Check maker balance
         check_balance(
-            &mut router,
+            &wasm,
             maker_instance.clone(),
             token.clone(),
             Uint128::zero(),
@@ -613,49 +552,60 @@ fn test_maker_collect(
         let staking_amount = amount - governance_amount;
 
         check_balance(
-            &mut router,
+            &wasm,
             governance.clone(),
             token.clone(),
             governance_amount,
         );
 
-        check_balance(&mut router, staking.clone(), token, staking_amount);
+        check_balance(&wasm, staking.clone(), token, staking_amount);
     }
 }
 
 #[test]
 fn collect_all() {
-    let mut router = mock_app();
-    let owner = Addr::unchecked("owner");
-    let staking = Addr::unchecked("staking");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
+    
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        2
+    ).unwrap();
+    let owner = &accs[0];
+    let staking = &accs[1];
+
     let governance_percent = Uint64::new(10);
     let max_spread = Decimal::from_str("0.5").unwrap();
 
     let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
         instantiate_contracts(
-            &mut router,
+            &app,
             owner.clone(),
-            staking.clone(),
+            Addr::unchecked(staking.address()),
             governance_percent,
             Some(max_spread),
         );
 
     let usdc_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),
     );
 
     let test_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Test token".to_string(),
         "TEST".to_string(),
     );
 
     let bridge2_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Bridge 2 depth token".to_string(),
         "BRIDGE".to_string(),
@@ -768,11 +718,11 @@ fn collect_all() {
     ];
 
     test_maker_collect(
-        router,
+        &app,
         owner,
         factory_instance,
         maker_instance,
-        staking,
+        Addr::unchecked(staking.address()),
         governance_instance,
         governance_percent,
         pairs,
@@ -787,30 +737,41 @@ fn collect_all() {
 
 #[test]
 fn collect_default_bridges() {
-    let mut router = mock_app();
-    let owner = Addr::unchecked("owner");
-    let staking = Addr::unchecked("staking");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
+    
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        2
+    ).unwrap();
+    let owner = &accs[0];
+    let staking = &accs[1];
+
     let governance_percent = Uint64::new(10);
     let max_spread = Decimal::from_str("0.5").unwrap();
 
     let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
         instantiate_contracts(
-            &mut router,
+            &app,
             owner.clone(),
-            staking.clone(),
+            Addr::unchecked(staking.address()),
             governance_percent,
             Some(max_spread),
         );
 
     let bridge_uusd_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Bridge uusd token".to_string(),
         "BRIDGE-UUSD".to_string(),
     );
 
     let bridge_uluna_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Bridge uluna token".to_string(),
         "BRIDGE-ULUNA".to_string(),
@@ -891,11 +852,11 @@ fn collect_default_bridges() {
     ];
 
     test_maker_collect(
-        router,
+        &app,
         owner,
         factory_instance,
         maker_instance,
-        staking,
+        Addr::unchecked(staking.address()),
         governance_instance,
         governance_percent,
         pairs,
@@ -910,37 +871,48 @@ fn collect_default_bridges() {
 
 #[test]
 fn collect_maxdepth_test() {
-    let mut router = mock_app();
-    let owner = Addr::unchecked("owner");
-    let user = Addr::unchecked("user0000");
-    let staking = Addr::unchecked("staking");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
+
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        3
+    ).unwrap();
+    let owner = &accs[0];
+    let staking = &accs[1];
+    let user = &accs[2];
+
     let governance_percent = Uint64::new(10);
     let max_spread = Decimal::from_str("0.5").unwrap();
 
     let (astro_token_instance, factory_instance, maker_instance, _) = instantiate_contracts(
-        &mut router,
+        &app,
         owner.clone(),
-        staking.clone(),
+        Addr::unchecked(staking.address()),
         governance_percent,
         Some(max_spread),
     );
 
     let usdc_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),
     );
 
     let test_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Test token".to_string(),
         "TEST".to_string(),
     );
 
     let bridge2_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Bridge 2 depth token".to_string(),
         "BRIDGE".to_string(),
@@ -974,9 +946,9 @@ fn collect_maxdepth_test() {
         ],
     ] {
         let pair_info = create_pair(
-            &mut router,
-            owner.clone(),
-            user.clone(),
+            &app,
+            owner,
+            user,
             &factory_instance,
             t,
         );
@@ -985,50 +957,59 @@ fn collect_maxdepth_test() {
     }
 
     // Setup bridge to withdraw USDC via the USDC -> TEST -> UUSD -> ASTRO route
-    let err = router
-        .execute_contract(
-            owner.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::UpdateBridges {
-                add: Some(vec![
-                    (
-                        token_asset_info(test_token_instance.clone()),
-                        token_asset_info(bridge2_token_instance.clone()),
-                    ),
-                    (
-                        token_asset_info(usdc_token_instance.clone()),
-                        token_asset_info(test_token_instance.clone()),
-                    ),
-                    (
-                        native_asset_info(uluna_asset.clone()),
-                        token_asset_info(usdc_token_instance.clone()),
-                    ),
-                    (
-                        native_asset_info(uusd_asset.clone()),
-                        native_asset_info(uluna_asset.clone()),
-                    ),
-                ]),
-                remove: None,
-            },
-            &[],
-        )
-        .unwrap_err();
+    let err = wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::UpdateBridges {
+            add: Some(vec![
+                (
+                    token_asset_info(test_token_instance.clone()),
+                    token_asset_info(bridge2_token_instance.clone()),
+                ),
+                (
+                    token_asset_info(usdc_token_instance.clone()),
+                    token_asset_info(test_token_instance.clone()),
+                ),
+                (
+                    native_asset_info(uluna_asset.clone()),
+                    token_asset_info(usdc_token_instance.clone()),
+                ),
+                (
+                    native_asset_info(uusd_asset.clone()),
+                    native_asset_info(uluna_asset.clone()),
+                ),
+            ]),
+            remove: None,
+        }, 
+        &[], 
+        owner
+    ).unwrap_err();
 
     assert_eq!(err.to_string(), "Max bridge length of 2 was reached")
 }
 
 #[test]
 fn collect_err_no_swap_pair() {
-    let mut router = mock_app();
-    let owner = Addr::unchecked("owner");
-    let user = Addr::unchecked("user0000");
-    let staking = Addr::unchecked("staking");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
+    
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        3
+    ).unwrap();
+    let owner = &accs[0];
+    let staking = &accs[1];
+    let user = &accs[2];
+
     let governance_percent = Uint64::new(50);
 
     let (astro_token_instance, factory_instance, maker_instance, _) = instantiate_contracts(
-        &mut router,
+        &app,
         owner.clone(),
-        staking.clone(),
+        Addr::unchecked(staking.address()),
         governance_percent,
         None,
     );
@@ -1058,9 +1039,9 @@ fn collect_err_no_swap_pair() {
         ],
     ] {
         create_pair(
-            &mut router,
-            owner.clone(),
-            user.clone(),
+            &app,
+            owner,
+            user,
             &factory_instance,
             t,
         );
@@ -1086,7 +1067,7 @@ fn collect_err_no_swap_pair() {
     for t in vec![(astro_token_instance.clone(), 10u128)] {
         let (token, amount) = t;
         mint_some_token(
-            &mut router,
+            &wasm,
             owner.clone(),
             token.clone(),
             maker_instance.clone(),
@@ -1095,51 +1076,61 @@ fn collect_err_no_swap_pair() {
 
         // Check initial balance
         check_balance(
-            &mut router,
+            &wasm,
             maker_instance.clone(),
             token,
             Uint128::from(amount),
         );
     }
 
-    router
-        .init_bank_balance(
-            &maker_instance,
-            vec![
-                Coin {
-                    denom: ukrt_asset,
-                    amount: Uint128::new(20),
-                },
-                Coin {
-                    denom: uabc_asset,
-                    amount: Uint128::new(30),
-                },
-            ],
-        )
-        .unwrap();
+    let maker_funds = vec![
+        Coin::new(20, ukrt_asset),
+        Coin::new(30, uabc_asset),
+    ];
+    // give money to user
+    let minter = app.init_account(&maker_funds).unwrap();
+    let bank = Bank::new(&app);
+    let mut cosmos_funds = vec![];
+    for coin in maker_funds.clone() {
+        cosmos_funds.push(CosmosCoin {
+            denom: coin.denom,
+            amount: coin.amount.u128().to_string(),
+        });
+    }
+
+    bank.send(MsgSend { from_address: minter.address(), to_address: maker_instance.to_string(), amount: cosmos_funds }, &minter).unwrap();
 
     let msg = ExecuteMsg::Collect { assets };
 
-    let e = router
-        .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
-        .unwrap_err();
+    let e = wasm.execute(maker_instance.as_str(), &msg, &[], owner).unwrap_err();
 
     assert_eq!(e.to_string(), "Cannot swap uabc. No swap destinations",);
 }
 
 #[test]
 fn update_bridges() {
-    let mut router = mock_app();
-    let owner = Addr::unchecked("owner");
-    let staking = Addr::unchecked("staking");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
+
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        3
+    ).unwrap();
+    let owner = &accs[0];
+    let staking = &accs[1];
+    let user = &accs[2];
+
     let governance_percent = Uint64::new(10);
-    let user = Addr::unchecked("user0000");
     let uusd_asset = String::from("uusd");
 
     let (astro_token_instance, factory_instance, maker_instance, _) = instantiate_contracts(
-        &mut router,
+        &app,
         owner.clone(),
-        staking.clone(),
+        Addr::unchecked(staking.address()),
         governance_percent,
         None,
     );
@@ -1159,15 +1150,11 @@ fn update_bridges() {
     };
 
     // Unauthorized check
-    let err = router
-        .execute_contract(maker_instance.clone(), maker_instance.clone(), &msg, &[])
-        .unwrap_err();
-    assert_eq!(err.to_string(), "Unauthorized");
+    let e = wasm.execute(maker_instance.as_str(), &msg, &[], user).unwrap_err();
+    assert_eq!(e.to_string(), "Unauthorized");
 
     // Add bridges
-    let err = router
-        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
-        .unwrap_err();
+    let err = wasm.execute(maker_instance.as_str(), &msg, &[], owner).unwrap_err();
     assert_eq!(
         err.to_string(),
         "Invalid bridge. Pool uluna to uusd not found"
@@ -1185,18 +1172,16 @@ fn update_bridges() {
         ],
     ] {
         create_pair(
-            &mut router,
-            owner.clone(),
-            user.clone(),
+            &app,
+            owner,
+            user,
             &factory_instance,
             pair,
         );
     }
 
     // Add bridges
-    let err = router
-        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
-        .unwrap_err();
+    let err = wasm.execute(maker_instance.as_str(), &msg, &[], owner).unwrap_err();
     assert_eq!(
         err.to_string(),
         "Invalid bridge destination. uluna cannot be swapped to ASTRO"
@@ -1204,9 +1189,9 @@ fn update_bridges() {
 
     // Create pair so that add bridge check does not fail
     create_pair(
-        &mut router,
-        owner.clone(),
-        user.clone(),
+        &app,
+        owner,
+        user,
         &factory_instance,
         [
             native_asset(uusd_asset.clone(), Uint128::from(100_000_u128)),
@@ -1215,17 +1200,9 @@ fn update_bridges() {
     );
 
     // Add bridges
-    router
-        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
-        .unwrap();
+    wasm.execute(maker_instance.as_str(), &msg, &[], owner).unwrap();
 
-    let resp: Vec<(String, String)> = router
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: maker_instance.to_string(),
-            msg: to_binary(&QueryMsg::Bridges {}).unwrap(),
-        }))
-        .unwrap();
+    let resp: Vec<(String, String)> = wasm.query(maker_instance.as_str(), &QueryMsg::Bridges {}).unwrap();
 
     assert_eq!(
         resp,
@@ -1241,9 +1218,7 @@ fn update_bridges() {
     };
 
     // Try to remove bridges
-    let err = router
-        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
-        .unwrap_err();
+    let err = wasm.execute(maker_instance.as_str(), &msg, &[], owner).unwrap_err();
     assert_eq!(
         err.to_string(),
         "Generic error: Address UKRT should be lowercase"
@@ -1255,55 +1230,58 @@ fn update_bridges() {
     };
 
     // Remove bridges
-    router
-        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
-        .unwrap();
+    wasm.execute(maker_instance.as_str(), &msg, &[], owner).unwrap();
 
-    let resp: Vec<(String, String)> = router
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: maker_instance.to_string(),
-            msg: to_binary(&QueryMsg::Bridges {}).unwrap(),
-        }))
-        .unwrap();
+    let resp: Vec<(String, String)> = wasm.query(maker_instance.as_str(), &QueryMsg::Bridges {}).unwrap();
 
     assert_eq!(resp, vec![(String::from("uluna"), String::from("uusd")),]);
 }
 
 #[test]
 fn collect_with_asset_limit() {
-    let mut router = mock_app();
-    let owner = Addr::unchecked("owner");
-    let user = Addr::unchecked("user0000");
-    let staking = Addr::unchecked("staking");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
+    
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        3
+    ).unwrap();
+    let owner = &accs[0];
+    let staking = &accs[1];
+    let user = &accs[2];
+
     let governance_percent = Uint64::new(10);
     let max_spread = Decimal::from_str("0.5").unwrap();
 
     let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
         instantiate_contracts(
-            &mut router,
+            &app,
             owner.clone(),
-            staking.clone(),
+            Addr::unchecked(staking.address()),
             governance_percent,
             Some(max_spread),
         );
 
     let usdc_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),
     );
 
     let test_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Test token".to_string(),
         "TEST".to_string(),
     );
 
     let bridge2_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Bridge 2 depth token".to_string(),
         "BRIDGE".to_string(),
@@ -1336,9 +1314,9 @@ fn collect_with_asset_limit() {
         ],
     ] {
         create_pair(
-            &mut router,
-            owner.clone(),
-            user.clone(),
+            &app,
+            owner,
+            user,
             &factory_instance,
             t,
         );
@@ -1377,36 +1355,32 @@ fn collect_with_asset_limit() {
     ];
 
     // Setup bridge to withdraw USDC via the USDC -> TEST -> UUSD -> ASTRO route
-    router
-        .execute_contract(
-            owner.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::UpdateBridges {
-                add: Some(vec![
-                    (
-                        token_asset_info(test_token_instance.clone()),
-                        token_asset_info(bridge2_token_instance.clone()),
-                    ),
-                    (
-                        token_asset_info(usdc_token_instance.clone()),
-                        token_asset_info(test_token_instance.clone()),
-                    ),
-                ]),
-                remove: None,
-            },
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::UpdateBridges {
+            add: Some(vec![
+                (
+                    token_asset_info(test_token_instance.clone()),
+                    token_asset_info(bridge2_token_instance.clone()),
+                ),
+                (
+                    token_asset_info(usdc_token_instance.clone()),
+                    token_asset_info(test_token_instance.clone()),
+                ),
+            ]),
+            remove: None,
+        }, 
+        &[], 
+        owner
+    ).unwrap();
 
     // Enable rewards distribution
-    router
-        .execute_contract(
-            owner.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::EnableRewards { blocks: 1 },
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::EnableRewards { blocks: 1 }, 
+        &[], 
+        owner
+    ).unwrap();
 
     // Mint all tokens for Maker
     for t in vec![
@@ -1416,7 +1390,7 @@ fn collect_with_asset_limit() {
     ] {
         let (token, amount) = t;
         mint_some_token(
-            &mut router,
+            &wasm,
             owner.clone(),
             token.clone(),
             maker_instance.clone(),
@@ -1425,7 +1399,7 @@ fn collect_with_asset_limit() {
 
         // Check initial balance
         check_balance(
-            &mut router,
+            &wasm,
             maker_instance.clone(),
             token,
             Uint128::from(amount),
@@ -1438,15 +1412,10 @@ fn collect_with_asset_limit() {
         token_asset(test_token_instance.clone(), Uint128::new(30)),
     ];
 
-    let balances_resp: BalancesResponse = router
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: maker_instance.to_string(),
-            msg: to_binary(&QueryMsg::Balances {
+    let balances_resp: BalancesResponse = wasm
+        .query(maker_instance.as_str(), &QueryMsg::Balances {
                 assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
-            })
-            .unwrap(),
-        }))
+        })
         .unwrap();
 
     for b in expected_balances {
@@ -1459,32 +1428,26 @@ fn collect_with_asset_limit() {
         assert_eq!(found, &b);
     }
 
-    let resp = router
-        .execute_contract(
-            Addr::unchecked("anyone"),
-            maker_instance.clone(),
-            &ExecuteMsg::Collect {
-                assets: assets_with_duplicate.clone(),
-            },
-            &[],
-        )
-        .unwrap_err();
+    let anyone = app.init_account(&[]).unwrap();
+    let resp = wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::Collect { assets: assets_with_duplicate.clone() }, 
+        &[], 
+        &anyone
+    ).unwrap_err();
     assert_eq!(resp.to_string(), "Cannot collect. Remove duplicate asset",);
 
-    router
-        .execute_contract(
-            Addr::unchecked("anyone"),
-            maker_instance.clone(),
-            &ExecuteMsg::Collect {
-                assets: assets.clone(),
-            },
-            &[],
-        )
-        .unwrap();
+    let anyone = app.init_account(&[]).unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::Collect { assets: assets.clone() }, 
+        &[], 
+        &anyone
+    ).unwrap();
 
     // Check Maker's balance of ASTRO tokens
     check_balance(
-        &mut router,
+        &wasm,
         maker_instance.clone(),
         astro_token_instance.clone(),
         Uint128::zero(),
@@ -1492,7 +1455,7 @@ fn collect_with_asset_limit() {
 
     // Check Maker's balance of USDC tokens
     check_balance(
-        &mut router,
+        &wasm,
         maker_instance.clone(),
         usdc_token_instance.clone(),
         Uint128::new(15u128),
@@ -1500,7 +1463,7 @@ fn collect_with_asset_limit() {
 
     // Check Maker's balance of test tokens
     check_balance(
-        &mut router,
+        &wasm,
         maker_instance.clone(),
         test_token_instance.clone(),
         Uint128::new(0u128),
@@ -1518,7 +1481,7 @@ fn collect_with_asset_limit() {
 
     // Check the governance contract's balance for the ASTRO token
     check_balance(
-        &mut router,
+        &wasm,
         governance_instance.clone(),
         astro_token_instance.clone(),
         governance_amount,
@@ -1526,7 +1489,7 @@ fn collect_with_asset_limit() {
 
     // Check the governance contract's balance for the USDC token
     check_balance(
-        &mut router,
+        &wasm,
         governance_instance.clone(),
         usdc_token_instance.clone(),
         Uint128::zero(),
@@ -1534,7 +1497,7 @@ fn collect_with_asset_limit() {
 
     // Check the governance contract's balance for the test token
     check_balance(
-        &mut router,
+        &wasm,
         governance_instance.clone(),
         test_token_instance.clone(),
         Uint128::zero(),
@@ -1542,24 +1505,24 @@ fn collect_with_asset_limit() {
 
     // Check the staking contract's balance for the ASTRO token
     check_balance(
-        &mut router,
-        staking.clone(),
+        &wasm,
+        Addr::unchecked(staking.address()),
         astro_token_instance.clone(),
         staking_amount,
     );
 
     // Check the staking contract's balance for the USDC token
     check_balance(
-        &mut router,
-        staking.clone(),
+        &wasm,
+        Addr::unchecked(staking.address()),
         usdc_token_instance.clone(),
         Uint128::zero(),
     );
 
     // Check the staking contract's balance for the test token
     check_balance(
-        &mut router,
-        staking.clone(),
+        &wasm,
+        Addr::unchecked(staking.address()),
         test_token_instance.clone(),
         Uint128::zero(),
     );
@@ -1577,7 +1540,7 @@ struct CheckDistributedAstro {
 }
 
 impl CheckDistributedAstro {
-    fn check(&mut self, router: &mut TerraApp, distributed_amount: u32) {
+    fn check(&mut self, wasm: &Wasm<TerraTestApp>, distributed_amount: u32) {
         let distributed_amount = Uint128::from(distributed_amount as u128);
         let cur_governance_amount = distributed_amount
             .multiply_ratio(Uint128::from(self.governance_percent), Uint128::new(100));
@@ -1586,21 +1549,21 @@ impl CheckDistributedAstro {
         self.maker_amount -= distributed_amount;
 
         check_balance(
-            router,
+            &wasm,
             self.maker.clone(),
             self.astro_token.clone(),
             self.maker_amount,
         );
 
         check_balance(
-            router,
+            &wasm,
             self.governance.clone(),
             self.astro_token.clone(),
             self.governance_amount,
         );
 
         check_balance(
-            router,
+            &wasm,
             self.staking.clone(),
             self.astro_token.clone(),
             self.staking_amount,
@@ -1610,37 +1573,48 @@ impl CheckDistributedAstro {
 
 #[test]
 fn distribute_initially_accrued_fees() {
-    let mut router = mock_app();
-    let owner = Addr::unchecked("owner");
-    let staking = Addr::unchecked("staking");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
+
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        3
+    ).unwrap();
+    let owner = &accs[0];
+    let staking = &accs[1];
+    let user = &accs[2];
+
     let governance_percent = Uint64::new(10);
-    let user = Addr::unchecked("user0000");
 
     let (astro_token_instance, factory_instance, maker_instance, governance_instance) =
         instantiate_contracts(
-            &mut router,
+            &app,
             owner.clone(),
-            staking.clone(),
+            Addr::unchecked(staking.address()),
             governance_percent,
             None,
         );
 
     let usdc_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),
     );
 
     let test_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Test token".to_string(),
         "TEST".to_string(),
     );
 
     let bridge2_token_instance = instantiate_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         "Bridge 2 depth token".to_string(),
         "BRIDGE".to_string(),
@@ -1673,9 +1647,9 @@ fn distribute_initially_accrued_fees() {
         ],
     ] {
         create_pair(
-            &mut router,
-            owner.clone(),
-            user.clone(),
+            &app,
+            owner,
+            user,
             &factory_instance,
             t,
         );
@@ -1710,30 +1684,28 @@ fn distribute_initially_accrued_fees() {
     ];
 
     // Setup bridge to withdraw USDC via the USDC -> TEST -> UUSD -> ASTRO route
-    router
-        .execute_contract(
-            owner.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::UpdateBridges {
-                add: Some(vec![
-                    (
-                        token_asset_info(test_token_instance.clone()),
-                        token_asset_info(bridge2_token_instance.clone()),
-                    ),
-                    (
-                        token_asset_info(usdc_token_instance.clone()),
-                        token_asset_info(test_token_instance.clone()),
-                    ),
-                    (
-                        native_asset_info(uluna_asset.clone()),
-                        native_asset_info(uusd_asset.clone()),
-                    ),
-                ]),
-                remove: None,
-            },
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::UpdateBridges {
+            add: Some(vec![
+                (
+                    token_asset_info(test_token_instance.clone()),
+                    token_asset_info(bridge2_token_instance.clone()),
+                ),
+                (
+                    token_asset_info(usdc_token_instance.clone()),
+                    token_asset_info(test_token_instance.clone()),
+                ),
+                (
+                    native_asset_info(uluna_asset.clone()),
+                    native_asset_info(uusd_asset.clone()),
+                ),
+            ]),
+            remove: None,
+        }, 
+        &[], 
+        owner
+    ).unwrap();
 
     // Mint all tokens for Maker
     for t in vec![
@@ -1743,7 +1715,7 @@ fn distribute_initially_accrued_fees() {
     ] {
         let (token, amount) = t;
         mint_some_token(
-            &mut router,
+            &wasm,
             owner.clone(),
             token.clone(),
             maker_instance.clone(),
@@ -1752,63 +1724,59 @@ fn distribute_initially_accrued_fees() {
 
         // Check initial balance
         check_balance(
-            &mut router,
+            &wasm,
             maker_instance.clone(),
             token,
             Uint128::from(amount),
         );
     }
 
-    router
-        .init_bank_balance(
-            &maker_instance,
-            vec![
-                Coin {
-                    denom: uusd_asset,
-                    amount: Uint128::new(100),
-                },
-                Coin {
-                    denom: uluna_asset,
-                    amount: Uint128::new(110),
-                },
-            ],
-        )
-        .unwrap();
+    // fund accounts
+    let maker_funds = vec![
+        Coin::new(100, uusd_asset),
+        Coin::new(110, uluna_asset)
+    ];
+    let minter = app.init_account(&maker_funds).unwrap();
+    let bank = Bank::new(&app);
+    let mut cosmos_funds = vec![];
+    for coin in maker_funds.clone() {
+        cosmos_funds.push(CosmosCoin {
+            denom: coin.denom,
+            amount: coin.amount.u128().to_string(),
+        });
+    }
+
+    bank.send(MsgSend { from_address: minter.address(), to_address: maker_instance.to_string(), amount: cosmos_funds }, &minter).unwrap();
 
     // Unauthorized check
-    let err = router
-        .execute_contract(
-            user.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::EnableRewards { blocks: 1 },
-            &[],
-        )
-        .unwrap_err();
+    let err = wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::EnableRewards { blocks: 1 }, 
+        &[], 
+        user
+    ).unwrap_err();
     assert_eq!(err.to_string(), "Unauthorized");
 
     // Check pre_update_blocks = 0
-    let err = router
-        .execute_contract(
-            owner.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::EnableRewards { blocks: 0 },
-            &[],
-        )
-        .unwrap_err();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::EnableRewards { blocks: 0 }, 
+        &[], 
+        owner
+    ).unwrap_err();
     assert_eq!(
         err.to_string(),
         "Generic error: Number of blocks should be > 0"
     );
 
     // Check that collect does not distribute ASTRO until rewards are enabled
-    router
-        .execute_contract(
-            Addr::unchecked("anyone"),
-            maker_instance.clone(),
-            &ExecuteMsg::Collect { assets },
-            &[],
-        )
-        .unwrap();
+    let anyone = app.init_account(&[]).unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::Collect { assets }, 
+        &[], 
+        &anyone
+    ).unwrap();
 
     // Balances checker
     let mut checker = CheckDistributedAstro {
@@ -1819,29 +1787,25 @@ fn distribute_initially_accrued_fees() {
         astro_token: astro_token_instance.clone(),
         governance_percent,
         governance: governance_instance,
-        staking,
+        staking: Addr::unchecked(staking.address()),
     };
-    checker.check(&mut router, 0);
+    checker.check(&wasm, 0);
 
     // Enable rewards distribution
-    router
-        .execute_contract(
-            owner.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::EnableRewards { blocks: 10 },
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::EnableRewards { blocks: 10 }, 
+        &[], 
+        owner
+    ).unwrap();
 
     // Try to enable again
-    let err = router
-        .execute_contract(
-            owner.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::EnableRewards { blocks: 1 },
-            &[],
-        )
-        .unwrap_err();
+    let err = wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::EnableRewards { blocks: 1 }, 
+        &[], 
+        owner
+    ).unwrap_err();
     assert_eq!(err.to_string(), "Rewards collecting is already enabled");
 
     let astro_asset = AssetWithLimit {
@@ -1850,75 +1814,60 @@ fn distribute_initially_accrued_fees() {
     };
     let assets = vec![astro_asset];
 
-    router
-        .execute_contract(
-            Addr::unchecked("anyone"),
-            maker_instance.clone(),
-            &ExecuteMsg::Collect {
-                assets: assets.clone(),
-            },
-            &[],
-        )
-        .unwrap();
+    let anyone = app.init_account(&[]).unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::Collect { assets: assets.clone() }, 
+        &[], 
+        &anyone
+    ).unwrap();
 
     // Since the block number is the same, nothing happened
-    checker.check(&mut router, 0);
+    checker.check(&wasm, 0);
 
-    router.update_block(next_block);
+    app.increase_time(10);
 
-    router
-        .execute_contract(
-            Addr::unchecked("anyone"),
-            maker_instance.clone(),
-            &ExecuteMsg::Collect {
-                assets: assets.clone(),
-            },
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::Collect { assets: assets.clone() }, 
+        &[], 
+        &anyone
+    ).unwrap();
 
-    checker.check(&mut router, 21);
+    checker.check(&wasm, 21);
 
     // Let's try to collect again within the same block
-    router
-        .execute_contract(
-            Addr::unchecked("anyone"),
-            maker_instance.clone(),
-            &ExecuteMsg::Collect {
-                assets: assets.clone(),
-            },
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::Collect { assets: assets.clone() }, 
+        &[], 
+        &anyone
+    ).unwrap();
 
     // But no ASTRO were distributed
-    checker.check(&mut router, 0);
+    checker.check(&wasm, 0);
 
-    router.update_block(next_block);
+    app.increase_time(10);
 
     // Imagine that we received new fees the while pre-ugrade ASTRO is being distributed
     mint_some_token(
-        &mut router,
+        &wasm,
         owner.clone(),
         astro_token_instance.clone(),
         maker_instance.clone(),
         Uint128::from(30_u128),
     );
 
-    let resp = router
-        .execute_contract(
-            Addr::unchecked("anyone"),
-            maker_instance.clone(),
-            &ExecuteMsg::Collect {
-                assets: assets.clone(),
-            },
-            &[],
-        )
-        .unwrap();
+    let resp = wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::Collect { assets: assets.clone() }, 
+        &[], 
+        &anyone
+    ).unwrap();
 
     checker.maker_amount += Uint128::from(30_u128);
     // 51 = 30 minted astro + 21 distributed astro
-    checker.check(&mut router, 51);
+    checker.check(&wasm, 51);
 
     // Checking that attributes are set properly
     for (attr, value) in [
@@ -1935,51 +1884,41 @@ fn distribute_initially_accrued_fees() {
 
     // Increment 8 blocks
     for _ in 0..8 {
-        router.update_block(next_block);
+        app.increase_time(10);
     }
 
-    router
-        .execute_contract(
-            Addr::unchecked("anyone"),
-            maker_instance.clone(),
-            &ExecuteMsg::Collect {
-                assets: assets.clone(),
-            },
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::Collect { assets: assets.clone() }, 
+        &[], 
+        &anyone
+    ).unwrap();
 
     // 168 = 21 * 8
-    checker.check(&mut router, 168);
+    checker.check(&wasm, 168);
 
     // Check remainder reward
-    let res: ConfigResponse = router
-        .wrap()
-        .query_wasm_smart(&maker_instance, &QueryMsg::Config {})
+    let res: ConfigResponse = wasm
+        .query(maker_instance.as_str(), &QueryMsg::Config {})
         .unwrap();
 
     assert_eq!(res.remainder_reward.u128(), 8_u128);
 
     // Check remainder reward distribution
-    router.update_block(next_block);
+    app.increase_time(10);
 
-    router
-        .execute_contract(
-            Addr::unchecked("anyone"),
-            maker_instance.clone(),
-            &ExecuteMsg::Collect {
-                assets: assets.clone(),
-            },
-            &[],
-        )
-        .unwrap();
+    wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::Collect { assets: assets.clone() }, 
+        &[], 
+        &anyone
+    ).unwrap();
 
-    checker.check(&mut router, 8);
+    checker.check(&wasm, 8);
 
     // Check that the pre-upgrade ASTRO was fully distributed
-    let res: ConfigResponse = router
-        .wrap()
-        .query_wasm_smart(&maker_instance, &QueryMsg::Config {})
+    let res: ConfigResponse = wasm
+        .query(maker_instance.as_str(), &QueryMsg::Config {})
         .unwrap();
 
     assert_eq!(res.remainder_reward.u128(), 0_u128);
@@ -1987,24 +1926,22 @@ fn distribute_initially_accrued_fees() {
 
     // Check usual collecting works
     mint_some_token(
-        &mut router,
+        &wasm,
         owner,
         astro_token_instance,
         maker_instance.clone(),
         Uint128::from(115_u128),
     );
 
-    let resp = router
-        .execute_contract(
-            Addr::unchecked("anyone"),
-            maker_instance.clone(),
-            &ExecuteMsg::Collect { assets },
-            &[],
-        )
-        .unwrap();
+    let resp = wasm.execute(
+        maker_instance.as_str(), 
+        &ExecuteMsg::Collect { assets }, 
+        &[], 
+        &anyone
+    ).unwrap();
 
     checker.maker_amount += Uint128::from(115_u128);
-    checker.check(&mut router, 115);
+    checker.check(&wasm, 115);
 
     // Check that attributes are set properly
     let a = resp.events[1]

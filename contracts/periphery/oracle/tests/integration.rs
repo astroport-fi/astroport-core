@@ -89,9 +89,7 @@ fn instantiate_contracts(app: &TerraTestApp, owner: &SigningAccount) -> (Addr, A
     (Addr::unchecked(astro_token_instance.data.address), Addr::unchecked(factory_instance.data.address), oracle_code_id)
 }
 
-fn instantiate_token(app: &TerraTestApp, owner: &SigningAccount, name: String, symbol: String) -> Addr {
-    let wasm = Wasm::new(app);
-
+fn instantiate_token(wasm: &Wasm<TerraTestApp>, owner: &SigningAccount, name: String, symbol: String) -> Addr {
     let token_contract = std::fs::read("../../../../artifacts/astroport_token.wasm").unwrap();
     let token_code_id = wasm.store_code(&token_contract, None, owner).unwrap().data.code_id;
 
@@ -271,7 +269,7 @@ fn create_pair(
         });
     }
 
-    bank.send(MsgSend { from_address: minter.address(), to_address: user.address(), amount: cosmos_funds }, owner).unwrap();
+    bank.send(MsgSend { from_address: minter.address(), to_address: user.address(), amount: cosmos_funds }, &minter).unwrap();
 
     wasm.execute(
         pair_info.contract_addr.as_str(),
@@ -379,7 +377,7 @@ fn create_pair_stable(
         });
     }
 
-    bank.send(MsgSend { from_address: minter.address(), to_address: user.address(), amount: cosmos_funds }, owner).unwrap();
+    bank.send(MsgSend { from_address: minter.address(), to_address: user.address(), amount: cosmos_funds }, &minter).unwrap();
 
     wasm.execute(
         pair_info.contract_addr.as_str(),
@@ -487,7 +485,7 @@ fn consult() {
         instantiate_contracts(&app, owner);
 
     let usdc_token_instance = instantiate_token(
-        &app,
+        &wasm,
         owner,
         "Usdc token".to_string(),
         "USDC".to_string(),
@@ -615,7 +613,7 @@ fn consult_pair_stable() {
         instantiate_contracts(&app, owner);
 
     let usdc_token_instance = instantiate_token(
-        &app,
+        &wasm,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),
@@ -744,7 +742,7 @@ fn consult2() {
         instantiate_contracts(&app, owner);
 
     let usdc_token_instance = instantiate_token(
-        &app,
+        &wasm,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),
@@ -937,7 +935,7 @@ fn consult_zero_price() {
         instantiate_contracts(&app, owner);
 
     let usdc_token_instance = instantiate_token(
-        &app,
+        &wasm,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),

@@ -1,6 +1,6 @@
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Coin, Decimal, ReplyOn, SubMsg, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Coin, Decimal, ReplyOn, SubMsg, Uint128, WasmMsg, CosmosMsg,
 };
 
 use crate::contract::{execute, instantiate, query};
@@ -15,7 +15,7 @@ use astroport::router::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
     SimulateSwapOperationsResponse, SwapOperation, MAX_SWAP_OPERATIONS,
 };
-use terra_cosmwasm::{create_swap_msg, create_swap_send_msg};
+use classic_bindings::{TerraMsg};
 
 #[test]
 fn proper_initialization() {
@@ -399,13 +399,13 @@ fn execute_swap_operation() {
     assert_eq!(
         res.messages,
         vec![SubMsg {
-            msg: create_swap_msg(
+            msg: CosmosMsg::Custom(TerraMsg::create_swap_msg(
                 Coin {
                     denom: "uusd".to_string(),
                     amount: Uint128::new(1000000u128),
                 },
                 "uluna".to_string()
-            ),
+            )),
             id: 0,
             gas_limit: None,
             reply_on: ReplyOn::Never,
@@ -427,14 +427,14 @@ fn execute_swap_operation() {
     assert_eq!(
         res.messages,
         vec![SubMsg {
-            msg: create_swap_send_msg(
+            msg: CosmosMsg::Custom(TerraMsg::create_swap_send_msg(
                 String::from("addr0000"),
                 Coin {
                     denom: "uusd".to_string(),
                     amount: Uint128::new(952380u128), // deduct tax
                 },
                 "uluna".to_string()
-            ),
+            )),
             id: 0,
             gas_limit: None,
             reply_on: ReplyOn::Never,
