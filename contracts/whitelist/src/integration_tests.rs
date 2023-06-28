@@ -1,64 +1,59 @@
 use anyhow::{anyhow, Result};
 use assert_matches::assert_matches;
 use astroport::whitelist::{AdminListResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{to_binary, Addr, CosmosMsg, Empty, QueryRequest, StdError, WasmMsg, WasmQuery};
+use cosmwasm_std::{to_binary, Addr, CosmosMsg, WasmMsg, Coin};
 use cw1::Cw1Contract;
-use cw_multi_test::{App, AppResponse, BankKeeper, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 use serde::{de::DeserializeOwned, Serialize};
 
-fn mock_app() -> App {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
+use classic_test_tube::{TerraTestApp, SigningAccount, Wasm, Module, Account, cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContractResponse, ExecuteResponse, RunnerError};
 
-    App::new(api, env.block, bank, storage)
-}
-
-fn contract_cw1() -> Box<dyn Contract<Empty>> {
-    let contract = ContractWrapper::new(
-        crate::contract::execute,
-        crate::contract::instantiate,
-        crate::contract::query,
-    );
-    Box::new(contract)
+fn contract_cw1() -> Vec<u8> {
+    std::fs::read("../../../../artifacts/cw1.wasm").unwrap()
 }
 
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub struct Suite {
+pub struct Suite<'a> {
     /// Application mock
+    app: TerraTestApp,
+    /// Wasm mock
     #[derivative(Debug = "ignore")]
-    app: App,
+    wasm: Wasm<'a, TerraTestApp>,
     /// Special account
-    pub owner: String,
+    #[derivative(Debug = "ignore")]
+    pub owner: SigningAccount,
     /// ID of stored code for cw1 contract
     cw1_id: u64,
 }
 
-impl Suite {
-    pub fn init() -> Result<Suite> {
-        let mut app = mock_app();
-        let owner = "owner".to_owned();
-        let cw1_id = app.store_code(contract_cw1());
+impl Suite<'_> {
+    pub fn init() -> Result<Suite<'static>> {
+        let app = TerraTestApp::new();
+        let wasm = Wasm::new(&app);
 
-        Ok(Suite { app, owner, cw1_id })
+        // Set balances
+        let owner = app.init_account(
+            &[
+                Coin::new(200u128, "uusd"),
+                Coin::new(200u128, "uluna"),
+            ]
+        ).unwrap();
+
+        let cw1_id = wasm.store_code(&contract_cw1(), None, &owner).unwrap().data.code_id;
+
+        Ok(Suite { app, wasm, owner, cw1_id })
     }
 
     pub fn instantiate_cw1_contract(&mut self, admins: Vec<String>, mutable: bool) -> Cw1Contract {
-        let contract = self
-            .app
-            .instantiate_contract(
-                self.cw1_id,
-                Addr::unchecked(self.owner.clone()),
-                &InstantiateMsg { admins, mutable },
-                &[],
-                "Whitelist",
-                None,
-            )
-            .unwrap();
+        let contract = Addr::unchecked(self.wasm.instantiate(
+            self.cw1_id, 
+            &InstantiateMsg { admins, mutable }, 
+            Some(&self.owner.address()), 
+            Some("Whitelist"), 
+            &[], 
+            &self.owner,
+        ).unwrap().data.address);
         Cw1Contract(contract)
     }
 
@@ -67,7 +62,7 @@ impl Suite {
         sender_contract: Addr,
         target_contract: &Addr,
         msg: M,
-    ) -> Result<AppResponse>
+    ) -> Result<ExecuteResponse<MsgExecuteContractResponse>>
     where
         M: Serialize + DeserializeOwned,
     {
@@ -78,24 +73,20 @@ impl Suite {
                 funds: vec![],
             })],
         };
-        self.app
-            .execute_contract(
-                Addr::unchecked(self.owner.clone()),
-                sender_contract,
-                &execute,
-                &[],
-            )
-            .map_err(|err| anyhow!(err))
+        self.wasm.execute(
+            sender_contract.as_str(), 
+            &execute, 
+            &[], 
+            &self.owner
+        )
+        .map_err(|err| anyhow!(err))
     }
 
-    pub fn query<M>(&self, target_contract: Addr, msg: M) -> Result<AdminListResponse, StdError>
+    pub fn query<M>(&self, target_contract: Addr, msg: M) -> Result<AdminListResponse, RunnerError>
     where
         M: Serialize + DeserializeOwned,
     {
-        self.app.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: target_contract.to_string(),
-            msg: to_binary(&msg).unwrap(),
-        }))
+        self.wasm.query::<M, AdminListResponse>(target_contract.as_str(), &msg)
     }
 }
 
@@ -103,7 +94,7 @@ impl Suite {
 fn proxy_freeze_message() {
     let mut suite = Suite::init().unwrap();
 
-    let first_contract = suite.instantiate_cw1_contract(vec![suite.owner.clone()], true);
+    let first_contract = suite.instantiate_cw1_contract(vec![suite.owner.address()], true);
     let second_contract =
         suite.instantiate_cw1_contract(vec![first_contract.addr().to_string()], true);
     assert_ne!(second_contract, first_contract);

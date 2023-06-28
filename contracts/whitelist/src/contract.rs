@@ -144,9 +144,20 @@ pub fn query_can_execute(
 
 #[cfg(test)]
 mod tests {
+    use std::marker::PhantomData;
+
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, coins, BankMsg, StakingMsg, SubMsg, WasmMsg};
+    use cosmwasm_std::testing::{mock_env, mock_info, MockStorage, MockApi, MockQuerier};
+    use cosmwasm_std::{coin, coins, BankMsg, StakingMsg, SubMsg, WasmMsg, OwnedDeps};
+
+    fn mock_dependencies() -> OwnedDeps<MockStorage, MockApi, MockQuerier, TerraQuery> {
+        OwnedDeps {
+            storage: MockStorage::default(),
+            api: MockApi::default(),
+            querier: MockQuerier::default(),
+            custom_query_type: PhantomData,
+        }
+    }
 
     #[test]
     fn instantiate_and_modify_config() {
@@ -220,7 +231,7 @@ mod tests {
 
     #[test]
     fn execute_messages_has_proper_permissions() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let alice = "alice";
         let bob = "bob";
