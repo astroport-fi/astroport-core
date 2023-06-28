@@ -18,7 +18,7 @@ use astroport::router::{
 use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use std::collections::HashMap;
-use classic_bindings::{SwapResponse, TerraQuerier, TerraQuery};
+use classic_bindings::{SwapResponse, TerraQuerier, TerraQuery, TerraMsg};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-router";
@@ -42,7 +42,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response<TerraMsg>, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     CONFIG.save(
@@ -91,7 +91,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response<TerraMsg>, ContractError> {
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ExecuteSwapOperations {
@@ -146,7 +146,7 @@ pub fn receive_cw20(
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response<TerraMsg>, ContractError> {
     let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::ExecuteSwapOperations {
@@ -177,7 +177,7 @@ pub fn receive_cw20(
 
 /// ## Description
 /// Performs swap operations with the specified parameters.
-/// Returns an [`ContractError`] on failureб otherwise returns [`Response`] with the specified messages of type [`TerraMsgWrapper`] to execute if the operation is successful.
+/// Returns an [`ContractError`] on failureб otherwise returns [`Response`] with the specified messages of type [`TerraMsg`] to execute if the operation is successful.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -202,7 +202,7 @@ pub fn execute_swap_operations(
     minimum_receive: Option<Uint128>,
     to: Option<Addr>,
     max_spread: Option<Decimal>,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response<TerraMsg>, ContractError> {
     let operations_len = operations.len();
     if operations_len == 0 {
         return Err(ContractError::MustProvideOperations {});
@@ -224,7 +224,7 @@ pub fn execute_swap_operations(
     let target_asset_info = operations.last().unwrap().get_target_asset_info();
 
     let mut operation_index = 0;
-    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = operations
+    let mut messages: Vec<CosmosMsg<TerraMsg>> = operations
         .into_iter()
         .map(|op| {
             operation_index += 1;
@@ -242,7 +242,7 @@ pub fn execute_swap_operations(
                 })?,
             }))
         })
-        .collect::<StdResult<Vec<CosmosMsg<TerraMsgWrapper>>>>()?;
+        .collect::<StdResult<Vec<CosmosMsg<TerraMsg>>>>()?;
 
     // Execute minimum amount assertion
     if let Some(minimum_receive) = minimum_receive {
@@ -282,7 +282,7 @@ fn assert_minimum_receive(
     prev_balance: Uint128,
     minimum_receive: Uint128,
     receiver: Addr,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response<TerraMsg>, ContractError> {
     asset_info.check(deps.api)?;
     let receiver_balance = asset_info.query_pool(&deps.querier, receiver)?;
     let swap_amount = receiver_balance.checked_sub(prev_balance)?;

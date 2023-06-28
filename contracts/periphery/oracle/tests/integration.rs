@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, to_binary, Addr, BlockInfo, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
+    attr, to_binary, Addr, Coin, Decimal, Uint128,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use classic_test_tube::{TerraTestApp, SigningAccount, Wasm, Module, Account, Bank};
@@ -263,7 +263,7 @@ fn create_pair(
     // give money to user
     let minter = app.init_account(&funds).unwrap();
     let bank = Bank::new(app);
-    let cosmos_funds = vec![];
+    let mut cosmos_funds = vec![];
     for coin in funds.clone() {
         cosmos_funds.push(CosmosCoin {
             denom: coin.denom,
@@ -371,7 +371,7 @@ fn create_pair_stable(
 
     let minter = app.init_account(&funds).unwrap();
     let bank = Bank::new(app);
-    let cosmos_funds = vec![];
+    let mut cosmos_funds = vec![];
     for coin in funds.clone() {
         cosmos_funds.push(CosmosCoin {
             denom: coin.denom,
@@ -463,21 +463,32 @@ fn change_provide_liquidity(
     ).unwrap();
 }
 
-pub fn next_day(app: &TerraTestApp) {
+pub fn next_day(app: TerraTestApp) {
     app.increase_time(86400);
 }
 
 #[test]
 fn consult() {
-    let mut wasm = mock_app();
-    let owner = Addr::unchecked("owner");
-    let user = Addr::unchecked("user0000");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
+
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        2
+    ).unwrap();
+    let owner = &accs[0];
+    let user = &accs[1];
+
     let (astro_token_instance, factory_instance, oracle_code_id) =
-        instantiate_contracts(&mut wasm, owner.clone());
+        instantiate_contracts(&app, owner);
 
     let usdc_token_instance = instantiate_token(
-        &mut wasm,
-        owner.clone(),
+        &app,
+        owner,
         "Usdc token".to_string(),
         "USDC".to_string(),
     );
@@ -491,9 +502,9 @@ fn consult() {
         },
     ];
     create_pair(
-        &mut wasm,
-        owner.clone(),
-        user.clone(),
+        &app,
+        owner,
+        user,
         &factory_instance,
         [
             Asset {
@@ -506,20 +517,15 @@ fn consult() {
             },
         ],
     );
-    wasm.update_block(next_day);
+    app.increase_time(86400);
     let pair_info: PairInfo = wasm
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+        .query(factory_instance.as_str(), &astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
-            })
-            .unwrap(),
-        }))
+        })
         .unwrap();
 
     change_provide_liquidity(
-        &mut wasm,
+        &wasm,
         owner.clone(),
         user.clone(),
         pair_info.contract_addr.clone(),
@@ -528,37 +534,34 @@ fn consult() {
         Uint128::from(50_000_u128),
         Uint128::from(50_000_u128),
     );
-    wasm.update_block(next_day);
+    app.increase_time(86400);
 
     let msg = InstantiateMsg {
         factory_contract: factory_instance.to_string(),
         asset_infos: asset_infos.clone(),
     };
-    let oracle_instance = wasm
-        .instantiate_contract(
-            oracle_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("ORACLE"),
-            None,
-        )
-        .unwrap();
 
-    let e = wasm
-        .execute_contract(
-            owner.clone(),
-            oracle_instance.clone(),
-            &ExecuteMsg::Update {},
-            &[],
-        )
-        .unwrap_err();
+    let oracle_instance = wasm.instantiate(
+        oracle_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some("ORACLE"), 
+        &[], 
+        owner
+    ).unwrap();
+
+    let e = wasm.execute(
+        &oracle_instance.data.address, 
+        &ExecuteMsg::Update {}, 
+        &[], 
+        owner
+    ).unwrap_err();
     assert_eq!(e.to_string(), "Period not elapsed",);
-    wasm.update_block(next_day);
+    app.increase_time(86400);
 
     // Change pair liquidity
     change_provide_liquidity(
-        &mut wasm,
+        &wasm,
         owner.clone(),
         user,
         pair_info.contract_addr,
@@ -567,15 +570,13 @@ fn consult() {
         Uint128::from(10_000_u128),
         Uint128::from(10_000_u128),
     );
-    wasm.update_block(next_day);
-    wasm
-        .execute_contract(
-            owner.clone(),
-            oracle_instance.clone(),
-            &ExecuteMsg::Update {},
-            &[],
-        )
-        .unwrap();
+    app.increase_time(86400);
+    wasm.execute(
+        &oracle_instance.data.address, 
+        &ExecuteMsg::Update {}, 
+        &[], 
+        owner
+    ).unwrap();
 
     for (addr, amount) in [
         (astro_token_instance.clone(), Uint128::from(1000u128)),
@@ -588,11 +589,7 @@ fn consult() {
             amount,
         };
         let res: Uint128 = wasm
-            .wrap()
-            .query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: oracle_instance.to_string(),
-                msg: to_binary(&msg).unwrap(),
-            }))
+            .query(&oracle_instance.data.address, &msg)
             .unwrap();
         assert_eq!(res, amount);
     }
@@ -600,18 +597,30 @@ fn consult() {
 
 #[test]
 fn consult_pair_stable() {
-    let mut wasm = mock_app();
-    let owner = Addr::unchecked("owner");
-    let user = Addr::unchecked("user0000");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
+
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        2
+    ).unwrap();
+    let owner = &accs[0];
+    let user = &accs[1];
+
     let (astro_token_instance, factory_instance, oracle_code_id) =
-        instantiate_contracts(&mut wasm, owner.clone());
+        instantiate_contracts(&app, owner);
 
     let usdc_token_instance = instantiate_token(
-        &mut wasm,
+        &app,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),
     );
+    
 
     let asset_infos = [
         AssetInfo::Token {
@@ -622,7 +631,7 @@ fn consult_pair_stable() {
         },
     ];
     create_pair_stable(
-        &mut wasm,
+        &app,
         owner.clone(),
         user.clone(),
         &factory_instance,
@@ -637,20 +646,15 @@ fn consult_pair_stable() {
             },
         ],
     );
-    wasm.update_block(next_day);
+    app.increase_time(86400);
     let pair_info: PairInfo = wasm
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+        .query(factory_instance.as_str(), &astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
-            })
-            .unwrap(),
-        }))
+        })
         .unwrap();
 
     change_provide_liquidity(
-        &mut wasm,
+        &wasm,
         owner.clone(),
         user.clone(),
         pair_info.contract_addr.clone(),
@@ -659,37 +663,34 @@ fn consult_pair_stable() {
         Uint128::from(500_000_000000u128),
         Uint128::from(500_000_000000u128),
     );
-    wasm.update_block(next_day);
+    app.increase_time(86400);
 
     let msg = InstantiateMsg {
         factory_contract: factory_instance.to_string(),
         asset_infos: asset_infos.clone(),
     };
-    let oracle_instance = wasm
-        .instantiate_contract(
-            oracle_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("ORACLE"),
-            None,
-        )
-        .unwrap();
 
-    let e = wasm
-        .execute_contract(
-            owner.clone(),
-            oracle_instance.clone(),
-            &ExecuteMsg::Update {},
-            &[],
-        )
-        .unwrap_err();
+    let oracle_instance = wasm.instantiate(
+        oracle_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some("ORACLE"), 
+        &[], 
+        owner
+    ).unwrap();
+
+    let e = wasm.execute(
+        &oracle_instance.data.address, 
+        &ExecuteMsg::Update {}, 
+        &[], 
+        owner
+    ).unwrap_err();
     assert_eq!(e.to_string(), "Period not elapsed",);
-    wasm.update_block(next_day);
+    app.increase_time(86400);
 
     // Change pair liquidity
     change_provide_liquidity(
-        &mut wasm,
+        &wasm,
         owner.clone(),
         user,
         pair_info.contract_addr,
@@ -698,15 +699,13 @@ fn consult_pair_stable() {
         Uint128::from(100_000_000000u128),
         Uint128::from(100_000_000000u128),
     );
-    wasm.update_block(next_day);
-    wasm
-        .execute_contract(
-            owner.clone(),
-            oracle_instance.clone(),
-            &ExecuteMsg::Update {},
-            &[],
-        )
-        .unwrap();
+    app.increase_time(86400);
+    wasm.execute(
+        &oracle_instance.data.address, 
+        &ExecuteMsg::Update {}, 
+        &[], 
+        owner
+    ).unwrap();
 
     for (addr, amount) in [
         (astro_token_instance.clone(), Uint128::from(1000u128)),
@@ -719,11 +718,7 @@ fn consult_pair_stable() {
             amount,
         };
         let res: Uint128 = wasm
-            .wrap()
-            .query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: oracle_instance.to_string(),
-                msg: to_binary(&msg).unwrap(),
-            }))
+            .query(&oracle_instance.data.address, &msg)
             .unwrap();
         assert_eq!(res, amount);
     }
@@ -731,14 +726,25 @@ fn consult_pair_stable() {
 
 #[test]
 fn consult2() {
-    let mut wasm = mock_app();
-    let owner = Addr::unchecked("owner");
-    let user = Addr::unchecked("user0000");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
+
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        2
+    ).unwrap();
+    let owner = &accs[0];
+    let user = &accs[1];
+
     let (astro_token_instance, factory_instance, oracle_code_id) =
-        instantiate_contracts(&mut wasm, owner.clone());
+        instantiate_contracts(&app, owner);
 
     let usdc_token_instance = instantiate_token(
-        &mut wasm,
+        &app,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),
@@ -753,7 +759,7 @@ fn consult2() {
         },
     ];
     create_pair(
-        &mut wasm,
+        &app,
         owner.clone(),
         user.clone(),
         &factory_instance,
@@ -768,20 +774,15 @@ fn consult2() {
             },
         ],
     );
-    wasm.update_block(next_day);
+    app.increase_time(86400);
     let pair_info: PairInfo = wasm
-        .wrap()
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+        .query(factory_instance.as_str(), &astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
-            })
-            .unwrap(),
-        }))
+        })
         .unwrap();
 
     change_provide_liquidity(
-        &mut wasm,
+        &wasm,
         owner.clone(),
         user.clone(),
         pair_info.contract_addr.clone(),
@@ -790,41 +791,36 @@ fn consult2() {
         Uint128::from(1000_u128),
         Uint128::from(1000_u128),
     );
-    wasm.update_block(next_day);
+    app.increase_time(86400);
 
     let msg = InstantiateMsg {
         factory_contract: factory_instance.to_string(),
         asset_infos: asset_infos.clone(),
     };
-    let oracle_instance = wasm
-        .instantiate_contract(
-            oracle_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("ORACLE"),
-            None,
-        )
-        .unwrap();
 
-    let e = wasm
-        .execute_contract(
-            owner.clone(),
-            oracle_instance.clone(),
-            &ExecuteMsg::Update {},
-            &[],
-        )
-        .unwrap_err();
+    let oracle_instance = wasm.instantiate(
+        oracle_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some("ORACLE"), 
+        &[], 
+        owner
+    ).unwrap();
+
+    let e = wasm.execute(
+        &oracle_instance.data.address, 
+        &ExecuteMsg::Update {}, 
+        &[], 
+        owner
+    ).unwrap_err();
     assert_eq!(e.to_string(), "Period not elapsed",);
-    wasm.update_block(next_day);
-    wasm
-        .execute_contract(
-            owner.clone(),
-            oracle_instance.clone(),
-            &ExecuteMsg::Update {},
-            &[],
-        )
-        .unwrap();
+    app.increase_time(86400);
+    wasm.execute(
+        &oracle_instance.data.address, 
+        &ExecuteMsg::Update {}, 
+        &[], 
+        owner
+    ).unwrap();
 
     // Change pair liquidity
     for (amount1, amount2) in [
@@ -832,7 +828,7 @@ fn consult2() {
         (Uint128::from(1000_u128), Uint128::from(500_u128)),
     ] {
         change_provide_liquidity(
-            &mut wasm,
+            &wasm,
             owner.clone(),
             user.clone(),
             pair_info.contract_addr.clone(),
@@ -841,15 +837,13 @@ fn consult2() {
             amount1,
             amount2,
         );
-        wasm.update_block(next_day);
-        wasm
-            .execute_contract(
-                owner.clone(),
-                oracle_instance.clone(),
-                &ExecuteMsg::Update {},
-                &[],
-            )
-            .unwrap();
+        app.increase_time(86400);
+        wasm.execute(
+            &oracle_instance.data.address, 
+            &ExecuteMsg::Update {}, 
+            &[], 
+            owner
+        ).unwrap();
     }
     for (addr, amount, amount_exp) in [
         (
@@ -870,11 +864,7 @@ fn consult2() {
             amount,
         };
         let res: Uint128 = wasm
-            .wrap()
-            .query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: oracle_instance.to_string(),
-                msg: to_binary(&msg).unwrap(),
-            }))
+            .query(&oracle_instance.data.address, &msg)
             .unwrap();
         assert_eq!(res, amount_exp);
     }
@@ -885,7 +875,7 @@ fn consult2() {
         (Uint128::from(250_u128), Uint128::from(350_u128)),
     ] {
         change_provide_liquidity(
-            &mut wasm,
+            &wasm,
             owner.clone(),
             user.clone(),
             pair_info.contract_addr.clone(),
@@ -894,15 +884,13 @@ fn consult2() {
             amount1,
             amount2,
         );
-        wasm.update_block(next_day);
-        wasm
-            .execute_contract(
-                owner.clone(),
-                oracle_instance.clone(),
-                &ExecuteMsg::Update {},
-                &[],
-            )
-            .unwrap();
+        app.increase_time(86400);
+        wasm.execute(
+            &oracle_instance.data.address, 
+            &ExecuteMsg::Update {}, 
+            &[], 
+            owner
+        ).unwrap();
     }
     for (addr, amount, amount_exp) in [
         (
@@ -923,11 +911,7 @@ fn consult2() {
             amount,
         };
         let res: Uint128 = wasm
-            .wrap()
-            .query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: oracle_instance.to_string(),
-                msg: to_binary(&msg).unwrap(),
-            }))
+            .query(&oracle_instance.data.address, &msg)
             .unwrap();
         assert_eq!(res, amount_exp);
     }
@@ -935,15 +919,25 @@ fn consult2() {
 
 #[test]
 fn consult_zero_price() {
-    let mut wasm = mock_app();
-    let owner = Addr::unchecked("owner");
-    let user = Addr::unchecked("user0000");
+    let app = TerraTestApp::new();
+    let wasm = Wasm::new(&app);
+
+    // Set balances
+    let accs = app.init_accounts(
+        &[
+            Coin::new(200u128, "uusd"),
+            Coin::new(200u128, "uluna"),
+        ],
+        2
+    ).unwrap();
+    let owner = &accs[0];
+    let user = &accs[1];
 
     let (astro_token_instance, factory_instance, oracle_code_id) =
-        instantiate_contracts(&mut wasm, owner.clone());
+        instantiate_contracts(&app, owner);
 
     let usdc_token_instance = instantiate_token(
-        &mut wasm,
+        &app,
         owner.clone(),
         "Usdc token".to_string(),
         "USDC".to_string(),
@@ -958,7 +952,7 @@ fn consult_zero_price() {
         },
     ];
     create_pair(
-        &mut wasm,
+        &app,
         owner.clone(),
         user.clone(),
         &factory_instance,
@@ -973,40 +967,34 @@ fn consult_zero_price() {
             },
         ],
     );
-    wasm.update_block(next_day);
+    app.increase_time(86400);
     let msg = InstantiateMsg {
         factory_contract: factory_instance.to_string(),
         asset_infos: asset_infos.clone(),
     };
-    let oracle_instance = wasm
-        .instantiate_contract(
-            oracle_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("ORACLE"),
-            None,
-        )
-        .unwrap();
+    let oracle_instance = wasm.instantiate(
+        oracle_code_id, 
+        &msg, 
+        Some(owner.address().as_str()), 
+        Some("ORACLE"), 
+        &[], 
+        owner
+    ).unwrap();
 
-    let e = wasm
-        .execute_contract(
-            owner.clone(),
-            oracle_instance.clone(),
-            &ExecuteMsg::Update {},
-            &[],
-        )
-        .unwrap_err();
+    let e = wasm.execute(
+        &oracle_instance.data.address, 
+        &ExecuteMsg::Update {}, 
+        &[], 
+        owner
+    ).unwrap_err();
     assert_eq!(e.to_string(), "Period not elapsed",);
-    wasm.update_block(next_day);
-    wasm
-        .execute_contract(
-            owner.clone(),
-            oracle_instance.clone(),
-            &ExecuteMsg::Update {},
-            &[],
-        )
-        .unwrap();
+    app.increase_time(86400);
+    wasm.execute(
+        &oracle_instance.data.address, 
+        &ExecuteMsg::Update {}, 
+        &[], 
+        owner
+    ).unwrap();
 
     for (addr, amount_in, amount_out) in [
         (
@@ -1027,11 +1015,7 @@ fn consult_zero_price() {
             amount: amount_in,
         };
         let res: Uint128 = wasm
-            .wrap()
-            .query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: oracle_instance.to_string(),
-                msg: to_binary(&msg).unwrap(),
-            }))
+            .query(&oracle_instance.data.address, &msg)
             .unwrap();
         assert_eq!(res, amount_out);
     }

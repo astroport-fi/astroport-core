@@ -10,7 +10,7 @@ use astroport::pair::ExecuteMsg as PairExecuteMsg;
 use astroport::querier::{query_balance, query_pair_info, query_token_balance};
 use astroport::router::SwapOperation;
 use cw20::Cw20ExecuteMsg;
-use classic_bindings::{create_swap_msg, create_swap_send_msg, TerraMsg, TerraQuery};
+use classic_bindings::{TerraMsg, TerraQuery};
 
 /// ## Description
 /// Execute swap operation. Swap all offer asset to ask asset.
@@ -33,12 +33,12 @@ pub fn execute_swap_operation(
     operation: SwapOperation,
     to: Option<String>,
     max_spread: Option<Decimal>,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response<TerraMsg>, ContractError> {
     if env.contract.address != info.sender {
         return Err(ContractError::Unauthorized {});
     }
 
-    let messages: Vec<CosmosMsg<TerraMsgWrapper>> = match operation {
+    let messages: Vec<CosmosMsg<TerraMsg>> = match operation {
         SwapOperation::NativeSwap {
             offer_denom,
             ask_denom,
@@ -55,22 +55,22 @@ pub fn execute_swap_operation(
                     amount,
                 };
                 let amount = amount.checked_sub(asset.compute_tax(&deps.querier)?)?;
-                vec![create_swap_send_msg(
+                vec![CosmosMsg::Custom(TerraMsg::create_swap_send_msg(
                     to,
                     Coin {
                         denom: offer_denom,
                         amount,
                     },
                     ask_denom,
-                )]
+                ))]
             } else {
-                vec![create_swap_msg(
+                vec![CosmosMsg::Custom(TerraMsg::create_swap_msg(
                     Coin {
                         denom: offer_denom,
                         amount,
                     },
                     ask_denom,
-                )]
+                ))]
             }
         }
         SwapOperation::AstroSwap {
@@ -113,7 +113,7 @@ pub fn execute_swap_operation(
 
 /// ## Description
 /// Creates a message with an exchange operation of type CosmosMsg for each asset.
-/// Returns the [`CosmosMsg<TerraMsgWrapper>`] with the specified attributes if the operation was successful.
+/// Returns the [`CosmosMsg<TerraMsg>`] with the specified attributes if the operation was successful.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -130,7 +130,7 @@ pub fn asset_into_swap_msg(
     offer_asset: Asset,
     max_spread: Option<Decimal>,
     to: Option<String>,
-) -> StdResult<CosmosMsg<TerraMsgWrapper>> {
+) -> StdResult<CosmosMsg<TerraMsg>> {
     match offer_asset.info.clone() {
         AssetInfo::NativeToken { denom } => {
             // deduct tax first

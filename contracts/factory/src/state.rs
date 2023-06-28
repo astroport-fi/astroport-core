@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use cw_storage_plus::{Bound, Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -74,7 +75,7 @@ const DEFAULT_LIMIT: u32 = 10;
 ///
 /// `limit` is a [`Option`] type. Sets the number of items to be read.
 pub fn read_pairs(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
 ) -> StdResult<Vec<Addr>> {

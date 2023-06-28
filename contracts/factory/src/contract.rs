@@ -48,7 +48,7 @@ const INSTANTIATE_PAIR_REPLY_ID: u64 = 1;
 /// * **msg**  is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps:DepsMut,
+    deps:DepsMut<TerraQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -386,7 +386,7 @@ pub fn execute_create_pair(
 ///
 /// * **msg** is the object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps:DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps:DepsMut<TerraQuery>, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let tmp = TMP_PAIR_INFO.load(deps.storage)?;
     if PAIRS.may_load(deps.storage, &tmp.pair_key)?.is_some() {
         return Err(ContractError::PairWasRegistered {});
@@ -465,7 +465,7 @@ pub fn deregister(
 /// * **QueryMsg::FeeInfo { pair_type }** Returns the settings specified in the custom
 /// structure [`FeeInfoResponse`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::Pair { asset_infos } => to_binary(&query_pair(deps, asset_infos)?),
@@ -481,7 +481,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 ///
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps<TerraQuery>) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
         owner: config.owner,
@@ -507,7 +507,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **asset_infos** it is array with two items the type of [`AssetInfo`].
-pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
+pub fn query_pair(deps: Deps<TerraQuery>, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo> {
     let pair_addr = PAIRS.load(deps.storage, &pair_key(&asset_infos))?;
     query_pair_info(&deps.querier, &pair_addr)
 }
@@ -521,7 +521,7 @@ pub fn query_pair(deps: Deps, asset_infos: [AssetInfo; 2]) -> StdResult<PairInfo
 ///
 /// * **limit** is a [`Option`] type. Sets the number of items to be read.
 pub fn query_pairs(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
 ) -> StdResult<PairsResponse> {
@@ -539,7 +539,7 @@ pub fn query_pairs(
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **pair_type** is the type of pair available in [`PairType`]
-pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoResponse> {
+pub fn query_fee_info(deps: Deps<TerraQuery>, pair_type: PairType) -> StdResult<FeeInfoResponse> {
     let config = CONFIG.load(deps.storage)?;
     let pair_config = PAIR_CONFIGS.load(deps.storage, pair_type.to_string())?;
 
