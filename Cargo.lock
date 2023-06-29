@@ -146,7 +146,7 @@ dependencies = [
  "cosmos-sdk-proto",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.16.4",
+ "cw-multi-test 0.16.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw-storage-plus 0.15.1",
  "cw-utils 1.0.1",
  "cw2 1.0.1",
@@ -399,7 +399,7 @@ dependencies = [
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.16.4",
+ "cw-multi-test 0.16.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw-storage-plus 0.15.1",
  "cw-utils 0.15.1",
  "cw2 0.15.1",
@@ -482,11 +482,13 @@ dependencies = [
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.1",
+ "cw-multi-test 0.16.5 (git+https://github.com/astroport-fi/cw-multi-test.git?rev=269a2c829d1ad25d67caa4600f72d2a21fb8fdeb)",
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
  "protobuf",
+ "schemars",
+ "serde 1.0.163",
  "thiserror",
 ]
 
@@ -825,9 +827,27 @@ dependencies = [
 
 [[package]]
 name = "cw-multi-test"
-version = "0.16.4"
+version = "0.16.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a18afd2e201221c6d72a57f0886ef2a22151bbc9e6db7af276fde8a91081042"
+checksum = "127c7bb95853b8e828bdab97065c81cb5ddc20f7339180b61b2300565aaa99d1"
+dependencies = [
+ "anyhow",
+ "cosmwasm-std",
+ "cw-storage-plus 1.0.1",
+ "cw-utils 1.0.1",
+ "derivative",
+ "itertools",
+ "k256",
+ "prost 0.9.0",
+ "schemars",
+ "serde 1.0.163",
+ "thiserror",
+]
+
+[[package]]
+name = "cw-multi-test"
+version = "0.16.5"
+source = "git+https://github.com/astroport-fi/cw-multi-test.git?rev=269a2c829d1ad25d67caa4600f72d2a21fb8fdeb#269a2c829d1ad25d67caa4600f72d2a21fb8fdeb"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
@@ -1499,7 +1519,7 @@ dependencies = [
  "anyhow",
  "base64",
  "cosmwasm-std",
- "cw-multi-test 0.16.4",
+ "cw-multi-test 0.16.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "injective-cosmwasm",
  "rand 0.4.6",
  "secp256k1",
