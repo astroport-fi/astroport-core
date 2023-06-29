@@ -476,14 +476,17 @@ pub fn provide_liquidity(
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
-    let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
+    config.pool_state.price_state.xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
     let (mut old_price, mut old_real_price) = (
         config.pool_state.price_state.last_price,
         config.pool_state.price_state.last_price,
     );
 
     let share = if total_share.is_zero() {
-        let mint_amount = xcp
+        let mint_amount = config
+            .pool_state
+            .price_state
+            .xcp
             .checked_sub(MINIMUM_LIQUIDITY_AMOUNT.to_decimal256(LP_TOKEN_PRECISION)?)
             .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
 
@@ -550,8 +553,6 @@ pub fn provide_liquidity(
     }
 
     let share_uint128 = share.to_uint(LP_TOKEN_PRECISION)?;
-
-    config.pool_state.price_state.xcp = xcp;
 
     // Mint LP tokens for the sender or for the receiver (if set)
     let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());
@@ -764,14 +765,15 @@ fn swap(
     xs[offer_ind] += offer_asset_dec.amount;
     xs[ask_ind] -= swap_result.dy + swap_result.maker_fee;
 
+    let return_amount = swap_result.dy.to_uint(ask_asset_prec)?;
+    let spread_amount = swap_result.spread_fee.to_uint(ask_asset_prec)?;
     assert_max_spread(
         belief_price,
         max_spread,
-        offer_asset_dec.amount,
-        swap_result.dy,
-        swap_result.spread_fee,
+        offer_asset.amount,
+        return_amount,
+        spread_amount,
     )?;
-    let spread_amount = swap_result.spread_fee.to_uint(ask_asset_prec)?;
 
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
@@ -786,7 +788,6 @@ fn swap(
 
     let receiver = to.unwrap_or_else(|| sender.clone());
 
-    let return_amount = swap_result.dy.to_uint(ask_asset_prec)?;
     let mut messages = vec![Asset {
         info: pools[ask_ind].info.clone(),
         amount: return_amount,
@@ -901,7 +902,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
             "1.0.0" | "1.1.0" | "1.1.1" | "1.1.2" => migrate_config(deps.storage)?,
             "1.1.4" => migrate_config_from_v140(deps.storage)?,
-            "1.2.0" => {}
+            "1.2.0" | "1.2.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

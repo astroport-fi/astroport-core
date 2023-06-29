@@ -155,16 +155,16 @@ pub(crate) fn get_share_in_assets(
 pub(crate) fn assert_max_spread(
     belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
-    offer_amount: Decimal256,
-    return_amount: Decimal256,
-    spread_amount: Decimal256,
+    offer_amount: Uint128,
+    return_amount: Uint128,
+    spread_amount: Uint128,
 ) -> Result<(), ContractError> {
     let max_spread = max_spread.map(Decimal256::from).unwrap_or(DEFAULT_SLIPPAGE);
     if max_spread > MAX_ALLOWED_SLIPPAGE {
         return Err(ContractError::AllowedSpreadAssertion {});
     }
 
-    if let Some(belief_price) = belief_price.map(Decimal256::from) {
+    if let Some(belief_price) = belief_price {
         let expected_return = offer_amount
             * belief_price.inv().ok_or_else(|| {
                 ContractError::Std(StdError::generic_err(
@@ -174,10 +174,12 @@ pub(crate) fn assert_max_spread(
 
         let spread_amount = expected_return.saturating_sub(return_amount);
 
-        if return_amount < expected_return && spread_amount / expected_return > max_spread {
+        if return_amount < expected_return
+            && Decimal256::from_ratio(spread_amount, expected_return) > max_spread
+        {
             return Err(ContractError::MaxSpreadAssertion {});
         }
-    } else if spread_amount / (return_amount + spread_amount) > max_spread {
+    } else if Decimal256::from_ratio(spread_amount, return_amount + spread_amount) > max_spread {
         return Err(ContractError::MaxSpreadAssertion {});
     }
 
