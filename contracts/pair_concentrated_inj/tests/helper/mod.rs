@@ -194,20 +194,28 @@ impl Helper {
                 .unwrap();
         });
 
-        let mut asset_infos_vec: Vec<_> = test_coins
-            .clone()
-            .into_iter()
-            .filter_map(|coin| Some((coin.clone(), native_asset_info(coin.denom()?))))
-            .collect();
-
         let token_code_id = app.store_code(token_contract());
 
-        test_coins.into_iter().for_each(|coin| {
-            if let Some((name, decimals)) = coin.cw20_init_data() {
-                let token_addr = Self::init_token(&mut app, token_code_id, name, decimals, owner);
-                asset_infos_vec.push((coin, token_asset_info(token_addr)))
-            }
-        });
+        let asset_infos_vec = test_coins
+            .iter()
+            .cloned()
+            .map(|coin| {
+                let asset_info = match &coin {
+                    TestCoin::Native(denom) => native_asset_info(denom.clone()),
+                    TestCoin::Cw20(..) | TestCoin::Cw20Precise(..) => {
+                        let (name, precision) = coin.cw20_init_data().unwrap();
+                        token_asset_info(Self::init_token(
+                            &mut app,
+                            token_code_id,
+                            name,
+                            precision,
+                            owner,
+                        ))
+                    }
+                };
+                (coin, asset_info)
+            })
+            .collect::<Vec<_>>();
 
         let factory_code_id = app.store_code(factory_contract());
 

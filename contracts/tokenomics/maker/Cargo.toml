@@ -28,7 +28,7 @@ cw-storage-plus = "0.15"
 astroport = { path = "../../../packages/astroport", default-features = false }
 thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
-astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc", branch = "feat/update_deps_2023_05_22" }
+astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc" }
 
 [dev-dependencies]
 astroport-token = { path = "../../token" }
@@ -36,6 +36,6 @@ astroport-factory = { path = "../../factory" }
 astroport-pair = { path = "../../pair" }
 cw-multi-test = "0.15"
 astroport-pair-stable = { path = "../../pair_stable" }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance", branch = "feat/merge_hidden_2023_05_22" }
-astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance", branch = "feat/merge_hidden_2023_05_22" }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance" }
+astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
