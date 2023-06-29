@@ -1,11 +1,10 @@
 use crate::contract::{execute, instantiate, query_balance, query_balance_at};
 use crate::state::get_total_supply_at;
 use astroport::xastro_token::InstantiateMsg;
-use classic_bindings::TerraQuery;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    coins, Addr, Binary, BlockInfo, ContractInfo, CosmosMsg, Deps, DepsMut, Env, StdError, SubMsg,
-    Timestamp, Uint128, WasmMsg,
+    Addr, Binary, BlockInfo, ContractInfo, CosmosMsg, Deps, DepsMut, Env, StdError, SubMsg,
+    Timestamp, Uint128, WasmMsg, TransactionInfo,
 };
 use cw20::{Cw20Coin, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 use cw20_base::contract::{query_minter, query_token_info};
@@ -27,6 +26,7 @@ impl Default for MockEnvParams {
 }
 
 pub fn test_mock_env(mock_env_params: MockEnvParams) -> Env {
+
     Env {
         block: BlockInfo {
             height: mock_env_params.block_height,
@@ -36,16 +36,19 @@ pub fn test_mock_env(mock_env_params: MockEnvParams) -> Env {
         contract: ContractInfo {
             address: Addr::unchecked(MOCK_CONTRACT_ADDR),
         },
+        transaction: Some(TransactionInfo{
+            index: 0,
+        }),
     }
 }
 
-fn get_balance<T: Into<String>>(deps: Deps<TerraQuery>, address: T) -> Uint128 {
+fn get_balance<T: Into<String>>(deps: Deps, address: T) -> Uint128 {
     query_balance(deps, address.into()).unwrap().balance
 }
 
 // this will set up the instantiation for other tests
 fn do_instantiate_with_minter(
-    deps:DepsMut<TerraQuery>,
+    deps:DepsMut,
     addr: &str,
     amount: Uint128,
     minter: &str,
@@ -63,13 +66,13 @@ fn do_instantiate_with_minter(
 }
 
 // this will set up the instantiation for other tests
-fn do_instantiate(deps:DepsMut<TerraQuery>, addr: &str, amount: Uint128) -> TokenInfoResponse {
+fn do_instantiate(deps:DepsMut, addr: &str, amount: Uint128) -> TokenInfoResponse {
     _do_instantiate(deps, addr, amount, None)
 }
 
 // this will set up the instantiation for other tests
 fn _do_instantiate(
-    mut deps:DepsMut<TerraQuery>,
+    mut deps:DepsMut,
     addr: &str,
     amount: Uint128,
     mint: Option<MinterResponse>,
@@ -347,7 +350,7 @@ fn instantiate_multiple_accounts() {
 
 #[test]
 fn transfer() {
-    let mut deps = mock_dependencies(&coins(2, "token"));
+    let mut deps = mock_dependencies();
     let addr1 = String::from("addr0001");
     let addr2 = String::from("addr0002");
     let amount1 = Uint128::from(12340000u128);
@@ -422,7 +425,7 @@ fn transfer() {
 
 #[test]
 fn burn() {
-    let mut deps = mock_dependencies(&coins(2, "token"));
+    let mut deps = mock_dependencies();
     let addr1 = String::from("addr0001");
     let amount1 = Uint128::from(12340000u128);
     let burn = Uint128::from(76543u128);
@@ -483,7 +486,7 @@ fn burn() {
 
 #[test]
 fn send() {
-    let mut deps = mock_dependencies(&coins(2, "token"));
+    let mut deps = mock_dependencies();
     let addr1 = String::from("addr0001");
     let contract = String::from("addr0002");
     let amount1 = Uint128::from(12340000u128);
