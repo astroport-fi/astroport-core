@@ -16,7 +16,7 @@ fn contract_cw1() -> Vec<u8> {
 #[derivative(Debug)]
 pub struct Suite<'a> {
     /// Application mock
-    app: TerraTestApp,
+    app: &'a TerraTestApp,
     /// Wasm mock
     #[derivative(Debug = "ignore")]
     wasm: Wasm<'a, TerraTestApp>,
@@ -27,10 +27,9 @@ pub struct Suite<'a> {
     cw1_id: u64,
 }
 
-impl Suite<'_> {
-    pub fn init() -> Result<Suite<'static>> {
-        let app = TerraTestApp::new();
-        let wasm = Wasm::new(&app);
+impl<'a> Suite<'a> {
+    pub fn init(app: &'a TerraTestApp) -> Result<Suite<'a>> {
+        let wasm = Wasm::new(app);
 
         // Set balances
         let owner = app.init_account(
@@ -92,7 +91,8 @@ impl Suite<'_> {
 
 #[test]
 fn proxy_freeze_message() {
-    let mut suite = Suite::init().unwrap();
+    let app = TerraTestApp::new();
+    let mut suite = Suite::init(&app).unwrap();
 
     let first_contract = suite.instantiate_cw1_contract(vec![suite.owner.address()], true);
     let second_contract =
