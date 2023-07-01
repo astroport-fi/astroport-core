@@ -1,5 +1,5 @@
 use astroport::common::OwnershipProposal;
-use astroport::DecimalCheckedOps;
+
 use cosmwasm_std::{Addr, Decimal, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;

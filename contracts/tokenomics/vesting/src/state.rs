@@ -1,12 +1,9 @@
-use std::marker::PhantomData;
-
-use cosmwasm_std::testing::{MockStorage, MockApi, MockQuerier};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use astroport::common::OwnershipProposal;
 use astroport::vesting::{OrderBy, VestingInfo};
-use cosmwasm_std::{Addr, Deps, StdResult, OwnedDeps};
+use cosmwasm_std::{Addr, Deps, StdResult};
 use cw_storage_plus::{Bound, Item, Map};
 use classic_bindings::TerraQuery;
 
@@ -34,15 +31,6 @@ pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_pro
 
 const MAX_LIMIT: u32 = 30;
 const DEFAULT_LIMIT: u32 = 10;
-
-pub fn mock_dependencies() -> OwnedDeps<MockStorage, MockApi, MockQuerier, TerraQuery> {
-    OwnedDeps {
-        storage: MockStorage::default(),
-        api: MockApi::default(),
-        querier: MockQuerier::default(),
-        custom_query_type: PhantomData,
-    }
-}
 
 /// ## Description
 /// Returns the empty vector if does not found data to read, otherwise returns the vector that
@@ -83,70 +71,90 @@ pub fn read_vesting_infos(
     Ok(info)
 }
 
-#[test]
-fn read_vesting_infos_as_expected() {
-    use cosmwasm_std::{Uint128};
+#[cfg(test)]
+mod tests {
+    use std::marker::PhantomData;
 
-    let mut deps = mock_dependencies();
+    use astroport::vesting::{VestingInfo, OrderBy};
+    use classic_bindings::TerraQuery;
+    use cosmwasm_std::{Addr, OwnedDeps, testing::{MockStorage, MockApi, MockQuerier}};
 
-    let vi_mock = VestingInfo {
-        released_amount: Uint128::zero(),
-        schedules: vec![],
-    };
+    use crate::state::{VESTING_INFO, read_vesting_infos};
 
-    for i in 1..5 {
-        let key = Addr::unchecked(format! {"address{}", i});
-
-        VESTING_INFO
-            .save(&mut deps.storage, &key, &vi_mock)
-            .unwrap();
+    fn mock_dependencies() -> OwnedDeps<MockStorage, MockApi, MockQuerier, TerraQuery> {
+        OwnedDeps {
+            storage: MockStorage::default(),
+            api: MockApi::default(),
+            querier: MockQuerier::default(),
+            custom_query_type: PhantomData,
+        }
     }
 
-    let res = read_vesting_infos(
-        deps.as_ref(),
-        Some(Addr::unchecked("address2")),
-        None,
-        Some(OrderBy::Asc),
-    )
-    .unwrap();
-    assert_eq!(
-        res,
-        vec![
-            (Addr::unchecked("address3"), vi_mock.clone()),
-            (Addr::unchecked("address4"), vi_mock.clone())
-        ]
-    );
+    #[test]
+    fn read_vesting_infos_as_expected() {
+        use cosmwasm_std::{Uint128};
 
-    let res = read_vesting_infos(
-        deps.as_ref(),
-        Some(Addr::unchecked("address2")),
-        Some(1),
-        Some(OrderBy::Asc),
-    )
-    .unwrap();
-    assert_eq!(res, vec![(Addr::unchecked("address3"), vi_mock.clone())]);
+        let mut deps = mock_dependencies();
 
-    let res = read_vesting_infos(
-        deps.as_ref(),
-        Some(Addr::unchecked("address3")),
-        None,
-        Some(OrderBy::Desc),
-    )
-    .unwrap();
-    assert_eq!(
-        res,
-        vec![
-            (Addr::unchecked("address2"), vi_mock.clone()),
-            (Addr::unchecked("address1"), vi_mock.clone())
-        ]
-    );
+        let vi_mock = VestingInfo {
+            released_amount: Uint128::zero(),
+            schedules: vec![],
+        };
 
-    let res = read_vesting_infos(
-        deps.as_ref(),
-        Some(Addr::unchecked("address3")),
-        Some(1),
-        Some(OrderBy::Desc),
-    )
-    .unwrap();
-    assert_eq!(res, vec![(Addr::unchecked("address2"), vi_mock.clone())]);
+        for i in 1..5 {
+            let key = Addr::unchecked(format! {"address{}", i});
+
+            VESTING_INFO
+                .save(&mut deps.storage, &key, &vi_mock)
+                .unwrap();
+        }
+
+        let res = read_vesting_infos(
+            deps.as_ref(),
+            Some(Addr::unchecked("address2")),
+            None,
+            Some(OrderBy::Asc),
+        )
+        .unwrap();
+        assert_eq!(
+            res,
+            vec![
+                (Addr::unchecked("address3"), vi_mock.clone()),
+                (Addr::unchecked("address4"), vi_mock.clone())
+            ]
+        );
+
+        let res = read_vesting_infos(
+            deps.as_ref(),
+            Some(Addr::unchecked("address2")),
+            Some(1),
+            Some(OrderBy::Asc),
+        )
+        .unwrap();
+        assert_eq!(res, vec![(Addr::unchecked("address3"), vi_mock.clone())]);
+
+        let res = read_vesting_infos(
+            deps.as_ref(),
+            Some(Addr::unchecked("address3")),
+            None,
+            Some(OrderBy::Desc),
+        )
+        .unwrap();
+        assert_eq!(
+            res,
+            vec![
+                (Addr::unchecked("address2"), vi_mock.clone()),
+                (Addr::unchecked("address1"), vi_mock.clone())
+            ]
+        );
+
+        let res = read_vesting_infos(
+            deps.as_ref(),
+            Some(Addr::unchecked("address3")),
+            Some(1),
+            Some(OrderBy::Desc),
+        )
+        .unwrap();
+        assert_eq!(res, vec![(Addr::unchecked("address2"), vi_mock.clone())]);
+    }
 }
