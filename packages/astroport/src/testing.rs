@@ -343,7 +343,7 @@ fn test_decimal_checked_ops() {
         let dec = Decimal::from_ratio(i, 1u128);
         assert_eq!(
             dec * Uint128::new(i),
-            dec.checked_mul(Decimal::raw(i)).unwrap().to_uint_floor()
+            dec.checked_mul_uint128(Uint128::from(i)).unwrap()
         );
     }
     assert!(

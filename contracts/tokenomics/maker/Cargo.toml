@@ -27,11 +27,10 @@ cw20 = "0.15"
 cw-storage-plus = "0.15"
 schemars = "0.8.1"
 astroport = { path = "../../../packages/astroport", default-features = false }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
+astroport-governance = { git = "https://github.com/classic-terra/astroport-governance.git", branch = "terra_classic_invictus" }
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
 classic-bindings = { version = "0.1.1" }
-classic-test-tube = {version = "0.1.0", git = "https://github.com/classic-terra/classic-rust.git", package = "classic-test-tube", rev = "2b3571f272b54acd2119a33706f4abccdaa9f5dd"}
 
 [dev-dependencies]
 cosmwasm-schema = "1.1"
@@ -39,4 +38,5 @@ astroport-token = {path = "../../token"}
 astroport-factory = {path = "../../factory"}
 astroport-pair = {path = "../../pair"}
 cw-multi-test = "0.15"
-astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance.git", branch = "main" }
+astroport-escrow-fee-distributor = { git = "https://github.com/classic-terra/astroport-governance.git", branch = "terra_classic_invictus" }
+classic-test-tube = {version = "0.1.0", git = "https://github.com/classic-terra/classic-rust.git", package = "classic-test-tube", rev = "2b3571f272b54acd2119a33706f4abccdaa9f5dd"}
