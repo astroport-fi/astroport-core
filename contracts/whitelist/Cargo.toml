@@ -2,7 +2,7 @@
 name = "astroport-whitelist"
 version = "1.0.0"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>", "Astroport"]
-edition = "2018"
+edition = "2021"
 description = "Implementation of an proxy contract using a whitelist"
 license = "Apache-2.0"
 repository = "https://github.com/CosmWasm/cw-plus"

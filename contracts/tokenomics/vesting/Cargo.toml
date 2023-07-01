@@ -2,7 +2,7 @@
 name = "astroport-vesting"
 version = "1.0.0"
 authors = ["Astroport"]
-edition = "2018"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -25,6 +25,5 @@ classic-bindings = { version = "0.1.1" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "1.1", default-features = false  }
-cw-multi-test = "0.15"
 astroport-token = {path = "../../token"}
 classic-test-tube = {version = "0.1.0", git = "https://github.com/classic-terra/classic-rust.git", package = "classic-test-tube", rev = "2b3571f272b54acd2119a33706f4abccdaa9f5dd"}
