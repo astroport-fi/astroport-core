@@ -626,7 +626,7 @@ impl Module for InjMockModule {
                         market: Some(SpotMarket {
                             ticker: base_denom.to_string() + "/" + quote_denom,
                             market_id,
-                            min_quantity_tick_size: f64_to_dec::<Decimal256>(0.001).conv()?, // from the real INJ/USDT market, 0.001 INJ
+                            min_quantity_tick_size: 1000000000000000u128.into(), // from the real INJ/USDT market, 0.001 INJ
                             base_denom: base_denom.clone(),
                             quote_denom: quote_denom.clone(),
                             status: 0,

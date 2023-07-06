@@ -86,6 +86,7 @@ pub fn instantiate(
 
     store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
+    let base_precision = msg.asset_infos[0].decimals(&deps.querier, &factory_addr)?;
     let ob_state = OrderbookState::new(
         deps.querier,
         &env,
@@ -93,6 +94,7 @@ pub fn instantiate(
         orderbook_params.orderbook_config.orders_number,
         orderbook_params.orderbook_config.min_trades_to_avg,
         &msg.asset_infos,
+        base_precision,
     )?;
     ob_state.save(deps.storage)?;
 
@@ -995,7 +997,9 @@ fn update_market_ticks(
     deps: DepsMut<InjectiveQueryWrapper>,
 ) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
     let mut ob_state = OrderbookState::load(deps.storage)?;
-    ob_state.set_ticks(deps.querier)?;
+    let config = CONFIG.load(deps.storage)?;
+    let base_precision = ob_state.asset_infos[0].decimals(&deps.querier, &config.factory_addr)?;
+    ob_state.set_ticks(deps.querier, base_precision)?;
     ob_state.save(deps.storage)?;
 
     Ok(Response::new().add_attribute("action", "update_market_ticks"))

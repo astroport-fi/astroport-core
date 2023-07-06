@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-concentrated-injective"
-version = "2.0.1"
+version = "2.0.2"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport concentrated liquidity pair which supports Injective orderbook integration"
