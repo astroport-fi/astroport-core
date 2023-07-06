@@ -4,10 +4,10 @@ use std::collections::HashSet;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order,
-    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg,
+    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
-use protobuf::Message;
+use cw_utils::parse_instantiate_response_data;
 
 use astroport::asset::{addr_opt_validate, AssetInfo, PairInfo};
 use astroport::common::{
@@ -25,7 +25,6 @@ use crate::error::ContractError;
 use crate::migration;
 use crate::migration::{migrate_configs, migrate_pair_configs};
 use crate::querier::query_pair_info;
-use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
     check_asset_infos, pair_key, read_pairs, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS,
     PAIRS_TO_MIGRATE, PAIR_CONFIGS, TMP_PAIR_INFO,
@@ -370,25 +369,33 @@ fn execute_mark_pairs_as_migrated(
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    let tmp = TMP_PAIR_INFO.load(deps.storage)?;
-    if PAIRS.has(deps.storage, &tmp.pair_key) {
-        return Err(ContractError::PairWasRegistered {});
+    match msg {
+        Reply {
+            id: INSTANTIATE_PAIR_REPLY_ID,
+            result:
+                SubMsgResult::Ok(SubMsgResponse {
+                    data: Some(data), ..
+                }),
+        } => {
+            let tmp = TMP_PAIR_INFO.load(deps.storage)?;
+            if PAIRS.has(deps.storage, &tmp.pair_key) {
+                return Err(ContractError::PairWasRegistered {});
+            }
+
+            let init_response = parse_instantiate_response_data(data.as_slice())
+                .map_err(|e| StdError::generic_err(format!("{e}")))?;
+
+            let pair_contract = deps.api.addr_validate(&init_response.contract_address)?;
+
+            PAIRS.save(deps.storage, &tmp.pair_key, &pair_contract)?;
+
+            Ok(Response::new().add_attributes(vec![
+                attr("action", "register"),
+                attr("pair_contract_addr", pair_contract),
+            ]))
+        }
+        _ => Err(ContractError::FailedToParseReply {}),
     }
-
-    let data = msg.result.unwrap().data.unwrap();
-    let res: MsgInstantiateContractResponse =
-        Message::parse_from_bytes(data.as_slice()).map_err(|_| {
-            StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
-        })?;
-
-    let pair_contract = deps.api.addr_validate(res.get_contract_address())?;
-
-    PAIRS.save(deps.storage, &tmp.pair_key, &pair_contract)?;
-
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "register"),
-        attr("pair_contract_addr", pair_contract),
-    ]))
 }
 
 /// Removes an existing pair from the factory.

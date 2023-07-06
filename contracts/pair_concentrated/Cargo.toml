@@ -38,7 +38,7 @@ cw-utils = "0.15"
 
 [dev-dependencies]
 astroport-token = { path = "../token" }
-cw-multi-test = "0.15"
+astroport-mocks = { path = "../../packages/astroport_mocks/" }
 astroport-factory = { path = "../factory" }
 proptest = "1.0"
 anyhow = "1.0"

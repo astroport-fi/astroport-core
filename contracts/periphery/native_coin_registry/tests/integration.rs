@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 use cosmwasm_std::Addr;
 
 use astroport::native_coin_registry::{CoinResponse, Config, ExecuteMsg, InstantiateMsg, QueryMsg};

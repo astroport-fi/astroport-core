@@ -33,4 +33,7 @@ pub enum ContractError {
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
+
+    #[error("Failed to parse or process reply message")]
+    FailedToParseReply {},
 }

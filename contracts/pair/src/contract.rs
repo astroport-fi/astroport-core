@@ -5,10 +5,9 @@ use std::convert::TryInto;
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps,
     DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError,
-    StdResult, SubMsg, Uint128, Uint256, Uint64, WasmMsg,
+    StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, Uint256, Uint64, WasmMsg,
 };
 
-use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
     addr_opt_validate, check_swap_parameters, format_lp_token_name, Asset, AssetInfo, CoinsExt,
     PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
@@ -27,7 +26,7 @@ use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
-use protobuf::Message;
+use cw_utils::parse_instantiate_response_data;
 use std::str::FromStr;
 use std::vec;
 
@@ -129,29 +128,32 @@ pub fn instantiate(
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg.id {
-        INSTANTIATE_TOKEN_REPLY_ID => {
+    match msg {
+        Reply {
+            id: INSTANTIATE_TOKEN_REPLY_ID,
+            result:
+                SubMsgResult::Ok(SubMsgResponse {
+                    data: Some(data), ..
+                }),
+        } => {
             let mut config: Config = CONFIG.load(deps.storage)?;
 
             if config.pair_info.liquidity_token != Addr::unchecked("") {
                 return Err(ContractError::Unauthorized {});
             }
 
-            let data = msg.result.unwrap().data.unwrap();
-            let res: MsgInstantiateContractResponse = Message::parse_from_bytes(data.as_slice())
-                .map_err(|_| {
-                    StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
-                })?;
+            let init_response = parse_instantiate_response_data(data.as_slice())
+                .map_err(|e| StdError::generic_err(format!("{e}")))?;
 
             config.pair_info.liquidity_token =
-                deps.api.addr_validate(res.get_contract_address())?;
+                deps.api.addr_validate(&init_response.contract_address)?;
 
             CONFIG.save(deps.storage, &config)?;
 
             Ok(Response::new()
                 .add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
         }
-        _ => Err(StdError::generic_err(format!("Unknown reply ID: {}", msg.id)).into()),
+        _ => Err(ContractError::FailedToParseReply {}),
     }
 }
 

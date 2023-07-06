@@ -131,9 +131,11 @@ dependencies = [
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
  "itertools",
+ "prost 0.11.9",
  "protobuf",
  "thiserror",
 ]
@@ -146,7 +148,7 @@ dependencies = [
  "cosmos-sdk-proto",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.16.4",
+ "cw-multi-test 0.16.5",
  "cw-storage-plus 0.15.1",
  "cw-utils 1.0.1",
  "cw2 1.0.1",
@@ -155,12 +157,13 @@ dependencies = [
 
 [[package]]
 name = "astroport-generator"
-version = "2.3.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "astroport 3.1.1",
  "astroport-factory",
  "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
+ "astroport-mocks",
  "astroport-native-coin-registry",
  "astroport-nft",
  "astroport-pair",
@@ -171,8 +174,8 @@ dependencies = [
  "astroport-whitelist",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.1",
  "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.1",
  "cw1-whitelist",
  "cw2 0.15.1",
  "cw20 0.15.1",
@@ -248,6 +251,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-mocks"
+version = "0.1.0"
+dependencies = [
+ "astroport 3.1.1",
+ "astroport-factory",
+ "astroport-generator",
+ "astroport-native-coin-registry",
+ "astroport-pair",
+ "astroport-pair-concentrated",
+ "astroport-pair-concentrated-injective",
+ "astroport-pair-stable",
+ "astroport-staking",
+ "astroport-token",
+ "astroport-vesting",
+ "astroport-whitelist",
+ "astroport-xastro-token",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test 0.16.5",
+ "injective-cosmwasm",
+ "schemars",
+ "serde 1.0.163",
+]
+
+[[package]]
 name = "astroport-native-coin-registry"
 version = "1.0.1"
 dependencies = [
@@ -317,15 +345,17 @@ version = "1.3.1"
 dependencies = [
  "astroport 3.1.1",
  "astroport-factory",
+ "astroport-mocks",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.1",
  "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
  "integer-sqrt",
  "proptest",
+ "prost 0.11.9",
  "protobuf",
  "thiserror",
 ]
@@ -383,11 +413,11 @@ dependencies = [
  "astroport 3.1.1",
  "astroport-circular-buffer",
  "astroport-factory",
+ "astroport-mocks",
  "astroport-native-coin-registry",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.1",
  "cw-storage-plus 0.15.1",
  "cw-utils 0.15.1",
  "cw2 0.15.1",
@@ -406,12 +436,12 @@ dependencies = [
  "astroport 3.1.1",
  "astroport-circular-buffer",
  "astroport-factory",
+ "astroport-mocks",
  "astroport-native-coin-registry",
  "astroport-pair-concentrated",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.16.4",
  "cw-storage-plus 0.15.1",
  "cw-utils 0.15.1",
  "cw2 0.15.1",
@@ -435,11 +465,11 @@ dependencies = [
  "astroport 3.1.1",
  "astroport-circular-buffer",
  "astroport-factory",
+ "astroport-mocks",
  "astroport-native-coin-registry",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.1",
  "cw-storage-plus 0.15.1",
  "cw-utils 1.0.1",
  "cw2 0.15.1",
@@ -496,6 +526,7 @@ dependencies = [
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
  "protobuf",
@@ -517,7 +548,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-vesting"
-version = "1.3.1"
+version = "1.3.2"
 dependencies = [
  "astroport 3.1.1",
  "astroport-token",
@@ -837,9 +868,8 @@ dependencies = [
 
 [[package]]
 name = "cw-multi-test"
-version = "0.16.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a18afd2e201221c6d72a57f0886ef2a22151bbc9e6db7af276fde8a91081042"
+version = "0.16.5"
+source = "git+https://github.com/astroport-fi/cw-multi-test.git?rev=269a2c829d1ad25d67caa4600f72d2a21fb8fdeb#269a2c829d1ad25d67caa4600f72d2a21fb8fdeb"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
@@ -1472,9 +1502,9 @@ checksum = "bfa799dd5ed20a7e349f3b4639aa80d74549c81716d9ec4f994c9b5815598306"
 
 [[package]]
 name = "injective-cosmwasm"
-version = "0.1.102"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3670e98fa3955aab15741bc7ae4a304e178e2d1cade4e95f25730e9b491f88d7"
+checksum = "5ab3412772e82841ca5cb4a4653137c1691bd7f98efe0e8d36ba9098b5522374"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -1504,14 +1534,14 @@ dependencies = [
 
 [[package]]
 name = "injective-testing"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "507fa4be97121aeb0049a5b0a2cfd691fdf806afe5832675e865957e956decc9"
+checksum = "e3d6fa5d905361fd5638a235db92dc0c87dc062ccf479497064e5a3a98d1a659"
 dependencies = [
  "anyhow",
  "base64",
  "cosmwasm-std",
- "cw-multi-test 0.16.4",
+ "cw-multi-test 0.16.5",
  "injective-cosmwasm",
  "rand 0.4.6",
  "secp256k1",

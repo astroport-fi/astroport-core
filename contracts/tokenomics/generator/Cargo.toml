@@ -1,13 +1,13 @@
 [package]
 name = "astroport-generator"
-version = "2.3.0"
+version = "2.3.1"
 authors = ["Astroport"]
 edition = "2021"
 
 exclude = [
-    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-    "contract.wasm",
-    "hash.txt",
+  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+  "contract.wasm",
+  "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -31,11 +31,12 @@ cw2 = "0.15"
 cw20 = "0.15"
 astroport = { path = "../../../packages/astroport" }
 cosmwasm-schema = "1.1"
+cw-utils = "1.0.1"
 [dev-dependencies]
 
 
 generator-controller = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
-cw-multi-test = "0.15"
+astroport-mocks = { path = "../../../packages/astroport_mocks/" }
 astroport-token = { path = "../../token" }
 astroport-vesting = { path = "../vesting" }
 astroport-staking = { path = "../staking" }

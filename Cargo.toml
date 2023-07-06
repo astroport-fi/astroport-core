@@ -1,23 +1,23 @@
 [workspace]
 resolver = "2"
 members = [
-    "packages/*",
-    "contracts/factory",
-    "contracts/pair",
-    "contracts/pair_stable",
-    "contracts/pair_concentrated",
-    "contracts/pair_concentrated_inj",
-    "contracts/pair_astro_xastro",
-    "contracts/router",
-    "contracts/token",
-    "contracts/whitelist",
-    "templates/*",
-    "contracts/tokenomics/generator",
-    "contracts/tokenomics/maker",
-    "contracts/tokenomics/staking",
-    "contracts/tokenomics/vesting",
-    "contracts/tokenomics/xastro_token",
-    "contracts/periphery/*",
+  "packages/*",
+  "contracts/factory",
+  "contracts/pair",
+  "contracts/pair_stable",
+  "contracts/pair_concentrated",
+  "contracts/pair_concentrated_inj",
+  "contracts/pair_astro_xastro",
+  "contracts/router",
+  "contracts/token",
+  "contracts/whitelist",
+  "templates/*",
+  "contracts/tokenomics/generator",
+  "contracts/tokenomics/maker",
+  "contracts/tokenomics/staking",
+  "contracts/tokenomics/vesting",
+  "contracts/tokenomics/xastro_token",
+  "contracts/periphery/*",
 ]
 
 [profile.release]
@@ -35,3 +35,5 @@ strip = true
 [patch.'https://github.com/astroport-fi/hidden_astroport_core']
 astroport = { path = "packages/astroport" }
 
+[patch.crates-io]
+cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test.git", rev = "269a2c829d1ad25d67caa4600f72d2a21fb8fdeb" }

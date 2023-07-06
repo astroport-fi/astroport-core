@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 use crate::test_utils::delegation_helper::DelegationHelper;
 use crate::test_utils::escrow_helper::EscrowHelper;
 use crate::{mint_tokens, store_whitelist_code};
@@ -8,9 +10,9 @@ use astroport::vesting::{Cw20HookMsg as VestingHookMsg, VestingAccount};
 use astroport::vesting::{InstantiateMsg, VestingSchedule, VestingSchedulePoint};
 use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
 use astroport_governance::generator_controller::{UserInfoResponse, VotedPoolInfoResponse};
+use astroport_mocks::cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 use cosmwasm_std::{to_binary, Addr, StdResult, Uint128, Uint64};
 use cw20::Cw20ExecuteMsg;
-use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 pub struct ControllerHelper {
     pub owner: String,

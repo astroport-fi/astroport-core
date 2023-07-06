@@ -1,5 +1,11 @@
-use cosmwasm_std::{Addr, Decimal, StdError, Uint128};
-use cw_multi_test::Executor;
+#![cfg(not(tarpaulin_include))]
+
+use astroport_mocks::{astroport_address, MockConcentratedPairBuilder, MockGeneratorBuilder};
+use cosmwasm_std::{Addr, Coin, Decimal, StdError, Uint128};
+
+use astroport_mocks::cw_multi_test::{BasicApp, Executor};
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::str::FromStr;
 
 use astroport::asset::{
@@ -294,6 +300,26 @@ fn provide_and_withdraw() {
     assert_eq!(70710_677118, helper.token_balance(&helper.lp_token, &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
+
+    assert_eq!(
+        helper
+            .query_share(helper.token_balance(&helper.lp_token, &user1))
+            .unwrap(),
+        vec![
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string()
+                },
+                amount: Uint128::new(99999998585)
+            },
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: Addr::unchecked("contract0")
+                },
+                amount: Uint128::new(49999999292)
+            }
+        ]
+    );
 
     let user2 = Addr::unchecked("user2");
     let assets = vec![
@@ -1329,4 +1355,53 @@ fn provides_and_swaps_and_withdraw() {
         .unwrap();
 
     assert_eq!(res.total_share.u128(), 1000u128);
+}
+
+#[test]
+fn provide_liquidity_with_autostaking_to_generator() {
+    let astroport = astroport_address();
+
+    let app = Rc::new(RefCell::new(BasicApp::new(|router, _, storage| {
+        router
+            .bank
+            .init_balance(
+                storage,
+                &astroport,
+                vec![Coin {
+                    denom: "ustake".to_owned(),
+                    amount: Uint128::new(1_000_000_000000),
+                }],
+            )
+            .unwrap();
+    })));
+
+    let generator = MockGeneratorBuilder::new(&app).instantiate();
+
+    let factory = generator.factory();
+
+    let astro_token_info = generator.astro_token_info();
+    let ustake = native_asset_info("ustake".to_owned());
+
+    let pair = MockConcentratedPairBuilder::new(&app)
+        .with_factory(&factory)
+        .with_asset(&astro_token_info)
+        .with_asset(&ustake)
+        .instantiate(None);
+
+    pair.mint_allow_provide_and_stake(
+        &astroport,
+        &[
+            astro_token_info.with_balance(1_000_000000u128),
+            ustake.with_balance(1_000_000000u128),
+        ],
+    );
+
+    assert_eq!(
+        pair.lp_token().balance(pair.address.to_string()),
+        Uint128::new(1000)
+    );
+    assert_eq!(
+        generator.query_deposit(&pair.lp_token(), astroport),
+        Uint128::new(999_999000),
+    );
 }

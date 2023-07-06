@@ -40,8 +40,8 @@ anyhow = "1.0"
 proptest = "1.0.0"
 sim = { git = "https://github.com/astroport-fi/astroport-sims", branch = "main", package = "sim" }
 astroport-token = { path = "../token" }
-cw-multi-test = "0.15"
 astroport-factory = { path = "../factory" }
 derivative = "2.2"
 prost = "0.11.5"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
+astroport-mocks = { path = "../../packages/astroport_mocks/" }

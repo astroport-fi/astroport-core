@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -5,6 +7,10 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Result as AnyResult};
+use astroport_mocks::cw_multi_test::{
+    App, AppResponse, BankKeeper, CosmosRouter, DistributionKeeper, FailingModule, Module, Router,
+    StakeKeeper, WasmKeeper,
+};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::schemars::JsonSchema;
 use cosmwasm_schema::serde::de::DeserializeOwned;
@@ -14,15 +20,12 @@ use cosmwasm_std::{
     CustomQuery, Decimal256, DepsMut, Empty, Env, GovMsg, IbcMsg, IbcQuery, MemoryStorage,
     OverflowError, Querier, Reply, Response, StdError, Storage, SubMsgResponse, SubMsgResult,
 };
-use cw_multi_test::{
-    App, AppResponse, BankKeeper, CosmosRouter, DistributionKeeper, FailingModule, Module, Router,
-    StakeKeeper, WasmKeeper,
-};
 use cw_utils::parse_instantiate_response_data;
 use injective_cosmwasm::{
+    exchange::{spot::ShortSpotOrder, types::ShortSubaccountId},
+    wasmx::{response::QueryContractRegistrationInfoResponse, types::RegisteredContract},
     Deposit, FundingMode, InjectiveMsg, InjectiveMsgWrapper, InjectiveQuery, InjectiveQueryWrapper,
-    MarketId, OrderType, QueryContractRegistrationInfoResponse, RegisteredContract, SpotMarket,
-    SpotMarketResponse, SpotOrder, SubaccountDepositResponse, SubaccountId,
+    MarketId, OrderType, SpotMarket, SpotMarketResponse, SubaccountDepositResponse,
     TraderSpotOrdersResponse, TrimmedSpotLimitOrder,
 };
 use injective_math::FPDecimal;
@@ -147,7 +150,7 @@ where
         &mut dyn Storage,
     ),
 {
-    cw_multi_test::AppBuilder::new()
+    astroport_mocks::cw_multi_test::AppBuilder::new()
         .with_custom(InjMockModule::new())
         .with_wasm::<InjMockModule, WasmKeeper<InjectiveMsgWrapper, InjectiveQueryWrapper>>(
             WasmKeeper::new_with_custom_address_generator(InjectiveAddressGenerator()),
@@ -281,10 +284,10 @@ impl InjAppExt for InjApp {
 }
 
 pub struct InjMockModule {
-    pub deposit: RefCell<HashMap<SubaccountId, Vec<Coin>>>,
+    pub deposit: RefCell<HashMap<ShortSubaccountId, Vec<Coin>>>,
     pub module_addr: Addr,
     pub gas_fee_receiver: Addr,
-    pub orderbook: RefCell<HashMap<MarketId, Vec<(Addr, SpotOrder)>>>,
+    pub orderbook: RefCell<HashMap<MarketId, Vec<(Addr, ShortSpotOrder)>>>,
     pub markets: RefCell<HashMap<MarketId, (String, String)>>,
     pub enabled_contracts: RefCell<HashMap<Addr, (MockFundingMode, bool)>>,
 }
@@ -334,7 +337,7 @@ impl Module for InjMockModule {
 
                 self.deposit
                     .borrow_mut()
-                    .entry(subaccount_id)
+                    .entry(subaccount_id.into())
                     .and_modify(|v| {
                         v.iter_mut()
                             .find_map(|coin| {
@@ -373,7 +376,7 @@ impl Module for InjMockModule {
 
                 self.deposit
                     .borrow_mut()
-                    .entry(subaccount_id)
+                    .entry(subaccount_id.into())
                     .and_modify(|v| {
                         v.iter_mut().for_each(|coin| {
                             if coin.denom == amount.denom {
@@ -404,7 +407,7 @@ impl Module for InjMockModule {
 
                 let mut markets = self.orderbook.borrow_mut();
                 let order_entry = markets.entry(order.market_id.clone()).and_modify(|v| {
-                    v.push((sender.clone(), order.clone()));
+                    v.push((sender.clone(), order.clone().into()));
                 });
 
                 if let Entry::Vacant(_) = order_entry {
@@ -428,12 +431,9 @@ impl Module for InjMockModule {
 
                 // check subaccount has enough coins
                 let deposits = self.deposit.borrow();
-                let deposit =
-                    deposits
-                        .get(&order.order_info.subaccount_id)
-                        .ok_or(StdError::generic_err(
-                            "deposit for subaccount does not exist",
-                        ))?;
+                let deposit = deposits.get(&order.order_info.subaccount_id.into()).ok_or(
+                    StdError::generic_err("deposit for subaccount does not exist"),
+                )?;
 
                 let valid = deposit
                     .iter()
@@ -648,7 +648,7 @@ impl Module for InjMockModule {
                 let balance = self
                     .deposit
                     .borrow()
-                    .get(&subaccount_id)
+                    .get(&subaccount_id.into())
                     .map(|v| {
                         v.iter()
                             .find_map(|coin| {

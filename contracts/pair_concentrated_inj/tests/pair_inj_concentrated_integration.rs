@@ -1,9 +1,16 @@
-use cosmwasm_std::{coins, Addr, Decimal, StdError, Uint128};
-use cw_multi_test::Executor;
+#![cfg(not(tarpaulin_include))]
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use astroport_mocks::cw_multi_test::Executor;
+use cosmwasm_std::{coins, Addr, Coin, Decimal, StdError, Uint128};
 use injective_cosmwasm::InjectiveQuerier;
 use injective_testing::generate_inj_address;
 
-use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::asset::{
+    native_asset_info, Asset, AssetInfo, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT,
+};
 use astroport::factory::PairType;
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, UpdatePoolParams,
@@ -198,6 +205,25 @@ fn provide_and_withdraw() {
     assert_eq!(70710_677118, helper.token_balance(&helper.lp_token, &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
+    assert_eq!(
+        helper
+            .query_share(helper.token_balance(&helper.lp_token, &user1))
+            .unwrap(),
+        vec![
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string()
+                },
+                amount: Uint128::new(99999998585)
+            },
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "USDC".to_string()
+                },
+                amount: Uint128::new(49999999292)
+            }
+        ]
+    );
 
     let user2 = Addr::unchecked("user2");
     let assets = vec![
@@ -1237,7 +1263,9 @@ fn check_deactivate_orderbook() {
     let maker_fee = 12870_u128;
     let module_addr = helper.app.init_modules(|router, _, _| {
         let mut deposits = router.custom.deposit.borrow_mut();
-        let subacc = deposits.get_mut(&ob_config.subaccount).unwrap();
+        let subacc = deposits
+            .get_mut(&ob_config.subaccount.clone().into())
+            .unwrap();
         subacc[0].amount += Uint128::from(5e18 as u128);
         subacc[1].amount -= Uint128::from(astro_amnt);
 
@@ -1373,7 +1401,9 @@ fn check_deactivate_orderbook() {
     // Simulate trade after contract was kicked out
     let module_addr = helper.app.init_modules(|router, _, _| {
         let mut deposits = router.custom.deposit.borrow_mut();
-        let subacc = deposits.get_mut(&ob_config.subaccount).unwrap();
+        let subacc = deposits
+            .get_mut(&ob_config.subaccount.clone().into())
+            .unwrap();
         subacc[0].amount += Uint128::from(5e18 as u128);
         subacc[1].amount -= Uint128::from(9.9e6 as u128);
 
@@ -1465,7 +1495,7 @@ fn check_deactivate_orderbook() {
     // Simulate trade after contract was kicked out
     let module_addr = helper.app.init_modules(|router, _, _| {
         let mut deposits = router.custom.deposit.borrow_mut();
-        let subacc = deposits.get_mut(&ob_config.subaccount).unwrap();
+        let subacc = deposits.get_mut(&ob_config.subaccount.into()).unwrap();
         subacc[0].amount += Uint128::from(5e18 as u128);
         subacc[1].amount -= Uint128::from(9.9e6 as u128);
 
@@ -1870,4 +1900,63 @@ fn test_feegrant_mode() {
         .into();
     assert!(inj_deposit > 0, "subaccount inj deposit is zero");
     assert!(astro_deposit > 0, "subaccount astro deposit is zero");
+}
+
+#[test]
+fn provide_liquidity_with_autostaking_to_generator() {
+    use astroport_mocks::{
+        astroport_address, MockConcentratedPairInjBuilder, MockGeneratorBuilder,
+    };
+    let astroport = astroport_address();
+
+    let app = Rc::new(RefCell::new(mock_inj_app(|router, _, storage| {
+        router
+            .bank
+            .init_balance(
+                storage,
+                &astroport,
+                vec![
+                    Coin {
+                        denom: "ucosmos".to_owned(),
+                        amount: Uint128::new(1_000_000_000000),
+                    },
+                    Coin {
+                        denom: "ustake".to_owned(),
+                        amount: Uint128::new(1_000_000_000000),
+                    },
+                ],
+            )
+            .unwrap();
+    })));
+    app.borrow_mut().create_market("ucosmos", "ustake").unwrap();
+
+    let generator = MockGeneratorBuilder::new(&app).instantiate();
+
+    let factory = generator.factory();
+
+    let ucosmos = native_asset_info("ucosmos".to_owned());
+    let ustake = native_asset_info("ustake".to_owned());
+
+    let pair = MockConcentratedPairInjBuilder::new(&app)
+        .with_factory(&factory)
+        .with_asset(&ucosmos)
+        .with_asset(&ustake)
+        .instantiate(None);
+
+    pair.mint_allow_provide_and_stake(
+        &astroport,
+        &[
+            ucosmos.with_balance(1_000_000000u128),
+            ustake.with_balance(1_000_000000u128),
+        ],
+    );
+
+    assert_eq!(
+        pair.lp_token().balance(pair.address.to_string()),
+        Uint128::new(1000)
+    );
+    assert_eq!(
+        generator.query_deposit(&pair.lp_token(), astroport),
+        Uint128::new(999_999000),
+    );
 }

@@ -32,9 +32,11 @@ cw-storage-plus = "0.15"
 thiserror = { version = "1.0" }
 protobuf = { version = "2", features = ["with-bytes"] }
 cosmwasm-schema = "1.1"
+cw-utils = "1.0.1"
 
 [dev-dependencies]
 astroport-token = { path = "../token" }
-cw-multi-test = "0.15"
 astroport-factory = { path = "../factory" }
 proptest = "1.0"
+prost = "0.11.5"
+astroport-mocks = { path = "../../packages/astroport_mocks/" }
