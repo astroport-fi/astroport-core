@@ -8,9 +8,7 @@ use cosmwasm_std::{coins, Addr, Coin, Decimal, StdError, Uint128};
 use injective_cosmwasm::InjectiveQuerier;
 use injective_testing::generate_inj_address;
 
-use astroport::asset::{
-    native_asset_info, Asset, AssetInfo, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT,
-};
+use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::factory::PairType;
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, UpdatePoolParams,
@@ -210,18 +208,8 @@ fn provide_and_withdraw() {
             .query_share(helper.token_balance(&helper.lp_token, &user1))
             .unwrap(),
         vec![
-            Asset {
-                info: AssetInfo::NativeToken {
-                    denom: "uluna".to_string()
-                },
-                amount: Uint128::new(99999998585)
-            },
-            Asset {
-                info: AssetInfo::NativeToken {
-                    denom: "USDC".to_string()
-                },
-                amount: Uint128::new(49999999292)
-            }
+            helper.assets[&test_coins[0]].with_balance(99999998584u128),
+            helper.assets[&test_coins[1]].with_balance(49999999292u128)
         ]
     );
 
@@ -290,8 +278,8 @@ fn provide_and_withdraw() {
         70710_677118 - 7071_067711,
         helper.token_balance(&helper.lp_token, &user1)
     );
-    assert_eq!(9382_010962, helper.coin_balance(&test_coins[0], &user1));
-    assert_eq!(5330_688046, helper.coin_balance(&test_coins[1], &user1));
+    assert_eq!(9382_010960, helper.coin_balance(&test_coins[0], &user1));
+    assert_eq!(5330_688045, helper.coin_balance(&test_coins[1], &user1));
 
     // user2 withdraws half
     helper
@@ -302,8 +290,8 @@ fn provide_and_withdraw() {
         70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128() - 35355_339059,
         helper.token_balance(&helper.lp_token, &user2)
     );
-    assert_eq!(46910_055479, helper.coin_balance(&test_coins[0], &user2));
-    assert_eq!(26653_440613, helper.coin_balance(&test_coins[1], &user2));
+    assert_eq!(46910_055478, helper.coin_balance(&test_coins[0], &user2));
+    assert_eq!(26653_440612, helper.coin_balance(&test_coins[1], &user2));
 }
 
 #[test]
@@ -390,6 +378,8 @@ fn provide_with_different_precision() {
 
     helper.provide_liquidity(&owner, &assets).unwrap();
 
+    let tolerance = 9;
+
     for user_name in ["user1", "user2", "user3"] {
         let user = Addr::unchecked(user_name);
 
@@ -397,23 +387,23 @@ fn provide_with_different_precision() {
 
         helper.provide_liquidity(&user, &assets).unwrap();
 
-        assert_eq!(100_000000, helper.token_balance(&helper.lp_token, &user));
+        let lp_amount = helper.token_balance(&helper.lp_token, &user);
+        assert!(
+            100_000000 - lp_amount < tolerance,
+            "LP token balance assert failed for {user}"
+        );
         assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
         assert_eq!(0, helper.coin_balance(&test_coins[1], &user));
 
-        helper
-            .withdraw_liquidity(&user, 100_000000, vec![])
-            .unwrap();
+        helper.withdraw_liquidity(&user, lp_amount, vec![]).unwrap();
 
         assert_eq!(0, helper.token_balance(&helper.lp_token, &user));
-        assert_eq!(
-            100_00000,
-            helper.coin_balance(&test_coins[0], &user),
+        assert!(
+            100_00000 - helper.coin_balance(&test_coins[0], &user) < tolerance,
             "Withdrawn amount of coin0 assert failed for {user}"
         );
-        assert_eq!(
-            100_000000,
-            helper.coin_balance(&test_coins[1], &user),
+        assert!(
+            100_000000 - helper.coin_balance(&test_coins[1], &user) < tolerance,
             "Withdrawn amount of coin1 assert failed for {user}"
         );
     }
@@ -1144,9 +1134,9 @@ fn check_last_withdraw() {
         .withdraw_liquidity(&owner, owner_lp_balance, vec![])
         .unwrap();
     let contract_balances = helper.query_pool().unwrap();
-    // small dust left in balance because it was initial provide fee
-    assert_eq!(contract_balances.assets[0].amount.u128(), 707116091310438);
-    assert_eq!(contract_balances.assets[1].amount.u128(), 1415);
+    // small dust left in balance because it was initial provide fee + a tiny compensation for rounding errors
+    assert_eq!(contract_balances.assets[0].amount.u128(), 707823207120245);
+    assert_eq!(contract_balances.assets[1].amount.u128(), 1416);
 }
 
 #[test]
@@ -1959,4 +1949,50 @@ fn provide_liquidity_with_autostaking_to_generator() {
         generator.query_deposit(&pair.lp_token(), astroport),
         Uint128::new(999_999000),
     );
+}
+
+#[test]
+fn provide_withdraw_provide() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("uluna")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(10f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::from_ratio(10u8, 1u8),
+        ma_half_time: 600,
+        track_asset_balances: None,
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(10_938039u128),
+        helper.assets[&test_coins[1]].with_balance(1_093804u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+    helper.app.next_block(90);
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    helper.app.next_block(90);
+    let uusd = helper.assets[&test_coins[0]].with_balance(5_000000u128);
+    helper.swap(&owner, &uusd, Some(f64_to_dec(0.5))).unwrap();
+
+    helper.app.next_block(600);
+    // Withdraw all
+    let lp_amount = helper.token_balance(&helper.lp_token, &owner);
+    helper
+        .withdraw_liquidity(&owner, lp_amount, vec![])
+        .unwrap();
+
+    // Provide again
+    helper
+        .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.5)))
+        .unwrap();
 }

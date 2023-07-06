@@ -129,7 +129,8 @@ fn query_share(
         None,
     )?;
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
-    let refund_assets = get_share_in_assets(&pools, amount, total_share)?;
+    let refund_assets =
+        get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share)?;
 
     let refund_assets = refund_assets
         .into_iter()

@@ -477,10 +477,11 @@ where
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
-    config.pool_state.price_state.xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
     let mut old_price = config.pool_state.price_state.last_price;
 
     let share = if total_share.is_zero() {
+        config.pool_state.price_state.xcp =
+            get_xcp(new_d, config.pool_state.price_state.price_scale);
         let mint_amount = config
             .pool_state
             .price_state
@@ -620,7 +621,8 @@ fn withdraw_liquidity(
     if assets.is_empty() {
         // Usual withdraw (balanced)
         burn_amount = amount;
-        refund_assets = get_share_in_assets(&pools, amount, total_share)?;
+        refund_assets =
+            get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share)?;
     } else {
         return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
     }
