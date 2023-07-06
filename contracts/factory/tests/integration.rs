@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 mod factory_helper;
 
 use cosmwasm_std::{attr, Addr};

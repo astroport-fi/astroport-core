@@ -1,3 +1,4 @@
+#![cfg(not(tarpaulin_include))]
 #![allow(dead_code)]
 
 use std::collections::HashMap;
@@ -6,6 +7,7 @@ use std::fmt::{Debug, Display};
 use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
+use astroport_mocks::cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::schemars::JsonSchema;
 use cosmwasm_std::{
@@ -13,7 +15,6 @@ use cosmwasm_std::{
     StdResult, Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
-use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 use injective_cosmwasm::{InjectiveMsgWrapper, InjectiveQueryWrapper};
 use itertools::Itertools;
@@ -634,6 +635,15 @@ impl Helper {
         self.app
             .wrap()
             .query_wasm_smart(&self.pair_addr, &QueryMsg::ComputeD {})
+    }
+
+    pub fn query_share(&self, amount: impl Into<Uint128>) -> StdResult<Vec<Asset>> {
+        self.app.wrap().query_wasm_smart::<Vec<Asset>>(
+            &self.pair_addr,
+            &QueryMsg::Share {
+                amount: amount.into(),
+            },
+        )
     }
 
     pub fn query_pool(&self) -> StdResult<PoolResponse> {

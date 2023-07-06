@@ -32,6 +32,7 @@ thiserror = "1.0"
 protobuf = { version = "2", features = ["with-bytes"] }
 itertools = "0.10"
 cosmwasm-schema = "1.1"
+cw-utils = "1.0.1"
 
 [dev-dependencies]
 cw-multi-test = "0.15"
@@ -39,3 +40,4 @@ astroport-token = { path = "../token" }
 astroport-pair = { path = "../pair" }
 cw20 = "0.15"
 anyhow = "1.0"
+prost = "0.11.5"

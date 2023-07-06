@@ -1,15 +1,16 @@
+#![cfg(not(tarpaulin_include))]
 #![allow(dead_code)]
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
 use std::str::FromStr;
 
+use astroport_mocks::cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use cosmwasm_std::{
     coin, from_slice, to_binary, Addr, Coin, Decimal, Decimal256, Empty, StdError, StdResult,
     Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
-use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use itertools::Itertools;
 
 use anyhow::Result as AnyResult;
@@ -513,6 +514,15 @@ impl Helper {
         self.app
             .wrap()
             .query_wasm_smart(&self.pair_addr, &QueryMsg::ComputeD {})
+    }
+
+    pub fn query_share(&self, amount: impl Into<Uint128>) -> StdResult<Vec<Asset>> {
+        self.app.wrap().query_wasm_smart::<Vec<Asset>>(
+            &self.pair_addr,
+            &QueryMsg::Share {
+                amount: amount.into(),
+            },
+        )
     }
 }
 

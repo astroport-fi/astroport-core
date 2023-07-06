@@ -1,4 +1,7 @@
-use crate::contract::{execute, instantiate, query_balance, query_balance_at};
+use crate::contract::{
+    execute, execute_burn_from, execute_send_from, execute_transfer_from, instantiate,
+    query_all_accounts, query_balance, query_balance_at,
+};
 use crate::state::get_total_supply_at;
 use astroport::xastro_token::InstantiateMsg;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
@@ -6,7 +9,11 @@ use cosmwasm_std::{
     Addr, Binary, BlockInfo, ContractInfo, CosmosMsg, Deps, DepsMut, Env, StdError, SubMsg,
     Timestamp, Uint128, WasmMsg,
 };
-use cw20::{Cw20Coin, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
+use cw20::{
+    AllAccountsResponse, BalanceResponse, Cw20Coin, Cw20ReceiveMsg, MinterResponse,
+    TokenInfoResponse,
+};
+use cw20_base::allowances::execute_increase_allowance;
 use cw20_base::contract::{query_minter, query_token_info};
 use cw20_base::msg::ExecuteMsg;
 use cw20_base::ContractError;
@@ -743,4 +750,168 @@ fn snapshots_are_taken_and_retrieved_correctly() {
 
         balance_previous_value = expected_balance;
     }
+}
+
+#[test]
+fn test_balance_history() {
+    let mut deps = mock_dependencies();
+    let user1 = mock_info("user1", &[]);
+    do_instantiate(deps.as_mut(), user1.sender.as_str(), Uint128::new(1_000));
+
+    // Test transfer_from
+    let mut env = mock_env();
+    env.block.height += 1;
+    let user2 = mock_info("user2", &[]);
+
+    execute_increase_allowance(
+        deps.as_mut(),
+        env.clone(),
+        user1.clone(),
+        user2.sender.to_string(),
+        Uint128::new(1000),
+        None,
+    )
+    .unwrap();
+
+    execute_transfer_from(
+        deps.as_mut(),
+        env.clone(),
+        user2.clone(),
+        user1.sender.to_string(),
+        user2.sender.to_string(),
+        Uint128::new(1),
+    )
+    .unwrap();
+
+    assert_eq!(
+        query_balance_at(deps.as_ref(), user1.sender.to_string(), env.block.height).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(1000)
+        }
+    );
+    assert_eq!(
+        query_balance_at(deps.as_ref(), user2.sender.to_string(), env.block.height).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(0)
+        }
+    );
+    assert_eq!(
+        query_balance(deps.as_ref(), user1.sender.to_string()).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(999)
+        }
+    );
+    assert_eq!(
+        query_balance(deps.as_ref(), user2.sender.to_string()).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(1)
+        }
+    );
+
+    // Test burn_from
+    let mut env = mock_env();
+    env.block.height += 2;
+
+    execute_burn_from(
+        deps.as_mut(),
+        env.clone(),
+        user2.clone(),
+        user1.sender.to_string(),
+        Uint128::new(1),
+    )
+    .unwrap();
+
+    assert_eq!(
+        query_balance_at(deps.as_ref(), user1.sender.to_string(), env.block.height).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(999)
+        }
+    );
+    assert_eq!(
+        query_balance_at(deps.as_ref(), user2.sender.to_string(), env.block.height).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(1)
+        }
+    );
+    assert_eq!(
+        query_balance(deps.as_ref(), user1.sender.to_string()).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(998)
+        }
+    );
+    assert_eq!(
+        query_balance(deps.as_ref(), user2.sender.to_string()).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(1)
+        }
+    );
+
+    // Test send_from
+    let mut env = mock_env();
+    env.block.height += 3;
+
+    execute_send_from(
+        deps.as_mut(),
+        env.clone(),
+        user2.clone(),
+        user1.sender.to_string(),
+        MOCK_CONTRACT_ADDR.to_string(),
+        Uint128::new(1),
+        Binary::default(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        query_balance_at(deps.as_ref(), user1.sender.to_string(), env.block.height).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(998)
+        }
+    );
+    assert_eq!(
+        query_balance_at(deps.as_ref(), user2.sender.to_string(), env.block.height).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(1)
+        }
+    );
+    assert_eq!(
+        query_balance_at(
+            deps.as_ref(),
+            MOCK_CONTRACT_ADDR.to_string(),
+            env.block.height
+        )
+        .unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(0)
+        }
+    );
+    assert_eq!(
+        query_balance(deps.as_ref(), user1.sender.to_string()).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(997)
+        }
+    );
+    assert_eq!(
+        query_balance(deps.as_ref(), user2.sender.to_string()).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(1)
+        }
+    );
+    assert_eq!(
+        query_balance(deps.as_ref(), MOCK_CONTRACT_ADDR.to_string()).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(1)
+        }
+    );
+
+    // Test query_all_accounts
+    assert_eq!(
+        query_all_accounts(deps.as_ref(), None, None).unwrap(),
+        AllAccountsResponse {
+            accounts: vec![
+                MOCK_CONTRACT_ADDR.to_string(),
+                user1.sender.to_string(),
+                user2.sender.to_string(),
+            ]
+        }
+    );
 }

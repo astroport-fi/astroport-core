@@ -241,3 +241,65 @@ pub(crate) fn query_lp_balance(
     };
     Ok(lp_amount)
 }
+
+#[cfg(test)]
+mod tests {
+
+    use cosmwasm_std::{
+        testing::{mock_dependencies, MOCK_CONTRACT_ADDR},
+        Uint64,
+    };
+
+    use super::*;
+
+    #[test]
+    fn compatible_load() {
+        let mut deps = mock_dependencies();
+
+        let mock_address = Addr::unchecked(MOCK_CONTRACT_ADDR);
+
+        POOL_INFO
+            .save(
+                deps.as_mut().storage,
+                &mock_address,
+                &PoolInfo {
+                    last_reward_block: Uint64::zero(),
+                    reward_global_index: Decimal::from_ratio(10u128, 1u128),
+                    reward_proxy: Some(mock_address.clone()),
+                    accumulated_proxy_rewards_per_share: RestrictedVector::new(
+                        mock_address.clone(),
+                        Decimal::from_ratio(10u128, 1u128),
+                    ),
+                    proxy_reward_balance_before_update: Uint128::new(20),
+                    orphan_proxy_rewards: RestrictedVector::default(),
+                    has_asset_rewards: false,
+                    total_virtual_supply: Uint128::new(2),
+                },
+            )
+            .unwrap();
+
+        OLD_USER_INFO
+            .save(
+                deps.as_mut().storage,
+                (&mock_address, &mock_address),
+                &UserInfo {
+                    amount: Uint128::new(2),
+                    reward_debt: Uint128::new(10),
+                    reward_debt_proxy: Uint128::new(10),
+                },
+            )
+            .unwrap();
+
+        assert_eq!(
+            USER_INFO
+                .compatible_load(deps.as_ref().storage, (&mock_address, &mock_address))
+                .unwrap(),
+            UserInfoV2 {
+                amount: Uint128::new(2),
+                reward_debt_proxy: RestrictedVector::new(mock_address.clone(), Uint128::new(10)),
+                reward_user_index: Decimal::from_ratio(5u128, 1u128),
+                virtual_amount: Uint128::new(2)
+            }
+        );
+    }
+}

@@ -6,7 +6,6 @@ use cosmwasm_std::{
 use crate::state::{read_vesting_infos, Config, CONFIG, OWNERSHIP_PROPOSAL, VESTING_INFO};
 
 use crate::error::ContractError;
-use crate::migration::migrate_from_v100;
 use astroport::asset::{addr_opt_validate, token_asset_info, AssetInfo, AssetInfoExt};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::vesting::{
@@ -519,13 +518,12 @@ pub fn query_vesting_available_amount(deps: Deps, env: Env, address: String) -> 
 
 /// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-vesting" => match contract_version.version.as_ref() {
-            "1.0.0" => migrate_from_v100(deps.branch())?,
-            "1.1.0" | "1.2.0" | "1.3.0" => {}
+            "1.1.0" | "1.2.0" | "1.3.0" | "1.3.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

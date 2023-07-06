@@ -1,6 +1,8 @@
+#![cfg(not(tarpaulin_include))]
+
 use astroport::asset::{native_asset_info, token_asset_info};
 use astroport::querier::query_balance;
-use astroport::vesting::{QueryMsg, VestingAccountResponse};
+use astroport::vesting::{QueryMsg, VestingAccountResponse, VestingAccountsResponse, VestingInfo};
 use astroport::{
     token::InstantiateMsg as TokenInstantiateMsg,
     vesting::{
@@ -679,6 +681,67 @@ fn register_vesting_accounts() {
         &astro_token_instance,
         &owner.clone(),
         TOKEN_INITIAL_AMOUNT - 310u128,
+    );
+
+    assert_eq!(
+        app.wrap()
+            .query_wasm_smart::<VestingAccountsResponse>(
+                vesting_instance,
+                &QueryMsg::VestingAccounts {
+                    start_after: None,
+                    limit: None,
+                    order_by: None
+                }
+            )
+            .unwrap(),
+        VestingAccountsResponse {
+            vesting_accounts: vec![
+                VestingAccountResponse {
+                    address: user2,
+                    info: VestingInfo {
+                        schedules: vec![VestingSchedule {
+                            start_point: VestingSchedulePoint {
+                                time: 1571797669,
+                                amount: Uint128::zero(),
+                            },
+                            end_point: Some(VestingSchedulePoint {
+                                time: 1571797719,
+                                amount: Uint128::new(200),
+                            }),
+                        }],
+                        released_amount: Uint128::zero(),
+                    }
+                },
+                VestingAccountResponse {
+                    address: user1,
+                    info: VestingInfo {
+                        schedules: vec![
+                            VestingSchedule {
+                                start_point: VestingSchedulePoint {
+                                    time: 1571797819,
+                                    amount: Uint128::zero(),
+                                },
+                                end_point: Some(VestingSchedulePoint {
+                                    time: 1571797919,
+                                    amount: Uint128::new(10),
+                                }),
+                            },
+                            VestingSchedule {
+                                start_point: VestingSchedulePoint {
+                                    time: 1571797519,
+                                    amount: Uint128::new(0),
+                                },
+                                end_point: Some(VestingSchedulePoint {
+                                    time: 1571797569,
+                                    amount: Uint128::new(100),
+                                })
+                            }
+                        ],
+                        released_amount: Uint128::new(110),
+                    }
+                }
+            ]
+        }
     );
 }
 

@@ -1,8 +1,9 @@
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Deps,
-    DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
-    WasmMsg,
+    DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
+    SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
 };
+use cw_utils::parse_instantiate_response_data;
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
@@ -12,10 +13,8 @@ use astroport::staking::{
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 
-use crate::response::MsgInstantiateContractResponse;
 use astroport::querier::{query_supply, query_token_balance};
 use astroport::xastro_token::InstantiateMsg as TokenInstantiateMsg;
-use protobuf::Message;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-staking";
@@ -99,27 +98,30 @@ pub fn execute(
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg.id {
-        INSTANTIATE_TOKEN_REPLY_ID => {
+    match msg {
+        Reply {
+            id: INSTANTIATE_TOKEN_REPLY_ID,
+            result:
+                SubMsgResult::Ok(SubMsgResponse {
+                    data: Some(data), ..
+                }),
+        } => {
             let mut config = CONFIG.load(deps.storage)?;
 
             if config.xastro_token_addr != Addr::unchecked("") {
                 return Err(ContractError::Unauthorized {});
             }
 
-            let data = msg.result.unwrap().data.unwrap();
-            let res: MsgInstantiateContractResponse = Message::parse_from_bytes(data.as_slice())
-                .map_err(|_| {
-                    StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
-                })?;
+            let init_response = parse_instantiate_response_data(data.as_slice())
+                .map_err(|e| StdError::generic_err(format!("{e}")))?;
 
-            config.xastro_token_addr = deps.api.addr_validate(res.get_contract_address())?;
+            config.xastro_token_addr = deps.api.addr_validate(&init_response.contract_address)?;
 
             CONFIG.save(deps.storage, &config)?;
 
             Ok(Response::new())
         }
-        _ => Err(StdError::generic_err(format!("Unknown reply ID: {}", msg.id)).into()),
+        _ => Err(ContractError::FailedToParseReply {}),
     }
 }
 

@@ -45,6 +45,9 @@ pub enum ContractError {
 
     #[error("You can not withdraw 0 LP tokens.")]
     ZeroWithdraw {},
+
+    #[error("Failed to parse or process reply message")]
+    FailedToParseReply {},
 }
 
 impl From<OverflowError> for ContractError {

@@ -144,6 +144,7 @@ pub struct OrderbookStateResponse {
 #[cw_serde]
 pub enum MigrateMsg {
     MigrateToOrderbook { params: OrderbookConfig },
+    Migrate {},
 }
 
 /// This enum is intended for parameters update.

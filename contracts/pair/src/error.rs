@@ -52,6 +52,9 @@ pub enum ContractError {
 
     #[error("Asset balances tracking is already enabled")]
     AssetBalancesTrackingIsAlreadyEnabled {},
+
+    #[error("Failed to parse or process reply message")]
+    FailedToParseReply {},
 }
 
 impl From<OverflowError> for ContractError {

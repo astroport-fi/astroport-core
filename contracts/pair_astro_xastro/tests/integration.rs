@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType};
 use astroport::pair::{

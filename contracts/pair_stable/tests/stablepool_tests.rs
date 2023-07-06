@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 use cosmwasm_std::{Addr, Decimal, StdError};
 use std::str::FromStr;
 
