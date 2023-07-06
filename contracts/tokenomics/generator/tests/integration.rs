@@ -1,5 +1,11 @@
-use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
-use astroport::generator::{ExecuteMsg, QueryMsg, StakerResponse};
+#![cfg(not(tarpaulin_include))]
+
+use std::{cell::RefCell, rc::Rc};
+
+use astroport::asset::{
+    native_asset_info, token_asset_info, Asset, AssetInfo, AssetInfoExt, PairInfo,
+};
+use astroport::generator::{ExecuteMsg, QueryMsg, RewardInfoResponse, StakerResponse};
 use astroport_governance::utils::WEEK;
 
 use astroport::{
@@ -23,9 +29,10 @@ use astroport::{
 use astroport::generator_proxy::ConfigResponse;
 use astroport::pair::StablePoolParams;
 use astroport_generator::error::ContractError;
-use cosmwasm_std::{to_binary, Addr, Binary, StdResult, Uint128, Uint64};
+use astroport_mocks::cw_multi_test::{next_block, App, ContractWrapper, Executor};
+use astroport_mocks::{astroport_address, MockGeneratorBuilder, MockToken, MockTokenBuilder};
+use cosmwasm_std::{from_slice, to_binary, Addr, Binary, StdResult, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{next_block, App, ContractWrapper, Executor};
 
 use crate::test_utils::controller_helper::ControllerHelper;
 use crate::test_utils::{mock_app as mock_app_helper, mock_app, AppExtension};
@@ -4304,4 +4311,200 @@ fn store_whitelist_code(app: &mut App) -> u64 {
     ));
 
     app.store_code(whitelist_contract)
+}
+
+#[test]
+fn migrate_proxy() {
+    let app = Rc::new(RefCell::new(App::default()));
+
+    let astroport = astroport_address();
+
+    let user1 = Addr::unchecked("user1");
+    let user2 = Addr::unchecked("user2");
+    let user3 = Addr::unchecked("user3");
+
+    let generator = MockGeneratorBuilder::new(&app).instantiate();
+
+    let factory = generator.factory();
+
+    let astro = MockToken::try_from((&app, &generator.astro_token_info())).unwrap();
+    let val = MockTokenBuilder::new(&app, "VAL").instantiate();
+
+    let pair = factory.instantiate_xyk_pair(&[astro.asset_info(), val.asset_info()]);
+
+    pair.mint_allow_provide_and_stake(
+        &user1,
+        &[
+            astro.asset_info().with_balance(Uint128::new(2000)),
+            val.asset_info().with_balance(Uint128::new(2000)),
+        ],
+    );
+
+    pair.mint_allow_provide_and_stake(
+        &user2,
+        &[
+            astro.asset_info().with_balance(Uint128::new(2000)),
+            val.asset_info().with_balance(Uint128::new(2000)),
+        ],
+    );
+
+    pair.mint_allow_provide_and_stake(
+        &user3,
+        &[
+            astro.asset_info().with_balance(Uint128::new(2000)),
+            val.asset_info().with_balance(Uint128::new(2000)),
+        ],
+    );
+
+    let lp_token = pair.lp_token();
+
+    let vkr_staking = instantiate_valkyrie_protocol(
+        &mut app.borrow_mut(),
+        &val.address,
+        &pair.address,
+        &lp_token.address,
+    );
+
+    val.mint(vkr_staking.clone(), Uint128::new(110_000_000));
+
+    let proxy_code_id = store_proxy_code(&mut app.borrow_mut());
+
+    let proxy_to_vkr = instantiate_proxy(
+        &mut app.borrow_mut(),
+        proxy_code_id,
+        &generator.address,
+        &pair.address,
+        &lp_token.address,
+        &vkr_staking,
+        &val.address,
+    );
+
+    app.borrow_mut()
+        .execute_contract(
+            astroport.clone(),
+            generator.address.clone(),
+            &ExecuteMsg::MoveToProxy {
+                lp_token: lp_token.address.to_string(),
+                proxy: proxy_to_vkr.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    assert_eq!(
+        app.borrow()
+            .wrap()
+            .query_wasm_smart::<RewardInfoResponse>(
+                generator.address.to_string(),
+                &QueryMsg::RewardInfo {
+                    lp_token: lp_token.address.to_string(),
+                },
+            )
+            .unwrap(),
+        RewardInfoResponse {
+            base_reward_token: generator.astro_token_info(),
+            proxy_reward_token: Some(val.address.clone())
+        }
+    );
+
+    app.borrow_mut().next_block(1);
+
+    app.borrow_mut()
+        .execute_contract(
+            user1.clone(),
+            generator.address.clone(),
+            &ExecuteMsg::ClaimRewards {
+                lp_tokens: vec![lp_token.address.to_string()],
+            },
+            &[],
+        )
+        .unwrap();
+
+    assert_eq!(val.balance(&user1), Uint128::new(10_000_000));
+    assert_eq!(val.balance(&proxy_to_vkr), Uint128::new(40_000_000));
+
+    let new_proxy_to_vkr = instantiate_proxy(
+        &mut app.borrow_mut(),
+        proxy_code_id,
+        &generator.address,
+        &pair.address,
+        &lp_token.address,
+        &vkr_staking,
+        &val.address,
+    );
+
+    app.borrow_mut()
+        .execute_contract(
+            astroport.clone(),
+            generator.address.clone(),
+            &ExecuteMsg::MigrateProxy {
+                lp_token: lp_token.address.to_string(),
+                new_proxy: new_proxy_to_vkr.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    let proxy_reward_holder: Addr = from_slice(
+        &app.borrow()
+            .wrap()
+            .query_wasm_raw(generator.address.clone(), b"proxy_rewards_holder")
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(val.balance(&proxy_to_vkr), Uint128::new(0));
+    assert_eq!(val.balance(&proxy_reward_holder), Uint128::new(40_000_000));
+
+    app.borrow_mut()
+        .execute_contract(
+            user2.clone(),
+            generator.address.clone(),
+            &ExecuteMsg::ClaimRewards {
+                lp_tokens: vec![lp_token.address.to_string()],
+            },
+            &[],
+        )
+        .unwrap();
+
+    assert_eq!(val.balance(&user1), Uint128::new(10_000_000));
+    assert_eq!(val.balance(&user2), Uint128::new(20_000_000));
+    assert_eq!(val.balance(&proxy_to_vkr), Uint128::new(0));
+    assert_eq!(val.balance(&proxy_reward_holder), Uint128::new(20_000_000));
+
+    app.borrow_mut()
+        .execute_contract(
+            user3.clone(),
+            generator.address.clone(),
+            &ExecuteMsg::EmergencyWithdraw {
+                lp_token: lp_token.address.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    assert_eq!(val.balance(&proxy_reward_holder), Uint128::new(20_000_000));
+
+    app.borrow_mut()
+        .execute_contract(
+            astroport.clone(),
+            generator.address.clone(),
+            &ExecuteMsg::SendOrphanProxyReward {
+                recipient: astroport.to_string(),
+                lp_token: lp_token.address.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+    assert_eq!(val.balance(&proxy_reward_holder), Uint128::new(0));
+    assert_eq!(val.balance(&astroport), Uint128::new(20_000_000));
+
+    assert_eq!(
+        app.borrow()
+            .wrap()
+            .query_wasm_smart::<usize>(generator.address.to_string(), &QueryMsg::PoolLength {})
+            .unwrap(),
+        1
+    );
 }

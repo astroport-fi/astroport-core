@@ -13,7 +13,7 @@ use astroport_pair_concentrated::state::Config as CLConfig;
 use crate::state::{AmpGamma, Config, PoolParams, PoolState, PriceState, CONFIG};
 
 const MIGRATE_FROM: &str = "astroport-pair-concentrated";
-const MIGRATION_VERSION: &str = "2.0.1";
+const MIGRATION_VERSION: &str = "2.0.2";
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -36,6 +36,8 @@ pub fn migrate(
             }
 
             let config: CLConfig = Item::new("config").load(deps.storage)?;
+            let base_precision =
+                config.pair_info.asset_infos[0].decimals(&deps.querier, &config.factory_addr)?;
             let ob_state = OrderbookState::new(
                 deps.querier,
                 &env,
@@ -43,12 +45,33 @@ pub fn migrate(
                 params.orders_number,
                 params.min_trades_to_avg,
                 &config.pair_info.asset_infos,
+                base_precision,
             )?;
             CONFIG.save(deps.storage, &config.into())?;
             ob_state.save(deps.storage)?;
 
             attrs.push(attr("action", "migrate_to_orderbook"));
             attrs.push(attr("subaccount_id", ob_state.subaccount.to_string()))
+        }
+        MigrateMsg::Migrate {} => {
+            let contract_info = cw2::get_contract_version(deps.storage)?;
+            match contract_info.contract.as_str() {
+                CONTRACT_NAME => match contract_info.version.as_str() {
+                    "2.0.0" => {}
+                    _ => {
+                        return Err(StdError::generic_err(format!(
+                            "Can't migrate from {} {}",
+                            contract_info.contract, contract_info.version
+                        )));
+                    }
+                },
+                _ => {
+                    return Err(StdError::generic_err(format!(
+                        "Can't migrate from {} {}",
+                        contract_info.contract, contract_info.version
+                    )));
+                }
+            }
         }
     }
 

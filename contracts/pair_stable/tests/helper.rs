@@ -1,9 +1,11 @@
+#![cfg(not(tarpaulin_include))]
+
 use std::collections::HashMap;
 
 use anyhow::Result as AnyResult;
+use astroport_mocks::cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use cosmwasm_std::{coin, to_binary, Addr, Coin, Empty, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
-use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 use itertools::Itertools;
 

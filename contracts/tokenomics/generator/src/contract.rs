@@ -3,12 +3,12 @@ use std::collections::{HashMap, HashSet};
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal,
     Deps, DepsMut, Empty, Env, MessageInfo, Order, QuerierWrapper, Reply, Response, StdError,
-    StdResult, SubMsg, Uint128, Uint64, WasmMsg,
+    StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, Uint64, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use cw_storage_plus::Bound;
-use protobuf::Message;
+use cw_utils::parse_instantiate_response_data;
 
 use crate::error::ContractError;
 use crate::migration;
@@ -35,7 +35,6 @@ use astroport::{
     DecimalCheckedOps,
 };
 
-use crate::response::MsgInstantiateContractResponse;
 use crate::state::{
     accumulate_pool_proxy_rewards, query_lp_balance, update_proxy_asset, update_user_balance,
     update_virtual_amount, CompatibleLoader, CHECKPOINT_GENERATORS_LIMIT, CONFIG, DEFAULT_LIMIT,
@@ -195,10 +194,6 @@ pub fn execute(
             checkpoint_generator_limit,
         ),
         ExecuteMsg::SetupPools { pools } => execute_setup_pools(deps, env, info, pools),
-        ExecuteMsg::UpdatePool {
-            lp_token,
-            has_asset_rewards,
-        } => execute_update_pool(deps, info, lp_token, has_asset_rewards),
         ExecuteMsg::ClaimRewards { lp_tokens } => {
             let lp_tokens_addr = validate_addresses(deps.api, &lp_tokens)?;
 
@@ -629,40 +624,6 @@ pub fn execute_setup_pools(
     Ok(Response::new().add_attribute("action", "setup_pools"))
 }
 
-/// Updates the given generator's ASTRO allocation points.
-///
-/// * **lp_token** LP token whose generator allocation points we update.
-///
-/// * **has_asset_rewards** whether the generator receives dual rewards or not.
-///
-/// ## Executor
-/// Can only be called by the owner.
-pub fn execute_update_pool(
-    deps: DepsMut,
-    info: MessageInfo,
-    lp_token: String,
-    has_asset_rewards: bool,
-) -> Result<Response, ContractError> {
-    let lp_token_addr = deps.api.addr_validate(&lp_token)?;
-
-    let cfg = CONFIG.load(deps.storage)?;
-    if info.sender != cfg.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let mut pool_info = POOL_INFO.load(deps.storage, &lp_token_addr)?;
-
-    pool_info.has_asset_rewards = has_asset_rewards;
-
-    POOL_INFO.save(deps.storage, &lp_token_addr, &pool_info)?;
-
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "update_pool"),
-        attr("lp_token", lp_token),
-        attr("has_asset_rewards", pool_info.has_asset_rewards.to_string()),
-    ]))
-}
-
 /// Updates the amount of accrued rewards for a specific generator (if specified in input parameters), otherwise updates rewards for
 /// all pools that are in [`POOL_INFO`].
 ///
@@ -755,24 +716,23 @@ fn get_proxy_rewards(
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg.id {
-        INIT_REWARDS_HOLDER_ID => {
-            let data = msg
-                .result
-                .into_result()
-                .map_err(|_| StdError::generic_err("Failed to get reply"))?
-                .data
-                .ok_or_else(|| StdError::generic_err("No data in reply"))?;
-            let res: MsgInstantiateContractResponse = Message::parse_from_bytes(data.as_slice())
-                .map_err(|_| {
-                    StdError::parse_err("MsgInstantiateContractResponse", "failed to parse data")
-                })?;
-            let rewards_holder = deps.api.addr_validate(&res.contract_address)?;
+    match msg {
+        Reply {
+            id: INIT_REWARDS_HOLDER_ID,
+            result:
+                SubMsgResult::Ok(SubMsgResponse {
+                    data: Some(data), ..
+                }),
+        } => {
+            let init_response = parse_instantiate_response_data(data.as_slice())
+                .map_err(|e| StdError::generic_err(format!("{e}")))?;
+
+            let rewards_holder = deps.api.addr_validate(&init_response.contract_address)?;
             PROXY_REWARDS_HOLDER.save(deps.storage, &rewards_holder)?;
 
             Ok(Response::new().add_attribute("action", "init_rewards_holder"))
         }
-        _ => Err(StdError::generic_err("Unknown reply id").into()),
+        _ => Err(ContractError::FailedToParseReply {}),
     }
 }
 
@@ -2074,15 +2034,10 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
 
     match contract_version.contract.as_ref() {
         "astroport-generator" => match contract_version.version.as_ref() {
-            "2.0.0" => {
-                migration::migrate_configs_from_v200(&mut deps, &msg)?;
-            }
-            "2.1.0" | "2.1.1" => {
-                migration::migrate_configs_from_v210(&mut deps, &msg)?;
-            }
             "2.2.0" | "2.2.0+togrb" => {
                 migration::migrate_configs_from_v220(&mut deps, &msg)?;
             }
+            "2.3.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

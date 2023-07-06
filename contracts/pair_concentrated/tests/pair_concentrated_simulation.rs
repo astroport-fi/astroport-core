@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 extern crate core;
 
 mod helper;

@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 use crate::contract::Contract;
 
 pub mod contract;

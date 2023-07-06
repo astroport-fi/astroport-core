@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Decimal256, Env, QuerierWrapper, StdError, StdResult, Storage};
+use cosmwasm_std::{Decimal256, Env, QuerierWrapper, StdError, StdResult, Storage, Uint256};
 use cw_storage_plus::Item;
 use injective_cosmwasm::{
     InjectiveQuerier, InjectiveQueryWrapper, MarketId, MarketType, SubaccountId,
@@ -66,6 +66,7 @@ impl OrderbookState {
         orders_number: u8,
         min_trades_to_avg: u32,
         asset_infos: &[AssetInfo],
+        base_precision: u8,
     ) -> StdResult<Self> {
         let market_id = MarketId::new(market_id)?;
 
@@ -94,7 +95,7 @@ impl OrderbookState {
             enabled: true,
         };
 
-        state.set_ticks(querier)?;
+        state.set_ticks(querier, base_precision)?;
 
         Ok(state)
     }
@@ -155,7 +156,11 @@ impl OrderbookState {
 
     /// Querying exchange module, converting into [`Decimal256`] and caching tick sizes.
     /// Cashed values help to save gas on begin blocker iterations.
-    pub fn set_ticks(&mut self, querier: QuerierWrapper<InjectiveQueryWrapper>) -> StdResult<()> {
+    pub fn set_ticks(
+        &mut self,
+        querier: QuerierWrapper<InjectiveQueryWrapper>,
+        base_precision: u8,
+    ) -> StdResult<()> {
         let querier = InjectiveQuerier::new(&querier);
         let market_info = querier
             .query_spot_market(&self.market_id)?
@@ -163,7 +168,16 @@ impl OrderbookState {
             .ok_or_else(|| OrderbookError::MarketNotFound(self.market_id.as_str().to_string()))?;
 
         let new_min_price_tick_size: Decimal256 = market_info.min_price_tick_size.conv()?;
-        let new_min_quantity_tick_size: Decimal256 = market_info.min_quantity_tick_size.conv()?;
+
+        // Injective uses integer values without precision for min_quantity_tick_size
+        // (even though it has FPDecimal type) thus we convert it to Decimal256 with precision
+        let new_min_quantity_tick_size_raw: Decimal256 =
+            market_info.min_quantity_tick_size.conv()?;
+        let new_min_quantity_tick_size = Decimal256::from_ratio(
+            new_min_quantity_tick_size_raw.to_uint_floor(),
+            Uint256::from(10u8).pow(base_precision as u32),
+        );
+
         if new_min_price_tick_size == self.min_price_tick_size
             && new_min_quantity_tick_size == self.min_quantity_tick_size
         {

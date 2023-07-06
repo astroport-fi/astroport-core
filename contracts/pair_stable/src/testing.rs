@@ -1,6 +1,6 @@
 use crate::contract::{
-    assert_max_spread, execute, instantiate, query_pool, query_reverse_simulation, query_share,
-    query_simulation, reply,
+    assert_max_spread, execute, instantiate, query, query_pool, query_reverse_simulation,
+    query_share, query_simulation, reply,
 };
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
@@ -9,13 +9,15 @@ use crate::state::{CONFIG, OBSERVATIONS};
 use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo};
 
 use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, SimulationResponse, StablePoolParams,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, QueryMsg,
+    SimulationResponse, StablePoolParams,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, coin, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut, Env, Reply,
-    ReplyOn, Response, StdError, SubMsg, SubMsgResponse, SubMsgResult, Timestamp, Uint128, WasmMsg,
+    attr, coin, from_binary, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal,
+    DepsMut, Env, Reply, ReplyOn, Response, StdError, SubMsg, SubMsgResponse, SubMsgResult,
+    Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use itertools::Itertools;
@@ -1423,4 +1425,122 @@ proptest! {
             reverse_diff
         );
     }
+}
+
+#[test]
+fn update_owner() {
+    let mut deps = mock_dependencies(&[]);
+    let owner = "owner0000";
+
+    let msg = InstantiateMsg {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "ucosmos".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "ustake".to_string(),
+            },
+        ],
+        factory_addr: "factory".to_owned(),
+        token_code_id: 123u64,
+        init_params: Some(
+            to_binary(&StablePoolParams {
+                amp: 100,
+                owner: Some(owner.to_owned()),
+            })
+            .unwrap(),
+        ),
+    };
+
+    let env = mock_env();
+    let info = mock_info(owner, &[]);
+
+    // We can just call .unwrap() to assert this was a success
+    instantiate(deps.as_mut(), env, info, msg).unwrap();
+
+    let new_owner = String::from("new_owner");
+
+    // New owner
+    let env = mock_env();
+    let msg = ExecuteMsg::ProposeNewOwner {
+        owner: new_owner.clone(),
+        expires_in: 100, // seconds
+    };
+
+    let info = mock_info(new_owner.as_str(), &[]);
+
+    // Unauthorized check
+    let err = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+
+    // Claim before proposal
+    let info = mock_info(new_owner.as_str(), &[]);
+    execute(
+        deps.as_mut(),
+        env.clone(),
+        info,
+        ExecuteMsg::ClaimOwnership {},
+    )
+    .unwrap_err();
+
+    // Propose new owner
+    let info = mock_info(owner, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    // Unauthorized ownership claim
+    let info = mock_info("invalid_addr", &[]);
+    let err = execute(
+        deps.as_mut(),
+        env.clone(),
+        info,
+        ExecuteMsg::ClaimOwnership {},
+    )
+    .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+
+    // Drop new owner
+    let info = mock_info(owner, &[]);
+    execute(
+        deps.as_mut(),
+        env.clone(),
+        info,
+        ExecuteMsg::DropOwnershipProposal {},
+    )
+    .unwrap();
+
+    // Claim ownership
+    let info = mock_info(new_owner.as_str(), &[]);
+    let err = execute(
+        deps.as_mut(),
+        env.clone(),
+        info,
+        ExecuteMsg::ClaimOwnership {},
+    )
+    .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Ownership proposal not found"
+    );
+
+    // Propose new owner
+    let info = mock_info(owner, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    // Claim ownership
+    let info = mock_info(new_owner.as_str(), &[]);
+    let res = execute(
+        deps.as_mut(),
+        env.clone(),
+        info,
+        ExecuteMsg::ClaimOwnership {},
+    )
+    .unwrap();
+    assert_eq!(0, res.messages.len());
+
+    // Let's query the state
+    let config: ConfigResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap()).unwrap();
+    assert_eq!(new_owner, config.owner);
 }

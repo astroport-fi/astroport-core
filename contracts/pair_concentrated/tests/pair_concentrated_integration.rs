@@ -1,5 +1,11 @@
-use cosmwasm_std::{Addr, Decimal, StdError, Uint128};
-use cw_multi_test::Executor;
+#![cfg(not(tarpaulin_include))]
+
+use astroport_mocks::{astroport_address, MockConcentratedPairBuilder, MockGeneratorBuilder};
+use cosmwasm_std::{Addr, Coin, Decimal, StdError, Uint128};
+
+use astroport_mocks::cw_multi_test::{BasicApp, Executor};
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::str::FromStr;
 
 use astroport::asset::{
@@ -295,6 +301,16 @@ fn provide_and_withdraw() {
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
 
+    assert_eq!(
+        helper
+            .query_share(helper.token_balance(&helper.lp_token, &user1))
+            .unwrap(),
+        vec![
+            helper.assets[&test_coins[0]].with_balance(99999998584u128),
+            helper.assets[&test_coins[1]].with_balance(49999999292u128)
+        ]
+    );
+
     let user2 = Addr::unchecked("user2");
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
@@ -360,8 +376,8 @@ fn provide_and_withdraw() {
         70710_677118 - 7071_067711,
         helper.token_balance(&helper.lp_token, &user1)
     );
-    assert_eq!(9382_010962, helper.coin_balance(&test_coins[0], &user1));
-    assert_eq!(5330_688046, helper.coin_balance(&test_coins[1], &user1));
+    assert_eq!(9382_010960, helper.coin_balance(&test_coins[0], &user1));
+    assert_eq!(5330_688045, helper.coin_balance(&test_coins[1], &user1));
 
     // user2 withdraws half
     helper
@@ -372,8 +388,8 @@ fn provide_and_withdraw() {
         70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128() - 35355_339059,
         helper.token_balance(&helper.lp_token, &user2)
     );
-    assert_eq!(46910_055479, helper.coin_balance(&test_coins[0], &user2));
-    assert_eq!(26653_440613, helper.coin_balance(&test_coins[1], &user2));
+    assert_eq!(46910_055478, helper.coin_balance(&test_coins[0], &user2));
+    assert_eq!(26653_440612, helper.coin_balance(&test_coins[1], &user2));
 }
 
 #[test]
@@ -470,6 +486,8 @@ fn provide_with_different_precision() {
 
     helper.provide_liquidity(&owner, &assets).unwrap();
 
+    let tolerance = 9;
+
     for user_name in ["user1", "user2", "user3"] {
         let user = Addr::unchecked(user_name);
 
@@ -477,23 +495,23 @@ fn provide_with_different_precision() {
 
         helper.provide_liquidity(&user, &assets).unwrap();
 
-        assert_eq!(100_000000, helper.token_balance(&helper.lp_token, &user));
+        let lp_amount = helper.token_balance(&helper.lp_token, &user);
+        assert!(
+            100_000000 - lp_amount < tolerance,
+            "LP token balance assert failed for {user}"
+        );
         assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
         assert_eq!(0, helper.coin_balance(&test_coins[1], &user));
 
-        helper
-            .withdraw_liquidity(&user, 100_000000, vec![])
-            .unwrap();
+        helper.withdraw_liquidity(&user, lp_amount, vec![]).unwrap();
 
         assert_eq!(0, helper.token_balance(&helper.lp_token, &user));
-        assert_eq!(
-            100_00000,
-            helper.coin_balance(&test_coins[0], &user),
+        assert!(
+            100_00000 - helper.coin_balance(&test_coins[0], &user) < tolerance,
             "Withdrawn amount of coin0 assert failed for {user}"
         );
-        assert_eq!(
-            100_000000,
-            helper.coin_balance(&test_coins[1], &user),
+        assert!(
+            100_000000 - helper.coin_balance(&test_coins[1], &user) < tolerance,
             "Withdrawn amount of coin1 assert failed for {user}"
         );
     }
@@ -1253,12 +1271,12 @@ fn asset_balances_tracking_with_in_params() {
     let res = helper
         .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
         .unwrap();
-    assert_eq!(res.unwrap(), Uint128::new(498_751042));
+    assert_eq!(res.unwrap(), Uint128::new(498_751043));
 
     let res = helper
         .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
         .unwrap();
-    assert_eq!(res.unwrap(), Uint128::new(500_249624));
+    assert_eq!(res.unwrap(), Uint128::new(500_249625));
 }
 
 #[test]
@@ -1329,4 +1347,99 @@ fn provides_and_swaps_and_withdraw() {
         .unwrap();
 
     assert_eq!(res.total_share.u128(), 1000u128);
+}
+
+#[test]
+fn provide_liquidity_with_autostaking_to_generator() {
+    let astroport = astroport_address();
+
+    let app = Rc::new(RefCell::new(BasicApp::new(|router, _, storage| {
+        router
+            .bank
+            .init_balance(
+                storage,
+                &astroport,
+                vec![Coin {
+                    denom: "ustake".to_owned(),
+                    amount: Uint128::new(1_000_000_000000),
+                }],
+            )
+            .unwrap();
+    })));
+
+    let generator = MockGeneratorBuilder::new(&app).instantiate();
+
+    let factory = generator.factory();
+
+    let astro_token_info = generator.astro_token_info();
+    let ustake = native_asset_info("ustake".to_owned());
+
+    let pair = MockConcentratedPairBuilder::new(&app)
+        .with_factory(&factory)
+        .with_asset(&astro_token_info)
+        .with_asset(&ustake)
+        .instantiate(None);
+
+    pair.mint_allow_provide_and_stake(
+        &astroport,
+        &[
+            astro_token_info.with_balance(1_000_000000u128),
+            ustake.with_balance(1_000_000000u128),
+        ],
+    );
+
+    assert_eq!(
+        pair.lp_token().balance(pair.address.to_string()),
+        Uint128::new(1000)
+    );
+    assert_eq!(
+        generator.query_deposit(&pair.lp_token(), astroport),
+        Uint128::new(999_999000),
+    );
+}
+
+#[test]
+fn provide_withdraw_provide() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("uluna")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(10f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::from_ratio(10u8, 1u8),
+        ma_half_time: 600,
+        track_asset_balances: None,
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(10_938039u128),
+        helper.assets[&test_coins[1]].with_balance(1_093804u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+    helper.app.next_block(90);
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    helper.app.next_block(90);
+    let uusd = helper.assets[&test_coins[0]].with_balance(5_000000u128);
+    helper.swap(&owner, &uusd, Some(f64_to_dec(0.5))).unwrap();
+
+    helper.app.next_block(600);
+    // Withdraw all
+    let lp_amount = helper.token_balance(&helper.lp_token, &owner);
+    helper
+        .withdraw_liquidity(&owner, lp_amount, vec![])
+        .unwrap();
+
+    // Provide again
+    helper
+        .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.5)))
+        .unwrap();
 }

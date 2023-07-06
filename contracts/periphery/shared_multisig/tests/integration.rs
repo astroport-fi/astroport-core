@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 use cosmwasm_std::{Addr, BankMsg, Coin, Uint128};
 use cw3::{ProposalResponse, Status, Vote, VoteInfo, VoteResponse};
 use cw_multi_test::{App, ContractWrapper, Executor};

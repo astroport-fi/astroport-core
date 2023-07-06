@@ -58,15 +58,6 @@ pub enum ExecuteMsg {
         /// The list of pools with allocation point.
         pools: Vec<(String, Uint128)>,
     },
-    /// Update the given pool's ASTRO allocation slice
-    /// ## Executor
-    /// Only the owner or generator controller can execute this.
-    UpdatePool {
-        /// The address of the LP token contract address whose allocation we change
-        lp_token: String,
-        /// This flag determines whether the pool gets 3rd party token rewards
-        has_asset_rewards: bool,
-    },
     /// Update rewards and return it to user.
     ClaimRewards {
         /// the LP token contract address
@@ -285,7 +276,7 @@ pub struct PoolInfo {
     pub proxy_reward_balance_before_update: Uint128,
     /// the orphan proxy rewards which are left by emergency withdrawals. Vector of pairs (reward_proxy, index).
     pub orphan_proxy_rewards: RestrictedVector<Addr, Uint128>,
-    /// The pool has assets giving additional rewards
+    /// This field is not used anymore and can opt out on next migration of the structure
     pub has_asset_rewards: bool,
     /// Total virtual amount
     pub total_virtual_supply: Uint128,

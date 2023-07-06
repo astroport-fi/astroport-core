@@ -5,7 +5,6 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use proptest::prelude::*;
-use protobuf::Message;
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
@@ -23,24 +22,34 @@ use crate::contract::{
 };
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
-use crate::response::MsgInstantiateContractResponse;
 use crate::state::{Config, CONFIG};
 
+use prost::Message;
+
+#[derive(Clone, PartialEq, Message)]
+struct MsgInstantiateContractResponse {
+    #[prost(string, tag = "1")]
+    pub contract_address: String,
+    #[prost(bytes, tag = "2")]
+    pub data: Vec<u8>,
+}
+
 fn store_liquidity_token(deps: DepsMut, msg_id: u64, contract_addr: String) {
-    let data = MsgInstantiateContractResponse {
+    let instantiate_reply = MsgInstantiateContractResponse {
         contract_address: contract_addr,
         data: vec![],
-        unknown_fields: Default::default(),
-        cached_size: Default::default(),
-    }
-    .write_to_bytes()
-    .unwrap();
+    };
+
+    let mut encoded_instantiate_reply = Vec::<u8>::with_capacity(instantiate_reply.encoded_len());
+    instantiate_reply
+        .encode(&mut encoded_instantiate_reply)
+        .unwrap();
 
     let reply_msg = Reply {
         id: msg_id,
         result: SubMsgResult::Ok(SubMsgResponse {
             events: vec![],
-            data: Some(data.into()),
+            data: Some(encoded_instantiate_reply.into()),
         }),
     };
 

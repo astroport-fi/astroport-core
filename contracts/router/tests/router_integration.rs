@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 mod factory_helper;
 
 use crate::factory_helper::{instantiate_token, mint, FactoryHelper};

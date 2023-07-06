@@ -86,6 +86,7 @@ pub fn instantiate(
 
     store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
+    let base_precision = msg.asset_infos[0].decimals(&deps.querier, &factory_addr)?;
     let ob_state = OrderbookState::new(
         deps.querier,
         &env,
@@ -93,6 +94,7 @@ pub fn instantiate(
         orderbook_params.orderbook_config.orders_number,
         orderbook_params.orderbook_config.min_trades_to_avg,
         &msg.asset_infos,
+        base_precision,
     )?;
     ob_state.save(deps.storage)?;
 
@@ -477,10 +479,11 @@ where
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
-    config.pool_state.price_state.xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
     let mut old_price = config.pool_state.price_state.last_price;
 
     let share = if total_share.is_zero() {
+        config.pool_state.price_state.xcp =
+            get_xcp(new_d, config.pool_state.price_state.price_scale);
         let mint_amount = config
             .pool_state
             .price_state
@@ -620,7 +623,8 @@ fn withdraw_liquidity(
     if assets.is_empty() {
         // Usual withdraw (balanced)
         burn_amount = amount;
-        refund_assets = get_share_in_assets(&pools, amount, total_share)?;
+        refund_assets =
+            get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share)?;
     } else {
         return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
     }
@@ -993,7 +997,9 @@ fn update_market_ticks(
     deps: DepsMut<InjectiveQueryWrapper>,
 ) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
     let mut ob_state = OrderbookState::load(deps.storage)?;
-    ob_state.set_ticks(deps.querier)?;
+    let config = CONFIG.load(deps.storage)?;
+    let base_precision = ob_state.asset_infos[0].decimals(&deps.querier, &config.factory_addr)?;
+    ob_state.set_ticks(deps.querier, base_precision)?;
     ob_state.save(deps.storage)?;
 
     Ok(Response::new().add_attribute("action", "update_market_ticks"))

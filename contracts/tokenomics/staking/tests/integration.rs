@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 use astroport::staking::{ConfigResponse, Cw20HookMsg, InstantiateMsg as xInstatiateMsg, QueryMsg};
 use astroport::token::InstantiateMsg;
 use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, Uint128, WasmQuery};

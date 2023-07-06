@@ -1,4 +1,6 @@
-use astroport::asset::{Asset, AssetInfo, PairInfo};
+#![cfg(not(tarpaulin_include))]
+
+use astroport::asset::{native_asset_info, Asset, AssetInfo, AssetInfoExt, PairInfo};
 use astroport::factory::{
     ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
     QueryMsg as FactoryQueryMsg,
@@ -7,16 +9,20 @@ use astroport::pair::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StablePoolConfig,
     StablePoolParams, StablePoolUpdateParams,
 };
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::str::FromStr;
 
 use astroport::observation::OracleObservation;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_mocks::cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
+use astroport_mocks::pair_stable::MockStablePairBuilder;
+use astroport_mocks::{astroport_address, MockGeneratorBuilder};
 use astroport_pair_stable::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
 use cosmwasm_std::{
     attr, from_binary, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{App, ContractWrapper, Executor};
 
 const OWNER: &str = "owner";
 
@@ -1345,5 +1351,54 @@ fn check_observe_queries() {
             timestamp: app.block_info().time.seconds(),
             price: Decimal::from_str("1.000501231106759864").unwrap()
         }
+    );
+}
+
+#[test]
+fn provide_liquidity_with_autostaking_to_generator() {
+    let astroport = astroport_address();
+
+    let app = Rc::new(RefCell::new(BasicApp::new(|router, _, storage| {
+        router
+            .bank
+            .init_balance(
+                storage,
+                &astroport,
+                vec![Coin {
+                    denom: "ustake".to_owned(),
+                    amount: Uint128::new(1_000_000_000000),
+                }],
+            )
+            .unwrap();
+    })));
+
+    let generator = MockGeneratorBuilder::new(&app).instantiate();
+
+    let factory = generator.factory();
+
+    let astro_token_info = generator.astro_token_info();
+    let ustake = native_asset_info("ustake".to_owned());
+
+    let pair = MockStablePairBuilder::new(&app)
+        .with_factory(&factory)
+        .with_asset(&astro_token_info)
+        .with_asset(&ustake)
+        .instantiate(None);
+
+    pair.mint_allow_provide_and_stake(
+        &astroport,
+        &[
+            astro_token_info.with_balance(1_000_000000u128),
+            ustake.with_balance(1_000_000000u128),
+        ],
+    );
+
+    assert_eq!(
+        pair.lp_token().balance(pair.address.to_string()),
+        Uint128::new(1000)
+    );
+    assert_eq!(
+        generator.query_deposit(&pair.lp_token(), astroport),
+        Uint128::new(1999_999000),
     );
 }

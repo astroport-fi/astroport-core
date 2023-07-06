@@ -16,10 +16,18 @@ use astroport::factory::{
 };
 
 use crate::contract::reply;
-use crate::response::MsgInstantiateContractResponse;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
-use protobuf::Message;
+
+use prost::Message;
+
+#[derive(Clone, PartialEq, Message)]
+struct MsgInstantiateContractResponse {
+    #[prost(string, tag = "1")]
+    pub contract_address: String,
+    #[prost(bytes, tag = "2")]
+    pub data: Vec<u8>,
+}
 
 #[test]
 fn pair_type_to_string() {
@@ -549,20 +557,21 @@ fn register() {
     // Register an Astroport pair querier
     deps.querier.with_astroport_pairs(&deployed_pairs);
 
-    let data = MsgInstantiateContractResponse {
+    let instantiate_reply = MsgInstantiateContractResponse {
         contract_address: String::from("pair0000"),
         data: vec![],
-        unknown_fields: Default::default(),
-        cached_size: Default::default(),
-    }
-    .write_to_bytes()
-    .unwrap();
+    };
+
+    let mut encoded_instantiate_reply = Vec::<u8>::with_capacity(instantiate_reply.encoded_len());
+    instantiate_reply
+        .encode(&mut encoded_instantiate_reply)
+        .unwrap();
 
     let reply_msg = Reply {
         id: 1,
         result: SubMsgResult::Ok(SubMsgResponse {
             events: vec![],
-            data: Some(data.into()),
+            data: Some(encoded_instantiate_reply.into()),
         }),
     };
 
@@ -625,24 +634,25 @@ fn register() {
     // Register astroport pair querier
     deps.querier.with_astroport_pairs(&deployed_pairs);
 
-    let data = MsgInstantiateContractResponse {
+    let instantiate_reply = MsgInstantiateContractResponse {
         contract_address: String::from("pair0001"),
         data: vec![],
-        unknown_fields: Default::default(),
-        cached_size: Default::default(),
-    }
-    .write_to_bytes()
-    .unwrap();
+    };
 
-    let reply_msg_2 = Reply {
+    let mut encoded_instantiate_reply = Vec::<u8>::with_capacity(instantiate_reply.encoded_len());
+    instantiate_reply
+        .encode(&mut encoded_instantiate_reply)
+        .unwrap();
+
+    let reply_msg = Reply {
         id: 1,
         result: SubMsgResult::Ok(SubMsgResponse {
             events: vec![],
-            data: Some(data.into()),
+            data: Some(encoded_instantiate_reply.into()),
         }),
     };
 
-    let _res = reply(deps.as_mut(), mock_env(), reply_msg_2.clone()).unwrap();
+    let _res = reply(deps.as_mut(), mock_env(), reply_msg.clone()).unwrap();
 
     let query_msg = QueryMsg::Pairs {
         start_after: None,

@@ -19,6 +19,9 @@ pub enum ContractError {
 
     #[error("Insufficient amount of Stake")]
     StakeAmountTooSmall {},
+
+    #[error("Failed to parse or process reply message")]
+    FailedToParseReply {},
 }
 
 impl From<OverflowError> for ContractError {

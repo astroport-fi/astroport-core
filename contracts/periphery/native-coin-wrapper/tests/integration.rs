@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 use cosmwasm_std::{
     attr, coin, to_binary, Addr, BalanceResponse as NativeBalanceResponse, BankQuery, Coin,
     QueryRequest, Uint128, WasmQuery,

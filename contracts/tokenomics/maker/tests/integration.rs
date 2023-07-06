@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 use astroport::asset::{
     native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
 };
