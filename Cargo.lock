@@ -50,7 +50,7 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "3.1.2"
+version = "3.1.3"
 dependencies = [
  "astroport-circular-buffer",
  "cosmwasm-schema",
@@ -378,7 +378,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "anyhow",
  "astroport",
@@ -401,7 +401,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated-injective"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "anyhow",
  "astroport",
