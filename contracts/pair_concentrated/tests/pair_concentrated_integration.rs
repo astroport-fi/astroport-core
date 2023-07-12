@@ -230,7 +230,10 @@ fn provide_and_withdraw() {
 
     // checking LP token virtual price on an empty pool
     let lp_price = helper.query_lp_price().unwrap();
-    assert_eq!(lp_price, 0.0);
+    assert!(
+        lp_price.is_zero(),
+        "LP price must be zero before any provide"
+    );
 
     let user1 = Addr::unchecked("user1");
 

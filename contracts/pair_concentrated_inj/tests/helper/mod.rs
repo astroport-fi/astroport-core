@@ -591,12 +591,10 @@ impl Helper {
         from_slice(&binary)
     }
 
-    pub fn query_lp_price(&self) -> StdResult<f64> {
-        let res: Decimal256 = self
-            .app
+    pub fn query_lp_price(&self) -> StdResult<Decimal256> {
+        self.app
             .wrap()
-            .query_wasm_smart(&self.pair_addr, &QueryMsg::LpPrice {})?;
-        Ok(dec_to_f64(res))
+            .query_wasm_smart(&self.pair_addr, &QueryMsg::LpPrice {})
     }
 
     pub fn update_config(

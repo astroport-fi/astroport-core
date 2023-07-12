@@ -13,7 +13,7 @@ use astroport_pair_concentrated::state::Config as CLConfig;
 use crate::state::{AmpGamma, Config, PoolParams, PoolState, PriceState, CONFIG};
 
 const MIGRATE_FROM: &str = "astroport-pair-concentrated";
-const MIGRATION_VERSION: &str = "2.0.2";
+const MIGRATION_VERSION: &str = "2.0.3";
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -119,7 +119,7 @@ impl From<CLConfig> for Config {
                     price_scale: val.pool_state.price_state.price_scale,
                     last_price_update: val.pool_state.price_state.last_price_update,
                     xcp_profit: val.pool_state.price_state.xcp_profit,
-                    xcp: val.pool_state.price_state.xcp,
+                    xcp_profit_real: val.pool_state.price_state.xcp_profit_real,
                 },
             },
             owner: val.owner,

@@ -202,7 +202,7 @@ pub(crate) fn pool_info(
     Ok((pools, total_share))
 }
 
-/// Returns current pool's volumes where amoint is in [`Decimal256`] form.
+/// Returns current pool's volumes where amount is in [`Decimal256`] form.
 pub(crate) fn query_pools(
     querier: QuerierWrapper,
     addr: &Addr,
