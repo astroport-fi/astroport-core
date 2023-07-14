@@ -111,7 +111,7 @@ pub fn instantiate(
             price_scale: params.price_scale.into(),
             last_price_update: env.block.time.seconds(),
             xcp_profit: Decimal256::zero(),
-            xcp: Decimal256::zero(),
+            xcp_profit_real: Decimal256::zero(),
         },
     };
 
@@ -482,12 +482,8 @@ pub fn provide_liquidity(
     );
 
     let share = if total_share.is_zero() {
-        config.pool_state.price_state.xcp =
-            get_xcp(new_d, config.pool_state.price_state.price_scale);
-        let mint_amount = config
-            .pool_state
-            .price_state
-            .xcp
+        let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
+        let mint_amount = xcp
             .checked_sub(MINIMUM_LIQUIDITY_AMOUNT.to_decimal256(LP_TOKEN_PRECISION)?)
             .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
 
@@ -505,6 +501,7 @@ pub fn provide_liquidity(
             return Err(ContractError::MinimumLiquidityAmountError {});
         }
 
+        config.pool_state.price_state.xcp_profit_real = Decimal256::one();
         config.pool_state.price_state.xcp_profit = Decimal256::one();
 
         mint_amount
@@ -647,7 +644,9 @@ fn withdraw_liquidity(
     xs[1] *= config.pool_state.price_state.price_scale;
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let d = calc_d(&xs, &amp_gamma)?;
-    config.pool_state.price_state.xcp = get_xcp(d, config.pool_state.price_state.price_scale);
+    config.pool_state.price_state.xcp_profit_real =
+        get_xcp(d, config.pool_state.price_state.price_scale)
+            / (total_share - burn_amount).to_decimal256(LP_TOKEN_PRECISION)?;
 
     let refund_assets = refund_assets
         .into_iter()

@@ -1,6 +1,6 @@
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
-use crate::math::calc_d;
+use crate::math::{calc_d, get_xcp};
 use crate::state::{Precisions, BALANCES, CONFIG};
 use crate::utils::{
     accumulate_prices, before_swap_check, calc_last_prices, compute_offer_amount, compute_swap,
@@ -64,7 +64,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 .map_err(|err| StdError::generic_err(format!("{err}")))?,
         ),
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
-        QueryMsg::LpPrice {} => to_binary(&query_lp_price(deps)?),
+        QueryMsg::LpPrice {} => to_binary(&query_lp_price(deps, env)?),
         QueryMsg::ComputeD {} => to_binary(&query_compute_d(deps, env)?),
         QueryMsg::AssetBalanceAt {
             asset_info,
@@ -225,17 +225,26 @@ fn query_cumulative_prices(
 }
 
 /// Compute the current LP token virtual price.
-pub fn query_lp_price(deps: Deps) -> StdResult<Decimal256> {
+pub fn query_lp_price(deps: Deps, env: Env) -> StdResult<Decimal256> {
     let config = CONFIG.load(deps.storage)?;
     let total_lp = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
-    let vlp_price = config
-        .pool_state
-        .price_state
-        .xcp
-        .checked_div(total_lp)
-        .unwrap_or_else(|_| Decimal256::zero());
-    Ok(vlp_price)
+    if !total_lp.is_zero() {
+        let precisions = Precisions::new(deps.storage)?;
+        let mut ixs = query_pools(deps.querier, &env.contract.address, &config, &precisions)
+            .map_err(|err| StdError::generic_err(err.to_string()))?
+            .into_iter()
+            .map(|asset| asset.amount)
+            .collect_vec();
+        ixs[1] *= config.pool_state.price_state.price_scale;
+        let amp_gamma = config.pool_state.get_amp_gamma(&env);
+        let d = calc_d(&ixs, &amp_gamma)?;
+        let xcp = get_xcp(d, config.pool_state.price_state.price_scale);
+
+        Ok(xcp / total_lp)
+    } else {
+        Ok(Decimal256::zero())
+    }
 }
 
 /// Returns the pair contract configuration.
