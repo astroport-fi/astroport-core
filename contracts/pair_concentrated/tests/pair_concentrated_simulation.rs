@@ -6,9 +6,10 @@ mod helper;
 
 use crate::helper::{dec_to_f64, f64_to_dec, AppExtension, Helper, TestCoin};
 use astroport::asset::AssetInfoExt;
+use astroport::cosmwasm_ext::AbsDiff;
 use astroport::pair_concentrated::ConcentratedPoolParams;
 use astroport_pair_concentrated::error::ContractError;
-use cosmwasm_std::{Addr, Decimal};
+use cosmwasm_std::{Addr, Decimal, Decimal256};
 use proptest::prelude::*;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -76,10 +77,12 @@ fn simulate_case(case: Vec<(usize, u128, u64)>) {
 
 fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128, u64)>) {
     let owner = Addr::unchecked("owner");
-    let tolerance = 0.05; // allowed loss per provide due to integer math withing contract
+    let loss_tolerance = 0.05; // allowed loss per provide due to integer math withing contract
+    let xcp_profit_real_tolerance = Decimal256::raw(100000000); // 1e-10
 
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
 
+    let initial_price_scale = Decimal::one();
     let params = ConcentratedPoolParams {
         amp: f64_to_dec(40f64),
         gamma: f64_to_dec(0.000145),
@@ -88,7 +91,7 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128, u64)>) {
         fee_gamma: f64_to_dec(0.00023),
         repeg_profit_threshold: f64_to_dec(0.000002),
         min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::one(),
+        price_scale: initial_price_scale,
         ma_half_time: 600,
         track_asset_balances: None,
     };
@@ -128,6 +131,17 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128, u64)>) {
             entry.2 += 1;
         }
 
+        let config = helper.query_config().unwrap();
+        if config.pool_state.price_state.price_scale == Decimal256::from(initial_price_scale) {
+            let lp_price = helper.query_lp_price().unwrap();
+            let xcp_profit = config.pool_state.price_state.xcp_profit;
+
+            assert!(
+                lp_price.diff(xcp_profit) <= xcp_profit_real_tolerance,
+                "Virtual lp price {lp_price} should be equal to xcp profit {xcp_profit} until first price repeg"
+            )
+        }
+
         // Shift time so EMA will update oracle prices
         helper.app.next_block(shift_time);
     }
@@ -146,7 +160,7 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128, u64)>) {
         let coin1_bal = helper.coin_balance(&test_coins[1], user) as f64;
         let total_contract_liq = coin0_bal + coin1_bal * price_scale;
 
-        if 1.0 - total_contract_liq / total_sent_liq > tolerance * cnt as f64 {
+        if 1.0 - total_contract_liq / total_sent_liq > loss_tolerance * cnt as f64 {
             assert_eq!(
                 total_sent_liq, total_contract_liq,
                 "Too much losses in {user}'s liquidity"
@@ -403,9 +417,6 @@ fn simulate_mixed_case(cases: Vec<(PclEvent, u64)>) {
 
                     continue;
                 }
-
-                // Shift time so EMA will update oracle prices
-                helper.app.next_block(shift_time);
             }
             PclEvent::Swap { offer_ind, dy } => {
                 let offer_asset = helper.assets[&test_coins[offer_ind]].with_balance(dy);
@@ -427,11 +438,11 @@ fn simulate_mixed_case(cases: Vec<(PclEvent, u64)>) {
 
                     continue;
                 };
-
-                // Shift time so EMA will update oracle prices
-                helper.app.next_block(shift_time);
             }
         }
+
+        // Shift time so EMA will update oracle prices
+        helper.app.next_block(shift_time);
     }
     let config = helper.query_config().unwrap();
     println!("price scale {}", config.pool_state.price_state.price_scale)
