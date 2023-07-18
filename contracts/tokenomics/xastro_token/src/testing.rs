@@ -430,11 +430,12 @@ fn transfer() {
 fn burn() {
     let mut deps = mock_dependencies();
     let addr1 = String::from("addr0001");
+    let minter = String::from("minter");
     let amount1 = Uint128::from(12340000u128);
     let burn = Uint128::from(76543u128);
     let too_much = Uint128::from(12340321u128);
 
-    do_instantiate(deps.as_mut(), &addr1, amount1);
+    do_instantiate_with_minter(deps.as_mut(), &minter, amount1, &minter, None);
 
     // Cannot burn nothing
     let info = mock_info(addr1.as_ref(), &[]);
@@ -449,8 +450,15 @@ fn burn() {
         amount1
     );
 
-    // Cannot burn more than we have
+    // Can burn only from a minter
     let info = mock_info(addr1.as_ref(), &[]);
+    let env = mock_env();
+    let msg = ExecuteMsg::Burn { amount: too_much };
+    let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
+    assert!(matches!(err, ContractError::Unauthorized {}));
+
+    // Cannot burn more than we have
+    let info = mock_info(minter.as_ref(), &[]);
     let env = mock_env();
     let msg = ExecuteMsg::Burn { amount: too_much };
     let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
@@ -461,7 +469,7 @@ fn burn() {
     );
 
     // valid burn reduces total supply
-    let info = mock_info(addr1.as_ref(), &[]);
+    let info = mock_info(minter.as_ref(), &[]);
     let env = test_mock_env(MockEnvParams {
         block_height: 200_000,
         ..Default::default()
@@ -470,9 +478,9 @@ fn burn() {
     execute(deps.as_mut(), env, info, msg).unwrap();
 
     let remainder = amount1.checked_sub(burn).unwrap();
-    assert_eq!(get_balance(deps.as_ref(), addr1.clone()), remainder);
+    assert_eq!(get_balance(deps.as_ref(), minter.clone()), remainder);
     assert_eq!(
-        query_balance_at(deps.as_ref(), addr1, 200_000)
+        query_balance_at(deps.as_ref(), minter, 200_000)
             .unwrap()
             .balance,
         amount1
@@ -579,18 +587,18 @@ fn snapshots_are_taken_and_retrieved_correctly() {
 
     let addr1 = String::from("addr1");
     let addr2 = String::from("addr2");
+    let minter = String::from("minter");
 
     let mut current_total_supply = Uint128::new(100_000);
     let mut current_block = 12_345;
     let mut current_addr1_balance = current_total_supply;
-    let mut current_addr2_balance = Uint128::zero();
+    let mut current_minter_balance = Uint128::zero();
 
-    let minter = String::from("minter");
     do_instantiate_with_minter(deps.as_mut(), &addr1, current_total_supply, &minter, None);
 
     let mut expected_total_supplies = vec![(current_block, current_total_supply)];
     let mut expected_addr1_balances = vec![(current_block, current_addr1_balance)];
-    let mut expected_addr2_balances: Vec<(u64, Uint128)> = vec![];
+    let mut expected_minter_balances: Vec<(u64, Uint128)> = vec![];
 
     // Mint to addr2 3 times
     for _i in 0..3 {
@@ -598,7 +606,7 @@ fn snapshots_are_taken_and_retrieved_correctly() {
 
         let mint_amount = Uint128::new(20_000);
         current_total_supply += mint_amount;
-        current_addr2_balance += mint_amount;
+        current_minter_balance += mint_amount;
 
         let info = mock_info(minter.as_str(), &[]);
         let env = test_mock_env(MockEnvParams {
@@ -607,23 +615,23 @@ fn snapshots_are_taken_and_retrieved_correctly() {
         });
 
         let msg = ExecuteMsg::Mint {
-            recipient: addr2.clone(),
+            recipient: minter.clone(),
             amount: mint_amount,
         };
 
         execute(deps.as_mut(), env, info, msg).unwrap();
 
         expected_total_supplies.push((current_block, current_total_supply));
-        expected_addr2_balances.push((current_block, current_addr2_balance));
+        expected_minter_balances.push((current_block, current_minter_balance));
     }
 
-    // Transfer from addr1 to addr2 4 times
+    // Transfer from addr1 to minter 4 times
     for _i in 0..4 {
         current_block += 60_000;
 
         let transfer_amount = Uint128::new(10_000);
         current_addr1_balance = current_addr1_balance - transfer_amount;
-        current_addr2_balance += transfer_amount;
+        current_minter_balance += transfer_amount;
 
         let info = mock_info(addr1.as_str(), &[]);
         let env = test_mock_env(MockEnvParams {
@@ -632,26 +640,45 @@ fn snapshots_are_taken_and_retrieved_correctly() {
         });
 
         let msg = ExecuteMsg::Transfer {
-            recipient: addr2.clone(),
+            recipient: minter.clone(),
             amount: transfer_amount,
         };
 
         execute(deps.as_mut(), env, info, msg).unwrap();
 
         expected_addr1_balances.push((current_block, current_addr1_balance));
-        expected_addr2_balances.push((current_block, current_addr2_balance));
+        expected_minter_balances.push((current_block, current_minter_balance));
     }
 
-    // Burn from addr2 3 times
+    // Burn is allowed only for a Minter.
+    let info = mock_info(addr2.as_str(), &[]);
+    let env = test_mock_env(MockEnvParams {
+        block_height: current_block,
+        ..Default::default()
+    });
+
+    assert_eq!(
+        execute(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            ExecuteMsg::Burn {
+                amount: Uint128::new(20_000),
+            }
+        )
+        .unwrap_err(),
+        ContractError::Unauthorized {}
+    );
+
+    // Burn from minter 3 times
     for _i in 0..3 {
         current_block += 50_000;
 
         let burn_amount = Uint128::new(20_000);
         current_total_supply = current_total_supply - burn_amount;
-        current_addr2_balance = current_addr2_balance - burn_amount;
+        current_minter_balance = current_minter_balance - burn_amount;
 
-        let info = mock_info(addr2.as_str(), &[]);
-
+        let info = mock_info(minter.as_str(), &[]);
         let env = test_mock_env(MockEnvParams {
             block_height: current_block,
             ..Default::default()
@@ -664,7 +691,7 @@ fn snapshots_are_taken_and_retrieved_correctly() {
         execute(deps.as_mut(), env, info, msg).unwrap();
 
         expected_total_supplies.push((current_block, current_total_supply));
-        expected_addr2_balances.push((current_block, current_addr2_balance));
+        expected_minter_balances.push((current_block, current_minter_balance));
     }
 
     // Check total supply
@@ -723,10 +750,10 @@ fn snapshots_are_taken_and_retrieved_correctly() {
 
     // Check addr2 balances
     let mut balance_previous_value = Uint128::zero();
-    for (block, expected_balance) in expected_addr2_balances {
+    for (block, expected_balance) in expected_minter_balances {
         // Previous block gives previous value
         assert_eq!(
-            query_balance_at(deps.as_ref(), addr2.clone(), block - 10)
+            query_balance_at(deps.as_ref(), minter.clone(), block - 10)
                 .unwrap()
                 .balance,
             balance_previous_value
@@ -734,7 +761,7 @@ fn snapshots_are_taken_and_retrieved_correctly() {
 
         // The current block gives the previous value
         assert_eq!(
-            query_balance_at(deps.as_ref(), addr2.clone(), block)
+            query_balance_at(deps.as_ref(), minter.clone(), block)
                 .unwrap()
                 .balance,
             balance_previous_value
@@ -742,7 +769,7 @@ fn snapshots_are_taken_and_retrieved_correctly() {
 
         // Only the next block still gives expected value
         assert_eq!(
-            query_balance_at(deps.as_ref(), addr2.clone(), block + 1)
+            query_balance_at(deps.as_ref(), minter.clone(), block + 1)
                 .unwrap()
                 .balance,
             expected_balance
@@ -756,7 +783,14 @@ fn snapshots_are_taken_and_retrieved_correctly() {
 fn test_balance_history() {
     let mut deps = mock_dependencies();
     let user1 = mock_info("user1", &[]);
-    do_instantiate(deps.as_mut(), user1.sender.as_str(), Uint128::new(1_000));
+    let minter = mock_info("minter", &[]);
+    do_instantiate_with_minter(
+        deps.as_mut(),
+        user1.sender.as_str(),
+        Uint128::new(1_000),
+        &String::from("minter"),
+        None,
+    );
 
     // Test transfer_from
     let mut env = mock_env();
@@ -783,40 +817,22 @@ fn test_balance_history() {
     )
     .unwrap();
 
-    assert_eq!(
-        query_balance_at(deps.as_ref(), user1.sender.to_string(), env.block.height).unwrap(),
-        BalanceResponse {
-            balance: Uint128::new(1000)
-        }
-    );
-    assert_eq!(
-        query_balance_at(deps.as_ref(), user2.sender.to_string(), env.block.height).unwrap(),
-        BalanceResponse {
-            balance: Uint128::new(0)
-        }
-    );
-    assert_eq!(
-        query_balance(deps.as_ref(), user1.sender.to_string()).unwrap(),
-        BalanceResponse {
-            balance: Uint128::new(999)
-        }
-    );
-    assert_eq!(
-        query_balance(deps.as_ref(), user2.sender.to_string()).unwrap(),
-        BalanceResponse {
-            balance: Uint128::new(1)
-        }
-    );
+    execute_increase_allowance(
+        deps.as_mut(),
+        env.clone(),
+        user1.clone(),
+        minter.sender.to_string(),
+        Uint128::new(1000),
+        None,
+    )
+    .unwrap();
 
-    // Test burn_from
-    let mut env = mock_env();
-    env.block.height += 2;
-
-    execute_burn_from(
+    execute_transfer_from(
         deps.as_mut(),
         env.clone(),
         user2.clone(),
         user1.sender.to_string(),
+        minter.sender.to_string(),
         Uint128::new(1),
     )
     .unwrap();
@@ -824,13 +840,13 @@ fn test_balance_history() {
     assert_eq!(
         query_balance_at(deps.as_ref(), user1.sender.to_string(), env.block.height).unwrap(),
         BalanceResponse {
-            balance: Uint128::new(999)
+            balance: Uint128::new(1000)
         }
     );
     assert_eq!(
-        query_balance_at(deps.as_ref(), user2.sender.to_string(), env.block.height).unwrap(),
+        query_balance_at(deps.as_ref(), minter.sender.to_string(), env.block.height).unwrap(),
         BalanceResponse {
-            balance: Uint128::new(1)
+            balance: Uint128::new(0)
         }
     );
     assert_eq!(
@@ -840,7 +856,57 @@ fn test_balance_history() {
         }
     );
     assert_eq!(
-        query_balance(deps.as_ref(), user2.sender.to_string()).unwrap(),
+        query_balance(deps.as_ref(), minter.sender.to_string()).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(1)
+        }
+    );
+
+    // Test burn_from
+    let mut env = mock_env();
+    env.block.height += 2;
+
+    // Try burn from user2
+    let err = execute_burn_from(
+        deps.as_mut(),
+        env.clone(),
+        user2.clone(),
+        user1.sender.to_string(),
+        Uint128::new(1),
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::Unauthorized {});
+
+    // Try burn from minter
+    execute_burn_from(
+        deps.as_mut(),
+        env.clone(),
+        minter.clone(),
+        user1.sender.to_string(),
+        Uint128::new(1),
+    )
+    .unwrap();
+
+    assert_eq!(
+        query_balance_at(deps.as_ref(), user1.sender.to_string(), env.block.height).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(998)
+        }
+    );
+    assert_eq!(
+        query_balance_at(deps.as_ref(), minter.sender.to_string(), env.block.height).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(1)
+        }
+    );
+    assert_eq!(
+        query_balance(deps.as_ref(), user1.sender.to_string()).unwrap(),
+        BalanceResponse {
+            balance: Uint128::new(997)
+        }
+    );
+    assert_eq!(
+        query_balance(deps.as_ref(), minter.sender.to_string()).unwrap(),
         BalanceResponse {
             balance: Uint128::new(1)
         }
@@ -864,7 +930,7 @@ fn test_balance_history() {
     assert_eq!(
         query_balance_at(deps.as_ref(), user1.sender.to_string(), env.block.height).unwrap(),
         BalanceResponse {
-            balance: Uint128::new(998)
+            balance: Uint128::new(997)
         }
     );
     assert_eq!(
@@ -887,7 +953,7 @@ fn test_balance_history() {
     assert_eq!(
         query_balance(deps.as_ref(), user1.sender.to_string()).unwrap(),
         BalanceResponse {
-            balance: Uint128::new(997)
+            balance: Uint128::new(996)
         }
     );
     assert_eq!(
@@ -909,6 +975,7 @@ fn test_balance_history() {
         AllAccountsResponse {
             accounts: vec![
                 MOCK_CONTRACT_ADDR.to_string(),
+                minter.sender.to_string(),
                 user1.sender.to_string(),
                 user2.sender.to_string(),
             ]

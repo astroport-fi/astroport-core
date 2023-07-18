@@ -57,7 +57,7 @@ pub fn migrate(
             let contract_info = cw2::get_contract_version(deps.storage)?;
             match contract_info.contract.as_str() {
                 CONTRACT_NAME => match contract_info.version.as_str() {
-                    "2.0.0" => {}
+                    "2.0.0" | "2.0.2" => {}
                     _ => {
                         return Err(StdError::generic_err(format!(
                             "Can't migrate from {} {}",

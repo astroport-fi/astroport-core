@@ -18,7 +18,6 @@ use crate::pair::QueryMsg as PairQueryMsg;
 use crate::querier::{
     query_balance, query_token_balance, query_token_precision, query_token_symbol,
 };
-use crate::token::is_valid_symbol;
 
 /// UST token denomination
 pub const UUSD_DENOM: &str = "uusd";
@@ -27,7 +26,7 @@ pub const ULUNA_DENOM: &str = "uluna";
 /// Minimum initial LP share
 pub const MINIMUM_LIQUIDITY_AMOUNT: Uint128 = Uint128::new(1_000);
 /// Maximum denom length
-pub const DENOM_MAX_LENGTH: usize = 60;
+pub const DENOM_MAX_LENGTH: usize = 128;
 
 /// This enum describes a Terra asset (native or CW20).
 #[cw_serde]
@@ -316,11 +315,7 @@ impl AssetInfo {
                 api.addr_validate(contract_addr.as_str())?;
             }
             AssetInfo::NativeToken { denom } => {
-                if !is_valid_symbol(denom, Some(DENOM_MAX_LENGTH)) {
-                    return Err(StdError::generic_err(format!(
-                        "Native denom is not in expected format [a-zA-Z\\-][3,{DENOM_MAX_LENGTH}]: {denom}",
-                    )));
-                }
+                validate_native_denom(denom)?;
             }
         }
 
@@ -333,9 +328,9 @@ impl AssetInfo {
 /// and starts with a letter, followed but either a letter, number, or separator ( ‘/' , ‘:' , ‘.’ , ‘_’ , or '-')
 /// reference: https://github.com/cosmos/cosmos-sdk/blob/7728516abfab950dc7a9120caad4870f1f962df5/types/coin.go#L865-L867
 pub fn validate_native_denom(denom: &str) -> StdResult<()> {
-    if denom.len() < 3 || denom.len() > 128 {
+    if denom.len() < 3 || denom.len() > DENOM_MAX_LENGTH {
         return Err(StdError::generic_err(format!(
-            "Invalid denom length: {denom}"
+            "Invalid denom length [3,{DENOM_MAX_LENGTH}]: {denom}"
         )));
     }
 
@@ -718,7 +713,10 @@ mod tests {
     #[test]
     fn native_denom_validation() {
         let err = validate_native_denom("ab").unwrap_err();
-        assert_eq!(err, StdError::generic_err("Invalid denom length: ab"));
+        assert_eq!(
+            err,
+            StdError::generic_err("Invalid denom length [3,128]: ab")
+        );
         let err = validate_native_denom("1usd").unwrap_err();
         assert_eq!(
             err,
@@ -735,7 +733,7 @@ mod tests {
         let err = validate_native_denom(&long_denom).unwrap_err();
         assert_eq!(
             err,
-            StdError::generic_err("Invalid denom length: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+            StdError::generic_err("Invalid denom length [3,128]: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         );
 
         validate_native_denom("uusd").unwrap();

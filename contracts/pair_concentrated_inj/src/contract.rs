@@ -610,21 +610,17 @@ fn withdraw_liquidity(
         &precisions,
         None,
     )?;
-    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
 
-    let burn_amount;
-    let refund_assets;
+    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
     let mut response = Response::new();
     let mut messages = vec![];
 
-    if assets.is_empty() {
+    let refund_assets = if assets.is_empty() {
         // Usual withdraw (balanced)
-        burn_amount = amount;
-        refund_assets =
-            get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share)?;
+        get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share)?
     } else {
         return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
-    }
+    };
 
     let contract_balances =
         query_contract_balances(deps.querier, &env.contract.address, &config, &precisions)?;
@@ -652,7 +648,7 @@ fn withdraw_liquidity(
     let d = calc_d(&xs, &amp_gamma)?;
     config.pool_state.price_state.xcp_profit_real =
         get_xcp(d, config.pool_state.price_state.price_scale)
-            / (total_share - burn_amount).to_decimal256(LP_TOKEN_PRECISION)?;
+            / (total_share - amount).to_decimal256(LP_TOKEN_PRECISION)?;
 
     let refund_assets = refund_assets
         .into_iter()
@@ -676,9 +672,7 @@ fn withdraw_liquidity(
     messages.push(
         wasm_execute(
             &config.pair_info.liquidity_token,
-            &Cw20ExecuteMsg::Burn {
-                amount: burn_amount,
-            },
+            &Cw20ExecuteMsg::Burn { amount },
             vec![],
         )?
         .into(),

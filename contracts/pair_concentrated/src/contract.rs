@@ -331,21 +331,24 @@ fn receive_cw20(
             check_cw20_in_pool(&config, &info.sender)?;
 
             let to_addr = addr_opt_validate(deps.api, &to)?;
-            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
             swap(
                 deps,
                 env,
-                sender,
+                Addr::unchecked(cw20_msg.sender),
                 token_asset(info.sender, cw20_msg.amount),
                 belief_price,
                 max_spread,
                 to_addr,
             )
         }
-        Cw20HookMsg::WithdrawLiquidity { assets } => {
-            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
-            withdraw_liquidity(deps, env, info, sender, cw20_msg.amount, assets)
-        }
+        Cw20HookMsg::WithdrawLiquidity { assets } => withdraw_liquidity(
+            deps,
+            env,
+            info,
+            Addr::unchecked(cw20_msg.sender),
+            cw20_msg.amount,
+            assets,
+        ),
     }
 }
 
@@ -608,20 +611,16 @@ fn withdraw_liquidity(
         &config,
         &precisions,
     )?;
-    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
 
-    let burn_amount;
-    let refund_assets;
+    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
     let mut messages = vec![];
 
-    if assets.is_empty() {
+    let refund_assets = if assets.is_empty() {
         // Usual withdraw (balanced)
-        burn_amount = amount;
-        refund_assets =
-            get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share);
+        get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share)
     } else {
         return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
-    }
+    };
 
     // decrease XCP
     let mut xs = pools.iter().map(|a| a.amount).collect_vec();
@@ -633,7 +632,7 @@ fn withdraw_liquidity(
     let d = calc_d(&xs, &amp_gamma)?;
     config.pool_state.price_state.xcp_profit_real =
         get_xcp(d, config.pool_state.price_state.price_scale)
-            / (total_share - burn_amount).to_decimal256(LP_TOKEN_PRECISION)?;
+            / (total_share - amount).to_decimal256(LP_TOKEN_PRECISION)?;
 
     let refund_assets = refund_assets
         .into_iter()
@@ -657,9 +656,7 @@ fn withdraw_liquidity(
     messages.push(
         wasm_execute(
             &config.pair_info.liquidity_token,
-            &Cw20ExecuteMsg::Burn {
-                amount: burn_amount,
-            },
+            &Cw20ExecuteMsg::Burn { amount },
             vec![],
         )?
         .into(),
@@ -896,7 +893,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
             "1.0.0" | "1.1.0" | "1.1.1" | "1.1.2" => migrate_config(deps.storage)?,
             "1.1.4" => migrate_config_from_v114(deps.storage)?,
             "1.2.0" | "1.2.1" | "1.2.2" => migrate_config_from_v120(deps.storage)?,
-            "2.0.0" | "2.0.1" => {}
+            "2.0.0" | "2.0.1" | "2.0.2" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

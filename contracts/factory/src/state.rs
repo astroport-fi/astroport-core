@@ -112,7 +112,7 @@ pub(crate) fn check_asset_infos(
 /// Stores the latest contract ownership transfer proposal
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
-/// Stores pairs to migrate
+/// This state key isn't used anymore but left for backward compatability with old pairs
 pub const PAIRS_TO_MIGRATE: Item<Vec<Addr>> = Item::new("pairs_to_migrate");
 
 #[cfg(test)]

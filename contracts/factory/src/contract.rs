@@ -3,16 +3,14 @@ use std::collections::HashSet;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order,
-    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, WasmMsg,
+    attr, from_binary, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Reply,
+    ReplyOn, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw_utils::parse_instantiate_response_data;
 
 use astroport::asset::{addr_opt_validate, AssetInfo, PairInfo};
-use astroport::common::{
-    claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
-};
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{
     Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig,
     PairType, PairsResponse, QueryMsg,
@@ -27,7 +25,7 @@ use crate::migration::{migrate_configs, migrate_pair_configs};
 use crate::querier::query_pair_info;
 use crate::state::{
     check_asset_infos, pair_key, read_pairs, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS,
-    PAIRS_TO_MIGRATE, PAIR_CONFIGS, TMP_PAIR_INFO,
+    PAIR_CONFIGS, TMP_PAIR_INFO,
 };
 
 /// Contract name that is used for migration.
@@ -124,8 +122,6 @@ pub struct UpdateConfig {
 /// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
 ///
 /// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership.
-///
-/// * **ExecuteMsg::MarkAsMigrated {}** Mark pairs as migrated.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -179,13 +175,6 @@ pub fn execute(
                 .map_err(Into::into)
         }
         ExecuteMsg::ClaimOwnership {} => {
-            let pairs = PAIRS
-                .range(deps.storage, None, None, Order::Ascending)
-                .map(|pair| -> StdResult<Addr> { Ok(pair?.1) })
-                .collect::<StdResult<Vec<_>>>()?;
-
-            PAIRS_TO_MIGRATE.save(deps.storage, &pairs)?;
-
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
                 CONFIG
                     .update::<_, StdError>(deps.storage, |mut v| {
@@ -196,7 +185,6 @@ pub fn execute(
             })
             .map_err(Into::into)
         }
-        ExecuteMsg::MarkAsMigrated { pairs } => execute_mark_pairs_as_migrated(deps, info, pairs),
     }
 }
 
@@ -339,33 +327,6 @@ pub fn execute_create_pair(
         ]))
 }
 
-/// Marks specified pairs as migrated to the new admin.
-///
-/// * **pairs** is a vector of pairs which should be marked as transferred.
-fn execute_mark_pairs_as_migrated(
-    deps: DepsMut,
-    info: MessageInfo,
-    pairs: Vec<String>,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let pairs = validate_addresses(deps.api, &pairs)?;
-
-    let not_migrated: Vec<Addr> = PAIRS_TO_MIGRATE
-        .load(deps.storage)?
-        .into_iter()
-        .filter(|addr| !pairs.contains(addr))
-        .collect();
-
-    PAIRS_TO_MIGRATE.save(deps.storage, &not_migrated)?;
-
-    Ok(Response::new().add_attribute("action", "execute_mark_pairs_as_migrated"))
-}
-
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
@@ -453,8 +414,6 @@ pub fn deregister(
 /// * **QueryMsg::FeeInfo { pair_type }** Returns the fee structure (total and maker fees) for a specific pair type.
 ///
 /// * **QueryMsg::BlacklistedPairTypes {}** Returns a vector that contains blacklisted pair types (pair types that cannot get ASTRO emissions).
-///
-/// * **QueryMsg::PairsToMigrate {}** Returns a vector that contains pair addresses that are not migrated.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -465,9 +424,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::FeeInfo { pair_type } => to_binary(&query_fee_info(deps, pair_type)?),
         QueryMsg::BlacklistedPairTypes {} => to_binary(&query_blacklisted_pair_types(deps)?),
-        QueryMsg::PairsToMigrate {} => {
-            to_binary(&PAIRS_TO_MIGRATE.may_load(deps.storage)?.unwrap_or_default())
-        }
     }
 }
 
@@ -556,7 +512,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
                 let msg: migration::MigrationMsg = from_binary(&msg.params)?;
                 migrate_configs(&mut deps, &msg)?;
             }
-            "1.3.0" => {}
+            "1.3.0" | "1.5.1" => {}
             "1.3.1" | "1.5.0" => {
                 migrate_pair_configs(deps.storage)?;
             }
