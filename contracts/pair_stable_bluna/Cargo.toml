@@ -33,7 +33,7 @@ schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }
 protobuf = { version = "2", features = ["with-bytes"] }
-classic-bindings = "0.1.1"
+classic-bindings = { version = "0.2.0", features = ["stargate"] }
 
 [dev-dependencies]
 proptest = "1.0.0"
@@ -42,6 +42,6 @@ cosmwasm-vm = { version = "1.1" }
 cosmwasm-schema = "1.1"
 astroport-token = {path = "../token"}
 cw-multi-test = "0.15"
-classic-test-tube = {version = "0.1.0", git = "https://github.com/classic-terra/classic-rust.git", package = "classic-test-tube", rev = "2b3571f272b54acd2119a33706f4abccdaa9f5dd"}
+classic-test-tube = { version = "0.1.0" }
 astroport-factory = {path = "../factory"}
 astroport-whitelist = {path = "../whitelist"}

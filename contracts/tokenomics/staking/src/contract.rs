@@ -17,7 +17,7 @@ use astroport::asset::addr_validate_to_lower;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use protobuf::Message;
 
-use classic_bindings::TerraQuery;
+
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-staking";
@@ -45,7 +45,7 @@ const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters for creating the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps:DepsMut<TerraQuery>,
+    deps:DepsMut,
     env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -105,7 +105,7 @@ pub fn instantiate(
 /// it depending on the received template.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps:DepsMut<TerraQuery>,
+    deps:DepsMut,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -124,7 +124,7 @@ pub fn execute(
 ///
 /// * **msg** is an object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps:DepsMut<TerraQuery>, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps:DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
     if config.xastro_token_addr != Addr::unchecked("") {
@@ -158,7 +158,7 @@ pub fn reply(deps:DepsMut<TerraQuery>, _env: Env, msg: Reply) -> Result<Response
 ///
 /// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
 fn receive_cw20(
-    deps:DepsMut<TerraQuery>,
+    deps:DepsMut,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
@@ -236,7 +236,7 @@ fn receive_cw20(
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **config** is an object of type [`Config`]. This is the staking contract configuration.
-pub fn get_total_shares(deps:Deps<TerraQuery>, config: Config) -> StdResult<Uint128> {
+pub fn get_total_shares(deps:Deps, config: Config) -> StdResult<Uint128> {
     let result: TokenInfoResponse = deps
         .querier
         .query_wasm_smart(&config.xastro_token_addr, &Cw20QueryMsg::TokenInfo {})?;
@@ -252,7 +252,7 @@ pub fn get_total_shares(deps:Deps<TerraQuery>, config: Config) -> StdResult<Uint
 /// * **env** is an object of type [`Env`].
 ///
 /// * **config** is an object of type [`Config`]. This is the staking contract configuration.
-pub fn get_total_deposit(deps:Deps<TerraQuery>, env: Env, config: Config) -> StdResult<Uint128> {
+pub fn get_total_deposit(deps:Deps, env: Env, config: Config) -> StdResult<Uint128> {
     let result: BalanceResponse = deps.querier.query_wasm_smart(
         &config.astro_token_addr,
         &Cw20QueryMsg::Balance {
@@ -278,7 +278,7 @@ pub fn get_total_deposit(deps:Deps<TerraQuery>, env: Env, config: Config) -> Std
 ///
 /// * **QueryMsg::Config {}** Returns the amount of ASTRO that's currently in the staking pool using a [`Uint128`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps:Deps<TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps:Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let config = CONFIG.load(deps.storage)?;
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&ConfigResponse {

@@ -10,7 +10,7 @@ use astroport::pair::ExecuteMsg as PairExecuteMsg;
 use astroport::querier::{query_balance, query_pair_info, query_token_balance};
 use astroport::router::SwapOperation;
 use cw20::Cw20ExecuteMsg;
-use classic_bindings::{TerraMsg, TerraQuery};
+use classic_bindings::TerraMsg;
 
 /// ## Description
 /// Execute swap operation. Swap all offer asset to ask asset.
@@ -27,7 +27,7 @@ use classic_bindings::{TerraMsg, TerraQuery};
 ///
 /// * **to** is the object of type [`Option<String>`].
 pub fn execute_swap_operation(
-    deps: DepsMut<TerraQuery>,
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
     operation: SwapOperation,
@@ -125,7 +125,7 @@ pub fn execute_swap_operation(
 ///
 /// * **to** is the object of type [`Option<String>`].
 pub fn asset_into_swap_msg(
-    deps: DepsMut<TerraQuery>,
+    deps: DepsMut,
     pair_contract: String,
     offer_asset: Asset,
     max_spread: Option<Decimal>,

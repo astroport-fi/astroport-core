@@ -29,7 +29,8 @@ cosmwasm-std = "1.1"
 cw-storage-plus = {version = "0.15"}
 integer-sqrt = "0.1.5"
 astroport = { path = "../../packages/astroport", default-features = false }
-classic-bindings = "0.1.1"
+classic-bindings = { version = "0.2.0", features = ["stargate"] }
+classic-rust = "0.1.0"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }

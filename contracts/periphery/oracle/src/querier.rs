@@ -2,7 +2,6 @@ use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::QueryMsg as FactoryQueryMsg;
 use astroport::pair::{CumulativePricesResponse, QueryMsg as PairQueryMsg, SimulationResponse};
 use cosmwasm_std::{to_binary, Addr, QuerierWrapper, QueryRequest, StdResult, WasmQuery};
-use classic_bindings::TerraQuery;
 
 /// ## Description
 /// Returns information about the pair in a [`PairInfo`] object.
@@ -13,7 +12,7 @@ use classic_bindings::TerraQuery;
 ///
 /// * **asset_infos** is array with two items the type of [`AssetInfo`].
 pub fn query_pair_info(
-    querier: &QuerierWrapper<TerraQuery>,
+    querier: &QuerierWrapper,
     factory_contract: Addr,
     asset_infos: [AssetInfo; 2],
 ) -> StdResult<PairInfo> {
@@ -30,7 +29,7 @@ pub fn query_pair_info(
 ///
 /// * **pair_contract** is the object of type [`Addr`].
 pub fn query_cumulative_prices(
-    querier: &QuerierWrapper<TerraQuery>,
+    querier: &QuerierWrapper,
     pair_contract: Addr,
 ) -> StdResult<CumulativePricesResponse> {
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -48,7 +47,7 @@ pub fn query_cumulative_prices(
 ///
 /// * **asset** is the object of type [`Asset`].
 pub fn query_prices(
-    querier: &QuerierWrapper<TerraQuery>,
+    querier: &QuerierWrapper,
     pair_contract: Addr,
     asset: Asset,
 ) -> StdResult<SimulationResponse> {

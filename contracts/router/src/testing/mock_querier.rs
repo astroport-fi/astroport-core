@@ -1,19 +1,22 @@
+use classic_rust::types::terra::market::v1beta1::QuerySwapRequest;
+use classic_rust::types::terra::treasury::v1beta1::{QueryTaxRateRequest, QueryTaxCapRequest};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Addr, Binary, Coin, ContractResult, Decimal, OwnedDeps,
-    Querier, QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
+    Querier, QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery, Empty,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::str::FromStr;
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
 use astroport::pair::SimulationResponse;
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 use classic_bindings::{
-    SwapResponse, TaxCapResponse, TaxRateResponse, TerraQuery,
+    SwapResponse, TaxCapResponse, TaxRateResponse
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -27,7 +30,7 @@ pub enum QueryMsg {
 /// this uses our CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
-) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery> {
+) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier, Empty> {
     let custom_querier: WasmMockQuerier =
         WasmMockQuerier::new(MockQuerier::new(&[(MOCK_CONTRACT_ADDR, contract_balance)]));
 
@@ -40,7 +43,7 @@ pub fn mock_dependencies(
 }
 
 pub struct WasmMockQuerier {
-    base: MockQuerier<TerraQuery>,
+    base: MockQuerier,
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
     astroport_factory_querier: AstroportFactoryQuerier,
@@ -123,7 +126,7 @@ pub(crate) fn pairs_to_map(pairs: &[(&String, &String)]) -> HashMap<String, Stri
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
         // MockQuerier doesn't support Custom, so we ignore it completely here
-        let request: QueryRequest<TerraQuery> = match from_slice(bin_request) {
+        let request: QueryRequest<Empty> = match from_slice(bin_request) {
             Ok(v) => v,
             Err(e) => {
                 return SystemResult::Err(SystemError::InvalidRequest {
@@ -143,33 +146,39 @@ pub enum MockQueryMsg {
 }
 
 impl WasmMockQuerier {
-    pub fn handle_query(&self, request: &QueryRequest<TerraQuery>) -> QuerierResult {
+    pub fn handle_query(&self, request: &QueryRequest<Empty>) -> QuerierResult {
         match &request {
-            QueryRequest::Custom(TerraQuery::TaxRate {}) => {
-                let res = TaxRateResponse {
-                    rate: self.tax_querier.rate,
-                };
-                SystemResult::Ok(ContractResult::from(to_binary(&res)))
-            },
-            QueryRequest::Custom(TerraQuery::TaxCap { denom }) => {
-                let cap = self
-                    .tax_querier
-                    .caps
-                    .get(denom)
-                    .copied()
-                    .unwrap_or_default();
-                let res = TaxCapResponse { cap };
-                SystemResult::Ok(ContractResult::from(to_binary(&res)))
-            },
-            QueryRequest::Custom(TerraQuery::Swap {
-                offer_coin,
-                ask_denom: _,
-            }) => {
-                let res = SwapResponse {
-                    receive: offer_coin.clone(),
-                };
-                SystemResult::Ok(ContractResult::from(to_binary(&res)))
-            },
+            QueryRequest::Stargate { path, data } => {
+                match path.as_str() {
+                    QueryTaxRateRequest::TYPE_URL => {
+                        let res = TaxRateResponse {
+                            rate: self.tax_querier.rate,
+                        };
+                        SystemResult::Ok(to_binary(&res).into())
+                    }
+                    QueryTaxCapRequest::TYPE_URL => {
+                        let req : QueryTaxCapRequest = Binary::try_into(data.clone()).unwrap();
+
+                        let cap = self
+                            .tax_querier
+                            .caps
+                            .get(&req.denom)
+                            .copied()
+                            .unwrap_or_default();
+                        let res = TaxCapResponse { cap };
+                        SystemResult::Ok(to_binary(&res).into())
+                    }
+                    QuerySwapRequest::TYPE_URL => {
+                        let req : QuerySwapRequest = Binary::try_into(data.clone()).unwrap();
+
+                        let res = SwapResponse {
+                            receive: Coin::from_str(&req.offer_coin).unwrap()
+                        };
+                        SystemResult::Ok(ContractResult::from(to_binary(&res)))
+                    }
+                    _ => panic!("NO SUCH REQUEST")
+                }
+            }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if contract_addr.to_string().starts_with("token")
                     || contract_addr.to_string().starts_with("asset")
@@ -267,7 +276,7 @@ impl WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn new(base: MockQuerier<TerraQuery>) -> Self {
+    pub fn new(base: MockQuerier) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),

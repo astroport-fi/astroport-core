@@ -12,8 +12,6 @@ use cw20_base::ContractError;
 use astroport::asset::addr_validate_to_lower;
 use astroport::token::{InstantiateMsg, MigrateMsg};
 
-use classic_bindings::TerraQuery;
-
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-token";
 /// Contract version that is used for migration.
@@ -182,7 +180,7 @@ pub fn query(deps:Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 ///
 /// * **msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps:DepsMut<TerraQuery>, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps:DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     let migration_error = Err(StdError::generic_err(format!(

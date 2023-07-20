@@ -1,4 +1,4 @@
-use classic_bindings::TerraQuery;
+
 use cosmwasm_std::testing::{mock_env, mock_info, MockStorage, MockApi, MockQuerier};
 use cosmwasm_std::{from_binary, Addr, Decimal, Uint128, Uint64, OwnedDeps};
 
@@ -8,7 +8,7 @@ use astroport::maker::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use std::marker::PhantomData;
 use std::str::FromStr;
 
-pub fn mock_dependencies() -> OwnedDeps<MockStorage, MockApi, MockQuerier, TerraQuery> {
+pub fn mock_dependencies() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
     OwnedDeps {
         storage: MockStorage::default(),
         api: MockApi::default(),

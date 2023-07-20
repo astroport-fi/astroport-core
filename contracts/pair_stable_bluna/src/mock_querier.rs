@@ -8,10 +8,10 @@ use std::collections::HashMap;
 use astroport::factory::QueryMsg::{Config, FeeInfo};
 use astroport::factory::{ConfigResponse, FeeInfoResponse};
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
-use classic_bindings::{TaxCapResponse, TaxRateResponse, TerraQuery};
+use classic_bindings::{TaxCapResponse, TaxRateResponse, Empty};
 
 pub struct WasmMockQuerier {
-    base: MockQuerier<TerraQueryWrapper>,
+    base: MockQuerier<EmptyWrapper>,
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
 }
@@ -72,7 +72,7 @@ pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint1
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
         // MockQuerier doesn't support Custom, so we ignore it completely here
-        let request: QueryRequest<TerraQueryWrapper> = match from_slice(bin_request) {
+        let request: QueryRequest<EmptyWrapper> = match from_slice(bin_request) {
             Ok(v) => v,
             Err(e) => {
                 return SystemResult::Err(SystemError::InvalidRequest {
@@ -86,18 +86,18 @@ impl Querier for WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
+    pub fn handle_query(&self, request: &QueryRequest<EmptyWrapper>) -> QuerierResult {
         match &request {
-            QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
+            QueryRequest::Custom(EmptyWrapper { route, query_data }) => {
                 if route == &TerraRoute::Treasury {
                     match query_data {
-                        TerraQuery::TaxRate {} => {
+                        Empty::TaxRate {} => {
                             let res = TaxRateResponse {
                                 rate: self.tax_querier.rate,
                             };
                             SystemResult::Ok(to_binary(&res).into())
                         }
-                        TerraQuery::TaxCap { denom } => {
+                        Empty::TaxCap { denom } => {
                             let cap = self
                                 .tax_querier
                                 .caps
@@ -194,7 +194,7 @@ impl WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn new(base: MockQuerier<TerraQueryWrapper>) -> Self {
+    pub fn new(base: MockQuerier<EmptyWrapper>) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),

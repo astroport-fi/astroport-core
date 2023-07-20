@@ -25,8 +25,6 @@ use cw_storage_plus::Bound;
 
 use astroport::xastro_token::{InstantiateMsg, MigrateMsg, QueryMsg};
 
-use classic_bindings::TerraQuery;
-
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-xastro-token";
 /// Contract version that is used for migration.
@@ -804,7 +802,7 @@ pub fn query_all_accounts(
 ///
 /// * **msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps:DepsMut<TerraQuery>, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps:DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     let migration_error = Err(StdError::generic_err(format!(

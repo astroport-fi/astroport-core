@@ -1,7 +1,8 @@
+use classic_rust::types::terra::treasury::v1beta1::{QueryTaxRateRequest, QueryTaxCapRequest};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Addr, Coin, Decimal, OwnedDeps, Querier, QuerierResult,
-    QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
+    QueryRequest, SystemError, SystemResult, Uint128, WasmQuery, Empty, Binary,
 };
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -9,13 +10,13 @@ use std::marker::PhantomData;
 use astroport::factory::FeeInfoResponse;
 use astroport::factory::QueryMsg::FeeInfo;
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
-use classic_bindings::{TaxCapResponse, TaxRateResponse, TerraQuery};
+use classic_bindings::{TaxCapResponse, TaxRateResponse};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
-) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery> {
+) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier, Empty> {
     let custom_querier: WasmMockQuerier =
         WasmMockQuerier::new(MockQuerier::new(&[(MOCK_CONTRACT_ADDR, contract_balance)]));
 
@@ -28,7 +29,7 @@ pub fn mock_dependencies(
 }
 
 pub struct WasmMockQuerier {
-    base: MockQuerier<TerraQuery>,
+    base: MockQuerier,
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
 }
@@ -89,7 +90,7 @@ pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint1
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
         // MockQuerier doesn't support Custom, so we ignore it completely here
-        let request: QueryRequest<TerraQuery> = match from_slice(bin_request) {
+        let request: QueryRequest<Empty> = match from_slice(bin_request) {
             Ok(v) => v,
             Err(e) => {
                 return SystemResult::Err(SystemError::InvalidRequest {
@@ -103,23 +104,30 @@ impl Querier for WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn handle_query(&self, request: &QueryRequest<TerraQuery>) -> QuerierResult {
+    pub fn handle_query(&self, request: &QueryRequest<Empty>) -> QuerierResult {
         match &request {
-            QueryRequest::Custom(TerraQuery::TaxRate {}) => {
-                let res = TaxRateResponse {
-                    rate: self.tax_querier.rate,
-                };
-                SystemResult::Ok(to_binary(&res).into())
-            },
-            QueryRequest::Custom(TerraQuery::TaxCap {denom}) => {
-                let cap = self
-                    .tax_querier
-                    .caps
-                    .get(denom)
-                    .copied()
-                    .unwrap_or_default();
-                let res = TaxCapResponse { cap };
-                SystemResult::Ok(to_binary(&res).into())
+            QueryRequest::Stargate { path, data } => {
+                match path.as_str() {
+                    QueryTaxRateRequest::TYPE_URL => {
+                        let res = TaxRateResponse {
+                            rate: self.tax_querier.rate,
+                        };
+                        SystemResult::Ok(to_binary(&res).into())
+                    }
+                    QueryTaxCapRequest::TYPE_URL => {
+                        let req : QueryTaxCapRequest = Binary::try_into(data.clone()).unwrap();
+
+                        let cap = self
+                            .tax_querier
+                            .caps
+                            .get(&req.denom)
+                            .copied()
+                            .unwrap_or_default();
+                        let res = TaxCapResponse { cap };
+                        SystemResult::Ok(to_binary(&res).into())
+                    }
+                    _ => panic!("NO SUCH REQUEST")
+                }
             }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if contract_addr == "factory" {
@@ -191,7 +199,7 @@ impl WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn new(base: MockQuerier<TerraQuery>) -> Self {
+    pub fn new(base: MockQuerier) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),

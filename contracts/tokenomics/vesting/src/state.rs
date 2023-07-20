@@ -5,7 +5,6 @@ use astroport::common::OwnershipProposal;
 use astroport::vesting::{OrderBy, VestingInfo};
 use cosmwasm_std::{Addr, Deps, StdResult};
 use cw_storage_plus::{Bound, Item, Map};
-use classic_bindings::TerraQuery;
 
 /// ## Description
 /// This structure describes the main control config of vesting contract.
@@ -44,7 +43,7 @@ const DEFAULT_LIMIT: u32 = 10;
 ///
 /// * **order_by** is an [`Option`] field of type [`OrderBy`].
 pub fn read_vesting_infos(
-    deps:Deps<TerraQuery>,
+    deps:Deps,
     start_after: Option<Addr>,
     limit: Option<u32>,
     order_by: Option<OrderBy>,
@@ -73,27 +72,14 @@ pub fn read_vesting_infos(
 
 #[cfg(test)]
 mod tests {
-    use std::marker::PhantomData;
-
     use astroport::vesting::{VestingInfo, OrderBy};
-    use classic_bindings::TerraQuery;
-    use cosmwasm_std::{Addr, OwnedDeps, testing::{MockStorage, MockApi, MockQuerier}};
+    
+    use cosmwasm_std::{Addr, testing::mock_dependencies, Uint128};
 
     use crate::state::{VESTING_INFO, read_vesting_infos};
 
-    fn mock_dependencies() -> OwnedDeps<MockStorage, MockApi, MockQuerier, TerraQuery> {
-        OwnedDeps {
-            storage: MockStorage::default(),
-            api: MockApi::default(),
-            querier: MockQuerier::default(),
-            custom_query_type: PhantomData,
-        }
-    }
-
     #[test]
     fn read_vesting_infos_as_expected() {
-        use cosmwasm_std::{Uint128};
-
         let mut deps = mock_dependencies();
 
         let vi_mock = VestingInfo {

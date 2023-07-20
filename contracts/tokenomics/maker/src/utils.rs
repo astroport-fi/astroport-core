@@ -5,7 +5,7 @@ use astroport::maker::ExecuteMsg;
 use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_pair_info;
 use cosmwasm_std::{to_binary, Coin, Deps, Env, StdResult, SubMsg, Uint128, WasmMsg};
-use classic_bindings::TerraQuery;
+
 
 /// The default bridge depth for a fee token
 pub const BRIDGES_INITIAL_DEPTH: u64 = 0;
@@ -15,7 +15,7 @@ pub const BRIDGES_MAX_DEPTH: u64 = 2;
 pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 3;
 
 pub fn try_build_swap_msg(
-    deps: Deps<TerraQuery>,
+    deps: Deps,
     cfg: &Config,
     from: AssetInfo,
     to: AssetInfo,
@@ -27,7 +27,7 @@ pub fn try_build_swap_msg(
 }
 
 pub fn build_swap_msg(
-    deps: Deps<TerraQuery>,
+    deps: Deps,
     cfg: &Config,
     pool: PairInfo,
     from: AssetInfo,
@@ -102,7 +102,7 @@ pub fn build_distribute_msg(
 }
 
 pub fn validate_bridge(
-    deps:Deps<TerraQuery>,
+    deps:Deps,
     cfg: &Config,
     from_token: AssetInfo,
     bridge_token: AssetInfo,
@@ -138,7 +138,7 @@ pub fn validate_bridge(
 }
 
 pub fn get_pool(
-    deps: Deps<TerraQuery>,
+    deps: Deps,
     cfg: &Config,
     from: AssetInfo,
     to: AssetInfo,

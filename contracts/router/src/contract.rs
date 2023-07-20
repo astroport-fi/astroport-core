@@ -1,7 +1,7 @@
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Api, Binary, Coin, CosmosMsg, Decimal, Deps,
     DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg,
-    WasmQuery,
+    WasmQuery
 };
 
 use crate::error::ContractError;
@@ -18,7 +18,7 @@ use astroport::router::{
 use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use std::collections::HashMap;
-use classic_bindings::{SwapResponse, TerraQuerier, TerraQuery, TerraMsg};
+use classic_bindings::{SwapResponse, TerraMsg, TerraStargateQuerier};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-router";
@@ -38,7 +38,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps:DepsMut<TerraQuery>,
+    deps:DepsMut,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -87,7 +87,7 @@ pub fn instantiate(
 ///         }** Performs minimum receive amount assertion.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut<TerraQuery>,
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -142,7 +142,7 @@ pub fn execute(
 ///
 /// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
 pub fn receive_cw20(
-    deps: DepsMut<TerraQuery>,
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
@@ -194,7 +194,7 @@ pub fn receive_cw20(
 /// * **to** is the object of type [`Option<Addr>`]. Sets the recipient of the swap operation.
 #[allow(clippy::too_many_arguments)]
 pub fn execute_swap_operations(
-    deps: DepsMut<TerraQuery>,
+    deps: DepsMut,
     env: Env,
     _info: MessageInfo,
     sender: Addr,
@@ -277,7 +277,7 @@ pub fn execute_swap_operations(
 ///
 /// * **receiver** is the object of type [`Addr`]. Sets recipient for which the receive minimum amount assertion will be performed.
 fn assert_minimum_receive(
-    deps: Deps<TerraQuery>,
+    deps: Deps,
     asset_info: AssetInfo,
     prev_balance: Uint128,
     minimum_receive: Uint128,
@@ -314,9 +314,9 @@ fn assert_minimum_receive(
 ///         }** Returns information about the simulation of the swap operations in a
 /// [`SimulateSwapOperationsResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps<TerraQuery>, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
+        QueryMsg::Config {} => Ok(to_binary(&query_config(Deps::try_from(deps).unwrap())?)?),
         QueryMsg::SimulateSwapOperations {
             offer_amount,
             operations,
@@ -333,7 +333,7 @@ pub fn query(deps: Deps<TerraQuery>, _env: Env, msg: QueryMsg) -> Result<Binary,
 /// settings in a [`ConfigResponse`] object.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
-pub fn query_config(deps: Deps<TerraQuery>) -> Result<ConfigResponse, ContractError> {
+pub fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
     let state = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
         astroport_factory: state.astroport_factory.into_string(),
@@ -351,7 +351,7 @@ pub fn query_config(deps: Deps<TerraQuery>) -> Result<ConfigResponse, ContractEr
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps:DepsMut<TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps:DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
 
@@ -365,13 +365,13 @@ pub fn migrate(_deps:DepsMut<TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdRes
 ///
 /// * **operations** is a vector that contains object of type [`SwapOperation`].
 fn simulate_swap_operations(
-    deps: Deps<TerraQuery>,
+    deps: Deps,
     offer_amount: Uint128,
     operations: Vec<SwapOperation>,
 ) -> Result<SimulateSwapOperationsResponse, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
     let astroport_factory = config.astroport_factory;
-    let terra_querier = TerraQuerier::new(&deps.querier);
+    let terra_querier = TerraStargateQuerier::new(&deps.querier);
 
     let operations_len = operations.len();
     if operations_len == 0 {

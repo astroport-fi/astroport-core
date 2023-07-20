@@ -5,7 +5,6 @@ use crate::factory::{
 };
 use crate::pair::{QueryMsg as PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
 
-use classic_bindings::TerraQuery;
 use cosmwasm_std::{
     to_binary, Addr, AllBalanceResponse, BalanceResponse, BankQuery, Coin, Decimal, QuerierWrapper,
     QueryRequest, StdResult, Uint128, WasmQuery,
@@ -25,7 +24,7 @@ const NATIVE_TOKEN_PRECISION: u8 = 6;
 ///
 /// * **denom** is the object of type [`String`].
 pub fn query_balance(
-    querier: &QuerierWrapper<TerraQuery>,
+    querier: &QuerierWrapper,
     account_addr: Addr,
     denom: String,
 ) -> StdResult<Uint128> {
@@ -42,7 +41,7 @@ pub fn query_balance(
 /// * **querier** is the object of type [`QuerierWrapper`].
 ///
 /// * **account_addr** is the object of type [`Addr`].
-pub fn query_all_balances(querier: &QuerierWrapper<TerraQuery>, account_addr: Addr) -> StdResult<Vec<Coin>> {
+pub fn query_all_balances(querier: &QuerierWrapper, account_addr: Addr) -> StdResult<Vec<Coin>> {
     let all_balances: AllBalanceResponse =
         querier.query(&QueryRequest::Bank(BankQuery::AllBalances {
             address: String::from(account_addr),
@@ -60,7 +59,7 @@ pub fn query_all_balances(querier: &QuerierWrapper<TerraQuery>, account_addr: Ad
 ///
 /// * **account_addr** is the object of type [`Addr`].
 pub fn query_token_balance(
-    querier: &QuerierWrapper<TerraQuery>,
+    querier: &QuerierWrapper,
     contract_addr: Addr,
     account_addr: Addr,
 ) -> StdResult<Uint128> {
@@ -85,7 +84,7 @@ pub fn query_token_balance(
 /// * **querier** is the object of type [`QuerierWrapper`].
 ///
 /// * **contract_addr** is the object of type [`Addr`].
-pub fn query_token_symbol(querier: &QuerierWrapper<TerraQuery>, contract_addr: Addr) -> StdResult<String> {
+pub fn query_token_symbol(querier: &QuerierWrapper, contract_addr: Addr) -> StdResult<String> {
     let res: TokenInfoResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: String::from(contract_addr),
         msg: to_binary(&Cw20QueryMsg::TokenInfo {})?,
@@ -100,7 +99,7 @@ pub fn query_token_symbol(querier: &QuerierWrapper<TerraQuery>, contract_addr: A
 /// * **querier** is the object of type [`QuerierWrapper`].
 ///
 /// * **contract_addr** is the object of type [`Addr`].
-pub fn query_supply(querier: &QuerierWrapper<TerraQuery>, contract_addr: Addr) -> StdResult<Uint128> {
+pub fn query_supply(querier: &QuerierWrapper, contract_addr: Addr) -> StdResult<Uint128> {
     let res: TokenInfoResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: String::from(contract_addr),
         msg: to_binary(&Cw20QueryMsg::TokenInfo {})?,
@@ -115,7 +114,7 @@ pub fn query_supply(querier: &QuerierWrapper<TerraQuery>, contract_addr: Addr) -
 /// * **querier** is the object of type [`QuerierWrapper`].
 ///
 /// * **asset_info** is the object of type [`AssetInfo`].
-pub fn query_token_precision(querier: &QuerierWrapper<TerraQuery>, asset_info: AssetInfo) -> StdResult<u8> {
+pub fn query_token_precision(querier: &QuerierWrapper, asset_info: AssetInfo) -> StdResult<u8> {
     Ok(match asset_info {
         AssetInfo::NativeToken { denom: _ } => NATIVE_TOKEN_PRECISION,
         AssetInfo::Token { contract_addr } => {
@@ -134,7 +133,7 @@ pub fn query_token_precision(querier: &QuerierWrapper<TerraQuery>, asset_info: A
 ///
 /// * **factory_contract** is the object of type [`Addr`].
 pub fn query_factory_config(
-    querier: &QuerierWrapper<TerraQuery>,
+    querier: &QuerierWrapper,
     factory_contract: Addr,
 ) -> StdResult<FactoryConfigResponse> {
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -163,7 +162,7 @@ pub struct FeeInfo {
 ///
 /// * **pair_type** is the object of type [`PairType`].
 pub fn query_fee_info(
-    querier: &QuerierWrapper<TerraQuery>,
+    querier: &QuerierWrapper,
     factory_contract: Addr,
     pair_type: PairType,
 ) -> StdResult<FeeInfo> {
@@ -188,7 +187,7 @@ pub fn query_fee_info(
 ///
 /// * **asset_infos** is an array that contains two items of type [`AssetInfo`].
 pub fn query_pair_info(
-    querier: &QuerierWrapper<TerraQuery>,
+    querier: &QuerierWrapper,
     factory_contract: Addr,
     asset_infos: &[AssetInfo; 2],
 ) -> StdResult<PairInfo> {
@@ -211,7 +210,7 @@ pub fn query_pair_info(
 ///
 /// * **limit** is an [`Option`] field of type [`u32`].
 pub fn query_pairs_info(
-    querier: &QuerierWrapper<TerraQuery>,
+    querier: &QuerierWrapper,
     factory_contract: Addr,
     start_after: Option<[AssetInfo; 2]>,
     limit: Option<u32>,
@@ -231,7 +230,7 @@ pub fn query_pairs_info(
 ///
 /// * **offer_asset** is the object of type [`Asset`].
 pub fn simulate(
-    querier: &QuerierWrapper<TerraQuery>,
+    querier: &QuerierWrapper,
     pair_contract: Addr,
     offer_asset: &Asset,
 ) -> StdResult<SimulationResponse> {
@@ -252,7 +251,7 @@ pub fn simulate(
 ///
 /// * **ask_asset** is the object of type [`Asset`].
 pub fn reverse_simulate(
-    querier: &QuerierWrapper<TerraQuery>,
+    querier: &QuerierWrapper,
     pair_contract: &Addr,
     ask_asset: &Asset,
 ) -> StdResult<ReverseSimulationResponse> {
