@@ -5,6 +5,8 @@ authors = ["Astroport"]
 edition = "2021"
 description = "Astroport factory contract - pair contract generator and directory"
 license = "MIT"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -25,7 +27,7 @@ library = []
 
 [dependencies]
 cosmwasm-std = "1.1"
-astroport = { path = "../../packages/astroport", default-features = false }
+astroport = { workspace = true }
 cw-storage-plus = "0.15"
 cw2 = "0.15"
 thiserror = "1.0"

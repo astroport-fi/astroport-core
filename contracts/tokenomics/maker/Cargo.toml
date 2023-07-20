@@ -3,6 +3,10 @@ name = "astroport-maker"
 version = "1.3.1"
 authors = ["Astroport"]
 edition = "2021"
+description = "Astroport Maker"
+license = "MIT"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -25,10 +29,10 @@ cosmwasm-std = "1.1"
 cw2 = "0.15"
 cw20 = "0.15"
 cw-storage-plus = "0.15"
-astroport = { path = "../../../packages/astroport", default-features = false }
+astroport = { workspace = true }
 thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
-astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc", branch = "main" }
+astro-satellite-package = { version = "0", git = "https://github.com/astroport-fi/astroport_ibc", branch = "main" }
 
 [dev-dependencies]
 astroport-token = { path = "../../token" }

@@ -5,6 +5,8 @@ authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport concentrated liquidity pair"
 license = "MIT"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
     # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -24,8 +26,8 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-astroport = { path = "../../packages/astroport", default-features = false }
-astroport-factory = { path = "../factory", features = ["library"] }
+astroport = { workspace = true }
+astroport-factory = { workspace = true, features = ["library"] }
 cw2 = "0.15"
 cw20 = "0.15"
 cosmwasm-std = "1.1"

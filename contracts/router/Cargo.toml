@@ -5,6 +5,8 @@ authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport router contract - provides multi-hop swap functionality for Astroport pools"
 license = "Apache-2.0"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
     # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -28,7 +30,7 @@ cw20 = "0.15"
 cosmwasm-std = "1.1"
 cw-storage-plus = "0.15"
 integer-sqrt = "0.1"
-astroport = { path = "../../packages/astroport", default-features = false }
+astroport = { workspace = true }
 thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
 

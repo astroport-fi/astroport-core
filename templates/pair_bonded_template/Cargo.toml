@@ -5,6 +5,8 @@ authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport pair-bonded template."
 license = "MIT"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -24,7 +26,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-astroport = { path = "../../packages/astroport", default-features = false }
+astroport = { workspace = true }
 astroport-pair-bonded = { path = "../../packages/pair_bonded" }
 cw2 = { version = "0.15" }
 cw20 = { version = "0.15" }

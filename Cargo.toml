@@ -31,6 +31,9 @@ incremental = false
 overflow-checks = true
 strip = true
 
-[patch.'https://github.com/astroport-fi/astroport-core']
-astroport = { path = "packages/astroport" }
+[workspace.dependencies]
+astroport = { version = "2.8", path = "packages/astroport" }
+astroport-factory = { version = "1.5", path = "contracts/factory" }
 
+[patch.'https://github.com/astroport-fi/astroport-core']
+astroport = { version = "2.8", path = "packages/astroport" }

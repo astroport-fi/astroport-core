@@ -4,7 +4,12 @@ version = "0.1.0"
 authors = ["Astroport"]
 repository = "https://github.com/astroport-fi/astroport"
 homepage = "https://astroport.fi"
+description = """
+Astroport Native Coin Wrapper wraps native coins to CW20 tokens enabling them to be used as
+Astroport 3rd party rewards in generator.
+"""
 edition = "2021"
+license = "MIT"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -31,7 +36,7 @@ cw2 = "0.15"
 cw20 = "0.15"
 cw-utils = "0.15"
 thiserror = { version = "1.0" }
-astroport = { path = "../../../packages/astroport" }
+astroport = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15"
