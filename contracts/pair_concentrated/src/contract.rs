@@ -1,5 +1,7 @@
 use std::vec;
 
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, from_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
     Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
@@ -10,6 +12,7 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use cw_utils::parse_instantiate_response_data;
 use itertools::Itertools;
 
+use astroport::asset::AssetInfoExt;
 use astroport::asset::{
     addr_opt_validate, format_lp_token_name, token_asset, Asset, AssetInfo, CoinsExt,
     Decimal256Ext, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
@@ -17,7 +20,7 @@ use astroport::asset::{
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
-use astroport::observation::OBSERVATIONS_SIZE;
+use astroport::observation::{MIN_TRADE_SIZE, OBSERVATIONS_SIZE};
 use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, MigrateMsg, UpdatePoolParams,
@@ -26,12 +29,9 @@ use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_circular_buffer::BufferManager;
 
-#[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
-
 use crate::error::ContractError;
 use crate::math::{calc_d, get_xcp};
-use crate::migration::{migrate_config, migrate_config_from_v114, migrate_config_from_v120};
+use crate::migration::migrate_config;
 use crate::state::{
     store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, BALANCES,
     CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL,
@@ -780,23 +780,23 @@ fn swap(
 
     let mut maker_fee = Uint128::zero();
     if let Some(fee_address) = fee_info.fee_address {
-        if !swap_result.maker_fee.is_zero() {
-            maker_fee = swap_result.maker_fee.to_uint(ask_asset_prec)?;
-            let fee = Asset {
-                info: pools[ask_ind].info.clone(),
-                amount: maker_fee,
-            };
+        maker_fee = swap_result.maker_fee.to_uint(ask_asset_prec)?;
+        if !maker_fee.is_zero() {
+            let fee = pools[ask_ind].info.with_balance(maker_fee);
             messages.push(fee.into_msg(fee_address)?);
         }
     }
 
-    // Store time series data
-    let (base_amount, quote_amount) = if offer_ind == 0 {
-        (offer_asset.amount, return_amount)
-    } else {
-        (return_amount, offer_asset.amount)
-    };
-    accumulate_swap_sizes(deps.storage, &env, base_amount, quote_amount)?;
+    // Store time series data.
+    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors
+    if offer_asset_dec.amount >= MIN_TRADE_SIZE && swap_result.dy >= MIN_TRADE_SIZE {
+        let (base_amount, quote_amount) = if offer_ind == 0 {
+            (offer_asset.amount, return_amount)
+        } else {
+            (return_amount, offer_asset.amount)
+        };
+        accumulate_swap_sizes(deps.storage, &env, base_amount, quote_amount)?;
+    }
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -890,10 +890,11 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     match contract_version.contract.as_ref() {
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.1.0" | "1.1.1" | "1.1.2" => migrate_config(deps.storage)?,
-            "1.1.4" => migrate_config_from_v114(deps.storage)?,
-            "1.2.0" | "1.2.1" | "1.2.2" => migrate_config_from_v120(deps.storage)?,
-            "2.0.0" | "2.0.1" | "2.0.2" => {}
+            "1.1.0" => migrate_config(deps.storage)?,
+            "1.2.4" => {
+                BufferManager::init(deps.storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
+            }
+            "2.0.3" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

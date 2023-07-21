@@ -18,7 +18,7 @@ use astroport::asset::{
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
-use astroport::observation::OBSERVATIONS_SIZE;
+use astroport::observation::{MIN_TRADE_SIZE, OBSERVATIONS_SIZE};
 use astroport::pair::{Cw20HookMsg, InstantiateMsg};
 use astroport::pair_concentrated::UpdatePoolParams;
 use astroport::pair_concentrated_inj::{
@@ -823,23 +823,23 @@ where
 
     let mut maker_fee = Uint128::zero();
     if let Some(fee_address) = fee_info.fee_address {
-        if !swap_result.maker_fee.is_zero() {
-            maker_fee = swap_result.maker_fee.to_uint(ask_asset_prec)?;
-            let fee = Asset {
-                info: pools[ask_ind].info.clone(),
-                amount: maker_fee,
-            };
+        maker_fee = swap_result.maker_fee.to_uint(ask_asset_prec)?;
+        if !maker_fee.is_zero() {
+            let fee = pools[ask_ind].info.with_balance(maker_fee);
             messages.push(fee.into_msg(fee_address)?);
         }
     }
 
-    // Store time series data
-    let (base_amount, quote_amount) = if offer_ind == 0 {
-        (offer_asset.amount, return_amount)
-    } else {
-        (return_amount, offer_asset.amount)
-    };
-    accumulate_swap_sizes(deps.storage, &env, &mut ob_state, base_amount, quote_amount)?;
+    // Store time series data.
+    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors
+    if offer_asset_dec.amount >= MIN_TRADE_SIZE && swap_result.dy >= MIN_TRADE_SIZE {
+        let (base_amount, quote_amount) = if offer_ind == 0 {
+            (offer_asset.amount, return_amount)
+        } else {
+            (return_amount, offer_asset.amount)
+        };
+        accumulate_swap_sizes(deps.storage, &env, &mut ob_state, base_amount, quote_amount)?;
+    }
 
     CONFIG.save(deps.storage, &config)?;
     ob_state.enabled = is_allowed_for_begin_blocker(&inj_querier, &config.pair_info);

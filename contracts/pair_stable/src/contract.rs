@@ -20,6 +20,7 @@ use astroport::asset::{
 };
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::factory::PairType;
 use astroport::pair::{
     ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams, DEFAULT_SLIPPAGE,
@@ -27,7 +28,7 @@ use astroport::pair::{
 };
 
 use crate::migration::{migrate_config_from_v21, migrate_config_to_v210};
-use astroport::observation::{query_observation, OBSERVATIONS_SIZE};
+use astroport::observation::{query_observation, MIN_TRADE_SIZE, OBSERVATIONS_SIZE};
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse,
     SimulationResponse, StablePoolConfig,
@@ -612,6 +613,8 @@ pub fn swap(
         offer_asset.amount,
     )?;
 
+    let offer_asset_dec = offer_asset.to_decimal_asset(offer_precision)?;
+
     let SwapResult {
         return_amount,
         spread_amount,
@@ -619,7 +622,7 @@ pub fn swap(
         deps.storage,
         &env,
         &config,
-        &offer_asset.to_decimal_asset(offer_precision)?,
+        &offer_asset_dec,
         &offer_pool,
         &ask_pool,
         &pools,
@@ -666,10 +669,17 @@ pub fn swap(
         }
     }
 
-    // Store time series data
-    let (base_amount, quote_amount) =
-        determine_base_quote_amount(&pools, &offer_asset, return_amount)?;
-    accumulate_swap_sizes(deps.storage, &env, base_amount, quote_amount)?;
+    // Store time series data.
+    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors
+    let ask_precision = get_precision(deps.storage, &ask_pool.info)?;
+    if offer_asset_dec.amount >= MIN_TRADE_SIZE
+        && return_amount.to_decimal256(ask_precision)? >= MIN_TRADE_SIZE
+    {
+        // Store time series data
+        let (base_amount, quote_amount) =
+            determine_base_quote_amount(&pools, &offer_asset, return_amount)?;
+        accumulate_swap_sizes(deps.storage, &env, base_amount, quote_amount)?;
+    }
 
     Ok(Response::new()
         .add_messages(
@@ -1022,7 +1032,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
             "2.1.1" | "2.1.2" => {
                 migrate_config_from_v21(deps.branch())?;
             }
-            "3.0.0" => {}
+            "3.0.0" | "3.1.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
