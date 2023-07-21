@@ -1,4 +1,6 @@
 use cosmwasm_std::{Addr, Env, Order, StdResult, Storage, Uint128};
+use cw20_base::state::TokenInfo;
+use cw20_base::ContractError;
 use cw_storage_plus::{Bound, Map, SnapshotMap, Strategy};
 
 /// Contains snapshotted coins balances at every block.
@@ -37,4 +39,16 @@ pub fn get_total_supply_at(storage: &dyn Storage, block: u64) -> StdResult<Uint1
     }
 
     Ok(Uint128::zero())
+}
+
+pub fn check_minter(sender: &Addr, config: &TokenInfo) -> Result<(), ContractError> {
+    if let Some(ref mint_data) = config.mint {
+        if mint_data.minter != sender {
+            return Err(ContractError::Unauthorized {});
+        }
+    } else {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    Ok(())
 }

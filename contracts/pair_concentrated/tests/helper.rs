@@ -1,21 +1,24 @@
 #![cfg(not(tarpaulin_include))]
 #![allow(dead_code)]
+
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
 use std::str::FromStr;
 
-use astroport_mocks::cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
+use anyhow::Result as AnyResult;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     coin, from_slice, to_binary, Addr, Coin, Decimal, Decimal256, Empty, StdError, StdResult,
     Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
+use derivative::Derivative;
 use itertools::Itertools;
 
-use anyhow::Result as AnyResult;
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
+use astroport::observation::OracleObservation;
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, ReverseSimulationResponse,
     SimulationResponse,
@@ -23,11 +26,10 @@ use astroport::pair::{
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
 };
+use astroport_mocks::cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use astroport_pair_concentrated::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated::queries::query;
 use astroport_pair_concentrated::state::Config;
-use cosmwasm_schema::cw_serde;
-use derivative::Derivative;
 
 const NATIVE_TOKEN_PRECISION: u8 = 6;
 
@@ -521,6 +523,16 @@ impl Helper {
                 amount: amount.into(),
             },
         )
+    }
+
+    pub fn observe_price(&self, seconds_ago: u64) -> StdResult<Decimal> {
+        self.app
+            .wrap()
+            .query_wasm_smart::<OracleObservation>(
+                &self.pair_addr,
+                &QueryMsg::Observe { seconds_ago },
+            )
+            .map(|val| val.price)
     }
 }
 

@@ -1551,3 +1551,106 @@ fn provide_liquidity_with_autostaking_to_generator() {
         Uint128::new(999_999000),
     );
 }
+
+#[test]
+fn test_imbalanced_withdraw_is_disabled() {
+    let owner = Addr::unchecked("owner");
+    let alice_address = Addr::unchecked("alice");
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ],
+    );
+
+    // Set Alice's balances
+    router
+        .send_tokens(
+            owner.clone(),
+            alice_address.clone(),
+            &[
+                Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::new(233_000_000u128),
+                },
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::new(2_00_000_000u128),
+                },
+            ],
+        )
+        .unwrap();
+
+    // Init pair
+    let pair_instance = instantiate_pair(&mut router, &owner);
+
+    let res: PairInfo = router
+        .wrap()
+        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pair {})
+        .unwrap();
+    let lp_token = res.liquidity_token;
+
+    assert_eq!(
+        res.asset_infos,
+        [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        ],
+    );
+
+    // Provide liquidity
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(100_000_000),
+        Uint128::new(100_000_000),
+        None,
+        None,
+    );
+    router
+        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap();
+
+    // Provide liquidity for receiver
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(100),
+        Uint128::new(100),
+        Some("bob".to_string()),
+        None,
+    );
+    router
+        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap();
+
+    // Check that imbalanced withdraw is currently disabled
+    let msg_imbalance = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        amount: Uint128::from(50u8),
+        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {
+            assets: vec![Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: Uint128::from(100u8),
+            }],
+        })
+        .unwrap(),
+    };
+
+    let err = router
+        .execute_contract(alice_address.clone(), lp_token.clone(), &msg_imbalance, &[])
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Imbalanced withdraw is currently disabled"
+    );
+}

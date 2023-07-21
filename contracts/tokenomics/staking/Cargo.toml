@@ -32,4 +32,5 @@ cw-utils = "1.0.1"
 
 [dev-dependencies]
 astroport-token = { path = "../../token" }
+astroport-xastro-token = { path = "../../tokenomics/xastro_token" }
 cw-multi-test = "0.15"

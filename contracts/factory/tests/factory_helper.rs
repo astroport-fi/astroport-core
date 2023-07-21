@@ -1,8 +1,8 @@
 #![cfg(not(tarpaulin_include))]
 
 use anyhow::Result as AnyResult;
-use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::{PairConfig, PairType, QueryMsg};
+use astroport::asset::AssetInfo;
+use astroport::factory::{PairConfig, PairType};
 use cosmwasm_std::{Addr, Binary};
 use cw20::MinterResponse;
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
@@ -150,35 +150,6 @@ impl FactoryHelper {
         };
 
         router.execute_contract(sender.clone(), self.factory.clone(), &msg, &[])
-    }
-
-    pub fn create_pair_with_addr(
-        &mut self,
-        router: &mut App,
-        sender: &Addr,
-        pair_type: PairType,
-        tokens: [&Addr; 2],
-        init_params: Option<Binary>,
-    ) -> AnyResult<Addr> {
-        self.create_pair(router, sender, pair_type, tokens, init_params)?;
-
-        let asset_infos = vec![
-            AssetInfo::Token {
-                contract_addr: tokens[0].clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: tokens[1].clone(),
-            },
-        ];
-
-        let res: PairInfo = router.wrap().query_wasm_smart(
-            self.factory.clone(),
-            &QueryMsg::Pair {
-                asset_infos: asset_infos.clone(),
-            },
-        )?;
-
-        Ok(res.contract_addr)
     }
 }
 

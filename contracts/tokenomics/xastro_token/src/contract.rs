@@ -10,7 +10,7 @@ use cw20_base::allowances::{
     deduct_allowance, execute_decrease_allowance, execute_increase_allowance, query_allowance,
 };
 
-use crate::state::{capture_total_supply_history, get_total_supply_at, BALANCES};
+use crate::state::{capture_total_supply_history, check_minter, get_total_supply_at, BALANCES};
 use astroport::asset::addr_opt_validate;
 use astroport::xastro_token::{InstantiateMsg, MigrateMsg, QueryMsg};
 use cw2::{get_contract_version, set_contract_version};
@@ -306,6 +306,9 @@ pub fn execute_burn(
         return Err(ContractError::InvalidZeroAmount {});
     }
 
+    let config = TOKEN_INFO.load(deps.storage)?;
+    check_minter(&info.sender, &config)?;
+
     // Lower the sender's balance
     BALANCES.update(
         deps.storage,
@@ -343,14 +346,7 @@ pub fn execute_mint(
     }
 
     let mut config = TOKEN_INFO.load(deps.storage)?;
-
-    if let Some(ref mint_data) = config.mint {
-        if mint_data.minter.as_ref() != info.sender {
-            return Err(ContractError::Unauthorized {});
-        }
-    } else {
-        return Err(ContractError::Unauthorized {});
-    }
+    check_minter(&info.sender, &config)?;
 
     // Update supply and enforce cap
     config.total_supply = config
@@ -493,6 +489,9 @@ pub fn execute_burn_from(
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let owner_addr = deps.api.addr_validate(&owner)?;
+
+    let config = TOKEN_INFO.load(deps.storage)?;
+    check_minter(&info.sender, &config)?;
 
     // Deduct allowance before doing anything else
     deduct_allowance(deps.storage, &owner_addr, &info.sender, &env.block, amount)?;
@@ -683,7 +682,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response
 
     match contract_version.contract.as_ref() {
         "astroport-xastro-token" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.1" => {}
+            "1.0.0" | "1.0.1" | "1.0.2" => {}
             _ => {
                 return Err(StdError::generic_err(
                     "Cannot migrate. Unsupported contract version",

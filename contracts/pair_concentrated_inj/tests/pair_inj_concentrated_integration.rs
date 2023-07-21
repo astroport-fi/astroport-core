@@ -3,17 +3,18 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use astroport_mocks::cw_multi_test::Executor;
 use cosmwasm_std::{coins, Addr, Coin, Decimal, StdError, Uint128};
 use injective_cosmwasm::InjectiveQuerier;
 use injective_testing::generate_inj_address;
 
 use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::cosmwasm_ext::AbsDiff;
 use astroport::factory::PairType;
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, UpdatePoolParams,
 };
 use astroport::pair_concentrated_inj::{ExecuteMsg, MigrateMsg, OrderbookConfig};
+use astroport_mocks::cw_multi_test::Executor;
 use astroport_pair_concentrated_injective::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use astroport_pair_concentrated_injective::error::ContractError;
 use astroport_pair_concentrated_injective::orderbook::consts::MIN_TRADES_TO_AVG_LIMITS;
@@ -580,6 +581,37 @@ fn check_swaps_simple() {
 
     let d = helper.query_d().unwrap();
     assert_eq!(dec_to_f64(d), 200000.260415);
+
+    let price1 = helper.observe_price(0).unwrap();
+    helper.app.next_block(10);
+    // Swapping the lowest amount possible which results in positive return amount
+    helper
+        .swap(
+            &user,
+            &helper.assets[&test_coins[1]].with_balance(2u128),
+            None,
+        )
+        .unwrap();
+    let price2 = helper.observe_price(0).unwrap();
+    // With such a small swap size contract doesn't store observation
+    assert_eq!(price1, price2);
+
+    helper.app.next_block(10);
+    // Swap the smallest possible amount which gets observation saved
+    helper
+        .swap(
+            &user,
+            &helper.assets[&test_coins[1]].with_balance(1005u128),
+            None,
+        )
+        .unwrap();
+    let price3 = helper.observe_price(0).unwrap();
+    // Prove that price didn't jump that much
+    let diff = price3.diff(price2);
+    assert!(
+        diff / price2 < f64_to_dec(0.005),
+        "price jumped from {price2} to {price3} which is more than 0.5%"
+    );
 }
 
 #[test]

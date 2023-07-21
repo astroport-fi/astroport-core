@@ -629,7 +629,7 @@ impl Module for InjMockModule {
                             min_quantity_tick_size: 1000000000000000u128.into(), // from the real INJ/USDT market, 0.001 INJ
                             base_denom: base_denom.clone(),
                             quote_denom: quote_denom.clone(),
-                            status: 0,
+                            status: Default::default(),
                             min_price_tick_size: f64_to_dec::<Decimal256>(0.000000000000001)
                                 .conv()?, // 0.000000000000001
                             maker_fee_rate: Default::default(),

@@ -1,8 +1,6 @@
-use std::collections::HashSet;
-
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+    MessageInfo, Response, StdResult, Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;
@@ -153,21 +151,11 @@ pub fn execute_swap_operations(
     to: Option<String>,
     max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
-    let operations_len = operations.len();
-    if operations_len == 0 {
-        return Err(ContractError::MustProvideOperations {});
-    }
-
-    if operations_len > MAX_SWAP_OPERATIONS {
-        return Err(ContractError::SwapLimitExceeded {});
-    }
-
-    // Assert the operations are properly set
     assert_operations(deps.api, &operations)?;
 
     let to = addr_opt_validate(deps.api, &to)?.unwrap_or(sender);
-
     let target_asset_info = operations.last().unwrap().get_target_asset_info();
+    let operations_len = operations.len();
 
     let mut messages = operations
         .into_iter()
@@ -277,7 +265,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     match contract_version.contract.as_ref() {
         "astroport-router" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.1.0" => {}
+            "1.0.0" | "1.1.0" | "1.1.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
@@ -304,21 +292,12 @@ fn simulate_swap_operations(
     offer_amount: Uint128,
     operations: Vec<SwapOperation>,
 ) -> Result<SimulateSwapOperationsResponse, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    let astroport_factory = config.astroport_factory;
-
-    let operations_len = operations.len();
-    if operations_len == 0 {
-        return Err(ContractError::MustProvideOperations {});
-    }
-
-    if operations_len > MAX_SWAP_OPERATIONS {
-        return Err(ContractError::SwapLimitExceeded {});
-    }
-
     assert_operations(deps.api, &operations)?;
 
+    let config = CONFIG.load(deps.storage)?;
+    let astroport_factory = config.astroport_factory;
     let mut return_amount = offer_amount;
+
     for operation in operations.into_iter() {
         match operation {
             SwapOperation::AstroSwap {
@@ -359,7 +338,17 @@ fn simulate_swap_operations(
 ///
 /// * **operations** is a vector that contains objects of type [`SwapOperation`]. These are all the swap operations we check.
 fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), ContractError> {
-    let mut ask_asset_map: HashSet<String> = HashSet::new();
+    let operations_len = operations.len();
+    if operations_len == 0 {
+        return Err(ContractError::MustProvideOperations {});
+    }
+
+    if operations_len > MAX_SWAP_OPERATIONS {
+        return Err(ContractError::SwapLimitExceeded {});
+    }
+
+    let mut prev_ask_asset: Option<AssetInfo> = None;
+
     for operation in operations {
         let (offer_asset, ask_asset) = match operation {
             SwapOperation::AstroSwap {
@@ -370,15 +359,28 @@ fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), 
                 return Err(ContractError::NativeSwapNotSupported {})
             }
         };
+
         offer_asset.check(api)?;
         ask_asset.check(api)?;
 
-        ask_asset_map.remove(&offer_asset.to_string());
-        ask_asset_map.insert(ask_asset.to_string());
-    }
+        if offer_asset.equal(&ask_asset) {
+            return Err(ContractError::DoublingAssetsPath {
+                offer_asset: offer_asset.to_string(),
+                ask_asset: ask_asset.to_string(),
+            });
+        }
 
-    if ask_asset_map.len() != 1 {
-        return Err(StdError::generic_err("invalid operations; multiple output token").into());
+        if let Some(prev_ask_asset) = prev_ask_asset {
+            if prev_ask_asset != offer_asset {
+                return Err(ContractError::InvalidPathOperations {
+                    prev_ask_asset: prev_ask_asset.to_string(),
+                    next_offer_asset: offer_asset.to_string(),
+                    next_ask_asset: ask_asset.to_string(),
+                });
+            }
+        }
+
+        prev_ask_asset = Some(ask_asset);
     }
 
     Ok(())
@@ -417,7 +419,7 @@ mod testing {
                             denom: "uluna".to_string(),
                         },
                     },
-                ],
+                ]
             )
             .is_ok()
         );
@@ -452,7 +454,7 @@ mod testing {
                             contract_addr: Addr::unchecked("asset0002"),
                         },
                     },
-                ],
+                ]
             )
             .is_ok()
         );
@@ -487,7 +489,7 @@ mod testing {
                             contract_addr: Addr::unchecked("asset0002"),
                         },
                     },
-                ],
+                ]
             )
             .is_err()
         );

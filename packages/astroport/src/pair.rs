@@ -3,7 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use crate::asset::{Asset, AssetInfo, PairInfo};
 
-use cosmwasm_std::{from_slice, Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128, Uint64};
+use cosmwasm_std::{Addr, Binary, Decimal, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
@@ -235,26 +235,11 @@ pub enum StablePoolUpdateParams {
     StopChangingAmp {},
 }
 
-/// This function makes raw query to the factory contract and
-/// checks whether the pair needs to update an owner or not.
-pub fn migration_check(
-    querier: QuerierWrapper,
-    factory: &Addr,
-    pair_addr: &Addr,
-) -> StdResult<bool> {
-    if let Some(res) = querier.query_wasm_raw(factory, b"pairs_to_migrate".as_slice())? {
-        let res: Vec<Addr> = from_slice(&res)?;
-        Ok(res.contains(pair_addr))
-    } else {
-        Ok(false)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::asset::native_asset_info;
-    use cosmwasm_std::{from_binary, to_binary};
+    use cosmwasm_std::{from_binary, from_slice, to_binary};
 
     #[cw_serde]
     pub struct LegacyInstantiateMsg {

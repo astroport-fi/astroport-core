@@ -11,6 +11,7 @@ use std::str::FromStr;
 use astroport::asset::{
     native_asset_info, Asset, AssetInfo, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT,
 };
+use astroport::cosmwasm_ext::AbsDiff;
 use astroport::observation::OracleObservation;
 
 use astroport::pair::{ExecuteMsg, PoolResponse};
@@ -182,7 +183,7 @@ fn check_wrong_initialization() {
 fn check_create_pair_with_unsupported_denom() {
     let owner = Addr::unchecked("owner");
 
-    let wrong_coins = vec![TestCoin::native("random_coin"), TestCoin::cw20("USDC")];
+    let wrong_coins = vec![TestCoin::native("rc"), TestCoin::cw20("USDC")];
     let valid_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
 
     let params = ConcentratedPoolParams {
@@ -200,7 +201,7 @@ fn check_create_pair_with_unsupported_denom() {
 
     let err = Helper::new(&owner, wrong_coins.clone(), params.clone()).unwrap_err();
     assert_eq!(
-        "Generic error: Native denom is not in expected format [a-zA-Z\\-][3,60]: random_coin",
+        "Generic error: Invalid denom length [3,128]: rc",
         err.root_cause().to_string()
     );
 
@@ -692,6 +693,37 @@ fn check_swaps_simple() {
 
     let d = helper.query_d().unwrap();
     assert_eq!(dec_to_f64(d), 200000.260415);
+
+    let price1 = helper.observe_price(0).unwrap();
+    helper.app.next_block(10);
+    // Swapping the lowest amount possible which results in positive return amount
+    helper
+        .swap(
+            &user,
+            &helper.assets[&test_coins[1]].with_balance(2u128),
+            None,
+        )
+        .unwrap();
+    let price2 = helper.observe_price(0).unwrap();
+    // With such a small swap size contract doesn't store observation
+    assert_eq!(price1, price2);
+
+    helper.app.next_block(10);
+    // Swap the smallest possible amount which gets observation saved
+    helper
+        .swap(
+            &user,
+            &helper.assets[&test_coins[1]].with_balance(1005u128),
+            None,
+        )
+        .unwrap();
+    let price3 = helper.observe_price(0).unwrap();
+    // Prove that price didn't jump that much
+    let diff = price3.diff(price2);
+    assert!(
+        diff / price2 < f64_to_dec(0.005),
+        "price jumped from {price2} to {price3} which is more than 0.5%"
+    );
 }
 
 #[test]

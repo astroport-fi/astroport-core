@@ -4,11 +4,12 @@ use cosmwasm_std::{Addr, Decimal, StdError};
 use std::str::FromStr;
 
 use astroport::asset::AssetInfoExt;
+use astroport::cosmwasm_ext::AbsDiff;
 use astroport::observation::OracleObservation;
 use astroport_pair_stable::error::ContractError;
 use helper::AppExtension;
 
-use crate::helper::{Helper, TestCoin};
+use crate::helper::{f64_to_dec, Helper, TestCoin};
 
 mod helper;
 
@@ -471,4 +472,36 @@ fn check_pool_prices() {
             price: Decimal::from_str("0.9994992083").unwrap()
         }
     );
+
+    let price1 = helper.observe_price(0).unwrap();
+    helper.app.next_block(10);
+    // Swapping the lowest amount possible which results in positive return amount
+    helper
+        .swap(
+            &user1,
+            &helper.assets[&test_coins[1]].with_balance(2u128),
+            None,
+        )
+        .unwrap();
+    let price2 = helper.observe_price(0).unwrap();
+    // With such a small swap size contract doesn't store observation
+    assert_eq!(price1, price2);
+
+    helper.app.next_block(10);
+    // Swap the smallest possible amount which gets observation saved
+    helper
+        .swap(
+            &user1,
+            &helper.assets[&test_coins[1]].with_balance(1005u128),
+            None,
+        )
+        .unwrap();
+    let price3 = helper.observe_price(0).unwrap();
+    // Prove that price didn't jump that much
+    let diff = price3.diff(price2);
+    assert!(
+        diff / price2 < f64_to_dec(0.005),
+        "price jumped from {price2} to {price3} which is more than 0.5%"
+    );
+    helper.app.next_block(10);
 }

@@ -20,21 +20,20 @@ use astroport::asset::{
 };
 
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::factory::PairType;
 use astroport::pair::{
-    migration_check, ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams,
-    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
+    ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams, DEFAULT_SLIPPAGE,
+    MAX_ALLOWED_SLIPPAGE,
 };
 
 use crate::migration::{migrate_config_from_v21, migrate_config_to_v210};
-use astroport::observation::{query_observation, OBSERVATIONS_SIZE};
+use astroport::observation::{query_observation, MIN_TRADE_SIZE, OBSERVATIONS_SIZE};
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse,
     SimulationResponse, StablePoolConfig,
 };
-use astroport::querier::{
-    query_factory_config, query_fee_info, query_supply, query_token_precision,
-};
+use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport::DecimalCheckedOps;
 use astroport_circular_buffer::BufferManager;
@@ -83,11 +82,6 @@ pub fn instantiate(
 
     if params.amp == 0 || params.amp > MAX_AMP {
         return Err(ContractError::IncorrectAmp {});
-    }
-
-    let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
-    for asset_info in &msg.asset_infos {
-        query_token_precision(&deps.querier, asset_info, &factory_addr)?;
     }
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -199,12 +193,6 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
-
-    if migration_check(deps.querier, &cfg.factory_addr, &env.contract.address)? {
-        return Err(ContractError::PairIsNotMigrated {});
-    }
-
     match msg {
         ExecuteMsg::UpdateConfig { params } => update_config(deps, env, info, params),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
@@ -242,8 +230,8 @@ pub fn execute(
             )
         }
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
-            let config = CONFIG.load(deps.storage)?;
-            let factory_config = query_factory_config(&deps.querier, config.factory_addr)?;
+            let cfg = CONFIG.load(deps.storage)?;
+            let factory_config = query_factory_config(&deps.querier, cfg.factory_addr.clone())?;
 
             propose_new_owner(
                 deps,
@@ -251,19 +239,19 @@ pub fn execute(
                 env,
                 owner,
                 expires_in,
-                config.owner.unwrap_or(factory_config.owner),
+                cfg.owner.unwrap_or(factory_config.owner),
                 OWNERSHIP_PROPOSAL,
             )
             .map_err(|e| e.into())
         }
         ExecuteMsg::DropOwnershipProposal {} => {
-            let config = CONFIG.load(deps.storage)?;
-            let factory_config = query_factory_config(&deps.querier, config.factory_addr)?;
+            let cfg = CONFIG.load(deps.storage)?;
+            let factory_config = query_factory_config(&deps.querier, cfg.factory_addr.clone())?;
 
             drop_ownership_proposal(
                 deps,
                 info,
-                config.owner.unwrap_or(factory_config.owner),
+                cfg.owner.unwrap_or(factory_config.owner),
                 OWNERSHIP_PROPOSAL,
             )
             .map_err(|e| e.into())
@@ -320,11 +308,12 @@ pub fn receive_cw20(
                 to_addr,
             )
         }
-        Cw20HookMsg::WithdrawLiquidity { .. } => withdraw_liquidity(
+        Cw20HookMsg::WithdrawLiquidity { assets } => withdraw_liquidity(
             deps,
             info,
             Addr::unchecked(cw20_msg.sender),
             cw20_msg.amount,
+            assets,
         ),
     }
 }
@@ -524,6 +513,7 @@ pub fn withdraw_liquidity(
     info: MessageInfo,
     sender: Addr,
     amount: Uint128,
+    assets: Vec<Asset>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -532,7 +522,13 @@ pub fn withdraw_liquidity(
     }
 
     let (pools, total_share) = pool_info(deps.querier, &config)?;
-    let refund_assets = get_share_in_assets(&pools, amount, total_share);
+
+    let refund_assets = if assets.is_empty() {
+        // Usual withdraw (balanced)
+        get_share_in_assets(&pools, amount, total_share)
+    } else {
+        return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
+    };
 
     let mut messages = refund_assets
         .clone()
@@ -617,6 +613,8 @@ pub fn swap(
         offer_asset.amount,
     )?;
 
+    let offer_asset_dec = offer_asset.to_decimal_asset(offer_precision)?;
+
     let SwapResult {
         return_amount,
         spread_amount,
@@ -624,7 +622,7 @@ pub fn swap(
         deps.storage,
         &env,
         &config,
-        &offer_asset.to_decimal_asset(offer_precision)?,
+        &offer_asset_dec,
         &offer_pool,
         &ask_pool,
         &pools,
@@ -671,10 +669,17 @@ pub fn swap(
         }
     }
 
-    // Store time series data
-    let (base_amount, quote_amount) =
-        determine_base_quote_amount(&pools, &offer_asset, return_amount)?;
-    accumulate_swap_sizes(deps.storage, &env, base_amount, quote_amount)?;
+    // Store time series data.
+    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors
+    let ask_precision = get_precision(deps.storage, &ask_pool.info)?;
+    if offer_asset_dec.amount >= MIN_TRADE_SIZE
+        && return_amount.to_decimal256(ask_precision)? >= MIN_TRADE_SIZE
+    {
+        // Store time series data
+        let (base_amount, quote_amount) =
+            determine_base_quote_amount(&pools, &offer_asset, return_amount)?;
+        accumulate_swap_sizes(deps.storage, &env, base_amount, quote_amount)?;
+    }
 
     Ok(Response::new()
         .add_messages(
@@ -1027,6 +1032,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
             "2.1.1" | "2.1.2" => {
                 migrate_config_from_v21(deps.branch())?;
             }
+            "3.0.0" | "3.1.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

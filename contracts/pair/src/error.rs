@@ -41,9 +41,6 @@ pub enum ContractError {
     #[error("Generator address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
 
-    #[error("Pair is not migrated to the new admin!")]
-    PairIsNotMigrated {},
-
     #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
     MinimumLiquidityAmountError {},
 
