@@ -132,6 +132,14 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
 
     let astro_token_code_id = router.store_code(astro_token_contract);
 
+    let x_astro_token_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_xastro_token::contract::execute,
+        astroport_xastro_token::contract::instantiate,
+        astroport_xastro_token::contract::query,
+    ));
+
+    let x_astro_token_code_id = router.store_code(x_astro_token_contract);
+
     let msg = InstantiateMsg {
         name: String::from("Astro token"),
         symbol: String::from("ASTRO"),
@@ -168,7 +176,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
 
     let msg = xInstatiateMsg {
         owner: owner.to_string(),
-        token_code_id: astro_token_code_id,
+        token_code_id: x_astro_token_code_id,
         deposit_token_addr: astro_token_instance.to_string(),
         marketing: None,
     };
@@ -797,4 +805,68 @@ fn should_work_with_more_than_one_participant() {
             balance: Uint128::from(9995u128)
         }
     );
+}
+
+#[test]
+fn should_not_allow_directly_burn_from_xastro() {
+    let mut router = mock_app();
+
+    let owner = Addr::unchecked("owner");
+
+    let (astro_token_instance, staking_instance, x_astro_token_instance) =
+        instantiate_contracts(&mut router, owner.clone());
+
+    // Mint 10000 ASTRO for Alice
+    mint_some_astro(
+        &mut router,
+        owner.clone(),
+        astro_token_instance.clone(),
+        ALICE,
+    );
+    let alice_address = Addr::unchecked(ALICE);
+
+    // enter Alice's 2000 ASTRO for 1000 xASTRO
+    let msg = Cw20ExecuteMsg::Send {
+        contract: staking_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        amount: Uint128::from(2000u128),
+    };
+
+    router
+        .execute_contract(
+            alice_address.clone(),
+            astro_token_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
+
+    // Check if Alice's xASTRO balance is 1000
+    let msg = Cw20QueryMsg::Balance {
+        address: alice_address.to_string(),
+    };
+    let res: Result<BalanceResponse, _> =
+        router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: x_astro_token_instance.to_string(),
+            msg: to_binary(&msg).unwrap(),
+        }));
+    assert_eq!(
+        res.unwrap(),
+        BalanceResponse {
+            balance: Uint128::from(1000u128)
+        }
+    );
+
+    // Try to burn directly
+    let res = router
+        .execute_contract(
+            alice_address.clone(),
+            x_astro_token_instance.clone(),
+            &Cw20ExecuteMsg::Burn {
+                amount: Uint128::from(20u128),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(res.root_cause().to_string(), "Unauthorized");
 }

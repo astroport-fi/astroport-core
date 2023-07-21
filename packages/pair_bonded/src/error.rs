@@ -28,9 +28,6 @@ pub enum ContractError {
     #[error("You need to provide init params")]
     InitParamsNotFound {},
 
-    #[error("Pair is not migrated to the new admin!")]
-    PairIsNotMigrated {},
-
     #[error("Operation is not supported for this pool.")]
     NotSupported {},
 

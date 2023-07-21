@@ -3,8 +3,8 @@ use crate::state::CONFIG;
 use astroport::asset::{addr_opt_validate, Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
 use astroport::pair::{
-    migration_check, ConfigResponse, CumulativePricesResponse, Cw20HookMsg, InstantiateMsg,
-    PoolResponse, ReverseSimulationResponse, SimulationResponse,
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, InstantiateMsg, PoolResponse,
+    ReverseSimulationResponse, SimulationResponse,
 };
 use astroport::pair_bonded::{Config, ExecuteMsg, QueryMsg};
 use astroport::querier::query_factory_config;
@@ -90,12 +90,6 @@ pub trait PairBonded<'a> {
         info: MessageInfo,
         msg: ExecuteMsg,
     ) -> Result<Response, ContractError> {
-        let cfg = CONFIG.load(deps.storage)?;
-
-        if migration_check(deps.querier, &cfg.factory_addr, &env.contract.address)? {
-            return Err(ContractError::PairIsNotMigrated {});
-        }
-
         match msg {
             ExecuteMsg::UpdateConfig { .. } => Err(ContractError::NotSupported {}),
             ExecuteMsg::Receive(msg) => self.receive_cw20(deps, env, info, msg),
@@ -169,13 +163,13 @@ pub trait PairBonded<'a> {
         info: MessageInfo,
         cw20_msg: Cw20ReceiveMsg,
     ) -> Result<Response, ContractError> {
-        match from_binary(&cw20_msg.msg) {
-            Ok(Cw20HookMsg::Swap {
+        match from_binary(&cw20_msg.msg)? {
+            Cw20HookMsg::Swap {
                 belief_price,
                 max_spread,
                 to,
                 ..
-            }) => {
+            } => {
                 // Only asset contract can execute this message
                 let mut authorized = false;
                 let config = CONFIG.load(deps.storage)?;
@@ -209,8 +203,7 @@ pub trait PairBonded<'a> {
                     to_addr,
                 )
             }
-            Ok(Cw20HookMsg::WithdrawLiquidity { .. }) => Err(ContractError::NotSupported {}),
-            Err(err) => Err(err.into()),
+            Cw20HookMsg::WithdrawLiquidity { .. } => Err(ContractError::NotSupported {}),
         }
     }
 

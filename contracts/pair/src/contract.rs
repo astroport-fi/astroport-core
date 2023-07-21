@@ -15,8 +15,8 @@ use astroport::asset::{
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::{
-    migration_check, ConfigResponse, XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams,
-    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
+    ConfigResponse, XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams, DEFAULT_SLIPPAGE,
+    MAX_ALLOWED_SLIPPAGE,
 };
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
@@ -185,12 +185,6 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
-
-    if migration_check(deps.querier, &cfg.factory_addr, &env.contract.address)? {
-        return Err(ContractError::PairIsNotMigrated {});
-    }
-
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ProvideLiquidity {
@@ -246,13 +240,13 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::Swap {
+    match from_binary(&cw20_msg.msg)? {
+        Cw20HookMsg::Swap {
             belief_price,
             max_spread,
             to,
             ..
-        }) => {
+        } => {
             // Only asset contract can execute this message
             let mut authorized = false;
             let config = CONFIG.load(deps.storage)?;
@@ -271,6 +265,7 @@ pub fn receive_cw20(
 
             let to_addr = addr_opt_validate(deps.api, &to)?;
             let contract_addr = info.sender.clone();
+
             swap(
                 deps,
                 env,
@@ -285,14 +280,14 @@ pub fn receive_cw20(
                 to_addr,
             )
         }
-        Ok(Cw20HookMsg::WithdrawLiquidity { .. }) => withdraw_liquidity(
+        Cw20HookMsg::WithdrawLiquidity { assets } => withdraw_liquidity(
             deps,
             env,
             info,
             Addr::unchecked(cw20_msg.sender),
             cw20_msg.amount,
+            assets,
         ),
-        Err(err) => Err(err.into()),
     }
 }
 
@@ -520,6 +515,7 @@ pub fn withdraw_liquidity(
     info: MessageInfo,
     sender: Addr,
     amount: Uint128,
+    assets: Vec<Asset>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage).unwrap();
 
@@ -528,7 +524,13 @@ pub fn withdraw_liquidity(
     }
 
     let (pools, total_share) = pool_info(deps.querier, &config)?;
-    let refund_assets = get_share_in_assets(&pools, amount, total_share);
+
+    let refund_assets = if assets.is_empty() {
+        // Usual withdraw (balanced)
+        get_share_in_assets(&pools, amount, total_share)
+    } else {
+        return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
+    };
 
     if config.track_asset_balances {
         for (i, pool) in pools.iter().enumerate() {
@@ -1260,7 +1262,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
             "1.0.0" | "1.0.1" | "1.1.0" | "1.2.0" => {
                 migration::add_asset_balances_tracking_flag(deps.storage)?;
             }
-            "1.3.0" => {}
+            "1.3.0" | "1.3.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

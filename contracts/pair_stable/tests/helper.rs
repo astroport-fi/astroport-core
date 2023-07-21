@@ -1,10 +1,12 @@
 #![cfg(not(tarpaulin_include))]
 
 use std::collections::HashMap;
+use std::error::Error;
+use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
 use astroport_mocks::cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
-use cosmwasm_std::{coin, to_binary, Addr, Coin, Empty, StdResult, Uint128};
+use cosmwasm_std::{coin, to_binary, Addr, Coin, Decimal, Empty, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use derivative::Derivative;
 use itertools::Itertools;
@@ -415,6 +417,16 @@ impl Helper {
                 .unwrap();
         }
     }
+
+    pub fn observe_price(&self, seconds_ago: u64) -> StdResult<Decimal> {
+        self.app
+            .wrap()
+            .query_wasm_smart::<OracleObservation>(
+                &self.pair_addr,
+                &QueryMsg::Observe { seconds_ago },
+            )
+            .map(|val| val.price)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -507,4 +519,12 @@ impl AppExtension for App {
             block.height += 1
         });
     }
+}
+
+pub fn f64_to_dec<T>(val: f64) -> T
+where
+    T: FromStr,
+    T::Err: Error,
+{
+    T::from_str(&val.to_string()).unwrap()
 }

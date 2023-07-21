@@ -13,7 +13,7 @@ use astroport_pair_concentrated::state::Config as CLConfig;
 use crate::state::{AmpGamma, Config, PoolParams, PoolState, PriceState, CONFIG};
 
 const MIGRATE_FROM: &str = "astroport-pair-concentrated";
-const MIGRATION_VERSION: &str = "2.0.3";
+const MIGRATION_VERSION: &str = "2.0.4";
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -57,7 +57,7 @@ pub fn migrate(
             let contract_info = cw2::get_contract_version(deps.storage)?;
             match contract_info.contract.as_str() {
                 CONTRACT_NAME => match contract_info.version.as_str() {
-                    "2.0.0" => {}
+                    "2.0.3" => {}
                     _ => {
                         return Err(StdError::generic_err(format!(
                             "Can't migrate from {} {}",
