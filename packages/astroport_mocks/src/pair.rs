@@ -162,8 +162,8 @@ where
                     app: self.app.clone(),
                     address: contract_addr.clone(),
                 };
-                token.mint(sender.to_string(), asset.amount);
-                token.allow(sender, self.address.to_string(), asset.amount);
+                token.mint(sender, asset.amount);
+                token.allow(sender, &self.address, asset.amount);
             };
         }
         self.provide(sender, assets, None, true, None)

@@ -611,7 +611,10 @@ pub fn execute_setup_pools(
     mass_update_pools(deps.branch(), &env, &cfg, &prev_pools)?;
 
     for (lp_token, _) in &setup_pools {
-        if !POOL_INFO.has(deps.storage, lp_token) {
+        if let Some(mut pool_info) = POOL_INFO.may_load(deps.storage, lp_token)? {
+            pool_info.last_reward_block = cfg.start_block.max(env.block.height.into());
+            POOL_INFO.save(deps.storage, lp_token, &pool_info)?;
+        } else {
             create_pool(deps.branch(), &env, lp_token, &cfg)?;
         }
     }
@@ -2037,7 +2040,12 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             "2.2.0" | "2.2.0+togrb" => {
                 migration::migrate_configs_from_v220(&mut deps, &msg)?;
             }
-            "2.3.0" => {}
+            "2.3.0" => {
+                if env.block.chain_id == "neutron-1" {
+                    migration::fix_neutron_users_reward_indexes(&mut deps)?;
+                }
+            }
+            "2.3.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
