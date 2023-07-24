@@ -1,9 +1,9 @@
-use crate::state::CONFIG;
+use crate::state::{CONFIG, USER_INFO};
 use astroport::asset::AssetInfo;
 
 use astroport::generator::{Config, MigrateMsg};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut, StdResult, Uint128, Uint64};
+use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Uint128, Uint64};
 use cw_storage_plus::Item;
 
 /// This structure stores the core parameters for the Generator contract.
@@ -66,4 +66,28 @@ pub fn migrate_configs_from_v220(deps: &mut DepsMut, msg: &MigrateMsg) -> StdRes
     }
 
     CONFIG.save(deps.storage, &cfg)
+}
+
+pub fn fix_neutron_users_reward_indexes(deps: &mut DepsMut) -> StdResult<()> {
+    let pool1 =
+        Addr::unchecked("neutron1sx99fxy4lqx0nv3ys86tkdrch82qygxyec5c8dxsk9raz4at5zpq48m66c");
+    let pool2 =
+        Addr::unchecked("neutron1jkcf80nd4pfc2krce3xk9m9y994pllq58avx89sfzqlalej4frus27ms3a");
+
+    let depositor =
+        Addr::unchecked("neutron1ryhxe5fzczelcfmrhmcw9x2jsqy677fw59fsctr09srk24lt93eszwlvyj");
+
+    // We already know that the new user info structure is used and that the values of that type exist there
+    USER_INFO.update::<_, StdError>(deps.storage, (&pool1, &depositor), |v| {
+        let mut r = v.unwrap();
+        r.reward_user_index += Decimal::raw(1960025734161847622);
+        Ok(r)
+    })?;
+    USER_INFO.update::<_, StdError>(deps.storage, (&pool2, &depositor), |v| {
+        let mut r = v.unwrap();
+        r.reward_user_index += Decimal::raw(1301823709312052739);
+        Ok(r)
+    })?;
+
+    Ok(())
 }

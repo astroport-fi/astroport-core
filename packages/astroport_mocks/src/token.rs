@@ -52,7 +52,7 @@ where
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
-    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>, symbol: impl Into<String>) -> Self {
+    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>, symbol: &str) -> Self {
         Self {
             app: app.clone(),
             symbol: symbol.into(),
@@ -119,7 +119,7 @@ where
         }
     }
 
-    pub fn mint(&self, recipient: impl Into<String>, amount: Uint128) {
+    pub fn mint(&self, recipient: &Addr, amount: Uint128) {
         let astroport = astroport_address();
         self.app
             .borrow_mut()
@@ -135,7 +135,7 @@ where
             .unwrap();
     }
 
-    pub fn balance(&self, address: impl Into<String>) -> Uint128 {
+    pub fn balance(&self, address: &Addr) -> Uint128 {
         let res: BalanceResponse = self
             .app
             .borrow()
@@ -163,7 +163,7 @@ where
             .unwrap();
     }
 
-    pub fn allow(&self, sender: &Addr, spender: impl Into<String>, amount: Uint128) {
+    pub fn allow(&self, sender: &Addr, spender: &Addr, amount: Uint128) {
         self.app
             .borrow_mut()
             .execute_contract(

@@ -52,7 +52,7 @@ where
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
-    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>, symbol: impl Into<String>) -> Self {
+    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>, symbol: &str) -> Self {
         Self {
             app: app.clone(),
             symbol: symbol.into(),
