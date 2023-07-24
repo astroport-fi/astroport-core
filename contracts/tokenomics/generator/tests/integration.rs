@@ -4365,7 +4365,7 @@ fn migrate_proxy() {
         &lp_token.address,
     );
 
-    val.mint(vkr_staking.clone(), Uint128::new(110_000_000));
+    val.mint(&vkr_staking, Uint128::new(110_000_000));
 
     let proxy_code_id = store_proxy_code(&mut app.borrow_mut());
 
@@ -4506,5 +4506,43 @@ fn migrate_proxy() {
             .query_wasm_smart::<usize>(generator.address.to_string(), &QueryMsg::PoolLength {})
             .unwrap(),
         1
+    );
+}
+
+#[test]
+fn check_that_last_reward_block_is_reset_when_pool_becomes_incentivised() {
+    let app = Rc::new(RefCell::new(App::default()));
+
+    let astroport = astroport_address();
+
+    let mut generator = MockGeneratorBuilder::new(&app).instantiate();
+
+    let factory = generator.factory();
+
+    let astro = MockToken::try_from((&app, &generator.astro_token_info())).unwrap();
+    let tkn1 = MockTokenBuilder::new(&app, "TKN1").instantiate();
+
+    let pair = factory.instantiate_xyk_pair(&[astro.asset_info(), tkn1.asset_info()]);
+
+    pair.mint_allow_provide_and_stake(
+        &astroport,
+        &[
+            astro.asset_info().with_balance(Uint128::new(1000_000000)),
+            tkn1.asset_info().with_balance(Uint128::new(1000_000000)),
+        ],
+    );
+
+    app.borrow_mut().update_block(|b| b.height += 1000);
+
+    let lp_token = pair.lp_token();
+
+    generator.setup_pools(&[(lp_token.address.to_string(), Uint128::one())]);
+
+    // if last reward block didn't reset, user would get incentives for 1000 blocks
+    assert_eq!(
+        generator
+            .pending_token(&lp_token.address, &astroport)
+            .pending,
+        Uint128::zero()
     );
 }

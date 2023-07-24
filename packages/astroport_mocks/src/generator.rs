@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use astroport::{
     asset::AssetInfo,
     factory::ExecuteMsg as FactoryExecuteMsg,
-    generator::{Config, ExecuteMsg, InstantiateMsg, QueryMsg},
+    generator::{Config, ExecuteMsg, InstantiateMsg, PendingTokenResponse, QueryMsg},
     token::ExecuteMsg as Cw20ExecuteMsg,
     vesting::{
         Cw20HookMsg as VestingCw20HookMsg, VestingAccount, VestingSchedule, VestingSchedulePoint,
@@ -218,7 +218,7 @@ where
     pub fn query_deposit(
         &self,
         lp_token: &MockToken<B, A, S, C, X, D, I, G>,
-        user: impl Into<String>,
+        user: &Addr,
     ) -> Uint128 {
         self.app
             .borrow()
@@ -231,5 +231,48 @@ where
                 },
             )
             .unwrap()
+    }
+
+    pub fn setup_pools(&mut self, pools: &[(String, Uint128)]) {
+        self.app
+            .borrow_mut()
+            .execute_contract(
+                astroport_address(),
+                self.address.clone(),
+                &ExecuteMsg::SetupPools {
+                    pools: pools.to_vec(),
+                },
+                &[],
+            )
+            .unwrap();
+    }
+
+    pub fn set_tokens_per_block(&mut self, amount: Uint128) {
+        self.app
+            .borrow_mut()
+            .execute_contract(
+                astroport_address(),
+                self.address.clone(),
+                &ExecuteMsg::SetTokensPerBlock { amount },
+                &[],
+            )
+            .unwrap();
+    }
+
+    pub fn pending_token(&self, lp_token: &Addr, user: &Addr) -> PendingTokenResponse {
+        let res: PendingTokenResponse = self
+            .app
+            .borrow()
+            .wrap()
+            .query_wasm_smart(
+                self.address.clone(),
+                &QueryMsg::PendingToken {
+                    lp_token: lp_token.into(),
+                    user: user.into(),
+                },
+            )
+            .unwrap();
+
+        res
     }
 }

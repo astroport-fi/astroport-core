@@ -1393,12 +1393,9 @@ fn provide_liquidity_with_autostaking_to_generator() {
         ],
     );
 
+    assert_eq!(pair.lp_token().balance(&pair.address), Uint128::new(1000));
     assert_eq!(
-        pair.lp_token().balance(pair.address.to_string()),
-        Uint128::new(1000)
-    );
-    assert_eq!(
-        generator.query_deposit(&pair.lp_token(), astroport),
+        generator.query_deposit(&pair.lp_token(), &astroport),
         Uint128::new(1999_999000),
     );
 }
