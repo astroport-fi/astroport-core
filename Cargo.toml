@@ -17,6 +17,7 @@ members = [
   "contracts/tokenomics/staking",
   "contracts/tokenomics/vesting",
   "contracts/tokenomics/xastro_token",
+  "contracts/tokenomics/xastro_outpost_token",
   "contracts/periphery/*",
 ]
 

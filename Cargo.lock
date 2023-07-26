@@ -546,6 +546,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-xastro-outpost-token"
+version = "1.0.0"
+dependencies = [
+ "astroport",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test 0.15.1",
+ "cw-storage-plus 0.15.1",
+ "cw2 0.15.1",
+ "cw20 0.15.1",
+ "cw20-base 0.15.1",
+ "snafu",
+]
+
+[[package]]
 name = "astroport-xastro-token"
 version = "1.1.0"
 dependencies = [

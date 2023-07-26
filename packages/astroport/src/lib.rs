@@ -21,6 +21,7 @@ pub mod shared_multisig;
 pub mod staking;
 pub mod token;
 pub mod vesting;
+pub mod xastro_outpost_token;
 pub mod xastro_token;
 
 #[cfg(feature = "injective")]
