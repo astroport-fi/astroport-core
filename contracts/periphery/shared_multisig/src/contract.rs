@@ -10,6 +10,7 @@ use cosmwasm_std::{
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::shared_multisig::{
     Config, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, MultisigRole, QueryMsg,
+    DEFAULT_WEIGHT, TOTAL_WEIGHT,
 };
 use cw2::set_contract_version;
 use cw3::{
@@ -21,15 +22,13 @@ use cw_utils::{Duration, Expiration, Threshold};
 
 use crate::error::ContractError;
 use crate::state::{
-    next_id, BALLOTS, CONFIG, DAO_PROPOSAL, DEFAULT_LIMIT, MANAGER_PROPOSAL, MAX_LIMIT, PROPOSALS,
+    load_vote, next_id, BALLOTS, CONFIG, DAO_PROPOSAL, DEFAULT_LIMIT, MANAGER_PROPOSAL, MAX_LIMIT,
+    PROPOSALS,
 };
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astroport-shared-multisig";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-const TOTAL_WEIGHT: u64 = 2;
-const DEFAULT_WEIGHT: u64 = 1;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -151,6 +150,7 @@ pub fn execute_propose(
     let max_expires = cfg.max_voting_period.after(&env.block);
     let mut expires = latest.unwrap_or(max_expires);
     let comp = expires.partial_cmp(&max_expires);
+
     if let Some(Ordering::Greater) = comp {
         expires = max_expires;
     } else if comp.is_none() {
@@ -345,11 +345,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_before,
             limit,
         } => to_binary(&reverse_proposals(deps, env, start_before, limit)?),
-        QueryMsg::ListVotes {
-            proposal_id,
-            start_after,
-            limit,
-        } => to_binary(&list_votes(deps, proposal_id, start_after, limit)?),
+        QueryMsg::ListVotes { proposal_id } => to_binary(&list_votes(deps, proposal_id)?),
     }
 }
 
@@ -464,28 +460,16 @@ fn query_vote(deps: Deps, proposal_id: u64, voter: String) -> StdResult<VoteResp
     Ok(VoteResponse { vote })
 }
 
-fn list_votes(
-    deps: Deps,
-    proposal_id: u64,
-    start_after: Option<String>,
-    limit: Option<u32>,
-) -> StdResult<VoteListResponse> {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|s| Bound::ExclusiveRaw(s.into()));
+fn list_votes(deps: Deps, proposal_id: u64) -> StdResult<VoteListResponse> {
+    let mut votes = vec![];
 
-    let votes = BALLOTS
-        .prefix(proposal_id)
-        .range(deps.storage, start, None, Order::Ascending)
-        .take(limit)
-        .map(|item| {
-            item.map(|(voter, vote)| VoteInfo {
-                proposal_id,
-                vote,
-                voter: voter.to_string(),
-                weight: DEFAULT_WEIGHT,
-            })
-        })
-        .collect::<StdResult<_>>()?;
+    if let Some(vote_info) = load_vote(deps, (proposal_id, &MultisigRole::Dao))? {
+        votes.push(vote_info);
+    }
+
+    if let Some(vote_info) = load_vote(deps, (proposal_id, &MultisigRole::Manager))? {
+        votes.push(vote_info);
+    }
 
     Ok(VoteListResponse { votes })
 }

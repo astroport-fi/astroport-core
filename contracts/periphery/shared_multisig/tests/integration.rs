@@ -1,9 +1,11 @@
 #![cfg(not(tarpaulin_include))]
+use cosmwasm_std::{Addr, BankMsg, Coin, StdError, Uint128};
+use cw3::{
+    ProposalListResponse, ProposalResponse, Status, Vote, VoteInfo, VoteListResponse, VoteResponse,
+};
 
-use cosmwasm_std::{Addr, BankMsg, Coin, Uint128};
-use cw3::{ProposalResponse, Status, Vote, VoteInfo, VoteResponse};
 use cw_multi_test::{App, ContractWrapper, Executor};
-use cw_utils::{Duration, ThresholdResponse};
+use cw_utils::{Duration, Expiration, ThresholdResponse};
 
 use astroport::shared_multisig::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 
@@ -29,6 +31,24 @@ fn store_shared_multisig_code(app: &mut App) -> u64 {
     app.store_code(contract)
 }
 
+fn shared_multisig_instance(app: &mut App, owner: Addr, dao: String, manager: String) -> Addr {
+    let shared_multisig_code_id = store_shared_multisig_code(app);
+
+    app.instantiate_contract(
+        shared_multisig_code_id,
+        owner,
+        &InstantiateMsg {
+            max_voting_period: Duration::Height(3),
+            dao,
+            manager,
+        },
+        &[],
+        "Astroport shared multisig",
+        None,
+    )
+    .unwrap()
+}
+
 const OWNER: &str = "owner";
 const DAO: &str = "dao";
 const MANAGER: &str = "manager";
@@ -41,26 +61,12 @@ fn proper_initialization() {
     let dao = Addr::unchecked("dao");
     let mut app = mock_app(&owner, None);
 
-    let shared_multisig_code_id = store_shared_multisig_code(&mut app);
-
-    let shared_multisig_instance = app
-        .instantiate_contract(
-            shared_multisig_code_id,
-            owner,
-            &InstantiateMsg {
-                max_voting_period: Duration::Height(3),
-                dao: dao.to_string(),
-                manager: manager.to_string(),
-            },
-            &[],
-            "Astroport shared multisig",
-            None,
-        )
-        .unwrap();
+    let shared_addr =
+        shared_multisig_instance(&mut app, owner, DAO.to_string(), MANAGER.to_string());
 
     let config_res: ConfigResponse = app
         .wrap()
-        .query_wasm_smart(&shared_multisig_instance, &QueryMsg::Config {})
+        .query_wasm_smart(&shared_addr, &QueryMsg::Config {})
         .unwrap();
 
     assert_eq!(manager, config_res.manager);
@@ -84,22 +90,8 @@ fn check_update_manager() {
     let recipient = Addr::unchecked("recipient");
     let mut app = mock_app(&owner, None);
 
-    let shared_multisig_code_id = store_shared_multisig_code(&mut app);
-
-    let shared_multisig_instance = app
-        .instantiate_contract(
-            shared_multisig_code_id,
-            owner,
-            &InstantiateMsg {
-                max_voting_period: Duration::Height(3),
-                dao: dao.to_string(),
-                manager: manager.to_string(),
-            },
-            &[],
-            "Astroport shared multisig",
-            None,
-        )
-        .unwrap();
+    let shared_addr =
+        shared_multisig_instance(&mut app, owner, DAO.to_string(), MANAGER.to_string());
 
     // New manager
     let msg = ExecuteMsg::ProposeNewManager {
@@ -108,7 +100,7 @@ fn check_update_manager() {
     };
 
     let err = app
-        .execute_contract(dao.clone(), shared_multisig_instance.clone(), &msg, &[])
+        .execute_contract(dao.clone(), shared_addr.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
@@ -116,7 +108,7 @@ fn check_update_manager() {
     let err = app
         .execute_contract(
             new_manager.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::ClaimManager {},
             &[],
         )
@@ -141,23 +133,18 @@ fn check_update_manager() {
     };
 
     // try to propose from manager
-    app.execute_contract(
-        manager.clone(),
-        shared_multisig_instance.clone(),
-        &propose_msg,
-        &[],
-    )
-    .unwrap();
+    app.execute_contract(manager.clone(), shared_addr.clone(), &propose_msg, &[])
+        .unwrap();
 
     // Try to propose new manager
-    app.execute_contract(manager.clone(), shared_multisig_instance.clone(), &msg, &[])
+    app.execute_contract(manager.clone(), shared_addr.clone(), &msg, &[])
         .unwrap();
 
     // Claim from DAO
     let err = app
         .execute_contract(
             dao.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::ClaimManager {},
             &[],
         )
@@ -168,7 +155,7 @@ fn check_update_manager() {
     let err = app
         .execute_contract(
             new_manager.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::DropManagerProposal {},
             &[],
         )
@@ -178,7 +165,7 @@ fn check_update_manager() {
 
     app.execute_contract(
         manager.clone(),
-        shared_multisig_instance.clone(),
+        shared_addr.clone(),
         &ExecuteMsg::DropManagerProposal {},
         &[],
     )
@@ -188,7 +175,7 @@ fn check_update_manager() {
     let err = app
         .execute_contract(
             new_manager.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::ClaimManager {},
             &[],
         )
@@ -199,13 +186,13 @@ fn check_update_manager() {
     );
 
     // Propose new manager again
-    app.execute_contract(manager.clone(), shared_multisig_instance.clone(), &msg, &[])
+    app.execute_contract(manager.clone(), shared_addr.clone(), &msg, &[])
         .unwrap();
 
     // Claim manager
     app.execute_contract(
         new_manager.clone(),
-        shared_multisig_instance.clone(),
+        shared_addr.clone(),
         &ExecuteMsg::ClaimManager {},
         &[],
     )
@@ -214,7 +201,7 @@ fn check_update_manager() {
     // Let's query the contract state
     let res: ConfigResponse = app
         .wrap()
-        .query_wasm_smart(&shared_multisig_instance, &QueryMsg::Config {})
+        .query_wasm_smart(&shared_addr, &QueryMsg::Config {})
         .unwrap();
 
     assert_eq!(res.manager, new_manager);
@@ -230,22 +217,8 @@ fn check_update_dao() {
     let recipient = Addr::unchecked("recipient");
     let mut app = mock_app(&owner, None);
 
-    let shared_multisig_code_id = store_shared_multisig_code(&mut app);
-
-    let shared_multisig_instance = app
-        .instantiate_contract(
-            shared_multisig_code_id,
-            owner.clone(),
-            &InstantiateMsg {
-                max_voting_period: Duration::Height(3),
-                dao: dao.to_string(),
-                manager: manager.to_string(),
-            },
-            &[],
-            "Astroport shared multisig",
-            None,
-        )
-        .unwrap();
+    let shared_addr =
+        shared_multisig_instance(&mut app, owner, DAO.to_string(), MANAGER.to_string());
 
     // New DAO
     let msg = ExecuteMsg::ProposeNewDao {
@@ -254,7 +227,7 @@ fn check_update_dao() {
     };
 
     let err = app
-        .execute_contract(manager.clone(), shared_multisig_instance.clone(), &msg, &[])
+        .execute_contract(manager.clone(), shared_addr.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
@@ -262,7 +235,7 @@ fn check_update_dao() {
     let err = app
         .execute_contract(
             new_dao.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::ClaimDao {},
             &[],
         )
@@ -287,23 +260,18 @@ fn check_update_dao() {
     };
 
     // try to propose from DAO
-    app.execute_contract(
-        dao.clone(),
-        shared_multisig_instance.clone(),
-        &propose_msg,
-        &[],
-    )
-    .unwrap();
+    app.execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
+        .unwrap();
 
     // Try to propose new DAO
-    app.execute_contract(dao.clone(), shared_multisig_instance.clone(), &msg, &[])
+    app.execute_contract(dao.clone(), shared_addr.clone(), &msg, &[])
         .unwrap();
 
     // Claim from manager
     let err = app
         .execute_contract(
             manager.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::ClaimDao {},
             &[],
         )
@@ -314,7 +282,7 @@ fn check_update_dao() {
     let err = app
         .execute_contract(
             new_dao.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::DropDaoProposal {},
             &[],
         )
@@ -325,7 +293,7 @@ fn check_update_dao() {
 
     app.execute_contract(
         dao.clone(),
-        shared_multisig_instance.clone(),
+        shared_addr.clone(),
         &ExecuteMsg::DropDaoProposal {},
         &[],
     )
@@ -335,7 +303,7 @@ fn check_update_dao() {
     let err = app
         .execute_contract(
             new_dao.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::ClaimDao {},
             &[],
         )
@@ -346,13 +314,13 @@ fn check_update_dao() {
     );
 
     // Propose new DAO again
-    app.execute_contract(dao.clone(), shared_multisig_instance.clone(), &msg, &[])
+    app.execute_contract(dao.clone(), shared_addr.clone(), &msg, &[])
         .unwrap();
 
     // Claim DAO
     app.execute_contract(
         new_dao.clone(),
-        shared_multisig_instance.clone(),
+        shared_addr.clone(),
         &ExecuteMsg::ClaimDao {},
         &[],
     )
@@ -361,7 +329,7 @@ fn check_update_dao() {
     // Let's query the contract state
     let res: ConfigResponse = app
         .wrap()
-        .query_wasm_smart(&shared_multisig_instance, &QueryMsg::Config {})
+        .query_wasm_smart(&shared_addr, &QueryMsg::Config {})
         .unwrap();
 
     assert_eq!(res.manager, manager);
@@ -384,30 +352,18 @@ fn shared_multisig_controls() {
         }]),
     );
 
-    let shared_multisig_code_id = store_shared_multisig_code(&mut router);
-
-    let instantiate_msg = InstantiateMsg {
-        max_voting_period: Duration::Height(3),
-        dao: DAO.to_string(),
-        manager: MANAGER.to_string(),
-    };
-
-    let shared_multisig_instance = router
-        .instantiate_contract(
-            shared_multisig_code_id,
-            owner.clone(),
-            &instantiate_msg,
-            &[],
-            "Astroport shared multisig",
-            None,
-        )
-        .unwrap();
+    let shared_addr = shared_multisig_instance(
+        &mut router,
+        owner.clone(),
+        DAO.to_string(),
+        MANAGER.to_string(),
+    );
 
     // Sends tokens to the multisig
     router
         .send_tokens(
             owner.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &[Coin {
                 denom: "utrn".to_string(),
                 amount: Uint128::new(200_000_000u128),
@@ -426,7 +382,7 @@ fn shared_multisig_controls() {
     // Check the holder's balance
     let res = router
         .wrap()
-        .query_balance(shared_multisig_instance.to_string(), "utrn")
+        .query_balance(shared_addr.to_string(), "utrn")
         .unwrap();
     assert_eq!(res.amount, Uint128::new(200_000_000));
     assert_eq!(res.denom, "utrn");
@@ -448,30 +404,20 @@ fn shared_multisig_controls() {
 
     // try to propose from cheater
     let err = router
-        .execute_contract(
-            cheater.clone(),
-            shared_multisig_instance.clone(),
-            &propose_msg,
-            &[],
-        )
+        .execute_contract(cheater.clone(), shared_addr.clone(), &propose_msg, &[])
         .unwrap_err();
     assert_eq!("Unauthorized", err.root_cause().to_string());
 
     // try to propose from DAO
     router
-        .execute_contract(
-            dao.clone(),
-            shared_multisig_instance.clone(),
-            &propose_msg,
-            &[],
-        )
+        .execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
         .unwrap();
 
     // Try to vote from cheater
     let err = router
         .execute_contract(
             cheater.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::Vote {
                 proposal_id: 1,
                 vote: Vote::Yes,
@@ -485,7 +431,7 @@ fn shared_multisig_controls() {
     let err = router
         .execute_contract(
             dao.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::Execute { proposal_id: 1 },
             &[],
         )
@@ -499,7 +445,7 @@ fn shared_multisig_controls() {
     let res: VoteResponse = router
         .wrap()
         .query_wasm_smart(
-            &shared_multisig_instance,
+            &shared_addr,
             &QueryMsg::Vote {
                 proposal_id: 1,
                 voter: dao.to_string(),
@@ -522,7 +468,7 @@ fn shared_multisig_controls() {
     let res: VoteResponse = router
         .wrap()
         .query_wasm_smart(
-            &shared_multisig_instance,
+            &shared_addr,
             &QueryMsg::Vote {
                 proposal_id: 1,
                 voter: manager.to_string(),
@@ -535,7 +481,7 @@ fn shared_multisig_controls() {
     router
         .execute_contract(
             manager.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::Vote {
                 proposal_id: 1,
                 vote: Vote::No,
@@ -548,7 +494,7 @@ fn shared_multisig_controls() {
     let res: VoteResponse = router
         .wrap()
         .query_wasm_smart(
-            &shared_multisig_instance,
+            &shared_addr,
             &QueryMsg::Vote {
                 proposal_id: 1,
                 voter: manager.to_string(),
@@ -570,7 +516,7 @@ fn shared_multisig_controls() {
     let err = router
         .execute_contract(
             cheater.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::Execute { proposal_id: 1 },
             &[],
         )
@@ -584,7 +530,7 @@ fn shared_multisig_controls() {
     let err = router
         .execute_contract(
             manager.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::Vote {
                 proposal_id: 1,
                 vote: Vote::Yes,
@@ -608,19 +554,14 @@ fn shared_multisig_controls() {
     // Check the holder's balance
     let res = router
         .wrap()
-        .query_balance(shared_multisig_instance.to_string(), "utrn")
+        .query_balance(shared_addr.to_string(), "utrn")
         .unwrap();
     assert_eq!(res.amount, Uint128::new(200_000_000));
     assert_eq!(res.denom, "utrn");
 
     // try to propose from DAO
     router
-        .execute_contract(
-            dao.clone(),
-            shared_multisig_instance.clone(),
-            &propose_msg,
-            &[],
-        )
+        .execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
         .unwrap();
 
     router.update_block(|b| b.height += 4);
@@ -629,7 +570,7 @@ fn shared_multisig_controls() {
     let err = router
         .execute_contract(
             manager.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::Vote {
                 proposal_id: 2,
                 vote: Vote::Yes,
@@ -645,7 +586,7 @@ fn shared_multisig_controls() {
     let err = router
         .execute_contract(
             cheater.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::Execute { proposal_id: 2 },
             &[],
         )
@@ -659,7 +600,7 @@ fn shared_multisig_controls() {
     let res: VoteResponse = router
         .wrap()
         .query_wasm_smart(
-            &shared_multisig_instance,
+            &shared_addr,
             &QueryMsg::Vote {
                 proposal_id: 1,
                 voter: manager.to_string(),
@@ -680,19 +621,13 @@ fn shared_multisig_controls() {
 
     let res: ProposalResponse = router
         .wrap()
-        .query_wasm_smart(
-            &shared_multisig_instance,
-            &QueryMsg::Proposal { proposal_id: 1 },
-        )
+        .query_wasm_smart(&shared_addr, &QueryMsg::Proposal { proposal_id: 1 })
         .unwrap();
     assert_eq!(res.status, Status::Rejected);
 
     let res: ProposalResponse = router
         .wrap()
-        .query_wasm_smart(
-            &shared_multisig_instance,
-            &QueryMsg::Proposal { proposal_id: 2 },
-        )
+        .query_wasm_smart(&shared_addr, &QueryMsg::Proposal { proposal_id: 2 })
         .unwrap();
     assert_eq!(res.status, Status::Rejected);
 
@@ -700,7 +635,7 @@ fn shared_multisig_controls() {
     let err = router
         .execute_contract(
             manager.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::UpdateConfig {
                 max_voting_period: Duration::Height(10),
             },
@@ -712,8 +647,8 @@ fn shared_multisig_controls() {
     // Try to update config from multisig contract
     router
         .execute_contract(
-            shared_multisig_instance.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::UpdateConfig {
                 max_voting_period: Duration::Height(10),
             },
@@ -723,25 +658,20 @@ fn shared_multisig_controls() {
 
     let res: ConfigResponse = router
         .wrap()
-        .query_wasm_smart(&shared_multisig_instance, &QueryMsg::Config {})
+        .query_wasm_smart(&shared_addr, &QueryMsg::Config {})
         .unwrap();
     assert_eq!(res.max_voting_period, Duration::Height(10));
 
     // try to propose from DAO
     router
-        .execute_contract(
-            dao.clone(),
-            shared_multisig_instance.clone(),
-            &propose_msg,
-            &[],
-        )
+        .execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
         .unwrap();
 
     // Try to vote from Manager
     router
         .execute_contract(
             manager.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::Vote {
                 proposal_id: 3,
                 vote: Vote::Yes,
@@ -754,7 +684,7 @@ fn shared_multisig_controls() {
     router
         .execute_contract(
             recipient.clone(),
-            shared_multisig_instance.clone(),
+            shared_addr.clone(),
             &ExecuteMsg::Execute { proposal_id: 3 },
             &[],
         )
@@ -771,8 +701,277 @@ fn shared_multisig_controls() {
     // Check the holder's balance
     let res = router
         .wrap()
-        .query_balance(shared_multisig_instance.to_string(), "utrn")
+        .query_balance(shared_addr.to_string(), "utrn")
         .unwrap();
     assert_eq!(res.amount, Uint128::new(100_000_000));
     assert_eq!(res.denom, "utrn");
+
+    // try to propose from DAO
+    router
+        .execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
+        .unwrap();
+
+    router.update_block(|b| b.height += 100);
+
+    // Try to close expired proposal
+    router
+        .execute_contract(
+            recipient.clone(),
+            shared_addr.clone(),
+            &ExecuteMsg::Close { proposal_id: 4 },
+            &[],
+        )
+        .unwrap();
+}
+
+#[test]
+fn query_proposal() {
+    let owner = Addr::unchecked("owner");
+    let dao = Addr::unchecked("dao");
+    let manager = Addr::unchecked("manager");
+
+    let mut app = mock_app(&owner, None);
+    let shared_addr =
+        shared_multisig_instance(&mut app, owner, "dao".to_string(), "manager".to_string());
+
+    let err = app
+        .wrap()
+        .query_wasm_smart::<ProposalResponse>(&shared_addr, &QueryMsg::Proposal { proposal_id: 0 })
+        .unwrap_err();
+    assert_eq!(
+        StdError::generic_err("Querier contract error: cw3::proposal::Proposal not found"),
+        err
+    );
+
+    let propose_msg = ExecuteMsg::Propose {
+        title: "Empty proposal".to_string(),
+        description: "Empty proposal".to_string(),
+        msgs: vec![],
+        latest: None,
+    };
+
+    // try to propose from DAO
+    app.execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
+        .unwrap();
+
+    let res: ProposalResponse = app
+        .wrap()
+        .query_wasm_smart(&shared_addr, &QueryMsg::Proposal { proposal_id: 1 })
+        .unwrap();
+
+    assert_eq!(
+        res,
+        ProposalResponse {
+            id: 1,
+            title: "Empty proposal".to_string(),
+            description: "Empty proposal".to_string(),
+            msgs: vec![],
+            status: Status::Open,
+            expires: Expiration::AtHeight(app.block_info().height + 3),
+            threshold: ThresholdResponse::AbsoluteCount {
+                weight: 2,
+                total_weight: 2
+            },
+            proposer: dao.clone(),
+            deposit: None
+        }
+    );
+
+    let propose_msg = ExecuteMsg::Propose {
+        title: "The second empty proposal".to_string(),
+        description: "The second empty proposal".to_string(),
+        msgs: vec![],
+        latest: None,
+    };
+
+    // try to propose from DAO
+    app.execute_contract(manager.clone(), shared_addr.clone(), &propose_msg, &[])
+        .unwrap();
+
+    let res: ProposalListResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &shared_addr,
+            &QueryMsg::ListProposals {
+                start_after: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+
+    assert_eq!(
+        res.proposals,
+        vec![
+            ProposalResponse {
+                id: 1,
+                title: "Empty proposal".to_string(),
+                description: "Empty proposal".to_string(),
+                msgs: vec![],
+                status: Status::Open,
+                expires: Expiration::AtHeight(app.block_info().height + 3),
+                threshold: ThresholdResponse::AbsoluteCount {
+                    weight: 2,
+                    total_weight: 2
+                },
+                proposer: dao.clone(),
+                deposit: None
+            },
+            ProposalResponse {
+                id: 2,
+                title: "The second empty proposal".to_string(),
+                description: "The second empty proposal".to_string(),
+                msgs: vec![],
+                status: Status::Open,
+                expires: Expiration::AtHeight(app.block_info().height + 3),
+                threshold: ThresholdResponse::AbsoluteCount {
+                    weight: 2,
+                    total_weight: 2
+                },
+                proposer: manager.clone(),
+                deposit: None
+            }
+        ]
+    );
+
+    let res: ProposalListResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &shared_addr,
+            &QueryMsg::ReverseProposals {
+                start_before: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+
+    assert_eq!(
+        res.proposals,
+        vec![
+            ProposalResponse {
+                id: 2,
+                title: "The second empty proposal".to_string(),
+                description: "The second empty proposal".to_string(),
+                msgs: vec![],
+                status: Status::Open,
+                expires: Expiration::AtHeight(app.block_info().height + 3),
+                threshold: ThresholdResponse::AbsoluteCount {
+                    weight: 2,
+                    total_weight: 2
+                },
+                proposer: manager,
+                deposit: None
+            },
+            ProposalResponse {
+                id: 1,
+                title: "Empty proposal".to_string(),
+                description: "Empty proposal".to_string(),
+                msgs: vec![],
+                status: Status::Open,
+                expires: Expiration::AtHeight(app.block_info().height + 3),
+                threshold: ThresholdResponse::AbsoluteCount {
+                    weight: 2,
+                    total_weight: 2
+                },
+                proposer: dao,
+                deposit: None
+            }
+        ]
+    );
+}
+
+#[test]
+fn query_list_votes() {
+    let owner = Addr::unchecked("owner");
+    let dao = Addr::unchecked("dao");
+    let manager = Addr::unchecked("manager");
+
+    let mut app = mock_app(&owner, None);
+    let shared_addr =
+        shared_multisig_instance(&mut app, owner, "dao".to_string(), "manager".to_string());
+
+    let propose_msg = ExecuteMsg::Propose {
+        title: "Empty proposal".to_string(),
+        description: "Empty proposal".to_string(),
+        msgs: vec![],
+        latest: None,
+    };
+
+    // try to propose from DAO
+    app.execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
+        .unwrap();
+
+    // DAO vote
+    app.wrap()
+        .query_wasm_smart::<VoteResponse>(
+            &shared_addr,
+            &QueryMsg::Vote {
+                proposal_id: 1,
+                voter: dao.to_string(),
+            },
+        )
+        .unwrap();
+
+    let res: VoteResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &shared_addr,
+            &QueryMsg::Vote {
+                proposal_id: 1,
+                voter: "dao".to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(
+        res.vote,
+        Some(VoteInfo {
+            proposal_id: 1,
+            voter: "dao".to_string(),
+            vote: Vote::Yes,
+            weight: 1
+        })
+    );
+
+    let res: VoteListResponse = app
+        .wrap()
+        .query_wasm_smart(&shared_addr, &QueryMsg::ListVotes { proposal_id: 1 })
+        .unwrap();
+    assert_eq!(
+        res,
+        VoteListResponse {
+            votes: vec![VoteInfo {
+                proposal_id: 1,
+                voter: "dao".to_string(),
+                vote: Vote::Yes,
+                weight: 1
+            }]
+        }
+    );
+
+    // DAO vote
+    app.wrap()
+        .query_wasm_smart::<VoteResponse>(
+            &shared_addr,
+            &QueryMsg::Vote {
+                proposal_id: 1,
+                voter: manager.to_string(),
+            },
+        )
+        .unwrap();
+
+    let res: VoteListResponse = app
+        .wrap()
+        .query_wasm_smart(&shared_addr, &QueryMsg::ListVotes { proposal_id: 1 })
+        .unwrap();
+    assert_eq!(
+        res,
+        VoteListResponse {
+            votes: vec![VoteInfo {
+                proposal_id: 1,
+                voter: "dao".to_string(),
+                vote: Vote::Yes,
+                weight: 1
+            }]
+        }
+    );
 }
