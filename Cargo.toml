@@ -11,6 +11,7 @@ members = [
   "contracts/router",
   "contracts/token",
   "contracts/whitelist",
+  "contracts/cw20_ics20",
   "templates/*",
   "contracts/tokenomics/generator",
   "contracts/tokenomics/maker",
