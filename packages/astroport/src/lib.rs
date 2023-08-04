@@ -10,6 +10,7 @@ pub mod native_coin_registry;
 pub mod native_coin_wrapper;
 pub mod observation;
 pub mod oracle;
+pub mod outpost_handler;
 pub mod pair;
 pub mod pair_bonded;
 pub mod pair_concentrated;
@@ -21,6 +22,7 @@ pub mod shared_multisig;
 pub mod staking;
 pub mod token;
 pub mod vesting;
+pub mod xastro_outpost_token;
 pub mod xastro_token;
 
 #[cfg(feature = "injective")]
@@ -29,6 +31,7 @@ pub mod injective_ext;
 #[cfg(test)]
 mod mock_querier;
 
+pub mod liquidity_manager;
 #[cfg(test)]
 mod testing;
 

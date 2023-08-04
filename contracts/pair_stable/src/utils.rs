@@ -106,7 +106,7 @@ pub(crate) fn select_pools(
 }
 
 /// Compute the current pool amplification coefficient (AMP).
-pub(crate) fn compute_current_amp(config: &Config, env: &Env) -> StdResult<Uint64> {
+pub fn compute_current_amp(config: &Config, env: &Env) -> StdResult<Uint64> {
     let block_time = env.block.time.seconds();
     if block_time < config.next_amp_time {
         let elapsed_time: Uint128 = block_time.saturating_sub(config.init_amp_time).into();
