@@ -20,7 +20,7 @@ pub const TOL: Decimal256 = Decimal256::raw(1000000000000);
 ///
 /// A * sum(x_i) * n**n + D = A * D * n**n + D**(n+1) / (n**n * prod(x_i))
 ///
-pub(crate) fn compute_d(amp: Uint64, pools: &[Decimal256]) -> StdResult<Decimal256> {
+pub fn compute_d(amp: Uint64, pools: &[Decimal256]) -> StdResult<Decimal256> {
     let leverage = Decimal256::from_ratio(amp, AMP_PRECISION) * N_COINS;
     let amount_a_times_coins = pools[0] * N_COINS;
     let amount_b_times_coins = pools[1] * N_COINS;

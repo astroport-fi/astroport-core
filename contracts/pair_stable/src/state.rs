@@ -36,7 +36,7 @@ pub const OBSERVATIONS: CircularBuffer<Observation> =
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// Stores map of AssetInfo (as String) -> precision
-const PRECISIONS: Map<String, u8> = Map::new("precisions");
+pub const PRECISIONS: Map<String, u8> = Map::new("precisions");
 
 /// Stores the latest contract ownership transfer proposal
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");

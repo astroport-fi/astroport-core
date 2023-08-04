@@ -5,6 +5,9 @@ use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use cw_utils::{Duration, Expiration, Threshold, ThresholdResponse};
 use std::fmt::{Display, Formatter};
 
+pub const TOTAL_WEIGHT: u64 = 2;
+pub const DEFAULT_WEIGHT: u64 = 1;
+
 #[cw_serde]
 pub struct Config {
     pub threshold: Threshold,
@@ -57,6 +60,7 @@ impl MultisigRole {
         }
     }
 }
+
 impl<'a> PrimaryKey<'a> for &MultisigRole {
     type Prefix = ();
 
@@ -154,14 +158,27 @@ pub enum QueryMsg {
     #[returns(cw3::VoteResponse)]
     Vote { proposal_id: u64, voter: String },
     #[returns(cw3::VoteListResponse)]
-    ListVotes {
-        proposal_id: u64,
-        start_after: Option<String>,
-        limit: Option<u32>,
-    },
+    ListVotes { proposal_id: u64 },
 }
 
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[cw_serde]
 pub struct MigrateMsg {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_multisig_role() {
+        assert_eq!(MultisigRole::Manager.as_bytes(), "manager".as_bytes());
+        assert_eq!(MultisigRole::Dao.as_bytes(), "dao".as_bytes());
+    }
+
+    #[test]
+    fn test_multisig_role_display() {
+        assert_eq!(MultisigRole::Manager.to_string(), "manager");
+        assert_eq!(MultisigRole::Dao.to_string(), "dao");
+    }
+}

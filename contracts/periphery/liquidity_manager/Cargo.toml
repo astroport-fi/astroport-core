@@ -1,0 +1,33 @@
+[package]
+name = "astroport-liquidity-manager"
+version = "1.0.0"
+edition = "2021"
+
+[features]
+library = []
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+cosmwasm-std = "1.1"
+cosmwasm-schema = "1.1"
+cw-storage-plus = "1.0"
+cw20 = "0.15"
+thiserror = "1.0"
+astroport = { path = "../../../packages/astroport" }
+cw20-base = { version = "0.15", features = ["library"] }
+astroport-pair = { path = "../../pair", features = ["library"] }
+astroport-pair-stable = { path = "../../pair_stable", features = ["library"] }
+astroport-factory = { path = "../../factory", features = ["library"] }
+
+[dev-dependencies]
+cw-multi-test = "0.16.4"
+astroport-token = { path = "../../token" }
+astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
+astroport-generator = { path = "../../tokenomics/generator" }
+astroport-whitelist = { path = "../../whitelist" }
+serde_json = "1.0.96"
+anyhow = "1"
+derivative = "2.2"
+itertools = "0.10"
