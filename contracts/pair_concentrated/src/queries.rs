@@ -1,11 +1,9 @@
-use crate::contract::LP_TOKEN_PRECISION;
-use crate::error::ContractError;
-use crate::math::{calc_d, get_xcp};
-use crate::state::{Precisions, BALANCES, CONFIG};
-use crate::utils::{
-    accumulate_prices, before_swap_check, calc_last_prices, compute_offer_amount, compute_swap,
-    get_share_in_assets, pool_info, query_pools,
+use cosmwasm_std::{
+    entry_point, to_binary, Binary, Decimal, Decimal256, Deps, Env, StdError, StdResult, Uint128,
+    Uint64,
 };
+use itertools::Itertools;
+
 use astroport::asset::{Asset, AssetInfo};
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::pair::{
@@ -14,11 +12,15 @@ use astroport::pair::{
 };
 use astroport::pair_concentrated::{ConcentratedPoolConfig, QueryMsg};
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
-use cosmwasm_std::{
-    entry_point, to_binary, Binary, Decimal, Decimal256, Deps, Env, StdError, StdResult, Uint128,
-    Uint64,
+
+use crate::contract::LP_TOKEN_PRECISION;
+use crate::error::ContractError;
+use crate::math::{calc_d, get_xcp};
+use crate::state::{Precisions, BALANCES, CONFIG};
+use crate::utils::{
+    accumulate_prices, before_swap_check, calc_last_prices, compute_offer_amount, compute_swap,
+    get_share_in_assets, pool_info, query_pools,
 };
-use itertools::Itertools;
 
 /// Exposes all the queries available in the contract.
 ///
@@ -211,7 +213,7 @@ fn query_cumulative_prices(
     let pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
 
     let xs = pools.iter().map(|asset| asset.amount).collect_vec();
-    let (_, last_real_price) = calc_last_prices(&xs, &config, &env)?;
+    let last_real_price = calc_last_prices(&xs, &config, &env)?;
 
     accumulate_prices(&env, &mut config, last_real_price);
 
