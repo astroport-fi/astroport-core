@@ -14,12 +14,12 @@ use astroport_circular_buffer::error::BufferResult;
 use astroport_circular_buffer::BufferManager;
 use astroport_factory::state::pair_key;
 
-use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, OFFER_PERCENT};
+use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, OFFER_PERCENT, TWO};
 use crate::error::ContractError;
 use crate::math::{calc_d, calc_y};
 use crate::orderbook::state::OrderbookState;
 use crate::orderbook::utils::get_subaccount_balances_dec;
-use crate::state::{Config, PoolParams, Precisions, OBSERVATIONS};
+use crate::state::{Config, PoolParams, Precisions, PriceState, OBSERVATIONS};
 
 /// Helper function to check the given asset infos are valid.
 pub(crate) fn check_asset_infos(asset_infos: &[AssetInfo]) -> Result<(), ContractError> {
@@ -475,12 +475,13 @@ pub fn calc_provide_fee(
     deviation * params.fee(xp) / (sum * N)
 }
 
-/// This is an internal function that enforces slippage tolerance for swaps.
+/// This is an internal function that enforces slippage tolerance for provides. Returns actual slippage.
 pub fn assert_slippage_tolerance(
-    old_price: Decimal256,
-    new_price: Decimal256,
+    deposits: &[Decimal256],
+    actual_share: Decimal256,
+    price_state: &PriceState,
     slippage_tolerance: Option<Decimal>,
-) -> Result<(), ContractError> {
+) -> Result<Decimal256, ContractError> {
     let slippage_tolerance = slippage_tolerance
         .map(Into::into)
         .unwrap_or(DEFAULT_SLIPPAGE);
@@ -488,12 +489,17 @@ pub fn assert_slippage_tolerance(
         return Err(ContractError::AllowedSpreadAssertion {});
     }
 
-    // Ensure price was not changed more than the slippage tolerance allows
-    if Decimal256::one().diff(new_price / old_price) > slippage_tolerance {
+    let deposit_value = deposits[0] + deposits[1] * price_state.price_scale;
+    let lp_expected = (deposit_value / TWO * deposit_value / (TWO * price_state.price_scale))
+        .sqrt()
+        / price_state.xcp_profit_real;
+    let slippage = lp_expected.saturating_sub(actual_share) / lp_expected;
+
+    if slippage > slippage_tolerance {
         return Err(ContractError::MaxSpreadAssertion {});
     }
 
-    Ok(())
+    Ok(slippage)
 }
 
 /// Checks whether the pair is registered in the factory or not.

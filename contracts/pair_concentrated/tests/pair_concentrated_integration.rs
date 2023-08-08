@@ -1475,3 +1475,67 @@ fn provide_withdraw_provide() {
         .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.5)))
         .unwrap();
 }
+
+#[test]
+fn provide_withdraw_slippage() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("uluna")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(10f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::from_ratio(10u8, 1u8),
+        ma_half_time: 600,
+        track_asset_balances: None,
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    // Fully balanced provide
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(10_000000u128),
+        helper.assets[&test_coins[1]].with_balance(1_000000u128),
+    ];
+    helper
+        .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.02)))
+        .unwrap();
+
+    // Imbalanced provide. Slippage is more than 2% while we enforce 2% max slippage
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(5_000000u128),
+        helper.assets[&test_coins[1]].with_balance(1_000000u128),
+    ];
+    let err = helper
+        .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.02)))
+        .unwrap_err();
+    assert_eq!(
+        ContractError::MaxSpreadAssertion {},
+        err.downcast().unwrap(),
+    );
+    // With 3% slippage it should work
+    helper
+        .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.03)))
+        .unwrap();
+
+    // Provide with a huge imbalance. Slippage is ~42.2%
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(1000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(1000_000000u128),
+    ];
+    let err = helper
+        .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.02)))
+        .unwrap_err();
+    assert_eq!(
+        ContractError::MaxSpreadAssertion {},
+        err.downcast().unwrap(),
+    );
+    helper
+        .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.5)))
+        .unwrap();
+}
