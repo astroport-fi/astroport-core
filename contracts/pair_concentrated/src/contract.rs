@@ -476,10 +476,7 @@ pub fn provide_liquidity(
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
-    let (mut old_price, mut old_real_price) = (
-        config.pool_state.price_state.last_price,
-        config.pool_state.price_state.last_price,
-    );
+    let old_real_price = config.pool_state.price_state.last_price;
 
     let share = if total_share.is_zero() {
         let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
@@ -507,7 +504,6 @@ pub fn provide_liquidity(
         mint_amount
     } else {
         let mut old_xp = pools.iter().map(|a| a.amount).collect_vec();
-        (old_price, old_real_price) = calc_last_prices(&old_xp, &config, &env)?;
         old_xp[1] *= config.pool_state.price_state.price_scale;
         let old_d = calc_d(&old_xp, &amp_gamma)?;
         let share = (total_share * new_d / old_d).saturating_sub(total_share);
@@ -529,18 +525,18 @@ pub fn provide_liquidity(
         deposits[1].diff(balanced_share[1]),
     ];
 
-    let tmp_xp = vec![
-        new_xp[0],
-        new_xp[1] / config.pool_state.price_state.price_scale,
-    ];
-    let (new_price, _) = calc_last_prices(&tmp_xp, &config, &env)?;
+    let mut slippage = Decimal256::zero();
 
-    // if assets_diff[1] is zero then deposits are balanced thus no need to update price
+    // if assets_diff[1] is zero then deposits are balanced thus no need to update price and check slippage
     if !assets_diff[1].is_zero() {
+        slippage = assert_slippage_tolerance(
+            &deposits,
+            share,
+            &config.pool_state.price_state,
+            slippage_tolerance,
+        )?;
+
         let last_price = assets_diff[0] / assets_diff[1];
-
-        assert_slippage_tolerance(old_price, new_price, slippage_tolerance)?;
-
         config.pool_state.update_price(
             &config.pool_params,
             &env,
@@ -588,6 +584,7 @@ pub fn provide_liquidity(
         attr("receiver", receiver),
         attr("assets", format!("{}, {}", &assets[0], &assets[1])),
         attr("share", share_uint128),
+        attr("slippage", slippage.to_string()),
     ];
 
     Ok(Response::new().add_messages(messages).add_attributes(attrs))
@@ -742,7 +739,7 @@ fn swap(
     before_swap_check(&pools, offer_asset_dec.amount)?;
 
     let mut xs = pools.iter().map(|asset| asset.amount).collect_vec();
-    let (_, old_real_price) = calc_last_prices(&xs, &config, &env)?;
+    let old_real_price = calc_last_prices(&xs, &config, &env)?;
 
     // Get fee info from the factory
     let fee_info = query_fee_info(
@@ -779,7 +776,7 @@ fn swap(
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
 
-    let (last_price, _) = swap_result.calc_last_prices(offer_asset_dec.amount, offer_ind);
+    let last_price = swap_result.calc_last_prices(offer_asset_dec.amount, offer_ind);
 
     // update_price() works only with internal representation
     xs[1] *= config.pool_state.price_state.price_scale;
@@ -903,7 +900,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
             "1.0.0" | "1.1.0" | "1.1.1" | "1.1.2" => migrate_config(deps.storage)?,
             "1.1.4" => migrate_config_from_v140(deps.storage)?,
-            "1.2.0" | "1.2.1" | "1.2.2" => {}
+            "1.2.0" | "1.2.1" | "1.2.2" | "1.2.4" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

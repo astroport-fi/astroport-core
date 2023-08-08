@@ -10,10 +10,12 @@ use astroport::cosmwasm_ext::AbsDiff;
 use astroport::querier::{query_factory_config, query_supply};
 use astroport_factory::state::pair_key;
 
-use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, OFFER_PERCENT, TWAP_PRECISION_DEC};
+use crate::consts::{
+    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, OFFER_PERCENT, TWAP_PRECISION_DEC, TWO,
+};
 use crate::error::ContractError;
 use crate::math::{calc_d, calc_y};
-use crate::state::{Config, PoolParams, Precisions};
+use crate::state::{Config, PoolParams, Precisions, PriceState};
 
 /// Helper function to check the given asset infos are valid.
 pub(crate) fn check_asset_infos(
@@ -239,45 +241,28 @@ pub struct SwapResult {
 }
 
 impl SwapResult {
-    /// Calculates **last price** and **last real price**.
-    /// Returns (last_price, last_real_price) where:
-    /// - last_price is a price for repeg algo,
-    /// - last_real_price is a real price occurred for user.
-    pub fn calc_last_prices(
-        &self,
-        offer_amount: Decimal256,
-        offer_ind: usize,
-    ) -> (Decimal256, Decimal256) {
+    /// Calculates and returns **last price** where:
+    /// - last_price is a price for repeg algo
+    pub fn calc_last_prices(&self, offer_amount: Decimal256, offer_ind: usize) -> Decimal256 {
         if offer_ind == 0 {
-            (
-                offer_amount / (self.dy + self.maker_fee),
-                offer_amount / (self.dy + self.total_fee),
-            )
+            offer_amount / (self.dy + self.maker_fee)
         } else {
-            (
-                (self.dy + self.maker_fee) / offer_amount,
-                (self.dy + self.total_fee) / offer_amount,
-            )
+            (self.dy + self.maker_fee) / offer_amount
         }
     }
 }
 
 /// Performs swap simulation to calculate price.
-pub fn calc_last_prices(
-    xs: &[Decimal256],
-    config: &Config,
-    env: &Env,
-) -> StdResult<(Decimal256, Decimal256)> {
+pub fn calc_last_prices(xs: &[Decimal256], config: &Config, env: &Env) -> StdResult<Decimal256> {
     let mut offer_amount = Decimal256::one().min(xs[0] * OFFER_PERCENT);
     if offer_amount.is_zero() {
         offer_amount = Decimal256::raw(1u128);
     }
 
-    let (last_price, last_real_price) =
-        compute_swap(xs, offer_amount, 1, config, env, Decimal256::zero())?
-            .calc_last_prices(offer_amount, 0);
+    let last_price = compute_swap(xs, offer_amount, 1, config, env, Decimal256::zero())?
+        .calc_last_prices(offer_amount, 0);
 
-    Ok((last_price, last_real_price))
+    Ok(last_price)
 }
 
 /// Calculate swap result.
@@ -417,12 +402,13 @@ pub fn calc_provide_fee(
     deposits[0].diff(avg) * params.fee(xp) / sum
 }
 
-/// This is an internal function that enforces slippage tolerance for swaps.
+/// This is an internal function that enforces slippage tolerance for provides. Returns actual slippage.
 pub fn assert_slippage_tolerance(
-    old_price: Decimal256,
-    new_price: Decimal256,
+    deposits: &[Decimal256],
+    actual_share: Decimal256,
+    price_state: &PriceState,
     slippage_tolerance: Option<Decimal>,
-) -> Result<(), ContractError> {
+) -> Result<Decimal256, ContractError> {
     let slippage_tolerance = slippage_tolerance
         .map(Into::into)
         .unwrap_or(DEFAULT_SLIPPAGE);
@@ -430,12 +416,17 @@ pub fn assert_slippage_tolerance(
         return Err(ContractError::AllowedSpreadAssertion {});
     }
 
-    // Ensure price was not changed more than the slippage tolerance allows
-    if Decimal256::one().diff(new_price / old_price) > slippage_tolerance {
+    let deposit_value = deposits[0] + deposits[1] * price_state.price_scale;
+    let lp_expected = (deposit_value / TWO * deposit_value / (TWO * price_state.price_scale))
+        .sqrt()
+        / price_state.xcp_profit_real;
+    let slippage = lp_expected.saturating_sub(actual_share) / lp_expected;
+
+    if slippage > slippage_tolerance {
         return Err(ContractError::MaxSpreadAssertion {});
     }
 
-    Ok(())
+    Ok(slippage)
 }
 
 // Checks whether the pair is registered in the factory or not.
