@@ -421,7 +421,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated"
-version = "2.0.4"
+version = "2.0.5"
 dependencies = [
  "anyhow",
  "astroport",
@@ -444,7 +444,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated-injective"
-version = "2.0.4"
+version = "2.0.5"
 dependencies = [
  "anyhow",
  "astroport",

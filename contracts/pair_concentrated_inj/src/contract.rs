@@ -41,9 +41,8 @@ use crate::state::{
 };
 use crate::utils::{
     accumulate_swap_sizes, assert_max_spread, assert_slippage_tolerance, before_swap_check,
-    calc_last_prices, calc_provide_fee, check_asset_infos, check_assets, check_pair_registered,
-    compute_swap, get_share_in_assets, mint_liquidity_token_message, query_contract_balances,
-    query_pools,
+    calc_provide_fee, check_asset_infos, check_assets, check_pair_registered, compute_swap,
+    get_share_in_assets, mint_liquidity_token_message, query_contract_balances, query_pools,
 };
 
 /// Contract name that is used for migration.
@@ -479,7 +478,6 @@ where
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
-    let mut old_price = config.pool_state.price_state.last_price;
 
     let share = if total_share.is_zero() {
         let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
@@ -507,7 +505,6 @@ where
         mint_amount
     } else {
         let mut old_xp = xs.clone();
-        old_price = calc_last_prices(&old_xp, &config, &env)?;
         old_xp[1] *= config.pool_state.price_state.price_scale;
         let old_d = calc_d(&old_xp, &amp_gamma)?;
         let share = (total_share * new_d / old_d).saturating_sub(total_share);
@@ -529,18 +526,18 @@ where
         deposits[1].diff(balanced_share[1]),
     ];
 
+    let mut slippage = Decimal256::zero();
+
     // if assets_diff[1] is zero then deposits are balanced thus no need to update price
     if !assets_diff[1].is_zero() {
+        slippage = assert_slippage_tolerance(
+            &deposits,
+            share,
+            &config.pool_state.price_state,
+            slippage_tolerance,
+        )?;
+
         let last_price = assets_diff[0] / assets_diff[1];
-
-        let tmp_xp = vec![
-            new_xp[0],
-            new_xp[1] / config.pool_state.price_state.price_scale,
-        ];
-        let new_price = calc_last_prices(&tmp_xp, &config, &env)?;
-
-        assert_slippage_tolerance(old_price, new_price, slippage_tolerance)?;
-
         config.pool_state.update_price(
             &config.pool_params,
             &env,
@@ -574,6 +571,7 @@ where
         attr("receiver", receiver),
         attr("assets", format!("{}, {}", &assets[0], &assets[1])),
         attr("share", share_uint128),
+        attr("slippage", slippage.to_string()),
     ];
 
     Ok(Response::new().add_messages(messages).add_attributes(attrs))
