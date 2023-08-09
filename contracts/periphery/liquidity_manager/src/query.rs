@@ -1,42 +1,50 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, Env, StdError, StdResult};
+use cosmwasm_std::{to_binary, Binary, Deps, Env, StdError, StdResult, Uint128};
 
-use crate::error::ContractError;
 use astroport::asset::{Asset, PairInfo};
 use astroport::factory::PairType;
-use astroport::liquidity_manager::{QueryMsg, SimulateMessage};
+use astroport::liquidity_manager::QueryMsg;
 use astroport::pair::{ExecuteMsg as PairExecuteMsg, QueryMsg as PairQueryMsg};
 use astroport::querier::query_supply;
 use astroport_pair::contract::get_share_in_assets;
 
+use crate::error::ContractError;
 use crate::utils::{stableswap_provide_simulation, xyk_provide_simulation};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Simulate {
+        QueryMsg::SimulateProvide {
             pair_addr,
-            pair_msg: msg,
-        } => simulate(deps, env, pair_addr, msg),
+            pair_msg,
+        } => simulate_provide(deps, env, pair_addr, pair_msg),
+        QueryMsg::SimulateWithdraw {
+            pair_addr,
+            lp_tokens,
+        } => simulate_withdraw(deps, pair_addr, lp_tokens),
     }
 }
 
-fn simulate(deps: Deps, env: Env, pair_addr: String, msg: SimulateMessage) -> StdResult<Binary> {
-    let pair_addr = deps.api.addr_validate(&pair_addr)?;
-
+fn simulate_provide(
+    deps: Deps,
+    env: Env,
+    pair_addr: String,
+    msg: PairExecuteMsg,
+) -> StdResult<Binary> {
     match msg {
-        SimulateMessage::Provide(PairExecuteMsg::ProvideLiquidity {
+        PairExecuteMsg::ProvideLiquidity {
             mut assets,
             slippage_tolerance,
             ..
-        }) => {
+        } => {
             if assets.len() != 2 {
                 return Err(StdError::generic_err(format!(
                     "{}",
                     ContractError::WrongPoolLength {}
                 )));
             }
+            let pair_addr = deps.api.addr_validate(&pair_addr)?;
             let pair_info: PairInfo = deps
                 .querier
                 .query_wasm_smart(&pair_addr, &PairQueryMsg::Pair {})?;
@@ -103,38 +111,43 @@ fn simulate(deps: Deps, env: Env, pair_addr: String, msg: SimulateMessage) -> St
                 PairType::Custom(..) => unimplemented!("not implemented yet"),
             }
         }
-        SimulateMessage::Withdraw { lp_tokens } => {
-            let assets: Vec<Asset> = deps
-                .querier
-                .query_wasm_smart(&pair_addr, &PairQueryMsg::Share { amount: lp_tokens })?;
-
-            if assets.len() != 2 {
-                return Err(StdError::generic_err(format!(
-                    "{}",
-                    ContractError::WrongPoolLength {}
-                )));
-            }
-
-            to_binary(&assets)
-        }
         _ => Err(StdError::generic_err("Invalid simulate message")),
     }
 }
 
+fn simulate_withdraw(deps: Deps, pair_addr: String, lp_tokens: Uint128) -> StdResult<Binary> {
+    let pair_addr = deps.api.addr_validate(&pair_addr)?;
+    let assets: Vec<Asset> = deps
+        .querier
+        .query_wasm_smart(pair_addr, &PairQueryMsg::Share { amount: lp_tokens })?;
+
+    if assets.len() != 2 {
+        return Err(StdError::generic_err(format!(
+            "{}",
+            ContractError::WrongPoolLength {}
+        )));
+    }
+
+    to_binary(&assets)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::str::FromStr;
+
+    use cosmwasm_std::{Addr, Decimal};
+
     use astroport::asset::{native_asset_info, token_asset_info, AssetInfoExt};
     use astroport::liquidity_manager::{Cw20HookMsg, ExecuteMsg};
     use astroport::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg};
-    use cosmwasm_std::{Addr, Decimal};
-    use std::str::FromStr;
+
+    use super::*;
 
     #[test]
     fn generate_query_msg_examples() {
-        let provide_query_msg = QueryMsg::Simulate {
+        let provide_query_msg = QueryMsg::SimulateProvide {
             pair_addr: "wasm1...addr".to_string(),
-            pair_msg: SimulateMessage::Provide(PairExecuteMsg::ProvideLiquidity {
+            pair_msg: PairExecuteMsg::ProvideLiquidity {
                 assets: vec![
                     native_asset_info("uusd".to_string()).with_balance(100000u128),
                     token_asset_info(Addr::unchecked("wasm1...cw20address".to_string()))
@@ -143,7 +156,7 @@ mod tests {
                 slippage_tolerance: Some(Decimal::from_str("0.02").unwrap()),
                 auto_stake: Some(true),
                 receiver: Some("wasm1...addr".to_string()),
-            }),
+            },
         };
 
         println!(
@@ -151,11 +164,9 @@ mod tests {
             serde_json::to_string_pretty(&provide_query_msg).unwrap()
         );
 
-        let withdraw_query_msg = QueryMsg::Simulate {
+        let withdraw_query_msg = QueryMsg::SimulateWithdraw {
             pair_addr: "wasm1...addr".to_string(),
-            pair_msg: SimulateMessage::Withdraw {
-                lp_tokens: 1000u16.into(),
-            },
+            lp_tokens: 1000u16.into(),
         };
 
         println!(
